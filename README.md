@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="internal/miniapp/static/assets/brand-mark.png" width="112" alt="Link-Bot">
+  <img src="docs/readme-banner.webp" width="100%" alt="Интерфейс Link-Bot">
   <h1>Link-Bot</h1>
   <p><b>Telegram-бот и mini app для продажи и управления VPN-подписками Remnawave.</b></p>
 

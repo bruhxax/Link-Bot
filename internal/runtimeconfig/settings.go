@@ -333,7 +333,7 @@ func DefaultSettings() Settings {
 				"accent":         "#ba173d",
 				"success":        "#2da44e",
 				"danger":         "#f85149",
-				"unlimitedBadge": "#2da44e",
+				"unlimitedBadge": "#949494",
 			},
 		},
 		Layout: LayoutSettings{
@@ -357,17 +357,7 @@ func DefaultSettings() Settings {
 }
 
 func defaultPlans() []PlanSettings {
-	internalSquads := uuidMapStrings(config.SquadUUIDs())
-	externalSquad := uuidString(config.ExternalSquadUUID())
-	return []PlanSettings{
-		{ID: "1m", Enabled: true, Months: 1, TitleRU: "1 месяц", TitleEN: "1 month", PriceRub: config.Price1(), TrafficGB: config.TrafficLimitGBForMonths(1), DeviceLimit: config.DeviceLimitForMonths(1), InternalSquadUUIDs: internalSquads, ExternalSquadUUID: externalSquad},
-		{ID: "1m_unlimited", Enabled: true, Months: 1, TitleRU: "1 месяц", TitleEN: "1 month", PriceRub: 170, UnlimitedTraffic: true, DeviceLimit: config.DeviceLimitForMonths(1), InternalSquadUUIDs: internalSquads, ExternalSquadUUID: externalSquad},
-		{ID: "3m", Enabled: true, Months: 3, TitleRU: "3 месяца", TitleEN: "3 months", PriceRub: config.Price3(), TrafficGB: config.TrafficLimitGBForMonths(3), DeviceLimit: config.DeviceLimitForMonths(3), InternalSquadUUIDs: internalSquads, ExternalSquadUUID: externalSquad},
-		{ID: "3m_unlimited", Enabled: true, Months: 3, TitleRU: "3 месяца", TitleEN: "3 months", PriceRub: 320, UnlimitedTraffic: true, DeviceLimit: config.DeviceLimitForMonths(3), InternalSquadUUIDs: internalSquads, ExternalSquadUUID: externalSquad},
-		{ID: "6m", Enabled: true, Months: 6, TitleRU: "6 месяцев", TitleEN: "6 months", PriceRub: config.Price6(), TrafficGB: config.TrafficLimitGBForMonths(6), DeviceLimit: config.DeviceLimitForMonths(6), InternalSquadUUIDs: internalSquads, ExternalSquadUUID: externalSquad},
-		{ID: "6m_unlimited", Enabled: true, Months: 6, TitleRU: "6 месяцев", TitleEN: "6 months", PriceRub: 430, UnlimitedTraffic: true, DeviceLimit: config.DeviceLimitForMonths(6), InternalSquadUUIDs: internalSquads, ExternalSquadUUID: externalSquad},
-		{ID: "12m", Enabled: true, Months: 12, TitleRU: "12 месяцев", TitleEN: "12 months", PriceRub: config.Price12(), UnlimitedTraffic: true, DeviceLimit: 0, Wide: true, InternalSquadUUIDs: internalSquads, ExternalSquadUUID: externalSquad},
-	}
+	return []PlanSettings{}
 }
 
 func uuidMapStrings(values map[uuid.UUID]uuid.UUID) []string {

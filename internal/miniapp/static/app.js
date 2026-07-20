@@ -686,15 +686,7 @@ const previewPayload = {
       { id: 302, months: 1, planLabel: "Месяц", amount: 89, currency: "RUB", status: "paid", invoiceType: "yookassa", paymentMethodTitle: "Visa **** 4242", isAutoPayment: true, createdAt: new Date(Date.now() - 2 * 86400000).toISOString(), paidAt: new Date(Date.now() - 2 * 86400000).toISOString() },
     ],
   },
-  plans: [
-    { id: "1m", months: 1, priceRub: 89, priceStars: 69, trafficLimitBytes: 161061273600, deviceLimitCount: 5, variant: "regular", savingsPercent: 0, recommended: false },
-    { id: "1m_unlimited", months: 1, priceRub: 170, priceStars: 0, trafficLimitBytes: 0, deviceLimitCount: 5, variant: "unlimited", savingsPercent: 0, recommended: false },
-    { id: "3m", months: 3, priceRub: 239, priceStars: 189, trafficLimitBytes: 536870912000, deviceLimitCount: 7, variant: "regular", savingsPercent: 10, recommended: true },
-    { id: "3m_unlimited", months: 3, priceRub: 320, priceStars: 0, trafficLimitBytes: 0, deviceLimitCount: 7, variant: "unlimited", savingsPercent: 0, recommended: false },
-    { id: "6m", months: 6, priceRub: 350, priceStars: 300, trafficLimitBytes: 1073741824000, deviceLimitCount: 10, variant: "regular", savingsPercent: 16, recommended: false },
-    { id: "6m_unlimited", months: 6, priceRub: 430, priceStars: 0, trafficLimitBytes: 0, deviceLimitCount: 10, variant: "unlimited", savingsPercent: 19, recommended: false },
-    { id: "12m", months: 12, priceRub: 700, priceStars: 550, trafficLimitBytes: 0, deviceLimitCount: 0, variant: "regular", savingsPercent: 34, recommended: false, wide: true },
-  ],
+  plans: [],
   paymentMethods: [{ id: "sbp" }, { id: "card" }, { id: "stars" }, { id: "crypto" }],
   links: { support: "https://t.me/your_support_username", channel: "https://t.me/your_channel_username" },
   servers: { items: [
@@ -1206,7 +1198,7 @@ function buildPreviewRuntimeSettings() {
 			startMenu: { trialButton: { text: "Попробовать бесплатно", iconCustomEmojiId: "5276422526350681413", style: "" }, dashboardButton: { text: "Личный кабинет", iconCustomEmojiId: "5278413853577734640", style: "" }, plansButton: { text: "Тарифы", iconCustomEmojiId: "5206626000665868017", style: "" }, supportButton: { text: "Чат с поддержкой", iconCustomEmojiId: "5206222720416643915", style: "" } },
 			commerce: { banner: "", tariffsText: "", paymentMethodsText: "", paymentReadyText: "", yookassaButton: { text: "СБП | Карта", iconCustomEmojiId: "5192678313415434135", style: "" }, cryptoButton: { text: "CryptoPay", iconCustomEmojiId: "5195058841988914267", style: "" }, starsButton: { text: "Telegram Stars", iconCustomEmojiId: "5242644275014951846", style: "" }, payButton: { text: "Оплатить", iconCustomEmojiId: "5206401524200145033", style: "" }, backButton: { text: "Назад", iconCustomEmojiId: "5877629862306385808", style: "" }, successText: "", successBanner: "", successButton: { text: "Личный кабинет", iconCustomEmojiId: "5278413853577734640", style: "" } },
 		},
-		appearance: { backgroundMode: "animated", compact: true, showFrames: true, colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#2da44e" } },
+		appearance: { backgroundMode: "animated", compact: true, showFrames: true, colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, priceRub: plan.priceRub, priceStars: plan.priceStars, trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], externalSquadUuid: "" })),
 		trial: { enabled: true, days: 3, trafficGb: 10, unlimitedTraffic: false, deviceLimit: 5, internalSquadUuids: [], externalSquadUuid: "", trafficResetStrategy: "MONTH", tag: "" },
@@ -6468,7 +6460,7 @@ function applyAppearance() {
 	const appearance = getRuntimeSettings()?.appearance || {};
 	const colors = appearance.colors || {};
 	const accentColor = colors.accent || PALETTE.accent.accent;
-	const unlimitedBadgeColor = colors.unlimitedBadge || colors.success || "#2da44e";
+	const unlimitedBadgeColor = colors.unlimitedBadge || "#949494";
 	const accent = {
 		accent: accentColor,
 		strong: accentColor,

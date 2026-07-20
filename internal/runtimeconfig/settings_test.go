@@ -7,13 +7,27 @@ import (
 
 func TestNormalizeAndValidatePreservesPlanOrder(t *testing.T) {
 	settings := DefaultSettings()
+	settings.Plans = []PlanSettings{
+		{ID: "custom_a", Enabled: true, Months: 1, PriceRub: 100},
+		{ID: "custom_b", Enabled: true, Months: 2, PriceRub: 200},
+	}
 	settings.Plans[0], settings.Plans[1] = settings.Plans[1], settings.Plans[0]
 
 	if err := NormalizeAndValidate(&settings); err != nil {
 		t.Fatalf("NormalizeAndValidate() error = %v", err)
 	}
-	if settings.Plans[0].ID != "1m_unlimited" || settings.Plans[1].ID != "1m" {
+	if settings.Plans[0].ID != "custom_b" || settings.Plans[1].ID != "custom_a" {
 		t.Fatalf("plan order was not preserved: %s, %s", settings.Plans[0].ID, settings.Plans[1].ID)
+	}
+}
+
+func TestDefaultSettingsStartsWithoutPlans(t *testing.T) {
+	settings := DefaultSettings()
+	if len(settings.Plans) != 0 {
+		t.Fatalf("default plans length = %d, want 0", len(settings.Plans))
+	}
+	if got := settings.Appearance.Colors["unlimitedBadge"]; got != "#949494" {
+		t.Fatalf("default unlimited badge color = %q, want #949494", got)
 	}
 }
 
@@ -222,8 +236,8 @@ func TestNormalizeAndValidateAddsUnlimitedBadgeColor(t *testing.T) {
 		t.Fatalf("NormalizeAndValidate() error = %v", err)
 	}
 
-	if got := settings.Appearance.Colors["unlimitedBadge"]; got != "#2da44e" {
-		t.Fatalf("unlimitedBadge = %q, want #2da44e", got)
+	if got := settings.Appearance.Colors["unlimitedBadge"]; got != "#949494" {
+		t.Fatalf("unlimitedBadge = %q, want #949494", got)
 	}
 }
 

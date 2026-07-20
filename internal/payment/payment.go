@@ -12,6 +12,15 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	remapi "github.com/Jolymmiles/remnawave-api-go/v2/api"
+	"github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
+	"github.com/google/uuid"
+
 	"link-bot/internal/cache"
 	"link-bot/internal/config"
 	"link-bot/internal/cryptopay"
@@ -24,14 +33,6 @@ import (
 	"link-bot/internal/translation"
 	"link-bot/internal/yookasa"
 	"link-bot/utils"
-	"strings"
-	"sync"
-	"time"
-
-	remapi "github.com/Jolymmiles/remnawave-api-go/v2/api"
-	"github.com/go-telegram/bot"
-	"github.com/go-telegram/bot/models"
-	"github.com/google/uuid"
 )
 
 var trialActivationLocks sync.Map
@@ -207,12 +208,20 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 		return err
 	}
 
-	err = s.sendSubscriptionActivatedMessage(ctx, customer)
-	if err != nil {
-		return err
-	}
+	// The payment notification must not depend on Telegram accepting the
+	// customer-facing confirmation message. This is especially important for
+	// Stars, whose successful-payment update is the only confirmation callback.
+	s.notifyAdminAboutPayment(ctx, purchase, customer)
 
-	go s.notifyAdminAboutPayment(ctx, purchase, customer)
+	if err = s.sendSubscriptionActivatedMessage(ctx, customer); err != nil {
+		slog.Error(
+			"payment: subscription activated, but customer notification failed",
+			"error", err,
+			"purchase_id", utils.MaskHalfInt64(purchase.ID),
+			"invoice_type", purchase.InvoiceType,
+			"telegram_id", utils.MaskHalfInt64(customer.TelegramID),
+		)
+	}
 
 	slog.Info("checking conditions for Moynalog receipt", "invoice_type", purchase.InvoiceType, "moynalog_client", s.moynalogClient != nil)
 	if purchase.InvoiceType == database.InvoiceTypeYookasa && s.moynalogClient != nil {
