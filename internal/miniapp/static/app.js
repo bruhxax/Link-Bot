@@ -614,8 +614,19 @@ function refreshAfterPossibleGoogleLink() {
 }
 
 const PENDING_PAYMENT_KEY = "link-bot-pending-payment";
-const BRAND_MARK_URL = "/mini-app/assets/brand-mark.png";
+const STATIC_ASSET_REV = "20260720-brand2";
+const BRAND_MARK_PATH = "/mini-app/assets/brand-mark.png";
+const BRAND_MARK_URL = `${BRAND_MARK_PATH}?v=${STATIC_ASSET_REV}`;
 const FAQ_ICON_URL = "/mini-app/assets/faq-icon.png";
+
+function resolveBrandMarkURL(value) {
+  const url = String(value || "").trim();
+  if (!url || url === BRAND_MARK_PATH || url.startsWith(`${BRAND_MARK_PATH}?`)) {
+    return BRAND_MARK_URL;
+  }
+  return url;
+}
+
 const PAYMENT_LOGO_URLS = Object.freeze({
   sbp: "/mini-app/assets/payment-sbp.png",
   card: "/mini-app/assets/payment-card.png",
@@ -648,7 +659,7 @@ const PALETTE = {
 };
 
 const previewPayload = {
-  brand: { name: "Link-Bot", logoUrl: "/mini-app/assets/brand-mark.png" },
+  brand: { name: "Link-Bot", logoUrl: BRAND_MARK_URL },
   user: { id: 777777, firstName: "Link", username: "linkbot", panelUsername: "", photoUrl: "", languageCode: "ru", authProvider: "telegram", googleEmail: "", googleLinked: false, telegramLinked: true },
   subscription: { status: "active", daysLeft: 26724, planMonths: 12, userUuid: "00000000-0000-0000-0000-000000000001", expiresAt: new Date(Date.now() + 26724 * 86400000).toISOString(), subscriptionLink: "https://example.com/sub/link-bot/secure-link", hasAccessLink: true, trafficUsedBytes: 0, trafficLimitBytes: 0, deviceUsedCount: 1, deviceLimitCount: 0, devices: [{ hwid: "demo-hwid-1", platform: "iOS", osVersion: "18.4", deviceModel: "iPhone 16", userAgent: "Happ/4.6.0/ios", createdAt: new Date(Date.now() - 86400000).toISOString(), updatedAt: new Date().toISOString() }] },
   trial: { enabled: true, eligible: false, days: 2 },
@@ -2675,7 +2686,7 @@ function renderAdminLayoutNode(entry) {
 function renderAdminLayoutPreview(item, label, iconName) {
 	const key = `${item.area}:${item.id}`;
 	if (key === "dashboard:brand") {
-		const logo = state.data?.brand?.logoUrl || state.adminSettingsDraft?.content?.logoUrl || BRAND_MARK_URL;
+		const logo = resolveBrandMarkURL(state.data?.brand?.logoUrl || state.adminSettingsDraft?.content?.logoUrl);
 		return `<div class="admin-ui-preview-brand"><img src="${escapeAttribute(logo)}" alt=""><span>@Testmy_lbot</span></div>`;
 	}
 	if (key === "dashboard:subscription") return `<div class="admin-ui-preview-sub"><strong>6 \u043c\u0435\u0441\u044f\u0446\u0435\u0432</strong><span>\u0414\u043e 17.01.27</span><div><i>120 / 500 GB</i><i>2 / 10</i></div></div>`;
@@ -2963,7 +2974,7 @@ function renderDashboardPage() {
 	const actionStack = `<div class="action-stack action-stack--dashboard">${renderLayoutDetail("dashboard", "primary_action", primaryAction, "runtime-detail-item--action")}${secondaryAction ? renderLayoutDetail("dashboard", "secondary_action", secondaryAction, "runtime-detail-item--action") : ""}</div>`;
 
 	const blocks = {
-		brand: `<div class="hero-center hero-center--brand">${renderLayoutDetail("dashboard", "logo", `<div class="hero-brand" style="--runtime-logo-width:${Math.max(48, Math.min(220, Number(getRuntimeSettings()?.layout?.logoWidth || 188)))}px"><img src="${escapeAttribute(state.data.brand.logoUrl || BRAND_MARK_URL)}" alt="${escapeAttribute(state.data.brand.name || "Link-Bot")}" loading="eager"></div>`, "runtime-detail-item--logo")}${renderLayoutDetail("dashboard", "username", `<div class="hero-handle">${escapeHtml(avatarLabel)}</div>`, "runtime-detail-item--username")}</div>`,
+		brand: `<div class="hero-center hero-center--brand">${renderLayoutDetail("dashboard", "logo", `<div class="hero-brand" style="--runtime-logo-width:${Math.max(48, Math.min(220, Number(getRuntimeSettings()?.layout?.logoWidth || 188)))}px"><img src="${escapeAttribute(resolveBrandMarkURL(state.data.brand.logoUrl))}" alt="${escapeAttribute(state.data.brand.name || "Link-Bot")}" loading="eager"></div>`, "runtime-detail-item--logo")}${renderLayoutDetail("dashboard", "username", `<div class="hero-handle">${escapeHtml(avatarLabel)}</div>`, "runtime-detail-item--username")}</div>`,
 		subscription: `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", `<div class="sub-bar__name">${title}</div>`, "runtime-detail-item--status")}${active ? renderLayoutDetail("dashboard", "expires", `<div class="sub-bar__date"><span class="sub-bar__date-icon">${icon("calendarDays")}</span><span>${expires}</span></div>`, "runtime-detail-item--status") : ""}</div>${active ? `<div class="sub-bar__row sub-bar__row--pills">${trafficLabel ? renderLayoutDetail("dashboard", "traffic", `<span class="sub-pill"><span class="sub-pill__icon">${icon("chartLine")}</span><span>${escapeHtml(trafficLabel)}</span></span>`, "runtime-detail-item--pill") : ""}${deviceLabel ? renderLayoutDetail("dashboard", "devices", `<button class="sub-pill sub-pill--button" type="button" data-action="open-devices-modal"><span>${escapeHtml(deviceLabel)}</span><span class="sub-pill__edit">${icon("userPen")}</span></button>`, "runtime-detail-item--pill") : ""}</div>` : ""}</div></div></div>`,
 		actions: `<div class="dashboard-compact">${actionStack}</div>`,
 	};
@@ -3494,7 +3505,7 @@ function renderStateScreen(kind, message = "", meta = null) {
     return `
       <div class="state-screen state-screen--browser-auth">
         <section class="browser-auth" aria-labelledby="browser-auth-title">
-          <img class="browser-auth__logo" src="/mini-app/assets/brand-mark.png" alt="Link-Bot">
+          <img class="browser-auth__logo" src="${BRAND_MARK_URL}" alt="Link-Bot">
           <div class="browser-auth__eyebrow">Link-Bot Web</div>
           <h1 class="browser-auth__title" id="browser-auth-title">${escapeHtml(copy.title)}</h1>
           <p class="browser-auth__text">${escapeHtml(copy.text)}</p>

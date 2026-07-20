@@ -180,9 +180,11 @@ docker compose start
 ### Обновление
 
 ```bash
-git pull
-docker compose up -d --build --remove-orphans
+git pull --ff-only
+docker compose up -d --build --force-recreate --remove-orphans
 ```
+
+Обновление сохраняет базу данных и настройки из админки. Уже созданные тарифы, оформление и интеграции не сбрасываются на новые значения по умолчанию.
 
 ### Резервная копия базы
 

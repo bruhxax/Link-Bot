@@ -321,7 +321,7 @@ func googleLinkCallbackHTML() string {
 </head>
 <body>
   <main class="card" aria-live="polite">
-    <div class="mark"><img src="/mini-app/assets/brand-mark.png" alt="Link-Bot"></div>
+    <div class="mark"><img src="/mini-app/assets/brand-mark.png?v=20260720-brand2" alt="Link-Bot"></div>
     <div class="eyebrow">Link-Bot</div>
     <h1 id="title">Привязываем Gmail</h1>
     <p id="text">Подождите, завершаем авторизацию Google.</p>
