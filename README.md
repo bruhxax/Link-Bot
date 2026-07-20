@@ -1,5 +1,9 @@
 <div align="center">
 
+<p>
+  <b>Русский</b> · <a href="README_EN.md">English</a>
+</p>
+
 <img src="docs/readme-banner.webp" width="100%" alt="Интерфейс Link-Bot">
 
 # Link-Bot
