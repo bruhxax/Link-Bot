@@ -1,0 +1,1 @@
+ALTER TABLE customer ADD COLUMN language VARCHAR(10) DEFAULT 'en';

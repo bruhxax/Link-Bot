@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="description" content="Link-Bot mini app">
+  <meta name="telegram-bot-username" content="__TELEGRAM_BOT_USERNAME__">
+  <meta name="telegram-bot-id" content="__TELEGRAM_BOT_ID__">
+  <meta name="google-client-id" content="__GOOGLE_CLIENT_ID__">
+  <meta name="application-name" content="Link-Bot">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Link-Bot">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Link-Bot</title>
+  <link rel="icon" href="/mini-app/assets/brand-mark.png">
+  <link rel="apple-touch-icon" href="/mini-app/assets/apple-touch-icon.png">
+  <link rel="manifest" href="/mini-app/manifest.webmanifest">
+  <link rel="modulepreload" href="/mini-app/wave-background.bundle.js?v=20260704wave4">
+  <link rel="stylesheet" href="/mini-app/styles.css?v=20260720-tariff-scroll-v2">
+  <script src="/mini-app/telegram-web-app.js?v=20260703"></script>
+</head>
+<body>
+  <div class="bg-media" aria-hidden="true">
+    <canvas class="bg-media__canvas"></canvas>
+    <div class="bg-media__scrim"></div>
+    <div class="bg-media__fade"></div>
+  </div>
+  <main id="app" aria-live="polite"></main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/mini-app/wave-background.bundle.js?v=20260704wave4"></script>
+  <script type="module" src="/mini-app/app.js?v=20260720-tariff-scroll-v2"></script>
+</body>
+</html>

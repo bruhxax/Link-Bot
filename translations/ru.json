@@ -1,0 +1,70 @@
+{
+  "image_start_url": "",
+  "image_pricing_url": "",
+  "image_connect_url": "https://i.pinimg.com/736x/1f/59/d4/1f59d41b36f22b661914be96a5f863ba.jpg",
+  "image_referral_url": "https://i.pinimg.com/736x/dc/2a/33/dc2a33366229fe456561e3240d672b43.jpg",
+  "image_trial_url": "https://i.pinimg.com/1200x/77/0b/b4/770bb497c2c4d67cddb22a85f7ea8576.jpg",
+
+  "greeting": "<tg-emoji emoji-id=\"5893168654551355607\">☺️</tg-emoji> <b>Link-Bot</b>\n\n<b>Всё теперь находится в Личном кабинете:</b>\n<tg-emoji emoji-id=\"5278305362703835500\">☺️</tg-emoji> <b>подключение и настройка</b>\n<tg-emoji emoji-id=\"5206626000665868017\">☺️</tg-emoji> <b>тарифы и продление</b>\n<tg-emoji emoji-id=\"5278778882848220741\">☺️</tg-emoji> <b>статус серверов</b>\n<tg-emoji emoji-id=\"5206222720416643915\">☺️</tg-emoji> <b>поддержка</b>\n\n<tg-emoji emoji-id=\"5875008416132370818\">☺️</tg-emoji><b>Нажмите кнопку ниже, чтобы открыть личный кабинет</b><tg-emoji emoji-id=\"5875008416132370818\">☺️</tg-emoji>",
+
+  "connect_press": "🔗 Подключится",
+  "connect_button": "⚙️ Подписка",
+  "buy_button": "🚀 Тарифы",
+  "trial_button": "🎁 Пробный период",
+
+  "pricing_title": "💳 Оплата и подписка",
+  "pricing_info": "Выберите подходящий тариф.\n\n<tg-emoji emoji-id='5258200019495821936'>☺️</tg-emoji> Подписка активируется автоматически после оплаты.\n\nДоступные способы оплаты:\n<tg-emoji emoji-id='5258204546391351475'>☺️</tg-emoji> СБП / Карта\n<tg-emoji emoji-id='5257969149408885188'>☺️</tg-emoji> USDT / TON\n<tg-emoji emoji-id='5258165702707125574'>☺️</tg-emoji> Telegram Stars",
+
+  "month_1": "✨ 1 Месяц | 89 ₽",
+  "month_3": "✨ 3 Месяца | 239 ₽ (-10%)",
+  "month_6": "✨ 6 Месяцев | 350 ₽ (-40%)",
+  "month_12": "🔥 1 Год | 700 ₽",
+
+  "pay_button": "Оплатить",
+  "card_button": "💳 СБП | Карта",
+  "crypto_button": "🪙 Криптовалюта",
+  "stars_button": "⭐️ Telegram Stars",
+
+  "subscription_active": "<b>Подписка активна <tg-emoji emoji-id='5206607081334906820'>☺️</tg-emoji></b>\n\n<tg-emoji emoji-id='5258419835922030550'>☺️</tg-emoji> <b>Действует до:</b>\n<blockquote>%s</blockquote>",
+  "subscription_link": "\n<tg-emoji emoji-id='5260730055880876557'>☺️</tg-emoji> <b>Ваша ссылка доступа:</b>\n<code>%s</code>\nНажмите, чтобы скопировать",
+
+  "no_subscription": "<tg-emoji emoji-id='5258474669769497337'>☺️</tg-emoji> <b>Подписка не найдена</b>\n\nВыберите тариф или активируйте пробный период, чтобы получить доступ.",
+
+  "subscription_activated": "<b>Подписка успешно активирована ✅</b>\n\nПриятного и безопасного интернета!",
+
+  "subscription_expiring": "<tg-emoji emoji-id='5251391461244548685'>☺️</tg-emoji> <b>Подписка заканчивается</b>\n\nДата окончания:\n<b>%s</b>\n\nПродлите доступ, чтобы сохранить соединение.",
+  "subscription_expired": "<tg-emoji emoji-id='5251391461244548685'>☺️</tg-emoji> <b>Подписка закончилась</b>\n\nДата окончания:\n<b>%s</b>\n\nВыберите тариф, чтобы восстановить доступ.",
+
+  "renew_subscription_button": "🔄 Продлить подписку",
+
+  "trial_text": "<tg-emoji emoji-id='5255813559572508065'>☺️</tg-emoji> <b>Пробный период</b>\n\nВы можете бесплатно протестировать сервис перед покупкой.\n\n<tg-emoji emoji-id='5258419835922030550'>☺️</tg-emoji> Ограничено по времени.",
+  "activate_trial_button": "🔥 Активировать бесплатно",
+  "trial_activated": "<tg-emoji emoji-id='5357069174512303778'>☺️</tg-emoji> <b>Пробный период активирован!</b>\n\n<tg-emoji emoji-id='5258132936401624790'>☺️</tg-emoji> Оцените скорость и стабильность сервиса.",
+
+  "support_button": "👨‍💻 Поддержка",
+
+  "referral_button": "🥷 Реферальная программа",
+  "referral_text": "<tg-emoji emoji-id='5258513401784573443'>☺️</tg-emoji> <b>Реферальная программа</b>\n\nПриглашено друзей: %d\n\nДелитесь ссылкой и получайте бонусы за каждого нового пользователя.",
+  "share_referral_button": "🔗 Поделиться ссылкой",
+  "referral_bonus_granted": "<tg-emoji emoji-id='5258362837411045098'>☺️</tg-emoji> Вам начислен бонус за приглашённого друга",
+
+  "channel_button": "📢 Новости",
+  "web_app_button_text": "Личный кабинет",
+  "support_chat_button_text": "Чат с поддержкой",
+  "required_channel_subscription_text": "<b>Link-Bot Верификация</b>\n\nЧтобы открыть доступ к боту и mini app, подпишитесь на наш Telegram-канал <b>%s</b>.\n\nТам мы публикуем новости, обновления сервиса, важные изменения и полезные анонсы.\n\nПосле подписки нажмите кнопку ниже.",
+  "required_channel_subscription_confirm_button": "✅ Я подписался",
+  "required_channel_subscription_required_notice": "Подпишитесь на канал, чтобы продолжить",
+  "required_channel_subscription_not_subscribed": "Подписка пока не найдена",
+  "required_channel_subscription_check_failed": "Не удалось проверить подписку. Попробуйте ещё раз",
+  "required_channel_subscription_verified": "Готово, доступ открыт",
+
+  "invoice_title": "VPN-доступ",
+  "invoice_label": "Подписка VPN",
+  "invoice_description": "Оплата подписки на VPN-сервис",
+
+  "back_button": "Назад",
+  "access_denied": "⛔ Доступ ограничен. Пожалуйста, обновите профиль.",
+
+  "tribute_button": "Tribute",
+  "tribute_cancelled": "❌ Оплата отменена"
+}

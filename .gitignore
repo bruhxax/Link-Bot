@@ -1,0 +1,13 @@
+.env
+.env.*.local
+*.log
+*.dump
+*.bak
+*.backup
+link-bot-backup*.sql
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+tmp/
+dist/
