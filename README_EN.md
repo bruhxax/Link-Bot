@@ -54,6 +54,16 @@ It combines a user dashboard, payments, subscription management, support, and ad
 
 ---
 
+## 🛠️ Admin panel
+
+Manage the system, interface, plans, integrations, broadcasts, promo codes, and other features directly from the Mini App.
+
+<div align="center">
+  <img src="docs/banner2.png" width="100%" alt="Link-Bot admin panel">
+</div>
+
+---
+
 ## 📋 Requirements
 
 | Component | Requirement |
