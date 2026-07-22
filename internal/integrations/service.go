@@ -89,11 +89,12 @@ type record struct {
 }
 
 type Service struct {
-	repository *database.PaymentIntegrationRepository
-	aead       cipher.AEAD
-	baseURL    string
-	mu         sync.RWMutex
-	records    map[string]record
+	repository  *database.PaymentIntegrationRepository
+	aead        cipher.AEAD
+	legacyAEADs []cipher.AEAD
+	baseURL     string
+	mu          sync.RWMutex
+	records     map[string]record
 }
 
 var definitions = []ProviderDefinition{
@@ -173,21 +174,21 @@ func NewService(ctx context.Context, repository *database.PaymentIntegrationRepo
 	if repository == nil {
 		return nil, errors.New("payment integration repository is required")
 	}
-	key := sha256.Sum256([]byte("link-bot-integrations-v1:" + config.TelegramToken()))
-	block, err := aes.NewCipher(key[:])
+	aead, err := integrationAEAD("link-bot-integrations-v1:")
 	if err != nil {
 		return nil, err
 	}
-	aead, err := cipher.NewGCM(block)
+	legacyAEAD, err := integrationAEAD("bruhvpn-integrations-v1:")
 	if err != nil {
 		return nil, err
 	}
 
 	service := &Service{
-		repository: repository,
-		aead:       aead,
-		baseURL:    integrationBaseURL(),
-		records:    make(map[string]record, len(definitions)),
+		repository:  repository,
+		aead:        aead,
+		legacyAEADs: []cipher.AEAD{legacyAEAD},
+		baseURL:     integrationBaseURL(),
+		records:     make(map[string]record, len(definitions)),
 	}
 	if err := service.loadAndImport(ctx); err != nil {
 		return nil, err
@@ -223,6 +224,22 @@ func (s *Service) loadAndImport(ctx context.Context) error {
 			}
 		}
 		cfg, err := s.decrypt(item.EncryptedConfig)
+		if err != nil {
+			for _, legacyAEAD := range s.legacyAEADs {
+				cfg, err = decryptWithAEAD(item.EncryptedConfig, legacyAEAD)
+				if err == nil {
+					reencrypted, encryptErr := s.encrypt(cfg)
+					if encryptErr != nil {
+						return fmt.Errorf("reencrypt integration %s: %w", definition.ID, encryptErr)
+					}
+					item.EncryptedConfig = reencrypted
+					if upsertErr := s.repository.Upsert(ctx, item); upsertErr != nil {
+						return fmt.Errorf("save reencrypted integration %s: %w", definition.ID, upsertErr)
+					}
+					break
+				}
+			}
+		}
 		if err != nil {
 			return fmt.Errorf("decrypt integration %s: %w", definition.ID, err)
 		}
@@ -412,6 +429,19 @@ func (s *Service) encrypt(cfg map[string]string) (string, error) {
 }
 
 func (s *Service) decrypt(value string) (map[string]string, error) {
+	return decryptWithAEAD(value, s.aead)
+}
+
+func integrationAEAD(prefix string) (cipher.AEAD, error) {
+	key := sha256.Sum256([]byte(prefix + config.TelegramToken()))
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		return nil, err
+	}
+	return cipher.NewGCM(block)
+}
+
+func decryptWithAEAD(value string, aead cipher.AEAD) (map[string]string, error) {
 	if strings.TrimSpace(value) == "" {
 		return map[string]string{}, nil
 	}
@@ -419,11 +449,11 @@ func (s *Service) decrypt(value string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) < s.aead.NonceSize() {
+	if len(raw) < aead.NonceSize() {
 		return nil, errors.New("encrypted integration value is too short")
 	}
-	nonce, ciphertext := raw[:s.aead.NonceSize()], raw[s.aead.NonceSize():]
-	plain, err := s.aead.Open(nil, nonce, ciphertext, nil)
+	nonce, ciphertext := raw[:aead.NonceSize()], raw[aead.NonceSize():]
+	plain, err := aead.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
 		return nil, err
 	}
