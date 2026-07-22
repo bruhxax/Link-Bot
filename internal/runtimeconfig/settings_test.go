@@ -209,7 +209,7 @@ func TestNormalizeAndValidateGridAppearanceAndAdminContact(t *testing.T) {
 			t.Fatalf("legacy integration feature %q was not removed", key)
 		}
 	}
-	for _, key := range []string{"gridBackground", "gridLine", "gridGlowLeft", "gridGlowRight"} {
+	for _, key := range []string{"gridBackground", "gridLine", "gridGlowLeft", "gridGlowRight", "waveBackground", "waveDot"} {
 		if settings.Appearance.Colors[key] == "" {
 			t.Fatalf("grid color %q is empty", key)
 		}

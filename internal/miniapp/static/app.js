@@ -614,7 +614,7 @@ function refreshAfterPossibleGoogleLink() {
 }
 
 const PENDING_PAYMENT_KEY = "link-bot-pending-payment";
-const STATIC_ASSET_REV = "20260722-v101";
+const STATIC_ASSET_REV = "20260722-v103";
 const BRAND_MARK_PATH = "/mini-app/assets/brand-mark.png";
 const BRAND_MARK_URL = `${BRAND_MARK_PATH}?v=${STATIC_ASSET_REV}`;
 const FAQ_ICON_URL = "/mini-app/assets/faq-icon.png";
@@ -637,6 +637,7 @@ const PAYMENT_LOGO_URLS = Object.freeze({
   platega: "/mini-app/assets/payment-platega.png",
   freekassa: "/mini-app/assets/payment-freekassa.png",
   heleket: "/mini-app/assets/payment-heleket.png",
+  pally: "/mini-app/assets/payment-pally.png",
 });
 
 const PAGES = ["dashboard", "buy", "setup", "support", "faq", "reviews", "referrals", "servers", "settings", "media", "login-methods", "payments", "terms", "admin"];
@@ -1203,7 +1204,7 @@ function buildPreviewRuntimeSettings() {
 			startMenu: { trialButton: { text: "Попробовать бесплатно", iconCustomEmojiId: "5276422526350681413", style: "" }, dashboardButton: { text: "Личный кабинет", iconCustomEmojiId: "5278413853577734640", style: "" }, plansButton: { text: "Тарифы", iconCustomEmojiId: "5206626000665868017", style: "" }, supportButton: { text: "Чат с поддержкой", iconCustomEmojiId: "5206222720416643915", style: "" } },
 			commerce: { banner: "", tariffsText: "", paymentMethodsText: "", paymentReadyText: "", yookassaButton: { text: "СБП | Карта", iconCustomEmojiId: "5192678313415434135", style: "" }, cryptoButton: { text: "CryptoPay", iconCustomEmojiId: "5195058841988914267", style: "" }, starsButton: { text: "Telegram Stars", iconCustomEmojiId: "5242644275014951846", style: "" }, payButton: { text: "Оплатить", iconCustomEmojiId: "5206401524200145033", style: "" }, backButton: { text: "Назад", iconCustomEmojiId: "5877629862306385808", style: "" }, successText: "", successBanner: "", successButton: { text: "Личный кабинет", iconCustomEmojiId: "5278413853577734640", style: "" } },
 		},
-		appearance: { backgroundMode: "animated", compact: true, showFrames: true, colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff" } },
+		appearance: { backgroundMode: "animated", compact: true, showFrames: true, colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", waveBackground: "#000000", waveDot: "#ebebeb" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, priceRub: plan.priceRub, priceStars: plan.priceStars, trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], externalSquadUuid: "" })),
 		trial: { enabled: true, days: 3, trafficGb: 10, unlimitedTraffic: false, deviceLimit: 5, internalSquadUuids: [], externalSquadUuid: "", trafficResetStrategy: "MONTH", tag: "" },
@@ -2558,7 +2559,7 @@ function renderAdminCustomLink(item, index) {
 }
 
 function renderAdminAppearancePage() {
-	const colors = [["background", "Фон интерфейса"], ["surface", "Карточки"], ["surfaceStrong", "Активная поверхность"], ["text", "Текст"], ["muted", "Вторичный текст"], ["border", "Рамки"], ["button", "Кнопки"], ["buttonText", "Текст кнопок"], ["icon", "Иконки"], ["accent", "Акцент"], ["success", "Успех"], ["danger", "Ошибка"], ["unlimitedBadge", "Безлимит"], ["gridBackground", "Фон сетки"], ["gridLine", "Линии сетки"], ["gridGlowLeft", "Свечение слева"], ["gridGlowRight", "Свечение справа"]];
+	const colors = [["background", "Фон интерфейса"], ["surface", "Карточки"], ["surfaceStrong", "Активная поверхность"], ["text", "Текст"], ["muted", "Вторичный текст"], ["border", "Рамки"], ["button", "Кнопки"], ["buttonText", "Текст кнопок"], ["icon", "Иконки"], ["accent", "Акцент"], ["success", "Успех"], ["danger", "Ошибка"], ["unlimitedBadge", "Безлимит"], ["waveBackground", "Фон волн"], ["waveDot", "Точки волн"], ["gridBackground", "Фон сетки"], ["gridLine", "Линии сетки"], ["gridGlowLeft", "Свечение слева"], ["gridGlowRight", "Свечение справа"]];
 	return renderAdminEditorPage(state.locale === "en" ? "Appearance" : "Оформление", `
 		<label class="admin-field"><span>Фон</span><select class="admin-field__control" data-setting-path="appearance.backgroundMode"><option value="animated" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "animated" ? "selected" : ""}>Волны</option><option value="grid" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "grid" ? "selected" : ""}>Движущаяся сетка</option><option value="solid" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "solid" ? "selected" : ""}>Сплошной цвет</option></select></label>
 		<div class="admin-toggle-list">${renderAdminToggle("Компактный режим", "appearance.compact")}${renderAdminToggle("Показывать рамки", "appearance.showFrames")}</div>
@@ -3223,7 +3224,7 @@ function getProfileItems() {
 		login_methods: { group: "account", label: loginMethodsLabel(), hint: loginMethodsHint(), action: "go-page", value: "login-methods", icon: "lockAlt" },
 		web_version: { group: "account", label: webVersionLabel(), hint: webVersionHint(), action: "open-web-version", value: "", icon: "arrowUpRightSquare", feature: "web_version" },
 		pwa_install: { group: "account", label: addToHomeLabel(), hint: addToHomeHint(), action: "open-install-guide", value: "", icon: "download", feature: "pwa_install" },
-		terms: { group: "help", label: copy.tos, hint: copy.tosHint || copy.tos, action: "go-page", value: "terms", icon: "doc" },
+		terms: { group: "help", label: copy.tos, hint: replaceRuntimeBrandTokens(copy.tosHint || copy.tos), action: "go-page", value: "terms", icon: "doc" },
 	};
 	const configured = getLayoutElements("profile");
 	const order = configured.length ? configured : Object.keys(definitions).map((id, index) => ({ id, order: index, visible: true, width: 100, height: 52, framed: true }));
@@ -3396,6 +3397,10 @@ function renderTermsPage() {
 
 function getRuntimeTermsArticle() {
   const source = TERMS_ARTICLE[state.locale] || TERMS_ARTICLE.ru;
+	return replaceRuntimeBrandTokens(source);
+}
+
+function replaceRuntimeBrandTokens(source) {
   const content = getRuntimeSettings()?.content || {};
   const brandName = String(content.brandName || state.data?.brand?.name || "Link-Bot").trim() || "Link-Bot";
   const supportURL = String(content.links?.support || state.data?.links?.support || "").trim();
@@ -3850,7 +3855,7 @@ function paymentHistoryMethodMeta(item, copy) {
   const invoiceType = String(item?.invoiceType || "").toLowerCase();
   const title = String(item?.paymentMethodTitle || "").trim();
   const normalized = `${invoiceType} ${title}`.toLowerCase();
-  const providers = ["lava", "wata", "platega", "freekassa", "heleket"];
+  const providers = ["lava", "wata", "platega", "freekassa", "heleket", "pally"];
   const provider = providers.find((name) => normalized.includes(name));
   if (provider) {
     const meta = paymentMethodMeta(provider);
@@ -6534,6 +6539,8 @@ function applyAppearance() {
 		"--grid-line": colors.gridLine,
 		"--grid-glow-left": colors.gridGlowLeft ? hexToRGBA(colors.gridGlowLeft, 0.28) : "",
 		"--grid-glow-right": colors.gridGlowRight ? hexToRGBA(colors.gridGlowRight, 0.28) : "",
+		"--wave-background": colors.waveBackground,
+		"--wave-dot": colors.waveDot,
 	};
 	Object.entries(variables).forEach(([name, value]) => { if (value) document.documentElement.style.setProperty(name, value); });
   document.documentElement.style.setProperty("--accent", accent.accent);
@@ -6544,6 +6551,7 @@ function applyAppearance() {
   document.documentElement.style.setProperty("--unlimited-badge-color", unlimitedBadgeColor);
   document.documentElement.style.setProperty("--unlimited-badge-bg", hexToRGBA(unlimitedBadgeColor, 0.3));
   document.documentElement.style.setProperty("--unlimited-badge-border", hexToRGBA(unlimitedBadgeColor, 0.72));
+  updateWaveColorFilter(colors.waveBackground || "#000000", colors.waveDot || "#ebebeb");
   particleEngine.setColor(accent.particle);
   if (themeMeta) themeMeta.setAttribute("content", PALETTE.themeColor.dark);
   if (tg) {
@@ -6551,6 +6559,25 @@ function applyAppearance() {
     if (typeof tg.setHeaderColor === "function") tg.setHeaderColor(color);
     if (typeof tg.setBackgroundColor === "function") tg.setBackgroundColor(color);
   }
+}
+
+function updateWaveColorFilter(backgroundHex, dotHex) {
+	const matrix = document.getElementById("wave-color-matrix");
+	if (!matrix) return;
+	const background = hexToRGBComponents(backgroundHex, [0, 0, 0]);
+	const dot = hexToRGBComponents(dotHex, [235, 235, 235]);
+	const rows = background.map((base, channel) => {
+		const delta = (dot[channel] - base) / 255;
+		return [delta * 0.2126, delta * 0.7152, delta * 0.0722, 0, base / 255];
+	});
+	matrix.setAttribute("values", [...rows.flat(), 0, 0, 0, 1, 0].map((value) => Number(value).toFixed(6)).join(" "));
+}
+
+function hexToRGBComponents(hex, fallback) {
+	const value = String(hex || "").replace("#", "");
+	if (!/^[0-9a-f]{6}$/i.test(value)) return fallback;
+	const number = Number.parseInt(value, 16);
+	return [(number >> 16) & 255, (number >> 8) & 255, number & 255];
 }
 
 function hexToRGBA(hex, alpha) {
@@ -6753,6 +6780,7 @@ function paymentMethodMeta(id) {
 		platega: { id: "platega", label: "Platega", hint: "Оплата через Platega", logo: PAYMENT_LOGO_URLS.platega },
 		freekassa: { id: "freekassa", label: "FreeKassa", hint: "Оплата через FreeKassa", logo: PAYMENT_LOGO_URLS.freekassa },
 		heleket: { id: "heleket", label: "Heleket", hint: "Оплата криптовалютой", logo: PAYMENT_LOGO_URLS.heleket },
+		pally: { id: "pally", label: "Pally", hint: "Оплата картой или через СБП", logo: PAYMENT_LOGO_URLS.pally },
   };
   return map[id] || null;
 }

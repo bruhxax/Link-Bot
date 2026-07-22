@@ -46,7 +46,7 @@
 
 | 📦 Подписки и тарифы | 💳 Платежи |
 |---|---|
-| • Личный кабинет в Telegram Mini App и браузере<br>• Создание и продление подписок Remnawave<br>• Тарифы, триал и выбор внутренних/внешних сквадов<br>• Привязка и перенос подписок между Telegram-аккаунтами | • YooKassa<br>• Crypto Pay<br>• Telegram Stars<br>• Lava<br>• WATA<br>• Platega<br>• FreeKassa<br>• Heleket |
+| • Личный кабинет в Telegram Mini App и браузере<br>• Создание и продление подписок Remnawave<br>• Тарифы, триал и выбор внутренних/внешних сквадов<br>• Привязка и перенос подписок между Telegram-аккаунтами | • YooKassa<br>• Crypto Pay<br>• Telegram Stars<br>• Lava<br>• WATA<br>• Platega<br>• FreeKassa<br>• Heleket<br>• Pally |
 
 | 📣 Продвижение и уведомления | 🛠️ Администрирование |
 |---|---|

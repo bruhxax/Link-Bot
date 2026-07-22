@@ -46,7 +46,7 @@ It combines a user dashboard, payments, subscription management, support, and ad
 
 | 📦 Subscriptions and plans | 💳 Payments |
 |---|---|
-| • Personal dashboard in Telegram Mini App and browser<br>• Create and renew Remnawave subscriptions<br>• Plans, trials, and internal/external squad selection<br>• Link and transfer subscriptions between Telegram accounts | • YooKassa<br>• Crypto Pay<br>• Telegram Stars<br>• Lava<br>• WATA<br>• Platega<br>• FreeKassa<br>• Heleket |
+| • Personal dashboard in Telegram Mini App and browser<br>• Create and renew Remnawave subscriptions<br>• Plans, trials, and internal/external squad selection<br>• Link and transfer subscriptions between Telegram accounts | • YooKassa<br>• Crypto Pay<br>• Telegram Stars<br>• Lava<br>• WATA<br>• Platega<br>• FreeKassa<br>• Heleket<br>• Pally |
 
 | 📣 Marketing and notifications | 🛠️ Administration |
 |---|---|

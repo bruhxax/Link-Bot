@@ -64,6 +64,8 @@
   --grid-line: #ffffff;
   --grid-glow-left: rgba(255, 255, 255, .28);
   --grid-glow-right: rgba(255, 255, 255, .28);
+  --wave-background: #000000;
+  --wave-dot: #ebebeb;
   --control-bg: #0b0d12;
   --control-border: rgba(255, 255, 255, 0.16);
   --control-border-soft: rgba(255, 255, 255, 0.1);
@@ -92,6 +94,13 @@
 }
 
 :root[data-background="solid"] .bg-media { background: var(--bg); }
+
+:root[data-background="pending"] .bg-media__canvas,
+:root[data-background="pending"] .bg-media__scrim,
+:root[data-background="pending"] .bg-media__fade,
+:root[data-background="pending"] .bg-media__grid {
+  visibility: hidden;
+}
 
 :root[data-background="grid"] .bg-media__canvas,
 :root[data-background="grid"] .bg-media__scrim,
@@ -623,7 +632,7 @@ img { display: block; max-width: 100%; }
   overflow: hidden;
   pointer-events: none;
   z-index: 0;
-  background: #000;
+  background: var(--wave-background);
 }
 
 .bg-media__canvas,
@@ -639,6 +648,7 @@ img { display: block; max-width: 100%; }
   height: 100%;
   display: block;
   opacity: .82;
+  filter: url("#wave-color-filter");
 }
 
 .bg-media__scrim {
@@ -652,9 +662,19 @@ img { display: block; max-width: 100%; }
 }
 
 .bg-media__grid {
-  display: block;
+  display: none;
   overflow: hidden;
   background: var(--grid-background);
+}
+
+:root[data-background="grid"] .bg-media__grid { display: block; }
+
+.wave-color-filter {
+  position: fixed;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .bg-media__grid::before {

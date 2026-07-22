@@ -21,7 +21,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 7
+const CurrentVersion = 8
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -339,6 +339,8 @@ func DefaultSettings() Settings {
 				"gridLine":       "#ffffff",
 				"gridGlowLeft":   "#ffffff",
 				"gridGlowRight":  "#ffffff",
+				"waveBackground": "#000000",
+				"waveDot":        "#ebebeb",
 			},
 		},
 		Layout: LayoutSettings{

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-background="pending">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -14,14 +14,19 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <title>Link-Bot</title>
-  <link rel="icon" href="/mini-app/assets/brand-mark.png?v=20260722-v101">
-  <link rel="apple-touch-icon" href="/mini-app/assets/apple-touch-icon.png?v=20260722-v101">
-  <link rel="manifest" href="/mini-app/manifest.webmanifest?v=20260722-v101">
+  <link rel="icon" href="/mini-app/assets/brand-mark.png?v=20260722-v103">
+  <link rel="apple-touch-icon" href="/mini-app/assets/apple-touch-icon.png?v=20260722-v103">
+  <link rel="manifest" href="/mini-app/manifest.webmanifest?v=20260722-v103">
   <link rel="modulepreload" href="/mini-app/wave-background.bundle.js?v=20260704wave4">
-  <link rel="stylesheet" href="/mini-app/styles.css?v=20260722-v101">
+  <link rel="stylesheet" href="/mini-app/styles.css?v=20260722-v103">
   <script src="/mini-app/telegram-web-app.js?v=20260703"></script>
 </head>
 <body>
+  <svg class="wave-color-filter" aria-hidden="true" width="0" height="0" focusable="false">
+    <filter id="wave-color-filter" color-interpolation-filters="sRGB">
+      <feColorMatrix id="wave-color-matrix" type="matrix" values="0.193704 0.652378 0.065918 0 0 0.193704 0.652378 0.065918 0 0 0.193704 0.652378 0.065918 0 0 0 0 0 1 0"></feColorMatrix>
+    </filter>
+  </svg>
   <div class="bg-media" aria-hidden="true">
     <canvas class="bg-media__canvas"></canvas>
     <div class="bg-media__scrim"></div>
@@ -31,6 +36,6 @@
   <main id="app" aria-live="polite"></main>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script type="module" src="/mini-app/wave-background.bundle.js?v=20260704wave4"></script>
-  <script type="module" src="/mini-app/app.js?v=20260722-v101"></script>
+  <script type="module" src="/mini-app/app.js?v=20260722-v103"></script>
 </body>
 </html>

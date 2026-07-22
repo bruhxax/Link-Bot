@@ -81,6 +81,8 @@ func (g *Gateway) Create(ctx context.Context, input CreatePaymentRequest) (Creat
 		return g.createFreeKassa(cfg, input)
 	case ProviderHeleket:
 		return g.createHeleket(ctx, cfg, input)
+	case ProviderPally:
+		return g.createPally(ctx, cfg, input)
 	default:
 		return CreatedPayment{}, fmt.Errorf("unsupported gateway: %s", input.Provider)
 	}
@@ -102,6 +104,8 @@ func (g *Gateway) HandleWebhook(ctx context.Context, provider string, headers ht
 		return parseFreeKassaWebhook(cfg, form)
 	case ProviderHeleket:
 		return parseHeleketWebhook(cfg, raw)
+	case ProviderPally:
+		return parsePallyWebhook(cfg, form)
 	default:
 		return WebhookPayment{}, fmt.Errorf("unknown webhook provider: %s", provider)
 	}
@@ -215,6 +219,56 @@ func (g *Gateway) createHeleket(ctx context.Context, cfg map[string]string, inpu
 		return CreatedPayment{}, fmt.Errorf("Heleket: %s", response.Message)
 	}
 	return CreatedPayment{ExternalID: response.Result.UUID, URL: response.Result.URL}, nil
+}
+
+func (g *Gateway) createPally(ctx context.Context, cfg map[string]string, input CreatePaymentRequest) (CreatedPayment, error) {
+	orderID := strconv.FormatInt(input.PurchaseID, 10)
+	form := url.Values{
+		"amount":      {formatAmount(input.Amount)},
+		"order_id":    {orderID},
+		"description": {input.Description},
+		"type":        {"normal"},
+		"shop_id":     {cfg["shopId"]},
+		"currency_in": {input.Currency},
+		"custom":      {orderID},
+		"name":        {input.Description},
+	}
+	endpoint := strings.TrimRight(cfg["apiUrl"], "/") + "/api/v1/bill/create"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
+	if err != nil {
+		return CreatedPayment{}, err
+	}
+	req.Header.Set("Authorization", "Bearer "+cfg["apiToken"])
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return CreatedPayment{}, err
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return CreatedPayment{}, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return CreatedPayment{}, fmt.Errorf("Pally API returned HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+	}
+	var response struct {
+		Success     json.RawMessage `json:"success"`
+		LinkPageURL string          `json:"link_page_url"`
+		BillID      json.RawMessage `json:"bill_id"`
+		Message     string          `json:"message"`
+		Error       string          `json:"error"`
+	}
+	if err := json.Unmarshal(raw, &response); err != nil {
+		return CreatedPayment{}, fmt.Errorf("decode Pally response: %w", err)
+	}
+	billID, _ := jsonScalarString(response.BillID)
+	if !jsonTruthy(response.Success) || strings.TrimSpace(response.LinkPageURL) == "" || strings.TrimSpace(billID) == "" {
+		message := firstNonEmpty(response.Message, response.Error, "Pally did not return payment link")
+		return CreatedPayment{}, errors.New(message)
+	}
+	return CreatedPayment{ExternalID: billID, URL: response.LinkPageURL}, nil
 }
 
 func (g *Gateway) doJSON(ctx context.Context, method, endpoint string, body []byte, headers map[string]string, target any) error {
@@ -449,6 +503,44 @@ func parseHeleketWebhook(cfg map[string]string, raw []byte) (WebhookPayment, err
 	amount, _ := strconv.ParseFloat(payload.Amount, 64)
 	status := strings.ToLower(payload.PaymentStatus)
 	return WebhookPayment{PurchaseID: purchaseID, ExternalID: payload.UUID, Amount: amount, Currency: payload.Currency, Paid: status == "paid" || status == "paid_over", Cancelled: status == "cancel" || status == "fail" || status == "wrong_amount" || status == "system_fail" || status == "refund_process" || status == "refund_fail" || status == "refund_paid"}, nil
+}
+
+func parsePallyWebhook(cfg map[string]string, form url.Values) (WebhookPayment, error) {
+	invoiceID := strings.TrimSpace(form.Get("InvId"))
+	amountText := strings.TrimSpace(form.Get("OutSum"))
+	signature := strings.TrimSpace(form.Get("SignatureValue"))
+	if invoiceID == "" || amountText == "" || signature == "" {
+		return WebhookPayment{}, errors.New("invalid Pally webhook payload")
+	}
+	expected := strings.ToUpper(fmt.Sprintf("%x", md5.Sum([]byte(amountText+":"+invoiceID+":"+cfg["apiToken"]))))
+	if !hmac.Equal([]byte(expected), []byte(strings.ToUpper(signature))) {
+		return WebhookPayment{}, errors.New("invalid Pally webhook signature")
+	}
+	purchaseID, err := strconv.ParseInt(invoiceID, 10, 64)
+	if err != nil {
+		return WebhookPayment{}, err
+	}
+	amount, err := strconv.ParseFloat(strings.ReplaceAll(amountText, ",", "."), 64)
+	if err != nil {
+		return WebhookPayment{}, err
+	}
+	status := strings.ToUpper(strings.TrimSpace(form.Get("Status")))
+	return WebhookPayment{
+		PurchaseID: purchaseID,
+		Amount:     amount,
+		Currency:   strings.ToUpper(strings.TrimSpace(form.Get("CurrencyIn"))),
+		Paid:       status == "SUCCESS" || status == "OVERPAID",
+		Cancelled:  status == "FAIL" || status == "CANCELED" || status == "CANCELLED",
+	}, nil
+}
+
+func jsonTruthy(raw json.RawMessage) bool {
+	value, err := jsonScalarString(raw)
+	if err != nil {
+		return false
+	}
+	value = strings.ToLower(strings.TrimSpace(value))
+	return value == "true" || value == "1" || value == "success"
 }
 
 func decodeJSONNumbers(raw []byte, target any) error {

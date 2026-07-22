@@ -24,6 +24,7 @@ const (
 	InvoiceTypePlatega   InvoiceType = "platega"
 	InvoiceTypeFreeKassa InvoiceType = "freekassa"
 	InvoiceTypeHeleket   InvoiceType = "heleket"
+	InvoiceTypePally     InvoiceType = "pally"
 )
 
 type PurchaseStatus string

@@ -31,6 +31,7 @@ const (
 	ProviderPlatega         = "platega"
 	ProviderFreeKassa       = "freekassa"
 	ProviderHeleket         = "heleket"
+	ProviderPally           = "pally"
 )
 
 type FieldDefinition struct {
@@ -156,6 +157,14 @@ var definitions = []ProviderDefinition{
 			{Key: "merchantId", Label: "Merchant UUID", Required: true},
 			{Key: "apiKey", Label: "Payment API key", Required: true, Secret: true},
 			{Key: "apiUrl", Label: "API URL", Required: true, Placeholder: "https://api.heleket.com"},
+		},
+	},
+	{
+		ID: ProviderPally, Name: "Pally", Description: "Карты и СБП через Pally", Logo: "/mini-app/assets/payment-pally.png", Kind: "payment",
+		Fields: []FieldDefinition{
+			{Key: "shopId", Label: "Shop ID", Required: true, Placeholder: "ID магазина в Pally"},
+			{Key: "apiToken", Label: "API token", Required: true, Secret: true, Placeholder: "Токен API магазина"},
+			{Key: "apiUrl", Label: "API URL", Required: true, Placeholder: "https://pal24.pro"},
 		},
 	},
 }
@@ -455,6 +464,8 @@ func legacyConfig(provider string) (map[string]string, bool) {
 		return map[string]string{"apiUrl": "https://app.platega.io"}, false
 	case ProviderHeleket:
 		return map[string]string{"apiUrl": "https://api.heleket.com"}, false
+	case ProviderPally:
+		return map[string]string{"apiUrl": "https://pal24.pro"}, false
 	default:
 		return map[string]string{}, false
 	}
@@ -470,7 +481,7 @@ func firstNonEmpty(values ...string) string {
 }
 
 func SortedPaymentProviders() []string {
-	items := []string{ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega, ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket}
+	items := []string{ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega, ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally}
 	sort.Strings(items)
 	return items
 }

@@ -1438,7 +1438,7 @@ func (h *Handler) handlePaymentIntegrationWebhook(w http.ResponseWriter, r *http
 		return
 	}
 	form := url.Values{}
-	if provider == integrations.ProviderFreeKassa {
+	if provider == integrations.ProviderFreeKassa || provider == integrations.ProviderPally {
 		form, err = url.ParseQuery(string(raw))
 		if err != nil {
 			h.writeError(w, http.StatusBadRequest, "invalid_webhook", "Invalid webhook")
@@ -3969,7 +3969,7 @@ func runtimeFeatureForPath(path string) string {
 }
 
 func mapPaymentMethods(methods map[string]bool) []paymentMethodPayload {
-	order := []string{"sbp", "card", "stars", "crypto", "lava", "wata", "platega", "freekassa", "heleket"}
+	order := []string{"sbp", "card", "stars", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally"}
 	payload := make([]paymentMethodPayload, 0, len(order))
 	for _, method := range order {
 		if methods[method] {
@@ -3997,6 +3997,8 @@ func mapPaymentMethod(method string) (database.InvoiceType, error) {
 		return database.InvoiceTypeFreeKassa, nil
 	case "heleket":
 		return database.InvoiceTypeHeleket, nil
+	case "pally":
+		return database.InvoiceTypePally, nil
 	default:
 		return "", fmt.Errorf("unknown payment method: %s", method)
 	}

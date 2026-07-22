@@ -494,7 +494,7 @@ func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount fl
 		url, purchaseId, err = s.createTelegramInvoice(ctx, amount, months, customer, options)
 	case database.InvoiceTypeTribute:
 		url, purchaseId, err = s.createTributeInvoice(ctx, amount, months, customer)
-	case database.InvoiceTypeLava, database.InvoiceTypeWata, database.InvoiceTypePlatega, database.InvoiceTypeFreeKassa, database.InvoiceTypeHeleket:
+	case database.InvoiceTypeLava, database.InvoiceTypeWata, database.InvoiceTypePlatega, database.InvoiceTypeFreeKassa, database.InvoiceTypeHeleket, database.InvoiceTypePally:
 		url, purchaseId, err = s.createExternalInvoice(ctx, amount, months, customer, invoiceType, options)
 	default:
 		err = fmt.Errorf("unknown invoice type: %s", invoiceType)
@@ -508,7 +508,7 @@ func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount fl
 			category = "CryptoPay"
 		case database.InvoiceTypeTelegram:
 			category = "Telegram Stars"
-		case database.InvoiceTypeLava, database.InvoiceTypeWata, database.InvoiceTypePlatega, database.InvoiceTypeFreeKassa, database.InvoiceTypeHeleket:
+		case database.InvoiceTypeLava, database.InvoiceTypeWata, database.InvoiceTypePlatega, database.InvoiceTypeFreeKassa, database.InvoiceTypeHeleket, database.InvoiceTypePally:
 			category = string(invoiceType)
 		}
 		s.errorReporter.Report(ctx, operations.ReportInput{
@@ -771,7 +771,7 @@ func integrationProviderForInvoiceType(invoiceType database.InvoiceType) (string
 	providers := map[database.InvoiceType]string{
 		database.InvoiceTypeLava: integrations.ProviderLava, database.InvoiceTypeWata: integrations.ProviderWata,
 		database.InvoiceTypePlatega: integrations.ProviderPlatega, database.InvoiceTypeFreeKassa: integrations.ProviderFreeKassa,
-		database.InvoiceTypeHeleket: integrations.ProviderHeleket,
+		database.InvoiceTypeHeleket: integrations.ProviderHeleket, database.InvoiceTypePally: integrations.ProviderPally,
 	}
 	provider, ok := providers[invoiceType]
 	return provider, ok
@@ -781,7 +781,7 @@ func invoiceTypeForIntegrationProvider(provider string) (database.InvoiceType, b
 	providers := map[string]database.InvoiceType{
 		integrations.ProviderLava: database.InvoiceTypeLava, integrations.ProviderWata: database.InvoiceTypeWata,
 		integrations.ProviderPlatega: database.InvoiceTypePlatega, integrations.ProviderFreeKassa: database.InvoiceTypeFreeKassa,
-		integrations.ProviderHeleket: database.InvoiceTypeHeleket,
+		integrations.ProviderHeleket: database.InvoiceTypeHeleket, integrations.ProviderPally: database.InvoiceTypePally,
 	}
 	invoiceType, ok := providers[provider]
 	return invoiceType, ok

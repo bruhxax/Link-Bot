@@ -38,3 +38,13 @@ func TestMapPaymentMethodRoutesSbpAndCardToYookassa(t *testing.T) {
 		}
 	}
 }
+
+func TestMapPaymentMethodRoutesPally(t *testing.T) {
+	invoiceType, err := mapPaymentMethod("pally")
+	if err != nil {
+		t.Fatalf("mapPaymentMethod(pally): %v", err)
+	}
+	if invoiceType != database.InvoiceTypePally {
+		t.Fatalf("mapPaymentMethod(pally) = %q, want %q", invoiceType, database.InvoiceTypePally)
+	}
+}
