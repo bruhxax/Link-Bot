@@ -3609,14 +3609,7 @@ func (h *Handler) notifyAdminAboutSupportTicket(ctx context.Context, ticket *dat
 		return
 	}
 
-	text := fmt.Sprintf(
-		"🆕 <b>Новое обращение #%d</b>\n\n👤 <b>Пользователь:</b> %s\n🔗 <b>Username:</b> %s\n💎 <b>Подписка:</b> %s\n\n💬 <b>Сообщение:</b>\n%s",
-		ticket.ID,
-		supportNotificationText(fallbackText(ticket.CustomerName, "Без имени")),
-		supportNotificationText(formatUsername(ticket.CustomerUsername)),
-		supportNotificationText(fallbackText(ticket.SubscriptionLabel, "Нет подписки")),
-		supportNotificationQuote(firstMessage),
-	)
+	text := renderSupportNotification(h.supportNotificationSettings().NewTicketText, ticket, firstMessage)
 	h.sendMiniAppNotification(ctx, config.GetAdminTelegramId(), text)
 }
 
@@ -3636,14 +3629,7 @@ func (h *Handler) notifyAdminAboutSupportReply(ctx context.Context, ticket *data
 		return
 	}
 
-	text := fmt.Sprintf(
-		"📩 <b>Обращение #%d</b>\nЕсть новый ответ:\n\n👤 <b>Пользователь:</b> %s\n🔗 <b>Username:</b> %s\n💎 <b>Подписка:</b> %s\n\n%s",
-		ticket.ID,
-		supportNotificationText(fallbackText(ticket.CustomerName, "Без имени")),
-		supportNotificationText(formatUsername(ticket.CustomerUsername)),
-		supportNotificationText(fallbackText(ticket.SubscriptionLabel, "Нет подписки")),
-		supportNotificationQuote(message),
-	)
+	text := renderSupportNotification(h.supportNotificationSettings().CustomerReplyText, ticket, message)
 	h.sendMiniAppNotification(ctx, config.GetAdminTelegramId(), text)
 }
 
@@ -3657,11 +3643,7 @@ func (h *Handler) notifyCustomerAboutSupportReply(ctx context.Context, ticket *d
 		return
 	}
 
-	text := fmt.Sprintf(
-		"📬 <b>Обращение #%d</b>\nЕсть ответ:\n\n%s",
-		ticket.ID,
-		supportNotificationQuote(message),
-	)
+	text := renderSupportNotification(h.supportNotificationSettings().AdminReplyText, ticket, message)
 	h.sendMiniAppNotification(ctx, customer.TelegramID, text)
 }
 
@@ -3675,7 +3657,7 @@ func (h *Handler) notifyCustomerAboutSupportClosed(ctx context.Context, ticket *
 		return
 	}
 
-	text := fmt.Sprintf("💌 <b>Обращение #%d закрыто.</b>\nИстория переписки доступна в Mini-app.", ticket.ID)
+	text := renderSupportNotification(h.supportNotificationSettings().ClosedText, ticket, "")
 	h.sendMiniAppNotification(ctx, customer.TelegramID, text)
 }
 
@@ -3691,11 +3673,14 @@ func (h *Handler) sendMiniAppNotification(ctx context.Context, telegramID int64,
 	}
 
 	if miniAppURL := config.GetMiniAppURL(); miniAppURL != "" {
+		buttonSettings := h.supportNotificationSettings().OpenButton
 		params.ReplyMarkup = models.InlineKeyboardMarkup{
 			InlineKeyboard: [][]models.InlineKeyboardButton{
 				{
 					{
-						Text: "🚀 Открыть Mini-app",
+						Text:              buttonSettings.Text,
+						IconCustomEmojiID: buttonSettings.IconCustomEmojiID,
+						Style:             buttonSettings.Style,
 						WebApp: &models.WebAppInfo{
 							URL: miniAppURL,
 						},
@@ -3709,6 +3694,35 @@ func (h *Handler) sendMiniAppNotification(ctx context.Context, telegramID int64,
 	if err != nil {
 		slog.Warn("mini app: failed to send support notification", "error", err, "telegramId", utils.MaskHalfInt64(telegramID))
 	}
+}
+
+func (h *Handler) supportNotificationSettings() runtimeconfig.TelegramSupportSettings {
+	if h.runtimeSettings == nil {
+		return runtimeconfig.DefaultSettings().Content.Support
+	}
+	return h.runtimeSettings.Snapshot().Content.Support
+}
+
+func renderSupportNotification(template string, ticket *database.SupportTicket, message string) string {
+	if ticket == nil {
+		return ""
+	}
+	replacements := map[string]string{
+		"{ticket_id}":    strconv.FormatInt(ticket.ID, 10),
+		"{subject}":      supportNotificationText(fallbackText(ticket.Subject, "Без темы")),
+		"{name}":         supportNotificationText(fallbackText(ticket.CustomerName, "Без имени")),
+		"{username}":     supportNotificationText(formatUsername(ticket.CustomerUsername)),
+		"{subscription}": supportNotificationText(fallbackText(ticket.SubscriptionLabel, "Нет подписки")),
+		"{message}":      supportNotificationQuote(message),
+	}
+	text := strings.TrimSpace(template)
+	for token, value := range replacements {
+		text = strings.ReplaceAll(text, token, value)
+	}
+	if strings.TrimSpace(message) != "" && !strings.Contains(template, "{message}") {
+		text += "\n\n" + supportNotificationQuote(message)
+	}
+	return text
 }
 
 func supportNotificationText(value string) string {

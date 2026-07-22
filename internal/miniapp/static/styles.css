@@ -67,6 +67,8 @@
   --wave-background: #000000;
   --wave-dot: #ebebeb;
   --control-bg: #0b0d12;
+  --button-text: #f3f3f3;
+  --icon-color: #f3f3f3;
   --control-border: rgba(255, 255, 255, 0.16);
   --control-border-soft: rgba(255, 255, 255, 0.1);
   --control-glow: 0 12px 28px rgba(0, 0, 0, 0.36);
@@ -6320,4 +6322,137 @@ body.is-plan-editing .page-scroll {
 
 .card--checkout .checkout-payment {
   grid-template-columns: 34px minmax(0, 1fr) 24px;
+}
+
+/* Runtime appearance tokens are applied consistently across every user-facing screen. */
+.card,
+.support-ticket-card,
+.support-message__bubble,
+.payment-item,
+.promo-box,
+.metric,
+.server-summary-card,
+.server-card,
+.device-card,
+.state-card,
+.modal__sheet,
+.toast {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.btn,
+.sub-pill,
+.quick-link,
+.pay-selector,
+.menu-row,
+.profile-row,
+.pay-row,
+.platform-btn,
+.menu-card,
+.pricing-card,
+.tabs,
+.tab,
+.bottom-nav {
+  border-color: var(--line);
+  background: var(--control-bg);
+  color: var(--button-text);
+}
+
+.pricing-card.selected,
+.pay-row.selected,
+.platform-btn.selected,
+.segment.active,
+.tab.active {
+  background: var(--surface-strong);
+  color: var(--button-text);
+}
+
+.btn,
+.menu-row,
+.profile-row,
+.pay-row,
+.pay-selector,
+.quick-link,
+.menu-card,
+.pricing-card,
+.tab,
+.bottom-nav__item,
+.support-thread__close {
+  color: var(--button-text);
+}
+
+.app-shell :where(button, .card, .sub-bar, .sub-pill, .header, .modal) svg {
+  color: var(--icon-color);
+}
+
+.menu-card__icon,
+.menu-row__icon,
+.menu-row__tail,
+.profile-row__icon,
+.profile-row__tail,
+.pay-row__icon:not(.pay-row__icon--brand),
+.pay-row__check,
+.pay-selector__icon:not(.pay-selector__icon--brand),
+.quick-link__icon,
+.sub-pill__icon,
+.sub-pill__edit,
+.bottom-nav__icon,
+.faq-item__arrow,
+.empty-state__icon,
+.header__btn,
+.support-thread__close,
+.pricing-card__stars-icon {
+  color: var(--icon-color);
+}
+
+.sub-bar__date,
+.sub-bar__date-icon,
+.sub-bar__name,
+.sub-pill,
+.summary-row__value,
+.support-ticket-card__title,
+.support-message__body,
+.payment-item__main strong,
+.payment-item__meta span:first-child {
+  color: var(--text);
+}
+
+.bottom-nav__item.active {
+  color: var(--icon-color);
+}
+
+.bottom-nav__indicator {
+  background: var(--icon-color);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--icon-color) 20%, transparent);
+}
+
+.support-ticket-card__badge {
+  background: var(--surface-strong);
+  color: var(--text);
+}
+
+.support-message__bubble,
+.support-message--customer-author .support-message__bubble,
+.support-message--admin-author .support-message__bubble {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.support-message--admin-author .support-message__bubble {
+  border-left-color: var(--success);
+}
+
+.admin-appearance-groups {
+  display: grid;
+  gap: 0;
+  margin-top: 14px;
+}
+
+.admin-appearance-group .admin-color-grid {
+  margin-top: 0;
 }

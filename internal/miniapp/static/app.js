@@ -614,7 +614,7 @@ function refreshAfterPossibleGoogleLink() {
 }
 
 const PENDING_PAYMENT_KEY = "link-bot-pending-payment";
-const STATIC_ASSET_REV = "20260722-v103";
+const STATIC_ASSET_REV = "20260722-v104";
 const BRAND_MARK_PATH = "/mini-app/assets/brand-mark.png";
 const BRAND_MARK_URL = `${BRAND_MARK_PATH}?v=${STATIC_ASSET_REV}`;
 const FAQ_ICON_URL = "/mini-app/assets/faq-icon.png";
@@ -713,13 +713,14 @@ const copybook = {
   ru: {
     appName: "Link-Bot", refresh: "Обновить", retry: "Повторить", pageDashboard: "Личный кабинет", pageBuy: "Тарифы", pageSetup: "Установить и настроить", pageSupport: "Поддержка", pageFaq: "FAQ", pageReferrals: "Реферальная система", pageServers: "Статус серверов", pageSettings: "Профиль", pageAdmin: "Админ панель",
     navDashboard: "Главная", navBuy: "Тарифы", navSupport: "Поддержка", navSettings: "Профиль", navAdmin: "Админ", dashboardLabel: "Основная", activeSubscription: "Подписка активна", inactiveSubscription: "Подписка не активна", trialAvailable: "Пробный доступ",
-    buySubscription: "Купить подписку", extend: "Продлить", setup: "Установить и настроить", activateTrial: "Активировать пробный", support: "Поддержка", openAccess: "Открыть доступ", copyAccess: "Скопировать ссылку",
+    buySubscription: "Купить подписку", extend: "Продлить", setup: "Подключиться", activateTrial: "Активировать пробный", support: "Поддержка", openAccess: "Открыть доступ", copyAccess: "Скопировать ссылку",
     loadingTitle: "Собираем ваш кабинет Link-Bot", loadingText: "Подтягиваем подписку, тарифы и быстрые действия.", openInTelegramTitle: "Откройте mini app из Telegram", openInTelegramText: "Telegram передаёт защищённые данные только внутри WebApp.", errorTitle: "Не удалось загрузить данные", subscriptionGateTitle: "Link-Bot Верификация", subscriptionGateLead: (channel) => `Чтобы открыть доступ к боту и mini app, подпишитесь на наш Telegram-канал ${channel}.`, subscriptionGateNews: "Там мы публикуем новости, обновления сервиса, важные изменения и полезные анонсы.", subscriptionGateHint: "После подписки нажмите кнопку ниже.", subscriptionGateOpen: "Link-Bot", subscriptionGateRetry: "✅ Я подписался",
     copied: "Ссылка скопирована", trialActivated: "Пробный период активирован", paymentOpened: "Окно оплаты открыто", invoiceOpened: "Инвойс открыт", paymentUnavailable: "Способ оплаты недоступен", noAccess: "Нет активной ссылки доступа", timeout: "Сервер не ответил вовремя", paymentCancelled: "Оплата отменена", paymentSuccess: "Успешная оплата", paymentPending: "Оплата ещё не завершена", resumePaymentTitle: "Оплата не завершена", resumePaymentText: "Продолжить оплату или вернуться в личный кабинет?", resumePaymentContinue: "Продолжить", resumePaymentReturn: "Вернуться в ЛК", paymentBrowserTitle: "Открыть оплату", paymentBrowserText: "Для СБП и банков на телефоне откроем YooKassa во внешнем браузере.", paymentBrowserOpen: "Открыть в браузере",
     invited: "Успешных приглашений", bonus: "Бонус", bonusDays: "Награда", expiresAt: "Истекает", quickAccess: "Быстрое подключение", shareReferral: "Поделиться", referralsHint: "Бонус начисляется только после того, как приглашённый пользователь оплатит любой тариф.", copyReferral: "Веб-ссылка", shareTelegram: "Telegram",
     selectTerm: "Выберите срок", selectedPlan: "Выбранный тариф", paymentMethod: "Способ оплаты", choosePaymentMethod: "Выберите способ оплаты", pay: "Оплатить", best: "Выгодно", perPeriod: "за период", savings: (v) => `-${v}%`,
     starsNeedPriorPurchase: "Telegram Stars откроются после первой оплаты картой или криптой.", serverStatus: "Статус серверов", feedback: "Отзывы", channel: "Новости", tos: "Пользовательское соглашение", tosHint: "Условия использования сервиса Link-Bot", webVersion: "Открыть web-версию",
     supportTitle: "Поддержка", supportHint: "Связь с поддержкой и полезные ссылки в одном месте.", newTicket: "Новое обращение", newTicketHint: "Связаться с поддержкой", supportTickets: "Открытые", supportLinks: "Полезное", noTickets: "Нет открытых обращений", noTicketsHint: "Когда появятся тикеты, они отобразятся здесь.",
+    supportOpenTab: "Открытые", supportHistoryTab: "История", supportFaqTitle: "Часто задаваемые вопросы", supportFaqHint: "Быстрые ответы перед созданием обращения", supportAdminHint: "Новые обращения и ответы появляются здесь автоматически.", supportNoOpenTitle: "Нет открытых обращений", supportNoOpenHint: "Когда появятся тикеты, они отобразятся здесь.", supportNoHistoryTitle: "История обращений пуста", supportNoHistoryHint: "Закрытые обращения будут храниться здесь.", supportCreateTitle: "Создать обращение", supportSubjectLabel: "Тема", supportSubjectPlaceholder: "Кратко опишите проблему", supportMessageLabel: "Сообщение", supportMessagePlaceholder: "Опишите вашу проблему или вопрос подробно...", supportSendButton: "Отправить", supportCloseButton: "Закрыть обращение", supportClosedTitle: "Обращение закрыто", supportClosedHint: "История переписки сохранена в разделе истории.", supportReplyPlaceholder: "Напишите сообщение...", supportLoadingThread: "Загружаем переписку...",
     faqTitle: "Частые вопросы", faqHint: "Короткие ответы по подключению и оплате.", referralsTitle: "Реферальная программа", appearance: "Оформление", appearanceHint: "Переключайте светлую и тёмную тему внутри mini app.", theme: "Тема", darkTheme: "Тёмная", lightTheme: "Светлая", accentColor: "Акцент", settingsLinks: "Полезные ссылки", referralSystem: "Реферальная система",
     setupTitle: "Настройка подключения", setupHint: "Выберите устройство и получите доступ в пару касаний.", setupMissing: "Сначала нужен активный доступ", setupMissingHint: "Оформите тариф или активируйте пробный период, чтобы открыть ссылку подключения.", instructions: "Инструкция", accessLink: "Ссылка доступа", serverAll: "Все", serverOnline: "Онлайн", serverOffline: "Оффлайн", serverTotal: "Всего", serverStatusEmpty: "Ноды не найдены", serverStatusHint: "Живой статус серверов из панели",
     payMethodSbp: "СБП", payMethodSbpHint: "Система быстрых платежей", payMethodCard: "Карта", payMethodCardHint: "Оплата банковской картой", payMethodStars: "Telegram Stars", payMethodStarsHint: "Оплата звёздами Telegram", payMethodCrypto: "Crypto Pay", payMethodCryptoHint: "Оплата криптовалютой", subscriptionExpiringTemplate: "<tg-emoji emoji-id='5251391461244548685'>☺️</tg-emoji> <b>Подписка заканчивается</b>\n\nДата окончания:\n<b>{date}</b>\n\nПродлите доступ, чтобы сохранить соединение.", subscriptionExpiredTemplate: "<tg-emoji emoji-id='5251391461244548685'>☺️</tg-emoji> <b>Подписка закончилась</b>\n\nДата окончания:\n<b>{date}</b>\n\nВыберите тариф, чтобы восстановить доступ.", subscriptionRenewButton: "🔄 Продлить подписку", ready: "Ready", waiting: "После активации",
@@ -1464,6 +1465,15 @@ function seedEditableCopy(settings) {
 	if (!settings.content.subscriptionReminderButton) {
 		settings.content.subscriptionReminderButton = { iconCustomEmojiId: "", style: "" };
 	}
+	if (!settings.content.support) {
+		settings.content.support = {
+			newTicketText: "🆕 <b>Новое обращение #{ticket_id}</b>\n\n👤 <b>Пользователь:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>Подписка:</b> {subscription}\n\n💬 <b>Сообщение:</b>\n{message}",
+			customerReplyText: "📩 <b>Обращение #{ticket_id}</b>\nПолучен новый ответ от пользователя.\n\n👤 <b>Пользователь:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>Подписка:</b> {subscription}\n\n{message}",
+			adminReplyText: "📬 <b>Обращение #{ticket_id}</b>\nПоддержка ответила на ваше сообщение.\n\n{message}",
+			closedText: "💌 <b>Обращение #{ticket_id} закрыто.</b>\nИстория переписки доступна в Mini app.",
+			openButton: { text: "Открыть Mini app", iconCustomEmojiId: "", style: "" },
+		};
+	}
 	(settings.content.customLinks || []).forEach((item) => {
 		delete item.labelEn;
 		delete item.hintEn;
@@ -1535,33 +1545,35 @@ function supportText() {
     };
   }
 
+  const overrides = getRuntimeSettings()?.content?.copy?.ru || {};
+  const editable = (key, fallback) => String(overrides[key] || fallback);
   return {
-    open: "Открытые",
-    history: "История",
-    faq: "Часто задаваемые вопросы",
-    faqHint: "Быстрые ответы перед созданием обращения",
-    adminHint: "Новые обращения и ответы появляются здесь автоматически.",
-    noOpenTitle: "Нет открытых обращений",
-    noOpenHint: "Когда появятся тикеты, они отобразятся здесь.",
-    noHistoryTitle: "История обращений пуста",
-    noHistoryHint: "Закрытые обращения будут храниться здесь.",
-    createTitle: "Создать обращение",
-    subject: "Тема",
-    subjectPlaceholder: "Кратко опишите проблему",
-    message: "Сообщение",
-    messagePlaceholder: "Опишите вашу проблему или вопрос подробно...",
-    send: "Отправить",
+    open: editable("supportOpenTab", "Открытые"),
+    history: editable("supportHistoryTab", "История"),
+    faq: editable("supportFaqTitle", "Часто задаваемые вопросы"),
+    faqHint: editable("supportFaqHint", "Быстрые ответы перед созданием обращения"),
+    adminHint: editable("supportAdminHint", "Новые обращения и ответы появляются здесь автоматически."),
+    noOpenTitle: editable("supportNoOpenTitle", "Нет открытых обращений"),
+    noOpenHint: editable("supportNoOpenHint", "Когда появятся тикеты, они отобразятся здесь."),
+    noHistoryTitle: editable("supportNoHistoryTitle", "История обращений пуста"),
+    noHistoryHint: editable("supportNoHistoryHint", "Закрытые обращения будут храниться здесь."),
+    createTitle: editable("supportCreateTitle", "Создать обращение"),
+    subject: editable("supportSubjectLabel", "Тема"),
+    subjectPlaceholder: editable("supportSubjectPlaceholder", "Кратко опишите проблему"),
+    message: editable("supportMessageLabel", "Сообщение"),
+    messagePlaceholder: editable("supportMessagePlaceholder", "Опишите вашу проблему или вопрос подробно..."),
+    send: editable("supportSendButton", "Отправить"),
     ticketFallback: (id) => `Обращение #${id}`,
     you: "Вы",
     admin: "Поддержка",
-    closeTicket: "Закрыть обращение",
-    closed: "Обращение закрыто",
-    closedHint: "История переписки сохранена в разделе истории.",
-    replyPlaceholder: "Напишите сообщение...",
-    ticketCreated: "Обращение отправлено",
-    replySent: "Ответ отправлен",
-    ticketClosedToast: "Обращение закрыто",
-    loadingThread: "Загружаем переписку...",
+    closeTicket: editable("supportCloseButton", "Закрыть обращение"),
+    closed: editable("supportClosedTitle", "Обращение закрыто"),
+    closedHint: editable("supportClosedHint", "История переписки сохранена в разделе истории."),
+    replyPlaceholder: editable("supportReplyPlaceholder", "Напишите сообщение..."),
+    ticketCreated: editable("ticketCreated", "Обращение отправлено"),
+    replySent: editable("replySent", "Ответ отправлен"),
+    ticketClosedToast: editable("ticketClosedToast", "Обращение закрыто"),
+    loadingThread: editable("supportLoadingThread", "Загружаем переписку..."),
       customer: "Имя пользователя",
       subscription: "Подписка",
       unread: "Новое",
@@ -2388,6 +2400,7 @@ function renderAdminContentPage() {
 		["verification", "Верификация"],
 		["commerce", "Тарифы и оплата"],
 		["success", "После покупки"],
+		["support", "Поддержка"],
 		["notifications", "Уведомления"],
 		["profile", "Профиль"],
 		["faq", "FAQ"],
@@ -2406,6 +2419,7 @@ function renderAdminContentSection(section) {
 		case "verification": return renderAdminVerificationContent();
 		case "commerce": return renderAdminCommerceContent();
 		case "success": return renderAdminSuccessContent();
+		case "support": return renderAdminSupportContent();
 		case "notifications": return renderAdminNotificationContent();
 		case "profile": return renderAdminProfileContent();
 		case "faq": return renderAdminFAQContent();
@@ -2431,7 +2445,12 @@ function renderAdminStartContent() {
 }
 
 function renderAdminVerificationContent() {
-	return `<section class="admin-editor__section"><h3>Сообщение верификации</h3>
+	return `<section class="admin-editor__section"><h3>Канал для проверки</h3>
+		${renderAdminSettingField("Ссылка на канал", "content.links.channel", { type: "url", placeholder: "https://t.me/channel; пусто — проверка отключена" })}
+		${renderAdminSettingField("ID приватного канала", "content.verification.channelChatId", { placeholder: "-1001234567890; для публичного канала не нужен" })}
+		<div class="admin-empty-line">Бот должен быть администратором канала. Для публичного канала достаточно ссылки. Очистите ссылку, чтобы отключить верификацию.</div>
+	</section>
+	<section class="admin-editor__section"><h3>Сообщение верификации</h3>
 		${renderAdminBannerField("Баннер верификации", "content.verification.banner", "/assets/telegram/verification/banner.png")}
 		${renderAdminSettingField("Текст сообщения", "content.verification.text", { textarea: true, rows: 9 })}
 	</section>
@@ -2474,6 +2493,57 @@ function renderAdminSuccessContent() {
 	</section>`;
 }
 
+function renderAdminSupportContent() {
+	const interfaceFields = [
+		["Кнопка нового обращения", "content.copy.ru.newTicket"],
+		["Описание кнопки", "content.copy.ru.newTicketHint"],
+		["Часто задаваемые вопросы", "content.copy.ru.supportFaqTitle"],
+		["Описание FAQ", "content.copy.ru.supportFaqHint"],
+		["Вкладка открытых", "content.copy.ru.supportOpenTab"],
+		["Вкладка истории", "content.copy.ru.supportHistoryTab"],
+		["Подсказка для администратора", "content.copy.ru.supportAdminHint"],
+		["Нет открытых — заголовок", "content.copy.ru.supportNoOpenTitle"],
+		["Нет открытых — описание", "content.copy.ru.supportNoOpenHint"],
+		["История пуста — заголовок", "content.copy.ru.supportNoHistoryTitle"],
+		["История пуста — описание", "content.copy.ru.supportNoHistoryHint"],
+	];
+	const composerFields = [
+		["Заголовок формы", "content.copy.ru.supportCreateTitle"],
+		["Название поля темы", "content.copy.ru.supportSubjectLabel"],
+		["Подсказка темы", "content.copy.ru.supportSubjectPlaceholder"],
+		["Название поля сообщения", "content.copy.ru.supportMessageLabel"],
+		["Подсказка сообщения", "content.copy.ru.supportMessagePlaceholder"],
+		["Кнопка отправки", "content.copy.ru.supportSendButton"],
+		["Закрыть обращение", "content.copy.ru.supportCloseButton"],
+		["Закрыто — заголовок", "content.copy.ru.supportClosedTitle"],
+		["Закрыто — описание", "content.copy.ru.supportClosedHint"],
+		["Поле ответа", "content.copy.ru.supportReplyPlaceholder"],
+		["Загрузка переписки", "content.copy.ru.supportLoadingThread"],
+	];
+	const resultFields = [
+		["Обращение создано", "content.copy.ru.ticketCreated"],
+		["Ответ отправлен", "content.copy.ru.replySent"],
+		["Обращение закрыто", "content.copy.ru.ticketClosedToast"],
+	];
+	return `<section class="admin-editor__section"><h3>Интерфейс поддержки</h3>
+		<div class="admin-editor__grid admin-editor__grid--two">${interfaceFields.map(([label, path]) => renderAdminSettingField(label, path)).join("")}</div>
+	</section>
+	<section class="admin-editor__section"><h3>Создание и переписка</h3>
+		<div class="admin-editor__grid admin-editor__grid--two">${composerFields.map(([label, path]) => renderAdminSettingField(label, path)).join("")}</div>
+	</section>
+	<section class="admin-editor__section"><h3>Результаты действий</h3>
+		<div class="admin-editor__grid admin-editor__grid--two">${resultFields.map(([label, path]) => renderAdminSettingField(label, path)).join("")}</div>
+	</section>
+	<section class="admin-editor__section"><h3>Telegram-уведомления</h3>
+		<div class="admin-empty-line">Доступны переменные: {ticket_id}, {subject}, {name}, {username}, {subscription}, {message}. Сообщение пользователя или поддержки всегда отправляется цитатой.</div>
+		${renderAdminSettingField("Новое обращение — админу", "content.support.newTicketText", { textarea: true, rows: 9 })}
+		${renderAdminSettingField("Ответ пользователя — админу", "content.support.customerReplyText", { textarea: true, rows: 9 })}
+		${renderAdminSettingField("Ответ поддержки — пользователю", "content.support.adminReplyText", { textarea: true, rows: 7 })}
+		${renderAdminSettingField("Обращение закрыто — пользователю", "content.support.closedText", { textarea: true, rows: 5 })}
+	</section>
+	<section class="admin-editor__section"><h3>Кнопка уведомления</h3>${renderAdminTelegramButton("Открыть Mini app", "content.support.openButton")}</section>`;
+}
+
 function renderAdminNotificationContent() {
 	return `<section class="admin-editor__section"><h3>Напоминания о подписке</h3>
 		${renderAdminReminderTemplate("expiring", "Подписка скоро закончится", "content.copy.ru.subscriptionExpiringTemplate")}
@@ -2486,7 +2556,7 @@ function renderAdminNotificationContent() {
 		<div class="admin-empty-line">Переменная {date} подставляет дату окончания. Поддерживается HTML Telegram.</div>
 	</section>
 	<section class="admin-editor__section"><h3>Системные уведомления mini app</h3>
-		${[["trialActivated", "Триал активирован"], ["paymentOpened", "Оплата открыта"], ["paymentUnavailable", "Оплата недоступна"], ["paymentSuccess", "Оплата завершена"], ["paymentPending", "Оплата ожидается"], ["paymentCancelled", "Оплата отменена"], ["promoApplied", "Промокод применён"], ["promoCodeRequired", "Промокод не введён"], ["ticketCreated", "Обращение создано"], ["replySent", "Ответ отправлен"], ["ticketClosedToast", "Обращение закрыто"], ["copied", "Ссылка скопирована"], ["deleteSuccess", "Устройство удалено"], ["noAccess", "Нет активной подписки"], ["timeout", "Сервер не ответил"]].map(([key, label]) => renderAdminSettingField(label, `content.copy.ru.${key}`)).join("")}
+		${[["trialActivated", "Триал активирован"], ["paymentOpened", "Оплата открыта"], ["paymentUnavailable", "Оплата недоступна"], ["paymentSuccess", "Оплата завершена"], ["paymentPending", "Оплата ожидается"], ["paymentCancelled", "Оплата отменена"], ["promoApplied", "Промокод применён"], ["promoCodeRequired", "Промокод не введён"], ["copied", "Ссылка скопирована"], ["deleteSuccess", "Устройство удалено"], ["noAccess", "Нет активной подписки"], ["timeout", "Сервер не ответил"]].map(([key, label]) => renderAdminSettingField(label, `content.copy.ru.${key}`)).join("")}
 	</section>`;
 }
 
@@ -2494,7 +2564,6 @@ function renderAdminProfileContent() {
 	const custom = state.adminSettingsDraft?.content?.customLinks || [];
 	return `<section class="admin-editor__section"><h3>Ссылки</h3>
 		${renderAdminSettingField("Поддержка", "content.links.support", { type: "url" })}
-		${renderAdminSettingField("Канал", "content.links.channel", { type: "url" })}
 	</section>
 	<section class="admin-editor__section"><div class="admin-editor__section-head"><h3>Свои кнопки профиля</h3><button class="admin-icon-button" type="button" data-action="admin-add-custom-link" aria-label="Добавить кнопку">${icon("plus")}</button></div>
 		${custom.length ? custom.map((item, index) => renderAdminCustomLink(item, index)).join("") : `<div class="admin-empty-line">Свои кнопки не добавлены</div>`}
@@ -2559,11 +2628,18 @@ function renderAdminCustomLink(item, index) {
 }
 
 function renderAdminAppearancePage() {
-	const colors = [["background", "Фон интерфейса"], ["surface", "Карточки"], ["surfaceStrong", "Активная поверхность"], ["text", "Текст"], ["muted", "Вторичный текст"], ["border", "Рамки"], ["button", "Кнопки"], ["buttonText", "Текст кнопок"], ["icon", "Иконки"], ["accent", "Акцент"], ["success", "Успех"], ["danger", "Ошибка"], ["unlimitedBadge", "Безлимит"], ["waveBackground", "Фон волн"], ["waveDot", "Точки волн"], ["gridBackground", "Фон сетки"], ["gridLine", "Линии сетки"], ["gridGlowLeft", "Свечение слева"], ["gridGlowRight", "Свечение справа"]];
+	const groups = [
+		["Основа интерфейса", [["background", "Сплошной фон"], ["text", "Основной текст и даты"], ["muted", "Описания и подписи"], ["border", "Рамки"]]],
+		["Карточки", [["surface", "Обычные карточки"], ["surfaceStrong", "Выбранные элементы"]]],
+		["Кнопки и навигация", [["button", "Фон кнопок"], ["buttonText", "Текст кнопок"], ["icon", "Все иконки"], ["accent", "Акцент"]]],
+		["Состояния", [["success", "Успех"], ["danger", "Ошибка"], ["unlimitedBadge", "Метка «Безлимит»"]]],
+		["Фон «Волны»", [["waveBackground", "Фон за точками"], ["waveDot", "Точки"]]],
+		["Фон «Движущаяся сетка»", [["gridBackground", "Фон за линиями"], ["gridLine", "Линии"], ["gridGlowLeft", "Свечение слева"], ["gridGlowRight", "Свечение справа"]]],
+	];
 	return renderAdminEditorPage(state.locale === "en" ? "Appearance" : "Оформление", `
 		<label class="admin-field"><span>Фон</span><select class="admin-field__control" data-setting-path="appearance.backgroundMode"><option value="animated" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "animated" ? "selected" : ""}>Волны</option><option value="grid" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "grid" ? "selected" : ""}>Движущаяся сетка</option><option value="solid" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "solid" ? "selected" : ""}>Сплошной цвет</option></select></label>
 		<div class="admin-toggle-list">${renderAdminToggle("Компактный режим", "appearance.compact")}${renderAdminToggle("Показывать рамки", "appearance.showFrames")}</div>
-		<div class="admin-color-grid">${colors.map(([key, label]) => renderAdminColorField(label, `appearance.colors.${key}`)).join("")}</div>
+		<div class="admin-appearance-groups">${groups.map(([title, colors]) => `<section class="admin-editor__section admin-appearance-group"><h3>${escapeHtml(title)}</h3><div class="admin-color-grid">${colors.map(([key, label]) => renderAdminColorField(label, `appearance.colors.${key}`)).join("")}</div></section>`).join("")}</div>
 	`);
 }
 
@@ -3053,8 +3129,9 @@ function renderSupportPage() {
         </div>
       `;
 	const tabs = `<div class="tabs tabs--support">${SUPPORT_TABS.map((tab) => `<button class="tab ${state.supportTab === tab ? "active" : ""}" type="button" data-action="switch-support-tab" data-value="${tab}">${tab === "open" ? scopy.open : scopy.history}</button>`).join("")}</div>`;
+	const adminIntro = support.isAdmin ? `<div class="note note--top support-admin-hint">${escapeHtml(scopy.adminHint)}</div>` : "";
 	const ticketContent = tickets.length ? `<div class="support-ticket-list">${tickets.map((ticket) => renderSupportTicketCard(ticket, support.isAdmin)).join("")}</div>` : `<div class="card"><div class="empty-state"><div class="empty-state__icon">${icon(emptyIcon)}</div><div class="empty-state__title">${emptyTitle}</div><div class="empty-state__desc">${emptyHint}</div></div></div>`;
-  return `<section class="page page-support ${pageClass("support")}" id="page-support">${actions}${tabs}${ticketContent}</section>`;
+  return `<section class="page page-support ${pageClass("support")}" id="page-support">${actions}${adminIntro}${tabs}${ticketContent}</section>`;
 }
 
 function renderSupportTicketCard(ticket, isAdmin) {
@@ -6526,13 +6603,18 @@ function applyAppearance() {
 		"--bg": colors.background,
 		"--surface": colors.surface,
 		"--surface-strong": colors.surfaceStrong,
+		"--surface-soft": colors.surfaceStrong ? hexToRGBA(colors.surfaceStrong, 0.9) : "",
 		"--text": colors.text,
 		"--muted": colors.muted,
+		"--muted-2": colors.muted ? hexToRGBA(colors.muted, 0.7) : "",
 		"--line": colors.border,
 		"--line-soft": colors.border ? hexToRGBA(colors.border, 0.58) : "",
 		"--control-bg": colors.button,
+		"--control-border": colors.border,
+		"--control-border-soft": colors.border ? hexToRGBA(colors.border, 0.72) : "",
 		"--button-text": colors.buttonText,
 		"--icon-color": colors.icon,
+		"--glass-selected": colors.surfaceStrong,
 		"--success": colors.success,
 		"--danger": colors.danger,
 		"--grid-background": colors.gridBackground,

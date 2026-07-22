@@ -80,7 +80,7 @@ func (h Handler) maybeAutoVerifyRequiredChannelSubscription(ctx context.Context,
 }
 
 func (h Handler) verifyRequiredChannelSubscription(ctx context.Context, b *bot.Bot, customer *database.Customer, force bool) (bool, error) {
-	if !config.IsRequiredChannelSubscriptionEnabled() || customer == nil {
+	if h.requiredChannelSubscriptionURL() == "" || customer == nil {
 		return true, nil
 	}
 	if h.shouldBypassRequiredChannelSubscription(customer.TelegramID) {
@@ -139,7 +139,7 @@ func (h Handler) isUserSubscribedToRequiredChannel(ctx context.Context, b *bot.B
 		return false, fmt.Errorf("telegram bot is nil")
 	}
 
-	chatID, ok := config.RequiredChannelSubscriptionChatID()
+	chatID, ok := h.requiredChannelSubscriptionChatID()
 	if !ok {
 		return false, fmt.Errorf("required channel subscription chat id is not configured")
 	}
@@ -228,7 +228,7 @@ func (h Handler) showRequiredChannelSubscriptionPrompt(ctx context.Context, b *b
 func (h Handler) buildRequiredChannelSubscriptionKeyboard(langCode string) [][]models.InlineKeyboardButton {
 	settings := h.telegramVerificationSettings()
 	channelButton := telegramButton(settings.ChannelButton, h.requiredChannelSubscriptionTitle(), "")
-	channelButton.URL = config.RequiredChannelSubscriptionURL()
+	channelButton.URL = h.requiredChannelSubscriptionURL()
 	confirmButton := telegramButton(settings.ConfirmButton, h.translation.GetText(langCode, "required_channel_subscription_confirm_button"), "")
 	confirmButton.CallbackData = CallbackVerifyChannel
 	return [][]models.InlineKeyboardButton{
@@ -238,11 +238,15 @@ func (h Handler) buildRequiredChannelSubscriptionKeyboard(langCode string) [][]m
 }
 
 func (h Handler) requiredChannelSubscriptionTitle() string {
-	if title := strings.TrimSpace(config.RequiredChannelSubscriptionTitle()); title != "" {
+	if h.runtimeSettings != nil {
+		if title := strings.TrimSpace(h.runtimeSettings.Snapshot().Content.Verification.ChannelButton.Text); title != "" {
+			return title
+		}
+	} else if title := strings.TrimSpace(config.RequiredChannelSubscriptionTitle()); title != "" {
 		return title
 	}
 
-	raw := strings.TrimSpace(config.RequiredChannelSubscriptionURL())
+	raw := h.requiredChannelSubscriptionURL()
 	raw = strings.TrimPrefix(raw, "https://t.me/")
 	raw = strings.TrimPrefix(raw, "http://t.me/")
 	raw = strings.TrimPrefix(raw, "t.me/")
@@ -253,6 +257,23 @@ func (h Handler) requiredChannelSubscriptionTitle() string {
 	}
 
 	return raw
+}
+
+func (h Handler) requiredChannelSubscriptionURL() string {
+	if h.runtimeSettings != nil {
+		return strings.TrimSpace(h.runtimeSettings.Snapshot().Content.Links["channel"])
+	}
+	return strings.TrimSpace(config.RequiredChannelSubscriptionURL())
+}
+
+func (h Handler) requiredChannelSubscriptionChatID() (any, bool) {
+	raw := h.requiredChannelSubscriptionURL()
+	if h.runtimeSettings != nil {
+		if configured := strings.TrimSpace(h.runtimeSettings.Snapshot().Content.Verification.ChannelChatID); configured != "" {
+			raw = configured
+		}
+	}
+	return runtimeconfig.ParseTelegramChannelChatID(raw)
 }
 
 func (h Handler) requiredChannelSubscriptionText(langCode string) string {

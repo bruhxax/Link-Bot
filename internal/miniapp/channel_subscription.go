@@ -11,6 +11,7 @@ import (
 
 	"link-bot/internal/config"
 	"link-bot/internal/database"
+	"link-bot/internal/runtimeconfig"
 )
 
 type channelSubscriptionMeta struct {
@@ -29,7 +30,7 @@ func (h *Handler) maybeAutoVerifyRequiredChannelSubscription(ctx context.Context
 }
 
 func (h *Handler) verifyRequiredChannelSubscription(ctx context.Context, customer *database.Customer, force bool) (bool, error) {
-	if !config.IsRequiredChannelSubscriptionEnabled() || customer == nil {
+	if h.requiredChannelSubscriptionURL() == "" || customer == nil {
 		return true, nil
 	}
 	if h.shouldBypassRequiredChannelSubscription(customer.TelegramID) {
@@ -94,7 +95,7 @@ func (h *Handler) isUserSubscribedToRequiredChannel(ctx context.Context, telegra
 		return false, fmt.Errorf("telegram bot is nil")
 	}
 
-	chatID, ok := config.RequiredChannelSubscriptionChatID()
+	chatID, ok := h.requiredChannelSubscriptionChatID()
 	if !ok {
 		return false, fmt.Errorf("required channel subscription chat id is not configured")
 	}
@@ -122,18 +123,22 @@ func (h *Handler) isUserSubscribedToRequiredChannel(ctx context.Context, telegra
 
 func (h *Handler) requiredChannelSubscriptionMeta() channelSubscriptionMeta {
 	return channelSubscriptionMeta{
-		ChannelURL:   config.RequiredChannelSubscriptionURL(),
+		ChannelURL:   h.requiredChannelSubscriptionURL(),
 		ChannelTitle: h.requiredChannelSubscriptionTitle(),
 		ImageURL:     "",
 	}
 }
 
 func (h *Handler) requiredChannelSubscriptionTitle() string {
-	if title := strings.TrimSpace(config.RequiredChannelSubscriptionTitle()); title != "" {
+	if h.runtimeSettings != nil {
+		if title := strings.TrimSpace(h.runtimeSettings.Snapshot().Content.Verification.ChannelButton.Text); title != "" {
+			return title
+		}
+	} else if title := strings.TrimSpace(config.RequiredChannelSubscriptionTitle()); title != "" {
 		return title
 	}
 
-	raw := strings.TrimSpace(config.RequiredChannelSubscriptionURL())
+	raw := h.requiredChannelSubscriptionURL()
 	raw = strings.TrimPrefix(raw, "https://t.me/")
 	raw = strings.TrimPrefix(raw, "http://t.me/")
 	raw = strings.TrimPrefix(raw, "t.me/")
@@ -144,4 +149,21 @@ func (h *Handler) requiredChannelSubscriptionTitle() string {
 	}
 
 	return raw
+}
+
+func (h *Handler) requiredChannelSubscriptionURL() string {
+	if h.runtimeSettings != nil {
+		return strings.TrimSpace(h.runtimeSettings.Snapshot().Content.Links["channel"])
+	}
+	return strings.TrimSpace(config.RequiredChannelSubscriptionURL())
+}
+
+func (h *Handler) requiredChannelSubscriptionChatID() (any, bool) {
+	raw := h.requiredChannelSubscriptionURL()
+	if h.runtimeSettings != nil {
+		if configured := strings.TrimSpace(h.runtimeSettings.Snapshot().Content.Verification.ChannelChatID); configured != "" {
+			raw = configured
+		}
+	}
+	return runtimeconfig.ParseTelegramChannelChatID(raw)
 }

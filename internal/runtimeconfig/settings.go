@@ -21,7 +21,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 8
+const CurrentVersion = 9
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -81,11 +81,20 @@ type CustomLink struct {
 type TelegramVerificationSettings struct {
 	Text              string                 `json:"text"`
 	Banner            string                 `json:"banner"`
+	ChannelChatID     string                 `json:"channelChatId"`
 	ChannelButton     TelegramButtonSettings `json:"channelButton"`
 	ConfirmButton     TelegramButtonSettings `json:"confirmButton"`
 	CheckFailedText   string                 `json:"checkFailedText"`
 	NotSubscribedText string                 `json:"notSubscribedText"`
 	VerifiedText      string                 `json:"verifiedText"`
+}
+
+type TelegramSupportSettings struct {
+	NewTicketText     string                 `json:"newTicketText"`
+	CustomerReplyText string                 `json:"customerReplyText"`
+	AdminReplyText    string                 `json:"adminReplyText"`
+	ClosedText        string                 `json:"closedText"`
+	OpenButton        TelegramButtonSettings `json:"openButton"`
 }
 
 type TelegramStartMenuSettings struct {
@@ -122,6 +131,7 @@ type ContentSettings struct {
 	CustomLinks                []CustomLink                 `json:"customLinks"`
 	SubscriptionReminderButton TelegramButtonSettings       `json:"subscriptionReminderButton"`
 	Verification               TelegramVerificationSettings `json:"verification"`
+	Support                    TelegramSupportSettings      `json:"support"`
 	StartMenu                  TelegramStartMenuSettings    `json:"startMenu"`
 	Commerce                   TelegramCommerceSettings     `json:"commerce"`
 }
@@ -251,7 +261,7 @@ func DefaultSettings() Settings {
 			FAQ:          map[string][]FAQItem{"ru": {}},
 			Links: map[string]string{
 				"support": strings.TrimSpace(config.SupportURL()),
-				"channel": strings.TrimSpace(config.ChannelURL()),
+				"channel": firstNonEmpty(config.RequiredChannelSubscriptionURL(), config.ChannelURL()),
 			},
 			CustomLinks: []CustomLink{},
 			Verification: TelegramVerificationSettings{
@@ -266,6 +276,15 @@ func DefaultSettings() Settings {
 				CheckFailedText:   "Не удалось проверить подписку. Попробуйте ещё раз",
 				NotSubscribedText: "Подписка пока не найдена",
 				VerifiedText:      "Готово, доступ открыт",
+			},
+			Support: TelegramSupportSettings{
+				NewTicketText:     "🆕 <b>Новое обращение #{ticket_id}</b>\n\n👤 <b>Пользователь:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>Подписка:</b> {subscription}\n\n💬 <b>Сообщение:</b>\n{message}",
+				CustomerReplyText: "📩 <b>Обращение #{ticket_id}</b>\nПолучен новый ответ от пользователя.\n\n👤 <b>Пользователь:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>Подписка:</b> {subscription}\n\n{message}",
+				AdminReplyText:    "📬 <b>Обращение #{ticket_id}</b>\nПоддержка ответила на ваше сообщение.\n\n{message}",
+				ClosedText:        "💌 <b>Обращение #{ticket_id} закрыто.</b>\nИстория переписки доступна в Mini app.",
+				OpenButton: TelegramButtonSettings{
+					Text: "Открыть Mini app",
+				},
 			},
 			StartMenu: TelegramStartMenuSettings{
 				TrialButton: TelegramButtonSettings{
@@ -674,6 +693,9 @@ func validateContent(value *ContentSettings, defaults ContentSettings, legacy bo
 		}
 		cleanCopy[key] = limit(strings.TrimSpace(text), 3500)
 	}
+	if legacy && cleanCopy["setup"] == "Установить и настроить" {
+		cleanCopy["setup"] = "Подключиться"
+	}
 	value.Copy = map[string]map[string]string{"ru": cleanCopy}
 
 	if value.FAQ == nil {
@@ -715,7 +737,7 @@ func validateContent(value *ContentSettings, defaults ContentSettings, legacy bo
 	allowedLinks := map[string]bool{"support": true, "channel": true}
 	for _, name := range []string{"support", "channel"} {
 		link := strings.TrimSpace(value.Links[name])
-		if link == "" {
+		if legacy && link == "" {
 			link = defaults.Links[name]
 		}
 		if link != "" && !isSafeWebURL(link) {
@@ -772,6 +794,20 @@ func normalizeTelegramContent(value *ContentSettings, defaults ContentSettings, 
 	}
 	if err := normalizeTelegramButton(&value.Verification.ConfirmButton, defaults.Verification.ConfirmButton); err != nil {
 		return fmt.Errorf("verification confirm button: %w", err)
+	}
+	value.Verification.ChannelChatID = strings.TrimSpace(value.Verification.ChannelChatID)
+	if value.Verification.ChannelChatID != "" {
+		if _, ok := ParseTelegramChannelChatID(value.Verification.ChannelChatID); !ok {
+			return errors.New("verification channel chat ID must be @username or a numeric Telegram chat ID")
+		}
+	}
+
+	value.Support.NewTicketText = normalizedRequiredText(value.Support.NewTicketText, defaults.Support.NewTicketText, 3500)
+	value.Support.CustomerReplyText = normalizedRequiredText(value.Support.CustomerReplyText, defaults.Support.CustomerReplyText, 3500)
+	value.Support.AdminReplyText = normalizedRequiredText(value.Support.AdminReplyText, defaults.Support.AdminReplyText, 3500)
+	value.Support.ClosedText = normalizedRequiredText(value.Support.ClosedText, defaults.Support.ClosedText, 3500)
+	if err := normalizeTelegramButton(&value.Support.OpenButton, defaults.Support.OpenButton); err != nil {
+		return fmt.Errorf("support mini app button: %w", err)
 	}
 
 	if err := normalizeTelegramButton(&value.StartMenu.TrialButton, defaults.StartMenu.TrialButton); err != nil {
@@ -1202,6 +1238,49 @@ func isSafeWebURL(value string) bool {
 		return false
 	}
 	return parsed.Scheme == "https" || parsed.Scheme == "http"
+}
+
+func ParseTelegramChannelChatID(raw string) (any, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, false
+	}
+	if strings.HasPrefix(raw, "-100") {
+		chatID, err := strconv.ParseInt(raw, 10, 64)
+		return chatID, err == nil
+	}
+	if strings.HasPrefix(raw, "@") {
+		username := strings.TrimPrefix(raw, "@")
+		if telegramUserPattern.MatchString(username) {
+			return "@" + username, true
+		}
+		return nil, false
+	}
+	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
+		parsed, err := url.Parse(raw)
+		if err != nil || !strings.EqualFold(parsed.Host, "t.me") {
+			return nil, false
+		}
+		raw = strings.Trim(parsed.Path, "/")
+	}
+	raw = strings.TrimSpace(strings.TrimPrefix(raw, "t.me/"))
+	raw = strings.TrimPrefix(raw, "@")
+	if index := strings.Index(raw, "/"); index >= 0 {
+		raw = raw[:index]
+	}
+	if !telegramUserPattern.MatchString(raw) {
+		return nil, false
+	}
+	return "@" + raw, true
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func contains(values []string, target string) bool {

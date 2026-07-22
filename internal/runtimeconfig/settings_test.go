@@ -132,6 +132,68 @@ func TestNormalizeAndValidateRejectsUnsafeContentKey(t *testing.T) {
 	}
 }
 
+func TestParseTelegramChannelChatID(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want any
+		ok   bool
+	}{
+		{name: "public url", raw: "https://t.me/link_bot_news", want: "@link_bot_news", ok: true},
+		{name: "public username", raw: "@link_bot_news", want: "@link_bot_news", ok: true},
+		{name: "private numeric", raw: "-1001234567890", want: int64(-1001234567890), ok: true},
+		{name: "empty", raw: "", ok: false},
+		{name: "invite url requires numeric id", raw: "https://t.me/+invite", ok: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := ParseTelegramChannelChatID(tt.raw)
+			if ok != tt.ok {
+				t.Fatalf("ParseTelegramChannelChatID(%q) ok = %v, want %v", tt.raw, ok, tt.ok)
+			}
+			if ok && got != tt.want {
+				t.Fatalf("ParseTelegramChannelChatID(%q) = %#v, want %#v", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeAndValidateSupportAndVerificationContent(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Content.Links["channel"] = "https://t.me/link_bot_news"
+	settings.Content.Verification.ChannelChatID = "-1001234567890"
+	settings.Content.Support.NewTicketText = "Ticket {ticket_id}: {message}"
+	settings.Content.Support.OpenButton.Text = "Open support"
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if got := settings.Content.Verification.ChannelChatID; got != "-1001234567890" {
+		t.Fatalf("channel chat id = %q", got)
+	}
+	if got := settings.Content.Support.NewTicketText; got != "Ticket {ticket_id}: {message}" {
+		t.Fatalf("support template = %q", got)
+	}
+	if got := settings.Content.Support.OpenButton.Text; got != "Open support" {
+		t.Fatalf("support button = %q", got)
+	}
+}
+
+func TestNormalizeAndValidateAllowsDisablingChannelVerification(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Version = CurrentVersion
+	settings.Content.Links["channel"] = ""
+	settings.Content.Verification.ChannelChatID = ""
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if got := settings.Content.Links["channel"]; got != "" {
+		t.Fatalf("disabled channel link = %q, want empty", got)
+	}
+}
+
 func TestNormalizeAndValidateAddsVisualEditorAreas(t *testing.T) {
 	settings := DefaultSettings()
 	positionX, positionY := 31.5, 72.25
