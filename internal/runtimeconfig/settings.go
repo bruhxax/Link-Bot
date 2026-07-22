@@ -292,7 +292,7 @@ func DefaultSettings() Settings {
 					IconCustomEmojiID: "5276422526350681413",
 				},
 				DashboardButton: TelegramButtonSettings{
-					Text:              "Личный кабинет",
+					Text:              "Вход",
 					IconCustomEmojiID: "5278413853577734640",
 				},
 				PlansButton: TelegramButtonSettings{

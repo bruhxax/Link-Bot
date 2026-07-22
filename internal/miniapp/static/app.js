@@ -625,7 +625,7 @@ function refreshAfterPossibleGoogleLink() {
 }
 
 const PENDING_PAYMENT_KEY = "link-bot-pending-payment";
-const STATIC_ASSET_REV = "20260722-v107";
+const STATIC_ASSET_REV = "20260722-v108";
 const BRAND_MARK_PATH = "/mini-app/assets/brand-mark.png";
 const BRAND_MARK_URL = `${BRAND_MARK_PATH}?v=${STATIC_ASSET_REV}`;
 
@@ -1228,7 +1228,7 @@ function buildPreviewRuntimeSettings() {
 		content: {
 			brandName: "Link-Bot", adminContact: "", logoUrl: previewPayload.brand.logoUrl, startTextRu: "", startImage: "", copy: { ru: {} }, faq: { ru: [] }, links: deepClone(previewPayload.links), customLinks: [],
 			verification: { text: "", banner: "", channelButton: { text: "Link-Bot", iconCustomEmojiId: "", style: "" }, confirmButton: { text: "Я подписался", iconCustomEmojiId: "", style: "" }, checkFailedText: "", notSubscribedText: "", verifiedText: "" },
-			startMenu: { trialButton: { text: "Попробовать бесплатно", iconCustomEmojiId: "5276422526350681413", style: "" }, dashboardButton: { text: "Личный кабинет", iconCustomEmojiId: "5278413853577734640", style: "" }, plansButton: { text: "Тарифы", iconCustomEmojiId: "5206626000665868017", style: "" }, supportButton: { text: "Чат с поддержкой", iconCustomEmojiId: "5206222720416643915", style: "" } },
+			startMenu: { trialButton: { text: "Попробовать бесплатно", iconCustomEmojiId: "5276422526350681413", style: "" }, dashboardButton: { text: "Вход", iconCustomEmojiId: "5278413853577734640", style: "" }, plansButton: { text: "Тарифы", iconCustomEmojiId: "5206626000665868017", style: "" }, supportButton: { text: "Чат с поддержкой", iconCustomEmojiId: "5206222720416643915", style: "" } },
 			commerce: { banner: "", tariffsText: "", paymentMethodsText: "", paymentReadyText: "", yookassaButton: { text: "СБП | Карта", iconCustomEmojiId: "5192678313415434135", style: "" }, cryptoButton: { text: "CryptoPay", iconCustomEmojiId: "5195058841988914267", style: "" }, starsButton: { text: "Telegram Stars", iconCustomEmojiId: "5242644275014951846", style: "" }, payButton: { text: "Оплатить", iconCustomEmojiId: "5206401524200145033", style: "" }, backButton: { text: "Назад", iconCustomEmojiId: "5877629862306385808", style: "" }, successText: "", successBanner: "", successButton: { text: "Личный кабинет", iconCustomEmojiId: "5278413853577734640", style: "" } },
 		},
 		appearance: { backgroundMode: "animated", compact: true, showFrames: true, colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", waveBackground: "#000000", waveDot: "#ebebeb" } },
@@ -2468,7 +2468,7 @@ function renderAdminStartContent() {
 	</section>
 	<section class="admin-editor__section"><h3>Кнопки главного меню</h3>
 		${renderAdminTelegramButton("Попробовать бесплатно", "content.startMenu.trialButton")}
-		${renderAdminTelegramButton("Личный кабинет", "content.startMenu.dashboardButton")}
+		${renderAdminTelegramButton("Вход", "content.startMenu.dashboardButton")}
 		${renderAdminTelegramButton("Тарифы", "content.startMenu.plansButton")}
 		${renderAdminTelegramButton("Чат с поддержкой", "content.startMenu.supportButton")}
 	</section>`;
@@ -3568,12 +3568,12 @@ function renderStateScreen(kind, message = "", meta = null) {
 		return `
 			<div class="state-screen state-screen--maintenance">
 				<section class="maintenance-card" aria-labelledby="maintenance-title">
-					<div class="maintenance-card__icon">${icon("wrench")}</div>
+					<div class="maintenance-card__icon">${icon("maintenanceKey")}</div>
 					<div class="maintenance-card__eyebrow">${escapeHtml(getRuntimeSettings()?.content?.brandName || "Link-Bot")}</div>
 					<h1 class="maintenance-card__title" id="maintenance-title">${escapeHtml(title)}</h1>
 					<p class="maintenance-card__text">${escapeHtml(text)}</p>
 					<div class="maintenance-card__reason"><span>Причина</span><strong>${escapeHtml(reason)}</strong></div>
-					<div class="maintenance-card__waiting"><span></span><span></span><span></span><em>Пожалуйста, подождите</em></div>
+					<div class="maintenance-card__waiting" role="status" aria-label="Технические работы"><span></span><span></span><span></span></div>
 				</section>
 			</div>
 		`;
@@ -5536,7 +5536,8 @@ function flushAdminLayoutPointerFrame() {
 	const item = pointer.item;
 	if (pointer.mode === "resize") {
 		const isNavigation = item.area === "navigation";
-		const minWidth = isNavigation ? 28 : 32;
+		const isCompactDashboardLabel = item.area === "dashboard" && ["username", "plan_name"].includes(item.id);
+		const minWidth = isNavigation ? 28 : (isCompactDashboardLabel ? 64 : 32);
 		const minHeight = isNavigation ? 24 : 20;
 		const maxWidth = Math.max(minWidth, pointer.surfaceWidth - pointer.startLeft);
 		const maxHeight = isNavigation ? 96 : Math.max(minHeight, pointer.surfaceHeight - pointer.startTop + 240);
@@ -7503,6 +7504,7 @@ function createParticleEngine() {
 function icon(name) {
   const icons = {
 		wrench: `<svg viewBox="0 0 24 24" fill="none"><path d="M14.7 6.2a4.8 4.8 0 0 0-6.1 6.1L3.8 17a2.1 2.1 0 1 0 3 3l4.8-4.8a4.8 4.8 0 0 0 6.1-6.1l-2.8 2.8-2.8-.7-.7-2.8 3.3-2.2Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+		maintenanceKey: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><circle cx="15.5" cy="8.5" r="4.5" stroke="currentColor" stroke-width="1.8"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor"/><path d="m12.3 11.7-8.1 8.1M7.4 16.6l2 2M5.2 18.8l-1.6-1.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 		alert: `<svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 17h.01M10.3 4.9 3.4 17a2 2 0 0 0 1.7 3h13.8a2 2 0 0 0 1.7-3L13.7 4.9a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 		sliders: `<svg viewBox="0 0 24 24" fill="none"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M10 14v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="16" cy="7" r="2" stroke="currentColor" stroke-width="1.8"/><circle cx="8" cy="17" r="2" stroke="currentColor" stroke-width="1.8"/></svg>`,
 		palette: `<svg viewBox="0 0 24 24" fill="none"><path d="M12 3a9 9 0 0 0 0 18h1.2a1.8 1.8 0 0 0 1.2-3.1 1.8 1.8 0 0 1 1.2-3.1H18A3 3 0 0 0 21 12 9 9 0 0 0 12 3Z" stroke="currentColor" stroke-width="1.8"/><circle cx="7.5" cy="10" r="1" fill="currentColor"/><circle cx="10" cy="6.8" r="1" fill="currentColor"/><circle cx="14.3" cy="6.8" r="1" fill="currentColor"/><circle cx="17" cy="10" r="1" fill="currentColor"/></svg>`,

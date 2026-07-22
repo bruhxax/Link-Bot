@@ -49,7 +49,7 @@
   "referral_bonus_granted": "<tg-emoji emoji-id='5258362837411045098'>☺️</tg-emoji> Вам начислен бонус за приглашённого друга",
 
   "channel_button": "📢 Новости",
-  "web_app_button_text": "Личный кабинет",
+  "web_app_button_text": "Вход",
   "support_chat_button_text": "Чат с поддержкой",
   "required_channel_subscription_text": "<b>Link-Bot Верификация</b>\n\nЧтобы открыть доступ к боту и mini app, подпишитесь на наш Telegram-канал <b>%s</b>.\n\nТам мы публикуем новости, обновления сервиса, важные изменения и полезные анонсы.\n\nПосле подписки нажмите кнопку ниже.",
   "required_channel_subscription_confirm_button": "✅ Я подписался",
