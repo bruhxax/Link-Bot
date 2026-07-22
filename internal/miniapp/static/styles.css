@@ -667,6 +667,8 @@ img { display: block; max-width: 100%; }
   display: none;
   overflow: hidden;
   background: var(--grid-background);
+  contain: strict;
+  isolation: isolate;
 }
 
 :root[data-background="grid"] .bg-media__grid { display: block; }
@@ -688,10 +690,11 @@ img { display: block; max-width: 100%; }
     linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
   background-size: 34px 34px;
   opacity: .26;
-  transform: rotate(-11deg) scale(1.08);
+  transform: rotate(-11deg) scale(1.08) translate3d(0, 0, 0);
   transform-origin: center;
   animation: runtime-grid-fall 3.8s linear infinite;
-  will-change: background-position;
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
 .bg-media__grid::after {
@@ -705,12 +708,26 @@ img { display: block; max-width: 100%; }
 }
 
 @keyframes runtime-grid-fall {
-  from { background-position: 0 0, 0 0; }
-  to { background-position: 0 34px, 0 34px; }
+  from { transform: rotate(-11deg) scale(1.08) translate3d(0, -34px, 0); }
+  to { transform: rotate(-11deg) scale(1.08) translate3d(0, 0, 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .bg-media__grid::before { animation: none; }
+}
+
+:root[data-performance="low"] .bg-media__grid::before {
+  animation-duration: 7.6s;
+  opacity: .22;
+}
+
+:root[data-performance="reduced"] .bg-media__grid::before {
+  animation: none;
+  transform: rotate(-11deg) scale(1.08) translate3d(0, 0, 0);
+}
+
+:root[data-page-active="false"] .bg-media__grid::before {
+  animation-play-state: paused;
 }
 
 :root[data-theme="light"] .bg-media__canvas {

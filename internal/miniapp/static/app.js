@@ -14,7 +14,9 @@ const previewMode = (() => {
 const previewAdminMode = previewMode && urlParams.get("admin") === "1";
 const installGuideMode = urlParams.get("install") === "desktop";
 const themeMeta = document.querySelector('meta[name="theme-color"]');
+const reducedMotionMedia = window.matchMedia?.("(prefers-reduced-motion: reduce)");
 
+configureBackgroundPerformance();
 preventMiniAppZoom();
 registerPWAServiceWorker();
 
@@ -65,6 +67,15 @@ function preventMiniAppZoom() {
 function registerPWAServiceWorker() {
   if (!("serviceWorker" in navigator) || window.location.protocol !== "https:") return;
   navigator.serviceWorker.register("/mini-app/sw.js", { scope: "/mini-app/" }).catch(() => {});
+}
+
+function configureBackgroundPerformance() {
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const reduced = Boolean(reducedMotionMedia?.matches || connection?.saveData);
+  const lowPower = (Number(navigator.deviceMemory) > 0 && Number(navigator.deviceMemory) <= 4)
+    || (Number(navigator.hardwareConcurrency) > 0 && Number(navigator.hardwareConcurrency) <= 4);
+  document.documentElement.dataset.performance = reduced ? "reduced" : (lowPower ? "low" : "normal");
+  document.documentElement.dataset.pageActive = document.hidden ? "false" : "true";
 }
 
 function scheduleDashboardHydration() {
@@ -614,7 +625,7 @@ function refreshAfterPossibleGoogleLink() {
 }
 
 const PENDING_PAYMENT_KEY = "link-bot-pending-payment";
-const STATIC_ASSET_REV = "20260722-v106";
+const STATIC_ASSET_REV = "20260722-v107";
 const BRAND_MARK_PATH = "/mini-app/assets/brand-mark.png";
 const BRAND_MARK_URL = `${BRAND_MARK_PATH}?v=${STATIC_ASSET_REV}`;
 
@@ -4560,7 +4571,14 @@ function bindRootActions() {
 	window.addEventListener("pointercancel", cancelAdminPlanPointer);
 
   document.addEventListener("visibilitychange", () => {
+    document.documentElement.dataset.pageActive = document.hidden ? "false" : "true";
+    syncBackgroundEngines();
     if (document.visibilityState === "visible" && hasAuth()) safeRefresh().catch(() => {});
+  });
+
+  reducedMotionMedia?.addEventListener?.("change", () => {
+    configureBackgroundPerformance();
+    syncBackgroundEngines();
   });
 
   window.addEventListener("resize", () => {
@@ -4879,12 +4897,7 @@ function markAdminLayoutDirty() {
 }
 
 function syncAdminLayoutBackgroundAnimation() {
-	const paused = Boolean(state.adminLayoutEditing || state.adminPlanEditing);
-	particleEngine.setPaused?.(paused);
-	const wave = window.__linkBotWave;
-	if (!wave) return;
-	if (paused) wave.pause?.();
-	else wave.resume?.();
+	syncBackgroundEngines();
 }
 
 function enterAdminPlanEditor() {
@@ -6667,11 +6680,23 @@ function applyAppearance() {
   updateWaveColorFilter(colors.waveBackground || "#000000", colors.waveDot || "#ebebeb");
   particleEngine.setColor(accent.particle);
   if (themeMeta) themeMeta.setAttribute("content", PALETTE.themeColor.dark);
-  if (tg) {
+	if (tg) {
     const color = PALETTE.themeColor.dark;
     if (typeof tg.setHeaderColor === "function") tg.setHeaderColor(color);
     if (typeof tg.setBackgroundColor === "function") tg.setBackgroundColor(color);
   }
+	syncBackgroundEngines();
+}
+
+function syncBackgroundEngines() {
+	const backgroundMode = document.documentElement.dataset.background || "animated";
+	const paused = document.hidden || state.adminLayoutEditing || state.adminPlanEditing;
+	const waveShouldRun = backgroundMode === "animated" && !paused;
+	particleEngine.setPaused?.(backgroundMode !== "animated" || paused);
+	const wave = window.__linkBotWave;
+	if (!wave) return;
+	if (waveShouldRun) wave.resume?.();
+	else wave.pause?.();
 }
 
 function updateWaveColorFilter(backgroundHex, dotHex) {
