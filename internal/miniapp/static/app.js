@@ -614,7 +614,7 @@ function refreshAfterPossibleGoogleLink() {
 }
 
 const PENDING_PAYMENT_KEY = "link-bot-pending-payment";
-const STATIC_ASSET_REV = "20260722-v105";
+const STATIC_ASSET_REV = "20260722-v106";
 const BRAND_MARK_PATH = "/mini-app/assets/brand-mark.png";
 const BRAND_MARK_URL = `${BRAND_MARK_PATH}?v=${STATIC_ASSET_REV}`;
 
@@ -886,6 +886,22 @@ Object.assign(copybook.en, {
   adminSubscriptionRebind: "Rebind subscription",
   adminSubscriptionSuccess: "Subscription rebound",
   adminSubscriptionConfirm: (username, telegramID) => `Rebind ${username} to Telegram ID ${telegramID}? The previous account will lose subscription management. If the new account already has another subscription, it will be unlinked.`,
+});
+
+Object.assign(copybook.ru, {
+  noPlansTitle: "Тарифы пока не настроены",
+  noPlansHint: "Покупка станет доступна после добавления тарифов.",
+  adminNoPlansHint: "Добавьте первый тариф кнопкой ниже.",
+  noPaymentMethodsTitle: "Способы оплаты не настроены",
+  noPaymentMethodsHint: "Подключите платёжную систему в разделе интеграций.",
+});
+
+Object.assign(copybook.en, {
+  noPlansTitle: "Plans are not configured yet",
+  noPlansHint: "Purchasing will become available after plans are added.",
+  adminNoPlansHint: "Add the first plan using the button below.",
+  noPaymentMethodsTitle: "Payment methods are not configured",
+  noPaymentMethodsHint: "Connect a payment provider in Integrations.",
 });
 
 const FAQS = {
@@ -1680,6 +1696,10 @@ async function boot() {
 }
 
 async function loadPublicConfig() {
+	if (previewMode) {
+		state.publicSettings = null;
+		return;
+	}
 	try {
 		const response = await getJSON("/api/mini-app/public-config");
 		state.publicSettings = response?.data || null;
@@ -3056,13 +3076,25 @@ function renderBuyPage() {
   const plan = getSelectedPlan();
   const method = getSelectedPaymentMethod();
   const promoStatus = getPromoStatus();
-  const payLabel = plan ? `${copy.pay} ${formatPlanCheckoutPrice(plan, method?.id, state.locale)}` : copy.pay;
+  const payLabel = plan && method ? `${copy.pay} ${formatPlanCheckoutPrice(plan, method.id, state.locale)}` : copy.paymentUnavailable;
   const displayedPlans = getDisplayedPlans();
+  if (!displayedPlans.length) {
+    return `<section class="page page-buy--empty ${state.adminPlanEditing ? "page-buy--admin-editor" : ""} ${pageClass("buy")}" id="page-buy">
+      <div class="commerce-empty" role="status">
+        <div class="commerce-empty__icon">${icon("cartShopping")}</div>
+        <div class="commerce-empty__title">${escapeHtml(copy.noPlansTitle)}</div>
+        <div class="commerce-empty__hint">${escapeHtml(state.adminPlanEditing ? copy.adminNoPlansHint : copy.noPlansHint)}</div>
+      </div>
+    </section>`;
+  }
   const planList = `<div class="pricing-list ${state.adminPlanEditing ? "pricing-list--admin" : ""}" style="--plan-columns:${Math.max(1, Math.min(2, Number(getRuntimeSettings()?.layout?.planColumns || 2)))}">${displayedPlans.map((item) => renderPlanCard(item, planKey(item) === planKey(plan))).join("")}</div>`;
+  const methodTitle = method?.label || copy.noPaymentMethodsTitle;
+  const methodHint = method?.hint || copy.noPaymentMethodsHint;
+  const checkoutDisabled = !plan || !method || state.busyMethod || state.adminPlanEditing;
   const checkout = `<div class="card card--checkout">
 		<div class="summary-row checkout-summary"><div><div class="summary-row__title">${copy.selectedPlan}</div><div class="summary-row__value">${plan ? getPlanDisplayTitle(plan, state.locale) : "—"}</div></div>${plan?.recommended ? `<span class="badge badge--inline">${copy.best}</span>` : plan?.savingsPercent ? `<span class="badge badge--inline">${copy.savings(plan.savingsPercent)}</span>` : ""}</div>
         <div class="payment-stack">
-		<button class="pay-selector checkout-payment" type="button" data-action="open-pay-modal"><span class="pay-selector__icon pay-selector__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-selector__copy"><strong>${escapeHtml(method?.label || copy.choosePaymentMethod)}</strong><span>${escapeHtml(method?.hint || copy.paymentUnavailable)}</span></span><span class="pay-selector__tail">${icon("pencil")}</span></button>
+		<button class="pay-selector checkout-payment ${method ? "" : "checkout-payment--empty"}" type="button" data-action="open-pay-modal" ${method ? "" : "disabled aria-disabled=\"true\""}><span class="pay-selector__icon ${method ? "pay-selector__icon--brand" : ""}">${method ? renderPaymentMethodLogo(method) : icon("wallet")}</span><span class="pay-selector__copy"><strong>${escapeHtml(methodTitle)}</strong><span>${escapeHtml(methodHint)}</span></span><span class="pay-selector__tail">${method ? icon("pencil") : ""}</span></button>
         ${featureEnabled("promocodes") ? `<div class="promo-box checkout-promo">
           <span class="support-field__label">${escapeHtml(copy.promoCode || "Promo code")}</span>
           <div class="promo-box__row">
@@ -3071,7 +3103,7 @@ function renderBuyPage() {
           <div class="promo-box__status ${promoStatus ? `promo-box__status--${escapeAttribute(promoStatus.type)}` : "promo-box__status--empty"}" id="promo-status" data-promo-status role="status" aria-live="polite">${promoStatus ? escapeHtml(promoStatus.message) : ""}</div>
         </div>` : ""}
         ${state.data.meta?.starsNeedPriorPurchase ? `<div class="note">${copy.starsNeedPriorPurchase}</div>` : ""}
-		<button class="btn btn--green-filled buy-action" type="button" data-action="pay-selected" ${state.busyMethod || state.adminPlanEditing ? "disabled" : ""}>${icon(state.busyMethod ? "refresh" : "cart")}${payLabel}</button>
+		<button class="btn btn--green-filled buy-action" type="button" data-action="pay-selected" ${checkoutDisabled ? "disabled aria-disabled=\"true\"" : ""}>${icon(state.busyMethod ? "refresh" : "cart")}${payLabel}</button>
         </div>
       </div>`;
   return `<section class="page ${state.adminPlanEditing ? "page-buy--admin-editor" : ""} ${pageClass("buy")}" id="page-buy">${planList}${checkout}</section>`;

@@ -6710,3 +6710,116 @@ body.is-plan-editing .page-scroll {
     max-width: 88%;
   }
 }
+
+/* v1.0.6: safe empty commerce states and mobile admin ergonomics. */
+.page-buy--empty.active {
+  min-height: clamp(320px, 58dvh, 520px);
+  display: grid;
+  place-items: center;
+}
+
+.commerce-empty {
+  width: min(100%, 360px);
+  padding: 24px 18px;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.commerce-empty__icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  color: var(--icon-color);
+}
+
+.commerce-empty__icon svg {
+  width: 30px;
+  height: 30px;
+}
+
+.commerce-empty__title {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.commerce-empty__hint {
+  max-width: 300px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.checkout-payment--empty {
+  cursor: default;
+}
+
+.checkout-payment--empty .pay-selector__icon {
+  color: var(--icon-color);
+}
+
+.buy-action:disabled {
+  opacity: .44;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.admin-page {
+  padding-bottom: 136px;
+}
+
+.admin-save-bar {
+  bottom: calc(72px + var(--safe-bottom, 0px));
+}
+
+.admin-content-tabs button {
+  min-height: 42px;
+  padding-inline: 12px;
+}
+
+.admin-save-bar button {
+  height: 40px;
+  min-height: 40px;
+}
+
+.admin-save-bar .admin-save-bar__close {
+  width: 40px;
+  min-width: 40px;
+}
+
+.admin-faq-item__head button,
+.admin-builder-row__actions button,
+.admin-icon-button {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+}
+
+.admin-event__foot button,
+.admin-broadcast__primary,
+.admin-broadcast__secondary,
+.admin-broadcast__actions button,
+.admin-broadcast__reset,
+.admin-broadcast-style__option {
+  min-height: 42px;
+}
+
+@media (max-width: 420px) {
+  .admin-page {
+    padding-bottom: 144px;
+  }
+
+  .admin-save-bar {
+    gap: 6px;
+    padding: 7px;
+  }
+
+  .admin-save-bar button {
+    padding-inline: 10px;
+  }
+}
