@@ -295,7 +295,10 @@ func (h Handler) buildStartKeyboard(existingCustomer *database.Customer, langCod
 	}
 
 	// Row 1: Buy + Connect (if connect available), else only Buy
-	paymentsEnabled := h.featureEnabled("yookassa") || h.featureEnabled("crypto") || h.featureEnabled("stars")
+	paymentsEnabled := h.featureEnabled("stars")
+	if h.paymentService != nil {
+		paymentsEnabled = paymentsEnabled || h.paymentService.IsProviderEnabled("yookassa") || h.paymentService.IsProviderEnabled("cryptopay")
+	}
 	buyBtn := models.InlineKeyboardButton{Text: h.translation.GetText(langCode, "buy_button"), CallbackData: CallbackBuy}
 	if showConnect && paymentsEnabled {
 		connectBtn := h.resolveConnectButton(langCode)[0]

@@ -22,9 +22,9 @@ import (
 
 const (
 	maxButtons     = 8
-	maxWorkers     = 10
+	maxWorkers     = 16
 	retryDelay     = 1500 * time.Millisecond
-	progressStride = 10
+	progressStride = 25
 )
 
 var (
@@ -260,7 +260,8 @@ func (s *Service) run(draft database.BroadcastDraft, targets []int64, adminID in
 	workerCount := maxWorkersFor(len(targets))
 	var wg sync.WaitGroup
 	keyboard := buildKeyboard(draft.Buttons)
-	throttle := time.NewTicker(45 * time.Millisecond)
+	// Stay below Telegram's global bot limit while using the available throughput.
+	throttle := time.NewTicker(34 * time.Millisecond)
 	defer throttle.Stop()
 
 	for index := 0; index < workerCount; index++ {

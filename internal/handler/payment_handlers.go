@@ -561,8 +561,8 @@ func (h Handler) availablePaymentMethods(ctx context.Context, customer *database
 	yookassaEnabled := h.paymentService != nil && h.paymentService.IsProviderEnabled("yookassa")
 	cryptoEnabled := h.paymentService != nil && h.paymentService.IsProviderEnabled("cryptopay")
 	methods := map[string]bool{
-		"card":   h.featureEnabled("yookassa") && yookassaEnabled,
-		"crypto": h.featureEnabled("crypto") && cryptoEnabled,
+		"card":   yookassaEnabled,
+		"crypto": cryptoEnabled,
 		"stars":  h.featureEnabled("stars"),
 	}
 

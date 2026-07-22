@@ -19,7 +19,8 @@ import (
 const (
 	allcomParseMode              = models.ParseModeHTML
 	allcomProgressUpdateInterval = time.Second
-	allcomMaxWorkers             = 10
+	allcomMaxWorkers             = 16
+	allcomSendInterval           = 34 * time.Millisecond
 	allcomRetryDelay             = 1500 * time.Millisecond
 )
 
@@ -208,6 +209,8 @@ func runAllcomBroadcast(
 	workerCount := resolveAllcomWorkerCount(len(targets))
 	jobs := make(chan int64)
 	done := make(chan struct{})
+	throttle := time.NewTicker(allcomSendInterval)
+	defer throttle.Stop()
 
 	var wg sync.WaitGroup
 	for i := 0; i < workerCount; i++ {
@@ -215,6 +218,11 @@ func runAllcomBroadcast(
 		go func() {
 			defer wg.Done()
 			for chatID := range jobs {
+				select {
+				case <-ctx.Done():
+					return
+				case <-throttle.C:
+				}
 				err := deliver(ctx, chatID)
 				if err != nil && shouldRetryAllcom(err) {
 					time.Sleep(allcomRetryDelay)

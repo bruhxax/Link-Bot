@@ -144,7 +144,6 @@ func TestNormalizeAndValidateAddsVisualEditorAreas(t *testing.T) {
 	}
 
 	required := map[string]bool{
-		"dashboard:brand":         false,
 		"dashboard:logo":          false,
 		"dashboard:traffic":       false,
 		"buy:plans":               false,
@@ -170,6 +169,49 @@ func TestNormalizeAndValidateAddsVisualEditorAreas(t *testing.T) {
 	for key, found := range required {
 		if !found {
 			t.Fatalf("missing default visual editor element %s", key)
+		}
+	}
+}
+
+func TestNormalizeAndValidateRemovesDashboardWrappers(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Layout.Elements = append(settings.Layout.Elements,
+		LayoutElement{ID: "brand", Area: "dashboard", Visible: true},
+		LayoutElement{ID: "subscription", Area: "dashboard", Visible: true},
+		LayoutElement{ID: "actions", Area: "dashboard", Visible: true},
+	)
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	for _, item := range settings.Layout.Elements {
+		if item.Area == "dashboard" && contains([]string{"brand", "subscription", "actions"}, item.ID) {
+			t.Fatalf("legacy dashboard wrapper remains: %+v", item)
+		}
+	}
+}
+
+func TestNormalizeAndValidateGridAppearanceAndAdminContact(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Appearance.BackgroundMode = "grid"
+	settings.Content.AdminContact = "https://t.me/link_bot_admin"
+	settings.Features["yookassa"] = true
+	settings.Features["crypto"] = true
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if settings.Content.AdminContact != "@link_bot_admin" {
+		t.Fatalf("admin contact = %q", settings.Content.AdminContact)
+	}
+	for _, key := range []string{"yookassa", "crypto"} {
+		if _, exists := settings.Features[key]; exists {
+			t.Fatalf("legacy integration feature %q was not removed", key)
+		}
+	}
+	for _, key := range []string{"gridBackground", "gridLine", "gridGlowLeft", "gridGlowRight"} {
+		if settings.Appearance.Colors[key] == "" {
+			t.Fatalf("grid color %q is empty", key)
 		}
 	}
 }

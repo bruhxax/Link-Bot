@@ -21,12 +21,13 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 6
+const CurrentVersion = 7
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 	elementIDPattern      = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 	contentKeyPattern     = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9._-]{0,99}$`)
+	telegramUserPattern   = regexp.MustCompile(`^[A-Za-z0-9_]{5,32}$`)
 	customEmojiIDPattern  = regexp.MustCompile(`^[0-9]{5,32}$`)
 	customEmojiTagPattern = regexp.MustCompile(`(?is)<tg-emoji\s+emoji-id=["']([0-9]{5,32})["'][^>]*>.*?</tg-emoji>`)
 )
@@ -34,8 +35,6 @@ var (
 var featureOrder = []string{
 	"mini_app",
 	"google",
-	"yookassa",
-	"crypto",
 	"stars",
 	"trials",
 	"referrals",
@@ -113,6 +112,7 @@ type TelegramCommerceSettings struct {
 
 type ContentSettings struct {
 	BrandName                  string                       `json:"brandName"`
+	AdminContact               string                       `json:"adminContact"`
 	LogoURL                    string                       `json:"logoUrl"`
 	StartTextRU                string                       `json:"startTextRu"`
 	StartImage                 string                       `json:"startImage"`
@@ -243,11 +243,12 @@ func DefaultSettings() Settings {
 		},
 		Features: features,
 		Content: ContentSettings{
-			BrandName:  "Link-Bot",
-			LogoURL:    "/mini-app/assets/brand-mark.png",
-			StartImage: "",
-			Copy:       map[string]map[string]string{"ru": {}},
-			FAQ:        map[string][]FAQItem{"ru": {}},
+			BrandName:    "Link-Bot",
+			AdminContact: "",
+			LogoURL:      "/mini-app/assets/brand-mark.png",
+			StartImage:   "",
+			Copy:         map[string]map[string]string{"ru": {}},
+			FAQ:          map[string][]FAQItem{"ru": {}},
 			Links: map[string]string{
 				"support": strings.TrimSpace(config.SupportURL()),
 				"channel": strings.TrimSpace(config.ChannelURL()),
@@ -334,6 +335,10 @@ func DefaultSettings() Settings {
 				"success":        "#2da44e",
 				"danger":         "#f85149",
 				"unlimitedBadge": "#949494",
+				"gridBackground": "#000000",
+				"gridLine":       "#ffffff",
+				"gridGlowLeft":   "#ffffff",
+				"gridGlowRight":  "#ffffff",
 			},
 		},
 		Layout: LayoutSettings{
@@ -394,7 +399,6 @@ func defaultLayoutElements() []LayoutElement {
 		align  string
 		framed bool
 	}{
-		{"dashboard", []string{"brand", "subscription", "actions"}, 100, 96, "center", false},
 		{"buy", []string{"plans", "checkout"}, 100, 220, "left", false},
 		{"support", []string{"actions", "tabs", "tickets"}, 100, 92, "left", false},
 		{"profile", []string{"server_status", "referrals", "reviews", "payments", "media", "login_methods", "news", "web_version", "pwa_install", "terms"}, 100, 52, "left", true},
@@ -628,6 +632,16 @@ func validateContent(value *ContentSettings, defaults ContentSettings, legacy bo
 		value.BrandName = defaults.BrandName
 	}
 	value.BrandName = limit(value.BrandName, 80)
+	value.AdminContact = strings.TrimSpace(value.AdminContact)
+	if value.AdminContact != "" {
+		value.AdminContact = strings.TrimPrefix(value.AdminContact, "https://t.me/")
+		value.AdminContact = strings.TrimPrefix(value.AdminContact, "http://t.me/")
+		value.AdminContact = strings.TrimPrefix(value.AdminContact, "@")
+		if !telegramUserPattern.MatchString(value.AdminContact) {
+			return errors.New("admin contact must be a Telegram username")
+		}
+		value.AdminContact = "@" + value.AdminContact
+	}
 	value.LogoURL = strings.TrimSpace(value.LogoURL)
 	if value.LogoURL == "" {
 		value.LogoURL = defaults.LogoURL
@@ -840,8 +854,8 @@ func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings) 
 	if value.BackgroundMode == "" {
 		value.BackgroundMode = defaults.BackgroundMode
 	}
-	if value.BackgroundMode != "animated" && value.BackgroundMode != "solid" {
-		return errors.New("background mode must be animated or solid")
+	if value.BackgroundMode != "animated" && value.BackgroundMode != "grid" && value.BackgroundMode != "solid" {
+		return errors.New("background mode must be animated, grid or solid")
 	}
 	if value.Colors == nil {
 		value.Colors = map[string]string{}
@@ -865,6 +879,16 @@ func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings) 
 }
 
 func validateLayout(value *LayoutSettings, defaults LayoutSettings) error {
+	// Dashboard sections are structural wrappers. Keeping their legacy geometry
+	// would make a wrapper and its children move at the same time in the editor.
+	filtered := value.Elements[:0]
+	for _, item := range value.Elements {
+		if item.Area == "dashboard" && contains([]string{"brand", "subscription", "actions"}, item.ID) {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	value.Elements = filtered
 	if value.PlanColumns < 1 || value.PlanColumns > 2 {
 		value.PlanColumns = defaults.PlanColumns
 	}

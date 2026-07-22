@@ -614,7 +614,7 @@ function refreshAfterPossibleGoogleLink() {
 }
 
 const PENDING_PAYMENT_KEY = "link-bot-pending-payment";
-const STATIC_ASSET_REV = "20260720-brand2";
+const STATIC_ASSET_REV = "20260722-v101";
 const BRAND_MARK_PATH = "/mini-app/assets/brand-mark.png";
 const BRAND_MARK_URL = `${BRAND_MARK_PATH}?v=${STATIC_ASSET_REV}`;
 const FAQ_ICON_URL = "/mini-app/assets/faq-icon.png";
@@ -1141,9 +1141,6 @@ const PROFILE_DEFAULT_GROUPS = {
 };
 
 const ADMIN_LAYOUT_META = {
-	"dashboard:brand": ["\u041b\u043e\u0433\u043e\u0442\u0438\u043f", "image"],
-	"dashboard:subscription": ["\u041f\u043e\u0434\u043f\u0438\u0441\u043a\u0430", "shield"],
-	"dashboard:actions": ["\u041a\u043d\u043e\u043f\u043a\u0438", "sliders"],
 	"buy:plans": ["\u0422\u0430\u0440\u0438\u0444\u044b", "cartShopping"],
 	"buy:checkout": ["\u041e\u043f\u043b\u0430\u0442\u0430", "wallet"],
 	"support:actions": ["\u0411\u044b\u0441\u0442\u0440\u044b\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044f", "plus"],
@@ -1167,9 +1164,6 @@ const ADMIN_LAYOUT_META = {
 };
 
 const ADMIN_LAYOUT_DEFAULTS = [
-	["dashboard", "brand", 0, 100, 150, false, "center"],
-	["dashboard", "subscription", 1, 100, 96, false, "center"],
-	["dashboard", "actions", 2, 100, 92, false, "center"],
 	["dashboard", "logo", 10, 60, 150, false, "center"],
 	["dashboard", "username", 11, 100, 28, false, "center"],
 	["dashboard", "plan_name", 12, 48, 32, false, "left"],
@@ -1198,18 +1192,18 @@ const ADMIN_LAYOUT_DEFAULTS = [
 ].map(([area, id, order, width, height, framed, align, group]) => ({ area, id, order, visible: true, width, height, framed, align, offsetX: 0, offsetY: 0, ...(group ? { group } : {}) }));
 
 function buildPreviewRuntimeSettings() {
-	const features = Object.fromEntries(["yookassa", "crypto", "stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "web_version", "pwa_install"].map((name) => [name, true]));
+	const features = Object.fromEntries(["stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
-		version: 3,
+		version: 7,
 		maintenance: { enabled: false, titleRu: "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u044b", textRu: "", reasonRu: "" },
 		features,
 		content: {
-			brandName: "Link-Bot", logoUrl: previewPayload.brand.logoUrl, startTextRu: "", startImage: "", copy: { ru: {} }, faq: { ru: [] }, links: deepClone(previewPayload.links), customLinks: [],
+			brandName: "Link-Bot", adminContact: "", logoUrl: previewPayload.brand.logoUrl, startTextRu: "", startImage: "", copy: { ru: {} }, faq: { ru: [] }, links: deepClone(previewPayload.links), customLinks: [],
 			verification: { text: "", banner: "", channelButton: { text: "Link-Bot", iconCustomEmojiId: "", style: "" }, confirmButton: { text: "Я подписался", iconCustomEmojiId: "", style: "" }, checkFailedText: "", notSubscribedText: "", verifiedText: "" },
 			startMenu: { trialButton: { text: "Попробовать бесплатно", iconCustomEmojiId: "5276422526350681413", style: "" }, dashboardButton: { text: "Личный кабинет", iconCustomEmojiId: "5278413853577734640", style: "" }, plansButton: { text: "Тарифы", iconCustomEmojiId: "5206626000665868017", style: "" }, supportButton: { text: "Чат с поддержкой", iconCustomEmojiId: "5206222720416643915", style: "" } },
 			commerce: { banner: "", tariffsText: "", paymentMethodsText: "", paymentReadyText: "", yookassaButton: { text: "СБП | Карта", iconCustomEmojiId: "5192678313415434135", style: "" }, cryptoButton: { text: "CryptoPay", iconCustomEmojiId: "5195058841988914267", style: "" }, starsButton: { text: "Telegram Stars", iconCustomEmojiId: "5242644275014951846", style: "" }, payButton: { text: "Оплатить", iconCustomEmojiId: "5206401524200145033", style: "" }, backButton: { text: "Назад", iconCustomEmojiId: "5877629862306385808", style: "" }, successText: "", successBanner: "", successButton: { text: "Личный кабинет", iconCustomEmojiId: "5278413853577734640", style: "" } },
 		},
-		appearance: { backgroundMode: "animated", compact: true, showFrames: true, colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494" } },
+		appearance: { backgroundMode: "animated", compact: true, showFrames: true, colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, priceRub: plan.priceRub, priceStars: plan.priceStars, trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], externalSquadUuid: "" })),
 		trial: { enabled: true, days: 3, trafficGb: 10, unlimitedTraffic: false, deviceLimit: 5, internalSquadUuids: [], externalSquadUuid: "", trafficResetStrategy: "MONTH", tag: "" },
@@ -1283,7 +1277,7 @@ const state = {
 	adminContentSection: "start",
 	adminContentTabsScrollLeft: 0,
 	adminLayoutCategory: "dashboard",
-	adminLayoutSelection: "dashboard:brand",
+	adminLayoutSelection: "dashboard:logo",
   selectedFaqIndex: -1,
   selectedPlatform: "windows",
   selectedPlanId: "",
@@ -1342,7 +1336,6 @@ function featureEnabled(name) {
 
 function pageFeatureEnabled(page) {
 	const featureByPage = {
-		buy: "yookassa",
 		support: "support",
 		reviews: "reviews",
 		referrals: "referrals",
@@ -1351,7 +1344,7 @@ function pageFeatureEnabled(page) {
 		"login-methods": "google",
 	};
 	const feature = featureByPage[page];
-	if (page === "buy") return featureEnabled("yookassa") || featureEnabled("crypto") || featureEnabled("stars");
+	if (page === "buy") return true;
 	return !feature || featureEnabled(feature);
 }
 
@@ -1413,6 +1406,9 @@ function renderLayoutDetail(area, id, content, className = "") {
 }
 
 function layoutEditableData(area, id) {
+	if (area === "dashboard" && ["brand", "subscription", "actions"].includes(id)) {
+		return { className: "", attributes: "", handles: "" };
+	}
 	const runtimeItem = getLayoutElement(area, id);
 	if (!runtimeItem) return { className: "", attributes: "", handles: "" };
 	const key = escapeAttribute(`${area}:${id}`);
@@ -2380,7 +2376,7 @@ function renderAdminMaintenancePage() {
 
 function renderAdminFeaturesPage() {
 	const labels = {
-		mini_app: "Mini app", google: "Gmail", yookassa: "YooKassa", crypto: "CryptoPay", stars: "Telegram Stars", trials: "Триалы", referrals: "Реферальная система", reviews: "Отзывы", support: "Поддержка", media: "Медиа", promocodes: "Промокоды", server_status: "Статус серверов", web_version: "Web-версия", pwa_install: "Установка на рабочий стол",
+		mini_app: "Mini app", google: "Gmail", stars: "Telegram Stars", trials: "Триалы", referrals: "Реферальная система", reviews: "Отзывы", support: "Поддержка", media: "Медиа", promocodes: "Промокоды", server_status: "Статус серверов", web_version: "Web-версия", pwa_install: "Установка на рабочий стол",
 	};
 	return renderAdminEditorPage(state.locale === "en" ? "Functions" : "Управление функциями", `<div class="admin-toggle-list">${Object.entries(labels).map(([key, label]) => renderAdminToggle(label, `features.${key}`)).join("")}</div>`);
 }
@@ -2420,6 +2416,7 @@ function renderAdminContentSection(section) {
 function renderAdminStartContent() {
 	return `<section class="admin-editor__section"><h3>Сервис и сообщение /start</h3>
 		${renderAdminSettingField("Название сервиса", "content.brandName")}
+		${renderAdminSettingField("Контакт администрации", "content.adminContact", { placeholder: "@username" })}
 		${renderAdminSettingField("Логотип mini app", "content.logoUrl", { placeholder: "/mini-app/assets/brand-mark.png или URL" })}
 		${renderAdminBannerField("Баннер главного меню", "content.startImage", "/assets/telegram/menu/banner.png")}
 		${renderAdminSettingField("Текст сообщения", "content.startTextRu", { textarea: true, rows: 7 })}
@@ -2561,9 +2558,9 @@ function renderAdminCustomLink(item, index) {
 }
 
 function renderAdminAppearancePage() {
-	const colors = [["background", "Фон"], ["surface", "Карточки"], ["surfaceStrong", "Активная поверхность"], ["text", "Текст"], ["muted", "Вторичный текст"], ["border", "Рамки"], ["button", "Кнопки"], ["buttonText", "Текст кнопок"], ["icon", "Иконки"], ["accent", "Акцент"], ["success", "Успех"], ["danger", "Ошибка"], ["unlimitedBadge", "Безлимит"]];
+	const colors = [["background", "Фон интерфейса"], ["surface", "Карточки"], ["surfaceStrong", "Активная поверхность"], ["text", "Текст"], ["muted", "Вторичный текст"], ["border", "Рамки"], ["button", "Кнопки"], ["buttonText", "Текст кнопок"], ["icon", "Иконки"], ["accent", "Акцент"], ["success", "Успех"], ["danger", "Ошибка"], ["unlimitedBadge", "Безлимит"], ["gridBackground", "Фон сетки"], ["gridLine", "Линии сетки"], ["gridGlowLeft", "Свечение слева"], ["gridGlowRight", "Свечение справа"]];
 	return renderAdminEditorPage(state.locale === "en" ? "Appearance" : "Оформление", `
-		<label class="admin-field"><span>Фон</span><select class="admin-field__control" data-setting-path="appearance.backgroundMode"><option value="animated" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "animated" ? "selected" : ""}>Анимация</option><option value="solid" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "solid" ? "selected" : ""}>Сплошной цвет</option></select></label>
+		<label class="admin-field"><span>Фон</span><select class="admin-field__control" data-setting-path="appearance.backgroundMode"><option value="animated" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "animated" ? "selected" : ""}>Волны</option><option value="grid" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "grid" ? "selected" : ""}>Движущаяся сетка</option><option value="solid" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "solid" ? "selected" : ""}>Сплошной цвет</option></select></label>
 		<div class="admin-toggle-list">${renderAdminToggle("Компактный режим", "appearance.compact")}${renderAdminToggle("Показывать рамки", "appearance.showFrames")}</div>
 		<div class="admin-color-grid">${colors.map(([key, label]) => renderAdminColorField(label, `appearance.colors.${key}`)).join("")}</div>
 	`);
@@ -2600,6 +2597,7 @@ function ensureAdminVisualLayoutDraft() {
 	if (!draft) return;
 	if (!draft.layout) draft.layout = {};
 	if (!Array.isArray(draft.layout.elements)) draft.layout.elements = [];
+	draft.layout.elements = draft.layout.elements.filter((item) => !(item?.area === "dashboard" && ["brand", "subscription", "actions"].includes(item?.id)));
 	for (const fallback of ADMIN_LAYOUT_DEFAULTS) {
 		const current = draft.layout.elements.find((item) => item?.area === fallback.area && item?.id === fallback.id);
 		if (!current) {
@@ -2618,7 +2616,7 @@ function ensureAdminVisualLayoutDraft() {
 function getAdminLayoutDraftEntries(area) {
 	return (state.adminSettingsDraft?.layout?.elements || [])
 		.map((item, index) => ({ item, index, key: `${item.area}:${item.id}` }))
-		.filter(({ item }) => item?.area === area)
+		.filter(({ item }) => item?.area === area && !(area === "dashboard" && ["brand", "subscription", "actions"].includes(item?.id)))
 		.sort((left, right) => Number(left.item.order || 0) - Number(right.item.order || 0));
 }
 
@@ -2685,12 +2683,6 @@ function renderAdminLayoutNode(entry) {
 
 function renderAdminLayoutPreview(item, label, iconName) {
 	const key = `${item.area}:${item.id}`;
-	if (key === "dashboard:brand") {
-		const logo = resolveBrandMarkURL(state.data?.brand?.logoUrl || state.adminSettingsDraft?.content?.logoUrl);
-		return `<div class="admin-ui-preview-brand"><img src="${escapeAttribute(logo)}" alt=""><span>@Testmy_lbot</span></div>`;
-	}
-	if (key === "dashboard:subscription") return `<div class="admin-ui-preview-sub"><strong>6 \u043c\u0435\u0441\u044f\u0446\u0435\u0432</strong><span>\u0414\u043e 17.01.27</span><div><i>120 / 500 GB</i><i>2 / 10</i></div></div>`;
-	if (key === "dashboard:actions") return `<div class="admin-ui-preview-actions"><span>${icon("cartShopping")}\u041f\u0440\u043e\u0434\u043b\u0438\u0442\u044c</span><span>${icon("arrowDownSquare")}\u0423\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u0438 \u043d\u0430\u0441\u0442\u0440\u043e\u0438\u0442\u044c</span></div>`;
 	if (key === "buy:plans") return `<div class="admin-ui-preview-plans">${renderAdminVisualPlans()}</div>`;
 	if (key === "buy:checkout") return `<div class="admin-ui-preview-checkout"><small>\u0412\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u0439 \u0442\u0430\u0440\u0438\u0444</small><strong>6 \u043c\u0435\u0441\u044f\u0446\u0435\u0432</strong><span>${icon("wallet")}\u041a\u0430\u0440\u0442\u0430 / \u0421\u0411\u041f</span><span>\u041f\u0440\u043e\u043c\u043e\u043a\u043e\u0434</span><b>\u041e\u043f\u043b\u0430\u0442\u0438\u0442\u044c 350 \u0420</b></div>`;
 	if (key === "support:actions") return `<div class="admin-ui-preview-support-actions"><span>${icon("plus")}<b>\u041d\u043e\u0432\u043e\u0435 \u043e\u0431\u0440\u0430\u0449\u0435\u043d\u0438\u0435</b></span><span>${icon("question")}<b>\u0427\u0430\u0441\u0442\u044b\u0435 \u0432\u043e\u043f\u0440\u043e\u0441\u044b</b></span></div>`;
@@ -2913,32 +2905,33 @@ function renderAdminPromocodesPage() {
   const items = Array.isArray(admin.promoCodes) ? admin.promoCodes : [];
   return `
     <section class="page ${pageClass("admin")}" id="page-admin">
-      <div class="card admin-promo-panel admin-promo-panel--form">
-        <div class="section-label">${escapeHtml(copy.adminPromoTitle || "Promo codes")}</div>
+      <div class="admin-editor admin-promo-admin">
+      <section class="admin-editor__section admin-promo-panel admin-promo-panel--form">
+        <div class="admin-editor__section-head"><h3>${escapeHtml(copy.adminPromoTitle || "Promo codes")}</h3></div>
         <div class="admin-promo-form">
-          <label class="support-field">
-            <span class="support-field__label">${escapeHtml(copy.adminPromoCodeLabel || copy.promoCode)}</span>
-            <input class="support-field__input" type="text" maxlength="32" placeholder="${escapeAttribute(copy.promoCodePlaceholder || "")}" value="${escapeAttribute(state.adminPromoCodeDraft)}" data-input="admin-promo-code">
+          <label class="admin-field">
+            <span>${escapeHtml(copy.adminPromoCodeLabel || copy.promoCode)}</span>
+            <input class="admin-field__control" type="text" maxlength="32" placeholder="${escapeAttribute(copy.promoCodePlaceholder || "")}" value="${escapeAttribute(state.adminPromoCodeDraft)}" data-input="admin-promo-code">
           </label>
           <div class="admin-promo-grid">
-            <label class="support-field">
-              <span class="support-field__label">${escapeHtml(copy.adminPromoDiscountLabel || "Discount, %")}</span>
-              <input class="support-field__input" type="number" min="1" max="99" inputmode="numeric" placeholder="20" value="${escapeAttribute(state.adminPromoDiscountDraft)}" data-input="admin-promo-discount">
+            <label class="admin-field">
+              <span>${escapeHtml(copy.adminPromoDiscountLabel || "Discount, %")}</span>
+              <input class="admin-field__control" type="number" min="1" max="99" inputmode="numeric" placeholder="20" value="${escapeAttribute(state.adminPromoDiscountDraft)}" data-input="admin-promo-discount">
             </label>
-            <label class="support-field">
-              <span class="support-field__label">${escapeHtml(copy.adminPromoLimitLabel || "User limit")}</span>
-              <input class="support-field__input" type="number" min="0" inputmode="numeric" placeholder="${escapeAttribute(copy.adminPromoLimitPlaceholder || "")}" value="${escapeAttribute(state.adminPromoLimitDraft)}" data-input="admin-promo-limit">
+            <label class="admin-field">
+              <span>${escapeHtml(copy.adminPromoLimitLabel || "User limit")}</span>
+              <input class="admin-field__control" type="number" min="0" inputmode="numeric" placeholder="${escapeAttribute(copy.adminPromoLimitPlaceholder || "")}" value="${escapeAttribute(state.adminPromoLimitDraft)}" data-input="admin-promo-limit">
             </label>
           </div>
-          <label class="support-field">
-            <span class="support-field__label">${escapeHtml(copy.adminPromoExpiresLabel || "Valid until")}</span>
-            <input class="support-field__input" type="datetime-local" value="${escapeAttribute(state.adminPromoExpiresDraft)}" data-input="admin-promo-expires">
+          <label class="admin-field">
+            <span>${escapeHtml(copy.adminPromoExpiresLabel || "Valid until")}</span>
+            <input class="admin-field__control" type="datetime-local" value="${escapeAttribute(state.adminPromoExpiresDraft)}" data-input="admin-promo-expires">
           </label>
           <button class="btn admin-promo-submit" type="button" data-action="admin-create-promo" ${state.adminBusy === "create-promo" ? "disabled" : ""}>${icon(state.adminBusy === "create-promo" ? "refresh" : "shield")}${escapeHtml(copy.adminPromoCreate || "Create promo code")}</button>
         </div>
-      </div>
-      <div class="card admin-promo-panel admin-promo-panel--list">
-        <div class="section-label">${escapeHtml(copy.adminPromoListTitle || "Created codes")}</div>
+      </section>
+      <section class="admin-editor__section admin-promo-panel admin-promo-panel--list">
+        <div class="admin-editor__section-head"><h3>${escapeHtml(copy.adminPromoListTitle || "Created codes")}</h3><span class="admin-promo-count">${items.length}</span></div>
         ${items.length ? `
           <div class="admin-promo-list">
             ${items.map((item) => renderAdminPromoRow(item)).join("")}
@@ -2949,6 +2942,7 @@ function renderAdminPromocodesPage() {
             <div class="empty-state__title">${escapeHtml(copy.adminPromoEmpty || "No promo codes yet")}</div>
           </div>
         `}
+      </section>
       </div>
     </section>
   `;
@@ -2974,7 +2968,7 @@ function renderDashboardPage() {
 	const actionStack = `<div class="action-stack action-stack--dashboard">${renderLayoutDetail("dashboard", "primary_action", primaryAction, "runtime-detail-item--action")}${secondaryAction ? renderLayoutDetail("dashboard", "secondary_action", secondaryAction, "runtime-detail-item--action") : ""}</div>`;
 
 	const blocks = {
-		brand: `<div class="hero-center hero-center--brand">${renderLayoutDetail("dashboard", "logo", `<div class="hero-brand" style="--runtime-logo-width:${Math.max(48, Math.min(220, Number(getRuntimeSettings()?.layout?.logoWidth || 188)))}px"><img src="${escapeAttribute(resolveBrandMarkURL(state.data.brand.logoUrl))}" alt="${escapeAttribute(state.data.brand.name || "Link-Bot")}" loading="eager"></div>`, "runtime-detail-item--logo")}${renderLayoutDetail("dashboard", "username", `<div class="hero-handle">${escapeHtml(avatarLabel)}</div>`, "runtime-detail-item--username")}</div>`,
+		brand: `<div class="hero-center hero-center--brand">${renderLayoutDetail("dashboard", "logo", `<div class="hero-brand" style="--runtime-logo-width:${Math.max(48, Math.min(220, Number(getRuntimeSettings()?.layout?.logoWidth || 188)))}px"><img src="${escapeAttribute(resolveBrandMarkURL(state.data.brand.logoUrl))}" alt="${escapeAttribute(state.data.brand.name || "Link-Bot")}" loading="eager" draggable="false"></div>`, "runtime-detail-item--logo")}${renderLayoutDetail("dashboard", "username", `<div class="hero-handle">${escapeHtml(avatarLabel)}</div>`, "runtime-detail-item--username")}</div>`,
 		subscription: `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", `<div class="sub-bar__name">${title}</div>`, "runtime-detail-item--status")}${active ? renderLayoutDetail("dashboard", "expires", `<div class="sub-bar__date"><span class="sub-bar__date-icon">${icon("calendarDays")}</span><span>${expires}</span></div>`, "runtime-detail-item--status") : ""}</div>${active ? `<div class="sub-bar__row sub-bar__row--pills">${trafficLabel ? renderLayoutDetail("dashboard", "traffic", `<span class="sub-pill"><span class="sub-pill__icon">${icon("chartLine")}</span><span>${escapeHtml(trafficLabel)}</span></span>`, "runtime-detail-item--pill") : ""}${deviceLabel ? renderLayoutDetail("dashboard", "devices", `<button class="sub-pill sub-pill--button" type="button" data-action="open-devices-modal"><span>${escapeHtml(deviceLabel)}</span><span class="sub-pill__edit">${icon("userPen")}</span></button>`, "runtime-detail-item--pill") : ""}</div>` : ""}</div></div></div>`,
 		actions: `<div class="dashboard-compact">${actionStack}</div>`,
 	};
@@ -3375,7 +3369,7 @@ function renderPaymentsPage() {
 }
 
 function renderTermsPage() {
-  const article = TERMS_ARTICLE[state.locale] || TERMS_ARTICLE.ru;
+  const article = getRuntimeTermsArticle();
   const effectiveDate = formatTermsDate(state.data?.meta?.now || new Date().toISOString());
 
   return `
@@ -3398,6 +3392,22 @@ function renderTermsPage() {
       </article>
     </section>
   `;
+}
+
+function getRuntimeTermsArticle() {
+  const source = TERMS_ARTICLE[state.locale] || TERMS_ARTICLE.ru;
+  const content = getRuntimeSettings()?.content || {};
+  const brandName = String(content.brandName || state.data?.brand?.name || "Link-Bot").trim() || "Link-Bot";
+  const supportURL = String(content.links?.support || state.data?.links?.support || "").trim();
+  const supportMatch = supportURL.match(/(?:https?:\/\/)?t\.me\/([A-Za-z0-9_]{5,32})/i);
+  const adminContact = String(content.adminContact || (supportMatch ? `@${supportMatch[1]}` : "@your_support_username")).trim();
+  const replaceTokens = (value) => {
+    if (Array.isArray(value)) return value.map(replaceTokens);
+    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replaceTokens(item)]));
+    if (typeof value !== "string") return value;
+    return value.replaceAll("Link-Bot", brandName).replaceAll("@your_support_username", adminContact);
+  };
+  return replaceTokens(source);
 }
 
 function renderTermsSection(section) {
@@ -3816,24 +3826,46 @@ function renderPaymentHistoryItem(item) {
   const copy = t();
   const planLabel = item.planLabel || getPlanCardTitle(item.months, state.locale);
   const amountLabel = formatPaymentAmount(item.amount, item.currency, item.invoiceType);
-  const methodLabel = item.paymentMethodTitle || paymentMethodTitleForHistory(item.invoiceType, copy);
+  const method = paymentHistoryMethodMeta(item, copy);
   const statusLabel = formatPaymentStatus(item.status);
   const dateLabel = formatPaymentDate(item.paidAt || item.createdAt);
 
   return `
-    <div class="payment-item">
+    <div class="payment-item payment-item--${escapeAttribute(method.id)}">
+      <span class="payment-item__logo" title="${escapeAttribute(method.label)}"><img src="${escapeAttribute(method.logo)}" alt="${escapeAttribute(method.label)}" loading="lazy"></span>
       <div class="payment-item__main">
         <strong>${escapeHtml(planLabel)}</strong>
-        <span>${escapeHtml(methodLabel)}</span>
+        <span>${escapeHtml(dateLabel)}</span>
       </div>
       <div class="payment-item__meta">
         <span>${escapeHtml(amountLabel)}</span>
-        <span>${escapeHtml(statusLabel)}</span>
-        <span>${escapeHtml(dateLabel)}</span>
+        <span class="payment-item__status payment-item__status--${escapeAttribute(String(item.status || "unknown").toLowerCase())}">${escapeHtml(statusLabel)}</span>
         ${item.isAutoPayment ? `<span class="badge badge--inline">${escapeHtml(copy.autopayTitle || "Autopay")}</span>` : ""}
       </div>
     </div>
   `;
+}
+
+function paymentHistoryMethodMeta(item, copy) {
+  const invoiceType = String(item?.invoiceType || "").toLowerCase();
+  const title = String(item?.paymentMethodTitle || "").trim();
+  const normalized = `${invoiceType} ${title}`.toLowerCase();
+  const providers = ["lava", "wata", "platega", "freekassa", "heleket"];
+  const provider = providers.find((name) => normalized.includes(name));
+  if (provider) {
+    const meta = paymentMethodMeta(provider);
+    return { id: provider, label: title || meta?.label || provider, logo: PAYMENT_LOGO_URLS[provider] };
+  }
+  if (invoiceType === "telegram" || normalized.includes("star") || normalized.includes("звезд") || normalized.includes("звёзд")) {
+    return { id: "stars", label: title || copy.payMethodStars || "Telegram Stars", logo: PAYMENT_LOGO_URLS.stars };
+  }
+  if (invoiceType === "crypto" || normalized.includes("crypto") || normalized.includes("крипт")) {
+    return { id: "crypto", label: title || copy.payMethodCrypto || "CryptoPay", logo: PAYMENT_LOGO_URLS.crypto };
+  }
+  if (normalized.includes("сбп") || normalized.includes("sbp")) {
+    return { id: "sbp", label: title || copy.payMethodSbp || "СБП", logo: PAYMENT_LOGO_URLS.sbp };
+  }
+  return { id: "card", label: title || paymentMethodTitleForHistory(invoiceType, copy), logo: PAYMENT_LOGO_URLS.card };
 }
 
 function renderAdminPromoRow(item) {
@@ -6481,7 +6513,8 @@ function applyAppearance() {
 	};
   state.theme = "dark";
   document.documentElement.dataset.theme = "dark";
-	document.documentElement.dataset.background = appearance.backgroundMode === "solid" ? "solid" : "animated";
+	const backgroundMode = ["animated", "grid", "solid"].includes(appearance.backgroundMode) ? appearance.backgroundMode : "animated";
+	document.documentElement.dataset.background = backgroundMode;
 	document.documentElement.dataset.frames = appearance.showFrames === false ? "off" : "on";
 	document.documentElement.dataset.compact = appearance.compact === false ? "off" : "on";
 	const variables = {
@@ -6497,6 +6530,10 @@ function applyAppearance() {
 		"--icon-color": colors.icon,
 		"--success": colors.success,
 		"--danger": colors.danger,
+		"--grid-background": colors.gridBackground,
+		"--grid-line": colors.gridLine,
+		"--grid-glow-left": colors.gridGlowLeft ? hexToRGBA(colors.gridGlowLeft, 0.28) : "",
+		"--grid-glow-right": colors.gridGlowRight ? hexToRGBA(colors.gridGlowRight, 0.28) : "",
 	};
 	Object.entries(variables).forEach(([name, value]) => { if (value) document.documentElement.style.setProperty(name, value); });
   document.documentElement.style.setProperty("--accent", accent.accent);
