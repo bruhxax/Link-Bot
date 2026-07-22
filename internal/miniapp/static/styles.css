@@ -2957,6 +2957,12 @@ button.rating-star {
   padding: 14px;
 }
 
+.modal__sheet--support {
+  border-color: var(--line);
+  background: var(--bg) !important;
+  color: var(--text);
+}
+
 .support-thread__header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -6455,4 +6461,252 @@ body.is-plan-editing .page-scroll {
 
 .admin-appearance-group .admin-color-grid {
   margin-top: 0;
+}
+
+/* v1.0.5: semantic appearance roles. These rules intentionally override the
+   legacy broad mappings above without changing persisted appearance settings. */
+.page-buy .pricing-list > .pricing-card,
+.page-buy .pricing-list > .pricing-card.pricing-card--admin {
+  border-color: var(--line);
+  background: var(--control-bg) !important;
+  color: var(--button-text);
+}
+
+.page-buy .pricing-list > .pricing-card.selected {
+  background: var(--surface-strong) !important;
+}
+
+.pricing-card :where(.pricing-card__name, .pricing-card__price-line strong, .pricing-card__stars-line) {
+  color: var(--button-text);
+}
+
+.pricing-card :where(.pricing-card__spec, .pricing-card__price-line) {
+  color: var(--muted);
+}
+
+/* Main text is limited to the subscription identity and checkout content. */
+.sub-bar__name,
+.sub-bar__date,
+.card--checkout .summary-row__title,
+.card--checkout .summary-row__value,
+.card--checkout .checkout-promo .support-field__label,
+.card--checkout .promo-box__input {
+  color: var(--text);
+}
+
+/* Traffic and device counters are controls, not main copy. */
+.sub-pill,
+.sub-pill > span,
+.sub-pill--button {
+  color: var(--button-text);
+}
+
+/* Some imported SVGs contain fixed white presentation attributes. */
+.app-shell svg:not([data-preserve-color]) {
+  color: var(--icon-color) !important;
+}
+
+.app-shell svg:not([data-preserve-color]) [stroke]:not([stroke="none"]) {
+  stroke: currentColor !important;
+}
+
+.app-shell svg:not([data-preserve-color]) [fill]:not([fill="none"]) {
+  fill: currentColor !important;
+}
+
+.menu-card__icon,
+.menu-row__icon,
+.menu-row__tail,
+.profile-row__icon,
+.profile-row__tail,
+.pay-row__icon:not(.pay-row__icon--brand),
+.pay-row__check,
+.pay-selector__icon:not(.pay-selector__icon--brand),
+.pay-selector__tail,
+.quick-link__icon,
+.sub-pill__icon,
+.sub-pill__edit,
+.bottom-nav__icon,
+.faq-item__arrow,
+.empty-state__icon,
+.header__btn,
+.support-thread__close,
+.pricing-card__stars-icon,
+.sub-bar__date-icon,
+.bottom-nav__item,
+.bottom-nav__item.active {
+  color: var(--icon-color) !important;
+}
+
+.bottom-nav__indicator {
+  background: var(--icon-color);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--icon-color) 20%, transparent);
+}
+
+/* Support is a workspace: only cards use the card color; the shell stays neutral. */
+.page-support .support-top-grid .menu-card {
+  border-color: var(--line);
+  background: var(--control-bg);
+  color: var(--button-text);
+}
+
+.page-support .support-top-grid .menu-card__hint,
+.support-admin-hint,
+.support-ticket-card__meta,
+.support-ticket-card__preview,
+.support-ticket-card__bottom {
+  color: var(--muted);
+}
+
+.page-support .tabs--support {
+  border: 1px solid var(--line);
+  background: var(--control-bg);
+}
+
+.page-support .tabs--support .tab {
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: color-mix(in srgb, var(--button-text) 62%, transparent);
+  box-shadow: none !important;
+}
+
+.page-support .tabs--support .tab.active {
+  border-color: var(--line) !important;
+  background: var(--surface-strong) !important;
+  color: var(--button-text);
+  box-shadow: var(--glass-shadow-soft) !important;
+}
+
+.page-support .tabs--support .tab:focus-visible {
+  outline: 2px solid var(--icon-color);
+  outline-offset: -3px;
+}
+
+.support-ticket-card {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--button-text);
+}
+
+.support-ticket-card__title {
+  color: var(--button-text);
+}
+
+.support-ticket-card__badge {
+  background: var(--surface-strong);
+  color: var(--button-text);
+}
+
+.modal__sheet--thread {
+  border-color: var(--line);
+  background: var(--bg) !important;
+  color: var(--button-text);
+  overflow: hidden;
+}
+
+.modal__sheet--support {
+  border-color: var(--line);
+  background: var(--bg) !important;
+  color: var(--button-text);
+}
+
+.modal__sheet--support :where(.modal__title, .section-label, .support-field__label) {
+  color: var(--button-text);
+}
+
+.modal__sheet--support :where(.support-field__input, .support-field__textarea) {
+  border-color: var(--line);
+  background: var(--control-bg);
+  color: var(--button-text);
+}
+
+.modal__sheet--thread::before {
+  opacity: .24;
+}
+
+.support-thread__header {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.support-thread__messages {
+  gap: 10px;
+  padding: 10px 2px 14px;
+  scrollbar-gutter: stable;
+}
+
+.support-message__bubble,
+.support-message--customer-author .support-message__bubble,
+.support-message--admin-author .support-message__bubble {
+  max-width: min(84%, 330px);
+  padding: 10px 12px 8px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--button-text);
+  box-shadow: none;
+}
+
+.support-message--mine .support-message__bubble {
+  border-left-color: var(--success);
+  background: var(--surface-strong);
+}
+
+.support-message__body {
+  color: var(--button-text);
+}
+
+.support-message__author,
+.support-message__time {
+  color: var(--muted);
+}
+
+.support-reply {
+  margin: 0 -2px -2px;
+  padding: 12px 2px 2px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg);
+}
+
+.support-reply__textarea {
+  min-height: 78px;
+  max-height: 150px;
+  border-radius: 8px;
+  border-color: var(--line);
+  background: var(--control-bg);
+  color: var(--button-text);
+}
+
+.support-reply__send {
+  min-height: 44px;
+  border-radius: 8px;
+}
+
+.support-thread__close {
+  min-height: 34px;
+  border-radius: 8px;
+  border-color: var(--line);
+  background: var(--control-bg);
+}
+
+@media (max-width: 420px) {
+  .modal__sheet--thread {
+    height: min(86vh, 760px);
+    max-height: 86vh;
+    padding: 12px;
+  }
+
+  .support-thread__header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .support-thread__headactions {
+    gap: 6px;
+  }
+
+  .support-message__bubble {
+    max-width: 88%;
+  }
 }

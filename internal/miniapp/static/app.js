@@ -614,10 +614,9 @@ function refreshAfterPossibleGoogleLink() {
 }
 
 const PENDING_PAYMENT_KEY = "link-bot-pending-payment";
-const STATIC_ASSET_REV = "20260722-v104";
+const STATIC_ASSET_REV = "20260722-v105";
 const BRAND_MARK_PATH = "/mini-app/assets/brand-mark.png";
 const BRAND_MARK_URL = `${BRAND_MARK_PATH}?v=${STATIC_ASSET_REV}`;
-const FAQ_ICON_URL = "/mini-app/assets/faq-icon.png";
 
 function resolveBrandMarkURL(value) {
   const url = String(value || "").trim();
@@ -2629,9 +2628,9 @@ function renderAdminCustomLink(item, index) {
 
 function renderAdminAppearancePage() {
 	const groups = [
-		["Основа интерфейса", [["background", "Сплошной фон"], ["text", "Основной текст и даты"], ["muted", "Описания и подписи"], ["border", "Рамки"]]],
+		["Основа интерфейса", [["background", "Сплошной фон"], ["text", "Название подписки, дата и выбранный тариф"], ["muted", "Описания и подписи"], ["border", "Рамки"]]],
 		["Карточки", [["surface", "Обычные карточки"], ["surfaceStrong", "Выбранные элементы"]]],
-		["Кнопки и навигация", [["button", "Фон кнопок"], ["buttonText", "Текст кнопок"], ["icon", "Все иконки"], ["accent", "Акцент"]]],
+		["Кнопки и навигация", [["button", "Фон кнопок и тарифов"], ["buttonText", "Текст кнопок и тарифов"], ["icon", "Все SVG-иконки"], ["accent", "Акцент"]]],
 		["Состояния", [["success", "Успех"], ["danger", "Ошибка"], ["unlimitedBadge", "Метка «Безлимит»"]]],
 		["Фон «Волны»", [["waveBackground", "Фон за точками"], ["waveDot", "Точки"]]],
 		["Фон «Движущаяся сетка»", [["gridBackground", "Фон за линиями"], ["gridLine", "Линии"], ["gridGlowLeft", "Свечение слева"], ["gridGlowRight", "Свечение справа"]]],
@@ -3123,7 +3122,7 @@ function renderSupportPage() {
             <span><strong class="menu-card__title">${copy.newTicket}</strong><span class="menu-card__hint">${copy.newTicketHint}</span></span>
 		</button>
 		<button class="card card--interactive menu-card" type="button" data-action="go-page" data-value="faq">
-            <span class="menu-card__icon"><img class="menu-card__icon-image menu-card__icon-image--faq" src="${escapeAttribute(FAQ_ICON_URL)}" alt=""></span>
+            <span class="menu-card__icon">${icon("question")}</span>
             <span><strong class="menu-card__title">${scopy.faq}</strong><span class="menu-card__hint">${scopy.faqHint}</span></span>
 		</button>
         </div>
