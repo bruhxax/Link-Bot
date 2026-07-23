@@ -3857,11 +3857,10 @@ func (h *Handler) availablePaymentMethods(ctx context.Context, customer *databas
 		yookassaEnabled = h.integrationSettings.Enabled(integrations.ProviderYooKassa)
 		cryptoEnabled = h.integrationSettings.Enabled(integrations.ProviderCryptoPay)
 	}
-	yookassaEnabled = yookassaEnabled && h.runtimeFeatureEnabled("yookassa")
 	methods := map[string]bool{
 		"sbp":    yookassaEnabled,
 		"card":   yookassaEnabled,
-		"crypto": cryptoEnabled && h.runtimeFeatureEnabled("crypto"),
+		"crypto": cryptoEnabled,
 		"stars":  h.runtimeFeatureEnabled("stars"),
 	}
 	if h.integrationSettings != nil {
