@@ -341,25 +341,28 @@ func DefaultSettings() Settings {
 			Compact:        true,
 			ShowFrames:     true,
 			Colors: map[string]string{
-				"background":     "#000000",
-				"surface":        "#08090c",
-				"surfaceStrong":  "#0b0d12",
-				"text":           "#f3f3f3",
-				"muted":          "#a0a0a0",
-				"border":         "#2a2d33",
-				"button":         "#0b0d12",
-				"buttonText":     "#f3f3f3",
-				"icon":           "#f3f3f3",
-				"accent":         "#ba173d",
-				"success":        "#2da44e",
-				"danger":         "#f85149",
-				"unlimitedBadge": "#949494",
-				"gridBackground": "#000000",
-				"gridLine":       "#ffffff",
-				"gridGlowLeft":   "#ffffff",
-				"gridGlowRight":  "#ffffff",
-				"waveBackground": "#000000",
-				"waveDot":        "#ebebeb",
+				"background":      "#000000",
+				"surface":         "#08090c",
+				"surfaceStrong":   "#0b0d12",
+				"text":            "#f3f3f3",
+				"muted":           "#a0a0a0",
+				"border":          "#2a2d33",
+				"button":          "#0b0d12",
+				"buttonText":      "#f3f3f3",
+				"icon":            "#f3f3f3",
+				"accent":          "#ba173d",
+				"success":         "#2da44e",
+				"danger":          "#f85149",
+				"unlimitedBadge":  "#949494",
+				"gridBackground":  "#000000",
+				"gridLine":        "#ffffff",
+				"gridGlowLeft":    "#ffffff",
+				"gridGlowRight":   "#ffffff",
+				"grid2Background": "#000000",
+				"grid2Line":       "#ffffff",
+				"grid2Glow":       "#ff0000",
+				"waveBackground":  "#000000",
+				"waveDot":         "#ebebeb",
 			},
 		},
 		Layout: LayoutSettings{
@@ -892,8 +895,8 @@ func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings) 
 	if value.BackgroundMode == "" {
 		value.BackgroundMode = defaults.BackgroundMode
 	}
-	if value.BackgroundMode != "animated" && value.BackgroundMode != "grid" && value.BackgroundMode != "solid" {
-		return errors.New("background mode must be animated, grid or solid")
+	if value.BackgroundMode != "animated" && value.BackgroundMode != "grid" && value.BackgroundMode != "grid2" && value.BackgroundMode != "solid" {
+		return errors.New("background mode must be animated, grid, grid2 or solid")
 	}
 	if value.Colors == nil {
 		value.Colors = map[string]string{}

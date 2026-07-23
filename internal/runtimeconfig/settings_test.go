@@ -271,9 +271,26 @@ func TestNormalizeAndValidateGridAppearanceAndAdminContact(t *testing.T) {
 			t.Fatalf("legacy integration feature %q was not removed", key)
 		}
 	}
-	for _, key := range []string{"gridBackground", "gridLine", "gridGlowLeft", "gridGlowRight", "waveBackground", "waveDot"} {
+	for _, key := range []string{"gridBackground", "gridLine", "gridGlowLeft", "gridGlowRight", "grid2Background", "grid2Line", "grid2Glow", "waveBackground", "waveDot"} {
 		if settings.Appearance.Colors[key] == "" {
 			t.Fatalf("grid color %q is empty", key)
+		}
+	}
+}
+
+func TestNormalizeAndValidateGrid2Appearance(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Appearance.BackgroundMode = "grid2"
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if settings.Appearance.BackgroundMode != "grid2" {
+		t.Fatalf("background mode = %q, want grid2", settings.Appearance.BackgroundMode)
+	}
+	for _, key := range []string{"grid2Background", "grid2Line", "grid2Glow"} {
+		if settings.Appearance.Colors[key] == "" {
+			t.Fatalf("grid2 color %q is empty", key)
 		}
 	}
 }
