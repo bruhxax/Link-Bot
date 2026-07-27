@@ -625,7 +625,7 @@ function refreshAfterPossibleGoogleLink() {
 }
 
 const PENDING_PAYMENT_KEY = "link-bot-pending-payment";
-const STATIC_ASSET_REV = "20260727-v111";
+const STATIC_ASSET_REV = "20260727-v111-2";
 const BRAND_MARK_PATH = "/mini-app/assets/brand-mark.png";
 const BRAND_MARK_URL = `${BRAND_MARK_PATH}?v=${STATIC_ASSET_REV}`;
 
@@ -1246,6 +1246,34 @@ const ADMIN_APPEARANCE_PRESETS = [
 			grid2Glow: "#ffffff",
 			waveBackground: "#000000",
 			waveDot: "#ebebeb",
+		},
+	},
+	{
+		id: "black-orange",
+		name: "Black | Orange",
+		colors: {
+			background: "#000000",
+			surface: "#000000",
+			surfaceStrong: "#2d2e00",
+			text: "#ffa500",
+			muted: "#ffffff",
+			border: "#737373",
+			button: "#000000",
+			buttonText: "#ffa500",
+			icon: "#ffa500",
+			accent: "#ffa500",
+			success: "#1fd143",
+			danger: "#f85149",
+			unlimitedBadge: "#ffffff",
+			gridBackground: "#000000",
+			gridLine: "#ffa500",
+			gridGlowLeft: "#ffa500",
+			gridGlowRight: "#ffa500",
+			grid2Background: "#000000",
+			grid2Line: "#ffa500",
+			grid2Glow: "#ffa500",
+			waveBackground: "#000000",
+			waveDot: "#ffa500",
 		},
 	},
 ];

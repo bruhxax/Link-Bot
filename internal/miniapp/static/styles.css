@@ -382,9 +382,9 @@ select:focus-visible {
   min-height: 54px;
   padding: 9px 10px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) 18px;
+  grid-template-columns: 34px minmax(0, 1fr) 16px;
   align-items: center;
-  gap: 9px;
+  gap: 6px;
   border: 1px solid var(--line-soft);
   border-radius: 6px;
   background: var(--control-bg);
@@ -394,10 +394,10 @@ select:focus-visible {
 .admin-preset:hover { border-color: var(--line); }
 .admin-preset:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .admin-preset.is-selected { border-color: var(--accent); background: var(--surface-strong); }
-.admin-preset__swatches { width: 38px; height: 26px; display: grid; grid-template-columns: repeat(2, 1fr); overflow: hidden; border: 1px solid var(--line); border-radius: 5px; }
+.admin-preset__swatches { width: 34px; height: 26px; display: grid; grid-template-columns: repeat(2, 1fr); overflow: hidden; border: 1px solid var(--line); border-radius: 5px; }
 .admin-preset__swatches i { background: var(--preset-color); }
 .admin-preset__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 800; }
-.admin-preset__check { width: 18px; height: 18px; display: grid; place-items: center; color: transparent; }
+.admin-preset__check { width: 16px; height: 18px; display: grid; place-items: center; color: transparent; }
 .admin-preset__check svg { width: 14px; height: 14px; }
 .admin-preset.is-selected .admin-preset__check { color: var(--accent); }
 
