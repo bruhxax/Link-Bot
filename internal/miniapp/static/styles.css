@@ -756,14 +756,14 @@ img { display: block; max-width: 100%; }
 .bg-media__grid2::before {
   content: "";
   position: absolute;
-  inset: -40px 0 0;
+  inset: -80px 0;
   background-image:
     linear-gradient(to right, color-mix(in srgb, var(--grid2-line) 48%, transparent) 1px, transparent 1px),
     linear-gradient(to bottom, color-mix(in srgb, var(--grid2-line) 48%, transparent) 1px, transparent 1px);
   background-size: 40px 40px;
   opacity: .78;
   transform: translate3d(0, -40px, 0);
-  animation: runtime-grid2-fall 6.4s linear infinite;
+  animation: runtime-grid2-fall 3.2s linear infinite;
   will-change: transform;
   backface-visibility: hidden;
 }
@@ -779,6 +779,7 @@ img { display: block; max-width: 100%; }
 }
 
 @keyframes runtime-grid2-fall {
+  from { transform: translate3d(0, -40px, 0); }
   to { transform: translate3d(0, 0, 0); }
 }
 
@@ -790,7 +791,7 @@ img { display: block; max-width: 100%; }
 }
 
 :root[data-performance="low"] .bg-media__grid2::before {
-  animation-duration: 9.6s;
+  animation-duration: 3.6s;
   opacity: .68;
 }
 
