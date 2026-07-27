@@ -625,7 +625,7 @@ function refreshAfterPossibleGoogleLink() {
 }
 
 const PENDING_PAYMENT_KEY = "link-bot-pending-payment";
-const STATIC_ASSET_REV = "20260727-v110";
+const STATIC_ASSET_REV = "20260727-v111";
 const BRAND_MARK_PATH = "/mini-app/assets/brand-mark.png";
 const BRAND_MARK_URL = `${BRAND_MARK_PATH}?v=${STATIC_ASSET_REV}`;
 
@@ -1218,6 +1218,37 @@ const ADMIN_LAYOUT_DEFAULTS = [
 	...["main", "purchases", "programs", "help", "account"].map((id, order) => ["profile", `group_${id}`, 20 + order, 100, 28, false, "left"]),
 	...["dashboard", "buy", "support", "settings", "admin"].map((id, order) => ["navigation", id, order, 44, 38, true, "center"]),
 ].map(([area, id, order, width, height, framed, align, group]) => ({ area, id, order, visible: true, width, height, framed, align, offsetX: 0, offsetY: 0, ...(group ? { group } : {}) }));
+
+const ADMIN_APPEARANCE_PRESETS = [
+	{
+		id: "black-white",
+		name: "Black | White",
+		colors: {
+			background: "#000000",
+			surface: "#000000",
+			surfaceStrong: "#212121",
+			text: "#f3f3f3",
+			muted: "#a0a0a0",
+			border: "#8a8a8a",
+			button: "#000000",
+			buttonText: "#ffffff",
+			icon: "#ffffff",
+			accent: "#ffffff",
+			success: "#1fd143",
+			danger: "#f85149",
+			unlimitedBadge: "#c7c7c7",
+			gridBackground: "#000000",
+			gridLine: "#ffffff",
+			gridGlowLeft: "#ffffff",
+			gridGlowRight: "#ffffff",
+			grid2Background: "#000000",
+			grid2Line: "#ffffff",
+			grid2Glow: "#ffffff",
+			waveBackground: "#000000",
+			waveDot: "#ebebeb",
+		},
+	},
+];
 
 function buildPreviewRuntimeSettings() {
 	const features = Object.fromEntries(["stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "web_version", "pwa_install"].map((name) => [name, true]));
@@ -2657,6 +2688,28 @@ function renderAdminCustomLink(item, index) {
 	</div>`;
 }
 
+function adminAppearancePresetSelected(preset) {
+	const current = getDeepValue(state.adminSettingsDraft, "appearance.colors", {}) || {};
+	return Object.entries(preset.colors).every(([key, value]) => String(current[key] || "").toLowerCase() === value);
+}
+
+function renderAdminAppearancePresets() {
+	return `<section class="admin-editor__section admin-appearance-presets">
+		<h3>Шаблоны цветов</h3>
+		<div class="admin-preset-grid" role="radiogroup" aria-label="Шаблоны цветов">
+			${ADMIN_APPEARANCE_PRESETS.map((preset) => {
+				const selected = adminAppearancePresetSelected(preset);
+				const swatches = [preset.colors.background, preset.colors.surfaceStrong, preset.colors.text, preset.colors.accent];
+				return `<button class="admin-preset ${selected ? "is-selected" : ""}" type="button" role="radio" aria-checked="${selected}" data-action="admin-appearance-preset" data-value="${escapeAttribute(preset.id)}">
+					<span class="admin-preset__swatches" aria-hidden="true">${swatches.map((color) => `<i style="--preset-color:${escapeAttribute(color)}"></i>`).join("")}</span>
+					<span class="admin-preset__name">${escapeHtml(preset.name)}</span>
+					<span class="admin-preset__check" aria-hidden="true">${icon("check")}</span>
+				</button>`;
+			}).join("")}
+		</div>
+	</section>`;
+}
+
 function renderAdminAppearancePage() {
 	const groups = [
 		["Основа интерфейса", [["background", "Сплошной фон"], ["text", "Название подписки, дата и выбранный тариф"], ["muted", "Описания и подписи"], ["border", "Рамки"]]],
@@ -2670,6 +2723,7 @@ function renderAdminAppearancePage() {
 	return renderAdminEditorPage(state.locale === "en" ? "Appearance" : "Оформление", `
 		<label class="admin-field"><span>Фон</span><select class="admin-field__control" data-setting-path="appearance.backgroundMode"><option value="animated" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "animated" ? "selected" : ""}>Волны</option><option value="grid" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "grid" ? "selected" : ""}>Движущаяся сетка</option><option value="grid2" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "grid2" ? "selected" : ""}>Сетка 2</option><option value="solid" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "solid" ? "selected" : ""}>Сплошной цвет</option></select></label>
 		<div class="admin-toggle-list">${renderAdminToggle("Компактный режим", "appearance.compact")}${renderAdminToggle("Показывать рамки", "appearance.showFrames")}</div>
+		${renderAdminAppearancePresets()}
 		<div class="admin-appearance-groups">${groups.map(([title, colors]) => `<section class="admin-editor__section admin-appearance-group"><h3>${escapeHtml(title)}</h3><div class="admin-color-grid">${colors.map(([key, label]) => renderAdminColorField(label, `appearance.colors.${key}`)).join("")}</div></section>`).join("")}</div>
 	`);
 }
@@ -4397,6 +4451,7 @@ function bindRootActions() {
 			if (action === "admin-layout-reset-plan") return resetSelectedAdminPlan();
 			if (action === "admin-test-reminder") return await testAdminSubscriptionReminder(value);
 			if (action === "admin-test-success") return await testAdminSubscriptionSuccess();
+			if (action === "admin-appearance-preset") return applyAdminAppearancePreset(value);
 			if (action === "admin-save-settings") return await saveAdminSettings();
 			if (action === "admin-content-section") { state.adminContentSection = value || "start"; render(); return; }
 			if (action === "admin-add-custom-link") return addAdminCustomLink();
@@ -4634,6 +4689,19 @@ async function testAdminSubscriptionSuccess() {
 		render({ preserveScroll: true });
 		throw error;
 	}
+}
+
+function applyAdminAppearancePreset(id) {
+	if (!state.adminSettingsDraft || state.adminBusy) return;
+	const preset = ADMIN_APPEARANCE_PRESETS.find((item) => item.id === id);
+	if (!preset) return;
+	if (!state.adminSettingsDraft.appearance) state.adminSettingsDraft.appearance = {};
+	const current = state.adminSettingsDraft.appearance.colors || {};
+	state.adminSettingsDraft.appearance.colors = { ...current, ...deepClone(preset.colors) };
+	state.adminSettingsDirty = true;
+	haptic("light");
+	render({ preserveScroll: true });
+	showToast(`Шаблон «${preset.name}» применён. Сохраните изменения.`, "success");
 }
 
 async function saveAdminSettings() {
