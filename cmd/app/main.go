@@ -8,6 +8,10 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
+	"time"
+
 	"link-bot/internal/broadcast"
 	"link-bot/internal/cache"
 	"link-bot/internal/config"
@@ -26,9 +30,6 @@ import (
 	"link-bot/internal/translation"
 	"link-bot/internal/tribute"
 	"link-bot/internal/yookasa"
-	"strconv"
-	"strings"
-	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -84,6 +85,7 @@ func main() {
 	supportRepository := database.NewSupportRepository(pool)
 	reviewRepository := database.NewReviewRepository(pool)
 	runtimeSettingsRepository := database.NewRuntimeSettingsRepository(pool)
+	releaseNotificationRepository := database.NewReleaseNotificationRepository(pool)
 	broadcastRepository := database.NewBroadcastRepository(pool)
 	paymentIntegrationRepository := database.NewPaymentIntegrationRepository(pool)
 	runtimeSettings, err := runtimeconfig.NewService(ctx, runtimeSettingsRepository)
@@ -171,6 +173,7 @@ func main() {
 
 	config.SetBotURL(fmt.Sprintf("https://t.me/%s", me.Username))
 	startPaymentNotificationBot(ctx, integrationSettings)
+	notifyAdminAfterUpdate(ctx, b, releaseNotificationRepository)
 
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypePrefix, h.StartCommandHandler, h.SuspiciousUserFilterMiddleware)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/connect", bot.MatchTypeExact, h.ConnectCommandHandler, h.SuspiciousUserFilterMiddleware, h.CreateCustomerIfNotExistMiddleware)
@@ -251,6 +254,43 @@ func main() {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Health server shutdown error: %v", err)
 	}
+}
+
+func notifyAdminAfterUpdate(ctx context.Context, b *bot.Bot, repository *database.ReleaseNotificationRepository) {
+	revision := releaseRevision()
+	lastRevision, found, err := repository.LastNotifiedRevision(ctx)
+	if err != nil {
+		slog.Warn("release notification state lookup failed", "error", err)
+		return
+	}
+	if found && lastRevision == revision {
+		return
+	}
+
+	notificationCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	if _, err := b.SendMessage(notificationCtx, &bot.SendMessageParams{
+		ChatID: config.GetAdminTelegramId(),
+		Text:   "Обновлен ✅",
+	}); err != nil {
+		slog.Warn("release notification delivery failed", "error", err)
+		return
+	}
+
+	saveCtx, saveCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer saveCancel()
+	if err := repository.MarkNotified(saveCtx, revision); err != nil {
+		slog.Warn("release notification state save failed", "error", err)
+	}
+}
+
+func releaseRevision() string {
+	return strings.Join([]string{
+		strings.TrimSpace(Version),
+		strings.TrimSpace(Commit),
+		strings.TrimSpace(BuildDate),
+	}, "|")
 }
 
 func fullHealthHandler(pool *pgxpool.Pool, rw *remnawave.Client) http.Handler {

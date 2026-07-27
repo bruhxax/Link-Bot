@@ -340,8 +340,11 @@ select:focus-visible {
   border: 1px solid var(--line-soft);
   border-radius: 6px;
   background: var(--control-bg);
-  color: var(--text);
+  color: var(--button-text);
   font-size: 12px;
+}
+.admin-field__control::placeholder {
+  color: color-mix(in srgb, var(--button-text) 58%, transparent);
 }
 
 .admin-field__textarea { resize: vertical; line-height: 1.5; }
@@ -369,11 +372,11 @@ select:focus-visible {
 .admin-toggle--compact { min-height: 34px; font-size: 10px; }
 
 .admin-color-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
-.admin-color-field { min-height: 48px; padding: 7px 8px; display: flex; align-items: center; gap: 9px; border: 1px solid var(--line-soft); border-radius: 6px; background: var(--control-bg); }
+.admin-color-field { min-height: 48px; padding: 7px 8px; display: flex; align-items: center; gap: 9px; border: 1px solid var(--line-soft); border-radius: 6px; background: var(--control-bg); color: var(--button-text); }
 .admin-color-field input { width: 28px; height: 28px; padding: 0; border: 0; background: transparent; }
 .admin-color-field span { min-width: 0; display: grid; gap: 2px; }
-.admin-color-field strong { font-size: 10px; }
-.admin-color-field em { color: var(--muted); font-size: 9px; font-style: normal; }
+.admin-color-field strong { color: var(--button-text); font-size: 10px; }
+.admin-color-field em { color: color-mix(in srgb, var(--button-text) 68%, transparent); font-size: 9px; font-style: normal; }
 
 .admin-appearance-presets { margin-top: 14px; }
 .admin-preset-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -388,12 +391,12 @@ select:focus-visible {
   border: 1px solid var(--line-soft);
   border-radius: 6px;
   background: var(--control-bg);
-  color: var(--text);
+  color: var(--button-text);
   text-align: left;
 }
 .admin-preset:hover { border-color: var(--line); }
 .admin-preset:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.admin-preset.is-selected { border-color: var(--accent); background: var(--surface-strong); }
+.admin-preset.is-selected { border-color: var(--accent); background: var(--surface-strong); color: var(--text); }
 .admin-preset__swatches { width: 34px; height: 26px; display: grid; grid-template-columns: repeat(2, 1fr); overflow: hidden; border: 1px solid var(--line); border-radius: 5px; }
 .admin-preset__swatches i { background: var(--preset-color); }
 .admin-preset__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 800; }
@@ -502,7 +505,7 @@ select:focus-visible {
 .admin-broadcast-button__grid { display: grid; grid-template-columns: minmax(100px, .75fr) minmax(0, 1.25fr); gap: 8px; }
 .admin-broadcast-button label { min-width: 0; display: grid; gap: 5px; margin-top: 8px; }
 .admin-broadcast-button label > span { color: var(--muted); font-size: 9px; font-weight: 700; }
-.admin-broadcast-button input, .admin-broadcast-button select { width: 100%; min-height: 38px; padding: 8px 9px; border: 1px solid var(--line-soft); border-radius: 6px; background: var(--control-bg); color: var(--text); font-size: 11px; }
+.admin-broadcast-button input, .admin-broadcast-button select { width: 100%; min-height: 38px; padding: 8px 9px; border: 1px solid var(--line-soft); border-radius: 6px; background: var(--control-bg); color: var(--button-text); font-size: 11px; }
 .admin-broadcast-style { min-width: 0; margin: 10px 0 0; padding: 0; border: 0; }
 .admin-broadcast-style legend { margin-bottom: 6px; padding: 0; color: var(--muted); font-size: 9px; font-weight: 700; }
 .admin-broadcast-style > div { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }

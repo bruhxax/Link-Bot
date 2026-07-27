@@ -625,7 +625,7 @@ function refreshAfterPossibleGoogleLink() {
 }
 
 const PENDING_PAYMENT_KEY = "link-bot-pending-payment";
-const STATIC_ASSET_REV = "20260727-v111-3";
+const STATIC_ASSET_REV = "20260727-v111-4";
 const BRAND_MARK_PATH = "/mini-app/assets/brand-mark.png";
 const BRAND_MARK_URL = `${BRAND_MARK_PATH}?v=${STATIC_ASSET_REV}`;
 

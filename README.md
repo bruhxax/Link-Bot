@@ -253,6 +253,7 @@ docker compose start
 <summary><b>⬆️ Обновление</b></summary>
 
 ```bash
+cd /opt/Link-Bot
 git pull --ff-only
 docker compose up -d --build --force-recreate --remove-orphans
 ```
