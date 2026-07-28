@@ -2589,7 +2589,7 @@ function renderAdminPage() {
 				[english ? "Functions" : "Управление функциями", english ? "Payments, login, trials and sections" : "Оплаты, вход, триалы и разделы", "features", "sliders"],
 			])}
 			${renderAdminMenuGroup(english ? "Interface" : "Интерфейс", [
-				[english ? "Content" : "Редактор контента", english ? "Texts, links, FAQ and custom buttons" : "Тексты, ссылки, FAQ и свои кнопки", "content", "doc"],
+				[english ? "Content" : "Редактор контента", english ? "Texts, links and FAQ" : "Тексты, ссылки и FAQ", "content", "doc"],
 				[english ? "Appearance" : "Оформление", english ? "Colors, background and frames" : "Цвета, фон и рамки", "appearance", "palette"],
 				[english ? "UI builder" : "Конструктор UI", english ? "Order, visibility and dimensions" : "Порядок, видимость и размеры", "layout", "grid"],
 				[english ? "Plans" : "Тарифы", english ? "Prices, limits and order" : "Цены, лимиты и порядок", "plans", "cartShopping"],
@@ -2763,7 +2763,6 @@ function renderAdminContentPage() {
 		["success", "После покупки"],
 		["support", "Поддержка"],
 		["notifications", "Уведомления"],
-		["profile", "Профиль"],
 		["faq", "FAQ"],
 		["advanced", "Тексты RU"],
 	];
@@ -2782,7 +2781,6 @@ function renderAdminContentSection(section) {
 		case "success": return renderAdminSuccessContent();
 		case "support": return renderAdminSupportContent();
 		case "notifications": return renderAdminNotificationContent();
-		case "profile": return renderAdminProfileContent();
 		case "faq": return renderAdminFAQContent();
 		case "advanced": return `<section class="admin-editor__section"><h3>Тексты RU</h3>${renderAdminJSONField("JSON подписей mini app", "content.copy.ru", 16)}</section>`;
 		default: return renderAdminStartContent();
@@ -2886,7 +2884,10 @@ function renderAdminSupportContent() {
 		["Ответ отправлен", "content.copy.ru.replySent"],
 		["Обращение закрыто", "content.copy.ru.ticketClosedToast"],
 	];
-	return `<section class="admin-editor__section"><h3>Интерфейс поддержки</h3>
+	return `<section class="admin-editor__section"><h3>Ссылка поддержки</h3>
+		${renderAdminSettingField("Telegram или HTTPS-ссылка", "content.links.support", { type: "url", placeholder: "https://t.me/your_support" })}
+	</section>
+	<section class="admin-editor__section"><h3>Интерфейс поддержки</h3>
 		<div class="admin-editor__grid admin-editor__grid--two">${interfaceFields.map(([label, path]) => renderAdminSettingField(label, path)).join("")}</div>
 	</section>
 	<section class="admin-editor__section"><h3>Создание и переписка</h3>
@@ -2919,50 +2920,6 @@ function renderAdminNotificationContent() {
 	<section class="admin-editor__section"><h3>Системные уведомления mini app</h3>
 		${[["trialActivated", "Триал активирован"], ["paymentOpened", "Оплата открыта"], ["paymentUnavailable", "Оплата недоступна"], ["paymentSuccess", "Оплата завершена"], ["paymentPending", "Оплата ожидается"], ["paymentCancelled", "Оплата отменена"], ["promoApplied", "Промокод применён"], ["promoCodeRequired", "Промокод не введён"], ["copied", "Ссылка скопирована"], ["deleteSuccess", "Устройство удалено"], ["noAccess", "Нет активной подписки"], ["timeout", "Сервер не ответил"]].map(([key, label]) => renderAdminSettingField(label, `content.copy.ru.${key}`)).join("")}
 	</section>`;
-}
-
-function renderAdminProfileContent() {
-	const items = getAdminProfileEditorItems();
-	return `<section class="admin-editor__section"><h3>Ссылки</h3>
-		${renderAdminSettingField("Поддержка", "content.links.support", { type: "url" })}
-	</section>
-	<section class="admin-editor__section admin-profile-editor-list">
-		<div class="admin-editor__section-head"><div><h3>Кнопки профиля</h3><p>Название, описание, ссылка и содержимое страниц.</p></div></div>
-		<div class="admin-profile-list">${items.map(renderAdminProfileEditorRow).join("")}</div>
-		<button class="admin-add-profile-button" type="button" data-action="admin-add-profile-button">${icon("plus")}<span>Добавить</span></button>
-	</section>`;
-}
-
-function getAdminProfileEditorItems() {
-	const meta = [
-		["server_status", "Статус серверов", "server"],
-		["payments", "Платежи", "wallet"],
-		["reviews", "Отзывы", "star"],
-		["referrals", "Реферальная система", "users"],
-		["media", "Медиа", "youtube"],
-		["login_methods", "Способ входа", "lockAlt"],
-		["news", "Новости", "broadcast"],
-		["terms", "Пользовательское соглашение", "doc"],
-		["privacy", "Политика конфиденциальности", "shield"],
-		["web_version", "Открыть веб-версию", "arrowUpRightSquare"],
-		["pwa_install", "Добавить на рабочий стол", "download"],
-	];
-	const custom = state.adminSettingsDraft?.content?.customLinks || [];
-	return [
-		...meta.map(([id, fallbackLabel, itemIcon]) => {
-			const overrides = state.adminSettingsDraft?.content?.profileButtons?.[id] || {};
-			return { id, label: overrides.labelRu || fallbackLabel, hint: overrides.hintRu || "", icon: itemIcon, custom: false };
-		}),
-		...custom.map((item) => ({ id: `custom.${item.id}`, label: item.labelRu || "Новая кнопка", hint: item.hintRu || "", icon: item.icon || (item.type === "page" ? "doc" : "external"), custom: true })),
-	];
-}
-
-function renderAdminProfileEditorRow(item) {
-	return `<article class="admin-profile-entry">
-		<span class="admin-profile-entry__icon">${icon(item.icon)}</span>
-		<span class="admin-profile-entry__copy"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.hint || (item.custom ? "Пользовательская кнопка" : "Встроенная кнопка"))}</small></span>
-		<button type="button" data-action="admin-edit-profile-button" data-value="${escapeAttribute(item.id)}" aria-label="Редактировать ${escapeAttribute(item.label)}">${icon("edit")}</button>
-	</article>`;
 }
 
 function renderAdminFAQContent() {
@@ -3280,7 +3237,11 @@ function renderAdminSaveBar(className = "") {
 	const resetButton = state.adminLayoutEditing
 		? `<button class="admin-save-bar__reset" type="button" data-action="admin-layout-reset-category" ${busy ? "disabled" : ""} aria-label="${state.locale === "en" ? "Reset current screen" : "Сбросить текущий экран"}">${icon("reset")}<span>${state.locale === "en" ? "Reset" : "Сбросить"}</span></button>`
 		: "";
-	return `<div class="admin-save-bar ${className}" role="status" aria-live="polite"><span>${escapeHtml(status)}</span><div class="admin-save-bar__actions">${resetButton}<button type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""}>${icon(busy ? "refresh" : "check")}<span>${state.locale === "en" ? "Save" : "Сохранить"}</span></button>${state.adminLayoutEditing ? `<button class="admin-save-bar__close" type="button" data-action="admin-layout-exit" aria-label="${state.locale === "en" ? "Exit editor" : "Выйти из редактора"}">${icon("close")}</button>` : ""}</div></div>`;
+	const profileAddButton = state.adminLayoutEditing && state.currentPage === "settings"
+		? `<button class="admin-save-bar__add" type="button" data-action="admin-add-profile-button" ${busy ? "disabled" : ""}>${icon("plus")}<span>${state.locale === "en" ? "Add" : "Добавить"}</span></button>`
+		: "";
+	const profileClass = profileAddButton ? "admin-save-bar--profile-layout" : "";
+	return `<div class="admin-save-bar ${className} ${profileClass}" role="status" aria-live="polite"><span>${escapeHtml(status)}</span><div class="admin-save-bar__actions">${profileAddButton}${resetButton}<button type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""}>${icon(busy ? "refresh" : "check")}<span>${state.locale === "en" ? "Save" : "Сохранить"}</span></button>${state.adminLayoutEditing ? `<button class="admin-save-bar__close" type="button" data-action="admin-layout-exit" aria-label="${state.locale === "en" ? "Exit editor" : "Выйти из редактора"}">${icon("close")}</button>` : ""}</div></div>`;
 }
 
 function renderAdminPlanSaveBar() {
@@ -3322,9 +3283,8 @@ function renderAdminProfileEditorModal() {
 	const item = state.adminProfileFormDraft;
 	if (!item) return "";
 	const custom = Boolean(item.custom);
-	const basicOnly = Boolean(state.adminLayoutEditing);
-	const legal = !basicOnly && (["terms", "privacy"].includes(item.id) || (custom && item.type === "page"));
-	const supportsURL = !basicOnly && (["web_version", "pwa_install"].includes(item.id) || (custom && item.type === "url"));
+	const legal = ["terms", "privacy"].includes(item.id) || (custom && item.type === "page");
+	const supportsURL = ["web_version", "pwa_install"].includes(item.id) || (custom && item.type === "url");
 	const title = custom && item.isNew ? "Новая кнопка" : `Редактирование: ${item.labelRu || "Кнопка"}`;
 	const sections = item.document?.sections || [];
 	return `<div class="modal modal--profile-editor ${modalStateClass("admin-profile-editor")}" role="dialog" aria-modal="true" aria-labelledby="admin-profile-editor-title">
@@ -3336,7 +3296,7 @@ function renderAdminProfileEditorModal() {
 					${renderProfileDraftField("Название кнопки", "labelRu", item.labelRu, { maxlength: 80 })}
 					${renderProfileDraftField("Описание", "hintRu", item.hintRu, { maxlength: 160 })}
 				</div>
-				${custom && !basicOnly ? `<label class="admin-field"><span>Формат кнопки</span><select class="admin-field__control" data-profile-edit-path="type">
+				${custom ? `<label class="admin-field"><span>Формат кнопки</span><select class="admin-field__control" data-profile-edit-path="type">
 					<option value="url" ${item.type === "url" ? "selected" : ""}>URL-ссылка</option>
 					<option value="page" ${item.type === "page" ? "selected" : ""}>Текстовая страница</option>
 				</select></label>` : ""}
@@ -3365,7 +3325,7 @@ function renderAdminProfileEditorModal() {
 				</section>` : ""}
 			</div>
 			<footer class="admin-profile-modal__footer">
-				${custom && !basicOnly && !item.isNew ? `<button class="admin-profile-modal__delete" type="button" data-action="admin-delete-profile-button">${icon("trash")}<span>Удалить</span></button>` : "<span></span>"}
+				${custom && !item.isNew ? `<button class="admin-profile-modal__delete" type="button" data-action="admin-delete-profile-button">${icon("trash")}<span>Удалить</span></button>` : "<span></span>"}
 				<button class="btn btn--green-filled" type="button" data-action="admin-apply-profile-edit">${icon("check")}<span>Применить</span></button>
 			</footer>
 		</div>
@@ -3838,7 +3798,7 @@ function renderProfileItem(item) {
 	const sorting = state.adminLayoutEditing;
 	const row = `<span class="profile-row__icon">${icon(item.icon)}</span><span class="profile-row__body"><strong>${escapeHtml(item.label || item.id)}</strong>${item.hint ? `<span>${escapeHtml(item.hint)}</span>` : ""}</span>`;
 	if (sorting) {
-		return `<div class="profile-row ${layout.framed === false ? "profile-row--flat" : ""} profile-row--sortable" data-profile-layout-id="${escapeAttribute(item.id)}">${row}<span class="profile-row__tools"><button type="button" data-action="admin-edit-profile-button" data-value="${escapeAttribute(item.id)}" aria-label="Редактировать ${escapeAttribute(item.label || item.id)}">${icon("edit")}</button><span class="profile-row__drag" aria-hidden="true">${icon("move")}</span></span></div>`;
+		return `<div class="profile-row ${layout.framed === false ? "profile-row--flat" : ""} profile-row--sortable" data-profile-layout-id="${escapeAttribute(item.id)}">${row}<span class="profile-row__tools"><button type="button" data-action="admin-edit-profile-button" data-value="${escapeAttribute(item.id)}" aria-label="Редактировать ${escapeAttribute(item.label || item.id)}" title="Редактировать">${icon("pencil")}</button></span></div>`;
 	}
 	return `<button class="profile-row ${layout.framed === false ? "profile-row--flat" : ""}" type="button" data-action="${escapeAttribute(item.action)}" ${item.value ? `data-value="${escapeAttribute(item.value)}"` : ""}>${row}<span class="profile-row__tail">${icon("chevronRight")}</span></button>`;
 }
@@ -8064,7 +8024,18 @@ function getEntryPage() {
 }
 
 function haptic(kind) {
-  if (tg?.HapticFeedback?.impactOccurred) tg.HapticFeedback.impactOccurred(kind);
+	try {
+		const feedback = tg?.HapticFeedback;
+		if (!feedback) return;
+		if (["success", "warning", "error"].includes(kind) && feedback.notificationOccurred) {
+			feedback.notificationOccurred(kind);
+			return;
+		}
+		const style = ["light", "medium", "heavy", "rigid", "soft"].includes(kind) ? kind : "light";
+		feedback.impactOccurred?.(style);
+	} catch (_) {
+		// Haptics are optional and must never interrupt a successful action.
+	}
 }
 
 function escapeHtml(value) {

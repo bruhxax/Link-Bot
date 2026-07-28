@@ -5671,6 +5671,10 @@ body.is-editing-layout { overscroll-behavior: none; }
   z-index: 42;
 }
 
+.admin-save-bar--profile-layout {
+  width: min(470px, calc(100vw - 16px));
+}
+
 body.is-layout-editing .page-scroll {
   padding-bottom: calc(154px + var(--safe-bottom, 0px));
 }
@@ -6233,6 +6237,14 @@ body.is-plan-editing .page-scroll {
   .admin-save-bar--plan-editor > span { display: none; }
   .admin-save-bar--plan-editor button { padding-inline: 8px; }
   .admin-save-bar--plan-editor button span { font-size: 9px; }
+  .admin-save-bar--profile-layout {
+    width: calc(100vw - 12px);
+    padding: 7px;
+    gap: 6px;
+  }
+  .admin-save-bar--profile-layout > span { display: none; }
+  .admin-save-bar--profile-layout button { padding-inline: 8px; }
+  .admin-save-bar--profile-layout button span { font-size: 9px; }
   .admin-plan-modal__grid { grid-template-columns: 1fr; gap: 8px; }
 }
 
@@ -6954,37 +6966,6 @@ body.is-plan-editing .page-scroll {
   }
 }
 
-/* Profile content editor */
-.admin-profile-editor-list .admin-editor__section-head p {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.4;
-}
-
-.admin-profile-list {
-  display: grid;
-  border-block: 1px solid var(--border);
-}
-
-.admin-profile-entry {
-  min-height: 58px;
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 40px;
-  align-items: center;
-  gap: 10px;
-  border-bottom: 1px solid var(--border);
-}
-
-.admin-profile-entry:last-child { border-bottom: 0; }
-.admin-profile-entry__icon { display: grid; place-items: center; color: var(--icon-color); }
-.admin-profile-entry__icon svg { width: 18px; height: 18px; }
-.admin-profile-entry__copy { min-width: 0; display: grid; gap: 2px; }
-.admin-profile-entry__copy strong,
-.admin-profile-entry__copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.admin-profile-entry__copy strong { color: var(--text); font-size: 12px; }
-.admin-profile-entry__copy small { color: var(--muted); font-size: 9px; }
-.admin-profile-entry > button,
 .profile-row__tools button {
   width: 40px;
   height: 40px;
@@ -6995,7 +6976,6 @@ body.is-plan-editing .page-scroll {
   border-radius: 8px;
   background: transparent;
 }
-.admin-profile-entry > button svg,
 .profile-row__tools button svg { width: 16px; height: 16px; }
 
 .admin-add-profile-button {
@@ -7025,18 +7005,6 @@ body.is-plan-editing .page-scroll {
   align-items: center;
   gap: 6px;
 }
-
-.profile-row__drag {
-  width: 28px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  color: var(--icon-color);
-  opacity: .68;
-  cursor: grab;
-  touch-action: none;
-}
-.profile-row__drag svg { width: 17px; height: 17px; }
 
 .modal__sheet--profile-editor {
   width: min(470px, calc(100vw - 16px));
@@ -7157,7 +7125,6 @@ body.has-open-modal .admin-save-bar {
 }
 
 @media (hover: hover) {
-  .admin-profile-entry > button:hover,
   .profile-row__tools button:hover,
   .admin-add-profile-button:hover { border-color: var(--icon-color); }
 }
