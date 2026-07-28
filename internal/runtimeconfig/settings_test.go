@@ -362,6 +362,28 @@ func TestNormalizeAndValidateAddsUnlimitedBadgeColor(t *testing.T) {
 	}
 }
 
+func TestNormalizeAndValidateAddsProfileFeatureFlags(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Version = CurrentVersion - 1
+	settings.Features["reviews"] = false
+	for _, name := range []string{"payments_history", "news", "login_methods", "terms", "privacy"} {
+		delete(settings.Features, name)
+	}
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+
+	for _, name := range []string{"payments_history", "news", "login_methods", "terms", "privacy"} {
+		if !settings.Features[name] {
+			t.Fatalf("migrated feature %q is disabled", name)
+		}
+	}
+	if settings.Features["reviews"] {
+		t.Fatal("existing disabled feature was enabled during migration")
+	}
+}
+
 func TestNormalizeAndValidateReminderButtonAndRussianOnlyFAQ(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Content.SubscriptionReminderButton = TelegramButtonSettings{

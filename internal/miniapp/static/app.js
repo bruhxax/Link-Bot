@@ -1537,9 +1537,9 @@ const ADMIN_APPEARANCE_PRESETS = [
 ];
 
 function buildPreviewRuntimeSettings() {
-	const features = Object.fromEntries(["stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "web_version", "pwa_install"].map((name) => [name, true]));
+	const features = Object.fromEntries(["mini_app", "stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "payments_history", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
-		version: 10,
+		version: 11,
 		maintenance: { enabled: false, titleRu: "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u044b", textRu: "", reasonRu: "" },
 		features,
 		content: {
@@ -1690,7 +1690,10 @@ function pageFeatureEnabled(page) {
 		referrals: "referrals",
 		servers: "server_status",
 		media: "media",
-		"login-methods": "google",
+		payments: "payments_history",
+		"login-methods": "login_methods",
+		terms: "terms",
+		privacy: "privacy",
 	};
 	const feature = featureByPage[page];
 	if (page === "buy") return true;
@@ -2749,10 +2752,56 @@ function renderAdminMaintenancePage() {
 }
 
 function renderAdminFeaturesPage() {
-	const labels = {
-		mini_app: "Mini app", google: "Gmail", stars: "Telegram Stars", trials: "Триалы", referrals: "Реферальная система", reviews: "Отзывы", support: "Поддержка", media: "Медиа", promocodes: "Промокоды", server_status: "Статус серверов", web_version: "Web-версия", pwa_install: "Установка на рабочий стол",
-	};
-	return renderAdminEditorPage(state.locale === "en" ? "Functions" : "Управление функциями", `<div class="admin-toggle-list">${Object.entries(labels).map(([key, label]) => renderAdminToggle(label, `features.${key}`)).join("")}</div>`);
+	const groups = [
+		{
+			id: "bot",
+			title: "Бот",
+			hint: "Основные возможности бота и Mini App",
+			items: [
+				["mini_app", "Mini App", "Доступ к личному кабинету"],
+				["google", "Gmail", "Авторизация через Google"],
+				["stars", "Telegram Stars", "Оплата звёздами Telegram"],
+				["trials", "Триалы", "Бесплатный пробный доступ"],
+				["support", "Поддержка", "Обращения пользователей"],
+				["promocodes", "Промокоды", "Скидки при покупке"],
+			],
+		},
+		{
+			id: "profile",
+			title: "Профиль",
+			hint: "Разделы, которые видит пользователь в профиле",
+			items: [
+				["server_status", "Статус серверов", "Состояние VPN-серверов"],
+				["payments_history", "Платежи", "История покупок"],
+				["reviews", "Отзывы", "Отзывы пользователей"],
+				["referrals", "Реферальная система", "Бонусы за приглашения"],
+				["media", "Медиа", "Видео и материалы"],
+				["privacy", "Политика конфиденциальности", "Обработка пользовательских данных"],
+				["terms", "Пользовательское соглашение", "Условия использования сервиса"],
+				["news", "Новости", "Новости и обновления"],
+				["login_methods", "Способ входа", "Telegram и Gmail"],
+				["web_version", "Открыть веб-версию", "Браузерная версия кабинета"],
+				["pwa_install", "Добавить на рабочий стол", "Инструкция для iOS и Android"],
+			],
+		},
+	];
+	return renderAdminEditorPage(
+		"Управление функциями",
+		`<div class="admin-feature-groups">${groups.map((group, index) => `
+			<section class="admin-feature-group" aria-labelledby="admin-feature-${escapeAttribute(group.id)}">
+				<header class="admin-feature-group__header">
+					<span aria-hidden="true">${String(index + 1).padStart(2, "0")}</span>
+					<div>
+						<h2 id="admin-feature-${escapeAttribute(group.id)}">${escapeHtml(group.title)}</h2>
+						<p>${escapeHtml(group.hint)}</p>
+					</div>
+				</header>
+				<div class="admin-toggle-list admin-feature-list">
+					${group.items.map(([key, label, hint]) => renderAdminFeatureToggle(label, hint, `features.${key}`)).join("")}
+				</div>
+			</section>
+		`).join("")}</div>`,
+	);
 }
 
 function renderAdminContentPage() {
@@ -3366,6 +3415,11 @@ function renderAdminToggle(label, path, compact = false) {
 	return `<label class="admin-toggle ${compact ? "admin-toggle--compact" : ""}"><span>${escapeHtml(label)}</span><input type="checkbox" data-setting-path="${escapeAttribute(path)}" data-setting-type="boolean" ${checked ? "checked" : ""}><i aria-hidden="true"></i></label>`;
 }
 
+function renderAdminFeatureToggle(label, hint, path) {
+	const checked = Boolean(getDeepValue(state.adminSettingsDraft, path, false));
+	return `<label class="admin-toggle admin-feature-toggle"><span class="admin-feature-toggle__copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(hint)}</small></span><input type="checkbox" data-setting-path="${escapeAttribute(path)}" data-setting-type="boolean" ${checked ? "checked" : ""}><i aria-hidden="true"></i></label>`;
+}
+
 function renderAdminColorField(label, path) {
 	const value = String(getDeepValue(state.adminSettingsDraft, path, "#000000"));
 	return `<label class="admin-color-field"><input type="color" value="${escapeAttribute(value)}" data-setting-path="${escapeAttribute(path)}" data-setting-type="color"><span><strong>${escapeHtml(label)}</strong><em>${escapeHtml(value)}</em></span></label>`;
@@ -3742,15 +3796,15 @@ function getProfileItems() {
 	const definitions = {
 		server_status: { group: "main", label: copy.serverStatus, hint: formatServerStatusHint(), action: "go-page", value: "servers", icon: "server", feature: "server_status" },
 		media: { group: "main", label: mediaLabel(), hint: mediaHint(), action: "go-page", value: "media", icon: "youtube", feature: "media" },
-		news: { group: "main", label: copy.channel, hint: linkHint(links.channel), action: "open-link", value: links.channel, icon: "broadcast" },
-		payments: { group: "purchases", label: copy.paymentsTitle || "Payments", hint: copy.paymentsHint || "", action: "go-page", value: "payments", icon: "wallet" },
+		news: { group: "main", label: copy.channel, hint: linkHint(links.channel), action: "open-link", value: links.channel, icon: "broadcast", feature: "news" },
+		payments: { group: "purchases", label: copy.paymentsTitle || "Payments", hint: copy.paymentsHint || "", action: "go-page", value: "payments", icon: "wallet", feature: "payments_history" },
 		referrals: { group: "programs", label: copy.referralSystem, hint: copy.referralsHint, action: "go-page", value: "referrals", icon: "users", feature: "referrals" },
 		reviews: { group: "programs", label: copy.feedback, hint: reviewsSummaryHint(), action: "go-page", value: "reviews", icon: "star", feature: "reviews" },
-		login_methods: { group: "account", label: loginMethodsLabel(), hint: loginMethodsHint(), action: "go-page", value: "login-methods", icon: "lockAlt" },
+		login_methods: { group: "account", label: loginMethodsLabel(), hint: loginMethodsHint(), action: "go-page", value: "login-methods", icon: "lockAlt", feature: "login_methods" },
 		web_version: { group: "account", label: webVersionLabel(), hint: webVersionHint(), action: "open-web-version", value: "", icon: "arrowUpRightSquare", feature: "web_version" },
 		pwa_install: { group: "account", label: addToHomeLabel(), hint: addToHomeHint(), action: "open-install-guide", value: "", icon: "download", feature: "pwa_install" },
-		terms: { group: "help", label: copy.tos, hint: replaceRuntimeBrandTokens(copy.tosHint || copy.tos), action: "go-page", value: "terms", icon: "doc" },
-		privacy: { group: "help", label: "Политика конфиденциальности", hint: "Как сервис обрабатывает данные", action: "go-page", value: "privacy", icon: "shield" },
+		terms: { group: "help", label: copy.tos, hint: replaceRuntimeBrandTokens(copy.tosHint || copy.tos), action: "go-page", value: "terms", icon: "doc", feature: "terms" },
+		privacy: { group: "help", label: "Политика конфиденциальности", hint: "Как сервис обрабатывает данные", action: "go-page", value: "privacy", icon: "shield", feature: "privacy" },
 	};
 	const settings = getRuntimeSettings()?.content || {};
 	const overrides = settings.profileButtons || {};

@@ -21,7 +21,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 10
+const CurrentVersion = 11
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -43,6 +43,11 @@ var featureOrder = []string{
 	"media",
 	"promocodes",
 	"server_status",
+	"payments_history",
+	"news",
+	"login_methods",
+	"terms",
+	"privacy",
 	"web_version",
 	"pwa_install",
 }
