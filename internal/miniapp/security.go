@@ -139,15 +139,20 @@ func setAPIHeaders(w http.ResponseWriter) {
 	w.Header().Set("Cache-Control", "no-store")
 }
 
-func setStaticHeaders(w http.ResponseWriter, r *http.Request) {
+func setStaticHeaders(w http.ResponseWriter, r *http.Request, assetVersion string) {
 	setCommonSecurityHeaders(w)
 	switch {
 	case strings.HasSuffix(r.URL.Path, "/sw.js"):
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Service-Worker-Allowed", "/mini-app/")
 	case strings.HasSuffix(r.URL.Path, ".js"),
-		strings.HasSuffix(r.URL.Path, ".css"),
-		strings.HasSuffix(r.URL.Path, ".woff2"):
+		strings.HasSuffix(r.URL.Path, ".css"):
+		if assetVersion != "" && r.URL.Query().Get("v") == assetVersion {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "no-cache, max-age=0, must-revalidate")
+		}
+	case strings.HasSuffix(r.URL.Path, ".woff2"):
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	case strings.HasSuffix(r.URL.Path, ".html"):
 		w.Header().Set("Cache-Control", "no-store")

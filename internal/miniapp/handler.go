@@ -3,6 +3,7 @@ package miniapp
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
 	"embed"
 	"encoding/json"
@@ -59,6 +60,7 @@ type Handler struct {
 	remnawaveClient     *remnawave.Client
 	telegramBot         *bot.Bot
 	staticFS            fs.FS
+	assetVersion        string
 	rateLimiter         *requestRateLimiter
 	channelSubCache     *cache.Cache
 	runtimeSettings     *runtimeconfig.Service
@@ -440,6 +442,10 @@ func NewHandler(
 	if err != nil {
 		panic(err)
 	}
+	assetVersion, err := staticAssetVersion(staticFS)
+	if err != nil {
+		panic(err)
+	}
 
 	return &Handler{
 		customerRepository:  customerRepository,
@@ -454,6 +460,7 @@ func NewHandler(
 		broadcastService:    broadcastService,
 		subscriptionService: subscriptionService,
 		staticFS:            staticFS,
+		assetVersion:        assetVersion,
 		rateLimiter:         newRequestRateLimiter(),
 		channelSubCache:     cache.NewCache(30 * time.Minute),
 		runtimeSettings:     runtimeSettings,
@@ -475,7 +482,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 			return
 		}
 
-		setStaticHeaders(w, r)
+		setStaticHeaders(w, r, h.assetVersion)
 		r.URL.Path = path.Clean(strings.TrimPrefix(r.URL.Path, "/mini-app"))
 		fileServer.ServeHTTP(w, r)
 	})
@@ -553,7 +560,37 @@ func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
 	data = bytes.ReplaceAll(data, []byte("__TELEGRAM_BOT_USERNAME__"), []byte(html.EscapeString(telegramBotUsername())))
 	data = bytes.ReplaceAll(data, []byte("__TELEGRAM_BOT_ID__"), []byte(html.EscapeString(telegramBotID())))
 	data = bytes.ReplaceAll(data, []byte("__GOOGLE_CLIENT_ID__"), []byte(html.EscapeString(config.GoogleClientID())))
+	data = bytes.ReplaceAll(data, []byte("__ASSET_VERSION__"), []byte(h.assetVersion))
 	_, _ = w.Write(data)
+}
+
+func staticAssetVersion(staticFS fs.FS) (string, error) {
+	hasher := sha256.New()
+	err := fs.WalkDir(staticFS, ".", func(filePath string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+
+		file, err := staticFS.Open(filePath)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		_, _ = io.WriteString(hasher, filePath)
+		if _, err := io.Copy(hasher, file); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return "", fmt.Errorf("hash mini app assets: %w", err)
+	}
+
+	return fmt.Sprintf("%x", hasher.Sum(nil)[:8]), nil
 }
 
 func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *session, *database.Customer)) http.HandlerFunc {
