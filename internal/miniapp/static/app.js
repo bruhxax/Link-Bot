@@ -650,7 +650,7 @@ const PAYMENT_LOGO_URLS = Object.freeze({
   pally: "/mini-app/assets/payment-pally.png",
 });
 
-const PAGES = ["dashboard", "buy", "setup", "support", "faq", "reviews", "referrals", "servers", "settings", "media", "login-methods", "payments", "terms", "admin"];
+const PAGES = ["dashboard", "buy", "setup", "support", "faq", "reviews", "referrals", "servers", "settings", "media", "login-methods", "payments", "terms", "privacy", "custom-page", "admin"];
 const BOTTOM_NAV = ["dashboard", "buy", "support", "settings", "admin"];
 const SUPPORT_TABS = ["open", "history"];
 const PLATFORMS = ["windows", "android", "iphone", "mac"];
@@ -1122,6 +1122,95 @@ const TERMS_ARTICLE = {
   },
 };
 
+const PRIVACY_ARTICLE = {
+  ru: {
+    title: "Политика конфиденциальности",
+    effectiveLabel: "Дата вступления в силу",
+    jurisdiction: "Обработка данных пользователей сервиса Link-Bot",
+    intro: [
+      "Настоящая Политика описывает, какие данные обрабатывает Link-Bot, для чего они используются и как пользователь может обратиться к администрации.",
+      "Используя бота, mini app или браузерную версию сервиса, пользователь подтверждает ознакомление с настоящей Политикой.",
+    ],
+    sections: [
+      {
+        title: "1. Какие данные обрабатываются",
+        paragraphs: [
+          "Link-Bot может обрабатывать Telegram ID, имя, username, язык, технические данные сессии, сведения о подписке, платежах и обращениях в поддержку.",
+          "Платежные реквизиты банковских карт обрабатываются платежными провайдерами и не сохраняются внутри Link-Bot.",
+        ],
+      },
+      {
+        title: "2. Для чего используются данные",
+        paragraphs: [
+          "Данные используются для авторизации, выдачи и управления подпиской, проведения платежей, поддержки пользователей, защиты от злоупотреблений и улучшения работы сервиса.",
+        ],
+      },
+      {
+        title: "3. Хранение и передача",
+        paragraphs: [
+          "Данные хранятся только в объеме, необходимом для работы сервиса и исполнения обязательств перед пользователем.",
+          "Передача данных третьим лицам допускается только поставщикам инфраструктуры и платежным системам в объеме, необходимом для оказания соответствующей услуги, либо когда этого требует закон.",
+        ],
+      },
+      {
+        title: "4. Права пользователя",
+        paragraphs: [
+          "Пользователь может запросить уточнение или удаление своих данных, если их дальнейшее хранение не требуется для исполнения обязательств или соблюдения закона.",
+        ],
+      },
+    ],
+    contactTitle: "Связь с администрацией",
+    contacts: [
+      "Telegram: @your_support_username",
+      "Поддержка внутри Link-Bot",
+    ],
+    footer: "© 2026 Link-Bot. Все права защищены.",
+  },
+  en: {
+    title: "Privacy Policy",
+    effectiveLabel: "Effective date",
+    jurisdiction: "Processing of Link-Bot user data",
+    intro: [
+      "This Policy explains what data Link-Bot processes, why it is used and how a user can contact the Administration.",
+      "By using the bot, mini app or browser version, the user confirms that they have read this Policy.",
+    ],
+    sections: [
+      {
+        title: "1. Data processed",
+        paragraphs: [
+          "Link-Bot may process Telegram ID, name, username, language, session data, subscription, payment and support request information.",
+          "Bank card details are processed by payment providers and are not stored inside Link-Bot.",
+        ],
+      },
+      {
+        title: "2. Purpose of processing",
+        paragraphs: [
+          "Data is used for authentication, subscription management, payments, customer support, abuse prevention and service improvement.",
+        ],
+      },
+      {
+        title: "3. Storage and disclosure",
+        paragraphs: [
+          "Data is retained only for as long as required to provide the service and meet applicable obligations.",
+          "Data may be shared with infrastructure and payment providers only when required to provide their services or comply with law.",
+        ],
+      },
+      {
+        title: "4. User rights",
+        paragraphs: [
+          "A user may request correction or deletion of personal data when continued storage is not required by contract or law.",
+        ],
+      },
+    ],
+    contactTitle: "Contact",
+    contacts: [
+      "Telegram: @your_support_username",
+      "In-app support inside Link-Bot",
+    ],
+    footer: "© 2026 Link-Bot. All rights reserved.",
+  },
+};
+
 const SETUP_STEPS = {
   ru: { windows: ["Откройте ссылку доступа", "Импортируйте конфиг в клиент", "Нажмите подключиться"], android: ["Откройте ссылку доступа", "Выберите Android-клиент", "Подтвердите импорт и подключение"], iphone: ["Откройте ссылку доступа", "Импортируйте конфиг в приложение", "Разрешите VPN-профиль"], mac: ["Откройте ссылку доступа", "Добавьте конфиг в клиент", "Запустите подключение"] },
   en: { windows: ["Open the access link", "Import the config into the client", "Start the connection"], android: ["Open the access link", "Choose the Android client", "Confirm import and connect"], iphone: ["Open the access link", "Import the config into the app", "Allow the VPN profile"], mac: ["Open the access link", "Add the config to the client", "Start the connection"] },
@@ -1164,7 +1253,7 @@ const PROFILE_DEFAULT_GROUPS = {
 	server_status: "main", media: "main", news: "main",
 	payments: "purchases",
 	referrals: "programs", reviews: "programs",
-	terms: "help",
+	terms: "help", privacy: "help",
 	login_methods: "account", web_version: "account", pwa_install: "account",
 };
 
@@ -1184,6 +1273,7 @@ const ADMIN_LAYOUT_META = {
 	"profile:web_version": ["\u041e\u0442\u043a\u0440\u044b\u0442\u044c \u0432\u0435\u0431-\u0432\u0435\u0440\u0441\u0438\u044e", "external"],
 	"profile:pwa_install": ["\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u043d\u0430 \u0440\u0430\u0431\u043e\u0447\u0438\u0439 \u0441\u0442\u043e\u043b", "download"],
 	"profile:terms": ["\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c\u0441\u043a\u043e\u0435 \u0441\u043e\u0433\u043b\u0430\u0448\u0435\u043d\u0438\u0435", "doc"],
+	"profile:privacy": ["Политика конфиденциальности", "shield"],
 	"navigation:dashboard": ["\u0413\u043b\u0430\u0432\u043d\u0430\u044f", "houseLine"],
 	"navigation:buy": ["\u0422\u0430\u0440\u0438\u0444\u044b", "cartShopping"],
 	"navigation:support": ["\u041f\u043e\u0434\u0434\u0435\u0440\u0436\u043a\u0430", "headphonesAlt"],
@@ -1214,7 +1304,7 @@ const ADMIN_LAYOUT_DEFAULTS = [
 	["support", "faq", 11, 100, 64, false, "left"],
 	["support", "tabs_detail", 12, 100, 44, false, "left"],
 	["support", "tickets_detail", 13, 100, 220, false, "left"],
-	...["server_status", "referrals", "reviews", "payments", "media", "login_methods", "news", "web_version", "pwa_install", "terms"].map((id, order) => ["profile", id, order, 100, 52, true, "left", PROFILE_DEFAULT_GROUPS[id]]),
+	...["server_status", "referrals", "reviews", "payments", "media", "login_methods", "news", "web_version", "pwa_install", "terms", "privacy"].map((id, order) => ["profile", id, order, 100, 52, true, "left", PROFILE_DEFAULT_GROUPS[id]]),
 	...["main", "purchases", "programs", "help", "account"].map((id, order) => ["profile", `group_${id}`, 20 + order, 100, 28, false, "left"]),
 	...["dashboard", "buy", "support", "settings", "admin"].map((id, order) => ["navigation", id, order, 44, 38, true, "center"]),
 ].map(([area, id, order, width, height, framed, align, group]) => ({ area, id, order, visible: true, width, height, framed, align, offsetX: 0, offsetY: 0, ...(group ? { group } : {}) }));
@@ -1449,11 +1539,11 @@ const ADMIN_APPEARANCE_PRESETS = [
 function buildPreviewRuntimeSettings() {
 	const features = Object.fromEntries(["stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
-		version: 7,
+		version: 10,
 		maintenance: { enabled: false, titleRu: "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u044b", textRu: "", reasonRu: "" },
 		features,
 		content: {
-			brandName: "Link-Bot", adminContact: "", logoUrl: previewPayload.brand.logoUrl, startTextRu: "", startImage: "", copy: { ru: {} }, faq: { ru: [] }, links: deepClone(previewPayload.links), customLinks: [],
+			brandName: "Link-Bot", adminContact: "", logoUrl: previewPayload.brand.logoUrl, startTextRu: "", startImage: "", copy: { ru: {} }, faq: { ru: [] }, links: deepClone(previewPayload.links), customLinks: [], profileButtons: {}, legalDocuments: {},
 			verification: { text: "", banner: "", channelButton: { text: "Link-Bot", iconCustomEmojiId: "", style: "" }, confirmButton: { text: "Я подписался", iconCustomEmojiId: "", style: "" }, checkFailedText: "", notSubscribedText: "", verifiedText: "" },
 			startMenu: { trialButton: { text: "Попробовать бесплатно", iconCustomEmojiId: "5276422526350681413", style: "" }, dashboardButton: { text: "Вход", iconCustomEmojiId: "5278413853577734640", style: "" }, plansButton: { text: "Тарифы", iconCustomEmojiId: "5206626000665868017", style: "" }, supportButton: { text: "Чат с поддержкой", iconCustomEmojiId: "5206222720416643915", style: "" } },
 			commerce: { banner: "", tariffsText: "", paymentMethodsText: "", paymentReadyText: "", yookassaButton: { text: "СБП | Карта", iconCustomEmojiId: "5192678313415434135", style: "" }, cryptoButton: { text: "CryptoPay", iconCustomEmojiId: "5195058841988914267", style: "" }, starsButton: { text: "Telegram Stars", iconCustomEmojiId: "5242644275014951846", style: "" }, payButton: { text: "Оплатить", iconCustomEmojiId: "5206401524200145033", style: "" }, backButton: { text: "Назад", iconCustomEmojiId: "5877629862306385808", style: "" }, successText: "", successBanner: "", successButton: { text: "Личный кабинет", iconCustomEmojiId: "5278413853577734640", style: "" } },
@@ -1510,6 +1600,10 @@ const state = {
 	adminPlanEditingID: "",
 	adminPlanFormDraft: null,
 	adminPlanBaseline: null,
+	adminProfileEditorModalOpen: false,
+	adminProfileEditingID: "",
+	adminProfileFormDraft: null,
+	activeCustomPageID: "",
   adminPromoCodeDraft: "",
   adminPromoDiscountDraft: "",
   adminPromoLimitDraft: "",
@@ -1718,6 +1812,13 @@ function seedEditableCopy(settings) {
 	if (!settings.content.subscriptionReminderButton) {
 		settings.content.subscriptionReminderButton = { iconCustomEmojiId: "", style: "" };
 	}
+	if (!settings.content.profileButtons || typeof settings.content.profileButtons !== "object") settings.content.profileButtons = {};
+	if (!settings.content.legalDocuments || typeof settings.content.legalDocuments !== "object") settings.content.legalDocuments = {};
+	if (!Array.isArray(settings.content.customLinks)) settings.content.customLinks = [];
+	settings.content.customLinks.forEach((item) => {
+		if (!item.type) item.type = item.url ? "url" : "page";
+		if (item.type === "page" && !item.document) item.document = emptyLegalDocument(item.labelRu || "Новая страница");
+	});
 	if (!settings.content.support) {
 		settings.content.support = {
 			newTicketText: "🆕 <b>Новое обращение #{ticket_id}</b>\n\n👤 <b>Пользователь:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>Подписка:</b> {subscription}\n\n💬 <b>Сообщение:</b>\n{message}",
@@ -2271,7 +2372,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-  const modalOpen = state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen;
+  const modalOpen = state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -2326,8 +2427,9 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
       ${isModalVisible("pay", state.payModalOpen) ? renderPayModal() : ""}
       ${isModalVisible("payment-launch", state.paymentLaunchModalOpen) ? renderPaymentLaunchModal() : ""}
       ${isModalVisible("review-compose", state.reviewComposeOpen) ? renderReviewComposerModal() : ""}
-      ${isModalVisible("review-detail", state.reviewDetailOpen) ? renderReviewDetailModal() : ""}
+		${isModalVisible("review-detail", state.reviewDetailOpen) ? renderReviewDetailModal() : ""}
 		${state.adminPlanEditorModalOpen ? renderAdminPlanEditorModal() : ""}
+		${state.adminProfileEditorModalOpen ? renderAdminProfileEditorModal() : ""}
     </div>
   `;
   bindRootActions();
@@ -2457,6 +2559,8 @@ function renderPages() {
     renderLoginMethodsPage(),
     renderPaymentsPage(),
     renderTermsPage(),
+    renderPrivacyPage(),
+    renderCustomProfilePage(),
     renderAdminPage(),
   ].join("");
 }
@@ -2818,13 +2922,47 @@ function renderAdminNotificationContent() {
 }
 
 function renderAdminProfileContent() {
-	const custom = state.adminSettingsDraft?.content?.customLinks || [];
+	const items = getAdminProfileEditorItems();
 	return `<section class="admin-editor__section"><h3>Ссылки</h3>
 		${renderAdminSettingField("Поддержка", "content.links.support", { type: "url" })}
 	</section>
-	<section class="admin-editor__section"><div class="admin-editor__section-head"><h3>Свои кнопки профиля</h3><button class="admin-icon-button" type="button" data-action="admin-add-custom-link" aria-label="Добавить кнопку">${icon("plus")}</button></div>
-		${custom.length ? custom.map((item, index) => renderAdminCustomLink(item, index)).join("") : `<div class="admin-empty-line">Свои кнопки не добавлены</div>`}
+	<section class="admin-editor__section admin-profile-editor-list">
+		<div class="admin-editor__section-head"><div><h3>Кнопки профиля</h3><p>Название, описание, ссылка и содержимое страниц.</p></div></div>
+		<div class="admin-profile-list">${items.map(renderAdminProfileEditorRow).join("")}</div>
+		<button class="admin-add-profile-button" type="button" data-action="admin-add-profile-button">${icon("plus")}<span>Добавить</span></button>
 	</section>`;
+}
+
+function getAdminProfileEditorItems() {
+	const meta = [
+		["server_status", "Статус серверов", "server"],
+		["payments", "Платежи", "wallet"],
+		["reviews", "Отзывы", "star"],
+		["referrals", "Реферальная система", "users"],
+		["media", "Медиа", "youtube"],
+		["login_methods", "Способ входа", "lockAlt"],
+		["news", "Новости", "broadcast"],
+		["terms", "Пользовательское соглашение", "doc"],
+		["privacy", "Политика конфиденциальности", "shield"],
+		["web_version", "Открыть веб-версию", "arrowUpRightSquare"],
+		["pwa_install", "Добавить на рабочий стол", "download"],
+	];
+	const custom = state.adminSettingsDraft?.content?.customLinks || [];
+	return [
+		...meta.map(([id, fallbackLabel, itemIcon]) => {
+			const overrides = state.adminSettingsDraft?.content?.profileButtons?.[id] || {};
+			return { id, label: overrides.labelRu || fallbackLabel, hint: overrides.hintRu || "", icon: itemIcon, custom: false };
+		}),
+		...custom.map((item) => ({ id: `custom.${item.id}`, label: item.labelRu || "Новая кнопка", hint: item.hintRu || "", icon: item.icon || (item.type === "page" ? "doc" : "external"), custom: true })),
+	];
+}
+
+function renderAdminProfileEditorRow(item) {
+	return `<article class="admin-profile-entry">
+		<span class="admin-profile-entry__icon">${icon(item.icon)}</span>
+		<span class="admin-profile-entry__copy"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.hint || (item.custom ? "Пользовательская кнопка" : "Встроенная кнопка"))}</small></span>
+		<button type="button" data-action="admin-edit-profile-button" data-value="${escapeAttribute(item.id)}" aria-label="Редактировать ${escapeAttribute(item.label)}">${icon("edit")}</button>
+	</article>`;
 }
 
 function renderAdminFAQContent() {
@@ -2873,15 +3011,6 @@ function renderAdminTelegramButtonStyle(path) {
 		["danger", "Красная"],
 	];
 	return `<fieldset class="admin-reminder-style"><legend>Цвет кнопки</legend><div>${options.map(([value, label]) => `<label class="admin-reminder-style__option"><input type="radio" name="${escapeAttribute(inputName)}" value="${escapeAttribute(value)}" data-setting-path="${escapeAttribute(path)}" data-setting-type="text" ${current === value ? "checked" : ""}><i data-style="${escapeAttribute(value)}" aria-hidden="true"></i><span>${escapeHtml(label)}</span></label>`).join("")}</div></fieldset>`;
-}
-
-function renderAdminCustomLink(item, index) {
-	return `<div class="admin-repeat-row"><div class="admin-repeat-row__head"><strong>${escapeHtml(item.labelRu || `Кнопка ${index + 1}`)}</strong><button class="admin-icon-button admin-icon-button--danger" type="button" data-action="admin-remove-custom-link" data-value="${index}" aria-label="Удалить">${icon("trash")}</button></div>
-		${renderAdminSettingField("Название", `content.customLinks.${index}.labelRu`)}
-		${renderAdminSettingField("Описание", `content.customLinks.${index}.hintRu`)}
-		${renderAdminSettingField("URL", `content.customLinks.${index}.url`, { type: "url" })}
-		<div class="admin-editor__grid admin-editor__grid--two">${renderAdminSettingField("ID", `content.customLinks.${index}.id`)}${renderAdminSettingField("Иконка", `content.customLinks.${index}.icon`, { placeholder: "external" })}</div>
-	</div>`;
 }
 
 function adminAppearancePresetSelected(preset) {
@@ -3187,6 +3316,72 @@ function renderAdminPlanEditorModal() {
 		<button class="btn btn--green-filled admin-plan-modal__save" type="button" data-action="admin-apply-plan-edit">${icon("check")}Применить</button>
 		</div>
 	</div></div>`;
+}
+
+function renderAdminProfileEditorModal() {
+	const item = state.adminProfileFormDraft;
+	if (!item) return "";
+	const custom = Boolean(item.custom);
+	const basicOnly = Boolean(state.adminLayoutEditing);
+	const legal = !basicOnly && (["terms", "privacy"].includes(item.id) || (custom && item.type === "page"));
+	const supportsURL = !basicOnly && (["web_version", "pwa_install"].includes(item.id) || (custom && item.type === "url"));
+	const title = custom && item.isNew ? "Новая кнопка" : `Редактирование: ${item.labelRu || "Кнопка"}`;
+	const sections = item.document?.sections || [];
+	return `<div class="modal modal--profile-editor ${modalStateClass("admin-profile-editor")}" role="dialog" aria-modal="true" aria-labelledby="admin-profile-editor-title">
+		<div class="modal__backdrop" data-action="admin-close-profile-editor"></div>
+		<div class="modal__sheet modal__sheet--profile-editor">
+			<header class="admin-profile-modal__header"><div><span>ПРОФИЛЬ</span><h2 id="admin-profile-editor-title">${escapeHtml(title)}</h2></div><button type="button" data-action="admin-close-profile-editor" aria-label="Закрыть">${icon("close")}</button></header>
+			<div class="admin-profile-modal__body">
+				<div class="admin-editor__grid admin-editor__grid--two">
+					${renderProfileDraftField("Название кнопки", "labelRu", item.labelRu, { maxlength: 80 })}
+					${renderProfileDraftField("Описание", "hintRu", item.hintRu, { maxlength: 160 })}
+				</div>
+				${custom && !basicOnly ? `<label class="admin-field"><span>Формат кнопки</span><select class="admin-field__control" data-profile-edit-path="type">
+					<option value="url" ${item.type === "url" ? "selected" : ""}>URL-ссылка</option>
+					<option value="page" ${item.type === "page" ? "selected" : ""}>Текстовая страница</option>
+				</select></label>` : ""}
+				${supportsURL ? renderProfileDraftField("Ссылка", "url", item.url || defaultProfileButtonURL(item.id), { type: "url", placeholder: "https://example.com" }) : ""}
+				${legal ? `<section class="admin-legal-editor">
+					<div class="admin-legal-editor__title"><div><span>СТРАНИЦА</span><h3>Содержимое</h3></div><small>Текст отображается в стиле юридической страницы mini app.</small></div>
+					${renderProfileDraftField("Заголовок", "document.title", item.document?.title || item.labelRu, { maxlength: 160 })}
+					<div class="admin-editor__grid admin-editor__grid--two">
+						${renderProfileDraftField("Подпись даты", "document.effectiveLabel", item.document?.effectiveLabel || "Дата вступления в силу", { maxlength: 100 })}
+						${renderProfileDraftField("Юрисдикция / подзаголовок", "document.jurisdiction", item.document?.jurisdiction || "", { maxlength: 300 })}
+					</div>
+					${renderProfileDraftField("Вступление", "document.intro", item.document?.intro || "", { textarea: true, rows: 5 })}
+					<div class="admin-legal-sections">
+						${sections.map((section, index) => `<article class="admin-legal-section">
+							<div class="admin-legal-section__head"><strong>Раздел ${index + 1}</strong><button type="button" data-action="admin-remove-legal-section" data-value="${index}" aria-label="Удалить раздел">${icon("trash")}</button></div>
+							${renderProfileDraftField("Заголовок раздела", `document.sections.${index}.title`, section.title || "")}
+							${renderProfileDraftField("Текст раздела", `document.sections.${index}.body`, section.body || "", { textarea: true, rows: 6 })}
+						</article>`).join("")}
+					</div>
+					<button class="admin-add-profile-button admin-add-profile-button--section" type="button" data-action="admin-add-legal-section">${icon("plus")}<span>Добавить раздел</span></button>
+					<div class="admin-editor__grid admin-editor__grid--two">
+						${renderProfileDraftField("Заголовок контактов", "document.contactTitle", item.document?.contactTitle || "Связь с администрацией")}
+						${renderProfileDraftField("Контакты", "document.contacts", item.document?.contacts || "", { textarea: true, rows: 3 })}
+					</div>
+					${renderProfileDraftField("Подпись внизу", "document.footer", item.document?.footer || "")}
+				</section>` : ""}
+			</div>
+			<footer class="admin-profile-modal__footer">
+				${custom && !basicOnly && !item.isNew ? `<button class="admin-profile-modal__delete" type="button" data-action="admin-delete-profile-button">${icon("trash")}<span>Удалить</span></button>` : "<span></span>"}
+				<button class="btn btn--green-filled" type="button" data-action="admin-apply-profile-edit">${icon("check")}<span>Применить</span></button>
+			</footer>
+		</div>
+	</div>`;
+}
+
+function renderProfileDraftField(label, path, value, options = {}) {
+	const attrs = [
+		`data-profile-edit-path="${escapeAttribute(path)}"`,
+		options.maxlength ? `maxlength="${Number(options.maxlength)}"` : "",
+		options.placeholder ? `placeholder="${escapeAttribute(options.placeholder)}"` : "",
+	].filter(Boolean).join(" ");
+	const control = options.textarea
+		? `<textarea class="admin-field__control admin-field__textarea" rows="${options.rows || 4}" ${attrs}>${escapeHtml(value)}</textarea>`
+		: `<input class="admin-field__control" type="${options.type === "url" ? "url" : "text"}" value="${escapeAttribute(value)}" ${attrs}>`;
+	return `<label class="admin-field"><span>${escapeHtml(label)}</span>${control}</label>`;
 }
 
 function renderAdminSettingField(label, path, options = {}) {
@@ -3595,35 +3790,57 @@ function getProfileItems() {
 		web_version: { group: "account", label: webVersionLabel(), hint: webVersionHint(), action: "open-web-version", value: "", icon: "arrowUpRightSquare", feature: "web_version" },
 		pwa_install: { group: "account", label: addToHomeLabel(), hint: addToHomeHint(), action: "open-install-guide", value: "", icon: "download", feature: "pwa_install" },
 		terms: { group: "help", label: copy.tos, hint: replaceRuntimeBrandTokens(copy.tosHint || copy.tos), action: "go-page", value: "terms", icon: "doc" },
+		privacy: { group: "help", label: "Политика конфиденциальности", hint: "Как сервис обрабатывает данные", action: "go-page", value: "privacy", icon: "shield" },
 	};
+	const settings = getRuntimeSettings()?.content || {};
+	const overrides = settings.profileButtons || {};
+	for (const [id, item] of Object.entries(definitions)) {
+		const override = overrides[id] || {};
+		if (override.labelRu) item.label = override.labelRu;
+		if (override.hintRu) item.hint = override.hintRu;
+		if (override.url && id === "web_version") {
+			item.action = "open-link";
+			item.value = override.url;
+		}
+		if (override.url && id === "pwa_install") {
+			item.action = "open-link";
+			item.value = override.url;
+		}
+	}
+	const custom = settings.customLinks || [];
+	for (const [index, item] of custom.entries()) {
+		const id = `custom.${item.id || index}`;
+		definitions[id] = {
+			group: "main",
+			label: item.labelRu || "Кнопка",
+			hint: item.hintRu || "",
+			action: item.type === "page" ? "open-custom-page" : "open-link",
+			value: item.type === "page" ? String(item.id || index) : item.url,
+			icon: item.icon || (item.type === "page" ? "doc" : "external"),
+		};
+	}
 	const configured = getLayoutElements("profile");
-	const order = configured.length ? configured : Object.keys(definitions).map((id, index) => ({ id, order: index, visible: true, width: 100, height: 52, framed: true }));
+	const configuredIDs = new Set(configured.map((item) => item.id));
+	const missingCustom = Object.keys(definitions)
+		.filter((id) => id.startsWith("custom.") && !configuredIDs.has(id))
+		.map((id, index) => ({ id, order: configured.length + index, visible: true, width: 100, height: 52, framed: true, group: "main" }));
+	const order = configured.length ? [...configured, ...missingCustom] : Object.keys(definitions).map((id, index) => ({ id, order: index, visible: true, width: 100, height: 52, framed: true }));
 	const items = order.map((layout) => {
 		const item = definitions[layout.id];
 		if (!item || ((!item.value && item.action === "open-link") || (item.feature && !featureEnabled(item.feature)))) return null;
 		return { ...item, group: layout.group || item.group, id: layout.id, layout };
 	}).filter(Boolean);
-	const custom = getRuntimeSettings()?.content?.customLinks || [];
-	custom.forEach((item, index) => {
-		if (!item?.url) return;
-		items.push({
-			id: `custom.${item.id || index}`,
-			group: "main",
-			label: item.labelRu,
-			hint: item.hintRu,
-			action: "open-link",
-			value: item.url,
-			icon: item.icon || "external",
-			layout: { width: 100, height: 52, framed: true },
-		});
-	});
 	return items;
 }
 
 function renderProfileItem(item) {
 	const layout = item.layout || {};
 	const sorting = state.adminLayoutEditing;
-	return `<button class="profile-row ${layout.framed === false ? "profile-row--flat" : ""} ${sorting ? "profile-row--sortable" : ""}" ${sorting ? `data-profile-layout-id="${escapeAttribute(item.id)}"` : ""} type="button" data-action="${escapeAttribute(item.action)}" ${item.value ? `data-value="${escapeAttribute(item.value)}"` : ""}><span class="profile-row__icon">${icon(item.icon)}</span><span class="profile-row__body"><strong>${escapeHtml(item.label || item.id)}</strong>${item.hint ? `<span>${escapeHtml(item.hint)}</span>` : ""}</span><span class="profile-row__tail">${icon(sorting ? "move" : "chevronRight")}</span></button>`;
+	const row = `<span class="profile-row__icon">${icon(item.icon)}</span><span class="profile-row__body"><strong>${escapeHtml(item.label || item.id)}</strong>${item.hint ? `<span>${escapeHtml(item.hint)}</span>` : ""}</span>`;
+	if (sorting) {
+		return `<div class="profile-row ${layout.framed === false ? "profile-row--flat" : ""} profile-row--sortable" data-profile-layout-id="${escapeAttribute(item.id)}">${row}<span class="profile-row__tools"><button type="button" data-action="admin-edit-profile-button" data-value="${escapeAttribute(item.id)}" aria-label="Редактировать ${escapeAttribute(item.label || item.id)}">${icon("edit")}</button><span class="profile-row__drag" aria-hidden="true">${icon("move")}</span></span></div>`;
+	}
+	return `<button class="profile-row ${layout.framed === false ? "profile-row--flat" : ""}" type="button" data-action="${escapeAttribute(item.action)}" ${item.value ? `data-value="${escapeAttribute(item.value)}"` : ""}>${row}<span class="profile-row__tail">${icon("chevronRight")}</span></button>`;
 }
 
 function renderInstallGuidePage() {
@@ -3740,11 +3957,23 @@ function renderPaymentsPage() {
 }
 
 function renderTermsPage() {
-  const article = getRuntimeTermsArticle();
-  const effectiveDate = formatTermsDate(state.data?.meta?.now || new Date().toISOString());
+  return renderLegalPage("terms", getRuntimeLegalArticle("terms"));
+}
 
+function renderPrivacyPage() {
+	return renderLegalPage("privacy", getRuntimeLegalArticle("privacy"));
+}
+
+function renderCustomProfilePage() {
+	const item = (getRuntimeSettings()?.content?.customLinks || []).find((entry) => String(entry.id) === String(state.activeCustomPageID));
+	if (!item || item.type !== "page") return `<section class="page ${pageClass("custom-page")}" id="page-custom-page"></section>`;
+	return renderLegalPage("custom-page", documentToArticle(item.document, item.labelRu || "Страница"));
+}
+
+function renderLegalPage(page, article) {
+	const effectiveDate = formatTermsDate(state.data?.meta?.now || new Date().toISOString());
   return `
-    <section class="page ${pageClass("terms")}" id="page-terms">
+    <section class="page ${pageClass(page)}" id="page-${escapeAttribute(page)}">
       <article class="terms-article">
         <div class="terms-article__eyebrow">${escapeHtml(article.title)}</div>
         <h1 class="terms-article__title">${escapeHtml(article.title)}</h1>
@@ -3765,9 +3994,61 @@ function renderTermsPage() {
   `;
 }
 
-function getRuntimeTermsArticle() {
-  const source = TERMS_ARTICLE[state.locale] || TERMS_ARTICLE.ru;
-	return replaceRuntimeBrandTokens(source);
+function getRuntimeLegalArticle(id) {
+	const fallback = id === "privacy" ? (PRIVACY_ARTICLE[state.locale] || PRIVACY_ARTICLE.ru) : (TERMS_ARTICLE[state.locale] || TERMS_ARTICLE.ru);
+	const configured = getRuntimeSettings()?.content?.legalDocuments?.[id];
+	return replaceRuntimeBrandTokens(configured?.title ? documentToArticle(configured, fallback.title) : fallback);
+}
+
+function documentToArticle(document, fallbackTitle) {
+	const sections = Array.isArray(document?.sections) ? document.sections : [];
+	return {
+		title: String(document?.title || fallbackTitle || "Страница"),
+		effectiveLabel: String(document?.effectiveLabel || "Дата вступления в силу"),
+		jurisdiction: String(document?.jurisdiction || ""),
+		intro: splitDocumentText(document?.intro),
+		sections: sections.map((section) => ({
+			title: String(section?.title || ""),
+			paragraphs: splitDocumentText(section?.body),
+		})).filter((section) => section.title || section.paragraphs.length),
+		contactTitle: String(document?.contactTitle || "Связь с администрацией"),
+		contacts: splitDocumentText(document?.contacts),
+		footer: String(document?.footer || ""),
+	};
+}
+
+function articleToDocument(article, fallbackTitle) {
+	const source = replaceRuntimeBrandTokens(article || {});
+	return {
+		title: String(source.title || fallbackTitle || "Страница"),
+		effectiveLabel: String(source.effectiveLabel || "Дата вступления в силу"),
+		jurisdiction: String(source.jurisdiction || ""),
+		intro: (source.intro || []).join("\n\n"),
+		sections: (source.sections || []).map((section) => ({
+			title: String(section.title || ""),
+			body: [...(section.paragraphs || []), ...(section.items || [])].join("\n\n"),
+		})),
+		contactTitle: String(source.contactTitle || "Связь с администрацией"),
+		contacts: (source.contacts || []).join("\n"),
+		footer: String(source.footer || ""),
+	};
+}
+
+function emptyLegalDocument(title = "Новая страница") {
+	return {
+		title,
+		effectiveLabel: "Дата вступления в силу",
+		jurisdiction: "",
+		intro: "",
+		sections: [{ title: "1. Общие положения", body: "" }],
+		contactTitle: "Связь с администрацией",
+		contacts: "",
+		footer: "",
+	};
+}
+
+function splitDocumentText(value) {
+	return String(value || "").split(/\n\s*\n|\n/).map((item) => item.trim()).filter(Boolean);
 }
 
 function replaceRuntimeBrandTokens(source) {
@@ -4531,6 +4812,10 @@ function bindRootActions() {
     if (!target) return;
     const action = target.dataset.action;
     const value = target.dataset.value || "";
+		if (action === "admin-edit-profile-button") {
+			event.preventDefault();
+			return openAdminProfileEditor(value);
+		}
 		const editableNode = event.target.closest?.("[data-layout-edit-key]");
 		if (state.adminLayoutEditing && editableNode) {
 			selectAdminLayoutNode(editableNode);
@@ -4576,6 +4861,12 @@ function bindRootActions() {
 			if (action === "admin-delete-plan") return deleteAdminPlan(value);
 			if (action === "admin-close-plan-modal") return closeAdminPlanEditorModal();
 			if (action === "admin-apply-plan-edit") return applyAdminPlanEdit();
+			if (action === "admin-add-profile-button") return openAdminProfileEditor("", { create: true });
+			if (action === "admin-close-profile-editor") return closeAdminProfileEditorModal();
+			if (action === "admin-apply-profile-edit") return applyAdminProfileEdit();
+			if (action === "admin-delete-profile-button") return deleteAdminProfileButton();
+			if (action === "admin-add-legal-section") return addAdminLegalSection();
+			if (action === "admin-remove-legal-section") return removeAdminLegalSection(Number(value));
       if (action === "go-home") return setPage("dashboard");
       if (action === "go-page") return value === "setup" ? openSubscriptionAccess() : setPage(value);
       if (action === "open-review-compose") { state.reviewComposeOpen = true; render(); return; }
@@ -4650,8 +4941,6 @@ function bindRootActions() {
 			if (action === "admin-appearance-preset") return applyAdminAppearancePreset(value);
 			if (action === "admin-save-settings") return await saveAdminSettings();
 			if (action === "admin-content-section") { state.adminContentSection = value || "start"; render(); return; }
-			if (action === "admin-add-custom-link") return addAdminCustomLink();
-			if (action === "admin-remove-custom-link") return removeAdminCustomLink(Number(value));
 			if (action === "admin-add-faq") return addAdminFAQItem();
 			if (action === "admin-remove-faq") return removeAdminFAQItem(Number(value));
 			if (action === "admin-move-faq") return moveAdminFAQItem(Number(value), Number(target.dataset.direction || 0));
@@ -4664,6 +4953,7 @@ function bindRootActions() {
       if (action === "activate-trial") return await activateTrial();
       if (action === "open-web-version") return openWebVersion();
       if (action === "open-install-guide") return openInstallGuide();
+      if (action === "open-custom-page") { state.activeCustomPageID = value; return setPage("custom-page"); }
       if (action === "set-install-platform") { state.installGuidePlatform = value === "ios" ? "ios" : "android"; haptic("light"); render(); return; }
       if (action === "open-access") return openSubscriptionAccess();
       if (action === "copy-access") return state.data?.subscription?.subscriptionLink ? copyToClipboard(state.data.subscription.subscriptionLink).then(() => showToast(t().copied)) : showToast(t().noAccess);
@@ -4678,6 +4968,18 @@ function bindRootActions() {
 
     app.addEventListener("input", (event) => {
       const target = event.target;
+		const profileEditPath = target?.dataset?.profileEditPath;
+		if (profileEditPath && state.adminProfileFormDraft) {
+			setDeepValue(state.adminProfileFormDraft, profileEditPath, target.value);
+			if (profileEditPath === "type") {
+				state.adminProfileFormDraft.type = target.value === "page" ? "page" : "url";
+				if (state.adminProfileFormDraft.type === "page" && !state.adminProfileFormDraft.document) {
+					state.adminProfileFormDraft.document = emptyLegalDocument(state.adminProfileFormDraft.labelRu);
+				}
+				render({ preserveScroll: true });
+			}
+			return;
+		}
 		const integrationProvider = target?.dataset?.integrationProvider;
 		if (integrationProvider && state.adminIntegrationDrafts[integrationProvider]) {
 			const draft = state.adminIntegrationDrafts[integrationProvider];
@@ -5110,20 +5412,160 @@ function syncAdminBroadcastPolling() {
 	}, 2000);
 }
 
-function addAdminCustomLink() {
-	if (!state.adminSettingsDraft?.content) return;
-	const items = state.adminSettingsDraft.content.customLinks || (state.adminSettingsDraft.content.customLinks = []);
-	items.push({ id: `link_${Date.now().toString(36)}`, labelRu: "Новая кнопка", hintRu: "", url: "https://", icon: "external" });
-	state.adminSettingsDirty = true;
-	render();
+function getBuiltInProfileDefaults(id) {
+	const values = {
+		server_status: ["Статус серверов", "Состояние VPN-серверов"],
+		payments: ["Платежи", "Оплаты и история покупок"],
+		reviews: ["Отзывы", "Отзывы пользователей сервиса"],
+		referrals: ["Реферальная система", "Бонусы за приглашённых пользователей"],
+		media: ["Медиа", "Видео и материалы"],
+		login_methods: ["Способ входа", "Telegram и Gmail"],
+		news: ["Новости", "Новости и обновления сервиса"],
+		terms: ["Пользовательское соглашение", "Условия использования сервиса"],
+		privacy: ["Политика конфиденциальности", "Как сервис обрабатывает данные"],
+		web_version: ["Открыть веб-версию", "Браузерная версия кабинета"],
+		pwa_install: ["Добавить на рабочий стол", "Инструкция для iOS и Android"],
+	};
+	return values[id] || [id, ""];
 }
 
-function removeAdminCustomLink(index) {
-	const items = state.adminSettingsDraft?.content?.customLinks;
-	if (!Array.isArray(items) || index < 0 || index >= items.length) return;
-	items.splice(index, 1);
+function defaultProfileButtonURL(id) {
+	if (id === "web_version") return getWebVersionURL();
+	if (id === "pwa_install") return getInstallGuideURL();
+	return "";
+}
+
+function openAdminProfileEditor(id, { create = false } = {}) {
+	if (!state.adminSettingsDraft?.content) return;
+	const content = state.adminSettingsDraft.content;
+	if (create) {
+		const generatedID = `button_${Date.now().toString(36)}`;
+		state.adminProfileEditingID = `custom.${generatedID}`;
+		state.adminProfileFormDraft = {
+			id: generatedID,
+			custom: true,
+			isNew: true,
+			labelRu: "Новая кнопка",
+			hintRu: "",
+			type: "url",
+			url: "https://",
+			icon: "external",
+			document: emptyLegalDocument("Новая страница"),
+		};
+	} else if (String(id).startsWith("custom.")) {
+		const customID = String(id).slice(7);
+		const source = (content.customLinks || []).find((item) => String(item.id) === customID);
+		if (!source) return;
+		state.adminProfileEditingID = id;
+		state.adminProfileFormDraft = { ...deepClone(source), custom: true, isNew: false };
+		if (!state.adminProfileFormDraft.type) state.adminProfileFormDraft.type = state.adminProfileFormDraft.url ? "url" : "page";
+		if (!state.adminProfileFormDraft.document) state.adminProfileFormDraft.document = emptyLegalDocument(source.labelRu);
+	} else {
+		const [label, hint] = getBuiltInProfileDefaults(id);
+		const source = content.profileButtons?.[id] || {};
+		let document = null;
+		if (id === "terms") document = content.legalDocuments?.terms || articleToDocument(TERMS_ARTICLE.ru, label);
+		if (id === "privacy") document = content.legalDocuments?.privacy || articleToDocument(PRIVACY_ARTICLE.ru, label);
+		state.adminProfileEditingID = id;
+		state.adminProfileFormDraft = {
+			id,
+			custom: false,
+			isNew: false,
+			labelRu: source.labelRu || label,
+			hintRu: source.hintRu || hint,
+			url: source.url || defaultProfileButtonURL(id),
+			document: document ? deepClone(document) : null,
+		};
+	}
+	state.adminProfileEditorModalOpen = true;
+	haptic("light");
+	render({ preserveScroll: true });
+}
+
+function closeAdminProfileEditorModal() {
+	state.adminProfileEditorModalOpen = false;
+	state.adminProfileEditingID = "";
+	state.adminProfileFormDraft = null;
+	render({ preserveScroll: true });
+}
+
+function applyAdminProfileEdit() {
+	const draft = state.adminProfileFormDraft;
+	const content = state.adminSettingsDraft?.content;
+	if (!draft || !content) return;
+	draft.labelRu = String(draft.labelRu || "").trim();
+	draft.hintRu = String(draft.hintRu || "").trim();
+	if (!draft.labelRu) return showToast("Укажите название кнопки");
+	if ((draft.type === "url" || ["web_version", "pwa_install"].includes(draft.id)) && !/^https?:\/\//i.test(String(draft.url || "").trim())) {
+		return showToast("Укажите корректную HTTPS-ссылку");
+	}
+	if (draft.custom) {
+		const item = {
+			id: draft.id,
+			labelRu: draft.labelRu,
+			hintRu: draft.hintRu,
+			type: draft.type === "page" ? "page" : "url",
+			url: draft.type === "page" ? "" : String(draft.url || "").trim(),
+			icon: draft.type === "page" ? "doc" : "external",
+			document: draft.type === "page" ? deepClone(draft.document || emptyLegalDocument(draft.labelRu)) : emptyLegalDocument(""),
+		};
+		const items = content.customLinks || (content.customLinks = []);
+		const index = items.findIndex((entry) => String(entry.id) === String(draft.id));
+		if (index >= 0) items[index] = item;
+		else items.push(item);
+		const layoutID = `custom.${draft.id}`;
+		const layout = state.adminSettingsDraft.layout?.elements || (state.adminSettingsDraft.layout = { elements: [] }).elements;
+		if (!layout.some((entry) => entry.area === "profile" && entry.id === layoutID)) {
+			const order = layout.filter((entry) => entry.area === "profile" && !String(entry.id).startsWith("group_")).length;
+			layout.push({ area: "profile", id: layoutID, order, visible: true, width: 100, height: 52, framed: true, align: "left", offsetX: 0, offsetY: 0, group: "main" });
+		}
+	} else {
+		if (!content.profileButtons) content.profileButtons = {};
+		content.profileButtons[draft.id] = {
+			labelRu: draft.labelRu,
+			hintRu: draft.hintRu,
+			...(["web_version", "pwa_install"].includes(draft.id) ? { url: String(draft.url || "").trim() } : {}),
+		};
+		if (["terms", "privacy"].includes(draft.id)) {
+			if (!content.legalDocuments) content.legalDocuments = {};
+			content.legalDocuments[draft.id] = deepClone(draft.document || emptyLegalDocument(draft.labelRu));
+		}
+	}
 	state.adminSettingsDirty = true;
-	render();
+	state.adminProfileEditorModalOpen = false;
+	state.adminProfileEditingID = "";
+	state.adminProfileFormDraft = null;
+	haptic("success");
+	render({ preserveScroll: true });
+}
+
+function deleteAdminProfileButton() {
+	const draft = state.adminProfileFormDraft;
+	if (!draft?.custom || draft.isNew) return;
+	const content = state.adminSettingsDraft?.content;
+	if (!content) return;
+	content.customLinks = (content.customLinks || []).filter((item) => String(item.id) !== String(draft.id));
+	if (state.adminSettingsDraft?.layout?.elements) {
+		state.adminSettingsDraft.layout.elements = state.adminSettingsDraft.layout.elements.filter((item) => !(item.area === "profile" && item.id === `custom.${draft.id}`));
+	}
+	state.adminSettingsDirty = true;
+	closeAdminProfileEditorModal();
+}
+
+function addAdminLegalSection() {
+	const document = state.adminProfileFormDraft?.document;
+	if (!document) return;
+	if (!Array.isArray(document.sections)) document.sections = [];
+	if (document.sections.length >= 30) return;
+	document.sections.push({ title: `${document.sections.length + 1}. Новый раздел`, body: "" });
+	render({ preserveScroll: true });
+}
+
+function removeAdminLegalSection(index) {
+	const sections = state.adminProfileFormDraft?.document?.sections;
+	if (!Array.isArray(sections) || index < 0 || index >= sections.length) return;
+	sections.splice(index, 1);
+	render({ preserveScroll: true });
 }
 
 function addAdminFAQItem() {
@@ -5899,6 +6341,7 @@ function finishAdminLayoutPointer() {
 
 function beginAdminProfilePointer(event) {
 	if (!state.adminLayoutEditing || state.currentPage !== "settings" || event.button > 0 || !event.isPrimary) return;
+	if (event.target.closest?.('[data-action="admin-edit-profile-button"]')) return;
 	const node = event.target.closest?.("[data-profile-layout-id]");
 	if (!node) return;
 	const item = state.adminSettingsDraft?.layout?.elements?.find((entry) => entry.area === "profile" && entry.id === node.dataset.profileLayoutId);
@@ -6818,7 +7261,7 @@ function syncNativeBackButton() {
 
 function shouldShowNativeBackButton() {
 	return Boolean(
-		state.adminLayoutEditing || state.adminPlanEditing || state.adminPlanEditorModalOpen ||
+		state.adminLayoutEditing || state.adminPlanEditing || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen ||
     state.supportThreadOpen ||
     state.supportComposeOpen ||
     state.devicesModalOpen ||
@@ -6833,12 +7276,13 @@ function shouldShowNativeBackButton() {
 
 function getNativeBackTargetPage() {
   if (state.currentPage === "faq") return "support";
-  if (["servers", "referrals", "reviews", "media", "login-methods", "payments", "terms"].includes(state.currentPage)) return "settings";
+  if (["servers", "referrals", "reviews", "media", "login-methods", "payments", "terms", "privacy", "custom-page"].includes(state.currentPage)) return "settings";
   if (["buy", "setup", "support", "settings", "admin"].includes(state.currentPage)) return "dashboard";
   return "dashboard";
 }
 
 function handleNativeBackButton() {
+	if (state.adminProfileEditorModalOpen) return closeAdminProfileEditorModal();
 	if (state.adminPlanEditorModalOpen) return closeAdminPlanEditorModal();
 	if (state.adminPlanEditing) return exitAdminPlanEditor();
 	if (state.adminLayoutEditing) return exitAdminLayoutEditor();
@@ -6857,6 +7301,7 @@ function handleNativeBackButton() {
 }
 
 function getActiveModalName() {
+	if (state.adminProfileEditorModalOpen) return "admin-profile-editor";
 	if (state.adminPlanEditorModalOpen) return "admin-plan-editor";
   if (state.supportThreadOpen) return "support-thread";
   if (state.supportComposeOpen) return "support-compose";

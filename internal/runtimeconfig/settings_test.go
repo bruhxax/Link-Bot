@@ -415,6 +415,115 @@ func TestNormalizeAndValidateMigratesTelegramContentOnce(t *testing.T) {
 	}
 }
 
+func TestNormalizeAndValidateMigratesProfileEditorSettings(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Version = CurrentVersion - 1
+	settings.Layout.Elements = filterLayoutElement(settings.Layout.Elements, "profile", "privacy")
+	settings.Content.ProfileButtons = nil
+	settings.Content.LegalDocuments = nil
+	settings.Content.CustomLinks = []CustomLink{
+		{
+			ID:      "legacy_link",
+			LabelRU: "Legacy",
+			HintRU:  "Existing profile link",
+			URL:     "https://example.com/legacy",
+			Icon:    "external",
+		},
+	}
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if settings.Version != CurrentVersion {
+		t.Fatalf("version = %d, want %d", settings.Version, CurrentVersion)
+	}
+	if settings.Content.ProfileButtons == nil || settings.Content.LegalDocuments == nil {
+		t.Fatal("profile editor maps were not initialized")
+	}
+	if got := settings.Content.CustomLinks[0].Type; got != "url" {
+		t.Fatalf("legacy custom link type = %q, want url", got)
+	}
+	if !hasLayoutElement(settings.Layout.Elements, "profile", "privacy") {
+		t.Fatal("privacy profile item was not added during migration")
+	}
+	if !hasLayoutElement(settings.Layout.Elements, "profile", "custom.legacy_link") {
+		t.Fatal("legacy custom profile button was not added to the layout")
+	}
+}
+
+func TestNormalizeAndValidateProfileButtonAndLegalPage(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Content.ProfileButtons["web_version"] = ProfileButtonSettings{
+		LabelRU: " Web ",
+		HintRU:  " Browser ",
+		URL:     "https://example.com/account",
+	}
+	settings.Content.LegalDocuments["privacy"] = LegalDocumentSettings{
+		Title:          " Privacy ",
+		EffectiveLabel: " Effective ",
+		Jurisdiction:   " Test jurisdiction ",
+		Intro:          " Intro ",
+		Sections: []LegalDocumentSection{
+			{Title: " Data ", Body: " Details "},
+			{},
+		},
+		ContactTitle: " Contact ",
+		Contacts:     " @admin ",
+		Footer:       " Footer ",
+	}
+	settings.Content.CustomLinks = []CustomLink{
+		{
+			ID:      "custom_policy",
+			LabelRU: " Custom policy ",
+			HintRU:  " Details ",
+			Type:    "page",
+			Document: LegalDocumentSettings{
+				Title:    " Custom page ",
+				Sections: []LegalDocumentSection{{Title: " Section ", Body: " Body "}},
+			},
+		},
+	}
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	button := settings.Content.ProfileButtons["web_version"]
+	if button.LabelRU != "Web" || button.HintRU != "Browser" || button.URL != "https://example.com/account" {
+		t.Fatalf("profile button was not normalized: %+v", button)
+	}
+	privacy := settings.Content.LegalDocuments["privacy"]
+	if privacy.Title != "Privacy" || privacy.EffectiveLabel != "Effective" || len(privacy.Sections) != 1 || privacy.Sections[0].Body != "Details" {
+		t.Fatalf("privacy document was not normalized: %+v", privacy)
+	}
+	custom := settings.Content.CustomLinks[0]
+	if custom.Type != "page" || custom.URL != "" || custom.Document.Title != "Custom page" {
+		t.Fatalf("custom page was not normalized: %+v", custom)
+	}
+}
+
+func TestNormalizeAndValidateRejectsUnsafeProfileURL(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Content.ProfileButtons["web_version"] = ProfileButtonSettings{
+		LabelRU: "Web",
+		URL:     "javascript:alert(1)",
+	}
+
+	err := NormalizeAndValidate(&settings)
+	if err == nil || !strings.Contains(err.Error(), "profile button URL") {
+		t.Fatalf("NormalizeAndValidate() error = %v, want profile button URL error", err)
+	}
+}
+
+func TestNormalizeAndValidateRejectsUnknownProfileButton(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Content.ProfileButtons["unknown"] = ProfileButtonSettings{LabelRU: "Unknown"}
+
+	err := NormalizeAndValidate(&settings)
+	if err == nil || !strings.Contains(err.Error(), "invalid profile button") {
+		t.Fatalf("NormalizeAndValidate() error = %v, want invalid profile button error", err)
+	}
+}
+
 func TestNormalizeAndValidateKeepsOptionalTelegramBannersEmpty(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Content.StartImage = ""
@@ -428,6 +537,26 @@ func TestNormalizeAndValidateKeepsOptionalTelegramBannersEmpty(t *testing.T) {
 	if settings.Content.StartImage != "" || settings.Content.Verification.Banner != "" || settings.Content.Commerce.Banner != "" || settings.Content.Commerce.SuccessBanner != "" {
 		t.Fatalf("optional banners were restored unexpectedly: menu=%q verification=%q commerce=%q success=%q", settings.Content.StartImage, settings.Content.Verification.Banner, settings.Content.Commerce.Banner, settings.Content.Commerce.SuccessBanner)
 	}
+}
+
+func filterLayoutElement(items []LayoutElement, area, id string) []LayoutElement {
+	result := make([]LayoutElement, 0, len(items))
+	for _, item := range items {
+		if item.Area == area && item.ID == id {
+			continue
+		}
+		result = append(result, item)
+	}
+	return result
+}
+
+func hasLayoutElement(items []LayoutElement, area, id string) bool {
+	for _, item := range items {
+		if item.Area == area && item.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 func TestNormalizeAndValidateTelegramButtonCodeAndColor(t *testing.T) {

@@ -21,7 +21,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 9
+const CurrentVersion = 10
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -70,12 +70,36 @@ type FAQItem struct {
 	Answer   string `json:"answer"`
 }
 
-type CustomLink struct {
-	ID      string `json:"id"`
+type ProfileButtonSettings struct {
 	LabelRU string `json:"labelRu"`
 	HintRU  string `json:"hintRu"`
-	URL     string `json:"url"`
-	Icon    string `json:"icon"`
+	URL     string `json:"url,omitempty"`
+}
+
+type LegalDocumentSection struct {
+	Title string `json:"title"`
+	Body  string `json:"body"`
+}
+
+type LegalDocumentSettings struct {
+	Title          string                 `json:"title"`
+	EffectiveLabel string                 `json:"effectiveLabel"`
+	Jurisdiction   string                 `json:"jurisdiction"`
+	Intro          string                 `json:"intro"`
+	Sections       []LegalDocumentSection `json:"sections"`
+	ContactTitle   string                 `json:"contactTitle"`
+	Contacts       string                 `json:"contacts"`
+	Footer         string                 `json:"footer"`
+}
+
+type CustomLink struct {
+	ID       string                `json:"id"`
+	LabelRU  string                `json:"labelRu"`
+	HintRU   string                `json:"hintRu"`
+	URL      string                `json:"url"`
+	Icon     string                `json:"icon"`
+	Type     string                `json:"type"`
+	Document LegalDocumentSettings `json:"document"`
 }
 
 type TelegramVerificationSettings struct {
@@ -120,20 +144,22 @@ type TelegramCommerceSettings struct {
 }
 
 type ContentSettings struct {
-	BrandName                  string                       `json:"brandName"`
-	AdminContact               string                       `json:"adminContact"`
-	LogoURL                    string                       `json:"logoUrl"`
-	StartTextRU                string                       `json:"startTextRu"`
-	StartImage                 string                       `json:"startImage"`
-	Copy                       map[string]map[string]string `json:"copy"`
-	FAQ                        map[string][]FAQItem         `json:"faq"`
-	Links                      map[string]string            `json:"links"`
-	CustomLinks                []CustomLink                 `json:"customLinks"`
-	SubscriptionReminderButton TelegramButtonSettings       `json:"subscriptionReminderButton"`
-	Verification               TelegramVerificationSettings `json:"verification"`
-	Support                    TelegramSupportSettings      `json:"support"`
-	StartMenu                  TelegramStartMenuSettings    `json:"startMenu"`
-	Commerce                   TelegramCommerceSettings     `json:"commerce"`
+	BrandName                  string                           `json:"brandName"`
+	AdminContact               string                           `json:"adminContact"`
+	LogoURL                    string                           `json:"logoUrl"`
+	StartTextRU                string                           `json:"startTextRu"`
+	StartImage                 string                           `json:"startImage"`
+	Copy                       map[string]map[string]string     `json:"copy"`
+	FAQ                        map[string][]FAQItem             `json:"faq"`
+	Links                      map[string]string                `json:"links"`
+	CustomLinks                []CustomLink                     `json:"customLinks"`
+	ProfileButtons             map[string]ProfileButtonSettings `json:"profileButtons"`
+	LegalDocuments             map[string]LegalDocumentSettings `json:"legalDocuments"`
+	SubscriptionReminderButton TelegramButtonSettings           `json:"subscriptionReminderButton"`
+	Verification               TelegramVerificationSettings     `json:"verification"`
+	Support                    TelegramSupportSettings          `json:"support"`
+	StartMenu                  TelegramStartMenuSettings        `json:"startMenu"`
+	Commerce                   TelegramCommerceSettings         `json:"commerce"`
 }
 
 type TelegramButtonSettings struct {
@@ -263,7 +289,9 @@ func DefaultSettings() Settings {
 				"support": strings.TrimSpace(config.SupportURL()),
 				"channel": firstNonEmpty(config.RequiredChannelSubscriptionURL(), config.ChannelURL()),
 			},
-			CustomLinks: []CustomLink{},
+			CustomLinks:    []CustomLink{},
+			ProfileButtons: map[string]ProfileButtonSettings{},
+			LegalDocuments: map[string]LegalDocumentSettings{},
 			Verification: TelegramVerificationSettings{
 				Text:   "<b>Link-Bot Верификация</b>\n\nЧтобы открыть доступ к боту и mini app, подпишитесь на наш Telegram-канал <b>%s</b>.\n\nТам мы публикуем новости, обновления сервиса, важные изменения и полезные анонсы.\n\nПосле подписки нажмите кнопку ниже.",
 				Banner: "",
@@ -412,7 +440,7 @@ func defaultLayoutElements() []LayoutElement {
 		"server_status": "main", "media": "main", "news": "main",
 		"payments":  "purchases",
 		"referrals": "programs", "reviews": "programs",
-		"terms":         "help",
+		"terms": "help", "privacy": "help",
 		"login_methods": "account", "web_version": "account", "pwa_install": "account",
 	}
 	definitions := []struct {
@@ -425,7 +453,7 @@ func defaultLayoutElements() []LayoutElement {
 	}{
 		{"buy", []string{"plans", "checkout"}, 100, 220, "left", false},
 		{"support", []string{"actions", "tabs", "tickets"}, 100, 92, "left", false},
-		{"profile", []string{"server_status", "referrals", "reviews", "payments", "media", "login_methods", "news", "web_version", "pwa_install", "terms"}, 100, 52, "left", true},
+		{"profile", []string{"server_status", "referrals", "reviews", "payments", "media", "login_methods", "news", "web_version", "pwa_install", "terms", "privacy"}, 100, 52, "left", true},
 		{"navigation", []string{"dashboard", "buy", "support", "settings", "admin"}, 44, 38, "center", true},
 	}
 
@@ -620,6 +648,7 @@ func NormalizeAndValidate(settings *Settings) error {
 	if err := validateContent(&settings.Content, defaults.Content, previousVersion < CurrentVersion); err != nil {
 		return err
 	}
+	ensureCustomProfileLayout(&settings.Layout, settings.Content.CustomLinks)
 	if err := validateAppearance(&settings.Appearance, defaults.Appearance); err != nil {
 		return err
 	}
@@ -633,6 +662,47 @@ func NormalizeAndValidate(settings *Settings) error {
 		return err
 	}
 	return nil
+}
+
+func ensureCustomProfileLayout(layout *LayoutSettings, links []CustomLink) {
+	if layout == nil || len(links) == 0 {
+		return
+	}
+	present := make(map[string]bool, len(layout.Elements))
+	nextOrder := 0
+	for _, item := range defaultLayoutElements() {
+		if item.Area == "profile" && item.Order >= nextOrder {
+			nextOrder = item.Order + 1
+		}
+	}
+	for _, item := range layout.Elements {
+		if item.Area != "profile" {
+			continue
+		}
+		present[item.ID] = true
+		if item.Order >= nextOrder {
+			nextOrder = item.Order + 1
+		}
+	}
+	for _, link := range links {
+		id := "custom." + link.ID
+		if present[id] {
+			continue
+		}
+		layout.Elements = append(layout.Elements, LayoutElement{
+			ID:      id,
+			Area:    "profile",
+			Order:   nextOrder,
+			Visible: true,
+			Width:   100,
+			Height:  52,
+			Framed:  true,
+			Align:   "left",
+			Group:   "main",
+		})
+		present[id] = true
+		nextOrder++
+	}
 }
 
 func normalizeMaintenance(value *MaintenanceSettings, defaults MaintenanceSettings) {
@@ -754,8 +824,60 @@ func validateContent(value *ContentSettings, defaults ContentSettings, legacy bo
 		}
 	}
 
+	allowedProfileButtons := map[string]bool{
+		"server_status": true,
+		"payments":      true,
+		"reviews":       true,
+		"referrals":     true,
+		"media":         true,
+		"login_methods": true,
+		"news":          true,
+		"web_version":   true,
+		"pwa_install":   true,
+		"terms":         true,
+		"privacy":       true,
+	}
+	if value.ProfileButtons == nil {
+		value.ProfileButtons = map[string]ProfileButtonSettings{}
+	}
+	cleanProfileButtons := make(map[string]ProfileButtonSettings, len(value.ProfileButtons))
+	for rawID, item := range value.ProfileButtons {
+		id := strings.ToLower(strings.TrimSpace(rawID))
+		if !allowedProfileButtons[id] {
+			return fmt.Errorf("invalid profile button %q", rawID)
+		}
+		item.LabelRU = limit(strings.TrimSpace(item.LabelRU), 80)
+		item.HintRU = limit(strings.TrimSpace(item.HintRU), 160)
+		item.URL = strings.TrimSpace(item.URL)
+		if item.URL != "" {
+			if !contains([]string{"web_version", "pwa_install"}, id) {
+				item.URL = ""
+			} else if !isSafeWebURL(item.URL) {
+				return fmt.Errorf("invalid profile button URL for %q", id)
+			}
+		}
+		cleanProfileButtons[id] = item
+	}
+	value.ProfileButtons = cleanProfileButtons
+
+	if value.LegalDocuments == nil {
+		value.LegalDocuments = map[string]LegalDocumentSettings{}
+	}
+	cleanDocuments := make(map[string]LegalDocumentSettings, 2)
+	for _, id := range []string{"terms", "privacy"} {
+		document, ok := value.LegalDocuments[id]
+		if !ok {
+			continue
+		}
+		cleanDocuments[id] = normalizeLegalDocument(document, map[string]string{
+			"terms":   "Пользовательское соглашение",
+			"privacy": "Политика конфиденциальности",
+		}[id])
+	}
+	value.LegalDocuments = cleanDocuments
+
 	if len(value.CustomLinks) > 20 {
-		return errors.New("too many custom profile links")
+		return errors.New("too many custom profile buttons")
 	}
 	seen := map[string]bool{}
 	cleanLinks := make([]CustomLink, 0, len(value.CustomLinks))
@@ -764,21 +886,68 @@ func validateContent(value *ContentSettings, defaults ContentSettings, legacy bo
 		if !elementIDPattern.MatchString(item.ID) || seen[item.ID] {
 			return fmt.Errorf("invalid or duplicate custom link id %q", item.ID)
 		}
-		if !isSafeWebURL(strings.TrimSpace(item.URL)) {
-			return fmt.Errorf("invalid custom link URL for %q", item.ID)
-		}
 		seen[item.ID] = true
 		item.LabelRU = limit(strings.TrimSpace(item.LabelRU), 80)
 		item.HintRU = limit(strings.TrimSpace(item.HintRU), 160)
 		item.URL = strings.TrimSpace(item.URL)
 		item.Icon = limit(strings.TrimSpace(item.Icon), 40)
+		item.Type = strings.ToLower(strings.TrimSpace(item.Type))
+		if item.Type == "" {
+			if item.URL == "" {
+				item.Type = "page"
+			} else {
+				item.Type = "url"
+			}
+		}
+		if !contains([]string{"url", "page"}, item.Type) {
+			return fmt.Errorf("invalid custom profile button type for %q", item.ID)
+		}
+		if item.Type == "url" {
+			if !isSafeWebURL(item.URL) {
+				return fmt.Errorf("invalid custom profile button URL for %q", item.ID)
+			}
+			item.Document = LegalDocumentSettings{}
+		} else {
+			item.URL = ""
+			item.Document = normalizeLegalDocument(item.Document, item.LabelRU)
+		}
 		if item.LabelRU == "" {
-			return fmt.Errorf("custom link %q requires a label", item.ID)
+			return fmt.Errorf("custom profile button %q requires a label", item.ID)
 		}
 		cleanLinks = append(cleanLinks, item)
 	}
 	value.CustomLinks = cleanLinks
 	return nil
+}
+
+func normalizeLegalDocument(value LegalDocumentSettings, fallbackTitle string) LegalDocumentSettings {
+	value.Title = limit(strings.TrimSpace(value.Title), 160)
+	if value.Title == "" {
+		value.Title = limit(strings.TrimSpace(fallbackTitle), 160)
+	}
+	value.EffectiveLabel = limit(strings.TrimSpace(value.EffectiveLabel), 100)
+	if value.EffectiveLabel == "" {
+		value.EffectiveLabel = "Дата вступления в силу"
+	}
+	value.Jurisdiction = limit(strings.TrimSpace(value.Jurisdiction), 300)
+	value.Intro = limit(strings.TrimSpace(value.Intro), 6000)
+	if len(value.Sections) > 30 {
+		value.Sections = value.Sections[:30]
+	}
+	sections := make([]LegalDocumentSection, 0, len(value.Sections))
+	for _, section := range value.Sections {
+		section.Title = limit(strings.TrimSpace(section.Title), 200)
+		section.Body = limit(strings.TrimSpace(section.Body), 12000)
+		if section.Title == "" && section.Body == "" {
+			continue
+		}
+		sections = append(sections, section)
+	}
+	value.Sections = sections
+	value.ContactTitle = limit(strings.TrimSpace(value.ContactTitle), 160)
+	value.Contacts = limit(strings.TrimSpace(value.Contacts), 3000)
+	value.Footer = limit(strings.TrimSpace(value.Footer), 500)
+	return value
 }
 
 func normalizeTelegramContent(value *ContentSettings, defaults ContentSettings, legacy bool) error {
