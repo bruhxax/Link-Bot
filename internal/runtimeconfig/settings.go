@@ -61,6 +61,7 @@ type Settings struct {
 	Layout      LayoutSettings      `json:"layout"`
 	Plans       []PlanSettings      `json:"plans"`
 	Trial       TrialSettings       `json:"trial"`
+	Grace       GraceSettings       `json:"grace"`
 }
 
 type MaintenanceSettings struct {
@@ -228,6 +229,12 @@ type TrialSettings struct {
 	ExternalSquadUUID    string   `json:"externalSquadUuid"`
 	TrafficResetStrategy string   `json:"trafficResetStrategy"`
 	Tag                  string   `json:"tag"`
+}
+
+type GraceSettings struct {
+	Enabled            bool     `json:"enabled"`
+	Days               int      `json:"days"`
+	InternalSquadUUIDs []string `json:"internalSquadUuids"`
 }
 
 type Service struct {
@@ -415,6 +422,9 @@ func DefaultSettings() Settings {
 			TrafficResetStrategy: config.TrialTrafficLimitResetStrategy(),
 			Tag:                  config.TrialRemnawaveTag(),
 		},
+		Grace: GraceSettings{
+			Days: 1,
+		},
 	}
 }
 
@@ -563,6 +573,10 @@ func (s *Service) TrialSettings() TrialSettings {
 	return s.Snapshot().Trial
 }
 
+func (s *Service) GraceSettings() GraceSettings {
+	return s.Snapshot().Grace
+}
+
 func (s *Service) StartText(locale, fallback string) string {
 	content := s.Snapshot().Content
 	if value := strings.TrimSpace(content.StartTextRU); value != "" {
@@ -664,6 +678,9 @@ func NormalizeAndValidate(settings *Settings) error {
 		return err
 	}
 	if err := validateTrial(&settings.Trial, defaults.Trial, previousVersion < CurrentVersion); err != nil {
+		return err
+	}
+	if err := validateGrace(&settings.Grace); err != nil {
 		return err
 	}
 	return nil
@@ -1326,6 +1343,24 @@ func validateTrial(value *TrialSettings, defaults TrialSettings, legacy bool) er
 	value.ExternalSquadUUID, err = normalizeOptionalUUID(value.ExternalSquadUUID)
 	if err != nil {
 		return fmt.Errorf("invalid trial external squad: %w", err)
+	}
+	return nil
+}
+
+func validateGrace(value *GraceSettings) error {
+	if value.Days < 0 || value.Days > 365 {
+		return errors.New("invalid grace access duration")
+	}
+	if value.Days == 0 {
+		value.Enabled = false
+	}
+	var err error
+	value.InternalSquadUUIDs, err = normalizeUUIDStrings(value.InternalSquadUUIDs)
+	if err != nil {
+		return fmt.Errorf("invalid grace access internal squad: %w", err)
+	}
+	if value.Enabled && len(value.InternalSquadUUIDs) == 0 {
+		return errors.New("grace access requires at least one internal squad")
 	}
 	return nil
 }

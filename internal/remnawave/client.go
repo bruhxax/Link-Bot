@@ -36,6 +36,11 @@ type SquadCatalog struct {
 	External []SquadOption `json:"external"`
 }
 
+type GraceAccessResult struct {
+	ExpireAt         time.Time
+	SubscriptionLink string
+}
+
 type ProvisioningOptions struct {
 	InternalSquadUUIDs   []string
 	ExternalSquadUUID    string
@@ -809,6 +814,50 @@ func (r *Client) getPanelUserByTelegramID(ctx context.Context, telegramId int64)
 	}
 
 	return existingUser, nil
+}
+
+func (r *Client) GrantGraceAccess(ctx context.Context, telegramID int64, days int, internalSquadUUIDs []string) (GraceAccessResult, error) {
+	if days <= 0 {
+		return GraceAccessResult{}, errors.New("grace access duration must be positive")
+	}
+	if len(internalSquadUUIDs) == 0 {
+		return GraceAccessResult{}, errors.New("grace access requires at least one internal squad")
+	}
+
+	user, err := r.getPanelUserByTelegramID(ctx, telegramID)
+	if err != nil {
+		return GraceAccessResult{}, err
+	}
+	squadIDs, err := r.resolveInternalSquads(ctx, internalSquadUUIDs)
+	if err != nil {
+		return GraceAccessResult{}, err
+	}
+	if len(squadIDs) == 0 {
+		return GraceAccessResult{}, errors.New("selected grace access squads were not found")
+	}
+
+	expireAt := time.Now().UTC().AddDate(0, 0, days)
+	response, err := r.client.Users().UpdateUser(ctx, &remapi.UpdateUserRequest{
+		UUID:                 remapi.NewOptUUID(user.UUID),
+		ExpireAt:             remapi.NewOptDateTime(expireAt),
+		Status:               remapi.NewOptUpdateUserRequestStatus(remapi.UpdateUserRequestStatusACTIVE),
+		ActiveInternalSquads: squadIDs,
+	})
+	if err != nil {
+		return GraceAccessResult{}, err
+	}
+	if value, ok := response.(*remapi.InternalServerError); ok {
+		return GraceAccessResult{}, errors.New("error while granting grace access. message: " + value.GetMessage().Value + ". code: " + value.GetErrorCode().Value)
+	}
+	updated, ok := response.(*remapi.UserResponse)
+	if !ok {
+		return GraceAccessResult{}, errors.New("unknown response type while granting grace access")
+	}
+
+	return GraceAccessResult{
+		ExpireAt:         updated.Response.ExpireAt,
+		SubscriptionLink: strings.TrimSpace(updated.Response.SubscriptionUrl),
+	}, nil
 }
 
 func pickTelegramUser(users []remapi.UserItemInfo, telegramId int64) *remapi.UserItemInfo {

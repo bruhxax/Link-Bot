@@ -814,7 +814,7 @@ func (s PaymentService) ProcessExternalWebhook(ctx context.Context, provider str
 	if purchase.ExternalPaymentID != nil && event.ExternalID != "" && *purchase.ExternalPaymentID != event.ExternalID {
 		return "", errors.New("external payment ID mismatch")
 	}
-	if event.Amount > 0 && math.Abs(event.Amount-purchase.Amount) > 0.01 {
+	if !webhookAmountMatches(provider, event.Amount, purchase.Amount) {
 		return "", errors.New("payment amount mismatch")
 	}
 	if event.Currency != "" && !strings.EqualFold(event.Currency, purchase.Currency) {
@@ -833,6 +833,16 @@ func (s PaymentService) ProcessExternalWebhook(ctx context.Context, provider str
 		return "YES", nil
 	}
 	return "OK", nil
+}
+
+func webhookAmountMatches(provider string, paidAmount, expectedAmount float64) bool {
+	if paidAmount <= 0 {
+		return true
+	}
+	if provider == integrations.ProviderPlatega {
+		return paidAmount+0.01 >= expectedAmount
+	}
+	return math.Abs(paidAmount-expectedAmount) <= 0.01
 }
 
 func (s PaymentService) createTelegramInvoice(ctx context.Context, amount float64, months int, customer *database.Customer, options CreatePurchaseOptions) (url string, purchaseId int64, err error) {

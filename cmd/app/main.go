@@ -118,7 +118,7 @@ func main() {
 		defer cronScheduler.Stop()
 	}
 
-	subService := notification.NewSubscriptionService(customerRepository, purchaseRepository, paymentService, b, tm, runtimeSettings)
+	subService := notification.NewSubscriptionService(customerRepository, purchaseRepository, paymentService, b, tm, runtimeSettings, remnawaveClient)
 	syncService := sync.NewSyncService(remnawaveClient, customerRepository)
 
 	subscriptionNotificationCronScheduler := subscriptionChecker(syncService, subService)

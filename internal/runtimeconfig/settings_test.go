@@ -29,6 +29,34 @@ func TestDefaultSettingsStartsWithoutPlans(t *testing.T) {
 	if got := settings.Appearance.Colors["unlimitedBadge"]; got != "#949494" {
 		t.Fatalf("default unlimited badge color = %q, want #949494", got)
 	}
+	if settings.Grace.Enabled || settings.Grace.Days != 1 || len(settings.Grace.InternalSquadUUIDs) != 0 {
+		t.Fatalf("unexpected default grace settings: %+v", settings.Grace)
+	}
+}
+
+func TestNormalizeAndValidateGraceAccess(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Grace = GraceSettings{
+		Enabled:            true,
+		Days:               2,
+		InternalSquadUUIDs: []string{"7d3258cf-2b39-4ad0-8b11-fbcd30d76348"},
+	}
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if !settings.Grace.Enabled || settings.Grace.Days != 2 || len(settings.Grace.InternalSquadUUIDs) != 1 {
+		t.Fatalf("unexpected normalized grace settings: %+v", settings.Grace)
+	}
+}
+
+func TestNormalizeAndValidateRejectsGraceWithoutSquad(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Grace = GraceSettings{Enabled: true, Days: 2}
+
+	if err := NormalizeAndValidate(&settings); err == nil || !strings.Contains(err.Error(), "requires at least one internal squad") {
+		t.Fatalf("NormalizeAndValidate() error = %v, want missing squad error", err)
+	}
 }
 
 func TestNormalizeAndValidateAllowsCustomPlanAndDeletion(t *testing.T) {

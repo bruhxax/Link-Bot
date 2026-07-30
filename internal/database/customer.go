@@ -163,6 +163,73 @@ func (cr *CustomerRepository) ReleaseSubscriptionNotification(ctx context.Contex
 	return nil
 }
 
+func (cr *CustomerRepository) ClaimSubscriptionGrace(ctx context.Context, customerID int64, sourceExpireAt time.Time) (bool, error) {
+	result, err := cr.pool.Exec(ctx, `
+		INSERT INTO subscription_grace_delivery (customer_id, source_expire_at)
+		SELECT $1, $2
+		WHERE NOT EXISTS (
+			SELECT 1
+			FROM subscription_grace_delivery
+			WHERE customer_id = $1
+			  AND grace_expire_at BETWEEN $2 - INTERVAL '5 seconds' AND $2 + INTERVAL '5 seconds'
+		)
+		ON CONFLICT (customer_id, source_expire_at) DO NOTHING
+	`, customerID, sourceExpireAt)
+	if err != nil {
+		return false, fmt.Errorf("failed to claim subscription grace access: %w", err)
+	}
+	return result.RowsAffected() == 1, nil
+}
+
+func (cr *CustomerRepository) CompleteSubscriptionGrace(ctx context.Context, customerID int64, sourceExpireAt, graceExpireAt time.Time, subscriptionLink string) error {
+	tx, err := cr.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start grace access transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	result, err := tx.Exec(ctx, `
+		UPDATE subscription_grace_delivery
+		SET grace_expire_at = $3, applied_at = NOW()
+		WHERE customer_id = $1 AND source_expire_at = $2 AND grace_expire_at IS NULL
+	`, customerID, sourceExpireAt, graceExpireAt)
+	if err != nil {
+		return fmt.Errorf("failed to complete subscription grace access: %w", err)
+	}
+	if result.RowsAffected() != 1 {
+		return errors.New("subscription grace access claim was not found")
+	}
+
+	result, err = tx.Exec(ctx, `
+		UPDATE customer
+		SET expire_at = $2,
+		    subscription_link = COALESCE(NULLIF($3, ''), subscription_link)
+		WHERE id = $1
+	`, customerID, graceExpireAt, strings.TrimSpace(subscriptionLink))
+	if err != nil {
+		return fmt.Errorf("failed to update customer grace access: %w", err)
+	}
+	if result.RowsAffected() != 1 {
+		return fmt.Errorf("no customer found with id: %s", utils.MaskHalfInt64(customerID))
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit grace access transaction: %w", err)
+	}
+	return nil
+}
+
+func (cr *CustomerRepository) ReleaseSubscriptionGraceClaim(ctx context.Context, customerID int64, sourceExpireAt time.Time) error {
+	_, err := cr.pool.Exec(ctx, `
+		DELETE FROM subscription_grace_delivery
+		WHERE customer_id = $1 AND source_expire_at = $2 AND grace_expire_at IS NULL
+	`, customerID, sourceExpireAt)
+	if err != nil {
+		return fmt.Errorf("failed to release subscription grace access claim: %w", err)
+	}
+	return nil
+}
+
 func (cr *CustomerRepository) FindAutoPaymentEligible(ctx context.Context, dueBefore time.Time) ([]Customer, error) {
 	buildSelect := sq.Select(customerSelectColumns...).
 		From("customer").

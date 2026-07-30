@@ -1552,6 +1552,7 @@ function buildPreviewRuntimeSettings() {
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, priceRub: plan.priceRub, priceStars: plan.priceStars, trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], externalSquadUuid: "" })),
 		trial: { enabled: true, days: 3, trafficGb: 10, unlimitedTraffic: false, deviceLimit: 5, internalSquadUuids: [], externalSquadUuid: "", trafficResetStrategy: "MONTH", tag: "" },
+		grace: { enabled: false, days: 1, internalSquadUuids: [] },
 	};
 }
 
@@ -2581,6 +2582,7 @@ function renderAdminPage() {
 	if (state.adminSection === "layout") return renderAdminLayoutPage();
 	if (state.adminSection === "plans") return renderAdminPlansPage();
 	if (state.adminSection === "trial") return renderAdminTrialPage();
+	if (state.adminSection === "grace") return renderAdminGracePage();
 	if (state.adminSection === "broadcast") return renderAdminBroadcastPage();
 	if (state.adminSection === "integrations") return renderAdminIntegrationsPage();
 	const english = state.locale === "en";
@@ -2597,6 +2599,7 @@ function renderAdminPage() {
 				[english ? "UI builder" : "Конструктор UI", english ? "Order, visibility and dimensions" : "Порядок, видимость и размеры", "layout", "grid"],
 				[english ? "Plans" : "Тарифы", english ? "Prices, limits and order" : "Цены, лимиты и порядок", "plans", "cartShopping"],
 				[english ? "Trial" : "Триал", english ? "Trial limits and squads" : "Срок, лимиты и сквады", "trial", "ticketPlus"],
+				[english ? "Access after expiry" : "Доступ после окончания", english ? "One-time period and internal squads" : "Одноразовый срок и внутренние сквады", "grace", "key"],
 			])}
 			${renderAdminMenuGroup(english ? "Operations" : "Операции", [
 				[english ? "Integrations" : "Интеграции", english ? "Payment providers and webhooks" : "Платёжные системы и webhook-адреса", "integrations", "sliders"],
@@ -3216,22 +3219,27 @@ function adminSquads() {
 	};
 }
 
-function updateAdminSquadSelection(currentValues, uuid, checked) {
+function updateAdminSquadSelection(currentValues, uuid, checked, emptyMeansAll = true) {
 	const available = adminSquads().internal.map((item) => String(item.uuid));
-	const current = Array.isArray(currentValues) && currentValues.length ? currentValues.map(String) : [...available];
+	const current = Array.isArray(currentValues) && currentValues.length
+		? currentValues.map(String)
+		: (emptyMeansAll ? [...available] : []);
 	const selected = new Set(current);
 	if (checked) selected.add(String(uuid));
 	else selected.delete(String(uuid));
 	const result = available.filter((value) => selected.has(value));
-	return result.length === available.length ? [] : result;
+	return emptyMeansAll && result.length === available.length ? [] : result;
 }
 
-function renderInternalSquadSelector(selectedValues, inputKey) {
+function renderInternalSquadSelector(selectedValues, inputKey, emptyMeansAll = true) {
 	const squads = adminSquads().internal;
 	const selected = Array.isArray(selectedValues) ? selectedValues.map(String) : [];
-	const allSelected = selected.length === 0;
+	const allSelected = emptyMeansAll && selected.length === 0;
 	if (!squads.length) return `<div class="admin-squads__empty">Список внутренних сквадов недоступен</div>`;
-	return `<div class="admin-squads__list">${squads.map((squad) => `<label class="admin-squad-option"><input type="checkbox" data-input="${escapeAttribute(inputKey)}" value="${escapeAttribute(squad.uuid)}" ${allSelected || selected.includes(String(squad.uuid)) ? "checked" : ""}><span><strong>${escapeHtml(squad.name || "Без названия")}</strong><small>${escapeHtml(squad.uuid)}</small></span></label>`).join("")}</div><p class="admin-squads__hint">Если выбраны все, новые пользователи добавляются во все внутренние сквады.</p>`;
+	const hint = emptyMeansAll
+		? "Если выбраны все, новые пользователи добавляются во все внутренние сквады."
+		: "Выберите один или несколько сквадов для временного доступа.";
+	return `<div class="admin-squads__list">${squads.map((squad) => `<label class="admin-squad-option"><input type="checkbox" data-input="${escapeAttribute(inputKey)}" value="${escapeAttribute(squad.uuid)}" ${allSelected || selected.includes(String(squad.uuid)) ? "checked" : ""}><span><strong>${escapeHtml(squad.name || "Без названия")}</strong><small>${escapeHtml(squad.uuid)}</small></span></label>`).join("")}</div><p class="admin-squads__hint">${hint}</p>`;
 }
 
 function renderExternalSquadSelector(selectedValue, inputKey) {
@@ -3246,6 +3254,19 @@ function renderAdminTrialPage() {
 		<div class="admin-editor__grid admin-editor__grid--three">${renderAdminSettingField("Срок, дней", "trial.days", { type: "number", min: 0, max: 365 })}${renderAdminSettingField("Трафик, ГБ", "trial.trafficGb", { type: "number", min: 0 })}${renderAdminSettingField("Устройств", "trial.deviceLimit", { type: "number", min: 0 })}</div>
 		<div class="admin-editor__grid">${renderAdminSettingField("Тег в панели", "trial.tag")}${renderAdminTrialResetStrategy()}</div>
 		<section class="admin-squads"><h3>Внутренние сквады</h3>${renderInternalSquadSelector(trial.internalSquadUuids, "admin-trial-internal-squad")}${renderExternalSquadSelector(trial.externalSquadUuid, "admin-trial-external-squad")}</section>
+	</div>`);
+}
+
+function renderAdminGracePage() {
+	const grace = state.adminSettingsDraft?.grace || { enabled: false, days: 1, internalSquadUuids: [] };
+	return renderAdminEditorPage("Доступ после окончания", `<div class="admin-trial-editor">
+		<div class="admin-toggle-list">${renderAdminToggle("Временный доступ включён", "grace.enabled")}</div>
+		<div class="admin-editor__grid">${renderAdminSettingField("Срок, дней", "grace.days", { type: "number", min: 0, max: 365 })}</div>
+		<section class="admin-squads">
+			<h3>Внутренние сквады</h3>
+			<p class="admin-squads__hint">После окончания основной подписки выбранные сквады выдаются один раз на указанный срок.</p>
+			${renderInternalSquadSelector(grace.internalSquadUuids, "admin-grace-internal-squad", false)}
+		</section>
 	</div>`);
 }
 
@@ -5054,6 +5075,12 @@ function bindRootActions() {
 		}
 		if (inputKey === "admin-trial-external-squad" && state.adminSettingsDraft?.trial) {
 			state.adminSettingsDraft.trial.externalSquadUuid = target.value;
+			state.adminSettingsDirty = true;
+			syncAdminSaveBarDOM();
+			return;
+		}
+		if (inputKey === "admin-grace-internal-squad" && state.adminSettingsDraft?.grace) {
+			state.adminSettingsDraft.grace.internalSquadUuids = updateAdminSquadSelection(state.adminSettingsDraft.grace.internalSquadUuids, target.value, Boolean(target.checked), false);
 			state.adminSettingsDirty = true;
 			syncAdminSaveBarDOM();
 			return;
@@ -7457,9 +7484,9 @@ function getPageTitle(page, short = false) {
   const copy = t();
 	if (page === "admin" && !short && state.adminSection !== "home") {
 		const labels = state.locale === "en" ? {
-			maintenance: "Maintenance", diagnostics: "Diagnostics", features: "Functions", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations",
+			maintenance: "Maintenance", diagnostics: "Diagnostics", features: "Functions", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations",
 		} : {
-			maintenance: "Режим аварии", diagnostics: "Диагностика", features: "Функции", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции",
+			maintenance: "Режим аварии", diagnostics: "Диагностика", features: "Функции", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции",
 		};
 		return labels[state.adminSection] || copy.pageAdmin || "Admin panel";
 	}

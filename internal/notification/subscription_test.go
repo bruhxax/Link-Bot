@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"link-bot/internal/database"
+	"link-bot/internal/remnawave"
+	"link-bot/internal/runtimeconfig"
 )
 
 type customerRepoMock struct {
@@ -15,12 +17,18 @@ type customerRepoMock struct {
 	claims     map[notificationClaim]bool
 	claimErr   error
 	releaseErr error
+	grace      map[int64][]graceClaim
 }
 
 type notificationClaim struct {
 	customerID int64
 	expireAt   int64
 	kind       string
+}
+
+type graceClaim struct {
+	sourceExpireAt time.Time
+	graceExpireAt  *time.Time
 }
 
 func (m *customerRepoMock) FindByExpirationRange(ctx context.Context, startDate, endDate time.Time) (*[]database.Customer, error) {
@@ -57,6 +65,95 @@ func (m *customerRepoMock) ReleaseSubscriptionNotification(ctx context.Context, 
 	}
 	delete(m.claims, notificationClaim{customerID: customerID, expireAt: expireAt.UnixNano(), kind: kind})
 	return nil
+}
+
+func (m *customerRepoMock) ClaimSubscriptionGrace(ctx context.Context, customerID int64, sourceExpireAt time.Time) (bool, error) {
+	if m.grace == nil {
+		m.grace = make(map[int64][]graceClaim)
+	}
+	for _, claim := range m.grace[customerID] {
+		if claim.sourceExpireAt.Equal(sourceExpireAt) {
+			return false, nil
+		}
+		if claim.graceExpireAt != nil && claim.graceExpireAt.Sub(sourceExpireAt) < 5*time.Second && claim.graceExpireAt.Sub(sourceExpireAt) > -5*time.Second {
+			return false, nil
+		}
+	}
+	m.grace[customerID] = append(m.grace[customerID], graceClaim{sourceExpireAt: sourceExpireAt})
+	return true, nil
+}
+
+func (m *customerRepoMock) CompleteSubscriptionGrace(ctx context.Context, customerID int64, sourceExpireAt, graceExpireAt time.Time, subscriptionLink string) error {
+	claims := m.grace[customerID]
+	for index := range claims {
+		if claims[index].sourceExpireAt.Equal(sourceExpireAt) && claims[index].graceExpireAt == nil {
+			claims[index].graceExpireAt = &graceExpireAt
+			m.grace[customerID] = claims
+			return nil
+		}
+	}
+	return errors.New("grace claim not found")
+}
+
+func (m *customerRepoMock) ReleaseSubscriptionGraceClaim(ctx context.Context, customerID int64, sourceExpireAt time.Time) error {
+	claims := m.grace[customerID]
+	for index := range claims {
+		if claims[index].sourceExpireAt.Equal(sourceExpireAt) && claims[index].graceExpireAt == nil {
+			m.grace[customerID] = append(claims[:index], claims[index+1:]...)
+			return nil
+		}
+	}
+	return nil
+}
+
+type graceProvisionerMock struct {
+	result remnawave.GraceAccessResult
+	err    error
+	calls  int
+}
+
+func (m *graceProvisionerMock) GrantGraceAccess(ctx context.Context, telegramID int64, days int, internalSquadUUIDs []string) (remnawave.GraceAccessResult, error) {
+	m.calls++
+	return m.result, m.err
+}
+
+func TestSubscriptionService_GraceAccessIsGrantedOnce(t *testing.T) {
+	sourceExpireAt := time.Now().Add(-time.Hour)
+	graceExpireAt := time.Now().Add(48 * time.Hour)
+	repo := &customerRepoMock{}
+	provisioner := &graceProvisionerMock{result: remnawave.GraceAccessResult{
+		ExpireAt:         graceExpireAt,
+		SubscriptionLink: "https://example.com/sub",
+	}}
+	svc := NewSubscriptionService(repo, nil, nil, nil, nil, nil, provisioner)
+	svc.graceSettings = func() runtimeconfig.GraceSettings {
+		return runtimeconfig.GraceSettings{
+			Enabled:            true,
+			Days:               2,
+			InternalSquadUUIDs: []string{"7d3258cf-2b39-4ad0-8b11-fbcd30d76348"},
+		}
+	}
+	notifications := 0
+	svc.graceNotify = func(ctx context.Context, customer database.Customer, settings runtimeconfig.GraceSettings) error {
+		notifications++
+		return nil
+	}
+
+	granted, err := svc.tryGrantGrace(context.Background(), database.Customer{
+		ID: 1, TelegramID: 100, ExpireAt: &sourceExpireAt,
+	})
+	if err != nil || !granted {
+		t.Fatalf("first grace grant = %v, %v; want true, nil", granted, err)
+	}
+	granted, err = svc.tryGrantGrace(context.Background(), database.Customer{
+		ID: 1, TelegramID: 100, ExpireAt: &graceExpireAt,
+	})
+	if err != nil || granted {
+		t.Fatalf("second grace grant = %v, %v; want false, nil", granted, err)
+	}
+	if provisioner.calls != 1 || notifications != 1 {
+		t.Fatalf("provisioner calls = %d, notifications = %d; want 1, 1", provisioner.calls, notifications)
+	}
 }
 
 func TestSubscriptionService_ProcessSubscriptionExpiration_NotifiesRecentlyExpiredCustomer(t *testing.T) {

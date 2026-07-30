@@ -2,14 +2,16 @@ package notification
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log/slog"
-	"net/url"
 	"link-bot/internal/config"
 	"link-bot/internal/database"
 	"link-bot/internal/handler"
+	"link-bot/internal/remnawave"
 	"link-bot/internal/runtimeconfig"
 	"link-bot/internal/translation"
+	"log/slog"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +35,16 @@ type paymentProcessor interface {
 	ProcessPurchaseById(ctx context.Context, purchaseId int64) error
 }
 
+type graceRepository interface {
+	ClaimSubscriptionGrace(ctx context.Context, customerID int64, sourceExpireAt time.Time) (bool, error)
+	CompleteSubscriptionGrace(ctx context.Context, customerID int64, sourceExpireAt, graceExpireAt time.Time, subscriptionLink string) error
+	ReleaseSubscriptionGraceClaim(ctx context.Context, customerID int64, sourceExpireAt time.Time) error
+}
+
+type graceProvisioner interface {
+	GrantGraceAccess(ctx context.Context, telegramID int64, days int, internalSquadUUIDs []string) (remnawave.GraceAccessResult, error)
+}
+
 type SubscriptionService struct {
 	customerRepository customerRepository
 	purchaseRepository tributeRepository
@@ -41,6 +53,9 @@ type SubscriptionService struct {
 	tm                 *translation.Manager
 	runtimeSettings    *runtimeconfig.Service
 	notify             func(context.Context, database.Customer) error
+	graceNotify        func(context.Context, database.Customer, runtimeconfig.GraceSettings) error
+	graceProvisioner   graceProvisioner
+	graceSettings      func() runtimeconfig.GraceSettings
 	processMu          sync.Mutex
 }
 
@@ -63,9 +78,17 @@ func NewSubscriptionService(customerRepository customerRepository,
 	paymentService paymentProcessor,
 	telegramBot *bot.Bot,
 	tm *translation.Manager,
-	runtimeSettings *runtimeconfig.Service) *SubscriptionService {
+	runtimeSettings *runtimeconfig.Service,
+	graceProvisioners ...graceProvisioner) *SubscriptionService {
 	svc := &SubscriptionService{customerRepository: customerRepository, purchaseRepository: purchaseRepository, paymentService: paymentService, telegramBot: telegramBot, tm: tm, runtimeSettings: runtimeSettings}
 	svc.notify = svc.sendNotification
+	svc.graceNotify = svc.sendGraceNotification
+	if runtimeSettings != nil {
+		svc.graceSettings = runtimeSettings.GraceSettings
+	}
+	if len(graceProvisioners) > 0 {
+		svc.graceProvisioner = graceProvisioners[0]
+	}
 	return svc
 }
 func (s *SubscriptionService) ProcessSubscriptionExpiration() error {
@@ -114,6 +137,7 @@ func (s *SubscriptionService) ProcessSubscriptionExpiration() error {
 	tributesProcessed := make(map[int64]bool, len(*latestActiveTributes))
 	sentExpiring := 0
 	sentExpired := 0
+	graceGranted := 0
 
 	for _, customer := range *customers {
 		daysUntilExpiration := s.getDaysUntilExpiration(now, *customer.ExpireAt)
@@ -159,6 +183,15 @@ func (s *SubscriptionService) ProcessSubscriptionExpiration() error {
 	}
 
 	for _, customer := range *expiredCustomers {
+		granted, graceErr := s.tryGrantGrace(ctx, customer)
+		if graceErr != nil {
+			slog.Error("Failed to grant subscription grace access", "customer_id", customer.ID, "error", graceErr)
+		}
+		if granted {
+			graceGranted++
+			continue
+		}
+
 		sent, err := s.sendClaimedNotification(ctx, customer, "expired")
 		if err != nil {
 			slog.Error("Failed to send expired subscription notification", "customer_id", customer.ID, "error", err)
@@ -172,8 +205,51 @@ func (s *SubscriptionService) ProcessSubscriptionExpiration() error {
 	}
 
 	slog.Info(fmt.Sprintf("Processed tributes customers %d with expiring subscriptions", len(tributesProcessed)))
-	slog.Info("Subscription notification check completed", "expiring_sent", sentExpiring, "expired_sent", sentExpired)
+	slog.Info("Subscription notification check completed", "expiring_sent", sentExpiring, "expired_sent", sentExpired, "grace_granted", graceGranted)
 	return nil
+}
+
+func (s *SubscriptionService) tryGrantGrace(ctx context.Context, customer database.Customer) (bool, error) {
+	if customer.ExpireAt == nil || s.graceProvisioner == nil || s.graceSettings == nil {
+		return false, nil
+	}
+	settings := s.graceSettings()
+	if !settings.Enabled || settings.Days <= 0 || len(settings.InternalSquadUUIDs) == 0 {
+		return false, nil
+	}
+	repository, ok := s.customerRepository.(graceRepository)
+	if !ok {
+		return false, errors.New("customer repository does not support grace access")
+	}
+
+	claimed, err := repository.ClaimSubscriptionGrace(ctx, customer.ID, *customer.ExpireAt)
+	if err != nil || !claimed {
+		return false, err
+	}
+	result, err := s.graceProvisioner.GrantGraceAccess(ctx, customer.TelegramID, settings.Days, settings.InternalSquadUUIDs)
+	if err != nil {
+		if releaseErr := repository.ReleaseSubscriptionGraceClaim(ctx, customer.ID, *customer.ExpireAt); releaseErr != nil {
+			slog.Error("Failed to release grace access claim", "customer_id", customer.ID, "error", releaseErr)
+		}
+		return false, err
+	}
+	if err := repository.CompleteSubscriptionGrace(ctx, customer.ID, *customer.ExpireAt, result.ExpireAt, result.SubscriptionLink); err != nil {
+		// The panel already granted access. Keep the claim to avoid extending it repeatedly.
+		return true, err
+	}
+
+	customer.ExpireAt = &result.ExpireAt
+	if result.SubscriptionLink != "" {
+		customer.SubscriptionLink = &result.SubscriptionLink
+	}
+	send := s.graceNotify
+	if send == nil {
+		send = s.sendGraceNotification
+	}
+	if err := send(ctx, customer, settings); err != nil {
+		return true, err
+	}
+	return true, nil
 }
 
 func (s *SubscriptionService) sendClaimedNotification(ctx context.Context, customer database.Customer, kind string) (bool, error) {
@@ -241,6 +317,26 @@ func (s *SubscriptionService) getDaysUntilExpiration(now time.Time, expireAt tim
 
 func (s *SubscriptionService) sendNotification(ctx context.Context, customer database.Customer) error {
 	return s.sendNotificationWithOptions(ctx, customer, nil)
+}
+
+func (s *SubscriptionService) sendGraceNotification(ctx context.Context, customer database.Customer, settings runtimeconfig.GraceSettings) error {
+	if s.telegramBot == nil {
+		return errors.New("telegram bot is not configured")
+	}
+	messageText := fmt.Sprintf(
+		"<b>Временный доступ активирован</b>\n\nОсновная подписка закончилась. Доступ к выбранному серверу сохранён ещё на %d дн.\n\nПродлите подписку, чтобы вернуть полный доступ.",
+		settings.Days,
+	)
+	buttonOptions := resolveReminderButton(customer.Language, s.tm, s.runtimeSettings)
+	_, err := s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:    customer.TelegramID,
+		Text:      messageText,
+		ParseMode: models.ParseModeHTML,
+		ReplyMarkup: models.InlineKeyboardMarkup{
+			InlineKeyboard: buildRenewKeyboardWithOptions(buttonOptions),
+		},
+	})
+	return err
 }
 
 func (s *SubscriptionService) SendTestReminder(ctx context.Context, chatID int64, options TestReminderOptions) error {
