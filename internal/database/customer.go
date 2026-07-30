@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"link-bot/utils"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -171,7 +171,8 @@ func (cr *CustomerRepository) ClaimSubscriptionGrace(ctx context.Context, custom
 			SELECT 1
 			FROM subscription_grace_delivery
 			WHERE customer_id = $1
-			  AND grace_expire_at BETWEEN $2 - INTERVAL '5 seconds' AND $2 + INTERVAL '5 seconds'
+			  AND grace_expire_at BETWEEN $2::timestamptz - INTERVAL '5 seconds'
+			                          AND $2::timestamptz + INTERVAL '5 seconds'
 		)
 		ON CONFLICT (customer_id, source_expire_at) DO NOTHING
 	`, customerID, sourceExpireAt)
