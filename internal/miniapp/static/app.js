@@ -1947,6 +1947,7 @@ function deviceText() {
       emptyTitle: "No connected devices",
       emptyHint: "Devices from your subscription will appear here.",
       deleted: "Device removed",
+      delete: "Remove device",
     };
   }
 
@@ -1957,6 +1958,7 @@ function deviceText() {
     emptyTitle: "Нет подключённых устройств",
     emptyHint: "Здесь появятся устройства из вашей подписки.",
     deleted: "Устройство удалено",
+    delete: "Удалить устройство",
   };
 }
 
@@ -1965,7 +1967,6 @@ function reviewsText() {
     return {
       leaveReview: "Leave a review",
       thanksTitle: "Your review is published",
-      thanksHint: "One account can leave only one review.",
       viewMine: "View my review",
       emptyTitle: "No reviews yet",
       emptyHint: "Be the first to rate Link-Bot.",
@@ -1987,7 +1988,6 @@ function reviewsText() {
   return {
     leaveReview: "Оставить отзыв",
     thanksTitle: "Ваш отзыв уже опубликован",
-    thanksHint: "Один пользователь может оставить только один отзыв.",
     viewMine: "Посмотреть мой отзыв",
     emptyTitle: "Пока нет отзывов",
     emptyHint: "Станьте первым и оцените Link-Bot.",
@@ -3717,7 +3717,6 @@ function renderReviewsPage() {
         <div class="card reviews-mine">
           <div class="reviews-mine__copy">
             <strong>${escapeHtml(copy.thanksTitle)}</strong>
-            <span>${escapeHtml(copy.thanksHint)}</span>
           </div>
           <button class="btn reviews-mine__btn" type="button" data-action="open-review-detail" data-value="${escapeAttribute(String(reviews.myReview?.id || 0))}">${escapeHtml(copy.viewMine)}</button>
         </div>
@@ -3762,7 +3761,6 @@ function renderReferralsPage() {
   return `
     <section class="page ${pageClass("referrals")}" id="page-referrals">
       <div class="section-label">${copy.referralsTitle}</div>
-      <div class="note note--top">${copy.referralsHint}</div>
       <div class="card"><div class="action-stack action-stack--compact"><button class="btn" type="button" data-action="share-referral">${icon("share")}${copy.shareTelegram}</button><button class="btn" type="button" data-action="copy-referral">${icon("copy")}${copy.copyReferral}</button></div></div>
       <div class="card"><div class="info-row"><span>${copy.invited}</span><span class="info-row__value">${formatNumber(state.data.referral.count || 0, state.locale)}</span></div><div class="info-row"><span>${copy.bonusDays}</span><span class="info-row__value">${escapeHtml(rewardLabel)}</span></div><div class="info-row"><span>${copy.shareTelegram}</span><span class="info-row__value">${state.data.referral.shareUrl ? escapeHtml(linkHint(state.data.referral.shareUrl)) : "—"}</span></div></div>
       <div class="card"><div class="empty-state"><div class="empty-state__icon">${icon("users")}</div><div class="empty-state__title">${copy.referralsTitle}</div><div class="empty-state__desc">${copy.referralsHint}</div></div></div>
@@ -4650,7 +4648,7 @@ function renderDevicesModal() {
           </div>
           <button class="header__btn" type="button" data-action="close-devices-modal">${icon("close")}</button>
         </div>
-        ${devices.length ? `<div class="device-list">${devices.map((device) => renderDeviceCard(device)).join("")}</div>` : `
+        ${devices.length ? `<div class="device-list" role="list">${devices.map((device) => renderDeviceRow(device)).join("")}</div>` : `
           <div class="device-empty">
             <div class="device-empty__icon">${icon("users")}</div>
             <strong>${escapeHtml(copy.emptyTitle)}</strong>
@@ -4719,19 +4717,30 @@ function renderReviewDetailModal() {
   `;
 }
 
-function renderDeviceCard(device) {
+function renderDeviceRow(device) {
   const copy = deviceText();
   const busy = state.deviceBusyHwid === device.hwid;
   const title = getDeviceTitle(device);
   const secondary = getDeviceSecondary(device);
+  const platform = String(device?.platform || device?.os || secondary || "").toLowerCase();
+  const platformIconName = platform.includes("android")
+    ? "android"
+    : platform.includes("iphone") || platform.includes("ios")
+      ? "apple"
+      : platform.includes("mac")
+        ? "mac"
+        : platform.includes("windows")
+          ? "windows"
+          : "device";
   return `
-    <div class="device-card">
-      <div class="device-card__top">
-        <strong class="device-card__title">${escapeHtml(title)}</strong>
-        <button class="device-card__delete ${busy ? "is-loading" : ""}" type="button" data-action="delete-device" data-value="${escapeAttribute(device.hwid || "")}" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(copy.title)}">${icon(busy ? "refresh" : "trash")}</button>
+    <div class="device-row" role="listitem">
+      <span class="device-row__icon" aria-hidden="true">${icon(platformIconName)}</span>
+      <div class="device-row__content">
+        <strong class="device-row__title">${escapeHtml(title)}</strong>
+        ${secondary ? `<span class="device-row__meta">${escapeHtml(secondary)}</span>` : ""}
+        <span class="device-row__date">${escapeHtml(`${copy.added} ${formatDeviceCreatedAt(device.createdAt)}`)}</span>
       </div>
-      ${secondary ? `<div class="device-card__meta">${escapeHtml(secondary)}</div>` : ""}
-      <div class="device-card__foot">${escapeHtml(`${copy.added} ${formatDeviceCreatedAt(device.createdAt)}`)}</div>
+      <button class="device-row__delete ${busy ? "is-loading" : ""}" type="button" data-action="delete-device" data-value="${escapeAttribute(device.hwid || "")}" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(copy.delete)}">${icon(busy ? "refresh" : "trash")}</button>
     </div>
   `;
 }
@@ -8334,6 +8343,7 @@ function icon(name) {
     question: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.2 1.4c0 2-2.5 2.3-2.5 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="17.1" r="1" fill="currentColor"/></svg>`,
     server: `<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="6" rx="2" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="18" height="6" rx="2" stroke="currentColor" stroke-width="1.8"/><circle cx="7" cy="7" r="1" fill="currentColor"/><circle cx="7" cy="17" r="1" fill="currentColor"/></svg>`,
     traffic: `<svg viewBox="0 0 24 24" fill="none"><rect x="4.5" y="5.5" width="15" height="13" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 10h8M8 14h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="16" cy="14" r="1" fill="currentColor"/></svg>`,
+    device: `<svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4" width="17" height="12" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 20h7M10 16.5 9.2 20M14 16.5l.8 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     broadcast: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19a10 10 0 0 1 0-14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
     youtube: `<svg viewBox="0 0 24 24" fill="none"><path d="M21 8.1a3.2 3.2 0 0 0-2.3-2.3c-2-.5-6.7-.5-6.7-.5s-4.7 0-6.7.5A3.2 3.2 0 0 0 3 8.1a33.3 33.3 0 0 0 0 7.8 3.2 3.2 0 0 0 2.3 2.3c2 .5 6.7.5 6.7.5s4.7 0 6.7-.5A3.2 3.2 0 0 0 21 15.9a33.3 33.3 0 0 0 0-7.8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m10 9.5 5 2.5-5 2.5v-5Z" fill="currentColor"/></svg>`,
     star: `<svg viewBox="0 0 24 24" fill="none"><path d="m12 3.8 2.5 5.1 5.6.8-4 3.9.9 5.5-5-2.6-5 2.6.9-5.5-4-3.9 5.6-.8L12 3.8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
