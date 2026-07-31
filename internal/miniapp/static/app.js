@@ -3362,10 +3362,7 @@ function renderAdminProfileEditorModal() {
 		<div class="modal__sheet modal__sheet--profile-editor">
 			<header class="admin-profile-modal__header"><div><span>ПРОФИЛЬ</span><h2 id="admin-profile-editor-title">${escapeHtml(title)}</h2></div><button type="button" data-action="admin-close-profile-editor" aria-label="Закрыть">${icon("close")}</button></header>
 			<div class="admin-profile-modal__body">
-				<div class="admin-editor__grid admin-editor__grid--two">
-					${renderProfileDraftField("Название кнопки", "labelRu", item.labelRu, { maxlength: 80 })}
-					${renderProfileDraftField("Описание", "hintRu", item.hintRu, { maxlength: 160 })}
-				</div>
+				${renderProfileDraftField("Название кнопки", "labelRu", item.labelRu, { maxlength: 80 })}
 				${custom ? `<label class="admin-field"><span>Формат кнопки</span><select class="admin-field__control" data-profile-edit-path="type">
 					<option value="url" ${item.type === "url" ? "selected" : ""}>URL-ссылка</option>
 					<option value="page" ${item.type === "page" ? "selected" : ""}>Текстовая страница</option>

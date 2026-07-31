@@ -5833,6 +5833,17 @@ body.is-layout-editing .bottom-nav {
   min-width: 0;
 }
 
+.runtime-detail-item--pill {
+  align-items: center;
+}
+
+body.is-layout-editing .runtime-detail-item--pill > .sub-pill,
+.runtime-detail-item--pill.runtime-layout-mounted > .sub-pill {
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 100%;
+}
+
 .runtime-detail-item--logo,
 .runtime-detail-item--username,
 .runtime-detail-item--action { justify-content: center; }
@@ -7087,16 +7098,17 @@ body.is-plan-editing .page-scroll {
 }
 
 .profile-row__tools button {
-  width: 40px;
-  height: 40px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   color: var(--icon-color);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 0;
+  border-radius: 6px;
   background: transparent;
+  line-height: 1;
 }
-.profile-row__tools button svg { width: 16px; height: 16px; }
+.profile-row__tools button svg { width: 15px; height: 15px; }
 
 .admin-add-profile-button {
   width: 100%;
@@ -7117,13 +7129,27 @@ body.is-plan-editing .page-scroll {
 .admin-add-profile-button--section { margin-top: 0; }
 
 .profile-row--sortable {
-  grid-template-columns: 30px minmax(0, 1fr) auto;
+  grid-template-columns: 22px minmax(0, 1fr) 30px;
 }
 
 .profile-row__tools {
-  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
   align-items: center;
-  gap: 6px;
+  justify-self: end;
+}
+
+.profile-row--sortable .profile-row__body {
+  min-width: 0;
+  align-self: stretch;
+}
+
+.profile-row--sortable .profile-row__body strong {
+  display: block;
+  width: 100%;
+  line-height: 34px;
 }
 
 .modal__sheet--profile-editor {
