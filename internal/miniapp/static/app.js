@@ -844,7 +844,6 @@ Object.assign(copybook.ru, {
   adminSubscriptionManage: "Привязка подписки",
   adminSubscriptionMenuHint: "Перенос доступа между Telegram-аккаунтами",
   adminSubscriptionTitle: "Привязка подписки",
-  adminSubscriptionHint: "Найдите подписку по ID из панели или точному имени пользователя.",
   adminSubscriptionQueryLabel: "ID или имя подписки",
   adminSubscriptionQueryPlaceholder: "Например, 1281 или 10204_1404001393",
   adminSubscriptionFind: "Найти подписку",
@@ -882,7 +881,6 @@ Object.assign(copybook.en, {
   adminSubscriptionManage: "Subscription binding",
   adminSubscriptionMenuHint: "Move access between Telegram accounts",
   adminSubscriptionTitle: "Subscription binding",
-  adminSubscriptionHint: "Find a subscription by its panel ID or exact username.",
   adminSubscriptionQueryLabel: "Subscription ID or username",
   adminSubscriptionQueryPlaceholder: "For example, 1281 or 10204_1404001393",
   adminSubscriptionFind: "Find subscription",
@@ -2589,30 +2587,30 @@ function renderAdminPage() {
 	return `
 		<section class="page admin-page ${pageClass("admin")}" id="page-admin">
 			${renderAdminMenuGroup(english ? "System" : "Система", [
-				[english ? "Maintenance mode" : "Режим аварии", english ? "Block access during maintenance" : "Отключить доступ для пользователей", "maintenance", "wrench"],
-				[english ? "Diagnostics" : "Диагностика", english ? "Errors and service health" : "Ошибки и состояние сервисов", "diagnostics", "alert"],
-				[english ? "Functions" : "Управление функциями", english ? "Payments, login, trials and sections" : "Оплаты, вход, триалы и разделы", "features", "sliders"],
+				[english ? "Maintenance mode" : "Режим аварии", "", "maintenance", "adminMaintenance"],
+				[english ? "Diagnostics" : "Диагностика", "", "diagnostics", "adminDiagnostics"],
+				[english ? "Functions" : "Управление функциями", "", "features", "adminFeatures"],
+				[english ? "Trial" : "Триал", "", "trial", "adminTrial"],
+				[english ? "Access after expiry" : "Доступ после окончания", "", "grace", "adminTrial"],
+				[english ? "Subscription binding" : "Привязка подписок", "", "subscriptions", "adminSubscriptions"],
+				[english ? "Integrations" : "Интеграции", "", "integrations", "adminIntegrations"],
 			])}
 			${renderAdminMenuGroup(english ? "Interface" : "Интерфейс", [
-				[english ? "Content" : "Редактор контента", english ? "Texts, links and FAQ" : "Тексты, ссылки и FAQ", "content", "doc"],
-				[english ? "Appearance" : "Оформление", english ? "Colors, background and frames" : "Цвета, фон и рамки", "appearance", "palette"],
-				[english ? "UI builder" : "Конструктор UI", english ? "Order, visibility and dimensions" : "Порядок, видимость и размеры", "layout", "grid"],
-				[english ? "Plans" : "Тарифы", english ? "Prices, limits and order" : "Цены, лимиты и порядок", "plans", "cartShopping"],
-				[english ? "Trial" : "Триал", english ? "Trial limits and squads" : "Срок, лимиты и сквады", "trial", "ticketPlus"],
-				[english ? "Access after expiry" : "Доступ после окончания", english ? "One-time period and internal squads" : "Одноразовый срок и внутренние сквады", "grace", "key"],
+				[english ? "Content" : "Редактор контента", "", "content", "adminContent"],
+				[english ? "Appearance" : "Оформление", "", "appearance", "adminAppearance"],
+				[english ? "UI builder" : "Конструктор UI", "", "layout", "grid"],
+				[english ? "Plans" : "Тарифы", "", "plans", "cartShopping"],
 			])}
 			${renderAdminMenuGroup(english ? "Operations" : "Операции", [
-				[english ? "Integrations" : "Интеграции", english ? "Payment providers and webhooks" : "Платёжные системы и webhook-адреса", "integrations", "sliders"],
-				[english ? "Broadcast" : "Рассылка", english ? "Message, buttons and delivery" : "Сообщение, кнопки и отправка", "broadcast", "broadcast"],
-				[english ? "Subscription binding" : "Привязка подписок", english ? "Transfer access between accounts" : "Перенос доступа между аккаунтами", "subscriptions", "key"],
-				[english ? "Promo codes" : "Промокоды", english ? "Create and monitor codes" : "Создание и статистика кодов", "promocodes", "ticketPlus"],
+				[english ? "Broadcast" : "Рассылка", "", "broadcast", "adminBroadcast"],
+				[english ? "Promo codes" : "Промокоды", "", "promocodes", "adminPromocodes"],
 			])}
 		</section>
 	`;
 }
 
 function renderAdminMenuGroup(label, items) {
-	return `<section class="admin-menu-group"><h2 class="admin-menu-group__title"><span></span>${escapeHtml(label)}</h2><div class="admin-menu-group__rows">${items.map(([title, hint, value, iconName]) => renderMenuRow(title, hint, "open-admin-section", value, iconName, { showTail: true })).join("")}</div></section>`;
+	return `<section class="admin-menu-group"><h2 class="admin-menu-group__title"><span></span>${escapeHtml(label)}</h2><div class="admin-menu-group__rows">${items.map(([title, , value, iconName]) => renderMenuRow(title, "", "open-admin-section", value, iconName, { showTail: true, compact: true })).join("")}</div></section>`;
 }
 
 function integrationDraft(item) {
@@ -2632,7 +2630,7 @@ function renderAdminIntegrationsPage() {
 		["Служебные интеграции", items.filter((item) => item.kind !== "payment")],
 	];
 	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-integrations">
-		<header class="admin-integrations__header"><span>ИНТЕГРАЦИИ</span><h2>Платежи и уведомления</h2><p>Ключи хранятся зашифрованно. Включённая платёжная система сразу появляется у пользователей.</p></header>
+		<header class="admin-integrations__header"><span>ИНТЕГРАЦИИ</span><h2>Платежи и уведомления</h2></header>
 		${groups.map(([label, providers]) => providers.length ? `<section class="admin-integrations__group"><h3>${escapeHtml(label)}</h3><div class="admin-integrations__list">${providers.map(renderAdminIntegrationRow).join("")}</div></section>` : "").join("")}
 	</div></section>`;
 }
@@ -3454,7 +3452,6 @@ function renderAdminSubscriptionsPage() {
     <section class="page ${pageClass("admin")}" id="page-admin">
       <div class="card admin-subscription-panel">
         <div class="section-label">${escapeHtml(copy.adminSubscriptionTitle || "Subscription binding")}</div>
-        <div class="note note--top">${escapeHtml(copy.adminSubscriptionHint || "")}</div>
         <div class="admin-subscription-search">
           <label class="support-field">
             <span class="support-field__label">${escapeHtml(copy.adminSubscriptionQueryLabel || "ID or username")}</span>
@@ -3583,7 +3580,7 @@ function renderBuyPage() {
   const checkout = `<div class="card card--checkout">
 		<div class="summary-row checkout-summary"><div><div class="summary-row__title">${copy.selectedPlan}</div><div class="summary-row__value">${plan ? getPlanDisplayTitle(plan, state.locale) : "—"}</div></div>${plan?.recommended ? `<span class="badge badge--inline">${copy.best}</span>` : plan?.savingsPercent ? `<span class="badge badge--inline">${copy.savings(plan.savingsPercent)}</span>` : ""}</div>
         <div class="payment-stack">
-		<button class="pay-selector checkout-payment ${method ? "" : "checkout-payment--empty"}" type="button" data-action="open-pay-modal" ${method ? "" : "disabled aria-disabled=\"true\""}><span class="pay-selector__icon ${method ? "pay-selector__icon--brand" : ""}">${method ? renderPaymentMethodLogo(method) : icon("wallet")}</span><span class="pay-selector__copy"><strong>${escapeHtml(methodTitle)}</strong><span>${escapeHtml(methodHint)}</span></span><span class="pay-selector__tail">${method ? icon("pencil") : ""}</span></button>
+		<button class="pay-selector checkout-payment ${method ? "" : "checkout-payment--empty"}" type="button" data-action="open-pay-modal" ${method ? "" : "disabled aria-disabled=\"true\""}><span class="pay-selector__icon ${method ? "pay-selector__icon--brand" : ""}">${method ? renderPaymentMethodLogo(method) : icon("wallet")}</span><span class="pay-selector__copy"><strong>${escapeHtml(methodTitle)}</strong><span>${escapeHtml(methodHint)}</span></span><span class="pay-selector__tail">${method ? icon("checkoutEdit") : ""}</span></button>
         ${featureEnabled("promocodes") ? `<div class="promo-box checkout-promo">
           <span class="support-field__label">${escapeHtml(copy.promoCode || "Promo code")}</span>
           <div class="promo-box__row">
@@ -4470,8 +4467,8 @@ function planPricePrefix(locale) {
 }
 
 function renderMenuRow(label, hint, action, value, iconName, options = {}) {
-  const { showTail = action === "open-link", tailIcon = "chevronRight" } = options;
-  return `<button class="menu-row" type="button" data-action="${action}" ${value ? `data-value="${escapeAttribute(value)}"` : ""}><span class="menu-row__icon">${icon(iconName)}</span><span class="menu-row__body"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(hint)}</span></span>${showTail ? `<span class="menu-row__tail">${icon(tailIcon)}</span>` : ""}</button>`;
+  const { showTail = action === "open-link", tailIcon = "chevronRight", compact = false } = options;
+  return `<button class="menu-row ${compact ? "menu-row--compact" : ""}" type="button" data-action="${action}" ${value ? `data-value="${escapeAttribute(value)}"` : ""}><span class="menu-row__icon">${icon(iconName)}</span><span class="menu-row__body"><strong>${escapeHtml(label)}</strong>${hint ? `<span>${escapeHtml(hint)}</span>` : ""}</span>${showTail ? `<span class="menu-row__tail">${icon(tailIcon)}</span>` : ""}</button>`;
 }
 
 function renderMetric(label, value) {
@@ -8287,9 +8284,26 @@ const PROFILE_ICON_CLASSES = {
 	profileDownload: "download",
 };
 
+const ADMIN_ICON_CLASSES = {
+	adminBroadcast: "broadcast",
+	adminTrial: "trial",
+	adminFeatures: "features",
+	adminIntegrations: "integrations",
+	adminContent: "content",
+	adminDiagnostics: "diagnostics",
+	adminSubscriptions: "subscriptions",
+	adminPromocodes: "promocodes",
+	adminMaintenance: "maintenance",
+	adminAppearance: "appearance",
+	checkoutEdit: "checkout-edit",
+};
+
 function icon(name) {
 	if (PROFILE_ICON_CLASSES[name]) {
 		return `<span class="profile-svg-icon profile-svg-icon--${PROFILE_ICON_CLASSES[name]}" aria-hidden="true"></span>`;
+	}
+	if (ADMIN_ICON_CLASSES[name]) {
+		return `<span class="app-svg-icon app-svg-icon--${ADMIN_ICON_CLASSES[name]}" aria-hidden="true"></span>`;
 	}
   const icons = {
 		wrench: `<svg viewBox="0 0 24 24" fill="none"><path d="M14.7 6.2a4.8 4.8 0 0 0-6.1 6.1L3.8 17a2.1 2.1 0 1 0 3 3l4.8-4.8a4.8 4.8 0 0 0 6.1-6.1l-2.8 2.8-2.8-.7-.7-2.8 3.3-2.2Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,

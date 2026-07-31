@@ -122,12 +122,26 @@ func NewPaymentService(
 }
 
 func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int64) error {
+	releasePurchase, err := s.purchaseRepository.LockForProcessing(ctx, purchaseId)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := releasePurchase(); err != nil {
+			slog.Error("payment: release purchase processing lock failed", "purchaseId", utils.MaskHalfInt64(purchaseId), "error", err)
+		}
+	}()
+
 	purchase, err := s.purchaseRepository.FindById(ctx, purchaseId)
 	if err != nil {
 		return err
 	}
 	if purchase == nil {
 		return fmt.Errorf("purchase with crypto invoice id %s not found", utils.MaskHalfInt64(purchaseId))
+	}
+	if purchase.Status == database.PurchaseStatusPaid {
+		slog.Info("payment: duplicate purchase processing skipped", "purchaseId", utils.MaskHalfInt64(purchaseId))
+		return nil
 	}
 
 	customer, err := s.customerRepository.FindById(ctx, purchase.CustomerID)

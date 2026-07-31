@@ -72,6 +72,38 @@ type PurchaseRepository struct {
 	pool *pgxpool.Pool
 }
 
+const purchaseProcessingLockBase int64 = 827364116000000000
+
+// LockForProcessing serializes fulfillment of the same purchase across all bot replicas.
+// The session-level advisory lock remains held while external provisioning is performed.
+func (pr *PurchaseRepository) LockForProcessing(ctx context.Context, purchaseID int64) (func() error, error) {
+	if purchaseID <= 0 {
+		return nil, fmt.Errorf("invalid purchase id: %d", purchaseID)
+	}
+
+	conn, err := pr.pool.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("acquire purchase processing connection: %w", err)
+	}
+
+	lockKey := purchaseProcessingLockBase + purchaseID
+	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock($1)", lockKey); err != nil {
+		conn.Release()
+		return nil, fmt.Errorf("lock purchase %d for processing: %w", purchaseID, err)
+	}
+
+	return func() error {
+		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		defer conn.Release()
+
+		if _, err := conn.Exec(unlockCtx, "SELECT pg_advisory_unlock($1)", lockKey); err != nil {
+			return fmt.Errorf("unlock purchase %d after processing: %w", purchaseID, err)
+		}
+		return nil
+	}, nil
+}
+
 func NewPurchaseRepository(pool *pgxpool.Pool) *PurchaseRepository {
 	return &PurchaseRepository{
 		pool: pool,
