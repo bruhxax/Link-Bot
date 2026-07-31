@@ -501,6 +501,19 @@ func TestNormalizeAndValidateMigratesProfileEditorSettings(t *testing.T) {
 	}
 }
 
+func TestDefaultSettingsUseCompactProfileRows(t *testing.T) {
+	settings := DefaultSettings()
+	for _, element := range settings.Layout.Elements {
+		if element.Area == "profile" && element.ID == "server_status" {
+			if element.Height != 48 {
+				t.Fatalf("profile row height = %d, want 48", element.Height)
+			}
+			return
+		}
+	}
+	t.Fatal("default server status profile row was not found")
+}
+
 func TestNormalizeAndValidateProfileButtonAndLegalPage(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Content.ProfileButtons["web_version"] = ProfileButtonSettings{

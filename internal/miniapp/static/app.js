@@ -1263,17 +1263,17 @@ const ADMIN_LAYOUT_META = {
 	"support:actions": ["\u0411\u044b\u0441\u0442\u0440\u044b\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044f", "plus"],
 	"support:tabs": ["\u0412\u043a\u043b\u0430\u0434\u043a\u0438", "menu"],
 	"support:tickets": ["\u041e\u0431\u0440\u0430\u0449\u0435\u043d\u0438\u044f", "headphonesAlt"],
-	"profile:server_status": ["\u0421\u0442\u0430\u0442\u0443\u0441 \u0441\u0435\u0440\u0432\u0435\u0440\u043e\u0432", "server"],
+	"profile:server_status": ["\u0421\u0442\u0430\u0442\u0443\u0441 \u0441\u0435\u0440\u0432\u0435\u0440\u043e\u0432", "profileLayers"],
 	"profile:referrals": ["\u0420\u0435\u0444\u0435\u0440\u0430\u043b\u044c\u043d\u0430\u044f \u0441\u0438\u0441\u0442\u0435\u043c\u0430", "users"],
-	"profile:reviews": ["\u041e\u0442\u0437\u044b\u0432\u044b", "star"],
-	"profile:payments": ["\u041f\u043b\u0430\u0442\u0435\u0436\u0438", "wallet"],
+	"profile:reviews": ["\u041e\u0442\u0437\u044b\u0432\u044b", "profileStar"],
+	"profile:payments": ["\u041f\u043b\u0430\u0442\u0435\u0436\u0438", "profileCard"],
 	"profile:media": ["\u041c\u0435\u0434\u0438\u0430", "youtube"],
-	"profile:login_methods": ["\u0421\u043f\u043e\u0441\u043e\u0431 \u0432\u0445\u043e\u0434\u0430", "lockAlt"],
-	"profile:news": ["\u041d\u043e\u0432\u043e\u0441\u0442\u0438", "broadcast"],
-	"profile:web_version": ["\u041e\u0442\u043a\u0440\u044b\u0442\u044c \u0432\u0435\u0431-\u0432\u0435\u0440\u0441\u0438\u044e", "external"],
-	"profile:pwa_install": ["\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u043d\u0430 \u0440\u0430\u0431\u043e\u0447\u0438\u0439 \u0441\u0442\u043e\u043b", "download"],
-	"profile:terms": ["\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c\u0441\u043a\u043e\u0435 \u0441\u043e\u0433\u043b\u0430\u0448\u0435\u043d\u0438\u0435", "doc"],
-	"profile:privacy": ["Политика конфиденциальности", "shield"],
+	"profile:login_methods": ["\u0421\u043f\u043e\u0441\u043e\u0431 \u0432\u0445\u043e\u0434\u0430", "profileKey"],
+	"profile:news": ["\u041d\u043e\u0432\u043e\u0441\u0442\u0438", "profileLetter"],
+	"profile:web_version": ["\u041e\u0442\u043a\u0440\u044b\u0442\u044c \u0432\u0435\u0431-\u0432\u0435\u0440\u0441\u0438\u044e", "profileExternal"],
+	"profile:pwa_install": ["\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u043d\u0430 \u0440\u0430\u0431\u043e\u0447\u0438\u0439 \u0441\u0442\u043e\u043b", "profileDownload"],
+	"profile:terms": ["\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c\u0441\u043a\u043e\u0435 \u0441\u043e\u0433\u043b\u0430\u0448\u0435\u043d\u0438\u0435", "profileChecklist"],
+	"profile:privacy": ["Политика конфиденциальности", "profileChecklist"],
 	"navigation:dashboard": ["\u0413\u043b\u0430\u0432\u043d\u0430\u044f", "houseLine"],
 	"navigation:buy": ["\u0422\u0430\u0440\u0438\u0444\u044b", "cartShopping"],
 	"navigation:support": ["\u041f\u043e\u0434\u0434\u0435\u0440\u0436\u043a\u0430", "headphonesAlt"],
@@ -1304,7 +1304,7 @@ const ADMIN_LAYOUT_DEFAULTS = [
 	["support", "faq", 11, 100, 64, false, "left"],
 	["support", "tabs_detail", 12, 100, 44, false, "left"],
 	["support", "tickets_detail", 13, 100, 220, false, "left"],
-	...["server_status", "referrals", "reviews", "payments", "media", "login_methods", "news", "web_version", "pwa_install", "terms", "privacy"].map((id, order) => ["profile", id, order, 100, 52, true, "left", PROFILE_DEFAULT_GROUPS[id]]),
+	...["server_status", "referrals", "reviews", "payments", "media", "login_methods", "news", "web_version", "pwa_install", "terms", "privacy"].map((id, order) => ["profile", id, order, 100, 48, true, "left", PROFILE_DEFAULT_GROUPS[id]]),
 	...["main", "purchases", "programs", "help", "account"].map((id, order) => ["profile", `group_${id}`, 20 + order, 100, 28, false, "left"]),
 	...["dashboard", "buy", "support", "settings", "admin"].map((id, order) => ["navigation", id, order, 44, 38, true, "center"]),
 ].map(([area, id, order, width, height, framed, align, group]) => ({ area, id, order, visible: true, width, height, framed, align, offsetX: 0, offsetY: 0, ...(group ? { group } : {}) }));
@@ -3819,17 +3819,17 @@ function getProfileItems() {
 	const copy = t();
 	const links = state.data?.links || {};
 	const definitions = {
-		server_status: { group: "main", label: copy.serverStatus, hint: formatServerStatusHint(), action: "go-page", value: "servers", icon: "server", feature: "server_status" },
+		server_status: { group: "main", label: copy.serverStatus, hint: formatServerStatusHint(), action: "go-page", value: "servers", icon: "profileLayers", feature: "server_status" },
 		media: { group: "main", label: mediaLabel(), hint: mediaHint(), action: "go-page", value: "media", icon: "youtube", feature: "media" },
-		news: { group: "main", label: copy.channel, hint: linkHint(links.channel), action: "open-link", value: links.channel, icon: "broadcast", feature: "news" },
-		payments: { group: "purchases", label: copy.paymentsTitle || "Payments", hint: copy.paymentsHint || "", action: "go-page", value: "payments", icon: "wallet", feature: "payments_history" },
+		news: { group: "main", label: copy.channel, hint: linkHint(links.channel), action: "open-link", value: links.channel, icon: "profileLetter", feature: "news" },
+		payments: { group: "purchases", label: copy.paymentsTitle || "Payments", hint: copy.paymentsHint || "", action: "go-page", value: "payments", icon: "profileCard", feature: "payments_history" },
 		referrals: { group: "programs", label: copy.referralSystem, hint: copy.referralsHint, action: "go-page", value: "referrals", icon: "users", feature: "referrals" },
-		reviews: { group: "programs", label: copy.feedback, hint: reviewsSummaryHint(), action: "go-page", value: "reviews", icon: "star", feature: "reviews" },
-		login_methods: { group: "account", label: loginMethodsLabel(), hint: loginMethodsHint(), action: "go-page", value: "login-methods", icon: "lockAlt", feature: "login_methods" },
-		web_version: { group: "account", label: webVersionLabel(), hint: webVersionHint(), action: "open-web-version", value: "", icon: "arrowUpRightSquare", feature: "web_version" },
-		pwa_install: { group: "account", label: addToHomeLabel(), hint: addToHomeHint(), action: "open-install-guide", value: "", icon: "download", feature: "pwa_install" },
-		terms: { group: "help", label: copy.tos, hint: replaceRuntimeBrandTokens(copy.tosHint || copy.tos), action: "go-page", value: "terms", icon: "doc", feature: "terms" },
-		privacy: { group: "help", label: "Политика конфиденциальности", hint: "Как сервис обрабатывает данные", action: "go-page", value: "privacy", icon: "shield", feature: "privacy" },
+		reviews: { group: "programs", label: copy.feedback, hint: reviewsSummaryHint(), action: "go-page", value: "reviews", icon: "profileStar", feature: "reviews" },
+		login_methods: { group: "account", label: loginMethodsLabel(), hint: loginMethodsHint(), action: "go-page", value: "login-methods", icon: "profileKey", feature: "login_methods" },
+		web_version: { group: "account", label: webVersionLabel(), hint: webVersionHint(), action: "open-web-version", value: "", icon: "profileExternal", feature: "web_version" },
+		pwa_install: { group: "account", label: addToHomeLabel(), hint: addToHomeHint(), action: "open-install-guide", value: "", icon: "profileDownload", feature: "pwa_install" },
+		terms: { group: "help", label: copy.tos, hint: replaceRuntimeBrandTokens(copy.tosHint || copy.tos), action: "go-page", value: "terms", icon: "profileChecklist", feature: "terms" },
+		privacy: { group: "help", label: "Политика конфиденциальности", hint: "Как сервис обрабатывает данные", action: "go-page", value: "privacy", icon: "profileChecklist", feature: "privacy" },
 	};
 	const settings = getRuntimeSettings()?.content || {};
 	const overrides = settings.profileButtons || {};
@@ -3862,8 +3862,8 @@ function getProfileItems() {
 	const configuredIDs = new Set(configured.map((item) => item.id));
 	const missingCustom = Object.keys(definitions)
 		.filter((id) => id.startsWith("custom.") && !configuredIDs.has(id))
-		.map((id, index) => ({ id, order: configured.length + index, visible: true, width: 100, height: 52, framed: true, group: "main" }));
-	const order = configured.length ? [...configured, ...missingCustom] : Object.keys(definitions).map((id, index) => ({ id, order: index, visible: true, width: 100, height: 52, framed: true }));
+		.map((id, index) => ({ id, order: configured.length + index, visible: true, width: 100, height: 48, framed: true, group: "main" }));
+	const order = configured.length ? [...configured, ...missingCustom] : Object.keys(definitions).map((id, index) => ({ id, order: index, visible: true, width: 100, height: 48, framed: true }));
 	const items = order.map((layout) => {
 		const item = definitions[layout.id];
 		if (!item || ((!item.value && item.action === "open-link") || (item.feature && !featureEnabled(item.feature)))) return null;
@@ -3875,7 +3875,7 @@ function getProfileItems() {
 function renderProfileItem(item) {
 	const layout = item.layout || {};
 	const sorting = state.adminLayoutEditing;
-	const row = `<span class="profile-row__icon">${icon(item.icon)}</span><span class="profile-row__body"><strong>${escapeHtml(item.label || item.id)}</strong>${item.hint ? `<span>${escapeHtml(item.hint)}</span>` : ""}</span>`;
+	const row = `<span class="profile-row__icon">${icon(item.icon)}</span><span class="profile-row__body"><strong>${escapeHtml(item.label || item.id)}</strong></span>`;
 	if (sorting) {
 		return `<div class="profile-row ${layout.framed === false ? "profile-row--flat" : ""} profile-row--sortable" data-profile-layout-id="${escapeAttribute(item.id)}">${row}<span class="profile-row__tools"><button type="button" data-action="admin-edit-profile-button" data-value="${escapeAttribute(item.id)}" aria-label="Редактировать ${escapeAttribute(item.label || item.id)}" title="Редактировать">${icon("pencil")}</button></span></div>`;
 	}
@@ -8270,7 +8270,21 @@ function createParticleEngine() {
   };
 }
 
+const PROFILE_ICON_CLASSES = {
+	profileLayers: "layers",
+	profileCard: "card",
+	profileStar: "star",
+	profileChecklist: "checklist",
+	profileLetter: "letter",
+	profileKey: "key",
+	profileExternal: "external",
+	profileDownload: "download",
+};
+
 function icon(name) {
+	if (PROFILE_ICON_CLASSES[name]) {
+		return `<span class="profile-svg-icon profile-svg-icon--${PROFILE_ICON_CLASSES[name]}" aria-hidden="true"></span>`;
+	}
   const icons = {
 		wrench: `<svg viewBox="0 0 24 24" fill="none"><path d="M14.7 6.2a4.8 4.8 0 0 0-6.1 6.1L3.8 17a2.1 2.1 0 1 0 3 3l4.8-4.8a4.8 4.8 0 0 0 6.1-6.1l-2.8 2.8-2.8-.7-.7-2.8 3.3-2.2Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 		maintenanceKey: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12 8v5m0 3h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,

@@ -219,12 +219,12 @@ select:focus-visible {
 
 .profile-row {
   width: var(--profile-row-width, 100%);
-  min-height: var(--profile-row-height, 52px);
+  min-height: 48px;
   justify-self: start;
-  padding: 8px 12px;
+  padding: 7px 12px;
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 18px;
-  gap: 10px;
+  grid-template-columns: 22px minmax(0, 1fr) 16px;
+  gap: 9px;
   align-items: center;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
@@ -237,11 +237,27 @@ select:focus-visible {
 .profile-row:active { transform: scale(.99); background: var(--surface-strong); }
 .profile-row__icon, .profile-row__tail { display: grid; place-items: center; color: var(--icon-color, var(--text)); }
 .profile-row__icon svg { width: 19px; height: 19px; }
+.profile-svg-icon {
+  width: 19px;
+  height: 19px;
+  display: block;
+  background: currentColor;
+  -webkit-mask: var(--profile-icon) center / contain no-repeat;
+  mask: var(--profile-icon) center / contain no-repeat;
+}
+.profile-svg-icon--layers { --profile-icon: url("./assets/profile-layers.svg"); }
+.profile-svg-icon--card { --profile-icon: url("./assets/profile-card.svg"); }
+.profile-svg-icon--star { --profile-icon: url("./assets/profile-star.svg"); }
+.profile-svg-icon--checklist { --profile-icon: url("./assets/profile-checklist.svg"); }
+.profile-svg-icon--letter { --profile-icon: url("./assets/profile-letter.svg"); }
+.profile-svg-icon--key { --profile-icon: url("./assets/profile-key.svg"); }
+.profile-svg-icon--external { --profile-icon: url("./assets/profile-external.svg"); }
+.profile-svg-icon--download { --profile-icon: url("./assets/profile-download.svg"); }
 .profile-row__tail { opacity: .6; }
 .profile-row__tail svg { width: 15px; height: 15px; }
-.profile-row__body { min-width: 0; display: grid; gap: 2px; }
+.profile-row__body { min-width: 0; display: flex; align-items: center; }
 .profile-row__body strong, .profile-row__body span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.profile-row__body strong { font-size: 13px; }
+.profile-row__body strong { font-size: 13px; line-height: 1.2; }
 .profile-row__body span { color: var(--muted); font-size: 10px; }
 
 .admin-page { padding-top: 4px; }
@@ -5877,8 +5893,8 @@ body:not(.is-layout-editing) .sub-bar__row--pills .runtime-detail-item--pill > .
 }
 
 .profile-row {
-  height: var(--profile-row-height, 52px);
-  min-height: 20px;
+  height: 48px;
+  min-height: 48px;
 }
 
 .layout-editable {
@@ -6091,8 +6107,8 @@ body.is-editing-layout * { overscroll-behavior: none; }
 
 .profile-row {
   width: 100% !important;
-  height: auto !important;
-  min-height: 52px;
+  height: 48px !important;
+  min-height: 48px;
   margin-inline: 0 !important;
   transform: none !important;
 }

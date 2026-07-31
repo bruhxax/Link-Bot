@@ -468,7 +468,7 @@ func defaultLayoutElements() []LayoutElement {
 	}{
 		{"buy", []string{"plans", "checkout"}, 100, 220, "left", false},
 		{"support", []string{"actions", "tabs", "tickets"}, 100, 92, "left", false},
-		{"profile", []string{"server_status", "referrals", "reviews", "payments", "media", "login_methods", "news", "web_version", "pwa_install", "terms", "privacy"}, 100, 52, "left", true},
+		{"profile", []string{"server_status", "referrals", "reviews", "payments", "media", "login_methods", "news", "web_version", "pwa_install", "terms", "privacy"}, 100, 48, "left", true},
 		{"navigation", []string{"dashboard", "buy", "support", "settings", "admin"}, 44, 38, "center", true},
 	}
 
@@ -717,7 +717,7 @@ func ensureCustomProfileLayout(layout *LayoutSettings, links []CustomLink) {
 			Order:   nextOrder,
 			Visible: true,
 			Width:   100,
-			Height:  52,
+			Height:  48,
 			Framed:  true,
 			Align:   "left",
 			Group:   "main",
