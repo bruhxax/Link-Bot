@@ -3662,6 +3662,10 @@ function renderSupportTicketCard(ticket, isAdmin) {
   const title = supportTicketTitle(ticket);
   const metaParts = [];
   if (isAdmin && ticket.customerName) metaParts.push(ticket.customerName);
+  if (isAdmin && ticket.customerUsername) {
+    const telegramUsername = formatTelegramUsername(ticket.customerUsername);
+    if (telegramUsername && !metaParts.includes(telegramUsername)) metaParts.push(telegramUsername);
+  }
   if (ticket.subscriptionLabel) metaParts.push(ticket.subscriptionLabel);
 
   return `

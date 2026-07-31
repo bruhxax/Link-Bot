@@ -1979,7 +1979,7 @@ func (h *Handler) handleSupportCreate(w http.ResponseWriter, r *http.Request, se
 		CustomerID:        customer.ID,
 		Subject:           subject,
 		CustomerName:      panelUsername,
-		CustomerUsername:  "",
+		CustomerUsername:  strings.TrimPrefix(strings.TrimSpace(sess.User.Username), "@"),
 		SubscriptionLabel: h.buildSubscriptionLabel(customer, highestPurchase),
 	}, &database.SupportMessage{
 		AuthorTelegramID: customer.TelegramID,
@@ -2107,7 +2107,7 @@ func (h *Handler) handleSupportSend(w http.ResponseWriter, r *http.Request, sess
 			sess.User.ID,
 			body,
 			panelUsername,
-			"",
+			strings.TrimPrefix(strings.TrimSpace(sess.User.Username), "@"),
 			h.buildSubscriptionLabel(customer, highestPurchase),
 		); err != nil {
 			slog.Error("mini app: support customer reply failed", "error", err, "ticketId", ticket.ID)
@@ -3470,13 +3470,14 @@ func (h *Handler) buildSupportPayload(ctx context.Context, sess *session, custom
 }
 
 func (h *Handler) buildSupportThreadPayload(ctx context.Context, sess *session, customer *database.Customer, ticket *database.SupportTicket) (*supportThreadPayload, error) {
+	isAdmin := h.isAdmin(sess.User.ID)
+	h.enrichSupportTicketTelegramUsername(ctx, sess, ticket, isAdmin)
 	h.enrichSupportTicket(ctx, ticket)
 	messages, err := h.supportRepository.ListMessagesByTicket(ctx, ticket.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	isAdmin := h.isAdmin(sess.User.ID)
 	if isAdmin {
 		if err := h.supportRepository.MarkSeenByAdmin(ctx, ticket.ID); err != nil {
 			slog.Warn("mini app: failed to mark admin ticket as seen", "error", err, "ticketId", ticket.ID)
@@ -3495,6 +3496,45 @@ func (h *Handler) buildSupportThreadPayload(ctx context.Context, sess *session, 
 		CanReply: ticket.Status == database.SupportTicketStatusOpen,
 		CanClose: isAdmin && ticket.Status == database.SupportTicketStatusOpen,
 	}, nil
+}
+
+func (h *Handler) enrichSupportTicketTelegramUsername(ctx context.Context, sess *session, ticket *database.SupportTicket, isAdmin bool) {
+	if ticket == nil || strings.TrimSpace(ticket.CustomerUsername) != "" {
+		return
+	}
+
+	username := ""
+	if !isAdmin && sess != nil {
+		username = sess.User.Username
+	} else if isAdmin && h.telegramBot != nil {
+		customer, err := h.customerRepository.FindById(ctx, ticket.CustomerID)
+		if err != nil {
+			slog.Warn("mini app: failed to load support customer for Telegram username", "error", err, "ticketId", ticket.ID)
+			return
+		}
+		if customer == nil || customer.TelegramID == 0 {
+			return
+		}
+		profileCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		chat, err := h.telegramBot.GetChat(profileCtx, &bot.GetChatParams{ChatID: customer.TelegramID})
+		cancel()
+		if err != nil {
+			slog.Warn("mini app: failed to load support customer Telegram username", "error", err, "ticketId", ticket.ID)
+			return
+		}
+		if chat != nil {
+			username = chat.Username
+		}
+	}
+
+	username = strings.TrimPrefix(strings.TrimSpace(username), "@")
+	if username == "" {
+		return
+	}
+	ticket.CustomerUsername = username
+	if err := h.supportRepository.UpdateCustomerUsername(ctx, ticket.ID, username); err != nil {
+		slog.Warn("mini app: failed to persist support customer Telegram username", "error", err, "ticketId", ticket.ID)
+	}
 }
 
 func (h *Handler) enrichSupportTickets(ctx context.Context, tickets []database.SupportTicket) {
@@ -3696,6 +3736,59 @@ func (h *Handler) notifyCustomerAboutSupportClosed(ctx context.Context, ticket *
 
 	text := renderSupportNotification(h.supportNotificationSettings().ClosedText, ticket, "")
 	h.sendMiniAppNotification(ctx, customer.TelegramID, text)
+}
+
+func (h *Handler) StartSupportAutoCloser(ctx context.Context) {
+	if h == nil || h.supportRepository == nil {
+		return
+	}
+
+	go func() {
+		h.autoCloseInactiveSupportTickets(ctx)
+
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				h.autoCloseInactiveSupportTickets(ctx)
+			}
+		}
+	}()
+}
+
+func (h *Handler) autoCloseInactiveSupportTickets(ctx context.Context) {
+	const (
+		inactivityPeriod = 24 * time.Hour
+		batchSize        = 100
+	)
+
+	for {
+		checkCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		tickets, err := h.supportRepository.CloseInactiveAdminRepliedTickets(checkCtx, time.Now().UTC().Add(-inactivityPeriod), batchSize)
+		cancel()
+		if err != nil {
+			if ctx.Err() == nil {
+				slog.Warn("mini app: failed to auto-close inactive support tickets", "error", err)
+			}
+			return
+		}
+
+		for i := range tickets {
+			notifyCtx, notifyCancel := context.WithTimeout(ctx, 5*time.Second)
+			h.notifyCustomerAboutSupportClosed(notifyCtx, &tickets[i])
+			notifyCancel()
+		}
+		if len(tickets) > 0 {
+			slog.Info("mini app: inactive support tickets auto-closed", "count", len(tickets))
+		}
+		if len(tickets) < batchSize {
+			return
+		}
+	}
 }
 
 func (h *Handler) sendMiniAppNotification(ctx context.Context, telegramID int64, text string) {

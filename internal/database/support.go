@@ -399,6 +399,128 @@ func (r *SupportRepository) CloseTicket(ctx context.Context, ticketID int64) err
 	return nil
 }
 
+func (r *SupportRepository) CloseInactiveAdminRepliedTickets(ctx context.Context, inactiveSince time.Time, limit int) ([]SupportTicket, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin auto-close support tickets transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	rows, err := tx.Query(
+		ctx,
+		`SELECT st.id, st.customer_id, st.status, st.subject, st.customer_name, st.customer_username,
+		        st.subscription_label, st.created_at, st.updated_at, st.last_message_at, st.closed_at,
+		        st.last_message_preview, st.admin_unread_count, st.customer_unread_count
+		 FROM support_ticket st
+		 JOIN LATERAL (
+		     SELECT sm.author_role, sm.created_at
+		     FROM support_message sm
+		     WHERE sm.ticket_id = st.id
+		     ORDER BY sm.created_at DESC, sm.id DESC
+		     LIMIT 1
+		 ) latest_message ON TRUE
+		 WHERE st.status = $1
+		   AND latest_message.author_role = $2
+		   AND latest_message.created_at <= $3
+		 ORDER BY latest_message.created_at ASC, st.id ASC
+		 LIMIT $4
+		 FOR UPDATE OF st SKIP LOCKED`,
+		SupportTicketStatusOpen,
+		SupportAuthorRoleAdmin,
+		inactiveSince.UTC(),
+		limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("select inactive support tickets: %w", err)
+	}
+
+	tickets := make([]SupportTicket, 0, limit)
+	for rows.Next() {
+		var ticket SupportTicket
+		if err := rows.Scan(
+			&ticket.ID,
+			&ticket.CustomerID,
+			&ticket.Status,
+			&ticket.Subject,
+			&ticket.CustomerName,
+			&ticket.CustomerUsername,
+			&ticket.SubscriptionLabel,
+			&ticket.CreatedAt,
+			&ticket.UpdatedAt,
+			&ticket.LastMessageAt,
+			&ticket.ClosedAt,
+			&ticket.LastMessagePreview,
+			&ticket.AdminUnreadCount,
+			&ticket.CustomerUnreadCount,
+		); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("scan inactive support ticket: %w", err)
+		}
+		tickets = append(tickets, ticket)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, fmt.Errorf("iterate inactive support tickets: %w", err)
+	}
+	rows.Close()
+
+	closedAt := time.Now().UTC()
+	closedTickets := make([]SupportTicket, 0, len(tickets))
+	for i := range tickets {
+		result, err := tx.Exec(
+			ctx,
+			`UPDATE support_ticket
+			 SET status = $2, updated_at = $3, closed_at = $3, admin_unread_count = 0
+			 WHERE id = $1
+			   AND status = $4
+			   AND (
+			       SELECT sm.author_role
+			       FROM support_message sm
+			       WHERE sm.ticket_id = support_ticket.id
+			       ORDER BY sm.created_at DESC, sm.id DESC
+			       LIMIT 1
+			   ) = $5
+			   AND (
+			       SELECT sm.created_at
+			       FROM support_message sm
+			       WHERE sm.ticket_id = support_ticket.id
+			       ORDER BY sm.created_at DESC, sm.id DESC
+			       LIMIT 1
+			   ) <= $6`,
+			tickets[i].ID,
+			SupportTicketStatusClosed,
+			closedAt,
+			SupportTicketStatusOpen,
+			SupportAuthorRoleAdmin,
+			inactiveSince.UTC(),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("auto-close support ticket %d: %w", tickets[i].ID, err)
+		}
+		if result.RowsAffected() == 0 {
+			continue
+		}
+
+		tickets[i].Status = SupportTicketStatusClosed
+		tickets[i].UpdatedAt = closedAt
+		tickets[i].ClosedAt = &closedAt
+		tickets[i].AdminUnreadCount = 0
+		closedTickets = append(closedTickets, tickets[i])
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit auto-close support tickets transaction: %w", err)
+	}
+
+	return closedTickets, nil
+}
+
 func (r *SupportRepository) MarkSeenByCustomer(ctx context.Context, ticketID int64) error {
 	_, err := r.pool.Exec(ctx, `UPDATE support_ticket SET customer_unread_count = 0 WHERE id = $1`, ticketID)
 	if err != nil {
@@ -411,6 +533,26 @@ func (r *SupportRepository) MarkSeenByAdmin(ctx context.Context, ticketID int64)
 	_, err := r.pool.Exec(ctx, `UPDATE support_ticket SET admin_unread_count = 0 WHERE id = $1`, ticketID)
 	if err != nil {
 		return fmt.Errorf("mark support ticket seen by admin: %w", err)
+	}
+	return nil
+}
+
+func (r *SupportRepository) UpdateCustomerUsername(ctx context.Context, ticketID int64, username string) error {
+	username = strings.TrimPrefix(strings.TrimSpace(username), "@")
+	if ticketID == 0 || username == "" {
+		return nil
+	}
+
+	_, err := r.pool.Exec(
+		ctx,
+		`UPDATE support_ticket
+		 SET customer_username = $2
+		 WHERE id = $1 AND customer_username = ''`,
+		ticketID,
+		username,
+	)
+	if err != nil {
+		return fmt.Errorf("update support ticket customer username: %w", err)
 	}
 	return nil
 }
