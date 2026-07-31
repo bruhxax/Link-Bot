@@ -5976,6 +5976,35 @@ body:not(.is-layout-editing) .sub-bar__row--pills .runtime-detail-item--pill > .
   transform: translate3d(var(--editor-drag-x, 0px), var(--editor-drag-y, 0px), 0) !important;
 }
 
+/*
+ * Mounted dashboard items live in different layout hosts and can overlap with
+ * transparent parts of neighbouring wrappers. Keep those empty wrapper areas
+ * out of hit testing; the visible control (and editor handles) remain active.
+ */
+.runtime-detail-item.runtime-layout-mounted {
+  pointer-events: none;
+}
+
+.runtime-detail-item.runtime-layout-mounted > :not(.layout-editable__move):not(.layout-editable__resize),
+.runtime-detail-item.runtime-layout-mounted > .layout-editable__move,
+.runtime-detail-item.runtime-layout-mounted > .layout-editable__resize {
+  pointer-events: auto;
+}
+
+/* Status pills must stay above the following action stack when custom
+ * positions touch. This keeps their full visible area clickable/draggable. */
+.runtime-detail-item--status.runtime-layout-mounted {
+  z-index: 22;
+}
+
+.runtime-detail-item--pill.runtime-layout-mounted {
+  z-index: 24;
+}
+
+.runtime-detail-item--action.runtime-layout-mounted {
+  z-index: 18;
+}
+
 .hero-brand img,
 .runtime-detail-item--logo img {
   -webkit-user-drag: none;
