@@ -5190,8 +5190,8 @@ body.is-install-guide #app {
   justify-content: center;
   min-height: 20px;
   padding: 0 7px;
-  border: 1px solid var(--unlimited-badge-border, rgba(148, 148, 148, .72));
-  border-radius: 5px;
+  border: 0;
+  border-radius: 999px;
   background: var(--unlimited-badge-bg, rgba(148, 148, 148, .3));
   color: #ffffff;
   font-size: 9px;
