@@ -4,7 +4,7 @@
   <b>Русский</b> · <a href="README_EN.md">English</a>
 </p>
 
-<img src="docs/readme-banner.webp" width="100%" alt="Интерфейс Link-Bot">
+<img src="docs/link-bot-overview.png" width="100%" alt="Интерфейс Link-Bot">
 
 # Link-Bot
 
@@ -59,7 +59,7 @@
 Управляйте системой, интерфейсом, тарифами, интеграциями, рассылками, промокодами и другими функциями прямо из Mini App.
 
 <div align="center">
-  <img src="docs/banner2.png" width="100%" alt="Админ-панель Link-Bot">
+  <img src="docs/link-bot-admin.png" width="100%" alt="Админ-панель Link-Bot">
 </div>
 
 ---
