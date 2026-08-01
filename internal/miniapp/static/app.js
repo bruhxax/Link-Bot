@@ -3045,7 +3045,6 @@ function renderAdminAppearancePresets() {
 				return `<button class="admin-preset ${selected ? "is-selected" : ""}" type="button" role="radio" aria-checked="${selected}" data-action="admin-appearance-preset" data-value="${escapeAttribute(preset.id)}">
 					<span class="admin-preset__swatches" aria-hidden="true">${swatches.map((color) => `<i style="--preset-color:${escapeAttribute(color)}"></i>`).join("")}</span>
 					<span class="admin-preset__name">${escapeHtml(preset.name)}</span>
-					<span class="admin-preset__check" aria-hidden="true">${icon("check")}</span>
 				</button>`;
 			}).join("")}
 		</div>

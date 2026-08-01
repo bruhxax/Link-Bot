@@ -508,7 +508,23 @@ select:focus-visible {
 
 .admin-color-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
 .admin-color-field { min-height: 48px; padding: 7px 8px; display: flex; align-items: center; gap: 9px; border: 1px solid var(--line-soft); border-radius: 6px; background: var(--control-bg); color: var(--button-text); }
-.admin-color-field input { width: 28px; height: 28px; padding: 0; border: 0; background: transparent; }
+.admin-color-field input[type="color"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.admin-color-field input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.admin-color-field input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 0; }
+.admin-color-field input[type="color"]::-moz-color-swatch { border: 0; border-radius: 0; }
 .admin-color-field span { min-width: 0; display: grid; gap: 2px; }
 .admin-color-field strong { color: var(--button-text); font-size: 10px; }
 .admin-color-field em { color: color-mix(in srgb, var(--button-text) 68%, transparent); font-size: 9px; font-style: normal; }
@@ -519,15 +535,15 @@ select:focus-visible {
   min-width: 0;
   min-height: 54px;
   padding: 9px 10px;
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 16px;
+  display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 8px;
   border: 1px solid var(--line-soft);
   border-radius: 6px;
   background: var(--control-bg);
   color: var(--button-text);
-  text-align: left;
+  text-align: center;
 }
 .admin-preset:hover { border-color: var(--line); }
 .admin-preset:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -535,9 +551,6 @@ select:focus-visible {
 .admin-preset__swatches { width: 34px; height: 26px; display: grid; grid-template-columns: repeat(2, 1fr); overflow: hidden; border: 1px solid var(--line); border-radius: 5px; }
 .admin-preset__swatches i { background: var(--preset-color); }
 .admin-preset__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 800; }
-.admin-preset__check { width: 16px; height: 18px; display: grid; place-items: center; color: transparent; }
-.admin-preset__check svg { width: 14px; height: 14px; }
-.admin-preset.is-selected .admin-preset__check { color: var(--accent); }
 
 .admin-repeat-row, .admin-builder-row { padding: 12px 0; border-top: 1px solid var(--line-soft); }
 .admin-repeat-row:first-child, .admin-builder-row:first-child { border-top: 0; }
