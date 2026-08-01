@@ -672,7 +672,7 @@ const PALETTE = {
 const previewPayload = {
   brand: { name: "Link-Bot", logoUrl: BRAND_MARK_URL },
   user: { id: 777777, firstName: "Link", username: "linkbot", panelUsername: "", photoUrl: "", languageCode: "ru", authProvider: "telegram", googleEmail: "", googleLinked: false, telegramLinked: true },
-  subscription: { status: "active", daysLeft: 26724, planMonths: 12, userUuid: "00000000-0000-0000-0000-000000000001", expiresAt: new Date(Date.now() + 26724 * 86400000).toISOString(), subscriptionLink: "https://example.com/sub/link-bot/secure-link", hasAccessLink: true, trafficUsedBytes: 0, trafficLimitBytes: 0, deviceUsedCount: 1, deviceLimitCount: 0, devices: [{ hwid: "demo-hwid-1", platform: "iOS", osVersion: "18.4", deviceModel: "iPhone 16", userAgent: "Happ/4.6.0/ios", createdAt: new Date(Date.now() - 86400000).toISOString(), updatedAt: new Date().toISOString() }] },
+  subscription: { status: "active", daysLeft: 26724, planMonths: 12, userId: 1, userUuid: "00000000-0000-0000-0000-000000000001", expiresAt: new Date(Date.now() + 26724 * 86400000).toISOString(), subscriptionLink: "https://example.com/sub/link-bot/secure-link", hasAccessLink: true, trafficUsedBytes: 0, trafficLimitBytes: 0, deviceUsedCount: 1, deviceLimitCount: 0, devices: [{ hwid: "demo-hwid-1", platform: "iOS", osVersion: "18.4", deviceModel: "iPhone 16", userAgent: "Happ/4.6.0/ios", createdAt: new Date(Date.now() - 86400000).toISOString(), updatedAt: new Date().toISOString() }] },
   trial: { enabled: true, eligible: false, days: 2 },
   referral: { enabled: true, count: 4, bonusDays: 7, bonusTrafficBytes: 53687091200, shareUrl: "https://t.me/share/url?url=https%3A%2F%2Ft.me%2Fyour_bot_username%3Fstart%3Dref_777777" },
   reviews: {
@@ -6843,13 +6843,14 @@ async function activateTrial() {
 
 async function deleteDevice(hwid) {
   const copy = deviceText();
+  const userId = Number(state.data?.subscription?.userId || 0);
   const userUuid = String(state.data?.subscription?.userUuid || "").trim();
-  if (!hwid || !userUuid) return;
+  if (!hwid || (userId <= 0 && !userUuid)) return;
 
   state.deviceBusyHwid = hwid;
   render();
   try {
-    const response = await post("/api/mini-app/devices/delete", { userUuid, hwid });
+    const response = await post("/api/mini-app/devices/delete", { userId, userUuid, hwid });
     state.data.subscription = response.data;
     state.deviceBusyHwid = "";
     render();
@@ -7142,7 +7143,9 @@ async function rebindAdminSubscription() {
   const copy = t();
   const item = state.adminSubscriptionResult;
   const targetTelegramId = Number.parseInt(String(state.adminSubscriptionTargetTelegramID || "").trim(), 10);
-  if (!item?.userUuid || !Number.isSafeInteger(targetTelegramId) || targetTelegramId <= 0) {
+  const userId = Number(item?.id || 0);
+  const userUuid = String(item?.userUuid || "").trim();
+  if ((userId <= 0 && !userUuid) || !Number.isSafeInteger(targetTelegramId) || targetTelegramId <= 0) {
     return showToast(state.locale === "en" ? "Enter a valid Telegram ID" : "Введите корректный Telegram ID");
   }
 
@@ -7155,7 +7158,8 @@ async function rebindAdminSubscription() {
   render();
   try {
     const response = await post("/api/mini-app/admin/subscriptions/rebind", {
-      userUuid: item.userUuid,
+      userId,
+      userUuid,
       targetTelegramId,
     });
     state.adminSubscriptionResult = response.data || item;

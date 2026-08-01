@@ -3,9 +3,9 @@ package sync
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"link-bot/internal/database"
 	"link-bot/internal/remnawave"
+	"log/slog"
 )
 
 type SyncService struct {
@@ -36,21 +36,22 @@ func (s SyncService) Sync() error {
 	}
 
 	for _, user := range *users {
-		if user.TelegramId.Null {
+		if user.TelegramID == nil || *user.TelegramID <= 0 {
 			continue
 		}
-		if _, exists := telegramIDsSet[int64(user.TelegramId.Value)]; exists {
+		telegramID := *user.TelegramID
+		if _, exists := telegramIDsSet[telegramID]; exists {
 			continue
 		}
 
-		telegramIDsSet[int64(user.TelegramId.Value)] = int64(user.TelegramId.Value)
+		telegramIDsSet[telegramID] = telegramID
 
-		telegramIDs = append(telegramIDs, int64(user.TelegramId.Value))
+		telegramIDs = append(telegramIDs, telegramID)
 
 		mappedUsers = append(mappedUsers, database.Customer{
-			TelegramID:       int64(user.TelegramId.Value),
+			TelegramID:       telegramID,
 			ExpireAt:         &user.ExpireAt,
-			SubscriptionLink: &user.SubscriptionUrl,
+			SubscriptionLink: &user.SubscriptionURL,
 		})
 	}
 
@@ -122,10 +123,10 @@ func (s SyncService) RefreshSubscriptionState() error {
 	telegramIDs := make([]int64, 0, len(*users))
 	mappedByTelegramID := make(map[int64]database.Customer, len(*users))
 	for _, user := range *users {
-		if user.TelegramId.Null {
+		if user.TelegramID == nil || *user.TelegramID <= 0 {
 			continue
 		}
-		telegramID := int64(user.TelegramId.Value)
+		telegramID := *user.TelegramID
 		if _, exists := mappedByTelegramID[telegramID]; exists {
 			continue
 		}
@@ -133,7 +134,7 @@ func (s SyncService) RefreshSubscriptionState() error {
 		mappedByTelegramID[telegramID] = database.Customer{
 			TelegramID:       telegramID,
 			ExpireAt:         &user.ExpireAt,
-			SubscriptionLink: &user.SubscriptionUrl,
+			SubscriptionLink: &user.SubscriptionURL,
 		}
 	}
 	if len(telegramIDs) == 0 {

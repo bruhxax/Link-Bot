@@ -130,6 +130,7 @@ type subscriptionPayload struct {
 	PlanMonths        int             `json:"planMonths,omitempty"`
 	PlanLabel         string          `json:"planLabel,omitempty"`
 	IsTrial           bool            `json:"isTrial,omitempty"`
+	UserID            int64           `json:"userId,omitempty"`
 	UserUUID          string          `json:"userUuid,omitempty"`
 	ExpiresAt         string          `json:"expiresAt,omitempty"`
 	SubscriptionLink  string          `json:"subscriptionLink,omitempty"`
@@ -208,7 +209,7 @@ type adminPayload struct {
 
 type adminSubscriptionPayload struct {
 	ID                int64  `json:"id"`
-	UserUUID          string `json:"userUuid"`
+	UserUUID          string `json:"userUuid,omitempty"`
 	Username          string `json:"username"`
 	CurrentTelegramID *int64 `json:"currentTelegramId,omitempty"`
 	Status            string `json:"status"`
@@ -357,6 +358,7 @@ type supportSendRequest struct {
 }
 
 type deviceDeleteRequest struct {
+	UserID   int64  `json:"userId"`
 	UserUUID string `json:"userUuid"`
 	Hwid     string `json:"hwid"`
 }
@@ -394,6 +396,7 @@ type adminSubscriptionFindRequest struct {
 }
 
 type adminSubscriptionRebindRequest struct {
+	UserID           int64  `json:"userId"`
 	UserUUID         string `json:"userUuid"`
 	TargetTelegramID int64  `json:"targetTelegramId"`
 }
@@ -1293,8 +1296,16 @@ func (h *Handler) handleAdminRebindSubscription(w http.ResponseWriter, r *http.R
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "Invalid request")
 		return
 	}
-	userUUID, err := uuid.Parse(strings.TrimSpace(req.UserUUID))
-	if err != nil || userUUID == uuid.Nil || req.TargetTelegramID <= 0 {
+	userUUID := uuid.Nil
+	if rawUUID := strings.TrimSpace(req.UserUUID); rawUUID != "" {
+		parsedUUID, err := uuid.Parse(rawUUID)
+		if err != nil {
+			h.writeError(w, http.StatusBadRequest, "invalid_request", "Invalid subscription or Telegram ID")
+			return
+		}
+		userUUID = parsedUUID
+	}
+	if (req.UserID <= 0 && userUUID == uuid.Nil) || req.TargetTelegramID <= 0 {
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "Invalid subscription or Telegram ID")
 		return
 	}
@@ -1328,7 +1339,7 @@ func (h *Handler) handleAdminRebindSubscription(w http.ResponseWriter, r *http.R
 
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	rebindResult, err := h.remnawaveClient.RebindUserTelegramID(ctx, userUUID, req.TargetTelegramID, targetDescription)
+	rebindResult, err := h.remnawaveClient.RebindUserTelegramID(ctx, req.UserID, userUUID, req.TargetTelegramID, targetDescription)
 	if err != nil {
 		switch {
 		case errors.Is(err, remnawave.ErrAdminSubscriptionNotFound):
@@ -1354,7 +1365,7 @@ func (h *Handler) handleAdminRebindSubscription(w http.ResponseWriter, r *http.R
 		updated.SubscriptionLink,
 	); err != nil {
 		rollbackCtx, rollbackCancel := context.WithTimeout(context.Background(), 15*time.Second)
-		rollbackErr := h.remnawaveClient.RestoreAdminRebind(rollbackCtx, userUUID, previousTelegramID, rebindResult.PreviousDescription, rebindResult.DisplacedSubscription)
+		rollbackErr := h.remnawaveClient.RestoreAdminRebind(rollbackCtx, req.UserID, userUUID, previousTelegramID, rebindResult.PreviousDescription, rebindResult.DisplacedSubscription)
 		rollbackCancel()
 		if rollbackErr != nil {
 			slog.Error("mini app: rollback admin subscription rebind", "error", rollbackErr, "userUuid", userUUID.String())
@@ -1373,6 +1384,7 @@ func (h *Handler) handleAdminRebindSubscription(w http.ResponseWriter, r *http.R
 		"adminTelegramId", utils.MaskHalfInt64(sess.User.ID),
 		"oldTelegramId", utils.MaskHalfInt64(oldTelegramID),
 		"newTelegramId", utils.MaskHalfInt64(req.TargetTelegramID),
+		"userId", req.UserID,
 		"userUuid", userUUID.String(),
 		"displacedSubscription", rebindResult.DisplacedSubscription != nil,
 	)
@@ -1390,11 +1402,13 @@ func adminSubscriptionToPayload(subscription *remnawave.AdminSubscription) admin
 
 	payload := adminSubscriptionPayload{
 		ID:                subscription.ID,
-		UserUUID:          subscription.UUID.String(),
 		Username:          subscription.Username,
 		CurrentTelegramID: subscription.TelegramID,
 		Status:            subscription.Status,
 		SubscriptionLink:  subscription.SubscriptionLink,
+	}
+	if subscription.UUID != uuid.Nil {
+		payload.UserUUID = subscription.UUID.String()
 	}
 	if !subscription.ExpireAt.IsZero() {
 		payload.ExpiresAt = subscription.ExpireAt.UTC().Format(time.RFC3339)
@@ -1686,8 +1700,17 @@ func (h *Handler) handleDeleteDevice(w http.ResponseWriter, r *http.Request, ses
 		return
 	}
 
-	userUUID, err := uuid.Parse(strings.TrimSpace(req.UserUUID))
-	if err != nil || userUUID == uuid.Nil {
+	userUUID := uuid.Nil
+	userUUIDValid := true
+	if rawUUID := strings.TrimSpace(req.UserUUID); rawUUID != "" {
+		parsedUUID, parseErr := uuid.Parse(rawUUID)
+		if parseErr != nil {
+			userUUIDValid = false
+		} else {
+			userUUID = parsedUUID
+		}
+	}
+	if !userUUIDValid || (req.UserID <= 0 && userUUID == uuid.Nil) {
 		h.writeError(w, http.StatusInternalServerError, "device_delete_failed", "Не удалось удалить устройство")
 		return
 	}
@@ -1729,15 +1752,23 @@ func (h *Handler) handleDeleteDeviceExact(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	userUUID, err := uuid.Parse(strings.TrimSpace(req.UserUUID))
-	if err != nil || userUUID == uuid.Nil {
-		h.writeError(w, http.StatusBadRequest, "user_uuid_required", "Не удалось определить подписку")
+	userUUID := uuid.Nil
+	if rawUUID := strings.TrimSpace(req.UserUUID); rawUUID != "" {
+		parsedUUID, parseErr := uuid.Parse(rawUUID)
+		if parseErr != nil {
+			h.writeError(w, http.StatusBadRequest, "invalid_user_uuid", "Не удалось определить подписку")
+			return
+		}
+		userUUID = parsedUUID
+	}
+	if req.UserID <= 0 && userUUID == uuid.Nil {
+		h.writeError(w, http.StatusBadRequest, "user_id_required", "Не удалось определить подписку")
 		return
 	}
 
-	updatedDevices, err := h.remnawaveClient.DeleteUserHWIDDevice(r.Context(), userUUID, hwid)
+	updatedDevices, err := h.remnawaveClient.DeleteUserHWIDDevice(r.Context(), req.UserID, userUUID, hwid)
 	if err != nil {
-		slog.Error("mini app: exact delete device failed", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID), "userUuid", userUUID.String())
+		slog.Error("mini app: exact delete device failed", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID), "userId", req.UserID, "userUuid", userUUID.String())
 		h.writeError(w, http.StatusInternalServerError, "device_delete_failed", "Не удалось удалить устройство")
 		return
 	}
@@ -1752,7 +1783,7 @@ func (h *Handler) handleDeleteDeviceExact(w http.ResponseWriter, r *http.Request
 
 	panelState, err := h.remnawaveClient.GetUserStateByTelegramID(r.Context(), customer.TelegramID)
 	if err != nil {
-		slog.Error("mini app: exact reload panel state after delete failed", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID), "userUuid", userUUID.String())
+		slog.Error("mini app: exact reload panel state after delete failed", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID), "userId", req.UserID, "userUuid", userUUID.String())
 		h.writeError(w, http.StatusInternalServerError, "device_delete_failed", "Панель не подтвердила удаление устройства")
 		return
 	}
@@ -1761,6 +1792,9 @@ func (h *Handler) handleDeleteDeviceExact(w http.ResponseWriter, r *http.Request
 		panelState.UsedDevices = len(updatedDevices)
 		if panelState.UserUUID == uuid.Nil {
 			panelState.UserUUID = userUUID
+		}
+		if panelState.UserID <= 0 {
+			panelState.UserID = req.UserID
 		}
 	}
 
@@ -2503,6 +2537,7 @@ func (h *Handler) buildSubscriptionPayload(customer *database.Customer, highestP
 	resolvedPlanMonths := h.resolveSubscriptionPlanMonths(highestPurchase, panelState)
 
 	if panelState != nil {
+		payload.UserID = panelState.UserID
 		if panelState.UserUUID != uuid.Nil {
 			payload.UserUUID = panelState.UserUUID.String()
 		}
@@ -3338,7 +3373,7 @@ func (h *Handler) grantReviewReward(ctx context.Context, customer *database.Cust
 	}
 
 	updates := map[string]any{
-		"subscription_link": user.SubscriptionUrl,
+		"subscription_link": user.SubscriptionURL,
 		"expire_at":         user.ExpireAt,
 	}
 	if err := h.customerRepository.UpdateFields(ctx, customer.ID, updates); err != nil {
@@ -3348,7 +3383,7 @@ func (h *Handler) grantReviewReward(ctx context.Context, customer *database.Cust
 		return err
 	}
 
-	customer.SubscriptionLink = &user.SubscriptionUrl
+	customer.SubscriptionLink = &user.SubscriptionURL
 	expireAt := user.ExpireAt
 	customer.ExpireAt = &expireAt
 

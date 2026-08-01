@@ -7,10 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
-	"net/http"
 	"link-bot/internal/config"
 	"link-bot/utils"
+	"log/slog"
+	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -55,6 +56,7 @@ type UserState struct {
 	ExpireAt          *time.Time
 	SubscriptionLink  *string
 	PanelUsername     string
+	UserID            int64
 	UserUUID          uuid.UUID
 	TrafficLimitBytes int64
 	UsedTrafficBytes  int64
@@ -85,6 +87,7 @@ type AdminRebindResult struct {
 
 type UserDevice struct {
 	Hwid        string
+	UserID      int64
 	UserUUID    uuid.UUID
 	Platform    string
 	OSVersion   string
@@ -215,33 +218,30 @@ func NewClient(baseURL, token, mode string) *Client {
 }
 
 func (r *Client) Ping(ctx context.Context) error {
-	_, err := r.client.Users().GetAllUsers(ctx, 1, 0)
-	return err
+	_, err := r.streamUsers(ctx, nil)
+	if err == nil {
+		return nil
+	}
+	if !isLegacyFallbackError(err) {
+		return err
+	}
+	_, legacyErr := r.client.Users().GetAllUsers(ctx, 1, 0)
+	return legacyErr
 }
 
-func (r *Client) GetUsers(ctx context.Context) (*[]remapi.UserItemInfo, error) {
-	pager := remapi.NewPaginationHelper(250)
-	users := make([]remapi.UserItemInfo, 0)
-
-	for {
-		resp, err := r.client.Users().GetAllUsers(ctx, pager.Limit, pager.Offset)
-		if err != nil {
-			return nil, err
-		}
-
-		response := resp.(*remapi.GetAllUsersResponse).GetResponse()
-		users = append(users, response.Users...)
-
-		if len(response.Users) < pager.Limit {
-			break
-		}
-
-		if !pager.NextPage() {
-			break
-		}
+func (r *Client) GetUsers(ctx context.Context) (*[]PanelUser, error) {
+	users, err := r.streamUsers(ctx, nil)
+	if err == nil {
+		return &users, nil
 	}
-
-	return &users, nil
+	if !isLegacyFallbackError(err) {
+		return nil, err
+	}
+	legacyUsers, legacyErr := r.legacyUsers(ctx)
+	if legacyErr != nil {
+		return nil, errors.Join(err, legacyErr)
+	}
+	return &legacyUsers, nil
 }
 
 func (r *Client) FindUserByIDOrUsername(ctx context.Context, query string) (*AdminSubscription, error) {
@@ -250,7 +250,7 @@ func (r *Client) FindUserByIDOrUsername(ctx context.Context, query string) (*Adm
 		return nil, err
 	}
 
-	user := findUserByIDOrUsername(*users, query)
+	user := findPanelUserByIDOrUsername(*users, query)
 	if user == nil {
 		return nil, ErrAdminSubscriptionNotFound
 	}
@@ -258,8 +258,8 @@ func (r *Client) FindUserByIDOrUsername(ctx context.Context, query string) (*Adm
 	return adminSubscriptionFromUser(user), nil
 }
 
-func (r *Client) RebindUserTelegramID(ctx context.Context, userUUID uuid.UUID, targetTelegramID int64, targetDescription string) (*AdminRebindResult, error) {
-	if userUUID == uuid.Nil || targetTelegramID <= 0 {
+func (r *Client) RebindUserTelegramID(ctx context.Context, userID int64, userUUID uuid.UUID, targetTelegramID int64, targetDescription string) (*AdminRebindResult, error) {
+	if (userID <= 0 && userUUID == uuid.Nil) || targetTelegramID <= 0 {
 		return nil, ErrAdminSubscriptionNotFound
 	}
 	targetDescription = strings.TrimSpace(targetDescription)
@@ -272,7 +272,7 @@ func (r *Client) RebindUserTelegramID(ctx context.Context, userUUID uuid.UUID, t
 		return nil, err
 	}
 
-	current := findUserByUUID(*users, userUUID)
+	current := findPanelUser(*users, userID, userUUID)
 	if current == nil {
 		return nil, ErrAdminSubscriptionNotFound
 	}
@@ -292,7 +292,7 @@ func (r *Client) RebindUserTelegramID(ctx context.Context, userUUID uuid.UUID, t
 		}, nil
 	}
 
-	displacedUser := findOtherUserByTelegramID(*users, targetTelegramID, userUUID)
+	displacedUser := findOtherPanelUserByTelegramID(*users, targetTelegramID, current.ID, current.UUID)
 	var displacedSubscription *AdminSubscription
 	if displacedUser != nil {
 		displacedSubscription = adminSubscriptionFromUser(displacedUser)
@@ -323,13 +323,13 @@ func (r *Client) RebindUserTelegramID(ctx context.Context, userUUID uuid.UUID, t
 	}, nil
 }
 
-func (r *Client) RestoreAdminRebind(ctx context.Context, userUUID uuid.UUID, telegramID *int64, description *string, displacedSubscription *AdminSubscription) error {
+func (r *Client) RestoreAdminRebind(ctx context.Context, userID int64, userUUID uuid.UUID, telegramID *int64, description *string, displacedSubscription *AdminSubscription) error {
 	users, err := r.GetUsers(ctx)
 	if err != nil {
 		return err
 	}
 
-	current := findUserByUUID(*users, userUUID)
+	current := findPanelUser(*users, userID, userUUID)
 	if current == nil {
 		return ErrAdminSubscriptionNotFound
 	}
@@ -341,7 +341,7 @@ func (r *Client) RestoreAdminRebind(ctx context.Context, userUUID uuid.UUID, tel
 	if displacedSubscription == nil {
 		return nil
 	}
-	displacedCurrent := findUserByUUID(*users, displacedSubscription.UUID)
+	displacedCurrent := findPanelUser(*users, displacedSubscription.ID, displacedSubscription.UUID)
 	if displacedCurrent == nil {
 		return fmt.Errorf("restore displaced subscription: %w", ErrAdminSubscriptionNotFound)
 	}
@@ -351,120 +351,35 @@ func (r *Client) RestoreAdminRebind(ctx context.Context, userUUID uuid.UUID, tel
 	return nil
 }
 
-func (r *Client) updateAdminUserTelegramProfile(ctx context.Context, current *remapi.UserItemInfo, telegramID *int64, description *string) (*AdminSubscription, error) {
+func (r *Client) updateAdminUserTelegramProfile(ctx context.Context, current *PanelUser, telegramID *int64, description *string) (*AdminSubscription, error) {
 	if current == nil {
 		return nil, ErrAdminSubscriptionNotFound
 	}
 
-	squadIDs := make([]uuid.UUID, 0, len(current.ActiveInternalSquads))
-	for _, squad := range current.ActiveInternalSquads {
-		squadIDs = append(squadIDs, squad.UUID)
-	}
-
-	telegramValue := remapi.OptNilInt{}
-	if telegramID == nil {
-		telegramValue.SetToNull()
-	} else {
-		telegramValue.SetTo(int(*telegramID))
-	}
-	descriptionValue := remapi.OptNilString{}
-	if description == nil {
-		descriptionValue.SetToNull()
-	} else {
-		descriptionValue.SetTo(strings.TrimSpace(*description))
-	}
-
-	response, err := r.client.Users().UpdateUser(ctx, &remapi.UpdateUserRequest{
-		UUID:                 remapi.NewOptUUID(current.UUID),
-		TelegramId:           telegramValue,
-		Description:          descriptionValue,
-		ActiveInternalSquads: squadIDs,
+	updated, err := r.patchPanelUser(ctx, current, map[string]any{
+		"telegramId":  telegramID,
+		"description": description,
 	})
 	if err != nil {
 		return nil, err
 	}
-	if value, ok := response.(*remapi.InternalServerError); ok {
-		return nil, errors.New("error while rebinding user. message: " + value.GetMessage().Value + ". code: " + value.GetErrorCode().Value)
-	}
-
-	updated, ok := response.(*remapi.UserResponse)
-	if !ok {
-		return nil, errors.New("unknown response type while rebinding user")
-	}
-	return adminSubscriptionFromUser(&updated.Response), nil
+	return adminSubscriptionFromUser(updated), nil
 }
 
-func findUserByIDOrUsername(users []remapi.UserItemInfo, query string) *remapi.UserItemInfo {
-	query = strings.TrimSpace(query)
-	if query == "" {
-		return nil
-	}
-
-	requestedID, idErr := strconv.ParseInt(query, 10, 64)
-	for i := range users {
-		if idErr == nil && int64(users[i].ID) == requestedID {
-			return &users[i]
-		}
-		if strings.EqualFold(strings.TrimSpace(users[i].Username), query) {
-			return &users[i]
-		}
-	}
-
-	return nil
-}
-
-func findUserByUUID(users []remapi.UserItemInfo, userUUID uuid.UUID) *remapi.UserItemInfo {
-	for i := range users {
-		if users[i].UUID == userUUID {
-			return &users[i]
-		}
-	}
-	return nil
-}
-
-func findOtherUserByTelegramID(users []remapi.UserItemInfo, telegramID int64, excludedUUID uuid.UUID) *remapi.UserItemInfo {
-	if telegramID <= 0 {
-		return nil
-	}
-	for i := range users {
-		linkedTelegramID, ok := users[i].TelegramId.Get()
-		if ok && int64(linkedTelegramID) == telegramID && users[i].UUID != excludedUUID {
-			return &users[i]
-		}
-	}
-	return nil
-}
-
-func adminSubscriptionFromUser(user *remapi.UserItemInfo) *AdminSubscription {
+func adminSubscriptionFromUser(user *PanelUser) *AdminSubscription {
 	if user == nil {
 		return nil
 	}
 
-	var telegramID *int64
-	if value, ok := user.TelegramId.Get(); ok && value > 0 {
-		converted := int64(value)
-		telegramID = &converted
-	}
-	var description *string
-	if value, ok := user.Description.Get(); ok {
-		copied := value
-		description = &copied
-	}
-
-	status := ""
-	if value, ok := user.Status.Get(); ok {
-		status = string(value)
-	}
-
 	return &AdminSubscription{
-		ID:               int64(user.ID),
+		ID:               user.ID,
 		UUID:             user.UUID,
 		Username:         strings.TrimSpace(user.Username),
-		Status:           status,
+		Status:           strings.TrimSpace(user.Status),
 		ExpireAt:         user.ExpireAt.UTC(),
-		TelegramID:       telegramID,
-		Description:      description,
-		SubscriptionLink: strings.TrimSpace(user.SubscriptionUrl),
+		TelegramID:       user.TelegramID,
+		Description:      user.Description,
+		SubscriptionLink: strings.TrimSpace(user.SubscriptionURL),
 	}
 }
 
@@ -481,35 +396,18 @@ func (r *Client) GetUserStateByTelegramID(ctx context.Context, telegramId int64)
 		return nil, nil
 	}
 
-	stats := struct {
-		TrafficLimitBytes int64 `json:"trafficLimitBytes"`
-		HwidDeviceLimit   *int  `json:"hwidDeviceLimit"`
-		UserTraffic       struct {
-			UsedTrafficBytes int64 `json:"usedTrafficBytes"`
-		} `json:"userTraffic"`
-	}{}
-
-	if data, marshalErr := json.Marshal(user); marshalErr == nil {
-		if unmarshalErr := json.Unmarshal(data, &stats); unmarshalErr != nil {
-			slog.Warn("remnawave: decode user stats failed", "error", unmarshalErr, "telegramId", utils.MaskHalfInt64(telegramId))
-		}
-	} else {
-		slog.Warn("remnawave: marshal user stats failed", "error", marshalErr, "telegramId", utils.MaskHalfInt64(telegramId))
-	}
-
 	deviceLimit := -1
-	if stats.HwidDeviceLimit != nil {
-		deviceLimit = *stats.HwidDeviceLimit
+	if user.HwidDeviceLimit != nil {
+		deviceLimit = *user.HwidDeviceLimit
 	}
-	devices, deviceErr := r.getUserHWIDDevices(ctx, user.UUID)
+	devices, deviceErr := r.getUserHWIDDevices(ctx, user.ID, user.UUID)
 	if deviceErr != nil {
 		slog.Warn("remnawave: load user devices failed", "error", deviceErr, "telegramId", utils.MaskHalfInt64(telegramId))
 	}
 	usedDevices := len(devices)
 
-	statusValue, hasStatus := user.Status.Get()
-	status := strings.ToUpper(strings.TrimSpace(string(statusValue)))
-	if !hasStatus {
+	status := strings.ToUpper(strings.TrimSpace(user.Status))
+	if status == "" {
 		status = "ACTIVE"
 	}
 
@@ -518,9 +416,10 @@ func (r *Client) GetUserStateByTelegramID(ctx context.Context, telegramId int64)
 			Exists:            true,
 			Active:            false,
 			PanelUsername:     strings.TrimSpace(user.Username),
+			UserID:            user.ID,
 			UserUUID:          user.UUID,
-			TrafficLimitBytes: stats.TrafficLimitBytes,
-			UsedTrafficBytes:  stats.UserTraffic.UsedTrafficBytes,
+			TrafficLimitBytes: user.TrafficLimitBytes,
+			UsedTrafficBytes:  user.UserTraffic.UsedTrafficBytes,
 			DeviceLimit:       deviceLimit,
 			UsedDevices:       usedDevices,
 			Devices:           devices,
@@ -528,7 +427,7 @@ func (r *Client) GetUserStateByTelegramID(ctx context.Context, telegramId int64)
 	}
 
 	var subscriptionLink *string
-	if link := strings.TrimSpace(user.SubscriptionUrl); link != "" {
+	if link := strings.TrimSpace(user.SubscriptionURL); link != "" {
 		subscriptionLink = &link
 	}
 	panelUsername := strings.TrimSpace(user.Username)
@@ -540,139 +439,50 @@ func (r *Client) GetUserStateByTelegramID(ctx context.Context, telegramId int64)
 		ExpireAt:          &expireAt,
 		SubscriptionLink:  subscriptionLink,
 		PanelUsername:     panelUsername,
+		UserID:            user.ID,
 		UserUUID:          user.UUID,
-		TrafficLimitBytes: stats.TrafficLimitBytes,
-		UsedTrafficBytes:  stats.UserTraffic.UsedTrafficBytes,
+		TrafficLimitBytes: user.TrafficLimitBytes,
+		UsedTrafficBytes:  user.UserTraffic.UsedTrafficBytes,
 		DeviceLimit:       deviceLimit,
 		UsedDevices:       usedDevices,
 		Devices:           devices,
 	}, nil
 }
 
-func (r *Client) getUserHWIDDevices(ctx context.Context, userUUID uuid.UUID) ([]UserDevice, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.baseURL+"/api/hwid/devices/"+userUUID.String(), nil)
+func (r *Client) getUserHWIDDevices(ctx context.Context, userID int64, userUUID uuid.UUID) ([]UserDevice, error) {
+	identifier := strconv.FormatInt(userID, 10)
+	if userID <= 0 {
+		identifier = userUUID.String()
+	}
+	var payload hwidDevicesResponse
+	err := r.doAPIJSON(ctx, http.MethodGet, "/api/hwid/devices/"+identifier, nil, &payload)
+	if err != nil && userID > 0 && userUUID != uuid.Nil && isLegacyFallbackError(err) {
+		err = r.doAPIJSON(ctx, http.MethodGet, "/api/hwid/devices/"+userUUID.String(), nil, &payload)
+	}
 	if err != nil {
+		var apiErr *remnawaveAPIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+			return []UserDevice{}, nil
+		}
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+r.token)
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNotFound {
-		return []UserDevice{}, nil
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("hwid request failed: %s: %s", resp.Status, strings.TrimSpace(string(body)))
-	}
-
-	var payload struct {
-		Response struct {
-			Total   int `json:"total"`
-			Devices []struct {
-				Hwid        string    `json:"hwid"`
-				UserUUID    uuid.UUID `json:"userUuid"`
-				Platform    *string   `json:"platform"`
-				OSVersion   *string   `json:"osVersion"`
-				DeviceModel *string   `json:"deviceModel"`
-				UserAgent   *string   `json:"userAgent"`
-				CreatedAt   time.Time `json:"createdAt"`
-				UpdatedAt   time.Time `json:"updatedAt"`
-			} `json:"devices"`
-		} `json:"response"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return nil, err
-	}
-
-	if payload.Response.Total < 0 || len(payload.Response.Devices) == 0 {
-		return []UserDevice{}, nil
-	}
-
-	devices := make([]UserDevice, 0, len(payload.Response.Devices))
-	for _, item := range payload.Response.Devices {
-		devices = append(devices, UserDevice{
-			Hwid:        strings.TrimSpace(item.Hwid),
-			UserUUID:    item.UserUUID,
-			Platform:    trimNilString(item.Platform),
-			OSVersion:   trimNilString(item.OSVersion),
-			DeviceModel: trimNilString(item.DeviceModel),
-			UserAgent:   trimNilString(item.UserAgent),
-			CreatedAt:   item.CreatedAt.UTC(),
-			UpdatedAt:   item.UpdatedAt.UTC(),
-		})
-	}
-
-	return devices, nil
+	return userDevicesFromResponse(payload, userID, userUUID), nil
 }
 
-func (r *Client) DeleteUserHWIDDevice(ctx context.Context, userUUID uuid.UUID, hwid string) ([]UserDevice, error) {
-	payload := map[string]string{
-		"userUuid": userUUID.String(),
-		"hwid":     strings.TrimSpace(hwid),
+func (r *Client) DeleteUserHWIDDevice(ctx context.Context, userID int64, userUUID uuid.UUID, hwid string) ([]UserDevice, error) {
+	request := map[string]any{"userId": userID, "hwid": strings.TrimSpace(hwid)}
+	var payload hwidDevicesResponse
+	err := r.doAPIJSON(ctx, http.MethodPost, "/api/hwid/devices/delete", request, &payload)
+	if err != nil && userUUID != uuid.Nil && isLegacyFallbackError(err) {
+		err = r.doAPIJSON(ctx, http.MethodPost, "/api/hwid/devices/delete", map[string]any{
+			"userUuid": userUUID.String(),
+			"hwid":     strings.TrimSpace(hwid),
+		}, &payload)
 	}
-	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.baseURL+"/api/hwid/devices/delete", bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+r.token)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("delete hwid device failed: %s: %s", resp.Status, strings.TrimSpace(string(respBody)))
-	}
-
-	var payloadResp struct {
-		Response struct {
-			Devices []struct {
-				Hwid        string    `json:"hwid"`
-				UserUUID    uuid.UUID `json:"userUuid"`
-				Platform    *string   `json:"platform"`
-				OSVersion   *string   `json:"osVersion"`
-				DeviceModel *string   `json:"deviceModel"`
-				UserAgent   *string   `json:"userAgent"`
-				CreatedAt   time.Time `json:"createdAt"`
-				UpdatedAt   time.Time `json:"updatedAt"`
-			} `json:"devices"`
-		} `json:"response"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&payloadResp); err != nil {
-		return nil, err
-	}
-
-	devices := make([]UserDevice, 0, len(payloadResp.Response.Devices))
-	for _, item := range payloadResp.Response.Devices {
-		devices = append(devices, UserDevice{
-			Hwid:        strings.TrimSpace(item.Hwid),
-			UserUUID:    item.UserUUID,
-			Platform:    trimNilString(item.Platform),
-			OSVersion:   trimNilString(item.OSVersion),
-			DeviceModel: trimNilString(item.DeviceModel),
-			UserAgent:   trimNilString(item.UserAgent),
-			CreatedAt:   item.CreatedAt.UTC(),
-			UpdatedAt:   item.UpdatedAt.UTC(),
-		})
-	}
-
-	return devices, nil
+	return userDevicesFromResponse(payload, userID, userUUID), nil
 }
 
 func (r *Client) DeleteUserHWIDDeviceByTelegramID(ctx context.Context, telegramId int64, hwid string) error {
@@ -684,8 +494,51 @@ func (r *Client) DeleteUserHWIDDeviceByTelegramID(ctx context.Context, telegramI
 		return errors.New("panel user not found")
 	}
 
-	_, err = r.DeleteUserHWIDDevice(ctx, user.UUID, hwid)
+	_, err = r.DeleteUserHWIDDevice(ctx, user.ID, user.UUID, hwid)
 	return err
+}
+
+type hwidDevicesResponse struct {
+	Response struct {
+		Total   int `json:"total"`
+		Devices []struct {
+			Hwid        string    `json:"hwid"`
+			UserID      int64     `json:"userId"`
+			UserUUID    uuid.UUID `json:"userUuid"`
+			Platform    *string   `json:"platform"`
+			OSVersion   *string   `json:"osVersion"`
+			DeviceModel *string   `json:"deviceModel"`
+			UserAgent   *string   `json:"userAgent"`
+			CreatedAt   time.Time `json:"createdAt"`
+			UpdatedAt   time.Time `json:"updatedAt"`
+		} `json:"devices"`
+	} `json:"response"`
+}
+
+func userDevicesFromResponse(payload hwidDevicesResponse, fallbackUserID int64, fallbackUUID uuid.UUID) []UserDevice {
+	devices := make([]UserDevice, 0, len(payload.Response.Devices))
+	for _, item := range payload.Response.Devices {
+		userID := item.UserID
+		if userID <= 0 {
+			userID = fallbackUserID
+		}
+		userUUID := item.UserUUID
+		if userUUID == uuid.Nil {
+			userUUID = fallbackUUID
+		}
+		devices = append(devices, UserDevice{
+			Hwid:        strings.TrimSpace(item.Hwid),
+			UserID:      userID,
+			UserUUID:    userUUID,
+			Platform:    trimNilString(item.Platform),
+			OSVersion:   trimNilString(item.OSVersion),
+			DeviceModel: trimNilString(item.DeviceModel),
+			UserAgent:   trimNilString(item.UserAgent),
+			CreatedAt:   item.CreatedAt.UTC(),
+			UpdatedAt:   item.UpdatedAt.UTC(),
+		})
+	}
+	return devices
 }
 
 func (r *Client) GetNodesStatus(ctx context.Context) ([]NodeStatus, error) {
@@ -752,11 +605,11 @@ func (r *Client) DecreaseSubscription(ctx context.Context, telegramId int64, tra
 	return &updated.ExpireAt, nil
 }
 
-func (r *Client) CreateOrUpdateUser(ctx context.Context, customerId int64, telegramId int64, trafficLimit int, deviceLimit int, days int, isTrialUser bool) (*remapi.UserItemInfo, error) {
+func (r *Client) CreateOrUpdateUser(ctx context.Context, customerId int64, telegramId int64, trafficLimit int, deviceLimit int, days int, isTrialUser bool) (*PanelUser, error) {
 	return r.CreateOrUpdateUserWithOptions(ctx, customerId, telegramId, trafficLimit, deviceLimit, days, legacyProvisioningOptions(isTrialUser))
 }
 
-func (r *Client) CreateOrUpdateUserWithOptions(ctx context.Context, customerId int64, telegramId int64, trafficLimit int, deviceLimit int, days int, options ProvisioningOptions) (*remapi.UserItemInfo, error) {
+func (r *Client) CreateOrUpdateUserWithOptions(ctx context.Context, customerId int64, telegramId int64, trafficLimit int, deviceLimit int, days int, options ProvisioningOptions) (*PanelUser, error) {
 	existingUser, err := r.getPanelUserByTelegramID(ctx, telegramId)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
@@ -792,28 +645,37 @@ func legacyProvisioningOptions(isTrialUser bool) ProvisioningOptions {
 	return ProvisioningOptions{InternalSquadUUIDs: internal, ExternalSquadUUID: externalValue, TrafficResetStrategy: strategy, Tag: tag, ApplySquads: true}
 }
 
-func (r *Client) getPanelUserByTelegramID(ctx context.Context, telegramId int64) (*remapi.UserItemInfo, error) {
-	resp, err := r.client.Users().GetUserByTelegramId(ctx, strconv.FormatInt(telegramId, 10))
-	if err != nil {
+func (r *Client) getPanelUserByTelegramID(ctx context.Context, telegramId int64) (*PanelUser, error) {
+	filters := make(url.Values)
+	filters.Set("telegramId", strconv.FormatInt(telegramId, 10))
+	users, err := r.streamUsers(ctx, filters)
+	if err == nil {
+		if existingUser := pickPanelTelegramUser(users, telegramId); existingUser != nil {
+			return existingUser, nil
+		}
+		return nil, fmt.Errorf("user with telegramId %d not found", telegramId)
+	}
+	if !isLegacyFallbackError(err) {
 		return nil, err
 	}
 
+	resp, legacyErr := r.client.Users().GetUserByTelegramId(ctx, strconv.FormatInt(telegramId, 10))
+	if legacyErr != nil {
+		return nil, errors.Join(err, legacyErr)
+	}
 	usersResp, ok := resp.(*remapi.UsersResponse)
 	if !ok {
-		return nil, errors.New("unknown response type")
+		return nil, errors.New("unknown legacy user response type")
 	}
-
-	users := usersResp.GetResponse()
-	if len(users) == 0 {
-		return nil, fmt.Errorf("user with telegramId %d not found", telegramId)
+	legacyUsers := usersResp.GetResponse()
+	converted := make([]PanelUser, 0, len(legacyUsers))
+	for i := range legacyUsers {
+		converted = append(converted, panelUserFromLegacy(&legacyUsers[i]))
 	}
-
-	existingUser := pickTelegramUser(users, telegramId)
-	if existingUser == nil {
-		return nil, fmt.Errorf("user with telegramId %d not found", telegramId)
+	if existingUser := pickPanelTelegramUser(converted, telegramId); existingUser != nil {
+		return existingUser, nil
 	}
-
-	return existingUser, nil
+	return nil, fmt.Errorf("user with telegramId %d not found", telegramId)
 }
 
 func (r *Client) GrantGraceAccess(ctx context.Context, telegramID int64, days int, internalSquadUUIDs []string) (GraceAccessResult, error) {
@@ -837,34 +699,31 @@ func (r *Client) GrantGraceAccess(ctx context.Context, telegramID int64, days in
 	}
 
 	expireAt := time.Now().UTC().AddDate(0, 0, days)
-	response, err := r.client.Users().UpdateUser(ctx, &remapi.UpdateUserRequest{
-		UUID:                 remapi.NewOptUUID(user.UUID),
-		ExpireAt:             remapi.NewOptDateTime(expireAt),
-		Status:               remapi.NewOptUpdateUserRequestStatus(remapi.UpdateUserRequestStatusACTIVE),
-		ActiveInternalSquads: squadIDs,
+	updated, err := r.patchPanelUser(ctx, user, map[string]any{
+		"expireAt":             expireAt,
+		"status":               "ACTIVE",
+		"activeInternalSquads": squadIDs,
 	})
 	if err != nil {
 		return GraceAccessResult{}, err
 	}
-	if value, ok := response.(*remapi.InternalServerError); ok {
-		return GraceAccessResult{}, errors.New("error while granting grace access. message: " + value.GetMessage().Value + ". code: " + value.GetErrorCode().Value)
-	}
-	updated, ok := response.(*remapi.UserResponse)
-	if !ok {
-		return GraceAccessResult{}, errors.New("unknown response type while granting grace access")
-	}
 
 	return GraceAccessResult{
-		ExpireAt:         updated.Response.ExpireAt,
-		SubscriptionLink: strings.TrimSpace(updated.Response.SubscriptionUrl),
+		ExpireAt:         updated.ExpireAt,
+		SubscriptionLink: strings.TrimSpace(updated.SubscriptionURL),
 	}, nil
 }
 
-func pickTelegramUser(users []remapi.UserItemInfo, telegramId int64) *remapi.UserItemInfo {
+func pickPanelTelegramUser(users []PanelUser, telegramId int64) *PanelUser {
 	suffix := fmt.Sprintf("_%d", telegramId)
 
 	for i := range users {
-		if strings.Contains(users[i].Username, suffix) {
+		if users[i].TelegramID != nil && *users[i].TelegramID == telegramId && strings.Contains(users[i].Username, suffix) {
+			return &users[i]
+		}
+	}
+	for i := range users {
+		if users[i].TelegramID != nil && *users[i].TelegramID == telegramId {
 			return &users[i]
 		}
 	}
@@ -876,11 +735,11 @@ func pickTelegramUser(users []remapi.UserItemInfo, telegramId int64) *remapi.Use
 	return &users[0]
 }
 
-func (r *Client) updateUser(ctx context.Context, existingUser *remapi.UserItemInfo, trafficLimit int, deviceLimit int, days int) (*remapi.UserItemInfo, error) {
+func (r *Client) updateUser(ctx context.Context, existingUser *PanelUser, trafficLimit int, deviceLimit int, days int) (*PanelUser, error) {
 	return r.updateUserWithOptions(ctx, existingUser, trafficLimit, deviceLimit, days, legacyProvisioningOptions(false))
 }
 
-func (r *Client) updateUserWithOptions(ctx context.Context, existingUser *remapi.UserItemInfo, trafficLimit int, deviceLimit int, days int, options ProvisioningOptions) (*remapi.UserItemInfo, error) {
+func (r *Client) updateUserWithOptions(ctx context.Context, existingUser *PanelUser, trafficLimit int, deviceLimit int, days int, options ProvisioningOptions) (*PanelUser, error) {
 
 	newExpire := getNewExpire(days, existingUser.ExpireAt)
 	squadIDs := make([]uuid.UUID, 0, len(existingUser.ActiveInternalSquads))
@@ -899,14 +758,13 @@ func (r *Client) updateUserWithOptions(ctx context.Context, existingUser *remapi
 		strategy = config.TrafficLimitResetStrategy()
 	}
 
-	userUpdate := &remapi.UpdateUserRequest{
-		UUID:                 remapi.NewOptUUID(existingUser.UUID),
-		ExpireAt:             remapi.NewOptDateTime(newExpire),
-		Status:               remapi.NewOptUpdateUserRequestStatus(remapi.UpdateUserRequestStatusACTIVE),
-		TrafficLimitBytes:    remapi.NewOptInt(trafficLimit),
-		HwidDeviceLimit:      remapi.NewOptNilInt(deviceLimit),
-		ActiveInternalSquads: squadIDs,
-		TrafficLimitStrategy: remapi.NewOptUpdateUserRequestTrafficLimitStrategy(getUpdateStrategy(strategy)),
+	fields := map[string]any{
+		"expireAt":             newExpire,
+		"status":               "ACTIVE",
+		"trafficLimitBytes":    trafficLimit,
+		"hwidDeviceLimit":      deviceLimit,
+		"activeInternalSquads": squadIDs,
+		"trafficLimitStrategy": normalizeTrafficStrategy(strategy),
 	}
 
 	if options.ApplySquads {
@@ -915,41 +773,40 @@ func (r *Client) updateUserWithOptions(ctx context.Context, existingUser *remapi
 			return nil, err
 		}
 		if externalSquad == uuid.Nil {
-			userUpdate.ExternalSquadUuid.SetToNull()
+			fields["externalSquadUuid"] = nil
 		} else {
-			userUpdate.ExternalSquadUuid = remapi.NewOptNilUUID(externalSquad)
+			fields["externalSquadUuid"] = externalSquad
 		}
 	}
 
 	tag := strings.TrimSpace(options.Tag)
 	if tag != "" {
-		userUpdate.Tag = remapi.NewOptNilString(tag)
+		fields["tag"] = tag
 	}
 
 	description, username, hasProfileInfo := telegramDescriptionFromContext(ctx)
 	if hasProfileInfo {
-		userUpdate.Description = remapi.NewOptNilString(description)
+		fields["description"] = description
 	}
 
-	updateUser, err := r.client.Users().UpdateUser(ctx, userUpdate)
+	updated, err := r.patchPanelUser(ctx, existingUser, fields)
 	if err != nil {
 		return nil, err
 	}
-	if value, ok := updateUser.(*remapi.InternalServerError); ok {
-		return nil, errors.New("error while updating user. message: " + value.GetMessage().Value + ". code: " + value.GetErrorCode().Value)
-	}
 
-	tgid, _ := existingUser.TelegramId.Get()
-	slog.Info("updated user", "telegramId", utils.MaskHalf(strconv.Itoa(tgid)), "username", utils.MaskHalf(username), "days", days)
-	resp2 := updateUser.(*remapi.UserResponse).Response
-	return &resp2, nil
+	tgid := int64(0)
+	if existingUser.TelegramID != nil {
+		tgid = *existingUser.TelegramID
+	}
+	slog.Info("updated user", "telegramId", utils.MaskHalfInt64(tgid), "username", utils.MaskHalf(username), "days", days)
+	return updated, nil
 }
 
-func (r *Client) createUser(ctx context.Context, customerId int64, telegramId int64, trafficLimit int, deviceLimit int, days int, isTrialUser bool) (*remapi.UserItemInfo, error) {
+func (r *Client) createUser(ctx context.Context, customerId int64, telegramId int64, trafficLimit int, deviceLimit int, days int, isTrialUser bool) (*PanelUser, error) {
 	return r.createUserWithOptions(ctx, customerId, telegramId, trafficLimit, deviceLimit, days, legacyProvisioningOptions(isTrialUser))
 }
 
-func (r *Client) createUserWithOptions(ctx context.Context, customerId int64, telegramId int64, trafficLimit int, deviceLimit int, days int, options ProvisioningOptions) (*remapi.UserItemInfo, error) {
+func (r *Client) createUserWithOptions(ctx context.Context, customerId int64, telegramId int64, trafficLimit int, deviceLimit int, days int, options ProvisioningOptions) (*PanelUser, error) {
 	expireAt := time.Now().UTC().AddDate(0, 0, days)
 	username := generateUsername(customerId, telegramId)
 
@@ -966,36 +823,35 @@ func (r *Client) createUserWithOptions(ctx context.Context, customerId int64, te
 		strategy = config.TrafficLimitResetStrategy()
 	}
 
-	createUserRequestDto := remapi.CreateUserRequest{
-		Username:             username,
-		ActiveInternalSquads: squadIDs,
-		Status:               remapi.NewOptCreateUserRequestStatus(remapi.CreateUserRequestStatusACTIVE),
-		TelegramId:           remapi.NewOptNilInt(int(telegramId)),
-		ExpireAt:             expireAt,
-		TrafficLimitStrategy: remapi.NewOptCreateUserRequestTrafficLimitStrategy(getCreateStrategy(strategy)),
-		TrafficLimitBytes:    remapi.NewOptInt(trafficLimit),
-		HwidDeviceLimit:      remapi.NewOptInt(deviceLimit),
+	fields := map[string]any{
+		"username":             username,
+		"activeInternalSquads": squadIDs,
+		"status":               "ACTIVE",
+		"telegramId":           telegramId,
+		"expireAt":             expireAt,
+		"trafficLimitStrategy": normalizeTrafficStrategy(strategy),
+		"trafficLimitBytes":    trafficLimit,
+		"hwidDeviceLimit":      deviceLimit,
 	}
 	if externalSquad != uuid.Nil {
-		createUserRequestDto.ExternalSquadUuid = remapi.NewOptNilUUID(externalSquad)
+		fields["externalSquadUuid"] = externalSquad
 	}
 	tag := strings.TrimSpace(options.Tag)
 	if tag != "" {
-		createUserRequestDto.Tag = remapi.NewOptNilString(tag)
+		fields["tag"] = tag
 	}
 
 	description, tgUsername, hasProfileInfo := telegramDescriptionFromContext(ctx)
 	if hasProfileInfo {
-		createUserRequestDto.Description = remapi.NewOptString(description)
+		fields["description"] = description
 	}
 
-	userCreate, err := r.client.Users().CreateUser(ctx, &createUserRequestDto)
+	created, err := r.createPanelUser(ctx, fields)
 	if err != nil {
 		return nil, err
 	}
 	slog.Info("created user", "telegramId", utils.MaskHalf(strconv.FormatInt(telegramId, 10)), "username", utils.MaskHalf(tgUsername), "days", days)
-	resp2 := userCreate.(*remapi.UserResponse).Response
-	return &resp2, nil
+	return created, nil
 }
 
 func (r *Client) resolveInternalSquads(ctx context.Context, selected []string) ([]uuid.UUID, error) {
@@ -1136,29 +992,16 @@ func getNewExpire(daysToAdd int, currentExpire time.Time) time.Time {
 	return currentExpire.AddDate(0, 0, daysToAdd)
 }
 
-func getCreateStrategy(s string) remapi.CreateUserRequestTrafficLimitStrategy {
-	switch s {
+func normalizeTrafficStrategy(strategy string) string {
+	switch strings.ToUpper(strings.TrimSpace(strategy)) {
 	case "DAY":
-		return remapi.CreateUserRequestTrafficLimitStrategyDAY
+		return "DAY"
 	case "WEEK":
-		return remapi.CreateUserRequestTrafficLimitStrategyWEEK
+		return "WEEK"
 	case "NO_RESET":
-		return remapi.CreateUserRequestTrafficLimitStrategyNORESET
+		return "NO_RESET"
 	default:
-		return remapi.CreateUserRequestTrafficLimitStrategyMONTH
-	}
-}
-
-func getUpdateStrategy(s string) remapi.UpdateUserRequestTrafficLimitStrategy {
-	switch s {
-	case "DAY":
-		return remapi.UpdateUserRequestTrafficLimitStrategyDAY
-	case "WEEK":
-		return remapi.UpdateUserRequestTrafficLimitStrategyWEEK
-	case "NO_RESET":
-		return remapi.UpdateUserRequestTrafficLimitStrategyNORESET
-	default:
-		return remapi.UpdateUserRequestTrafficLimitStrategyMONTH
+		return "MONTH"
 	}
 }
 

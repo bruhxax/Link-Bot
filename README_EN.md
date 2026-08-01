@@ -71,7 +71,7 @@ Manage the system, interface, plans, integrations, broadcasts, promo codes, and 
 | 🖥️ Server | VPS running Ubuntu 22.04/24.04 or Debian 12 |
 | 🌐 Domain | A domain with an `A` record pointing to the server IP |
 | 🔌 Ports | Open ports `22`, `80`, and `443` |
-| 🌊 Remnawave | Installed and accessible Remnawave panel |
+| 🌊 Remnawave | Installed and accessible Remnawave 2.x or 3.x panel |
 | 🤖 Telegram | A bot created via [@BotFather](https://t.me/BotFather) |
 
 ---

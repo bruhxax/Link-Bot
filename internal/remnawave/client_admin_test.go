@@ -3,29 +3,28 @@ package remnawave
 import (
 	"testing"
 
-	remapi "github.com/Jolymmiles/remnawave-api-go/v2/api"
 	"github.com/google/uuid"
 )
 
 func TestFindUserByIDOrUsername(t *testing.T) {
 	firstUUID := uuid.New()
 	secondUUID := uuid.New()
-	users := []remapi.UserItemInfo{
+	users := []PanelUser{
 		{UUID: firstUUID, ID: 1281, Username: "10204_1404001393"},
 		{UUID: secondUUID, ID: 1282, Username: "Manual_Subscription"},
 	}
 
-	byID := findUserByIDOrUsername(users, "1281")
+	byID := findPanelUserByIDOrUsername(users, "1281")
 	if byID == nil || byID.UUID != firstUUID {
 		t.Fatalf("expected panel ID lookup to find %s", firstUUID)
 	}
 
-	byUsername := findUserByIDOrUsername(users, "manual_subscription")
+	byUsername := findPanelUserByIDOrUsername(users, "manual_subscription")
 	if byUsername == nil || byUsername.UUID != secondUUID {
 		t.Fatalf("expected case-insensitive username lookup to find %s", secondUUID)
 	}
 
-	if found := findUserByIDOrUsername(users, "missing"); found != nil {
+	if found := findPanelUserByIDOrUsername(users, "missing"); found != nil {
 		t.Fatalf("expected missing subscription lookup to return nil")
 	}
 }
@@ -33,18 +32,18 @@ func TestFindUserByIDOrUsername(t *testing.T) {
 func TestFindOtherUserByTelegramID(t *testing.T) {
 	selectedUUID := uuid.New()
 	displacedUUID := uuid.New()
-	targetTelegramID := 6402520205
-	users := []remapi.UserItemInfo{
-		{UUID: selectedUUID, TelegramId: remapi.NilInt{Value: targetTelegramID}},
-		{UUID: displacedUUID, TelegramId: remapi.NilInt{Value: targetTelegramID}},
+	targetTelegramID := int64(6402520205)
+	users := []PanelUser{
+		{ID: 1281, UUID: selectedUUID, TelegramID: &targetTelegramID},
+		{ID: 1282, UUID: displacedUUID, TelegramID: &targetTelegramID},
 	}
 
-	found := findOtherUserByTelegramID(users, int64(targetTelegramID), selectedUUID)
+	found := findOtherPanelUserByTelegramID(users, targetTelegramID, 1281, selectedUUID)
 	if found == nil || found.UUID != displacedUUID {
 		t.Fatalf("expected target lookup to return displaced subscription %s", displacedUUID)
 	}
 
-	if found := findOtherUserByTelegramID(users, 0, selectedUUID); found != nil {
+	if found := findOtherPanelUserByTelegramID(users, 0, 1281, selectedUUID); found != nil {
 		t.Fatalf("expected invalid Telegram ID lookup to return nil")
 	}
 }

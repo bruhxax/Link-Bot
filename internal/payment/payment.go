@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	remapi "github.com/Jolymmiles/remnawave-api-go/v2/api"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/google/uuid"
@@ -194,7 +193,7 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 			}
 		}
 	}
-	var user *remapi.UserItemInfo
+	var user *remnawave.PanelUser
 	if provisioning.ApplySquads {
 		user, err = s.remnawaveClient.CreateOrUpdateUserWithOptions(ctx, customer.ID, customer.TelegramID, trafficLimit, deviceLimit, purchase.Month*config.DaysInMonth(), provisioning)
 	} else {
@@ -210,7 +209,7 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	}
 
 	customerFilesToUpdate := map[string]interface{}{
-		"subscription_link": user.SubscriptionUrl,
+		"subscription_link": user.SubscriptionURL,
 		"expire_at":         user.ExpireAt,
 	}
 	for field, value := range s.buildAutoPaymentCustomerUpdates(customer, purchase) {
