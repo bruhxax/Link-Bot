@@ -7398,6 +7398,10 @@ body.has-open-modal .admin-save-bar {
   height: 19px !important;
 }
 
+.page-support .support-top-grid .menu-card .menu-card__icon {
+  color: var(--icon-color, #fff);
+}
+
 .page-support .support-top-grid .menu-card .menu-card__title {
   min-width: 0;
   font-size: 12.5px !important;
@@ -7409,31 +7413,31 @@ body.has-open-modal .admin-save-bar {
   width: min(calc(100vw - 24px), 390px);
   padding: 20px;
   display: grid;
-  justify-items: center;
+  justify-items: stretch;
   gap: 14px;
-  text-align: center;
+  text-align: left;
   border-radius: 8px;
 }
 
 .support-compose__header {
   width: 100%;
   display: grid;
-  justify-items: center;
+  justify-items: start;
   margin: 0 0 2px;
   padding: 0;
-  text-align: center;
+  text-align: left;
 }
 
 .support-compose__header .modal__title {
   font-size: 18px;
   line-height: 1.2;
-  text-align: center;
+  text-align: left;
 }
 
 .modal__sheet--support .support-field {
   width: 100%;
   display: grid;
-  justify-items: center;
+  justify-items: stretch;
   gap: 7px;
   margin: 0;
 }
@@ -7441,13 +7445,13 @@ body.has-open-modal .admin-save-bar {
 .modal__sheet--support .support-field__label {
   width: 100%;
   font-size: 10px;
-  text-align: center;
+  text-align: left;
 }
 
 .modal__sheet--support :where(.support-field__input, .support-field__textarea) {
   width: 100%;
   padding: 11px 13px;
-  text-align: center;
+  text-align: left;
   border-radius: 8px;
 }
 
@@ -7593,6 +7597,7 @@ body.has-open-modal .admin-save-bar {
 .support-reply__send svg {
   width: 20px;
   height: 20px;
+  transform: translateY(-1px);
 }
 
 .support-reply__send:focus-visible {
