@@ -3544,7 +3544,7 @@ function renderDashboardPage() {
   const copy = t();
   const active = isSubscriptionActive();
   const trialEligible = state.data.trial.enabled && state.data.trial.eligible;
-  const title = active ? getCurrentSubscriptionPlanLabel() : trialEligible ? getTrialPlanLabel() : getInactiveSubscriptionLabel();
+  const title = active ? getCurrentSubscriptionPlanLabel() : "";
   const expires = active ? `${getUntilLabel()} ${formatShortDateLabel(state.data.subscription.expiresAt, state.locale)}` : "";
   const avatarLabel = getDashboardUserLabel();
   const trafficLabel = active ? formatTrafficBadgeLabel(state.data.subscription.trafficUsedBytes, state.data.subscription.trafficLimitBytes, state.locale) : "";
@@ -3561,7 +3561,7 @@ function renderDashboardPage() {
 
 	const blocks = {
 		brand: `<div class="hero-center hero-center--brand">${renderLayoutDetail("dashboard", "logo", `<div class="hero-brand" style="--runtime-logo-width:${Math.max(48, Math.min(220, Number(getRuntimeSettings()?.layout?.logoWidth || 188)))}px"><img src="${escapeAttribute(resolveBrandMarkURL(state.data.brand.logoUrl))}" alt="${escapeAttribute(state.data.brand.name || "Link-Bot")}" loading="eager" draggable="false"></div>`, "runtime-detail-item--logo")}${renderLayoutDetail("dashboard", "username", `<div class="hero-handle">${escapeHtml(avatarLabel)}</div>`, "runtime-detail-item--username")}</div>`,
-		subscription: `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", `<div class="sub-bar__name">${title}</div>`, "runtime-detail-item--status")}${active ? renderLayoutDetail("dashboard", "expires", `<div class="sub-bar__date"><span class="sub-bar__date-icon">${icon("calendarDays")}</span><span>${expires}</span></div>`, "runtime-detail-item--status") : ""}</div>${active ? `<div class="sub-bar__row sub-bar__row--pills">${trafficLabel ? renderLayoutDetail("dashboard", "traffic", `<span class="sub-pill"><span class="sub-pill__icon">${icon("chartLine")}</span><span>${escapeHtml(trafficLabel)}</span></span>`, "runtime-detail-item--pill") : ""}${deviceLabel ? renderLayoutDetail("dashboard", "devices", `<button class="sub-pill sub-pill--button" type="button" data-action="open-devices-modal"><span>${escapeHtml(deviceLabel)}</span><span class="sub-pill__edit">${icon("userPen")}</span></button>`, "runtime-detail-item--pill") : ""}</div>` : ""}</div></div></div>`,
+		subscription: active ? `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", `<div class="sub-bar__name">${title}</div>`, "runtime-detail-item--status")}${renderLayoutDetail("dashboard", "expires", `<div class="sub-bar__date"><span class="sub-bar__date-icon">${icon("calendarDays")}</span><span>${expires}</span></div>`, "runtime-detail-item--status")}</div><div class="sub-bar__row sub-bar__row--pills">${trafficLabel ? renderLayoutDetail("dashboard", "traffic", `<span class="sub-pill"><span class="sub-pill__icon">${icon("chartLine")}</span><span>${escapeHtml(trafficLabel)}</span></span>`, "runtime-detail-item--pill") : ""}${deviceLabel ? renderLayoutDetail("dashboard", "devices", `<button class="sub-pill sub-pill--button" type="button" data-action="open-devices-modal"><span>${escapeHtml(deviceLabel)}</span><span class="sub-pill__edit">${icon("userPen")}</span></button>`, "runtime-detail-item--pill") : ""}</div></div></div></div>` : "",
 		actions: `<div class="dashboard-compact">${actionStack}</div>`,
 	};
 	return `<section class="page ${pageClass("dashboard")}" id="page-dashboard">${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
@@ -3750,10 +3750,7 @@ function renderReviewCard(review) {
         <div class="review-card__stars">${renderRatingStars(Number(review?.rating || 0), false)}</div>
       </div>
       <div class="review-card__comment">${escapeHtml(preview)}</div>
-      <div class="review-card__bottom">
-        <span>${escapeHtml(formatReviewDate(review?.createdAt))}</span>
-        ${review?.isMine ? `<span class="review-card__badge">${escapeHtml(reviewsText().mine)}</span>` : ""}
-      </div>
+      ${review?.isMine ? `<div class="review-card__bottom"><span class="review-card__badge">${escapeHtml(reviewsText().mine)}</span></div>` : ""}
     </button>
   `;
 }
@@ -3763,10 +3760,9 @@ function renderReferralsPage() {
   const rewardLabel = formatReferralRewardLabel(state.data?.referral, state.locale);
   return `
     <section class="page ${pageClass("referrals")}" id="page-referrals">
-      <div class="section-label">${copy.referralsTitle}</div>
-      <div class="card"><div class="action-stack action-stack--compact"><button class="btn" type="button" data-action="share-referral">${icon("share")}${copy.shareTelegram}</button><button class="btn" type="button" data-action="copy-referral">${icon("copy")}${copy.copyReferral}</button></div></div>
-      <div class="card"><div class="info-row"><span>${copy.invited}</span><span class="info-row__value">${formatNumber(state.data.referral.count || 0, state.locale)}</span></div><div class="info-row"><span>${copy.bonusDays}</span><span class="info-row__value">${escapeHtml(rewardLabel)}</span></div><div class="info-row"><span>${copy.shareTelegram}</span><span class="info-row__value">${state.data.referral.shareUrl ? escapeHtml(linkHint(state.data.referral.shareUrl)) : "—"}</span></div></div>
-      <div class="card"><div class="empty-state"><div class="empty-state__icon">${icon("users")}</div><div class="empty-state__title">${copy.referralsTitle}</div><div class="empty-state__desc">${copy.referralsHint}</div></div></div>
+      <div class="card referral-card referral-card--actions"><div class="action-stack action-stack--compact"><button class="btn" type="button" data-action="share-referral">${icon("share")}${copy.shareTelegram}</button><button class="btn" type="button" data-action="copy-referral">${icon("copy")}${copy.copyReferral}</button></div></div>
+      <div class="card referral-card referral-card--stats"><div class="info-row"><span>${copy.invited}</span><span class="info-row__value">${formatNumber(state.data.referral.count || 0, state.locale)}</span></div><div class="info-row"><span>${copy.bonusDays}</span><span class="info-row__value">${escapeHtml(rewardLabel)}</span></div><div class="info-row"><span>${copy.shareTelegram}</span><span class="info-row__value">${state.data.referral.shareUrl ? escapeHtml(linkHint(state.data.referral.shareUrl)) : "—"}</span></div></div>
+      <div class="card referral-card referral-card--info"><div class="empty-state"><div class="empty-state__icon">${icon("users")}</div><div class="empty-state__title">${copy.referralsTitle}</div><div class="empty-state__desc">${copy.referralsHint}</div></div></div>
     </section>
   `;
 }
@@ -3778,10 +3774,10 @@ function renderServersPage() {
 
   return `
     <section class="page ${pageClass("servers")}" id="page-servers">
-      <div class="server-summary-grid">
-        <div class="server-summary-card"><strong>${formatNumber(counts.total, state.locale)}</strong><span>${copy.serverTotal}</span></div>
-        <div class="server-summary-card server-summary-card--online"><strong>${formatNumber(counts.online, state.locale)}</strong><span>${copy.serverOnline}</span></div>
-        <div class="server-summary-card server-summary-card--offline"><strong>${formatNumber(counts.offline, state.locale)}</strong><span>${copy.serverOffline}</span></div>
+      <div class="server-summary-panel">
+        <div class="server-summary-item"><strong>${formatNumber(counts.total, state.locale)}</strong><span>${copy.serverTotal}</span></div>
+        <div class="server-summary-item server-summary-item--online"><strong>${formatNumber(counts.online, state.locale)}</strong><span>${copy.serverOnline}</span></div>
+        <div class="server-summary-item server-summary-item--offline"><strong>${formatNumber(counts.offline, state.locale)}</strong><span>${copy.serverOffline}</span></div>
       </div>
       <div class="server-toolbar">
         <div class="tabs server-tabs">
@@ -3940,7 +3936,7 @@ function renderLoginMethodsPage() {
   const telegramLinked = user.telegramLinked !== false;
   const gmailEmail = String(user.googleEmail || "").trim();
   const providerLabel = String(user.authProvider || "telegram") === "google" ? gmailLabel() : telegramLabel();
-  const gmailStatus = googleLinked ? (gmailEmail || authLinkedLabel()) : authNotLinkedLabel();
+  const gmailStatus = googleLinked ? authLinkedLabel() : authNotLinkedLabel();
   const gmailAction = googleLinked ? "" : `
     <div class="login-method-action">
       <div class="google-button-shell google-button-shell--method" ${state.loginMethodBusy === "google" ? "data-google-disabled=\"1\"" : ""}>
@@ -3958,7 +3954,6 @@ function renderLoginMethodsPage() {
         <div class="login-method-card__head">
           <span class="login-method-card__icon">${icon("lockAlt")}</span>
           <div>
-            <div class="section-label">${escapeHtml(loginMethodsLabel())}</div>
             <div class="login-method-card__title">${escapeHtml(state.locale === "en" ? "Account sign-in" : "\u0412\u0445\u043e\u0434 \u0432 \u0430\u043a\u043a\u0430\u0443\u043d\u0442")}</div>
             <div class="login-method-card__hint">${escapeHtml(state.locale === "en" ? `Current method: ${providerLabel}` : `\u0421\u0435\u0439\u0447\u0430\u0441 \u0432\u0445\u043e\u0434: ${providerLabel}`)}</div>
           </div>
@@ -3966,12 +3961,12 @@ function renderLoginMethodsPage() {
         <div class="login-method-list">
           <div class="login-method-row">
             <span class="login-method-row__icon">${icon("telegram")}</span>
-            <span class="login-method-row__body"><strong>${escapeHtml(telegramLabel())}</strong><span>${escapeHtml(telegramLinked ? authLinkedLabel() : authNotLinkedLabel())}</span></span>
+            <span class="login-method-row__body"><strong>${escapeHtml(telegramLabel())}</strong></span>
             <span class="login-method-row__status ${telegramLinked ? "is-linked" : ""}">${escapeHtml(telegramLinked ? authLinkedLabel() : authNotLinkedLabel())}</span>
           </div>
           <div class="login-method-row">
             <span class="login-method-row__icon">${icon("google")}</span>
-            <span class="login-method-row__body"><strong>${escapeHtml(gmailLabel())}</strong><span>${escapeHtml(googleLinked ? gmailStatus : gmailLinkHint())}</span></span>
+            <span class="login-method-row__body"><strong>${escapeHtml(gmailLabel())}</strong><span>${escapeHtml(googleLinked && gmailEmail ? gmailEmail : gmailLinkHint())}</span></span>
             <span class="login-method-row__status ${googleLinked ? "is-linked" : ""}">${escapeHtml(gmailStatus)}</span>
           </div>
         </div>
@@ -4367,13 +4362,14 @@ function renderSupportLinkRows() {
 
 function renderServerCard(server) {
   const flag = countryFlag(server.countryCode);
+  const flagURL = countryFlagURL(server.countryCode);
   return `
     <div class="card server-card">
       <div class="server-card__row">
         <span class="server-card__dot ${server.online ? "is-online" : "is-offline"}"></span>
         <div class="server-card__copy">
           <strong>
-            ${flag ? `<span class="server-card__flag" aria-hidden="true">${flag}</span>` : ""}
+            ${flagURL ? `<span class="server-card__flag"><img class="server-card__flag-image" src="${escapeAttribute(flagURL)}" alt="${escapeAttribute(flag)}" width="24" height="18" loading="lazy" decoding="async"></span>` : ""}
             <span class="server-card__name">${escapeHtml(server.name)}</span>
           </strong>
         </div>
@@ -4609,7 +4605,7 @@ function renderPlatformButton(platform, selected) {
 
 function renderPayModal() {
   const copy = t();
-  return `<div class="modal open ${modalStateClass("pay")}"><button class="modal__backdrop" type="button" data-action="close-pay-modal"></button><div class="modal__sheet"><div class="modal__header"><div><div class="section-label">${copy.paymentMethod}</div><div class="modal__title">${copy.choosePaymentMethod}</div></div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${state.locale === "en" ? "Close payment methods" : "Закрыть способы оплаты"}">${icon("close")}</button></div><div class="menu-list">${getAvailableMethods().map((method) => `<button class="pay-row ${state.paymentMethod === method.id ? "selected" : ""}" type="button" data-action="select-pay-method" data-value="${method.id}" aria-pressed="${state.paymentMethod === method.id}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(method.label)}</strong><span>${escapeHtml(method.hint)}</span></span><span class="pay-row__check">${state.paymentMethod === method.id ? icon("check") : ""}</span></button>`).join("") || `<div class="note">${copy.paymentUnavailable}</div>`}</div></div></div>`;
+  return `<div class="modal open ${modalStateClass("pay")}"><button class="modal__backdrop" type="button" data-action="close-pay-modal"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title">${copy.choosePaymentMethod}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${state.locale === "en" ? "Close payment methods" : "Закрыть способы оплаты"}">${icon("close")}</button></div><div class="menu-list">${getAvailableMethods().map((method) => `<button class="pay-row ${state.paymentMethod === method.id ? "selected" : ""}" type="button" data-action="select-pay-method" data-value="${method.id}" aria-pressed="${state.paymentMethod === method.id}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(method.label)}</strong><span>${escapeHtml(method.hint)}</span></span><span class="pay-row__check">${state.paymentMethod === method.id ? icon("check") : ""}</span></button>`).join("") || `<div class="note">${copy.paymentUnavailable}</div>`}</div></div></div>`;
 }
 
 function renderPaymentLaunchModal() {
@@ -4708,7 +4704,6 @@ function renderReviewDetailModal() {
           <button class="header__btn" type="button" data-action="close-review-detail">${icon("close")}</button>
         </div>
         <div class="review-detail__stars">${renderRatingStars(Number(review.rating || 0), false, "review-detail__star")}</div>
-        <div class="review-detail__date">${escapeHtml(formatReviewDate(review.createdAt))}</div>
         <div class="review-detail__comment">${escapeHtml(review.comment || "")}</div>
         ${isAdminUser() ? `
           <div class="review-detail__actions">
@@ -8103,6 +8098,12 @@ function countryFlag(code) {
   const value = String(code || "").trim().toUpperCase();
   if (!/^[A-Z]{2}$/u.test(value)) return "";
   return Array.from(value).map((char) => String.fromCodePoint(127397 + char.charCodeAt(0))).join("");
+}
+
+function countryFlagURL(code) {
+  const value = String(code || "").trim().toLowerCase();
+  if (!/^[a-z]{2}$/u.test(value)) return "";
+  return `https://flagcdn.com/24x18/${value}.png`;
 }
 
 function readSetting(key, fallback) {
