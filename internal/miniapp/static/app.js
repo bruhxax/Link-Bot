@@ -4888,11 +4888,11 @@ function bindRootActions() {
 		if (value === "plans") return enterAdminPlanEditor();
 		state.adminSection = value || "home";
 		haptic("light");
-		render();
+		renderAdminTransition();
 		if (value === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 		return;
 	  }
-      if (action === "close-admin-section") { state.adminSection = "home"; state.adminBroadcastConfirmOpen = false; haptic("light"); render(); return; }
+      if (action === "close-admin-section") { state.adminSection = "home"; state.adminBroadcastConfirmOpen = false; haptic("light"); renderAdminTransition(); return; }
 			if (action === "admin-layout-exit") return exitAdminLayoutEditor();
 			if (action === "admin-plan-exit") return exitAdminPlanEditor();
 			if (action === "admin-add-plan") return addAdminPlan();
@@ -5675,7 +5675,7 @@ function enterAdminPlanEditor() {
 	previousBottomNavIndex = -1;
 	ensureSelections();
 	haptic("light");
-	render({ preserveScroll: false, scrollTop: 0 });
+	renderAdminTransition();
 }
 
 function exitAdminPlanEditor() {
@@ -5689,7 +5689,7 @@ function exitAdminPlanEditor() {
 	state.adminSection = "home";
 	previousBottomNavIndex = -1;
 	haptic("light");
-	render({ preserveScroll: false, scrollTop: 0 });
+	renderAdminTransition();
 }
 
 function addAdminPlan() {
@@ -5805,7 +5805,7 @@ function enterAdminLayoutEditor() {
 	state.sidebarOpen = false;
 	previousBottomNavIndex = -1;
 	haptic("light");
-	render({ preserveScroll: false, scrollTop: 0 });
+	renderAdminTransition();
 }
 
 function exitAdminLayoutEditor() {
@@ -5818,7 +5818,7 @@ function exitAdminLayoutEditor() {
 	state.adminSection = "home";
 	previousBottomNavIndex = -1;
 	haptic("light");
-	render({ preserveScroll: false, scrollTop: 0 });
+	renderAdminTransition();
 }
 
 function setAdminLayoutCategory(category) {
@@ -7201,6 +7201,11 @@ function moveToDashboard() {
   render({ preserveScroll: false, scrollTop: 0 });
 }
 
+function renderAdminTransition({ preserveScroll = false, scrollTop = 0 } = {}) {
+	state.animatePageEntry = true;
+	render({ preserveScroll, scrollTop });
+}
+
 function setPage(page) {
   const nextPage = normalizePage(page);
 	if (state.adminPlanEditing) {
@@ -7352,7 +7357,7 @@ function handleNativeBackButton() {
   if (state.reviewDetailOpen) return requestModalClose("review-detail", () => { state.activeReviewId = 0; state.reviewDetailOpen = false; });
   if (state.currentPage === "admin" && state.adminSection !== "home") {
     state.adminSection = "home";
-    return render();
+    return renderAdminTransition();
   }
   return setPage(getNativeBackTargetPage());
 }
