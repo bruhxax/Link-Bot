@@ -1594,6 +1594,9 @@ const state = {
   reviewBusy: "",
   adminSection: "home",
 	adminLayoutEditing: false,
+	adminLayoutBaseline: null,
+	adminLayoutBaselineDirty: false,
+	adminLayoutBaselineJSONDrafts: null,
 	adminPlanEditing: false,
 	adminPlanEditorModalOpen: false,
 	adminPlanEditingID: "",
@@ -5275,6 +5278,11 @@ async function saveAdminSettings() {
 		}
 		state.adminSettingsDraft = deepClone(response.data);
 		seedEditableCopy(state.adminSettingsDraft);
+		if (state.adminLayoutEditing) {
+			state.adminLayoutBaseline = deepClone(state.adminSettingsDraft);
+			state.adminLayoutBaselineDirty = false;
+			state.adminLayoutBaselineJSONDrafts = {};
+		}
 		if (state.adminPlanEditing) {
 			state.adminPlanBaseline = deepClone(response.data.plans || []);
 			if (state.data) state.data.plans = (response.data.plans || []).filter((plan) => plan.enabled !== false).map(runtimePlanToPayload);
@@ -5795,6 +5803,10 @@ function resetAdminPlans() {
 
 function enterAdminLayoutEditor() {
 	syncAdminSettingsDraft();
+	if (!state.adminSettingsDraft) return;
+	state.adminLayoutBaseline = deepClone(state.adminSettingsDraft);
+	state.adminLayoutBaselineDirty = state.adminSettingsDirty;
+	state.adminLayoutBaselineJSONDrafts = deepClone(state.adminJSONDrafts || {});
 	ensureAdminVisualLayoutDraft();
 	state.adminLayoutEditing = true;
 	state.adminSection = "layout";
@@ -5810,6 +5822,14 @@ function enterAdminLayoutEditor() {
 function exitAdminLayoutEditor() {
 	finishAdminLayoutPointer();
 	finishAdminProfilePointer();
+	if (state.adminLayoutBaseline) {
+		state.adminSettingsDraft = deepClone(state.adminLayoutBaseline);
+		state.adminSettingsDirty = state.adminLayoutBaselineDirty;
+		state.adminJSONDrafts = deepClone(state.adminLayoutBaselineJSONDrafts || {});
+	}
+	state.adminLayoutBaseline = null;
+	state.adminLayoutBaselineDirty = false;
+	state.adminLayoutBaselineJSONDrafts = null;
 	state.adminLayoutEditing = false;
 	state.adminLayoutSelection = "";
 	state.adminLayoutCategory = "dashboard";
