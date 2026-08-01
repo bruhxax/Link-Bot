@@ -1721,6 +1721,19 @@ function hasStoredLayoutPosition(item) {
 		&& Number.isFinite(Number(item.positionY));
 }
 
+function mountedRuntimeLocalLeft(item, parentWidth, renderedWidth, flowLocalLeft) {
+	if (!hasStoredLayoutPosition(item)) return flowLocalLeft;
+	const storedLeft = Number(item.positionX);
+	if (state.adminLayoutEditing) return storedLeft;
+
+	const configuredWidth = item.area === "navigation"
+		? Number(item.width || 44)
+		: parentWidth * Number(item.width || 100) / 100;
+	if (item.align === "right") return storedLeft + configuredWidth - renderedWidth;
+	if (item.align === "center") return storedLeft + (configuredWidth - renderedWidth) / 2;
+	return storedLeft;
+}
+
 function runtimeLayoutStyle(item, area = item?.area) {
 	const isNavigation = area === "navigation";
 	const width = isNavigation
@@ -1873,7 +1886,6 @@ function supportText() {
       history: "History",
       faq: "Frequently asked questions",
       faqHint: "Quick answers before creating a ticket",
-      adminHint: "New tickets and replies appear here automatically.",
       noOpenTitle: "No open tickets",
       noOpenHint: "When a ticket appears, it will show up here.",
       noHistoryTitle: "No ticket history",
@@ -1908,7 +1920,6 @@ function supportText() {
     history: editable("supportHistoryTab", "История"),
     faq: editable("supportFaqTitle", "Часто задаваемые вопросы"),
     faqHint: editable("supportFaqHint", "Быстрые ответы перед созданием обращения"),
-    adminHint: editable("supportAdminHint", "Новые обращения и ответы появляются здесь автоматически."),
     noOpenTitle: editable("supportNoOpenTitle", "Нет открытых обращений"),
     noOpenHint: editable("supportNoOpenHint", "Когда появятся тикеты, они отобразятся здесь."),
     noHistoryTitle: editable("supportNoHistoryTitle", "История обращений пуста"),
@@ -2910,7 +2921,6 @@ function renderAdminSupportContent() {
 		["Описание FAQ", "content.copy.ru.supportFaqHint"],
 		["Вкладка открытых", "content.copy.ru.supportOpenTab"],
 		["Вкладка истории", "content.copy.ru.supportHistoryTab"],
-		["Подсказка для администратора", "content.copy.ru.supportAdminHint"],
 		["Нет открытых — заголовок", "content.copy.ru.supportNoOpenTitle"],
 		["Нет открытых — описание", "content.copy.ru.supportNoOpenHint"],
 		["История пуста — заголовок", "content.copy.ru.supportNoHistoryTitle"],
@@ -3646,9 +3656,8 @@ function renderSupportPage() {
         </div>
       `;
 	const tabs = `<div class="tabs tabs--support">${SUPPORT_TABS.map((tab) => `<button class="tab ${state.supportTab === tab ? "active" : ""}" type="button" data-action="switch-support-tab" data-value="${tab}">${tab === "open" ? scopy.open : scopy.history}</button>`).join("")}</div>`;
-	const adminIntro = support.isAdmin ? `<div class="note note--top support-admin-hint">${escapeHtml(scopy.adminHint)}</div>` : "";
 	const ticketContent = tickets.length ? `<div class="support-ticket-list">${tickets.map((ticket) => renderSupportTicketCard(ticket, support.isAdmin)).join("")}</div>` : `<div class="card"><div class="empty-state"><div class="empty-state__icon">${icon(emptyIcon)}</div><div class="empty-state__title">${emptyTitle}</div><div class="empty-state__desc">${emptyHint}</div></div></div>`;
-  return `<section class="page page-support ${pageClass("support")}" id="page-support">${actions}${adminIntro}${tabs}${ticketContent}</section>`;
+  return `<section class="page page-support ${pageClass("support")}" id="page-support">${actions}${tabs}${ticketContent}</section>`;
 }
 
 function renderSupportTicketCard(ticket, isAdmin) {
@@ -6022,7 +6031,7 @@ function mountRuntimeLayoutSurface(surface, kind) {
 		const flowLocalLeft = rect.left - parentOriginX;
 		const flowLocalTop = rect.top - parentOriginY;
 		const stored = hasStoredLayoutPosition(item);
-		const localLeft = stored ? Number(item.positionX) : flowLocalLeft;
+		const localLeft = mountedRuntimeLocalLeft(item, Math.max(1, parent.clientWidth), rect.width, flowLocalLeft);
 		const localTop = stored ? Number(item.positionY) : flowLocalTop;
 
 		if (state.adminLayoutEditing && !stored) {
