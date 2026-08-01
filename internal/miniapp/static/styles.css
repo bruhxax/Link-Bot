@@ -1183,6 +1183,8 @@ img { display: block; max-width: 100%; }
 .page { display: none; }
 .page.active { display: block; }
 .page.active.page--animate { animation: pageIn .28s ease; }
+.page.admin-page.active.page--animate { animation: none; }
+.page.admin-page.active.page--animate > :not(.admin-save-bar) { animation: pageIn .28s ease both; }
 
 .terms-article {
   max-width: 780px;
@@ -5341,6 +5343,7 @@ body.is-install-guide #app {
 }
 @media (prefers-reduced-motion: reduce) {
   .page.active.page--animate,
+  .page.admin-page.active.page--animate > :not(.admin-save-bar),
   .bottom-nav,
   .bottom-nav__indicator {
     animation: none !important;
