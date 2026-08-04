@@ -218,7 +218,10 @@ func NewClient(baseURL, token, mode string) *Client {
 }
 
 func (r *Client) Ping(ctx context.Context) error {
-	_, err := r.streamUsers(ctx, nil)
+	// A healthcheck must not download every panel user. One authenticated page is
+	// enough to verify that the API and its database are responding.
+	var payload struct{}
+	err := r.doAPIJSON(ctx, http.MethodGet, "/api/users/stream?size=1", nil, &payload)
 	if err == nil {
 		return nil
 	}

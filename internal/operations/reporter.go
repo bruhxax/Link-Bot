@@ -123,8 +123,9 @@ func (r *Reporter) shouldAlert(fingerprint string, count int, severity string) b
 	defer r.mu.Unlock()
 	now := time.Now()
 	last := r.lastAlert[fingerprint]
-	importantCount := count == 1 || count == 3 || count == 10 || count%25 == 0
-	if severity == "critical" || importantCount || now.Sub(last) >= alertCooldown {
+	_ = count
+	_ = severity
+	if last.IsZero() || now.Sub(last) >= alertCooldown {
 		r.lastAlert[fingerprint] = now
 		return true
 	}

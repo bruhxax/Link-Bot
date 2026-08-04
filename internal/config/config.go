@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"os"
 	"strconv"
@@ -733,28 +734,13 @@ func InitConfig() {
 		slog.Info("No trial external squad specified, will use regular EXTERNAL_SQUAD_UUID for trial users")
 	}
 
-	conf.remnawaveHeaders = func() map[string]string {
-		v := os.Getenv("REMNAWAVE_HEADERS")
-		if v != "" {
-			headers := make(map[string]string)
-			pairs := strings.Split(v, ";")
-			for _, pair := range pairs {
-				parts := strings.SplitN(strings.TrimSpace(pair), ":", 2)
-				if len(parts) == 2 {
-					key := strings.TrimSpace(parts[0])
-					value := strings.TrimSpace(parts[1])
-					if key != "" && value != "" {
-						headers[key] = value
-					}
-				}
-			}
-			if len(headers) > 0 {
-				slog.Info("Loaded remnawave headers", "count", len(headers))
-				return headers
-			}
-		}
-		return map[string]string{}
-	}()
+	conf.remnawaveHeaders = parseRemnawaveHeaders(
+		os.Getenv("REMNAWAVE_HEADERS"),
+		os.Getenv("CADDY_AUTH_API_TOKEN"),
+	)
+	if len(conf.remnawaveHeaders) > 0 {
+		slog.Info("Loaded remnawave headers", "count", len(conf.remnawaveHeaders))
+	}
 
 	conf.isMoynalogEnabled = envBool("MOYNALOG_ENABLED")
 	if conf.isMoynalogEnabled {
@@ -762,4 +748,24 @@ func InitConfig() {
 		conf.moynalogUsername = mustEnv("MOYNALOG_USERNAME")
 		conf.moynalogPassword = mustEnv("MOYNALOG_PASSWORD")
 	}
+}
+
+func parseRemnawaveHeaders(rawHeaders, caddyAuthToken string) map[string]string {
+	headers := make(map[string]string)
+	for _, pair := range strings.Split(rawHeaders, ";") {
+		parts := strings.SplitN(strings.TrimSpace(pair), ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := http.CanonicalHeaderKey(strings.TrimSpace(parts[0]))
+		value := strings.TrimSpace(parts[1])
+		if key != "" && value != "" {
+			headers[key] = value
+		}
+	}
+
+	if token := strings.TrimSpace(caddyAuthToken); token != "" {
+		headers["X-Api-Key"] = token
+	}
+	return headers
 }

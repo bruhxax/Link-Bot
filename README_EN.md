@@ -122,6 +122,8 @@ ADMIN_TELEGRAM_ID=your_telegram_id
 REMNAWAVE_URL=https://panel.example.com
 REMNAWAVE_TOKEN=remnawave_token
 REMNAWAVE_MODE=remote
+CADDY_AUTH_API_TOKEN=
+REMNAWAVE_HEADERS=
 
 POSTGRES_USER=linkbot
 POSTGRES_PASSWORD=strong_password
@@ -132,6 +134,11 @@ PUBLIC_BASE_URL=https://bot.example.com
 
 REFERRAL_DAYS=0
 ```
+
+If the panel API is protected by Caddy Security, set
+`CADDY_AUTH_API_TOKEN`. Link-Bot sends it as the `X-Api-Key` header.
+Additional panel headers can be configured through `REMNAWAVE_HEADERS` using
+`Header-One:value;Header-Two:value`.
 
 Generate a PostgreSQL password:
 
