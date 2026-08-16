@@ -13,6 +13,7 @@
 .device-pack-trigger svg,.device-pack-admin-trigger svg { width:20px; height:20px; flex:0 0 20px; }
 .device-pack-trigger > span,.device-pack-admin-trigger > span { display:grid; gap:2px; flex:1; }
 .device-pack-trigger small,.device-pack-admin-trigger small { color:var(--muted); }
+.device-pack-admin-trigger--editor { position:relative; z-index:2; margin:0 0 10px; }
 .device-pack-cancel { border:0; background:var(--accent); color:#fff; padding:0 13px; font-weight:700; }
 .modal__sheet--device-packs { max-height:min(78vh,620px); overflow:auto; }
 .device-pack-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
@@ -20,6 +21,8 @@
 .device-pack-card.is-wide { grid-column:1/-1; }
 .device-pack-card.selected { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
 .device-pack-card span { color:var(--muted); }
+.device-pack-empty { border:1px dashed var(--line); padding:20px 16px; display:grid; gap:5px; text-align:center; }
+.device-pack-empty span { color:var(--muted); font-size:13px; line-height:1.45; }
 .device-pack-modal__actions,.device-pack-form__actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; }
 .device-pack-modal__hint { margin:10px 0 0; color:var(--muted); font-size:12px; text-align:center; }
 .device-pack-add { width:100%; min-height:44px; border:1px solid var(--line); background:transparent; color:var(--text); display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:10px; }

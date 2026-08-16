@@ -3621,7 +3621,7 @@ function renderBuyPage() {
   const payLabel = plan && method ? `${copy.pay} ${formatCheckoutPrice(plan, devicePack, method.id)}` : copy.paymentUnavailable;
   const displayedPlans = getDisplayedPlans();
   const devicePacks = getDevicePacks();
-  if (!displayedPlans.length && !devicePacks.length) {
+  if (!state.adminPlanEditing && !displayedPlans.length && !devicePacks.length) {
     return `<section class="page page-buy--empty ${state.adminPlanEditing ? "page-buy--admin-editor" : ""} ${pageClass("buy")}" id="page-buy">
       <div class="commerce-empty" role="status">
         <div class="commerce-empty__icon">${icon("cartShopping")}</div>
@@ -3630,7 +3630,9 @@ function renderBuyPage() {
       </div>
     </section>`;
   }
-  const devicePackTrigger = !state.adminPlanEditing && devicePacks.length ? `<div class="device-pack-trigger-row"><button class="device-pack-trigger" type="button" data-action="open-device-packs">${icon("devices")}<span><strong>Докупить устройства</strong>${devicePack ? `<small>+${formatNumber(devicePack.devices, state.locale)} устройств</small>` : ""}</span>${icon("chevronRight")}</button>${devicePack ? `<button class="device-pack-cancel" type="button" data-action="clear-device-pack">Отмена</button>` : ""}</div>` : "";
+  const devicePackTrigger = state.adminPlanEditing
+    ? `<button class="device-pack-admin-trigger device-pack-admin-trigger--editor" type="button" data-action="admin-open-device-packs">${icon("devices")}<span><strong>Пакеты устройств</strong><small>${devicePacks.length ? `${devicePacks.length} настроено` : "Добавьте первый пакет"}</small></span>${icon("chevronRight")}</button>`
+    : devicePacks.length ? `<div class="device-pack-trigger-row"><button class="device-pack-trigger" type="button" data-action="open-device-packs">${icon("devices")}<span><strong>Докупить устройства</strong>${devicePack ? `<small>+${formatNumber(devicePack.devices, state.locale)} устройств</small>` : ""}</span>${icon("chevronRight")}</button>${devicePack ? `<button class="device-pack-cancel" type="button" data-action="clear-device-pack">Отмена</button>` : ""}</div>` : "";
   const planList = displayedPlans.length ? `<div class="pricing-list ${state.adminPlanEditing ? "pricing-list--admin" : ""}" style="--plan-columns:${Math.max(1, Math.min(2, Number(getRuntimeSettings()?.layout?.planColumns || 2)))}">${displayedPlans.map((item) => renderPlanCard(item, planKey(item) === planKey(plan))).join("")}</div>` : `<div class="commerce-empty commerce-empty--compact"><div class="commerce-empty__title">${escapeHtml(copy.noPlansTitle)}</div></div>`;
   const methodTitle = method?.label || copy.noPaymentMethodsTitle;
   const methodHint = method?.hint || copy.noPaymentMethodsHint;
@@ -3675,7 +3677,10 @@ function renderDevicePackModal() {
 	const packs = getDevicePacks();
 	const selected = getSelectedDevicePack();
 	const canBuyNow = isSubscriptionActive() && Number(state.data?.subscription?.deviceLimitCount || 0) > 0;
-	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="close-device-packs"></button><div class="modal__sheet modal__sheet--device-packs"><div class="modal__header"><div><div class="section-label">УСТРОЙСТВА</div><div class="modal__title">Докупить устройства</div></div><button class="header__btn" type="button" data-action="close-device-packs">${icon("close")}</button></div><div class="device-pack-grid">${packs.map((pack) => `<button class="device-pack-card ${String(pack.id) === String(selected?.id) ? "selected" : ""} ${pack.wide ? "is-wide" : ""}" type="button" data-action="select-device-pack" data-value="${escapeAttribute(pack.id)}"><strong>+${formatNumber(pack.devices, state.locale)} устройств</strong><span>${formatNumber(pack.priceRub, state.locale)} ₽</span></button>`).join("")}</div><div class="device-pack-modal__actions"><button class="btn" type="button" data-action="continue-device-pack" ${selected ? "" : "disabled"}>Продолжить</button><button class="btn btn--green-filled" type="button" data-action="buy-device-pack" ${selected && canBuyNow ? "" : "disabled"}>${icon("cart")}Докупить</button></div>${canBuyNow ? "" : `<p class="device-pack-modal__hint">Отдельная докупка доступна для активной подписки с лимитом устройств.</p>`}</div></div>`;
+	const packList = packs.length
+		? `<div class="device-pack-grid">${packs.map((pack) => `<button class="device-pack-card ${String(pack.id) === String(selected?.id) ? "selected" : ""} ${pack.wide ? "is-wide" : ""}" type="button" data-action="select-device-pack" data-value="${escapeAttribute(pack.id)}"><strong>+${formatNumber(pack.devices, state.locale)} устройств</strong><span>${formatNumber(pack.priceRub, state.locale)} ₽</span></button>`).join("")}</div>`
+		: `<div class="device-pack-empty" role="status"><strong>Пакеты устройств пока не настроены</strong><span>Администратор может добавить их в разделе «Тарифы».</span></div>`;
+	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="close-device-packs"></button><div class="modal__sheet modal__sheet--device-packs"><div class="modal__header"><div><div class="section-label">УСТРОЙСТВА</div><div class="modal__title">Докупить устройства</div></div><button class="header__btn" type="button" data-action="close-device-packs">${icon("close")}</button></div>${packList}<div class="device-pack-modal__actions"><button class="btn" type="button" data-action="continue-device-pack" ${selected ? "" : "disabled"}>Продолжить</button><button class="btn btn--green-filled" type="button" data-action="buy-device-pack" ${selected && canBuyNow ? "" : "disabled"}>${icon("cart")}Докупить</button></div>${canBuyNow ? "" : `<p class="device-pack-modal__hint">Отдельная докупка доступна для активной подписки с лимитом устройств.</p>`}</div></div>`;
 }
 
 function renderAdminDevicePackModal() {

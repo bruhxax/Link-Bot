@@ -21,7 +21,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 12
+const CurrentVersion = 13
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -310,8 +310,12 @@ func DefaultSettings() Settings {
 			AdminContact: "",
 			LogoURL:      "/mini-app/assets/brand-mark.png",
 			StartImage:   "",
-			Copy:         map[string]map[string]string{"ru": {}},
-			FAQ:          map[string][]FAQItem{"ru": {}},
+			Copy: map[string]map[string]string{"ru": {
+				"deviceAddedTemplate":        "<b>Новое устройство подключено</b>\n\nДобавлено: <b>{added}</b>\nУстройств: <b>{count}/{limit}</b>",
+				"deviceLimitReachedTemplate": "<b>Достигнут лимит устройств</b>\n\nПодключено <b>{count}</b> из <b>{limit}</b>. Удалите старое устройство или докупите дополнительные.",
+				"reviewCreatedTemplate":      "<b>Новый отзыв</b>\n\nПользователь: <b>{name}</b>\nUsername: {username}\nОценка: <b>{rating}/5</b>\n\n<blockquote>{comment}</blockquote>",
+			}},
+			FAQ: map[string][]FAQItem{"ru": {}},
 			Links: map[string]string{
 				"support": strings.TrimSpace(config.SupportURL()),
 				"channel": firstNonEmpty(config.RequiredChannelSubscriptionURL(), config.ChannelURL()),
@@ -426,7 +430,7 @@ func DefaultSettings() Settings {
 			LogoWidth:   188,
 		},
 		Plans:       defaultPlans(),
-		DevicePacks: []DevicePackSettings{},
+		DevicePacks: defaultDevicePacks(),
 		Trial: TrialSettings{
 			Enabled:              config.TrialDays() > 0,
 			Days:                 config.TrialDays(),
@@ -444,6 +448,14 @@ func DefaultSettings() Settings {
 		Panel: PanelSettings{
 			UsernameTemplate: "{{customer_id}}_{{telegram_id}}",
 		},
+	}
+}
+
+func defaultDevicePacks() []DevicePackSettings {
+	return []DevicePackSettings{
+		{ID: "devices_1", Enabled: true, Devices: 1, PriceRub: 49, PriceStars: planbook.StarsForRub(49)},
+		{ID: "devices_3", Enabled: true, Devices: 3, PriceRub: 119, PriceStars: planbook.StarsForRub(119)},
+		{ID: "devices_5", Enabled: true, Devices: 5, PriceRub: 179, PriceStars: planbook.StarsForRub(179), Wide: true},
 	}
 }
 
@@ -696,6 +708,9 @@ func NormalizeAndValidate(settings *Settings) error {
 	if err := validatePlans(&settings.Plans, defaults.Plans); err != nil {
 		return err
 	}
+	if previousVersion < CurrentVersion && len(settings.DevicePacks) == 0 {
+		settings.DevicePacks = append([]DevicePackSettings(nil), defaults.DevicePacks...)
+	}
 	if err := validateDevicePacks(&settings.DevicePacks); err != nil {
 		return err
 	}
@@ -805,13 +820,20 @@ func validateContent(value *ContentSettings, defaults ContentSettings, legacy bo
 	if len(value.Copy["ru"]) > 500 {
 		return errors.New("too many ru content overrides")
 	}
-	cleanCopy := make(map[string]string, len(value.Copy["ru"]))
+	cleanCopy := make(map[string]string, len(value.Copy["ru"])+len(defaults.Copy["ru"]))
 	for key, text := range value.Copy["ru"] {
 		key = strings.TrimSpace(key)
 		if !contentKeyPattern.MatchString(key) {
 			return fmt.Errorf("invalid content key %q", key)
 		}
 		cleanCopy[key] = limit(strings.TrimSpace(text), 3500)
+	}
+	if legacy {
+		for key, text := range defaults.Copy["ru"] {
+			if _, exists := cleanCopy[key]; !exists {
+				cleanCopy[key] = text
+			}
+		}
 	}
 	if legacy && cleanCopy["setup"] == "Установить и настроить" {
 		cleanCopy["setup"] = "Подключиться"
@@ -1367,10 +1389,7 @@ func validateDevicePacks(value *[]DevicePackSettings) error {
 	return nil
 }
 
-func validateTrial(value *TrialSettings, defaults TrialSettings, legacy bool) error {
-	if legacy {
-		*value = defaults
-	}
+func validateTrial(value *TrialSettings, _ TrialSettings, _ bool) error {
 	if value.Days < 0 || value.Days > 365 {
 		return errors.New("invalid trial duration")
 	}

@@ -32,8 +32,8 @@ func TestDefaultSettingsStartsWithoutPlans(t *testing.T) {
 	if settings.Grace.Enabled || settings.Grace.Days != 1 || len(settings.Grace.InternalSquadUUIDs) != 0 {
 		t.Fatalf("unexpected default grace settings: %+v", settings.Grace)
 	}
-	if len(settings.DevicePacks) != 0 {
-		t.Fatalf("default device packs length = %d, want 0", len(settings.DevicePacks))
+	if len(settings.DevicePacks) != 3 {
+		t.Fatalf("default device packs length = %d, want 3", len(settings.DevicePacks))
 	}
 	if settings.Panel.UsernameTemplate != "{{customer_id}}_{{telegram_id}}" {
 		t.Fatalf("default username template = %q", settings.Panel.UsernameTemplate)
@@ -64,6 +64,36 @@ func TestNormalizeAndValidateRejectsInvalidDevicePack(t *testing.T) {
 
 	if err := NormalizeAndValidate(&settings); err == nil || !strings.Contains(err.Error(), "invalid device count") {
 		t.Fatalf("NormalizeAndValidate() error = %v, want invalid device count", err)
+	}
+}
+
+func TestNormalizeAndValidateMigratesDevicePackDefaultsAndNotifications(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Version = CurrentVersion - 1
+	settings.DevicePacks = nil
+	settings.Content.Copy = map[string]map[string]string{"ru": {}}
+	settings.Trial = TrialSettings{
+		Enabled:              true,
+		Days:                 9,
+		TrafficGB:            77,
+		DeviceLimit:          4,
+		TrafficResetStrategy: "WEEK",
+		Tag:                  "custom-trial",
+	}
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if len(settings.DevicePacks) != 3 {
+		t.Fatalf("migrated device packs length = %d, want 3", len(settings.DevicePacks))
+	}
+	for _, key := range []string{"deviceAddedTemplate", "deviceLimitReachedTemplate", "reviewCreatedTemplate"} {
+		if strings.TrimSpace(settings.Content.Copy["ru"][key]) == "" {
+			t.Fatalf("migrated notification %q is empty", key)
+		}
+	}
+	if !settings.Trial.Enabled || settings.Trial.Days != 9 || settings.Trial.TrafficGB != 77 || settings.Trial.DeviceLimit != 4 || settings.Trial.TrafficResetStrategy != "WEEK" || settings.Trial.Tag != "custom-trial" {
+		t.Fatalf("custom trial settings changed during migration: %+v", settings.Trial)
 	}
 }
 
