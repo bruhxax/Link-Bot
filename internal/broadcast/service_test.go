@@ -99,6 +99,24 @@ func TestValidateButtonsRejectsDuplicateID(t *testing.T) {
 	}
 }
 
+func TestValidateButtonsAcceptsMiniAppDestinations(t *testing.T) {
+	t.Parallel()
+
+	types := []string{"main", "reviews", "referrals", "login_methods", "support", "devices"}
+	for _, buttonType := range types {
+		t.Run(buttonType, func(t *testing.T) {
+			t.Parallel()
+			buttons, err := ValidateButtons([]database.BroadcastButton{{Type: buttonType, Text: "Open"}})
+			if err != nil {
+				t.Fatalf("ValidateButtons(%q) error = %v", buttonType, err)
+			}
+			if len(buttons) != 1 || buttons[0].Type != buttonType {
+				t.Fatalf("unexpected buttons for %q: %+v", buttonType, buttons)
+			}
+		})
+	}
+}
+
 func TestBuildKeyboardIncludesPremiumEmojiAndStyle(t *testing.T) {
 	t.Parallel()
 

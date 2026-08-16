@@ -64,6 +64,8 @@ type CreatePurchaseOptions struct {
 	PromoCodeID          *int64
 	PromoCodeCode        string
 	PromoDiscountPercent int
+	PurchaseKind         database.PurchaseKind
+	ExtraDevices         int
 }
 
 type SubscriptionActivatedPreviewOptions struct {
@@ -163,6 +165,34 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 		}
 	}
 
+	if purchase.PurchaseKind == database.PurchaseKindExtraDevices {
+		user, err := s.remnawaveClient.AddDeviceLimit(ctx, customer.TelegramID, purchase.ExtraDevices)
+		if err != nil {
+			return err
+		}
+		if err := s.purchaseRepository.MarkAsPaid(ctx, purchase.ID); err != nil {
+			return err
+		}
+		if err := s.customerRepository.UpdateFields(ctx, customer.ID, map[string]interface{}{
+			"subscription_link": user.SubscriptionURL,
+			"expire_at":         user.ExpireAt,
+		}); err != nil {
+			return err
+		}
+		s.notifyAdminAboutPayment(ctx, purchase, customer)
+		text := "<b>Устройства добавлены</b>\n\nЛимит подписки увеличен на <b>{devices}</b>."
+		if s.runtimeSettings != nil {
+			text = s.runtimeSettings.ContentText(customer.Language, "devicePurchaseSuccess", text)
+		}
+		text = strings.ReplaceAll(text, "{devices}", fmt.Sprintf("%d", purchase.ExtraDevices))
+		if _, sendErr := s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: customer.TelegramID, ParseMode: models.ParseModeHTML, Text: text,
+		}); sendErr != nil {
+			slog.Error("payment: extra devices customer notification failed", "error", sendErr, "purchase_id", utils.MaskHalfInt64(purchase.ID))
+		}
+		return nil
+	}
+
 	trafficLimit := purchaseTrafficLimit(purchase)
 	deviceLimit := purchaseDeviceLimit(purchase)
 	panelState, err := s.remnawaveClient.GetUserStateByTelegramID(ctx, customer.TelegramID)
@@ -182,19 +212,20 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	)
 
 	provisioning := remnawave.ProvisioningOptions{}
+	if s.runtimeSettings != nil {
+		provisioning.UsernameTemplate = s.runtimeSettings.Snapshot().Panel.UsernameTemplate
+	}
 	if purchase.PlanID != nil && s.runtimeSettings != nil {
 		if plan, ok := s.runtimeSettings.CheckoutPlan(*purchase.PlanID, purchase.Month); ok {
-			provisioning = remnawave.ProvisioningOptions{
-				InternalSquadUUIDs:   append([]string(nil), plan.InternalSquadUUIDs...),
-				ExternalSquadUUID:    plan.ExternalSquadUUID,
-				TrafficResetStrategy: config.TrafficLimitResetStrategy(),
-				Tag:                  config.RemnawaveTag(),
-				ApplySquads:          true,
-			}
+			provisioning.InternalSquadUUIDs = append([]string(nil), plan.InternalSquadUUIDs...)
+			provisioning.ExternalSquadUUID = plan.ExternalSquadUUID
+			provisioning.TrafficResetStrategy = config.TrafficLimitResetStrategy()
+			provisioning.Tag = config.RemnawaveTag()
+			provisioning.ApplySquads = true
 		}
 	}
 	var user *remnawave.PanelUser
-	if provisioning.ApplySquads {
+	if provisioning.ApplySquads || provisioning.UsernameTemplate != "" {
 		user, err = s.remnawaveClient.CreateOrUpdateUserWithOptions(ctx, customer.ID, customer.TelegramID, trafficLimit, deviceLimit, purchase.Month*config.DaysInMonth(), provisioning)
 	} else {
 		user, err = s.remnawaveClient.CreateOrUpdateUser(ctx, customer.ID, customer.TelegramID, trafficLimit, deviceLimit, purchase.Month*config.DaysInMonth(), false)
@@ -611,6 +642,8 @@ func (s PaymentService) createCryptoInvoice(ctx context.Context, amount float64,
 		PromoCodeID:              options.PromoCodeID,
 		PromoCodeSnapshot:        optionalTrimmedStringPointer(options.PromoCodeCode),
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
+		PurchaseKind:             options.PurchaseKind,
+		ExtraDevices:             options.ExtraDevices,
 	})
 	if err != nil {
 		slog.Error("Error creating purchase", "error", err)
@@ -668,6 +701,8 @@ func (s PaymentService) createYookasaInvoice(ctx context.Context, amount float64
 		PromoCodeID:              options.PromoCodeID,
 		PromoCodeSnapshot:        optionalTrimmedStringPointer(options.PromoCodeCode),
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
+		PurchaseKind:             options.PurchaseKind,
+		ExtraDevices:             options.ExtraDevices,
 	})
 	if err != nil {
 		slog.Error("Error creating purchase", "error", err)
@@ -715,6 +750,8 @@ func (s PaymentService) createExternalInvoice(ctx context.Context, amount float6
 		ParentPurchaseID: options.ParentPurchaseID, PromoCodeID: options.PromoCodeID,
 		PromoCodeSnapshot:        optionalTrimmedStringPointer(options.PromoCodeCode),
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
+		PurchaseKind:             options.PurchaseKind,
+		ExtraDevices:             options.ExtraDevices,
 	})
 	if err != nil {
 		return "", 0, err
@@ -873,6 +910,8 @@ func (s PaymentService) createTelegramInvoice(ctx context.Context, amount float6
 		PromoCodeID:              options.PromoCodeID,
 		PromoCodeSnapshot:        optionalTrimmedStringPointer(options.PromoCodeCode),
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
+		PurchaseKind:             options.PurchaseKind,
+		ExtraDevices:             options.ExtraDevices,
 	})
 	if err != nil {
 		slog.Error("Error creating purchase", "error", err)
@@ -938,6 +977,7 @@ func (s PaymentService) ActivateTrial(ctx context.Context, telegramId int64) (st
 		TrafficResetStrategy: trial.TrafficResetStrategy,
 		Tag:                  trial.Tag,
 		ApplySquads:          true,
+		UsernameTemplate:     panelUsernameTemplate(s.runtimeSettings),
 	})
 	if err != nil {
 		slog.Error("Error creating user", "error", err)
@@ -957,6 +997,13 @@ func (s PaymentService) ActivateTrial(ctx context.Context, telegramId int64) (st
 
 	return user.GetSubscriptionUrl(), nil
 
+}
+
+func panelUsernameTemplate(settings *runtimeconfig.Service) string {
+	if settings == nil {
+		return ""
+	}
+	return settings.Snapshot().Panel.UsernameTemplate
 }
 
 func (s PaymentService) resolveCustomerTrafficLimit(ctx context.Context, customer *database.Customer) (int, error) {

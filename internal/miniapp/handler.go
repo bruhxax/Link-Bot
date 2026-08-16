@@ -323,6 +323,8 @@ type metaPayload struct {
 
 type purchaseRequest struct {
 	PlanID            string `json:"planId,omitempty"`
+	DevicePackID      string `json:"devicePackId,omitempty"`
+	DeviceOnly        bool   `json:"deviceOnly,omitempty"`
 	Months            int    `json:"months"`
 	PaymentMethod     string `json:"paymentMethod"`
 	AgreementAccepted bool   `json:"agreementAccepted"`
@@ -1021,15 +1023,75 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	plan, ok := h.checkoutPlanForRequest(req.PlanID, req.Months)
-	if !ok {
-		h.writeError(w, http.StatusBadRequest, "unsupported_plan", "Unsupported plan")
+	var (
+		plan           checkoutPlan
+		price          int
+		purchaseKind   = database.PurchaseKindSubscription
+		extraDevices   int
+		deviceLimit    *int
+		trafficLimit   *int64
+		purchaseMonths int
+		planID         string
+	)
+
+	pack, hasPack := h.devicePackForRequest(req.DevicePackID)
+	if strings.TrimSpace(req.DevicePackID) != "" && !hasPack {
+		h.writeError(w, http.StatusBadRequest, "unsupported_device_pack", "Пакет устройств недоступен")
 		return
 	}
-	price, ok := checkoutAmountForPlan(plan, invoiceType)
-	if !ok {
-		h.writeError(w, http.StatusBadRequest, "unsupported_plan", "Unsupported plan")
-		return
+	if hasPack {
+		extraDevices = pack.Devices
+		if invoiceType == database.InvoiceTypeTelegram {
+			price = pack.PriceStars
+		} else {
+			price = pack.PriceRub
+		}
+	}
+
+	if req.DeviceOnly {
+		if !hasPack {
+			h.writeError(w, http.StatusBadRequest, "device_pack_required", "Выберите пакет устройств")
+			return
+		}
+		if h.remnawaveClient == nil {
+			h.writeError(w, http.StatusServiceUnavailable, "panel_unavailable", "Панель временно недоступна")
+			return
+		}
+		panelState, stateErr := h.remnawaveClient.GetUserStateByTelegramID(r.Context(), customer.TelegramID)
+		if stateErr != nil || panelState == nil || !panelState.Active {
+			h.writeError(w, http.StatusBadRequest, "active_subscription_required", "Докупка доступна только для активной подписки")
+			return
+		}
+		if panelState.DeviceLimit <= 0 {
+			h.writeError(w, http.StatusBadRequest, "unlimited_devices", "У подписки уже нет ограничения по устройствам")
+			return
+		}
+		purchaseKind = database.PurchaseKindExtraDevices
+	} else {
+		var ok bool
+		plan, ok = h.checkoutPlanForRequest(req.PlanID, req.Months)
+		if !ok {
+			h.writeError(w, http.StatusBadRequest, "unsupported_plan", "Unsupported plan")
+			return
+		}
+		planPrice, ok := checkoutAmountForPlan(plan, invoiceType)
+		if !ok {
+			h.writeError(w, http.StatusBadRequest, "unsupported_plan", "Unsupported plan")
+			return
+		}
+		price += planPrice
+		purchaseMonths = plan.Months
+		planID = plan.ID
+		trafficLimit = &plan.TrafficLimitBytes
+		combinedDeviceLimit := plan.DeviceLimitCount
+		if hasPack {
+			if combinedDeviceLimit <= 0 {
+				h.writeError(w, http.StatusBadRequest, "unlimited_devices", "Для этого тарифа устройства уже безлимитны")
+				return
+			}
+			combinedDeviceLimit += pack.Devices
+		}
+		deviceLimit = &combinedDeviceLimit
 	}
 
 	var promo *database.PromoCode
@@ -1053,11 +1115,13 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 	}
 
 	ctxWithProfile := contextWithSessionTelegramProfile(r.Context(), sess)
-	paymentURL, purchaseID, err := h.paymentService.CreatePurchaseWithOptions(ctxWithProfile, float64(price), plan.Months, customer, invoiceType, payment.CreatePurchaseOptions{
+	paymentURL, purchaseID, err := h.paymentService.CreatePurchaseWithOptions(ctxWithProfile, float64(price), purchaseMonths, customer, invoiceType, payment.CreatePurchaseOptions{
 		AgreementAccepted:    true,
-		PlanID:               plan.ID,
-		TrafficLimitBytes:    &plan.TrafficLimitBytes,
-		DeviceLimitCount:     &plan.DeviceLimitCount,
+		PlanID:               planID,
+		TrafficLimitBytes:    trafficLimit,
+		DeviceLimitCount:     deviceLimit,
+		PurchaseKind:         purchaseKind,
+		ExtraDevices:         extraDevices,
 		PromoCodeID:          promoCodeIDOrNil(promo),
 		PromoCodeCode:        req.PromoCode,
 		PromoDiscountPercent: promoDiscountPercentOrZero(promo),
@@ -1891,6 +1955,10 @@ func (h *Handler) handleCreateReview(w http.ResponseWriter, r *http.Request, ses
 		return
 	}
 
+	h.notifySupportAsync(func(ctx context.Context) {
+		h.notifyAdminAboutReview(ctx, sess, review)
+	})
+
 	if updatedCustomer, findErr := h.customerRepository.FindByTelegramId(r.Context(), sess.User.ID); findErr == nil && updatedCustomer != nil {
 		customer = updatedCustomer
 	}
@@ -2369,6 +2437,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		if err != nil {
 			slog.Warn("mini app: sync traffic limit failed", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID))
 		}
+		h.trackDeviceNotifications(ctx, customer, panelState)
 	}
 
 	subscriptionData := h.buildSubscriptionPayload(customer, highestPurchase, panelState)
@@ -3053,6 +3122,19 @@ func (h *Handler) checkoutPlanForRequest(planID string, months int) (checkoutPla
 	return planbook.ForIDOrMonths(planID, months)
 }
 
+func (h *Handler) devicePackForRequest(packID string) (runtimeconfig.DevicePackSettings, bool) {
+	packID = strings.TrimSpace(packID)
+	if packID == "" || h.runtimeSettings == nil {
+		return runtimeconfig.DevicePackSettings{}, false
+	}
+	for _, pack := range h.runtimeSettings.Snapshot().DevicePacks {
+		if pack.Enabled && pack.ID == packID {
+			return pack, true
+		}
+	}
+	return runtimeconfig.DevicePackSettings{}, false
+}
+
 func checkoutAmountForPlan(plan checkoutPlan, invoiceType database.InvoiceType) (int, bool) {
 	return planbook.AmountForInvoice(plan, invoiceType)
 }
@@ -3714,6 +3796,69 @@ func sessionDisplayName(sess *session) string {
 		return "@" + username
 	}
 	return strconv.FormatInt(sess.User.ID, 10)
+}
+
+func (h *Handler) trackDeviceNotifications(ctx context.Context, customer *database.Customer, panelState *remnawave.UserState) {
+	if h == nil || h.customerRepository == nil || h.telegramBot == nil || customer == nil || panelState == nil {
+		return
+	}
+	added, limitReached, err := h.customerRepository.ClaimDeviceNotifications(ctx, customer.TelegramID, panelState.UsedDevices, panelState.DeviceLimit)
+	if err != nil {
+		slog.Warn("mini app: claim device notifications", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID))
+		return
+	}
+	if added <= 0 && !limitReached {
+		return
+	}
+
+	count := strconv.Itoa(panelState.UsedDevices)
+	limit := strconv.Itoa(panelState.DeviceLimit)
+	if panelState.DeviceLimit <= 0 {
+		limit = "∞"
+	}
+	if added > 0 {
+		template := "📱 <b>Новое устройство подключено</b>\n\nДобавлено: <b>{added}</b>\nУстройств: <b>{count}/{limit}</b>"
+		if h.runtimeSettings != nil {
+			template = h.runtimeSettings.ContentText("ru", "deviceAddedTemplate", template)
+		}
+		text := strings.NewReplacer("{added}", strconv.Itoa(added), "{count}", count, "{limit}", limit).Replace(template)
+		h.sendMiniAppNotification(ctx, customer.TelegramID, text)
+	}
+	if limitReached {
+		template := "⚠️ <b>Достигнут лимит устройств</b>\n\nПодключено <b>{count}</b> из <b>{limit}</b>. Удалите старое устройство или докупите дополнительные."
+		if h.runtimeSettings != nil {
+			template = h.runtimeSettings.ContentText("ru", "deviceLimitReachedTemplate", template)
+		}
+		text := strings.NewReplacer("{count}", count, "{limit}", limit).Replace(template)
+		h.sendMiniAppNotification(ctx, customer.TelegramID, text)
+	}
+}
+
+func (h *Handler) notifyAdminAboutReview(ctx context.Context, sess *session, review *database.Review) {
+	adminID := config.GetAdminTelegramId()
+	if h == nil || h.telegramBot == nil || adminID == 0 || review == nil {
+		return
+	}
+	template := "⭐ <b>Новый отзыв</b>\n\nПользователь: <b>{name}</b>\nUsername: {username}\nОценка: <b>{rating}/5</b>\n\n<blockquote>{comment}</blockquote>"
+	if h.runtimeSettings != nil {
+		template = h.runtimeSettings.ContentText("ru", "reviewCreatedTemplate", template)
+	}
+	username := strings.TrimSpace(review.TelegramUsername)
+	if username == "" && sess != nil {
+		username = strings.TrimSpace(sess.User.Username)
+	}
+	if username == "" {
+		username = "-"
+	} else if !strings.HasPrefix(username, "@") {
+		username = "@" + username
+	}
+	text := strings.NewReplacer(
+		"{name}", html.EscapeString(sessionDisplayName(sess)),
+		"{username}", html.EscapeString(username),
+		"{rating}", strconv.Itoa(review.Rating),
+		"{comment}", html.EscapeString(review.Comment),
+	).Replace(template)
+	h.sendMiniAppNotification(ctx, adminID, text)
 }
 
 func (h *Handler) notifyAdminAboutSupportTicket(ctx context.Context, ticket *database.SupportTicket, firstMessage string) {

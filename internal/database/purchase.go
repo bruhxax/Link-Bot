@@ -29,6 +29,13 @@ const (
 
 type PurchaseStatus string
 
+type PurchaseKind string
+
+const (
+	PurchaseKindSubscription PurchaseKind = "subscription"
+	PurchaseKindExtraDevices PurchaseKind = "extra_devices"
+)
+
 const (
 	PurchaseStatusNew     PurchaseStatus = "new"
 	PurchaseStatusPending PurchaseStatus = "pending"
@@ -45,6 +52,8 @@ type Purchase struct {
 	PlanID                    *string        `db:"plan_id"`
 	TrafficLimitBytes         *int64         `db:"traffic_limit_bytes"`
 	DeviceLimitCount          *int           `db:"device_limit_count"`
+	PurchaseKind              PurchaseKind   `db:"purchase_kind"`
+	ExtraDevices              int            `db:"extra_devices"`
 	PaidAt                    *time.Time     `db:"paid_at"`
 	Currency                  string         `db:"currency"`
 	ExpireAt                  *time.Time     `db:"expire_at"`
@@ -119,6 +128,8 @@ var purchaseSelectColumns = []string{
 	"plan_id",
 	"traffic_limit_bytes",
 	"device_limit_count",
+	"purchase_kind",
+	"extra_devices",
 	"paid_at",
 	"currency",
 	"expire_at",
@@ -154,6 +165,8 @@ func scanPurchase(scanner interface {
 		&purchase.PlanID,
 		&purchase.TrafficLimitBytes,
 		&purchase.DeviceLimitCount,
+		&purchase.PurchaseKind,
+		&purchase.ExtraDevices,
 		&purchase.PaidAt,
 		&purchase.Currency,
 		&purchase.ExpireAt,
@@ -179,6 +192,9 @@ func scanPurchase(scanner interface {
 }
 
 func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (int64, error) {
+	if purchase.PurchaseKind == "" {
+		purchase.PurchaseKind = PurchaseKindSubscription
+	}
 	buildInsert := sq.Insert("purchase").
 		Columns(
 			"amount",
@@ -187,6 +203,8 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 			"plan_id",
 			"traffic_limit_bytes",
 			"device_limit_count",
+			"purchase_kind",
+			"extra_devices",
 			"currency",
 			"expire_at",
 			"status",
@@ -215,6 +233,8 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 			purchase.PlanID,
 			purchase.TrafficLimitBytes,
 			purchase.DeviceLimitCount,
+			purchase.PurchaseKind,
+			purchase.ExtraDevices,
 			purchase.Currency,
 			purchase.ExpireAt,
 			purchase.Status,

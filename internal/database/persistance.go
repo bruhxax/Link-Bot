@@ -10,10 +10,10 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgx/v4/pgxpool"
 	_ "github.com/lib/pq"
+	"link-bot/internal/config"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"link-bot/internal/config"
 )
 
 type MigrationConfig struct {

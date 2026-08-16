@@ -379,6 +379,9 @@ func ValidateButtons(buttons []database.BroadcastButton) ([]database.BroadcastBu
 				return nil, fmt.Errorf("%w: invalid promo code", ErrInvalidButton)
 			}
 			item.URL = ""
+		case "main", "reviews", "referrals", "login_methods", "support", "devices":
+			item.URL = ""
+			item.PromoCode = ""
 		default:
 			return nil, fmt.Errorf("%w: unsupported button type", ErrInvalidButton)
 		}
@@ -425,9 +428,22 @@ func buildKeyboard(buttons []database.BroadcastButton) models.ReplyMarkup {
 			IconCustomEmojiID: item.IconCustomEmojiID,
 			Style:             item.Style,
 		}
-		if item.Type == "promo" {
-			button.WebApp = &models.WebAppInfo{URL: promoMiniAppURL(item.PromoCode)}
-		} else {
+		switch item.Type {
+		case "promo":
+			button.WebApp = &models.WebAppInfo{URL: miniAppPageURL("buy", map[string]string{"promo": database.NormalizePromoCode(item.PromoCode)})}
+		case "main":
+			button.WebApp = &models.WebAppInfo{URL: miniAppPageURL("dashboard", nil)}
+		case "reviews":
+			button.WebApp = &models.WebAppInfo{URL: miniAppPageURL("reviews", nil)}
+		case "referrals":
+			button.WebApp = &models.WebAppInfo{URL: miniAppPageURL("referrals", nil)}
+		case "login_methods":
+			button.WebApp = &models.WebAppInfo{URL: miniAppPageURL("login-methods", nil)}
+		case "support":
+			button.WebApp = &models.WebAppInfo{URL: miniAppPageURL("support", nil)}
+		case "devices":
+			button.WebApp = &models.WebAppInfo{URL: miniAppPageURL("buy", map[string]string{"devicePack": "1"})}
+		default:
 			button.URL = item.URL
 		}
 		rows = append(rows, []models.InlineKeyboardButton{button})
@@ -436,14 +452,24 @@ func buildKeyboard(buttons []database.BroadcastButton) models.ReplyMarkup {
 }
 
 func promoMiniAppURL(code string) string {
+	return miniAppPageURL("buy", map[string]string{"promo": database.NormalizePromoCode(code)})
+}
+
+func miniAppPageURL(page string, values map[string]string) string {
 	base := strings.TrimSpace(config.GetMiniAppURL())
 	parsed, err := url.Parse(base)
 	if err != nil || parsed.Host == "" {
 		return base
 	}
 	query := parsed.Query()
-	query.Set("page", "buy")
-	query.Set("promo", database.NormalizePromoCode(code))
+	if strings.TrimSpace(page) != "" {
+		query.Set("page", strings.TrimSpace(page))
+	}
+	for key, value := range values {
+		if strings.TrimSpace(key) != "" && strings.TrimSpace(value) != "" {
+			query.Set(key, value)
+		}
+	}
 	parsed.RawQuery = query.Encode()
 	return parsed.String()
 }

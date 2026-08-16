@@ -32,6 +32,50 @@ func TestDefaultSettingsStartsWithoutPlans(t *testing.T) {
 	if settings.Grace.Enabled || settings.Grace.Days != 1 || len(settings.Grace.InternalSquadUUIDs) != 0 {
 		t.Fatalf("unexpected default grace settings: %+v", settings.Grace)
 	}
+	if len(settings.DevicePacks) != 0 {
+		t.Fatalf("default device packs length = %d, want 0", len(settings.DevicePacks))
+	}
+	if settings.Panel.UsernameTemplate != "{{customer_id}}_{{telegram_id}}" {
+		t.Fatalf("default username template = %q", settings.Panel.UsernameTemplate)
+	}
+}
+
+func TestNormalizeAndValidateDevicePacks(t *testing.T) {
+	settings := DefaultSettings()
+	settings.DevicePacks = []DevicePackSettings{
+		{ID: " pack_5 ", Devices: 5, PriceRub: 149},
+		{ID: "pack_10", Devices: 10, PriceRub: 249},
+	}
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if len(settings.DevicePacks) != 2 || settings.DevicePacks[0].ID != "pack_5" {
+		t.Fatalf("unexpected device packs: %+v", settings.DevicePacks)
+	}
+	if settings.DevicePacks[0].PriceStars < 1 {
+		t.Fatalf("device pack Stars price was not derived: %+v", settings.DevicePacks[0])
+	}
+}
+
+func TestNormalizeAndValidateRejectsInvalidDevicePack(t *testing.T) {
+	settings := DefaultSettings()
+	settings.DevicePacks = []DevicePackSettings{{ID: "pack_0", Devices: 0, PriceRub: 100}}
+
+	if err := NormalizeAndValidate(&settings); err == nil || !strings.Contains(err.Error(), "invalid device count") {
+		t.Fatalf("NormalizeAndValidate() error = %v, want invalid device count", err)
+	}
+}
+
+func TestNormalizeAndValidatePanelUsernameTemplate(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Panel.UsernameTemplate = "tg_{{telegram_id}}"
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if settings.Panel.UsernameTemplate != "tg_{{telegram_id}}" {
+		t.Fatalf("username template = %q", settings.Panel.UsernameTemplate)
+	}
 }
 
 func TestNormalizeAndValidateGraceAccess(t *testing.T) {

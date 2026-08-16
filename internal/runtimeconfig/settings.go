@@ -21,7 +21,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 11
+const CurrentVersion = 12
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -53,15 +53,17 @@ var featureOrder = []string{
 }
 
 type Settings struct {
-	Version     int                 `json:"version"`
-	Maintenance MaintenanceSettings `json:"maintenance"`
-	Features    map[string]bool     `json:"features"`
-	Content     ContentSettings     `json:"content"`
-	Appearance  AppearanceSettings  `json:"appearance"`
-	Layout      LayoutSettings      `json:"layout"`
-	Plans       []PlanSettings      `json:"plans"`
-	Trial       TrialSettings       `json:"trial"`
-	Grace       GraceSettings       `json:"grace"`
+	Version     int                  `json:"version"`
+	Maintenance MaintenanceSettings  `json:"maintenance"`
+	Features    map[string]bool      `json:"features"`
+	Content     ContentSettings      `json:"content"`
+	Appearance  AppearanceSettings   `json:"appearance"`
+	Layout      LayoutSettings       `json:"layout"`
+	Plans       []PlanSettings       `json:"plans"`
+	DevicePacks []DevicePackSettings `json:"devicePacks"`
+	Trial       TrialSettings        `json:"trial"`
+	Grace       GraceSettings        `json:"grace"`
+	Panel       PanelSettings        `json:"panel"`
 }
 
 type MaintenanceSettings struct {
@@ -219,6 +221,15 @@ type PlanSettings struct {
 	ExternalSquadUUID  string   `json:"externalSquadUuid"`
 }
 
+type DevicePackSettings struct {
+	ID         string `json:"id"`
+	Enabled    bool   `json:"enabled"`
+	Devices    int    `json:"devices"`
+	PriceRub   int    `json:"priceRub"`
+	PriceStars int    `json:"priceStars"`
+	Wide       bool   `json:"wide"`
+}
+
 type TrialSettings struct {
 	Enabled              bool     `json:"enabled"`
 	Days                 int      `json:"days"`
@@ -235,6 +246,10 @@ type GraceSettings struct {
 	Enabled            bool     `json:"enabled"`
 	Days               int      `json:"days"`
 	InternalSquadUUIDs []string `json:"internalSquadUuids"`
+}
+
+type PanelSettings struct {
+	UsernameTemplate string `json:"usernameTemplate"`
 }
 
 type Service struct {
@@ -410,7 +425,8 @@ func DefaultSettings() Settings {
 			PlanColumns: 2,
 			LogoWidth:   188,
 		},
-		Plans: defaultPlans(),
+		Plans:       defaultPlans(),
+		DevicePacks: []DevicePackSettings{},
 		Trial: TrialSettings{
 			Enabled:              config.TrialDays() > 0,
 			Days:                 config.TrialDays(),
@@ -424,6 +440,9 @@ func DefaultSettings() Settings {
 		},
 		Grace: GraceSettings{
 			Days: 1,
+		},
+		Panel: PanelSettings{
+			UsernameTemplate: "{{customer_id}}_{{telegram_id}}",
 		},
 	}
 }
@@ -677,10 +696,16 @@ func NormalizeAndValidate(settings *Settings) error {
 	if err := validatePlans(&settings.Plans, defaults.Plans); err != nil {
 		return err
 	}
+	if err := validateDevicePacks(&settings.DevicePacks); err != nil {
+		return err
+	}
 	if err := validateTrial(&settings.Trial, defaults.Trial, previousVersion < CurrentVersion); err != nil {
 		return err
 	}
 	if err := validateGrace(&settings.Grace); err != nil {
+		return err
+	}
+	if err := validatePanel(&settings.Panel, defaults.Panel); err != nil {
 		return err
 	}
 	return nil
@@ -1311,6 +1336,37 @@ func validatePlans(value *[]PlanSettings, defaults []PlanSettings) error {
 	return nil
 }
 
+func validateDevicePacks(value *[]DevicePackSettings) error {
+	if *value == nil {
+		*value = []DevicePackSettings{}
+	}
+	seen := map[string]struct{}{}
+	result := make([]DevicePackSettings, 0, len(*value))
+	for _, item := range *value {
+		item.ID = strings.ToLower(strings.TrimSpace(item.ID))
+		if !elementIDPattern.MatchString(item.ID) {
+			return fmt.Errorf("invalid device pack %q", item.ID)
+		}
+		if _, exists := seen[item.ID]; exists {
+			return fmt.Errorf("duplicate device pack %q", item.ID)
+		}
+		if item.Devices < 1 || item.Devices > 1000 {
+			return fmt.Errorf("invalid device count for pack %q", item.ID)
+		}
+		if item.PriceRub < 1 || item.PriceRub > 1000000 {
+			return fmt.Errorf("invalid price for device pack %q", item.ID)
+		}
+		item.PriceStars = planbook.StarsForRub(item.PriceRub)
+		seen[item.ID] = struct{}{}
+		result = append(result, item)
+	}
+	if len(result) > 100 {
+		return errors.New("too many device packs")
+	}
+	*value = result
+	return nil
+}
+
 func validateTrial(value *TrialSettings, defaults TrialSettings, legacy bool) error {
 	if legacy {
 		*value = defaults
@@ -1361,6 +1417,21 @@ func validateGrace(value *GraceSettings) error {
 	}
 	if value.Enabled && len(value.InternalSquadUUIDs) == 0 {
 		return errors.New("grace access requires at least one internal squad")
+	}
+	return nil
+}
+
+func validatePanel(value *PanelSettings, defaults PanelSettings) error {
+	value.UsernameTemplate = limit(strings.TrimSpace(value.UsernameTemplate), 128)
+	if value.UsernameTemplate == "" {
+		value.UsernameTemplate = defaults.UsernameTemplate
+	}
+	allowed := strings.NewReplacer("{{customer_id}}", "", "{{telegram_id}}", "")
+	if strings.Contains(allowed.Replace(value.UsernameTemplate), "{{") || strings.Contains(allowed.Replace(value.UsernameTemplate), "}}") {
+		return errors.New("invalid panel username template variable")
+	}
+	if !strings.Contains(value.UsernameTemplate, "{{customer_id}}") && !strings.Contains(value.UsernameTemplate, "{{telegram_id}}") {
+		return errors.New("panel username template requires customer_id or telegram_id")
 	}
 	return nil
 }

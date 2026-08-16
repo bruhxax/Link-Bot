@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -48,6 +49,7 @@ type ProvisioningOptions struct {
 	TrafficResetStrategy string
 	Tag                  string
 	ApplySquads          bool
+	UsernameTemplate     string
 }
 
 type UserState struct {
@@ -66,6 +68,8 @@ type UserState struct {
 }
 
 var ErrAdminSubscriptionNotFound = errors.New("subscription not found")
+
+var panelUsernameSanitizer = regexp.MustCompile(`[^A-Za-z0-9_.-]+`)
 
 type AdminSubscription struct {
 	ID               int64
@@ -452,6 +456,34 @@ func (r *Client) GetUserStateByTelegramID(ctx context.Context, telegramId int64)
 	}, nil
 }
 
+func (r *Client) AddDeviceLimit(ctx context.Context, telegramID int64, extraDevices int) (*PanelUser, error) {
+	if extraDevices <= 0 {
+		return nil, errors.New("extra device count must be positive")
+	}
+
+	user, err := r.getPanelUserByTelegramID(ctx, telegramID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("subscription not found")
+	}
+	currentLimit := 0
+	if user.HwidDeviceLimit != nil {
+		currentLimit = *user.HwidDeviceLimit
+	}
+	if currentLimit <= 0 {
+		return nil, errors.New("cannot add devices to an unlimited subscription")
+	}
+	if currentLimit > 10000-extraDevices {
+		return nil, errors.New("resulting device limit is too large")
+	}
+
+	return r.patchPanelUser(ctx, user, map[string]any{
+		"hwidDeviceLimit": currentLimit + extraDevices,
+	})
+}
+
 func (r *Client) getUserHWIDDevices(ctx context.Context, userID int64, userUUID uuid.UUID) ([]UserDevice, error) {
 	identifier := strconv.FormatInt(userID, 10)
 	if userID <= 0 {
@@ -811,7 +843,7 @@ func (r *Client) createUser(ctx context.Context, customerId int64, telegramId in
 
 func (r *Client) createUserWithOptions(ctx context.Context, customerId int64, telegramId int64, trafficLimit int, deviceLimit int, days int, options ProvisioningOptions) (*PanelUser, error) {
 	expireAt := time.Now().UTC().AddDate(0, 0, days)
-	username := generateUsername(customerId, telegramId)
+	username := generateUsername(options.UsernameTemplate, customerId, telegramId)
 
 	squadIDs, err := r.resolveInternalSquads(ctx, options.InternalSquadUUIDs)
 	if err != nil {
@@ -930,8 +962,24 @@ func (r *Client) ListSquads(ctx context.Context) (SquadCatalog, error) {
 	return result, nil
 }
 
-func generateUsername(customerId int64, telegramId int64) string {
-	return fmt.Sprintf("%d_%d", customerId, telegramId)
+func generateUsername(template string, customerId int64, telegramId int64) string {
+	template = strings.TrimSpace(template)
+	if template == "" {
+		template = "{{customer_id}}_{{telegram_id}}"
+	}
+	username := strings.NewReplacer(
+		"{{customer_id}}", strconv.FormatInt(customerId, 10),
+		"{{telegram_id}}", strconv.FormatInt(telegramId, 10),
+	).Replace(template)
+	username = panelUsernameSanitizer.ReplaceAllString(username, "_")
+	username = strings.Trim(username, "_.-")
+	if username == "" {
+		return fmt.Sprintf("%d_%d", customerId, telegramId)
+	}
+	if len(username) > 64 {
+		username = username[:64]
+	}
+	return username
 }
 
 func telegramDescriptionFromContext(ctx context.Context) (description string, usernameForLog string, hasProfileInfo bool) {

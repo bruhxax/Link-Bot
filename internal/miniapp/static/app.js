@@ -1537,7 +1537,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 function buildPreviewRuntimeSettings() {
 	const features = Object.fromEntries(["mini_app", "stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "payments_history", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
-		version: 11,
+		version: 12,
 		maintenance: { enabled: false, titleRu: "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u044b", textRu: "", reasonRu: "" },
 		features,
 		content: {
@@ -1549,8 +1549,10 @@ function buildPreviewRuntimeSettings() {
 		appearance: { backgroundMode: "animated", compact: true, showFrames: true, colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", waveBackground: "#000000", waveDot: "#ebebeb" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, priceRub: plan.priceRub, priceStars: plan.priceStars, trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], externalSquadUuid: "" })),
+		devicePacks: [],
 		trial: { enabled: true, days: 3, trafficGb: 10, unlimitedTraffic: false, deviceLimit: 5, internalSquadUuids: [], externalSquadUuid: "", trafficResetStrategy: "MONTH", tag: "" },
 		grace: { enabled: false, days: 1, internalSquadUuids: [] },
+		panel: { usernameTemplate: "{{customer_id}}_{{telegram_id}}" },
 	};
 }
 
@@ -1566,6 +1568,11 @@ const state = {
   currentPage: readSetting(STORAGE_KEYS.page, "dashboard"),
   sidebarOpen: false,
   payModalOpen: false,
+	devicePackModalOpen: false,
+	selectedDevicePackId: "",
+	adminDevicePackEditorOpen: false,
+	adminDevicePackEditingID: "",
+	adminDevicePackFormDraft: null,
   paymentLaunchModalOpen: false,
   paymentLaunchURL: "",
   paymentLaunchPurchaseId: 0,
@@ -2119,6 +2126,14 @@ async function handlePostBootstrapFlow() {
 		return;
 	}
 
+	if (urlParams.get("devicePack") === "1") {
+		state.currentPage = "buy";
+		state.devicePackModalOpen = true;
+		writeSetting(STORAGE_KEYS.page, "buy");
+		render();
+		return;
+	}
+
 	const entryPromoCode = normalizePromoCodeValue(urlParams.get("promo") || "");
 	if (entryPromoCode) {
 		state.currentPage = "buy";
@@ -2388,7 +2403,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-  const modalOpen = state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen;
+  const modalOpen = state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -2441,6 +2456,8 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
       ${isModalVisible("support-thread", state.supportThreadOpen) ? renderSupportThreadModal() : ""}
       ${isModalVisible("devices", state.devicesModalOpen) ? renderDevicesModal() : ""}
       ${isModalVisible("pay", state.payModalOpen) ? renderPayModal() : ""}
+		${isModalVisible("device-packs", state.devicePackModalOpen) ? renderDevicePackModal() : ""}
+		${isModalVisible("admin-device-packs", state.adminDevicePackEditorOpen) ? renderAdminDevicePackModal() : ""}
       ${isModalVisible("payment-launch", state.paymentLaunchModalOpen) ? renderPaymentLaunchModal() : ""}
       ${isModalVisible("review-compose", state.reviewComposeOpen) ? renderReviewComposerModal() : ""}
 		${isModalVisible("review-detail", state.reviewDetailOpen) ? renderReviewDetailModal() : ""}
@@ -2719,7 +2736,18 @@ function renderAdminBroadcastPage() {
 }
 
 function renderAdminBroadcastButton(button, index, disabled, english) {
-	const type = button?.type === "promo" ? "promo" : "url";
+	const typeOptions = [
+		["url", english ? "Link" : "Ссылка"],
+		["promo", english ? "Promo code" : "Промокод"],
+		["main", english ? "Main screen" : "Главное меню"],
+		["reviews", english ? "Reviews" : "Отзывы"],
+		["referrals", english ? "Referral program" : "Реферальная система"],
+		["login_methods", english ? "Login methods" : "Способы входа"],
+		["support", english ? "Support" : "Поддержка"],
+		["devices", english ? "Buy devices" : "Докупить устройства"],
+	];
+	const allowedTypes = typeOptions.map(([value]) => value);
+	const type = allowedTypes.includes(button?.type) ? button.type : "url";
 	const style = ["primary", "success", "danger"].includes(button?.style) ? button.style : "";
 	const styles = english
 		? [["", "Default"], ["primary", "Blue"], ["success", "Green"], ["danger", "Red"]]
@@ -2727,10 +2755,10 @@ function renderAdminBroadcastButton(button, index, disabled, english) {
 	return `<div class="admin-broadcast-button">
 		<div class="admin-broadcast-button__head"><strong>${english ? "Button" : "Кнопка"} ${index + 1}</strong><button class="admin-icon-button admin-icon-button--danger" type="button" data-action="admin-broadcast-remove-button" data-value="${index}" ${disabled ? "disabled" : ""} aria-label="${english ? "Delete" : "Удалить"}">${icon("trash")}</button></div>
 		<div class="admin-broadcast-button__grid">
-			<label><span>${english ? "Type" : "Тип"}</span><select data-broadcast-index="${index}" data-broadcast-field="type" ${disabled ? "disabled" : ""}><option value="url" ${type === "url" ? "selected" : ""}>${english ? "Link" : "Ссылка"}</option><option value="promo" ${type === "promo" ? "selected" : ""}>${english ? "Promo code" : "Промокод"}</option></select></label>
+			<label><span>${english ? "Type" : "Тип"}</span><select data-broadcast-index="${index}" data-broadcast-field="type" ${disabled ? "disabled" : ""}>${typeOptions.map(([value, label]) => `<option value="${value}" ${type === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
 			<label><span>${english ? "Text or tg-emoji code" : "Текст или tg-emoji код"}</span><input type="text" maxlength="256" value="${escapeAttribute(button?.text || "")}" data-broadcast-index="${index}" data-broadcast-field="text" placeholder="${english ? "Emoji code + Open" : "Код emoji + Открыть"}" ${disabled ? "disabled" : ""}></label>
 		</div>
-		<label><span>${type === "promo" ? (english ? "Promo code" : "Промокод") : "URL"}</span><input type="${type === "promo" ? "text" : "url"}" maxlength="256" value="${escapeAttribute(type === "promo" ? (button?.promoCode || "") : (button?.url || ""))}" data-broadcast-index="${index}" data-broadcast-field="${type === "promo" ? "promoCode" : "url"}" placeholder="${type === "promo" ? "LINK20" : "https://..."}" ${disabled ? "disabled" : ""}></label>
+		${type === "url" || type === "promo" ? `<label><span>${type === "promo" ? (english ? "Promo code" : "Промокод") : "URL"}</span><input type="${type === "promo" ? "text" : "url"}" maxlength="256" value="${escapeAttribute(type === "promo" ? (button?.promoCode || "") : (button?.url || ""))}" data-broadcast-index="${index}" data-broadcast-field="${type === "promo" ? "promoCode" : "url"}" placeholder="${type === "promo" ? "LINK20" : "https://..."}" ${disabled ? "disabled" : ""}></label>` : ""}
 		<label><span>${english ? "Premium emoji ID or full code" : "ID premium emoji или полный код"}</span><input type="text" maxlength="128" value="${escapeAttribute(button?.iconCustomEmojiId || "")}" data-broadcast-index="${index}" data-broadcast-field="iconCustomEmojiId" placeholder="5206222720416643915" ${disabled ? "disabled" : ""}></label>
 		<fieldset class="admin-broadcast-style" ${disabled ? "disabled" : ""}>
 			<legend>${english ? "Button color" : "Цвет кнопки"}</legend>
@@ -2827,6 +2855,7 @@ function renderAdminContentPage() {
 		["success", "После покупки"],
 		["support", "Поддержка"],
 		["notifications", "Уведомления"],
+		["panel", "Панель"],
 		["faq", "FAQ"],
 		["advanced", "Тексты RU"],
 	];
@@ -2845,6 +2874,7 @@ function renderAdminContentSection(section) {
 		case "success": return renderAdminSuccessContent();
 		case "support": return renderAdminSupportContent();
 		case "notifications": return renderAdminNotificationContent();
+		case "panel": return renderAdminPanelContent();
 		case "faq": return renderAdminFAQContent();
 		case "advanced": return `<section class="admin-editor__section"><h3>Тексты RU</h3>${renderAdminJSONField("JSON подписей mini app", "content.copy.ru", 16)}</section>`;
 		default: return renderAdminStartContent();
@@ -2980,8 +3010,21 @@ function renderAdminNotificationContent() {
 		</div>
 		<div class="admin-empty-line">Переменная {date} подставляет дату окончания. Поддерживается HTML Telegram.</div>
 	</section>
+	<section class="admin-editor__section"><h3>Устройства и отзывы</h3>
+		<div class="admin-empty-line">Переменные устройств: {added}, {count}, {limit}. Переменные отзыва: {name}, {username}, {rating}, {comment}.</div>
+		${renderAdminSettingField("Новое устройство", "content.copy.ru.deviceAddedTemplate", { textarea: true, rows: 5 })}
+		${renderAdminSettingField("Лимит устройств достигнут", "content.copy.ru.deviceLimitReachedTemplate", { textarea: true, rows: 5 })}
+		${renderAdminSettingField("Новый отзыв — админу", "content.copy.ru.reviewCreatedTemplate", { textarea: true, rows: 7 })}
+	</section>
 	<section class="admin-editor__section"><h3>Системные уведомления mini app</h3>
-		${[["trialActivated", "Триал активирован"], ["paymentOpened", "Оплата открыта"], ["paymentUnavailable", "Оплата недоступна"], ["paymentSuccess", "Оплата завершена"], ["paymentPending", "Оплата ожидается"], ["paymentCancelled", "Оплата отменена"], ["promoApplied", "Промокод применён"], ["promoCodeRequired", "Промокод не введён"], ["copied", "Ссылка скопирована"], ["deleteSuccess", "Устройство удалено"], ["noAccess", "Нет активной подписки"], ["timeout", "Сервер не ответил"]].map(([key, label]) => renderAdminSettingField(label, `content.copy.ru.${key}`)).join("")}
+		${[["trialActivated", "Триал активирован"], ["devicePurchaseSuccess", "Устройства добавлены"], ["paymentOpened", "Оплата открыта"], ["paymentUnavailable", "Оплата недоступна"], ["paymentSuccess", "Оплата завершена"], ["paymentPending", "Оплата ожидается"], ["paymentCancelled", "Оплата отменена"], ["promoApplied", "Промокод применён"], ["promoCodeRequired", "Промокод не введён"], ["copied", "Ссылка скопирована"], ["deleteSuccess", "Устройство удалено"], ["noAccess", "Нет активной подписки"], ["timeout", "Сервер не ответил"]].map(([key, label]) => renderAdminSettingField(label, `content.copy.ru.${key}`)).join("")}
+	</section>`;
+}
+
+function renderAdminPanelContent() {
+	return `<section class="admin-editor__section"><h3>Имена пользователей в панели</h3>
+		${renderAdminSettingField("Шаблон имени пользователя", "panel.usernameTemplate", { placeholder: "{{customer_id}}_{{telegram_id}}" })}
+		<div class="admin-empty-line">Доступные переменные: {{customer_id}} и {{telegram_id}}.</div>
 	</section>`;
 }
 
@@ -3218,7 +3261,7 @@ function renderAdminHiddenLayoutItems(area, hidden) {
 
 function renderAdminPlansPage() {
 	const plans = state.adminSettingsDraft?.plans || [];
-	return renderAdminEditorPage(state.locale === "en" ? "Plans" : "Тарифы", `<div class="admin-plan-editor">${plans.map((plan, index) => renderAdminPlanEditor(plan, index)).join("")}</div>`);
+	return renderAdminEditorPage(state.locale === "en" ? "Plans" : "Тарифы", `<button class="device-pack-admin-trigger" type="button" data-action="admin-open-device-packs">${icon("devices")}<span><strong>Докупить устройства</strong><small>Настроить пакеты устройств</small></span>${icon("chevronRight")}</button><div class="admin-plan-editor">${plans.map((plan, index) => renderAdminPlanEditor(plan, index)).join("")}</div>`);
 }
 
 function adminSquads() {
@@ -3573,10 +3616,12 @@ function renderBuyPage() {
   const copy = t();
   const plan = getSelectedPlan();
   const method = getSelectedPaymentMethod();
+  const devicePack = getSelectedDevicePack();
   const promoStatus = getPromoStatus();
-  const payLabel = plan && method ? `${copy.pay} ${formatPlanCheckoutPrice(plan, method.id, state.locale)}` : copy.paymentUnavailable;
+  const payLabel = plan && method ? `${copy.pay} ${formatCheckoutPrice(plan, devicePack, method.id)}` : copy.paymentUnavailable;
   const displayedPlans = getDisplayedPlans();
-  if (!displayedPlans.length) {
+  const devicePacks = getDevicePacks();
+  if (!displayedPlans.length && !devicePacks.length) {
     return `<section class="page page-buy--empty ${state.adminPlanEditing ? "page-buy--admin-editor" : ""} ${pageClass("buy")}" id="page-buy">
       <div class="commerce-empty" role="status">
         <div class="commerce-empty__icon">${icon("cartShopping")}</div>
@@ -3585,7 +3630,8 @@ function renderBuyPage() {
       </div>
     </section>`;
   }
-  const planList = `<div class="pricing-list ${state.adminPlanEditing ? "pricing-list--admin" : ""}" style="--plan-columns:${Math.max(1, Math.min(2, Number(getRuntimeSettings()?.layout?.planColumns || 2)))}">${displayedPlans.map((item) => renderPlanCard(item, planKey(item) === planKey(plan))).join("")}</div>`;
+  const devicePackTrigger = !state.adminPlanEditing && devicePacks.length ? `<div class="device-pack-trigger-row"><button class="device-pack-trigger" type="button" data-action="open-device-packs">${icon("devices")}<span><strong>Докупить устройства</strong>${devicePack ? `<small>+${formatNumber(devicePack.devices, state.locale)} устройств</small>` : ""}</span>${icon("chevronRight")}</button>${devicePack ? `<button class="device-pack-cancel" type="button" data-action="clear-device-pack">Отмена</button>` : ""}</div>` : "";
+  const planList = displayedPlans.length ? `<div class="pricing-list ${state.adminPlanEditing ? "pricing-list--admin" : ""}" style="--plan-columns:${Math.max(1, Math.min(2, Number(getRuntimeSettings()?.layout?.planColumns || 2)))}">${displayedPlans.map((item) => renderPlanCard(item, planKey(item) === planKey(plan))).join("")}</div>` : `<div class="commerce-empty commerce-empty--compact"><div class="commerce-empty__title">${escapeHtml(copy.noPlansTitle)}</div></div>`;
   const methodTitle = method?.label || copy.noPaymentMethodsTitle;
   const methodHint = method?.hint || copy.noPaymentMethodsHint;
   const checkoutDisabled = !plan || !method || state.busyMethod || state.adminPlanEditing;
@@ -3604,7 +3650,38 @@ function renderBuyPage() {
 		<button class="btn btn--green-filled buy-action" type="button" data-action="pay-selected" ${checkoutDisabled ? "disabled aria-disabled=\"true\"" : ""}>${icon(state.busyMethod ? "refresh" : "cart")}${payLabel}</button>
         </div>
       </div>`;
-  return `<section class="page ${state.adminPlanEditing ? "page-buy--admin-editor" : ""} ${pageClass("buy")}" id="page-buy">${planList}${checkout}</section>`;
+  return `<section class="page ${state.adminPlanEditing ? "page-buy--admin-editor" : ""} ${pageClass("buy")}" id="page-buy">${devicePackTrigger}${planList}${displayedPlans.length ? checkout : ""}</section>`;
+}
+
+function getDevicePacks(settings = getRuntimeSettings()) {
+	return (settings?.devicePacks || []).filter((pack) => pack && pack.enabled !== false && Number(pack.devices || 0) > 0 && Number(pack.priceRub || 0) > 0);
+}
+
+function getSelectedDevicePack() {
+	return getDevicePacks().find((pack) => String(pack.id) === String(state.selectedDevicePackId || "")) || null;
+}
+
+function devicePackPrice(pack, methodID) {
+	if (!pack) return 0;
+	return methodID === "stars" ? Number(pack.priceStars || Math.round(Number(pack.priceRub || 0) / 1.47)) : Number(pack.priceRub || 0);
+}
+
+function formatCheckoutPrice(plan, pack, methodID) {
+	if (methodID === "stars") return `${Number(plan?.priceStars || 0) + devicePackPrice(pack, methodID)} Stars`;
+	return `${Number(plan?.priceRub || 0) + devicePackPrice(pack, methodID)} ₽`;
+}
+
+function renderDevicePackModal() {
+	const packs = getDevicePacks();
+	const selected = getSelectedDevicePack();
+	const canBuyNow = isSubscriptionActive() && Number(state.data?.subscription?.deviceLimitCount || 0) > 0;
+	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="close-device-packs"></button><div class="modal__sheet modal__sheet--device-packs"><div class="modal__header"><div><div class="section-label">УСТРОЙСТВА</div><div class="modal__title">Докупить устройства</div></div><button class="header__btn" type="button" data-action="close-device-packs">${icon("close")}</button></div><div class="device-pack-grid">${packs.map((pack) => `<button class="device-pack-card ${String(pack.id) === String(selected?.id) ? "selected" : ""} ${pack.wide ? "is-wide" : ""}" type="button" data-action="select-device-pack" data-value="${escapeAttribute(pack.id)}"><strong>+${formatNumber(pack.devices, state.locale)} устройств</strong><span>${formatNumber(pack.priceRub, state.locale)} ₽</span></button>`).join("")}</div><div class="device-pack-modal__actions"><button class="btn" type="button" data-action="continue-device-pack" ${selected ? "" : "disabled"}>Продолжить</button><button class="btn btn--green-filled" type="button" data-action="buy-device-pack" ${selected && canBuyNow ? "" : "disabled"}>${icon("cart")}Докупить</button></div>${canBuyNow ? "" : `<p class="device-pack-modal__hint">Отдельная докупка доступна для активной подписки с лимитом устройств.</p>`}</div></div>`;
+}
+
+function renderAdminDevicePackModal() {
+	const packs = state.adminSettingsDraft?.devicePacks || [];
+	const draft = state.adminDevicePackFormDraft;
+	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-close-device-packs"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-admin"><div class="modal__header"><div><div class="section-label">ТАРИФЫ</div><div class="modal__title">Пакеты устройств</div></div><button class="header__btn" type="button" data-action="admin-close-device-packs">${icon("close")}</button></div>${draft ? `<div class="device-pack-form"><div class="admin-editor__grid"><label class="admin-field"><span>Устройств</span><input class="admin-field__control" data-input="admin-device-pack-devices" type="number" min="1" value="${escapeAttribute(draft.devices || 1)}"></label><label class="admin-field"><span>Цена, ₽</span><input class="admin-field__control" data-input="admin-device-pack-price" type="number" min="1" value="${escapeAttribute(draft.priceRub || 1)}"></label></div><label class="admin-toggle-row"><span>На всю ширину</span><input data-input="admin-device-pack-wide" type="checkbox" ${draft.wide ? "checked" : ""}></label><div class="device-pack-form__actions"><button class="btn" type="button" data-action="admin-cancel-device-pack">Отмена</button><button class="btn btn--green-filled" type="button" data-action="admin-save-device-pack">${icon("check")}Применить</button></div></div>` : `<button class="device-pack-add" type="button" data-action="admin-add-device-pack">${icon("plus")}Добавить пакет</button>`}<div class="device-pack-admin-list">${packs.map((pack, index) => `<article class="device-pack-admin-row"><span><strong>+${formatNumber(pack.devices, state.locale)} устройств</strong><small>${formatNumber(pack.priceRub, state.locale)} ₽${pack.wide ? " · на всю ширину" : ""}</small></span><div><button type="button" data-action="admin-move-device-pack" data-value="${index}" data-direction="-1">${icon("arrowUp")}</button><button type="button" data-action="admin-move-device-pack" data-value="${index}" data-direction="1">${icon("arrowDown")}</button><button type="button" data-action="admin-edit-device-pack" data-value="${escapeAttribute(pack.id)}">${icon("pencil")}</button><button type="button" data-action="admin-delete-device-pack" data-value="${escapeAttribute(pack.id)}">${icon("trash")}</button></div></article>`).join("")}</div></div></div>`;
 }
 
 function renderSetupPage() {
@@ -4897,6 +4974,20 @@ function bindRootActions() {
       if (action === "close-admin-section") { state.adminSection = "home"; state.adminBroadcastConfirmOpen = false; haptic("light"); renderAdminTransition(); return; }
 			if (action === "admin-layout-exit") return exitAdminLayoutEditor();
 			if (action === "admin-plan-exit") return exitAdminPlanEditor();
+			if (action === "open-device-packs") { state.devicePackModalOpen = true; render({ preserveScroll: true }); return; }
+			if (action === "close-device-packs") { state.devicePackModalOpen = false; render({ preserveScroll: true }); return; }
+			if (action === "select-device-pack") { state.selectedDevicePackId = value; haptic("light"); render({ preserveScroll: true }); return; }
+			if (action === "clear-device-pack") { state.selectedDevicePackId = ""; render({ preserveScroll: true }); return; }
+			if (action === "continue-device-pack") { state.devicePackModalOpen = false; render({ preserveScroll: true }); return; }
+			if (action === "buy-device-pack") { state.devicePackModalOpen = false; return await startPayment({ deviceOnly: true }); }
+			if (action === "admin-open-device-packs") { state.adminDevicePackEditorOpen = true; state.adminDevicePackFormDraft = null; render({ preserveScroll: true }); return; }
+			if (action === "admin-close-device-packs") { state.adminDevicePackEditorOpen = false; state.adminDevicePackFormDraft = null; render({ preserveScroll: true }); return; }
+			if (action === "admin-add-device-pack") return addAdminDevicePack();
+			if (action === "admin-edit-device-pack") return editAdminDevicePack(value);
+			if (action === "admin-cancel-device-pack") { state.adminDevicePackFormDraft = null; state.adminDevicePackEditingID = ""; render({ preserveScroll: true }); return; }
+			if (action === "admin-save-device-pack") return saveAdminDevicePack();
+			if (action === "admin-delete-device-pack") return deleteAdminDevicePack(value);
+			if (action === "admin-move-device-pack") return moveAdminDevicePack(Number(value), Number(target.dataset.direction || 0));
 			if (action === "admin-add-plan") return addAdminPlan();
 			if (action === "admin-reset-plans") return resetAdminPlans();
 			if (action === "admin-toggle-plan-wide") return toggleAdminPlanWide(value);
@@ -5036,7 +5127,10 @@ function bindRootActions() {
 			const button = state.adminBroadcastButtonsDraft[broadcastIndex];
 			button[broadcastField] = target.value;
 			if (broadcastField === "type") {
-				button.type = target.value === "promo" ? "promo" : "url";
+				const allowedTypes = ["url", "promo", "main", "reviews", "referrals", "login_methods", "support", "devices"];
+				button.type = allowedTypes.includes(target.value) ? target.value : "url";
+				if (button.type !== "url") button.url = "";
+				if (button.type !== "promo") button.promoCode = "";
 				state.adminBroadcastButtonsDirty = true;
 				render({ preserveScroll: true });
 				return;
@@ -5071,6 +5165,9 @@ function bindRootActions() {
 			state.adminPlanFormDraft.internalSquadUuids = updateAdminSquadSelection(state.adminPlanFormDraft.internalSquadUuids, target.value, Boolean(target.checked));
 			return;
 		}
+		if (inputKey === "admin-device-pack-devices" && state.adminDevicePackFormDraft) { state.adminDevicePackFormDraft.devices = Number(target.value || 0); return; }
+		if (inputKey === "admin-device-pack-price" && state.adminDevicePackFormDraft) { const priceRub = Number(target.value || 0); state.adminDevicePackFormDraft.priceRub = priceRub; state.adminDevicePackFormDraft.priceStars = Math.max(0, Math.round(priceRub / 1.47)); return; }
+		if (inputKey === "admin-device-pack-wide" && state.adminDevicePackFormDraft) { state.adminDevicePackFormDraft.wide = Boolean(target.checked); return; }
 		if (inputKey === "admin-plan-external-squad" && state.adminPlanFormDraft) {
 			state.adminPlanFormDraft.externalSquadUuid = target.value;
 			return;
@@ -5697,6 +5794,57 @@ function exitAdminPlanEditor() {
 	previousBottomNavIndex = -1;
 	haptic("light");
 	renderAdminTransition();
+}
+
+function addAdminDevicePack() {
+	const id = `devices_${Date.now().toString(36)}`;
+	state.adminDevicePackEditingID = id;
+	state.adminDevicePackFormDraft = { id, enabled: true, devices: 1, priceRub: 1, priceStars: 1, wide: false };
+	render({ preserveScroll: true });
+}
+
+function editAdminDevicePack(id) {
+	const pack = state.adminSettingsDraft?.devicePacks?.find((item) => String(item.id) === String(id));
+	if (!pack) return;
+	state.adminDevicePackEditingID = id;
+	state.adminDevicePackFormDraft = deepClone(pack);
+	render({ preserveScroll: true });
+}
+
+function saveAdminDevicePack() {
+	const draft = state.adminDevicePackFormDraft;
+	if (!draft) return;
+	const devices = Math.trunc(Number(draft.devices || 0));
+	const priceRub = Math.trunc(Number(draft.priceRub || 0));
+	if (devices < 1 || devices > 1000) return showToast("Укажите от 1 до 1000 устройств", "danger");
+	if (priceRub < 1 || priceRub > 1000000) return showToast("Укажите корректную цену", "danger");
+	const packs = state.adminSettingsDraft.devicePacks ||= [];
+	const next = { ...draft, enabled: true, devices, priceRub, priceStars: Math.max(1, Math.round(priceRub / 1.47)), wide: Boolean(draft.wide) };
+	const index = packs.findIndex((item) => String(item.id) === String(state.adminDevicePackEditingID));
+	if (index >= 0) packs[index] = next; else packs.push(next);
+	state.adminSettingsDirty = true;
+	state.adminDevicePackFormDraft = null;
+	state.adminDevicePackEditingID = "";
+	render({ preserveScroll: true });
+}
+
+function deleteAdminDevicePack(id) {
+	const packs = state.adminSettingsDraft?.devicePacks;
+	if (!Array.isArray(packs)) return;
+	const index = packs.findIndex((item) => String(item.id) === String(id));
+	if (index < 0 || !window.confirm("Удалить этот пакет устройств?")) return;
+	packs.splice(index, 1);
+	state.adminSettingsDirty = true;
+	render({ preserveScroll: true });
+}
+
+function moveAdminDevicePack(index, direction) {
+	const packs = state.adminSettingsDraft?.devicePacks;
+	const next = index + Math.sign(direction);
+	if (!Array.isArray(packs) || index < 0 || next < 0 || index >= packs.length || next >= packs.length) return;
+	[packs[index], packs[next]] = [packs[next], packs[index]];
+	state.adminSettingsDirty = true;
+	render({ preserveScroll: true });
 }
 
 function addAdminPlan() {
@@ -6985,21 +7133,24 @@ async function applyPromoCode(options = {}) {
   }
 }
 
-async function startPayment() {
+async function startPayment({ deviceOnly = false } = {}) {
   const plan = getSelectedPlan();
+  const devicePack = getSelectedDevicePack();
   const method = getSelectedPaymentMethod()?.id || "";
-  if (!plan || !method) return showToast(t().paymentUnavailable);
+  if ((!deviceOnly && !plan) || (deviceOnly && !devicePack) || !method) return showToast(t().paymentUnavailable);
 
   state.busyMethod = method;
   render();
   let navigatingAway = false;
   try {
     const response = await post("/api/mini-app/purchase", {
-      planId: plan.id || "",
-      months: plan.months,
+      planId: plan?.id || "",
+      months: plan?.months || 0,
       paymentMethod: method,
       agreementAccepted: true,
-      promoCode: getActivePromo()?.code || "",
+      promoCode: deviceOnly ? "" : (getActivePromo()?.code || ""),
+	  devicePackId: devicePack?.id || "",
+	  deviceOnly,
     });
     const { action, url, purchaseId } = response.data;
     if (action === "open_invoice") {
@@ -7701,10 +7852,11 @@ function getSelectedPlan() {
 }
 
 function getAvailableMethods(plan = getSelectedPlan()) {
+	const pack = getSelectedDevicePack();
   return (state.data?.paymentMethods || [])
     .map((item) => paymentMethodMeta(item.id))
     .filter(Boolean)
-    .filter((method) => method.id !== "stars" || Number(plan?.priceStars || 0) > 0);
+    .filter((method) => method.id !== "stars" || Number(plan?.priceStars || 0) + Number(pack?.priceStars || 0) > 0);
 }
 
 function getSelectedPaymentMethod() {
