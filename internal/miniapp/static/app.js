@@ -3261,7 +3261,7 @@ function renderAdminHiddenLayoutItems(area, hidden) {
 
 function renderAdminPlansPage() {
 	const plans = state.adminSettingsDraft?.plans || [];
-	return renderAdminEditorPage(state.locale === "en" ? "Plans" : "Тарифы", `<button class="device-pack-admin-trigger" type="button" data-action="admin-open-device-packs">${icon("devices")}<span><strong>Докупить устройства</strong><small>Настроить пакеты устройств</small></span>${icon("chevronRight")}</button><div class="admin-plan-editor">${plans.map((plan, index) => renderAdminPlanEditor(plan, index)).join("")}</div>`);
+	return renderAdminEditorPage(state.locale === "en" ? "Plans" : "Тарифы", `${renderDevicePackAdminTrigger()}<div class="admin-plan-editor">${plans.map((plan, index) => renderAdminPlanEditor(plan, index)).join("")}</div>`);
 }
 
 function adminSquads() {
@@ -3631,8 +3631,8 @@ function renderBuyPage() {
     </section>`;
   }
   const devicePackTrigger = state.adminPlanEditing
-    ? `<button class="device-pack-admin-trigger device-pack-admin-trigger--editor" type="button" data-action="admin-open-device-packs">${icon("devices")}<span><strong>Пакеты устройств</strong><small>${devicePacks.length ? `${devicePacks.length} настроено` : "Добавьте первый пакет"}</small></span>${icon("chevronRight")}</button>`
-    : devicePacks.length ? `<div class="device-pack-trigger-row"><button class="device-pack-trigger" type="button" data-action="open-device-packs">${icon("devices")}<span><strong>Докупить устройства</strong>${devicePack ? `<small>+${formatNumber(devicePack.devices, state.locale)} устройств</small>` : ""}</span>${icon("chevronRight")}</button>${devicePack ? `<button class="device-pack-cancel" type="button" data-action="clear-device-pack">Отмена</button>` : ""}</div>` : "";
+    ? renderDevicePackAdminTrigger(true)
+    : devicePacks.length ? renderDevicePackTrigger(devicePack) : "";
   const planList = displayedPlans.length ? `<div class="pricing-list ${state.adminPlanEditing ? "pricing-list--admin" : ""}" style="--plan-columns:${Math.max(1, Math.min(2, Number(getRuntimeSettings()?.layout?.planColumns || 2)))}">${displayedPlans.map((item) => renderPlanCard(item, planKey(item) === planKey(plan))).join("")}</div>` : `<div class="commerce-empty commerce-empty--compact"><div class="commerce-empty__title">${escapeHtml(copy.noPlansTitle)}</div></div>`;
   const methodTitle = method?.label || copy.noPaymentMethodsTitle;
   const methodHint = method?.hint || copy.noPaymentMethodsHint;
@@ -3673,12 +3673,76 @@ function formatCheckoutPrice(plan, pack, methodID) {
 	return `${Number(plan?.priceRub || 0) + devicePackPrice(pack, methodID)} ₽`;
 }
 
+function devicePackTitle(count) {
+	const value = Math.max(0, Number(count || 0));
+	const mod10 = value % 10;
+	const mod100 = value % 100;
+	const word = mod10 === 1 && mod100 !== 11 ? "устройство" : (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? "устройства" : "устройств");
+	return `+${formatNumber(value, state.locale)} ${word}`;
+}
+
+function renderDevicePackTrigger(pack) {
+	return `<div class="device-pack-trigger-row ${pack ? "has-selection" : ""}">
+		<button class="device-pack-trigger__main" type="button" data-action="open-device-packs">
+			<span class="device-pack-trigger__icon">${icon("devicePhone")}</span>
+			<span class="device-pack-trigger__copy"><strong>Докупить устройства</strong>${pack ? `<small>${escapeHtml(devicePackTitle(pack.devices))}</small>` : ""}</span>
+			<span class="device-pack-trigger__tail">${icon("chevronRight")}</span>
+		</button>
+		${pack ? `<button class="device-pack-trigger__cancel" type="button" data-action="clear-device-pack" aria-label="Отменить выбранный пакет">Отмена</button>` : ""}
+	</div>`;
+}
+
+function renderDevicePackAdminTrigger(editor = false) {
+	const packs = state.adminSettingsDraft?.devicePacks || [];
+	const hint = packs.length ? `${packs.length} настроено` : "Добавьте первый пакет";
+	return `<button class="profile-row device-pack-admin-trigger ${editor ? "device-pack-admin-trigger--editor" : ""}" type="button" data-action="admin-open-device-packs">
+		<span class="profile-row__icon">${icon("devicePhone")}</span>
+		<span class="profile-row__body"><strong>Пакеты устройств</strong><span>${escapeHtml(hint)}</span></span>
+		<span class="profile-row__tail">${icon("chevronRight")}</span>
+	</button>`;
+}
+
+function renderDevicePackCard(pack, selected = false) {
+	const price = `${formatNumber(pack.priceRub, state.locale)} ₽`;
+	return `<button class="pricing-card device-pack-card ${selected ? "selected" : ""} ${pack.wide ? "is-wide" : ""}" type="button" data-action="select-device-pack" data-value="${escapeAttribute(pack.id)}">
+		<div class="pricing-card__content">
+			<div class="pricing-card__copy">
+				<div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(devicePackTitle(pack.devices))}</div></div>
+				<div class="pricing-card__spec">К текущему лимиту</div>
+			</div>
+			<div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong>${escapeHtml(price)}</strong></div></div></div>
+		</div>
+	</button>`;
+}
+
+function renderAdminDevicePackCard(pack, index) {
+	const id = escapeAttribute(pack.id);
+	const price = `${formatNumber(pack.priceRub, state.locale)} ₽`;
+	const widthLabel = pack.wide ? "Сделать пакет узким" : "Растянуть пакет";
+	return `<article class="pricing-card pricing-card--admin device-pack-card device-pack-card--admin ${pack.wide ? "is-wide" : ""}">
+		<div class="pricing-card__content">
+			<div class="pricing-card__copy">
+				<div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(devicePackTitle(pack.devices))}</div></div>
+				<div class="pricing-card__spec">К текущему лимиту</div>
+			</div>
+			<div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong>${escapeHtml(price)}</strong></div></div></div>
+		</div>
+		<div class="pricing-card__admin-actions device-pack-card__admin-actions">
+			<button type="button" data-action="admin-move-device-pack" data-value="${index}" data-direction="-1" aria-label="Переместить пакет вверх">${icon("arrowUp")}</button>
+			<button type="button" data-action="admin-move-device-pack" data-value="${index}" data-direction="1" aria-label="Переместить пакет вниз">${icon("arrowDown")}</button>
+			<button type="button" data-action="admin-toggle-device-pack-wide" data-value="${id}" aria-label="${escapeAttribute(widthLabel)}" aria-pressed="${Boolean(pack.wide)}">${icon("resize")}</button>
+			<button type="button" data-action="admin-edit-device-pack" data-value="${id}" aria-label="Редактировать пакет">${icon("pencil")}</button>
+			<button type="button" data-action="admin-delete-device-pack" data-value="${id}" aria-label="Удалить пакет">${icon("trash")}</button>
+		</div>
+	</article>`;
+}
+
 function renderDevicePackModal() {
 	const packs = getDevicePacks();
 	const selected = getSelectedDevicePack();
 	const canBuyNow = isSubscriptionActive() && Number(state.data?.subscription?.deviceLimitCount || 0) > 0;
 	const packList = packs.length
-		? `<div class="device-pack-grid">${packs.map((pack) => `<button class="device-pack-card ${String(pack.id) === String(selected?.id) ? "selected" : ""} ${pack.wide ? "is-wide" : ""}" type="button" data-action="select-device-pack" data-value="${escapeAttribute(pack.id)}"><strong>+${formatNumber(pack.devices, state.locale)} устройств</strong><span>${formatNumber(pack.priceRub, state.locale)} ₽</span></button>`).join("")}</div>`
+		? `<div class="device-pack-grid">${packs.map((pack) => renderDevicePackCard(pack, String(pack.id) === String(selected?.id))).join("")}</div>`
 		: `<div class="device-pack-empty" role="status"><strong>Пакеты устройств пока не настроены</strong><span>Администратор может добавить их в разделе «Тарифы».</span></div>`;
 	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="close-device-packs"></button><div class="modal__sheet modal__sheet--device-packs"><div class="modal__header"><div><div class="section-label">УСТРОЙСТВА</div><div class="modal__title">Докупить устройства</div></div><button class="header__btn" type="button" data-action="close-device-packs">${icon("close")}</button></div>${packList}<div class="device-pack-modal__actions"><button class="btn" type="button" data-action="continue-device-pack" ${selected ? "" : "disabled"}>Продолжить</button><button class="btn btn--green-filled" type="button" data-action="buy-device-pack" ${selected && canBuyNow ? "" : "disabled"}>${icon("cart")}Докупить</button></div>${canBuyNow ? "" : `<p class="device-pack-modal__hint">Отдельная докупка доступна для активной подписки с лимитом устройств.</p>`}</div></div>`;
 }
@@ -3686,7 +3750,9 @@ function renderDevicePackModal() {
 function renderAdminDevicePackModal() {
 	const packs = state.adminSettingsDraft?.devicePacks || [];
 	const draft = state.adminDevicePackFormDraft;
-	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-close-device-packs"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-admin"><div class="modal__header"><div><div class="section-label">ТАРИФЫ</div><div class="modal__title">Пакеты устройств</div></div><button class="header__btn" type="button" data-action="admin-close-device-packs">${icon("close")}</button></div>${draft ? `<div class="device-pack-form"><div class="admin-editor__grid"><label class="admin-field"><span>Устройств</span><input class="admin-field__control" data-input="admin-device-pack-devices" type="number" min="1" value="${escapeAttribute(draft.devices || 1)}"></label><label class="admin-field"><span>Цена, ₽</span><input class="admin-field__control" data-input="admin-device-pack-price" type="number" min="1" value="${escapeAttribute(draft.priceRub || 1)}"></label></div><label class="admin-toggle-row"><span>На всю ширину</span><input data-input="admin-device-pack-wide" type="checkbox" ${draft.wide ? "checked" : ""}></label><div class="device-pack-form__actions"><button class="btn" type="button" data-action="admin-cancel-device-pack">Отмена</button><button class="btn btn--green-filled" type="button" data-action="admin-save-device-pack">${icon("check")}Применить</button></div></div>` : `<button class="device-pack-add" type="button" data-action="admin-add-device-pack">${icon("plus")}Добавить пакет</button>`}<div class="device-pack-admin-list">${packs.map((pack, index) => `<article class="device-pack-admin-row"><span><strong>+${formatNumber(pack.devices, state.locale)} устройств</strong><small>${formatNumber(pack.priceRub, state.locale)} ₽${pack.wide ? " · на всю ширину" : ""}</small></span><div><button type="button" data-action="admin-move-device-pack" data-value="${index}" data-direction="-1">${icon("arrowUp")}</button><button type="button" data-action="admin-move-device-pack" data-value="${index}" data-direction="1">${icon("arrowDown")}</button><button type="button" data-action="admin-edit-device-pack" data-value="${escapeAttribute(pack.id)}">${icon("pencil")}</button><button type="button" data-action="admin-delete-device-pack" data-value="${escapeAttribute(pack.id)}">${icon("trash")}</button></div></article>`).join("")}</div></div></div>`;
+	const editor = draft ? `<div class="device-pack-form"><div class="admin-editor__grid"><label class="admin-field"><span>Устройств</span><input class="admin-field__control" data-input="admin-device-pack-devices" type="number" min="1" value="${escapeAttribute(draft.devices || 1)}"></label><label class="admin-field"><span>Цена, ₽</span><input class="admin-field__control" data-input="admin-device-pack-price" type="number" min="1" value="${escapeAttribute(draft.priceRub || 1)}"></label></div><label class="admin-toggle-row"><span>На всю ширину</span><input data-input="admin-device-pack-wide" type="checkbox" ${draft.wide ? "checked" : ""}></label><div class="device-pack-form__actions"><button class="btn" type="button" data-action="admin-cancel-device-pack">Отмена</button><button class="btn btn--green-filled" type="button" data-action="admin-save-device-pack">${icon("check")}Применить</button></div></div>` : `<button class="device-pack-add" type="button" data-action="admin-add-device-pack">${icon("plus")}Добавить пакет</button>`;
+	const cards = packs.length ? packs.map((pack, index) => renderAdminDevicePackCard(pack, index)).join("") : `<div class="device-pack-empty"><strong>Пакетов пока нет</strong><span>Добавьте первый пакет устройств.</span></div>`;
+	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-close-device-packs"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-admin"><div class="modal__header"><div><div class="section-label">ТАРИФЫ</div><div class="modal__title">Пакеты устройств</div></div><button class="header__btn" type="button" data-action="admin-close-device-packs">${icon("close")}</button></div>${editor}<div class="device-pack-admin-list">${cards}</div></div></div>`;
 }
 
 function renderSetupPage() {
@@ -4993,6 +5059,7 @@ function bindRootActions() {
 			if (action === "admin-save-device-pack") return saveAdminDevicePack();
 			if (action === "admin-delete-device-pack") return deleteAdminDevicePack(value);
 			if (action === "admin-move-device-pack") return moveAdminDevicePack(Number(value), Number(target.dataset.direction || 0));
+			if (action === "admin-toggle-device-pack-wide") return toggleAdminDevicePackWide(value);
 			if (action === "admin-add-plan") return addAdminPlan();
 			if (action === "admin-reset-plans") return resetAdminPlans();
 			if (action === "admin-toggle-plan-wide") return toggleAdminPlanWide(value);
@@ -5849,6 +5916,15 @@ function moveAdminDevicePack(index, direction) {
 	if (!Array.isArray(packs) || index < 0 || next < 0 || index >= packs.length || next >= packs.length) return;
 	[packs[index], packs[next]] = [packs[next], packs[index]];
 	state.adminSettingsDirty = true;
+	render({ preserveScroll: true });
+}
+
+function toggleAdminDevicePackWide(id) {
+	const pack = state.adminSettingsDraft?.devicePacks?.find((item) => String(item.id) === String(id));
+	if (!pack) return;
+	pack.wide = !pack.wide;
+	state.adminSettingsDirty = true;
+	haptic("light");
 	render({ preserveScroll: true });
 }
 
@@ -8489,6 +8565,7 @@ const PROFILE_ICON_CLASSES = {
 	profileKey: "key",
 	profileExternal: "external",
 	profileDownload: "download",
+	devicePhone: "phone",
 };
 
 const ADMIN_ICON_CLASSES = {
