@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
@@ -75,7 +76,10 @@ type config struct {
 	trafficLimitResetStrategy                                 string
 }
 
-var conf config
+var (
+	conf                 config
+	miniAppLaunchVersion = strconv.FormatInt(time.Now().UTC().UnixNano(), 36)
+)
 
 func RemnawaveTag() string {
 	return conf.remnawaveTag
@@ -114,7 +118,23 @@ func ReferralTrafficBonusBytes() int {
 }
 
 func GetMiniAppURL() string {
-	return conf.miniApp
+	return versionedMiniAppURL(conf.miniApp, miniAppLaunchVersion)
+}
+
+func versionedMiniAppURL(rawURL, version string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" || version == "" {
+		return rawURL
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	query := parsed.Query()
+	query.Set("v", version)
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
 }
 
 func PublicBaseURL() string {
