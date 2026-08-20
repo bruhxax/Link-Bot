@@ -75,8 +75,9 @@
   z-index: 1;
   flex: 0 0 auto;
   padding-top: 12px;
-  border-top: 1px solid var(--line-soft);
+  border: 0;
   background: var(--surface-strong);
+  box-shadow: none;
 }
 .device-pack-grid,
 .device-pack-admin-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -1628,16 +1629,16 @@ img { display: block; max-width: 100%; }
 }
 
 .subscription-switcher__trigger {
-  min-width: 132px;
+  min-width: 0;
   min-height: 38px;
   max-width: 100%;
-  padding: 7px 12px 7px 14px;
+  padding: 7px 10px 7px 12px;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 7px;
+  justify-content: flex-start;
+  gap: 6px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 15px;
   background: var(--control-bg);
   color: var(--button-text);
   font: inherit;
@@ -1693,7 +1694,24 @@ img { display: block; max-width: 100%; }
 
 .subscription-switcher__list,
 .subscription-switcher__actions { display: grid; gap: 3px; }
-.subscription-switcher__actions { margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--line-soft); }
+.subscription-switcher__actions {
+  position: relative;
+  gap: 0;
+  margin-top: 7px;
+  padding-top: 7px;
+}
+
+.subscription-switcher__actions::before,
+.subscription-switcher__actions button + button::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 10px;
+  left: 10px;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, var(--line-soft) 18%, var(--line) 50%, var(--line-soft) 82%, transparent 100%);
+}
 
 .subscription-switcher__item,
 .subscription-switcher__actions button {
@@ -1720,7 +1738,7 @@ img { display: block; max-width: 100%; }
 .subscription-switcher__item-copy strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .subscription-switcher__item-copy small { color: var(--muted); font-size: 10px; }
 .subscription-switcher__check { width: 18px; height: 18px; flex: 0 0 18px; display: grid; place-items: center; color: var(--icon-color); }
-.subscription-switcher__actions button { font-size: 12px; font-weight: 700; }
+.subscription-switcher__actions button { position: relative; font-size: 12px; font-weight: 700; }
 .subscription-switcher__actions button > svg { flex: 0 0 15px; color: var(--icon-color); }
 .subscription-switcher__actions button:disabled { opacity: .42; }
 .subscription-switcher__actions .subscription-switcher__delete:not(:disabled) { color: var(--danger); }

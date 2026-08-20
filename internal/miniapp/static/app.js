@@ -7218,15 +7218,21 @@ async function selectSubscription(id) {
 	const active = getActiveSubscriptionItem();
 	if (!id || Number(active?.id) === id || state.subscriptionBusy) return requestSubscriptionMenuClose();
 	state.subscriptionBusy = `select-${id}`;
-	render({ preserveScroll: true });
+	requestSubscriptionMenuClose();
 	try {
 		const response = await post("/api/mini-app/subscriptions/select", { id });
 		applySubscriptionBootstrap(response.data);
 		state.subscriptionBusy = "";
-		requestSubscriptionMenuClose();
+		window.clearTimeout(subscriptionMenuTimer);
+		state.subscriptionMenuOpen = false;
+		state.subscriptionMenuClosing = false;
+		render({ preserveScroll: true });
 		haptic("light");
 	} catch (error) {
 		state.subscriptionBusy = "";
+		window.clearTimeout(subscriptionMenuTimer);
+		state.subscriptionMenuOpen = false;
+		state.subscriptionMenuClosing = false;
 		render({ preserveScroll: true });
 		throw error;
 	}
