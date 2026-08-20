@@ -85,18 +85,18 @@ func buildPaymentNotificationMessage(
 			promoLine = fmt.Sprintf("\n🏷 <b>Промокод:</b> <b>%s%s</b>", html.EscapeString(promoCode), discount)
 		}
 	}
+	purchaseLines := formatPaymentPurchaseLines(purchase)
 
 	return fmt.Sprintf(
 		"%s <b>Оплата:</b> <b>%s</b>\n\n"+
-			"%s <b>Тариф:</b> <b>%s</b>\n"+
+			"%s\n"+
 			"%s <b>Telegram:</b> <b>%s</b>\n"+
 			"%s <b>Время:</b> <b>%s</b>\n"+
 			"%s <b>Способ:</b> <b>%s</b>%s\n"+
 			"%s <b>Заказ:</b> <code>%d</code>",
 		premiumEmoji("5258204546391351475"),
 		html.EscapeString(formatPurchaseAmount(purchase)),
-		premiumEmoji("5226513232549664618"),
-		html.EscapeString(formatTariff(purchase.Month)),
+		purchaseLines,
 		premiumEmoji("5258073068852485953"),
 		html.EscapeString(usernameText),
 		premiumEmoji("5258419835922030550"),
@@ -107,6 +107,33 @@ func buildPaymentNotificationMessage(
 		premiumEmoji("5258389041006518073"),
 		orderNumber,
 	)
+}
+
+func formatPaymentPurchaseLines(purchase *database.Purchase) string {
+	detailsEmoji := premiumEmoji("5226513232549664618")
+	if purchase.PurchaseKind == database.PurchaseKindExtraDevices {
+		return fmt.Sprintf(
+			"%s <b>Покупка:</b> <b>Дополнительные устройства</b>\n"+
+				"%s <b>Устройства:</b> <b>+%d</b>",
+			detailsEmoji,
+			detailsEmoji,
+			purchase.ExtraDevices,
+		)
+	}
+
+	lines := fmt.Sprintf(
+		"%s <b>Тариф:</b> <b>%s</b>",
+		detailsEmoji,
+		html.EscapeString(formatTariff(purchase.Month)),
+	)
+	if purchase.ExtraDevices > 0 {
+		lines += fmt.Sprintf(
+			"\n%s <b>Доп. устройства:</b> <b>+%d</b>",
+			detailsEmoji,
+			purchase.ExtraDevices,
+		)
+	}
+	return lines
 }
 
 func premiumEmoji(id string) string {

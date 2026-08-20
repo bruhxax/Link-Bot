@@ -59,6 +59,61 @@ func TestBuildPaymentNotificationMessageOmitsEmptyPromoCode(t *testing.T) {
 	}
 }
 
+func TestBuildPaymentNotificationMessageShowsDeviceOnlyPurchase(t *testing.T) {
+	purchase := &database.Purchase{
+		ID:           447,
+		Amount:       149,
+		Currency:     "RUB",
+		PurchaseKind: database.PurchaseKindExtraDevices,
+		ExtraDevices: 3,
+	}
+
+	message := buildPaymentNotificationMessage(purchase, &database.Customer{}, "exampleuser", "YooKassa", time.Unix(0, 0), 447)
+	if !strings.Contains(message, "Покупка:</b> <b>Дополнительные устройства") {
+		t.Fatalf("notification must identify a device-only purchase: %s", message)
+	}
+	if !strings.Contains(message, "Устройства:</b> <b>+3") {
+		t.Fatalf("notification must contain the purchased device count: %s", message)
+	}
+	if strings.Contains(message, "Тариф:") || strings.Contains(message, "0 месяцев") {
+		t.Fatalf("device-only notification must not contain a zero-month tariff: %s", message)
+	}
+}
+
+func TestBuildPaymentNotificationMessageShowsDevicesBoughtWithSubscription(t *testing.T) {
+	purchase := &database.Purchase{
+		ID:           448,
+		Amount:       799,
+		Currency:     "RUB",
+		Month:        6,
+		PurchaseKind: database.PurchaseKindSubscription,
+		ExtraDevices: 2,
+	}
+
+	message := buildPaymentNotificationMessage(purchase, &database.Customer{}, "exampleuser", "Crypto Pay", time.Unix(0, 0), 448)
+	if !strings.Contains(message, "Тариф:</b> <b>6 месяцев") {
+		t.Fatalf("combined notification must contain the subscription tariff: %s", message)
+	}
+	if !strings.Contains(message, "Доп. устройства:</b> <b>+2") {
+		t.Fatalf("combined notification must contain the purchased device count: %s", message)
+	}
+}
+
+func TestBuildPaymentNotificationMessageOmitsDevicesForRegularSubscription(t *testing.T) {
+	purchase := &database.Purchase{
+		ID:           449,
+		Amount:       299,
+		Currency:     "RUB",
+		Month:        1,
+		PurchaseKind: database.PurchaseKindSubscription,
+	}
+
+	message := buildPaymentNotificationMessage(purchase, &database.Customer{}, "exampleuser", "Telegram Stars", time.Unix(0, 0), 449)
+	if strings.Contains(message, "Устройства:") {
+		t.Fatalf("regular subscription notification must not contain an extra-device line: %s", message)
+	}
+}
+
 func TestNormalizeSubscriptionActivatedPreviewSupportsPremiumEmojiAndColor(t *testing.T) {
 	commerce, err := normalizeSubscriptionActivatedPreview(SubscriptionActivatedPreviewOptions{
 		Text:              "  <b>Подписка активирована</b>  ",
