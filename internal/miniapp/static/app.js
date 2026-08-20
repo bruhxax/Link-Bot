@@ -3669,8 +3669,14 @@ function devicePackPrice(pack, methodID) {
 }
 
 function formatCheckoutPrice(plan, pack, methodID) {
-	if (methodID === "stars") return `${Number(plan?.priceStars || 0) + devicePackPrice(pack, methodID)} Stars`;
-	return `${Number(plan?.priceRub || 0) + devicePackPrice(pack, methodID)} ₽`;
+	const planPrice = methodID === "stars" ? Number(plan?.priceStars || 0) : Number(plan?.priceRub || 0);
+	const basePrice = Math.max(0, planPrice) + Math.max(0, devicePackPrice(pack, methodID));
+	const promo = getActivePromo();
+	const amount = basePrice > 0 && promo?.discountPercent
+		? Math.max(1, Math.round(basePrice * (100 - promo.discountPercent) / 100))
+		: basePrice;
+	if (methodID === "stars") return `${formatNumber(amount, state.locale)} Stars`;
+	return formatCurrency(amount, state.locale);
 }
 
 function devicePackTitle(count) {
@@ -3704,7 +3710,7 @@ function renderDevicePackAdminTrigger(editor = false) {
 
 function renderDevicePackCard(pack, selected = false) {
 	const price = `${formatNumber(pack.priceRub, state.locale)} ₽`;
-	return `<button class="pricing-card device-pack-card ${selected ? "selected" : ""} ${pack.wide ? "is-wide" : ""}" type="button" data-action="select-device-pack" data-value="${escapeAttribute(pack.id)}">
+	return `<button class="pricing-card device-pack-card ${selected ? "selected" : ""} ${pack.wide ? "is-wide" : ""}" type="button" data-action="select-device-pack" data-value="${escapeAttribute(pack.id)}" aria-pressed="${selected}">
 		<div class="pricing-card__content">
 			<div class="pricing-card__copy">
 				<div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(devicePackTitle(pack.devices))}</div></div>
@@ -3744,7 +3750,7 @@ function renderDevicePackModal() {
 	const packList = packs.length
 		? `<div class="device-pack-grid">${packs.map((pack) => renderDevicePackCard(pack, String(pack.id) === String(selected?.id))).join("")}</div>`
 		: `<div class="device-pack-empty" role="status"><strong>Пакеты устройств пока не настроены</strong><span>Администратор может добавить их в разделе «Тарифы».</span></div>`;
-	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="close-device-packs"></button><div class="modal__sheet modal__sheet--device-packs"><div class="modal__header"><div><div class="section-label">УСТРОЙСТВА</div><div class="modal__title">Докупить устройства</div></div><button class="header__btn" type="button" data-action="close-device-packs">${icon("close")}</button></div>${packList}<div class="device-pack-modal__actions"><button class="btn" type="button" data-action="continue-device-pack" ${selected ? "" : "disabled"}>Продолжить</button><button class="btn btn--green-filled" type="button" data-action="buy-device-pack" ${selected && canBuyNow ? "" : "disabled"}>${icon("cart")}Докупить</button></div>${canBuyNow ? "" : `<p class="device-pack-modal__hint">Отдельная докупка доступна для активной подписки с лимитом устройств.</p>`}</div></div>`;
+	return `<div class="modal open ${modalStateClass("device-packs")}" role="dialog" aria-modal="true" aria-labelledby="device-pack-modal-title"><button class="modal__backdrop" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств"></button><div class="modal__sheet modal__sheet--device-packs"><div class="modal__header"><div><div class="section-label">УСТРОЙСТВА</div><div class="modal__title" id="device-pack-modal-title">Докупить устройства</div></div><button class="header__btn" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств">${icon("close")}</button></div>${packList}<div class="device-pack-modal__actions"><button class="btn btn--green-filled" type="button" data-action="buy-device-pack" ${selected && canBuyNow ? "" : "disabled"}>${icon("cart")}Докупить</button><button class="btn" type="button" data-action="continue-device-pack" ${selected ? "" : "disabled"}>Продолжить</button></div>${canBuyNow ? "" : `<p class="device-pack-modal__hint">Отдельная докупка доступна для активной подписки с лимитом устройств.</p>`}</div></div>`;
 }
 
 function renderAdminDevicePackModal() {
@@ -5046,11 +5052,14 @@ function bindRootActions() {
 			if (action === "admin-layout-exit") return exitAdminLayoutEditor();
 			if (action === "admin-plan-exit") return exitAdminPlanEditor();
 			if (action === "open-device-packs") { state.devicePackModalOpen = true; render({ preserveScroll: true }); return; }
-			if (action === "close-device-packs") { state.devicePackModalOpen = false; render({ preserveScroll: true }); return; }
+			if (action === "close-device-packs") return requestModalClose("device-packs", () => { state.devicePackModalOpen = false; });
 			if (action === "select-device-pack") { state.selectedDevicePackId = value; haptic("light"); render({ preserveScroll: true }); return; }
 			if (action === "clear-device-pack") { state.selectedDevicePackId = ""; render({ preserveScroll: true }); return; }
-			if (action === "continue-device-pack") { state.devicePackModalOpen = false; render({ preserveScroll: true }); return; }
-			if (action === "buy-device-pack") { state.devicePackModalOpen = false; return await startPayment({ deviceOnly: true }); }
+			if (action === "continue-device-pack") return requestModalClose("device-packs", () => { state.devicePackModalOpen = false; });
+			if (action === "buy-device-pack") return requestModalClose("device-packs", () => {
+				state.devicePackModalOpen = false;
+				void startPayment({ deviceOnly: true });
+			});
 			if (action === "admin-open-device-packs") { state.adminDevicePackEditorOpen = true; state.adminDevicePackFormDraft = null; render({ preserveScroll: true }); return; }
 			if (action === "admin-close-device-packs") { state.adminDevicePackEditorOpen = false; state.adminDevicePackFormDraft = null; render({ preserveScroll: true }); return; }
 			if (action === "admin-add-device-pack") return addAdminDevicePack();
@@ -7134,8 +7143,9 @@ function updateCheckoutPriceDom() {
   const action = app.querySelector(".buy-action");
   if (!action) return;
   const plan = getSelectedPlan();
+  const pack = getSelectedDevicePack();
   const method = getSelectedPaymentMethod();
-  const payLabel = plan ? `${t().pay} ${formatPlanCheckoutPrice(plan, method?.id, state.locale)}` : t().pay;
+  const payLabel = plan ? `${t().pay} ${formatCheckoutPrice(plan, pack, method?.id)}` : t().pay;
   action.disabled = Boolean(state.busyMethod);
   action.innerHTML = `${icon(state.busyMethod ? "refresh" : "cart")}${escapeHtml(payLabel)}`;
 }
@@ -7579,6 +7589,7 @@ function shouldShowNativeBackButton() {
     state.supportComposeOpen ||
     state.devicesModalOpen ||
     state.payModalOpen ||
+    state.devicePackModalOpen ||
     state.paymentLaunchModalOpen ||
     state.reviewComposeOpen ||
     state.reviewDetailOpen ||
@@ -7603,6 +7614,7 @@ function handleNativeBackButton() {
   if (state.supportComposeOpen) return requestModalClose("support-compose", () => { state.supportComposeOpen = false; state.supportDraftSubject = ""; state.supportDraftMessage = ""; });
   if (state.devicesModalOpen) return requestModalClose("devices", () => { state.devicesModalOpen = false; state.deviceBusyHwid = ""; });
   if (state.payModalOpen) return requestModalClose("pay", () => { state.payModalOpen = false; });
+  if (state.devicePackModalOpen) return requestModalClose("device-packs", () => { state.devicePackModalOpen = false; });
   if (state.paymentLaunchModalOpen) return requestModalClose("payment-launch", () => { state.paymentLaunchModalOpen = false; state.paymentLaunchURL = ""; state.paymentLaunchPurchaseId = 0; });
   if (state.reviewComposeOpen) return requestModalClose("review-compose", () => { state.reviewComposeOpen = false; state.reviewDraftRating = 0; state.reviewDraftComment = ""; state.reviewBusy = ""; });
   if (state.reviewDetailOpen) return requestModalClose("review-detail", () => { state.activeReviewId = 0; state.reviewDetailOpen = false; });
@@ -7620,6 +7632,7 @@ function getActiveModalName() {
   if (state.supportComposeOpen) return "support-compose";
   if (state.devicesModalOpen) return "devices";
   if (state.payModalOpen) return "pay";
+  if (state.devicePackModalOpen) return "device-packs";
   if (state.paymentLaunchModalOpen) return "payment-launch";
   if (state.reviewComposeOpen) return "review-compose";
   if (state.reviewDetailOpen) return "review-detail";
@@ -7646,7 +7659,7 @@ function requestModalClose(name, onClosed) {
     previousActiveModalName = "";
     onClosed();
     render();
-  }, MODAL_CLOSE_MS);
+  }, reducedMotionMedia?.matches ? 0 : MODAL_CLOSE_MS);
 }
 
 function applyAppearance() {
@@ -8314,22 +8327,6 @@ function normalizePromoCodeValue(value) {
 function getActivePromo() {
   if (!state.appliedPromo?.code) return null;
   return normalizePromoCodeValue(state.promoCodeDraft) === state.appliedPromo.code ? state.appliedPromo : null;
-}
-
-function getDiscountedPlanPrice(plan, methodId) {
-  if (!plan) return 0;
-  const base = methodId === "stars" ? Number(plan.priceStars || 0) : Number(plan.priceRub || 0);
-  if (base <= 0) return 0;
-  const promo = getActivePromo();
-  if (!promo?.discountPercent) return base;
-  return Math.max(1, Math.round(base * (100 - promo.discountPercent) / 100));
-}
-
-function formatPlanCheckoutPrice(plan, methodId, locale) {
-  if (!plan) return "";
-  const amount = getDiscountedPlanPrice(plan, methodId);
-  if (methodId === "stars" && plan.priceStars > 0) return `${formatNumber(amount, locale)} Stars`;
-  return formatCurrency(amount, locale);
 }
 
 function linkHint(link) {

@@ -80,7 +80,8 @@
 .device-pack-card__admin-actions { right: 7px; bottom: 7px; }
 .device-pack-empty { grid-column: 1 / -1; padding: 18px 14px; display: grid; gap: 5px; text-align: center; border: 1px dashed var(--line); border-radius: 8px; }
 .device-pack-empty span { color: var(--muted); font-size: 12px; line-height: 1.4; }
-.device-pack-modal__actions,
+.device-pack-modal__actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 14px; }
+.device-pack-modal__actions .btn { width: 100%; min-height: 44px; }
 .device-pack-form__actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
 .device-pack-modal__hint { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.4; text-align: center; }
 .device-pack-add {
@@ -5463,9 +5464,17 @@ body.is-install-guide #app {
   .page.active.page--animate,
   .page.admin-page.active.page--animate > :not(.admin-save-bar),
   .bottom-nav,
-  .bottom-nav__indicator {
+  .bottom-nav__indicator,
+  .modal--animate .modal__backdrop,
+  .modal--animate .modal__sheet,
+  .modal--closing .modal__backdrop,
+  .modal--closing .modal__sheet {
     animation: none !important;
   }
+  .modal--animate .modal__backdrop { opacity: 1; }
+  .modal--animate .modal__sheet { opacity: 1; transform: translateY(0); }
+  .modal--closing .modal__backdrop { opacity: 0; }
+  .modal--closing .modal__sheet { opacity: 0; transform: translateY(0); }
 }
 
 /* Runtime editor overrides must remain after the legacy component rules. */
