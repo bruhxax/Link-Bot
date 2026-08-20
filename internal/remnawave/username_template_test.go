@@ -38,3 +38,15 @@ func TestGenerateUsernameLimitsLength(t *testing.T) {
 		t.Fatalf("generateUsername() length = %d, want 64", len(got))
 	}
 }
+
+func TestAppendUsernameSuffixKeepsUniqueSuffixWithinLimit(t *testing.T) {
+	t.Parallel()
+
+	got := appendUsernameSuffix(strings.Repeat("a", 64), "s123")
+	if len(got) != 64 {
+		t.Fatalf("appendUsernameSuffix() length = %d, want 64", len(got))
+	}
+	if !strings.HasSuffix(got, "_s123") {
+		t.Fatalf("appendUsernameSuffix() = %q, want secondary suffix", got)
+	}
+}

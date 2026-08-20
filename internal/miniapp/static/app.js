@@ -673,6 +673,7 @@ const previewPayload = {
   brand: { name: "Link-Bot", logoUrl: BRAND_MARK_URL },
   user: { id: 777777, firstName: "Link", username: "linkbot", panelUsername: "", photoUrl: "", languageCode: "ru", authProvider: "telegram", googleEmail: "", googleLinked: false, telegramLinked: true },
   subscription: { status: "active", daysLeft: 26724, planMonths: 12, userId: 1, userUuid: "00000000-0000-0000-0000-000000000001", expiresAt: new Date(Date.now() + 26724 * 86400000).toISOString(), subscriptionLink: "https://example.com/sub/link-bot/secure-link", hasAccessLink: true, trafficUsedBytes: 0, trafficLimitBytes: 0, deviceUsedCount: 1, deviceLimitCount: 0, devices: [{ hwid: "demo-hwid-1", platform: "iOS", osVersion: "18.4", deviceModel: "iPhone 16", userAgent: "Happ/4.6.0/ios", createdAt: new Date(Date.now() - 86400000).toISOString(), updatedAt: new Date().toISOString() }] },
+  subscriptions: { activeId: 1, maximum: 3, items: [{ id: 1, name: "Основная", position: 1, isPrimary: true, isActive: true, status: "active", expiresAt: new Date(Date.now() + 26724 * 86400000).toISOString() }] },
   trial: { enabled: true, eligible: false, days: 2 },
   referral: { enabled: true, count: 4, bonusDays: 7, bonusTrafficBytes: 53687091200, shareUrl: "https://t.me/share/url?url=https%3A%2F%2Ft.me%2Fyour_bot_username%3Fstart%3Dref_777777" },
   reviews: {
@@ -1568,6 +1569,14 @@ const state = {
   currentPage: readSetting(STORAGE_KEYS.page, "dashboard"),
   sidebarOpen: false,
   payModalOpen: false,
+	subscriptionMenuOpen: false,
+	subscriptionMenuClosing: false,
+	subscriptionEditorOpen: false,
+	subscriptionDeleteOpen: false,
+	subscriptionDeleteName: "",
+	subscriptionEditorMode: "rename",
+	subscriptionNameDraft: "",
+	subscriptionBusy: "",
 	devicePackModalOpen: false,
 	selectedDevicePackId: "",
 	adminDevicePackEditorOpen: false,
@@ -1659,6 +1668,7 @@ let previousActiveModalName = "";
 let animatedModalName = "";
 let closingModalName = "";
 let closingModalTimer = 0;
+let subscriptionMenuTimer = 0;
 let previousBottomNavIndex = -1;
 let pendingBottomNavAnimation = null;
 let promoApplyTimer = 0;
@@ -2035,6 +2045,11 @@ async function boot() {
   const paymentReturn = Boolean(getPaymentReturnState());
   state.currentPage = getEntryPage();
   state.sidebarOpen = false;
+  state.subscriptionMenuOpen = false;
+  state.subscriptionMenuClosing = false;
+  state.subscriptionEditorOpen = false;
+  state.subscriptionDeleteOpen = false;
+  state.subscriptionDeleteName = "";
   state.payModalOpen = false;
   state.paymentLaunchModalOpen = false;
   state.paymentLaunchURL = "";
@@ -2403,7 +2418,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-  const modalOpen = state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen;
+	const modalOpen = state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -2456,6 +2471,8 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
       ${isModalVisible("support-thread", state.supportThreadOpen) ? renderSupportThreadModal() : ""}
       ${isModalVisible("devices", state.devicesModalOpen) ? renderDevicesModal() : ""}
       ${isModalVisible("pay", state.payModalOpen) ? renderPayModal() : ""}
+		${isModalVisible("subscription-editor", state.subscriptionEditorOpen) ? renderSubscriptionEditorModal() : ""}
+		${isModalVisible("subscription-delete", state.subscriptionDeleteOpen) ? renderSubscriptionDeleteModal() : ""}
 		${isModalVisible("device-packs", state.devicePackModalOpen) ? renderDevicePackModal() : ""}
 		${isModalVisible("admin-device-packs", state.adminDevicePackEditorOpen) ? renderAdminDevicePackModal() : ""}
       ${isModalVisible("payment-launch", state.paymentLaunchModalOpen) ? renderPaymentLaunchModal() : ""}
@@ -3609,7 +3626,62 @@ function renderDashboardPage() {
 		subscription: active ? `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", `<div class="sub-bar__name">${title}</div>`, "runtime-detail-item--status")}${renderLayoutDetail("dashboard", "expires", `<div class="sub-bar__date"><span class="sub-bar__date-icon">${icon("calendarDays")}</span><span>${expires}</span></div>`, "runtime-detail-item--status")}</div><div class="sub-bar__row sub-bar__row--pills">${trafficLabel ? renderLayoutDetail("dashboard", "traffic", `<span class="sub-pill"><span class="sub-pill__icon">${icon("chartLine")}</span><span>${escapeHtml(trafficLabel)}</span></span>`, "runtime-detail-item--pill") : ""}${deviceLabel ? renderLayoutDetail("dashboard", "devices", `<button class="sub-pill sub-pill--button" type="button" data-action="open-devices-modal"><span>${escapeHtml(deviceLabel)}</span><span class="sub-pill__edit">${icon("userPen")}</span></button>`, "runtime-detail-item--pill") : ""}</div></div></div></div>` : "",
 		actions: `<div class="dashboard-compact">${actionStack}</div>`,
 	};
-	return `<section class="page ${pageClass("dashboard")}" id="page-dashboard">${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
+	return `<section class="page ${pageClass("dashboard")}" id="page-dashboard">${renderSubscriptionSwitcher()}${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
+}
+
+function getSubscriptionItems() {
+	return Array.isArray(state.data?.subscriptions?.items) ? state.data.subscriptions.items : [];
+}
+
+function getActiveSubscriptionItem() {
+	const items = getSubscriptionItems();
+	const activeID = Number(state.data?.subscriptions?.activeId || 0);
+	return items.find((item) => Number(item?.id) === activeID) || items[0] || null;
+}
+
+function subscriptionSwitcherCopy() {
+	return state.locale === "en"
+		? { rename: "Rename", create: "Create", remove: "Delete", primary: "Primary", active: "Active", inactive: "Inactive", primaryDelete: "The primary subscription cannot be deleted" }
+		: { rename: "Переименовать", create: "Создать", remove: "Удалить", primary: "Основная", active: "Активна", inactive: "Не активна", primaryDelete: "Основную подписку удалить нельзя" };
+}
+
+function renderSubscriptionSwitcher() {
+	const items = getSubscriptionItems();
+	if (!items.length) return "";
+	const copy = subscriptionSwitcherCopy();
+	const active = getActiveSubscriptionItem();
+	const menuVisible = state.subscriptionMenuOpen || state.subscriptionMenuClosing;
+	const maximum = Math.max(1, Number(state.data?.subscriptions?.maximum || 3));
+	const canCreate = items.length < maximum;
+	const menu = menuVisible ? `<div class="subscription-switcher__menu ${state.subscriptionMenuClosing ? "is-closing" : "is-open"}" role="menu" aria-label="${state.locale === "en" ? "Subscriptions" : "Подписки"}">
+		<div class="subscription-switcher__list">${items.map((item) => `<button class="subscription-switcher__item ${item.isActive ? "is-active" : ""}" type="button" role="menuitemradio" aria-checked="${Boolean(item.isActive)}" data-action="select-subscription" data-value="${escapeAttribute(String(item.id || 0))}" ${state.subscriptionBusy ? "disabled" : ""}><span class="subscription-switcher__item-copy"><strong>${escapeHtml(item.name || copy.primary)}</strong><small>${item.status === "active" ? copy.active : copy.inactive}${item.isPrimary ? ` · ${copy.primary}` : ""}</small></span><span class="subscription-switcher__check">${item.isActive ? icon("check") : ""}</span></button>`).join("")}</div>
+		<div class="subscription-switcher__actions">
+			<button type="button" role="menuitem" data-action="open-subscription-rename" ${state.subscriptionBusy ? "disabled" : ""}>${icon("pencil")}<span>${copy.rename}</span></button>
+			${canCreate ? `<button type="button" role="menuitem" data-action="open-subscription-create" ${state.subscriptionBusy ? "disabled" : ""}>${icon("plus")}<span>${copy.create}</span></button>` : ""}
+			<button class="subscription-switcher__delete" type="button" role="menuitem" data-action="delete-subscription" ${active?.isPrimary || state.subscriptionBusy ? `disabled aria-label="${escapeAttribute(copy.primaryDelete)}"` : ""}>${icon("trash")}<span>${copy.remove}</span></button>
+		</div>
+	</div>` : "";
+	return `<div class="subscription-switcher ${menuVisible ? "is-expanded" : ""}"><button class="subscription-switcher__trigger" type="button" data-action="toggle-subscription-menu" aria-haspopup="menu" aria-expanded="${Boolean(state.subscriptionMenuOpen)}"><span>${escapeHtml(active?.name || copy.primary)}</span><span class="subscription-switcher__chevron">${icon("arrowDown")}</span></button>${menu}</div>`;
+}
+
+function renderSubscriptionEditorModal() {
+	const createMode = state.subscriptionEditorMode === "create";
+	const title = state.locale === "en" ? (createMode ? "Create subscription" : "Rename subscription") : (createMode ? "Создать подписку" : "Переименовать подписку");
+	const label = state.locale === "en" ? "Name" : "Название";
+	const save = state.locale === "en" ? (createMode ? "Create" : "Save") : (createMode ? "Создать" : "Сохранить");
+	const cancel = state.locale === "en" ? "Cancel" : "Отмена";
+	return `<div class="modal open ${modalStateClass("subscription-editor")}" role="dialog" aria-modal="true" aria-labelledby="subscription-editor-title"><button class="modal__backdrop" type="button" data-action="close-subscription-editor" aria-label="${escapeAttribute(cancel)}"></button><div class="modal__sheet modal__sheet--subscription-editor"><div class="modal__header"><div class="modal__title" id="subscription-editor-title">${escapeHtml(title)}</div><button class="header__btn" type="button" data-action="close-subscription-editor" aria-label="${escapeAttribute(cancel)}">${icon("close")}</button></div><label class="support-field"><span class="support-field__label">${escapeHtml(label)}</span><input class="support-field__input" type="text" maxlength="40" autocomplete="off" value="${escapeAttribute(state.subscriptionNameDraft)}" data-input="subscription-name" autofocus></label><div class="subscription-editor__actions"><button class="btn" type="button" data-action="close-subscription-editor" ${state.subscriptionBusy ? "disabled" : ""}>${escapeHtml(cancel)}</button><button class="btn btn--green-filled" type="button" data-action="save-subscription" ${!state.subscriptionNameDraft.trim() || state.subscriptionBusy ? "disabled" : ""}>${icon(state.subscriptionBusy ? "refresh" : "check")}${escapeHtml(save)}</button></div></div></div>`;
+}
+
+function renderSubscriptionDeleteModal() {
+	const active = getActiveSubscriptionItem();
+	const title = state.locale === "en" ? "Delete subscription" : "Удалить подписку";
+	const body = state.locale === "en"
+		? `Delete “${state.subscriptionDeleteName || active?.name || ""}”? Its access in the panel will also be deleted.`
+		: `Удалить «${state.subscriptionDeleteName || active?.name || ""}»? Доступ этой подписки в панели тоже будет удалён.`;
+	const cancel = state.locale === "en" ? "Cancel" : "Отмена";
+	const remove = state.locale === "en" ? "Delete" : "Удалить";
+	return `<div class="modal open ${modalStateClass("subscription-delete")}" role="alertdialog" aria-modal="true" aria-labelledby="subscription-delete-title" aria-describedby="subscription-delete-description"><button class="modal__backdrop" type="button" data-action="close-subscription-delete" aria-label="${escapeAttribute(cancel)}"></button><div class="modal__sheet modal__sheet--subscription-delete"><div class="modal__header"><div class="modal__title" id="subscription-delete-title">${escapeHtml(title)}</div><button class="header__btn" type="button" data-action="close-subscription-delete" aria-label="${escapeAttribute(cancel)}">${icon("close")}</button></div><p class="subscription-delete__description" id="subscription-delete-description">${escapeHtml(body)}</p><div class="subscription-editor__actions"><button class="btn" type="button" data-action="close-subscription-delete" ${state.subscriptionBusy ? "disabled" : ""}>${escapeHtml(cancel)}</button><button class="btn subscription-delete__confirm" type="button" data-action="confirm-subscription-delete" ${state.subscriptionBusy ? "disabled" : ""}>${icon(state.subscriptionBusy ? "refresh" : "trash")}${escapeHtml(remove)}</button></div></div></div>`;
 }
 
 function renderBuyPage() {
@@ -3750,7 +3822,7 @@ function renderDevicePackModal() {
 	const packList = packs.length
 		? `<div class="device-pack-grid">${packs.map((pack) => renderDevicePackCard(pack, String(pack.id) === String(selected?.id))).join("")}</div>`
 		: `<div class="device-pack-empty" role="status"><strong>Пакеты устройств пока не настроены</strong><span>Администратор может добавить их в разделе «Тарифы».</span></div>`;
-	return `<div class="modal open ${modalStateClass("device-packs")}" role="dialog" aria-modal="true" aria-labelledby="device-pack-modal-title"><button class="modal__backdrop" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств"></button><div class="modal__sheet modal__sheet--device-packs"><div class="modal__header"><div><div class="section-label">УСТРОЙСТВА</div><div class="modal__title" id="device-pack-modal-title">Докупить устройства</div></div><button class="header__btn" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств">${icon("close")}</button></div>${packList}<div class="device-pack-modal__actions"><button class="btn btn--green-filled" type="button" data-action="buy-device-pack" ${selected && canBuyNow ? "" : "disabled"}>${icon("cart")}Докупить</button><button class="btn" type="button" data-action="continue-device-pack" ${selected ? "" : "disabled"}>Продолжить</button></div>${canBuyNow ? "" : `<p class="device-pack-modal__hint">Отдельная докупка доступна для активной подписки с лимитом устройств.</p>`}</div></div>`;
+	return `<div class="modal open ${modalStateClass("device-packs")}" role="dialog" aria-modal="true" aria-labelledby="device-pack-modal-title"><button class="modal__backdrop" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-purchase"><div class="modal__header"><div><div class="section-label">УСТРОЙСТВА</div><div class="modal__title" id="device-pack-modal-title">Докупить устройства</div></div><button class="header__btn" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств">${icon("close")}</button></div><div class="device-pack-modal__scroll">${packList}</div><div class="device-pack-modal__footer"><div class="device-pack-modal__actions"><button class="btn btn--green-filled" type="button" data-action="buy-device-pack" ${selected && canBuyNow ? "" : "disabled"}>${icon("cart")}Докупить</button><button class="btn" type="button" data-action="continue-device-pack" ${selected ? "" : "disabled"}>Продолжить</button></div>${canBuyNow ? "" : `<p class="device-pack-modal__hint">Отдельная докупка доступна для активной подписки с лимитом устройств.</p>`}</div></div></div>`;
 }
 
 function renderAdminDevicePackModal() {
@@ -5006,7 +5078,10 @@ function bindRootActions() {
 
   app.addEventListener("click", async (event) => {
     const target = event.target.closest("[data-action]");
-    if (!target) return;
+    if (!target) {
+		if (state.subscriptionMenuOpen && !event.target.closest(".subscription-switcher")) requestSubscriptionMenuClose();
+		return;
+	}
     const action = target.dataset.action;
     const value = target.dataset.value || "";
 		if (action === "admin-edit-profile-button") {
@@ -5039,6 +5114,22 @@ function bindRootActions() {
       if (action === "google-link-login") return await startGoogleLogin("link", target);
       if (action === "open-sidebar") { state.sidebarOpen = true; render(); return; }
       if (action === "close-sidebar") { state.sidebarOpen = false; render(); return; }
+		if (action === "toggle-subscription-menu") {
+			if (state.subscriptionMenuOpen) return requestSubscriptionMenuClose();
+			state.subscriptionMenuClosing = false;
+			state.subscriptionMenuOpen = true;
+			haptic("light");
+			render({ preserveScroll: true });
+			return;
+		}
+		if (action === "select-subscription") return await selectSubscription(Number(value));
+		if (action === "open-subscription-rename") return openSubscriptionEditor("rename");
+		if (action === "open-subscription-create") return openSubscriptionEditor("create");
+		if (action === "close-subscription-editor") return closeSubscriptionEditor();
+		if (action === "save-subscription") return await saveSubscriptionEditor();
+		if (action === "delete-subscription") return openSubscriptionDelete();
+		if (action === "close-subscription-delete") return closeSubscriptionDelete();
+		if (action === "confirm-subscription-delete") return await deleteActiveSubscription();
       if (action === "open-admin-section") {
 		if (value === "layout") return enterAdminLayoutEditor();
 		if (value === "plans") return enterAdminPlanEditor();
@@ -5290,6 +5381,12 @@ function bindRootActions() {
         state.paymentAgreementAccepted = Boolean(target.checked);
         return;
       }
+		if (inputKey === "subscription-name") {
+			state.subscriptionNameDraft = target.value;
+			const button = app.querySelector('[data-action="save-subscription"]');
+			if (button) button.disabled = !target.value.trim() || Boolean(state.subscriptionBusy);
+			return;
+		}
       if (inputKey === "promo-code") {
         state.promoCodeDraft = target.value;
         if (state.appliedPromo && normalizePromoCodeValue(target.value) !== state.appliedPromo.code) {
@@ -7092,6 +7189,130 @@ function syncSupportPolling() {
   }, 6000);
 }
 
+function requestSubscriptionMenuClose(onClosed = null) {
+	window.clearTimeout(subscriptionMenuTimer);
+	if (!state.subscriptionMenuOpen && !state.subscriptionMenuClosing) {
+		onClosed?.();
+		return;
+	}
+	state.subscriptionMenuOpen = false;
+	state.subscriptionMenuClosing = true;
+	render({ preserveScroll: true });
+	subscriptionMenuTimer = window.setTimeout(() => {
+		state.subscriptionMenuClosing = false;
+		onClosed?.();
+		render({ preserveScroll: true });
+	}, reducedMotionMedia?.matches ? 0 : 180);
+}
+
+function applySubscriptionBootstrap(data) {
+	if (!data) return;
+	state.data = data;
+	state.locale = pickLocale(data.user?.languageCode);
+	state.appliedPromo = null;
+	state.promoCodeDraft = "";
+	ensureSelections();
+}
+
+async function selectSubscription(id) {
+	const active = getActiveSubscriptionItem();
+	if (!id || Number(active?.id) === id || state.subscriptionBusy) return requestSubscriptionMenuClose();
+	state.subscriptionBusy = `select-${id}`;
+	render({ preserveScroll: true });
+	try {
+		const response = await post("/api/mini-app/subscriptions/select", { id });
+		applySubscriptionBootstrap(response.data);
+		state.subscriptionBusy = "";
+		requestSubscriptionMenuClose();
+		haptic("light");
+	} catch (error) {
+		state.subscriptionBusy = "";
+		render({ preserveScroll: true });
+		throw error;
+	}
+}
+
+function openSubscriptionEditor(mode) {
+	const active = getActiveSubscriptionItem();
+	state.subscriptionEditorMode = mode === "create" ? "create" : "rename";
+	state.subscriptionNameDraft = state.subscriptionEditorMode === "create" ? "" : String(active?.name || "");
+	requestSubscriptionMenuClose(() => {
+		state.subscriptionEditorOpen = true;
+		render({ preserveScroll: true });
+	});
+}
+
+function closeSubscriptionEditor() {
+	if (state.subscriptionBusy) return;
+	requestModalClose("subscription-editor", () => {
+		state.subscriptionEditorOpen = false;
+		state.subscriptionNameDraft = "";
+	});
+}
+
+async function saveSubscriptionEditor() {
+	const name = state.subscriptionNameDraft.trim();
+	const active = getActiveSubscriptionItem();
+	if (!name || state.subscriptionBusy || (!active && state.subscriptionEditorMode !== "create")) return;
+	state.subscriptionBusy = state.subscriptionEditorMode;
+	render({ preserveScroll: true });
+	try {
+		const endpoint = state.subscriptionEditorMode === "create" ? "create" : "rename";
+		const body = endpoint === "create" ? { name } : { id: Number(active.id), name };
+		const response = await post(`/api/mini-app/subscriptions/${endpoint}`, body);
+		applySubscriptionBootstrap(response.data);
+		state.subscriptionBusy = "";
+		requestModalClose("subscription-editor", () => {
+			state.subscriptionEditorOpen = false;
+			state.subscriptionNameDraft = "";
+		});
+		showToast(response.message || (state.locale === "en" ? "Saved" : "Сохранено"), "success");
+	} catch (error) {
+		state.subscriptionBusy = "";
+		render({ preserveScroll: true });
+		throw error;
+	}
+}
+
+async function deleteActiveSubscription() {
+	const active = getActiveSubscriptionItem();
+	if (!active || active.isPrimary || state.subscriptionBusy) return;
+	state.subscriptionBusy = "delete";
+	render({ preserveScroll: true });
+	try {
+		const response = await post("/api/mini-app/subscriptions/delete", { id: Number(active.id) });
+		applySubscriptionBootstrap(response.data);
+		state.subscriptionBusy = "";
+		requestModalClose("subscription-delete", () => {
+			state.subscriptionDeleteOpen = false;
+			state.subscriptionDeleteName = "";
+		});
+		showToast(response.message || (state.locale === "en" ? "Subscription deleted" : "Подписка удалена"), "success");
+	} catch (error) {
+		state.subscriptionBusy = "";
+		render({ preserveScroll: true });
+		throw error;
+	}
+}
+
+function openSubscriptionDelete() {
+	const active = getActiveSubscriptionItem();
+	if (!active || active.isPrimary || state.subscriptionBusy) return;
+	requestSubscriptionMenuClose(() => {
+		state.subscriptionDeleteName = String(active.name || "");
+		state.subscriptionDeleteOpen = true;
+		render({ preserveScroll: true });
+	});
+}
+
+function closeSubscriptionDelete() {
+	if (state.subscriptionBusy) return;
+	requestModalClose("subscription-delete", () => {
+		state.subscriptionDeleteOpen = false;
+		state.subscriptionDeleteName = "";
+	});
+}
+
 async function activateTrial() {
   const response = await post("/api/mini-app/trial/activate");
   state.data = response.data;
@@ -7610,6 +7831,9 @@ function handleNativeBackButton() {
 	if (state.adminPlanEditorModalOpen) return closeAdminPlanEditorModal();
 	if (state.adminPlanEditing) return exitAdminPlanEditor();
 	if (state.adminLayoutEditing) return exitAdminLayoutEditor();
+	if (state.subscriptionDeleteOpen) return closeSubscriptionDelete();
+	if (state.subscriptionEditorOpen) return closeSubscriptionEditor();
+	if (state.subscriptionMenuOpen || state.subscriptionMenuClosing) return requestSubscriptionMenuClose();
   if (state.supportThreadOpen) return requestModalClose("support-thread", () => { state.supportThreadOpen = false; state.activeSupportTicketId = 0; state.activeSupportThread = null; state.supportReplyDraft = ""; });
   if (state.supportComposeOpen) return requestModalClose("support-compose", () => { state.supportComposeOpen = false; state.supportDraftSubject = ""; state.supportDraftMessage = ""; });
   if (state.devicesModalOpen) return requestModalClose("devices", () => { state.devicesModalOpen = false; state.deviceBusyHwid = ""; });
@@ -7628,6 +7852,8 @@ function handleNativeBackButton() {
 function getActiveModalName() {
 	if (state.adminProfileEditorModalOpen) return "admin-profile-editor";
 	if (state.adminPlanEditorModalOpen) return "admin-plan-editor";
+	if (state.subscriptionDeleteOpen) return "subscription-delete";
+	if (state.subscriptionEditorOpen) return "subscription-editor";
   if (state.supportThreadOpen) return "support-thread";
   if (state.supportComposeOpen) return "support-compose";
   if (state.devicesModalOpen) return "devices";

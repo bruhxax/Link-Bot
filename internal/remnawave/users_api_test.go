@@ -100,3 +100,59 @@ func TestDoAPIJSONAcceptsEmptyNoContent(t *testing.T) {
 		t.Fatalf("doAPIJSON() error = %v", err)
 	}
 }
+
+func TestGetAndDeletePanelUserByNumericIdentity(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if r.URL.Path != "/api/users/1281" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		switch r.Method {
+		case http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"response":{"id":1281,"username":"15_6402520205_s2","status":"ACTIVE","expireAt":"2026-08-10T12:00:00Z","telegramId":6402520205}}`))
+		case http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "token", "remote")
+	user, err := client.getPanelUserByIdentity(context.Background(), 1281, uuid.Nil)
+	if err != nil || user == nil || user.ID != 1281 {
+		t.Fatalf("getPanelUserByIdentity() = %#v, %v", user, err)
+	}
+	if err := client.DeleteUser(context.Background(), 1281, uuid.Nil); err != nil {
+		t.Fatalf("DeleteUser() error = %v", err)
+	}
+	if requests != 3 {
+		t.Fatalf("request count = %d, want 3 (lookup plus delete lookup/delete)", requests)
+	}
+}
+
+func TestPickPanelTelegramUserPrefersPrimaryUsernameSuffix(t *testing.T) {
+	telegramID := int64(6402520205)
+	users := []PanelUser{
+		{ID: 2, Username: "15_6402520205_s2", TelegramID: &telegramID},
+		{ID: 1, Username: "15_6402520205", TelegramID: &telegramID},
+	}
+	selected := pickPanelTelegramUser(users, telegramID)
+	if selected == nil || selected.ID != 1 {
+		t.Fatalf("pickPanelTelegramUser() = %#v, want primary user", selected)
+	}
+}
+
+func TestPickPanelTelegramUserPrefersCustomPrimaryOverSecondary(t *testing.T) {
+	telegramID := int64(6402520205)
+	users := []PanelUser{
+		{ID: 2, Username: "custom_name_s2", TelegramID: &telegramID},
+		{ID: 1, Username: "custom_name", TelegramID: &telegramID},
+	}
+	selected := pickPanelTelegramUser(users, telegramID)
+	if selected == nil || selected.ID != 1 {
+		t.Fatalf("pickPanelTelegramUser() = %#v, want custom primary user", selected)
+	}
+}

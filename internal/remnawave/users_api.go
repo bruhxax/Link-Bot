@@ -321,6 +321,56 @@ func (r *Client) createPanelUser(ctx context.Context, fields map[string]any) (*P
 	return &payload.Response, nil
 }
 
+func (r *Client) getPanelUserByIdentity(ctx context.Context, userID int64, userUUID uuid.UUID) (*PanelUser, error) {
+	if userID <= 0 && userUUID == uuid.Nil {
+		return nil, ErrAdminSubscriptionNotFound
+	}
+	identifier := strconv.FormatInt(userID, 10)
+	if userID <= 0 {
+		identifier = userUUID.String()
+	}
+	var payload struct {
+		Response PanelUser `json:"response"`
+	}
+	err := r.doAPIJSON(ctx, http.MethodGet, "/api/users/"+identifier, nil, &payload)
+	if err == nil {
+		return &payload.Response, nil
+	}
+	if !isLegacyFallbackError(err) {
+		return nil, err
+	}
+	users, legacyErr := r.legacyUsers(ctx)
+	if legacyErr != nil {
+		return nil, errors.Join(err, legacyErr)
+	}
+	user := findPanelUser(users, userID, userUUID)
+	if user == nil {
+		return nil, ErrAdminSubscriptionNotFound
+	}
+	return user, nil
+}
+
+func (r *Client) deletePanelUser(ctx context.Context, user *PanelUser) error {
+	if user == nil || (user.ID <= 0 && user.UUID == uuid.Nil) {
+		return ErrAdminSubscriptionNotFound
+	}
+	identifier := strconv.FormatInt(user.ID, 10)
+	if user.ID <= 0 {
+		identifier = user.UUID.String()
+	}
+	err := r.doAPIJSON(ctx, http.MethodDelete, "/api/users/"+identifier, nil, nil)
+	if err == nil {
+		return nil
+	}
+	if user.ID <= 0 || user.UUID == uuid.Nil || !isLegacyFallbackError(err) {
+		return err
+	}
+	if legacyErr := r.doAPIJSON(ctx, http.MethodDelete, "/api/users/"+user.UUID.String(), nil, nil); legacyErr != nil {
+		return errors.Join(err, legacyErr)
+	}
+	return nil
+}
+
 func cloneMap(values map[string]any) map[string]any {
 	cloned := make(map[string]any, len(values)+1)
 	for key, value := range values {

@@ -50,6 +50,7 @@ type ProvisioningOptions struct {
 	Tag                  string
 	ApplySquads          bool
 	UsernameTemplate     string
+	UsernameSuffix       string
 }
 
 type UserState struct {
@@ -70,6 +71,7 @@ type UserState struct {
 var ErrAdminSubscriptionNotFound = errors.New("subscription not found")
 
 var panelUsernameSanitizer = regexp.MustCompile(`[^A-Za-z0-9_.-]+`)
+var secondaryPanelUsernamePattern = regexp.MustCompile(`(?i)_s[0-9]+$`)
 
 type AdminSubscription struct {
 	ID               int64
@@ -399,6 +401,21 @@ func (r *Client) GetUserStateByTelegramID(ctx context.Context, telegramId int64)
 		return nil, err
 	}
 
+	return r.userStateFromPanelUser(ctx, user, "telegramId", utils.MaskHalfInt64(telegramId))
+}
+
+func (r *Client) GetUserStateByIdentity(ctx context.Context, userID int64, userUUID uuid.UUID) (*UserState, error) {
+	user, err := r.getPanelUserByIdentity(ctx, userID, userUUID)
+	if err != nil {
+		if errors.Is(err, ErrAdminSubscriptionNotFound) || strings.Contains(err.Error(), "not found") {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return r.userStateFromPanelUser(ctx, user, "userId", userID)
+}
+
+func (r *Client) userStateFromPanelUser(ctx context.Context, user *PanelUser, logKey string, logValue any) (*UserState, error) {
 	if user == nil {
 		return nil, nil
 	}
@@ -409,7 +426,7 @@ func (r *Client) GetUserStateByTelegramID(ctx context.Context, telegramId int64)
 	}
 	devices, deviceErr := r.getUserHWIDDevices(ctx, user.ID, user.UUID)
 	if deviceErr != nil {
-		slog.Warn("remnawave: load user devices failed", "error", deviceErr, "telegramId", utils.MaskHalfInt64(telegramId))
+		slog.Warn("remnawave: load user devices failed", "error", deviceErr, logKey, logValue)
 	}
 	usedDevices := len(devices)
 
@@ -465,6 +482,21 @@ func (r *Client) AddDeviceLimit(ctx context.Context, telegramID int64, extraDevi
 	if err != nil {
 		return nil, err
 	}
+	return r.addDeviceLimitForUser(ctx, user, extraDevices)
+}
+
+func (r *Client) AddDeviceLimitByIdentity(ctx context.Context, userID int64, userUUID uuid.UUID, extraDevices int) (*PanelUser, error) {
+	if extraDevices <= 0 {
+		return nil, errors.New("extra device count must be positive")
+	}
+	user, err := r.getPanelUserByIdentity(ctx, userID, userUUID)
+	if err != nil {
+		return nil, err
+	}
+	return r.addDeviceLimitForUser(ctx, user, extraDevices)
+}
+
+func (r *Client) addDeviceLimitForUser(ctx context.Context, user *PanelUser, extraDevices int) (*PanelUser, error) {
 	if user == nil {
 		return nil, errors.New("subscription not found")
 	}
@@ -656,6 +688,32 @@ func (r *Client) CreateOrUpdateUserWithOptions(ctx context.Context, customerId i
 	return r.updateUserWithOptions(ctx, existingUser, trafficLimit, deviceLimit, days, options)
 }
 
+func (r *Client) CreateOrUpdateUserForSubscription(ctx context.Context, customerID, telegramID, subscriptionID, userID int64, userUUID uuid.UUID, isPrimary bool, trafficLimit, deviceLimit, days int, options ProvisioningOptions) (*PanelUser, error) {
+	if userID > 0 || userUUID != uuid.Nil {
+		existing, err := r.getPanelUserByIdentity(ctx, userID, userUUID)
+		if err != nil {
+			return nil, err
+		}
+		return r.updateUserWithOptions(ctx, existing, trafficLimit, deviceLimit, days, options)
+	}
+	if isPrimary {
+		return r.CreateOrUpdateUserWithOptions(ctx, customerID, telegramID, trafficLimit, deviceLimit, days, options)
+	}
+	options.UsernameSuffix = fmt.Sprintf("s%d", subscriptionID)
+	return r.createUserWithOptions(ctx, customerID, telegramID, trafficLimit, deviceLimit, days, options)
+}
+
+func (r *Client) DeleteUser(ctx context.Context, userID int64, userUUID uuid.UUID) error {
+	user, err := r.getPanelUserByIdentity(ctx, userID, userUUID)
+	if err != nil {
+		if errors.Is(err, ErrAdminSubscriptionNotFound) {
+			return nil
+		}
+		return err
+	}
+	return r.deletePanelUser(ctx, user)
+}
+
 func legacyProvisioningOptions(isTrialUser bool) ProvisioningOptions {
 	selected := config.SquadUUIDs()
 	external := config.ExternalSquadUUID()
@@ -753,7 +811,12 @@ func pickPanelTelegramUser(users []PanelUser, telegramId int64) *PanelUser {
 	suffix := fmt.Sprintf("_%d", telegramId)
 
 	for i := range users {
-		if users[i].TelegramID != nil && *users[i].TelegramID == telegramId && strings.Contains(users[i].Username, suffix) {
+		if users[i].TelegramID != nil && *users[i].TelegramID == telegramId && strings.HasSuffix(users[i].Username, suffix) {
+			return &users[i]
+		}
+	}
+	for i := range users {
+		if users[i].TelegramID != nil && *users[i].TelegramID == telegramId && !secondaryPanelUsernamePattern.MatchString(strings.TrimSpace(users[i].Username)) {
 			return &users[i]
 		}
 	}
@@ -844,6 +907,7 @@ func (r *Client) createUser(ctx context.Context, customerId int64, telegramId in
 func (r *Client) createUserWithOptions(ctx context.Context, customerId int64, telegramId int64, trafficLimit int, deviceLimit int, days int, options ProvisioningOptions) (*PanelUser, error) {
 	expireAt := time.Now().UTC().AddDate(0, 0, days)
 	username := generateUsername(options.UsernameTemplate, customerId, telegramId)
+	username = appendUsernameSuffix(username, options.UsernameSuffix)
 
 	squadIDs, err := r.resolveInternalSquads(ctx, options.InternalSquadUUIDs)
 	if err != nil {
@@ -980,6 +1044,23 @@ func generateUsername(template string, customerId int64, telegramId int64) strin
 		username = username[:64]
 	}
 	return username
+}
+
+func appendUsernameSuffix(username, suffix string) string {
+	suffix = panelUsernameSanitizer.ReplaceAllString(strings.TrimSpace(suffix), "_")
+	suffix = strings.Trim(suffix, "_.-")
+	if suffix == "" {
+		return username
+	}
+	suffix = "_" + suffix
+	maxBase := 64 - len(suffix)
+	if maxBase < 1 {
+		return suffix[len(suffix)-64:]
+	}
+	if len(username) > maxBase {
+		username = strings.TrimRight(username[:maxBase], "_.-")
+	}
+	return username + suffix
 }
 
 func telegramDescriptionFromContext(ctx context.Context) (description string, usernameForLog string, hasProfileInfo bool) {

@@ -50,24 +50,25 @@ var (
 )
 
 type Handler struct {
-	customerRepository  *database.CustomerRepository
-	purchaseRepository  *database.PurchaseRepository
-	promoCodeRepository *database.PromoCodeRepository
-	referralRepository  *database.ReferralRepository
-	supportRepository   *database.SupportRepository
-	reviewRepository    *database.ReviewRepository
-	paymentService      *payment.PaymentService
-	remnawaveClient     *remnawave.Client
-	telegramBot         *bot.Bot
-	staticFS            fs.FS
-	assetVersion        string
-	rateLimiter         *requestRateLimiter
-	channelSubCache     *cache.Cache
-	runtimeSettings     *runtimeconfig.Service
-	errorReporter       *operations.Reporter
-	broadcastService    *broadcast.Service
-	subscriptionService *notification.SubscriptionService
-	integrationSettings *integrations.Service
+	customerRepository     *database.CustomerRepository
+	purchaseRepository     *database.PurchaseRepository
+	subscriptionRepository *database.SubscriptionRepository
+	promoCodeRepository    *database.PromoCodeRepository
+	referralRepository     *database.ReferralRepository
+	supportRepository      *database.SupportRepository
+	reviewRepository       *database.ReviewRepository
+	paymentService         *payment.PaymentService
+	remnawaveClient        *remnawave.Client
+	telegramBot            *bot.Bot
+	staticFS               fs.FS
+	assetVersion           string
+	rateLimiter            *requestRateLimiter
+	channelSubCache        *cache.Cache
+	runtimeSettings        *runtimeconfig.Service
+	errorReporter          *operations.Reporter
+	broadcastService       *broadcast.Service
+	subscriptionService    *notification.SubscriptionService
+	integrationSettings    *integrations.Service
 }
 
 func lockPromoPurchase(code string) func() {
@@ -92,6 +93,7 @@ type bootstrapResponse struct {
 	Brand          brandPayload           `json:"brand"`
 	User           userPayload            `json:"user"`
 	Subscription   subscriptionPayload    `json:"subscription"`
+	Subscriptions  subscriptionsPayload   `json:"subscriptions"`
 	Trial          trialPayload           `json:"trial"`
 	Referral       referralPayload        `json:"referral"`
 	Reviews        reviewsPayload         `json:"reviews"`
@@ -140,6 +142,22 @@ type subscriptionPayload struct {
 	DeviceUsedCount   int             `json:"deviceUsedCount"`
 	DeviceLimitCount  int             `json:"deviceLimitCount"`
 	Devices           []devicePayload `json:"devices"`
+}
+
+type subscriptionsPayload struct {
+	ActiveID int64                     `json:"activeId"`
+	Maximum  int                       `json:"maximum"`
+	Items    []subscriptionItemPayload `json:"items"`
+}
+
+type subscriptionItemPayload struct {
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	Position  int    `json:"position"`
+	IsPrimary bool   `json:"isPrimary"`
+	IsActive  bool   `json:"isActive"`
+	Status    string `json:"status"`
+	ExpiresAt string `json:"expiresAt,omitempty"`
 }
 
 type devicePayload struct {
@@ -335,6 +353,19 @@ type purchaseActionRequest struct {
 	PurchaseID int64 `json:"purchaseId"`
 }
 
+type subscriptionSelectRequest struct {
+	ID int64 `json:"id"`
+}
+
+type subscriptionNameRequest struct {
+	ID   int64  `json:"id,omitempty"`
+	Name string `json:"name"`
+}
+
+type subscriptionDeleteRequest struct {
+	ID int64 `json:"id"`
+}
+
 type purchaseResponse struct {
 	Action     string `json:"action"`
 	URL        string `json:"url"`
@@ -442,6 +473,7 @@ func NewHandler(
 	runtimeSettings *runtimeconfig.Service,
 	errorReporter *operations.Reporter,
 	integrationSettings *integrations.Service,
+	subscriptionRepository *database.SubscriptionRepository,
 ) *Handler {
 	staticFS, err := fs.Sub(embeddedStatic, "static")
 	if err != nil {
@@ -453,24 +485,25 @@ func NewHandler(
 	}
 
 	return &Handler{
-		customerRepository:  customerRepository,
-		purchaseRepository:  purchaseRepository,
-		promoCodeRepository: promoCodeRepository,
-		referralRepository:  referralRepository,
-		supportRepository:   supportRepository,
-		reviewRepository:    reviewRepository,
-		paymentService:      paymentService,
-		remnawaveClient:     remnawaveClient,
-		telegramBot:         telegramBot,
-		broadcastService:    broadcastService,
-		subscriptionService: subscriptionService,
-		staticFS:            staticFS,
-		assetVersion:        assetVersion,
-		rateLimiter:         newRequestRateLimiter(),
-		channelSubCache:     cache.NewCache(30 * time.Minute),
-		runtimeSettings:     runtimeSettings,
-		errorReporter:       errorReporter,
-		integrationSettings: integrationSettings,
+		customerRepository:     customerRepository,
+		purchaseRepository:     purchaseRepository,
+		subscriptionRepository: subscriptionRepository,
+		promoCodeRepository:    promoCodeRepository,
+		referralRepository:     referralRepository,
+		supportRepository:      supportRepository,
+		reviewRepository:       reviewRepository,
+		paymentService:         paymentService,
+		remnawaveClient:        remnawaveClient,
+		telegramBot:            telegramBot,
+		broadcastService:       broadcastService,
+		subscriptionService:    subscriptionService,
+		staticFS:               staticFS,
+		assetVersion:           assetVersion,
+		rateLimiter:            newRequestRateLimiter(),
+		channelSubCache:        cache.NewCache(30 * time.Minute),
+		runtimeSettings:        runtimeSettings,
+		errorReporter:          errorReporter,
+		integrationSettings:    integrationSettings,
 	}
 }
 
@@ -494,6 +527,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 	mux.HandleFunc("/api/mini-app/public-config", h.handlePublicConfig)
 	mux.HandleFunc("/api/mini-app/bootstrap", h.withSession(h.handleBootstrap))
+	mux.HandleFunc("/api/mini-app/subscriptions/select", h.withSession(h.handleSelectSubscription))
+	mux.HandleFunc("/api/mini-app/subscriptions/create", h.withSession(h.handleCreateSubscription))
+	mux.HandleFunc("/api/mini-app/subscriptions/rename", h.withSession(h.handleRenameSubscription))
+	mux.HandleFunc("/api/mini-app/subscriptions/delete", h.withSession(h.handleDeleteSubscription))
 	mux.HandleFunc("/api/mini-app/auth/google/link/start", h.withSession(h.handleStartGoogleLink))
 	mux.HandleFunc("/api/mini-app/auth/google/link/complete", h.handleCompleteGoogleLink)
 	mux.HandleFunc("/api/mini-app/auth/google/link", h.withSession(h.handleLinkGoogle))
@@ -804,6 +841,156 @@ func (h *Handler) handleBootstrap(w http.ResponseWriter, r *http.Request, sess *
 	})
 }
 
+func (h *Handler) handleSelectSubscription(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
+	if r.Method != http.MethodPost {
+		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		return
+	}
+	var req subscriptionSelectRequest
+	if err := h.decodeJSONRequest(w, r, 2048, &req); err != nil || req.ID <= 0 {
+		h.writeError(w, http.StatusBadRequest, "invalid_subscription", "Не удалось выбрать подписку")
+		return
+	}
+	if h.subscriptionRepository == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "subscriptions_unavailable", "Подписки временно недоступны")
+		return
+	}
+	if err := h.subscriptionRepository.SetActive(r.Context(), customer.ID, req.ID); err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, database.ErrCustomerSubscriptionNotFound) {
+			status = http.StatusNotFound
+		}
+		h.writeError(w, status, "subscription_select_failed", "Не удалось выбрать подписку")
+		return
+	}
+	h.writeSubscriptionBootstrap(w, r, sess, customer, "Подписка выбрана")
+}
+
+func (h *Handler) handleCreateSubscription(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
+	if r.Method != http.MethodPost {
+		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		return
+	}
+	var req subscriptionNameRequest
+	if err := h.decodeJSONRequest(w, r, 4096, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Некорректный запрос")
+		return
+	}
+	if h.subscriptionRepository == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "subscriptions_unavailable", "Подписки временно недоступны")
+		return
+	}
+	if _, err := h.subscriptionRepository.EnsurePrimary(r.Context(), customer); err != nil {
+		h.writeError(w, http.StatusInternalServerError, "subscription_create_failed", "Не удалось создать подписку")
+		return
+	}
+	if _, err := h.subscriptionRepository.CreateAdditional(r.Context(), customer.ID, req.Name); err != nil {
+		switch {
+		case errors.Is(err, database.ErrSubscriptionLimitReached):
+			h.writeError(w, http.StatusConflict, "subscription_limit", "Можно создать не больше трёх подписок")
+		case strings.Contains(err.Error(), "name"):
+			h.writeError(w, http.StatusBadRequest, "subscription_name_invalid", "Введите название до 40 символов")
+		default:
+			h.writeError(w, http.StatusInternalServerError, "subscription_create_failed", "Не удалось создать подписку")
+		}
+		return
+	}
+	h.writeSubscriptionBootstrap(w, r, sess, customer, "Подписка создана")
+}
+
+func (h *Handler) handleRenameSubscription(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
+	if r.Method != http.MethodPost {
+		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		return
+	}
+	var req subscriptionNameRequest
+	if err := h.decodeJSONRequest(w, r, 4096, &req); err != nil || req.ID <= 0 {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Некорректный запрос")
+		return
+	}
+	if h.subscriptionRepository == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "subscriptions_unavailable", "Подписки временно недоступны")
+		return
+	}
+	if err := h.subscriptionRepository.Rename(r.Context(), customer.ID, req.ID, req.Name); err != nil {
+		switch {
+		case errors.Is(err, database.ErrCustomerSubscriptionNotFound):
+			h.writeError(w, http.StatusNotFound, "subscription_not_found", "Подписка не найдена")
+		case strings.Contains(err.Error(), "name"):
+			h.writeError(w, http.StatusBadRequest, "subscription_name_invalid", "Введите название до 40 символов")
+		default:
+			h.writeError(w, http.StatusInternalServerError, "subscription_rename_failed", "Не удалось переименовать подписку")
+		}
+		return
+	}
+	h.writeSubscriptionBootstrap(w, r, sess, customer, "Название сохранено")
+}
+
+func (h *Handler) handleDeleteSubscription(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
+	if r.Method != http.MethodPost {
+		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		return
+	}
+	var req subscriptionDeleteRequest
+	if err := h.decodeJSONRequest(w, r, 2048, &req); err != nil || req.ID <= 0 {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Некорректный запрос")
+		return
+	}
+	if h.subscriptionRepository == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "subscriptions_unavailable", "Подписки временно недоступны")
+		return
+	}
+	subscription, err := h.subscriptionRepository.FindForCustomer(r.Context(), customer.ID, req.ID)
+	if err != nil || subscription == nil {
+		h.writeError(w, http.StatusNotFound, "subscription_not_found", "Подписка не найдена")
+		return
+	}
+	if subscription.IsPrimary {
+		h.writeError(w, http.StatusBadRequest, "primary_subscription", "Основную подписку удалить нельзя")
+		return
+	}
+	hasPendingPurchase, err := h.purchaseRepository.HasPendingPurchaseBySubscription(r.Context(), customer.ID, subscription.ID)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "subscription_delete_failed", "Не удалось проверить платежи подписки")
+		return
+	}
+	if hasPendingPurchase {
+		h.writeError(w, http.StatusConflict, "subscription_purchase_pending", "Сначала завершите или отмените оплату этой подписки")
+		return
+	}
+	userID, userUUID := customerSubscriptionIdentity(subscription)
+	if userID > 0 || userUUID != uuid.Nil {
+		if h.remnawaveClient == nil {
+			h.writeError(w, http.StatusServiceUnavailable, "subscription_delete_failed", "Панель временно недоступна")
+			return
+		}
+		if err := h.remnawaveClient.DeleteUser(r.Context(), userID, userUUID); err != nil {
+			slog.Error("mini app: delete panel subscription", "error", err, "subscriptionId", subscription.ID, "customerId", utils.MaskHalfInt64(customer.ID))
+			h.writeError(w, http.StatusBadGateway, "subscription_delete_failed", "Не удалось удалить подписку из панели")
+			return
+		}
+	}
+	if err := h.subscriptionRepository.DeleteAdditional(r.Context(), customer.ID, subscription.ID); err != nil {
+		h.writeError(w, http.StatusInternalServerError, "subscription_delete_failed", "Не удалось удалить подписку")
+		return
+	}
+	primary, err := h.subscriptionRepository.EnsurePrimary(r.Context(), customer)
+	if err != nil || primary == nil || h.subscriptionRepository.SetActive(r.Context(), customer.ID, primary.ID) != nil {
+		h.writeError(w, http.StatusInternalServerError, "subscription_select_failed", "Подписка удалена, но не удалось выбрать основную")
+		return
+	}
+	h.writeSubscriptionBootstrap(w, r, sess, customer, "Подписка удалена")
+}
+
+func (h *Handler) writeSubscriptionBootstrap(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer, message string) {
+	payload, err := h.buildBootstrapResponse(r.Context(), sess, customer)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "bootstrap_failed", "Не удалось обновить интерфейс")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": message, "data": payload})
+}
+
 func (h *Handler) handleLinkGoogle(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
 	if h.runtimeSettings != nil && !h.runtimeSettings.FeatureEnabled("google") {
 		h.writeError(w, http.StatusServiceUnavailable, "feature_disabled", "Gmail login is temporarily unavailable")
@@ -886,6 +1073,15 @@ func (h *Handler) linkGoogleIdentity(ctx context.Context, customer *database.Cus
 func (h *Handler) handleActivateTrial(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
 	if h.runtimeSettings != nil && !h.runtimeSettings.FeatureEnabled("trials") {
 		h.writeError(w, http.StatusServiceUnavailable, "feature_disabled", "Trial activation is temporarily unavailable")
+		return
+	}
+	activeSubscription, _, err := h.loadCustomerSubscriptions(r.Context(), customer)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "trial_failed", "Не удалось проверить подписку")
+		return
+	}
+	if activeSubscription == nil || !activeSubscription.IsPrimary {
+		h.writeError(w, http.StatusBadRequest, "trial_primary_only", "Пробный период доступен только для основной подписки")
 		return
 	}
 	customer = h.syncCustomerState(r.Context(), customer)
@@ -1022,6 +1218,11 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		h.writeError(w, http.StatusBadRequest, "unsupported_payment_method", "Unsupported payment method")
 		return
 	}
+	activeSubscription, _, err := h.loadCustomerSubscriptions(r.Context(), customer)
+	if err != nil || activeSubscription == nil {
+		h.writeError(w, http.StatusInternalServerError, "subscription_failed", "Не удалось определить подписку")
+		return
+	}
 
 	var (
 		plan           checkoutPlan
@@ -1057,7 +1258,7 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 			h.writeError(w, http.StatusServiceUnavailable, "panel_unavailable", "Панель временно недоступна")
 			return
 		}
-		panelState, stateErr := h.remnawaveClient.GetUserStateByTelegramID(r.Context(), customer.TelegramID)
+		panelState, stateErr := h.panelStateForCustomerSubscription(r.Context(), customer, activeSubscription)
 		if stateErr != nil || panelState == nil || !panelState.Active {
 			h.writeError(w, http.StatusBadRequest, "active_subscription_required", "Докупка доступна только для активной подписки")
 			return
@@ -1116,6 +1317,7 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 
 	ctxWithProfile := contextWithSessionTelegramProfile(r.Context(), sess)
 	paymentURL, purchaseID, err := h.paymentService.CreatePurchaseWithOptions(ctxWithProfile, float64(price), purchaseMonths, customer, invoiceType, payment.CreatePurchaseOptions{
+		SubscriptionID:       &activeSubscription.ID,
 		AgreementAccepted:    true,
 		PlanID:               planID,
 		TrafficLimitBytes:    trafficLimit,
@@ -1829,6 +2031,20 @@ func (h *Handler) handleDeleteDeviceExact(w http.ResponseWriter, r *http.Request
 		h.writeError(w, http.StatusBadRequest, "user_id_required", "Не удалось определить подписку")
 		return
 	}
+	activeSubscription, _, err := h.loadCustomerSubscriptions(r.Context(), customer)
+	if err != nil || activeSubscription == nil {
+		h.writeError(w, http.StatusInternalServerError, "device_delete_failed", "Не удалось определить подписку")
+		return
+	}
+	expectedUserID, expectedUserUUID := customerSubscriptionIdentity(activeSubscription)
+	if expectedUserID > 0 && req.UserID != expectedUserID {
+		h.writeError(w, http.StatusForbidden, "device_subscription_mismatch", "Устройство не относится к выбранной подписке")
+		return
+	}
+	if expectedUserUUID != uuid.Nil && userUUID != expectedUserUUID {
+		h.writeError(w, http.StatusForbidden, "device_subscription_mismatch", "Устройство не относится к выбранной подписке")
+		return
+	}
 
 	updatedDevices, err := h.remnawaveClient.DeleteUserHWIDDevice(r.Context(), req.UserID, userUUID, hwid)
 	if err != nil {
@@ -1837,15 +2053,13 @@ func (h *Handler) handleDeleteDeviceExact(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	customer = h.syncCustomerState(r.Context(), customer)
-
-	highestPurchase, err := h.purchaseRepository.FindHighestSuccessfulPurchaseByCustomer(r.Context(), customer.ID)
+	highestPurchase, err := h.purchaseRepository.FindHighestSuccessfulPurchaseBySubscription(r.Context(), customer.ID, activeSubscription.ID)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "device_delete_failed", "Не удалось обновить подписку")
 		return
 	}
 
-	panelState, err := h.remnawaveClient.GetUserStateByTelegramID(r.Context(), customer.TelegramID)
+	panelState, err := h.panelStateForCustomerSubscription(r.Context(), customer, activeSubscription)
 	if err != nil {
 		slog.Error("mini app: exact reload panel state after delete failed", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID), "userId", req.UserID, "userUuid", userUUID.String())
 		h.writeError(w, http.StatusInternalServerError, "device_delete_failed", "Панель не подтвердила удаление устройства")
@@ -1861,10 +2075,11 @@ func (h *Handler) handleDeleteDeviceExact(w http.ResponseWriter, r *http.Request
 			panelState.UserID = req.UserID
 		}
 	}
+	viewCustomer := h.syncCustomerSubscriptionState(r.Context(), customer, activeSubscription, panelState)
 
 	h.writeJSON(w, http.StatusOK, map[string]any{
 		"ok":   true,
-		"data": h.buildSubscriptionPayload(customer, highestPurchase, panelState),
+		"data": h.buildSubscriptionPayload(viewCustomer, highestPurchase, panelState),
 	})
 }
 
@@ -2332,25 +2547,165 @@ func (h *Handler) buildBootstrapResponse(ctx context.Context, sess *session, cus
 	return h.buildBootstrapResponseMode(ctx, sess, customer, false)
 }
 
+func (h *Handler) loadCustomerSubscriptions(ctx context.Context, customer *database.Customer) (*database.CustomerSubscription, []database.CustomerSubscription, error) {
+	if customer == nil {
+		return nil, nil, errors.New("customer is required")
+	}
+	if h.subscriptionRepository == nil {
+		fallback := &database.CustomerSubscription{
+			CustomerID: customer.ID, DisplayName: "Основная", Position: 1, IsPrimary: true,
+			SubscriptionLink: customer.SubscriptionLink, ExpireAt: customer.ExpireAt,
+		}
+		return fallback, []database.CustomerSubscription{*fallback}, nil
+	}
+	active, err := h.subscriptionRepository.ActiveForCustomer(ctx, customer)
+	if err != nil {
+		return nil, nil, err
+	}
+	items, err := h.subscriptionRepository.ListByCustomer(ctx, customer.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return active, items, nil
+}
+
+func customerSubscriptionIdentity(subscription *database.CustomerSubscription) (int64, uuid.UUID) {
+	if subscription == nil {
+		return 0, uuid.Nil
+	}
+	userID := int64(0)
+	if subscription.PanelUserID != nil {
+		userID = *subscription.PanelUserID
+	}
+	userUUID := uuid.Nil
+	if subscription.PanelUserUUID != nil {
+		userUUID = *subscription.PanelUserUUID
+	}
+	return userID, userUUID
+}
+
+func customerForActiveSubscription(customer *database.Customer, subscription *database.CustomerSubscription) *database.Customer {
+	if customer == nil || subscription == nil || subscription.IsPrimary {
+		return customer
+	}
+	copyCustomer := *customer
+	copyCustomer.SubscriptionLink = subscription.SubscriptionLink
+	copyCustomer.ExpireAt = subscription.ExpireAt
+	return &copyCustomer
+}
+
+func (h *Handler) panelStateForCustomerSubscription(ctx context.Context, customer *database.Customer, subscription *database.CustomerSubscription) (*remnawave.UserState, error) {
+	if h.remnawaveClient == nil || customer == nil || subscription == nil {
+		return nil, nil
+	}
+	userID, userUUID := customerSubscriptionIdentity(subscription)
+	if userID > 0 || userUUID != uuid.Nil {
+		return h.remnawaveClient.GetUserStateByIdentity(ctx, userID, userUUID)
+	}
+	if subscription.IsPrimary {
+		return h.remnawaveClient.GetUserStateByTelegramID(ctx, customer.TelegramID)
+	}
+	return nil, nil
+}
+
+func (h *Handler) syncCustomerSubscriptionState(ctx context.Context, customer *database.Customer, subscription *database.CustomerSubscription, panelState *remnawave.UserState) *database.Customer {
+	if customer == nil || subscription == nil {
+		return customer
+	}
+	if subscription.IsPrimary {
+		customer = h.syncCustomerStateFromPanelState(ctx, customer, panelState)
+		subscription.SubscriptionLink = customer.SubscriptionLink
+		subscription.ExpireAt = customer.ExpireAt
+		if h.subscriptionRepository != nil {
+			userID, userUUID := customerSubscriptionIdentity(subscription)
+			if panelState != nil && panelState.Exists {
+				userID = panelState.UserID
+				userUUID = panelState.UserUUID
+			}
+			if err := h.subscriptionRepository.UpdatePanelAccess(ctx, subscription, userID, userUUID, customer.SubscriptionLink, customer.ExpireAt); err != nil {
+				slog.Warn("mini app: persist primary subscription identity failed", "error", err, "subscriptionId", subscription.ID)
+			} else {
+				if userID > 0 {
+					subscription.PanelUserID = &userID
+				}
+				if userUUID != uuid.Nil {
+					subscription.PanelUserUUID = &userUUID
+				}
+			}
+		}
+	} else if h.subscriptionRepository != nil && panelState != nil && panelState.Exists {
+		userID := panelState.UserID
+		userUUID := panelState.UserUUID
+		var link *string
+		var expire *time.Time
+		if panelState.Active {
+			link = panelState.SubscriptionLink
+			expire = panelState.ExpireAt
+		}
+		if err := h.subscriptionRepository.UpdatePanelAccess(ctx, subscription, userID, userUUID, link, expire); err != nil {
+			slog.Warn("mini app: persist subscription state failed", "error", err, "subscriptionId", subscription.ID)
+		} else {
+			subscription.PanelUserID = &userID
+			if userUUID != uuid.Nil {
+				subscription.PanelUserUUID = &userUUID
+			}
+			subscription.SubscriptionLink = link
+			subscription.ExpireAt = expire
+		}
+	}
+	return customerForActiveSubscription(customer, subscription)
+}
+
+func buildSubscriptionsPayload(active *database.CustomerSubscription, subscriptions []database.CustomerSubscription) subscriptionsPayload {
+	payload := subscriptionsPayload{Maximum: database.MaxCustomerSubscriptions, Items: make([]subscriptionItemPayload, 0, len(subscriptions))}
+	if active != nil {
+		payload.ActiveID = active.ID
+	}
+	now := time.Now().UTC()
+	for _, subscription := range subscriptions {
+		if active != nil && subscription.ID == active.ID {
+			subscription = *active
+		}
+		status := "inactive"
+		expiresAt := ""
+		if subscription.ExpireAt != nil {
+			expiresAt = subscription.ExpireAt.UTC().Format(time.RFC3339)
+			if subscription.ExpireAt.After(now) {
+				status = "active"
+			}
+		}
+		payload.Items = append(payload.Items, subscriptionItemPayload{
+			ID: subscription.ID, Name: subscription.DisplayName, Position: subscription.Position,
+			IsPrimary: subscription.IsPrimary, IsActive: subscription.ID == payload.ActiveID,
+			Status: status, ExpiresAt: expiresAt,
+		})
+	}
+	return payload
+}
+
 func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session, customer *database.Customer, fast bool) (*bootstrapResponse, error) {
 	ctx = contextWithSessionTelegramProfile(ctx, sess)
 	settings := runtimeconfig.DefaultSettings()
 	if h.runtimeSettings != nil {
 		settings = h.runtimeSettings.Snapshot()
 	}
+	activeSubscription, subscriptions, err := h.loadCustomerSubscriptions(ctx, customer)
+	if err != nil {
+		return nil, err
+	}
+	viewCustomer := customerForActiveSubscription(customer, activeSubscription)
 
 	var panelState *remnawave.UserState
 	panelLookupFailed := false
 	if !fast && h.remnawaveClient != nil {
 		panelCtx, panelCancel := context.WithTimeout(ctx, 4*time.Second)
-		var err error
-		panelState, err = h.remnawaveClient.GetUserStateByTelegramID(panelCtx, customer.TelegramID)
+		panelState, err = h.panelStateForCustomerSubscription(panelCtx, customer, activeSubscription)
 		panelCancel()
 		if err != nil {
 			panelLookupFailed = true
 			slog.Warn("mini app: load panel state failed", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID))
 		} else {
-			customer = h.syncCustomerStateFromPanelState(ctx, customer, panelState)
+			viewCustomer = h.syncCustomerSubscriptionState(ctx, customer, activeSubscription, panelState)
 		}
 	}
 
@@ -2369,11 +2724,11 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		return nil, err
 	}
 
-	highestPurchase, err := h.purchaseRepository.FindHighestSuccessfulPurchaseByCustomer(ctx, customer.ID)
+	highestPurchase, err := h.purchaseRepository.FindHighestSuccessfulPurchaseBySubscription(ctx, customer.ID, activeSubscription.ID)
 	if err != nil {
 		return nil, err
 	}
-	trialEligible := bootstrapTrialEligible(settings.Trial, customer, highestPurchase, panelState, panelLookupFailed, fast)
+	trialEligible := activeSubscription.IsPrimary && bootstrapTrialEligible(settings.Trial, viewCustomer, highestPurchase, panelState, panelLookupFailed, fast)
 
 	supportData := supportPayload{
 		IsAdmin:        h.isAdmin(sess.User.ID),
@@ -2381,7 +2736,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		HistoryTickets: []supportTicketPayload{},
 	}
 	if !fast && settings.Features["support"] {
-		supportData, err = h.buildSupportPayload(ctx, sess, customer, highestPurchase)
+		supportData, err = h.buildSupportPayload(ctx, sess, viewCustomer, highestPurchase)
 		if err != nil {
 			return nil, err
 		}
@@ -2433,14 +2788,14 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 	}
 
 	if !fast && panelState != nil {
-		panelState, err = h.syncSubscriptionTrafficLimit(ctx, customer, highestPurchase, panelState)
+		panelState, err = h.syncSubscriptionTrafficLimit(ctx, viewCustomer, activeSubscription, highestPurchase, panelState)
 		if err != nil {
 			slog.Warn("mini app: sync traffic limit failed", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID))
 		}
 		h.trackDeviceNotifications(ctx, customer, panelState)
 	}
 
-	subscriptionData := h.buildSubscriptionPayload(customer, highestPurchase, panelState)
+	subscriptionData := h.buildSubscriptionPayload(viewCustomer, highestPurchase, panelState)
 	if subscriptionData.Status == "active" && highestPurchase == nil && reviewsData.MyReview != nil && reviewsData.MyReview.RewardGranted {
 		subscriptionData.IsTrial = false
 		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(customer.Language)), "en") {
@@ -2472,7 +2827,8 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 			GoogleLinked:   customerGoogleSubject(customer) != "",
 			TelegramLinked: customer.TelegramID > 0,
 		},
-		Subscription: subscriptionData,
+		Subscription:  subscriptionData,
+		Subscriptions: buildSubscriptionsPayload(activeSubscription, subscriptions),
 		Trial: trialPayload{
 			Enabled:  settings.Features["trials"] && settings.Trial.Enabled && settings.Trial.Days > 0,
 			Eligible: settings.Features["trials"] && trialEligible,
@@ -2507,7 +2863,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 	}, nil
 }
 
-func (h *Handler) syncSubscriptionTrafficLimit(ctx context.Context, customer *database.Customer, highestPurchase *database.Purchase, panelState *remnawave.UserState) (*remnawave.UserState, error) {
+func (h *Handler) syncSubscriptionTrafficLimit(ctx context.Context, customer *database.Customer, subscription *database.CustomerSubscription, highestPurchase *database.Purchase, panelState *remnawave.UserState) (*remnawave.UserState, error) {
 	if h.remnawaveClient == nil || customer == nil || panelState == nil || !panelState.Exists {
 		return panelState, nil
 	}
@@ -2582,11 +2938,12 @@ func (h *Handler) syncSubscriptionTrafficLimit(ctx context.Context, customer *da
 		"expectedDeviceLimit", expectedDeviceLimit,
 	)
 
-	if _, err := h.remnawaveClient.CreateOrUpdateUser(ctx, customer.ID, customer.TelegramID, int(expectedLimitBytes), expectedDeviceLimit, 0, false); err != nil {
+	userID, userUUID := customerSubscriptionIdentity(subscription)
+	if _, err := h.remnawaveClient.CreateOrUpdateUserForSubscription(ctx, customer.ID, customer.TelegramID, subscription.ID, userID, userUUID, subscription.IsPrimary, int(expectedLimitBytes), expectedDeviceLimit, 0, remnawave.ProvisioningOptions{}); err != nil {
 		return panelState, err
 	}
 
-	refreshedState, err := h.remnawaveClient.GetUserStateByTelegramID(ctx, customer.TelegramID)
+	refreshedState, err := h.panelStateForCustomerSubscription(ctx, customer, subscription)
 	if err != nil {
 		return panelState, err
 	}

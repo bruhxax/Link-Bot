@@ -37,24 +37,26 @@ import (
 var trialActivationLocks sync.Map
 
 type PaymentService struct {
-	purchaseRepository  *database.PurchaseRepository
-	promoCodeRepository *database.PromoCodeRepository
-	remnawaveClient     *remnawave.Client
-	customerRepository  *database.CustomerRepository
-	telegramBot         *bot.Bot
-	translation         *translation.Manager
-	cryptoPayClient     *cryptopay.Client
-	yookasaClient       *yookasa.Client
-	referralRepository  *database.ReferralRepository
-	cache               *cache.Cache
-	moynalogClient      *moynalog.Client
-	errorReporter       *operations.Reporter
-	runtimeSettings     *runtimeconfig.Service
-	integrationSettings *integrations.Service
-	integrationGateway  *integrations.Gateway
+	purchaseRepository     *database.PurchaseRepository
+	subscriptionRepository *database.SubscriptionRepository
+	promoCodeRepository    *database.PromoCodeRepository
+	remnawaveClient        *remnawave.Client
+	customerRepository     *database.CustomerRepository
+	telegramBot            *bot.Bot
+	translation            *translation.Manager
+	cryptoPayClient        *cryptopay.Client
+	yookasaClient          *yookasa.Client
+	referralRepository     *database.ReferralRepository
+	cache                  *cache.Cache
+	moynalogClient         *moynalog.Client
+	errorReporter          *operations.Reporter
+	runtimeSettings        *runtimeconfig.Service
+	integrationSettings    *integrations.Service
+	integrationGateway     *integrations.Gateway
 }
 
 type CreatePurchaseOptions struct {
+	SubscriptionID       *int64
 	AgreementAccepted    bool
 	IsAutoPayment        bool
 	ParentPurchaseID     *int64
@@ -98,27 +100,29 @@ func NewPaymentService(
 	runtimeSettings *runtimeconfig.Service,
 	errorReporter *operations.Reporter,
 	integrationSettings *integrations.Service,
+	subscriptionRepository *database.SubscriptionRepository,
 ) *PaymentService {
 	var integrationGateway *integrations.Gateway
 	if integrationSettings != nil {
 		integrationGateway = integrations.NewGateway(integrationSettings)
 	}
 	return &PaymentService{
-		purchaseRepository:  purchaseRepository,
-		promoCodeRepository: promoCodeRepository,
-		remnawaveClient:     remnawaveClient,
-		customerRepository:  customerRepository,
-		telegramBot:         telegramBot,
-		translation:         translation,
-		cryptoPayClient:     cryptoPayClient,
-		yookasaClient:       yookasaClient,
-		referralRepository:  referralRepository,
-		cache:               cache,
-		moynalogClient:      moynalogClient,
-		runtimeSettings:     runtimeSettings,
-		errorReporter:       errorReporter,
-		integrationSettings: integrationSettings,
-		integrationGateway:  integrationGateway,
+		purchaseRepository:     purchaseRepository,
+		subscriptionRepository: subscriptionRepository,
+		promoCodeRepository:    promoCodeRepository,
+		remnawaveClient:        remnawaveClient,
+		customerRepository:     customerRepository,
+		telegramBot:            telegramBot,
+		translation:            translation,
+		cryptoPayClient:        cryptoPayClient,
+		yookasaClient:          yookasaClient,
+		referralRepository:     referralRepository,
+		cache:                  cache,
+		moynalogClient:         moynalogClient,
+		runtimeSettings:        runtimeSettings,
+		errorReporter:          errorReporter,
+		integrationSettings:    integrationSettings,
+		integrationGateway:     integrationGateway,
 	}
 }
 
@@ -152,6 +156,10 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	if customer == nil {
 		return fmt.Errorf("customer %s not found", utils.MaskHalfInt64(purchase.CustomerID))
 	}
+	subscription, err := s.subscriptionForPurchase(ctx, customer, purchase)
+	if err != nil {
+		return err
+	}
 
 	s.completePromoRedemption(ctx, purchase, customer)
 
@@ -166,17 +174,22 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	}
 
 	if purchase.PurchaseKind == database.PurchaseKindExtraDevices {
-		user, err := s.remnawaveClient.AddDeviceLimit(ctx, customer.TelegramID, purchase.ExtraDevices)
+		var user *remnawave.PanelUser
+		userID, userUUID := subscriptionPanelIdentity(subscription)
+		if userID > 0 || userUUID != uuid.Nil {
+			user, err = s.remnawaveClient.AddDeviceLimitByIdentity(ctx, userID, userUUID, purchase.ExtraDevices)
+		} else if subscription.IsPrimary {
+			user, err = s.remnawaveClient.AddDeviceLimit(ctx, customer.TelegramID, purchase.ExtraDevices)
+		} else {
+			err = errors.New("subscription is not active yet")
+		}
 		if err != nil {
 			return err
 		}
 		if err := s.purchaseRepository.MarkAsPaid(ctx, purchase.ID); err != nil {
 			return err
 		}
-		if err := s.customerRepository.UpdateFields(ctx, customer.ID, map[string]interface{}{
-			"subscription_link": user.SubscriptionURL,
-			"expire_at":         user.ExpireAt,
-		}); err != nil {
+		if err := s.persistSubscriptionPanelState(ctx, customer, subscription, user); err != nil {
 			return err
 		}
 		s.notifyAdminAboutPayment(ctx, purchase, customer)
@@ -195,10 +208,10 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 
 	trafficLimit := purchaseTrafficLimit(purchase)
 	deviceLimit := purchaseDeviceLimit(purchase)
-	panelState, err := s.remnawaveClient.GetUserStateByTelegramID(ctx, customer.TelegramID)
+	panelState, err := s.panelStateForSubscription(ctx, customer, subscription)
 	if err != nil {
 		slog.Warn("payment: load panel state before purchase update failed", "error", err, "customerId", utils.MaskHalfInt64(customer.ID))
-	} else if shouldAccumulateEntitlements(customer, panelState) {
+	} else if shouldAccumulateEntitlements(customerForSubscription(customer, subscription), panelState) {
 		trafficLimit = mergeTrafficLimits(int(maxInt64(panelState.TrafficLimitBytes, 0)), trafficLimit)
 		deviceLimit = mergeDeviceLimits(maxInt(panelState.DeviceLimit, 0), deviceLimit)
 	}
@@ -224,12 +237,8 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 			provisioning.ApplySquads = true
 		}
 	}
-	var user *remnawave.PanelUser
-	if provisioning.ApplySquads || provisioning.UsernameTemplate != "" {
-		user, err = s.remnawaveClient.CreateOrUpdateUserWithOptions(ctx, customer.ID, customer.TelegramID, trafficLimit, deviceLimit, purchase.Month*config.DaysInMonth(), provisioning)
-	} else {
-		user, err = s.remnawaveClient.CreateOrUpdateUser(ctx, customer.ID, customer.TelegramID, trafficLimit, deviceLimit, purchase.Month*config.DaysInMonth(), false)
-	}
+	userID, userUUID := subscriptionPanelIdentity(subscription)
+	user, err := s.remnawaveClient.CreateOrUpdateUserForSubscription(ctx, customer.ID, customer.TelegramID, subscription.ID, userID, userUUID, subscription.IsPrimary, trafficLimit, deviceLimit, purchase.Month*config.DaysInMonth(), provisioning)
 	if err != nil {
 		return err
 	}
@@ -239,17 +248,16 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 		return err
 	}
 
-	customerFilesToUpdate := map[string]interface{}{
-		"subscription_link": user.SubscriptionURL,
-		"expire_at":         user.ExpireAt,
-	}
-	for field, value := range s.buildAutoPaymentCustomerUpdates(customer, purchase) {
-		customerFilesToUpdate[field] = value
-	}
-
-	err = s.customerRepository.UpdateFields(ctx, customer.ID, customerFilesToUpdate)
-	if err != nil {
+	if err = s.persistSubscriptionPanelState(ctx, customer, subscription, user); err != nil {
 		return err
+	}
+	if subscription.IsPrimary {
+		customerFilesToUpdate := s.buildAutoPaymentCustomerUpdates(customer, purchase)
+		if len(customerFilesToUpdate) > 0 {
+			if err = s.customerRepository.UpdateFields(ctx, customer.ID, customerFilesToUpdate); err != nil {
+				return err
+			}
+		}
 	}
 
 	// The payment notification must not depend on Telegram accepting the
@@ -632,6 +640,7 @@ func (s PaymentService) createCryptoInvoice(ctx context.Context, amount float64,
 		Amount:                   amount,
 		Currency:                 "RUB",
 		CustomerID:               customer.ID,
+		SubscriptionID:           options.SubscriptionID,
 		Month:                    months,
 		PlanID:                   optionalTrimmedStringPointer(options.PlanID),
 		TrafficLimitBytes:        options.TrafficLimitBytes,
@@ -691,6 +700,7 @@ func (s PaymentService) createYookasaInvoice(ctx context.Context, amount float64
 		Amount:                   amount,
 		Currency:                 "RUB",
 		CustomerID:               customer.ID,
+		SubscriptionID:           options.SubscriptionID,
 		Month:                    months,
 		PlanID:                   optionalTrimmedStringPointer(options.PlanID),
 		TrafficLimitBytes:        options.TrafficLimitBytes,
@@ -744,7 +754,7 @@ func (s PaymentService) createExternalInvoice(ctx context.Context, amount float6
 	}
 	purchaseID, err := s.purchaseRepository.Create(ctx, &database.Purchase{
 		InvoiceType: invoiceType, Status: database.PurchaseStatusNew, Amount: amount, Currency: "RUB",
-		CustomerID: customer.ID, Month: months, PlanID: optionalTrimmedStringPointer(options.PlanID),
+		CustomerID: customer.ID, SubscriptionID: options.SubscriptionID, Month: months, PlanID: optionalTrimmedStringPointer(options.PlanID),
 		TrafficLimitBytes: options.TrafficLimitBytes, DeviceLimitCount: options.DeviceLimitCount,
 		AgreementAccepted: options.AgreementAccepted, IsAutoPayment: options.IsAutoPayment,
 		ParentPurchaseID: options.ParentPurchaseID, PromoCodeID: options.PromoCodeID,
@@ -902,6 +912,7 @@ func (s PaymentService) createTelegramInvoice(ctx context.Context, amount float6
 		Amount:                   amount,
 		Currency:                 "STARS",
 		CustomerID:               customer.ID,
+		SubscriptionID:           options.SubscriptionID,
 		Month:                    months,
 		PlanID:                   optionalTrimmedStringPointer(options.PlanID),
 		TrafficLimitBytes:        options.TrafficLimitBytes,
@@ -982,6 +993,15 @@ func (s PaymentService) ActivateTrial(ctx context.Context, telegramId int64) (st
 	if err != nil {
 		slog.Error("Error creating user", "error", err)
 		return "", err
+	}
+	if s.subscriptionRepository != nil {
+		primary, primaryErr := s.subscriptionRepository.EnsurePrimary(ctx, customer)
+		if primaryErr != nil {
+			return "", primaryErr
+		}
+		if primaryErr = s.subscriptionRepository.UpdatePanelState(ctx, primary, user.ID, user.UUID, user.SubscriptionURL, user.ExpireAt); primaryErr != nil {
+			return "", primaryErr
+		}
 	}
 
 	customerFilesToUpdate := map[string]interface{}{
@@ -1079,6 +1099,90 @@ func (s PaymentService) resolveCustomerDeviceLimit(ctx context.Context, customer
 	}
 
 	return config.DeviceLimitForMonths(1), nil
+}
+
+func (s PaymentService) subscriptionForPurchase(ctx context.Context, customer *database.Customer, purchase *database.Purchase) (*database.CustomerSubscription, error) {
+	if customer == nil {
+		return nil, errors.New("customer is required")
+	}
+	if s.subscriptionRepository == nil {
+		return &database.CustomerSubscription{
+			CustomerID: customer.ID, DisplayName: "Основная", Position: 1, IsPrimary: true,
+			SubscriptionLink: customer.SubscriptionLink, ExpireAt: customer.ExpireAt,
+		}, nil
+	}
+	var subscription *database.CustomerSubscription
+	var err error
+	if purchase != nil && purchase.SubscriptionID != nil {
+		subscription, err = s.subscriptionRepository.FindForCustomer(ctx, customer.ID, *purchase.SubscriptionID)
+		if err != nil {
+			return nil, err
+		}
+		if subscription == nil {
+			return nil, database.ErrCustomerSubscriptionNotFound
+		}
+	} else {
+		subscription, err = s.subscriptionRepository.EnsurePrimary(ctx, customer)
+		if err != nil {
+			return nil, err
+		}
+		if purchase != nil && subscription != nil {
+			if err := s.purchaseRepository.UpdateFields(ctx, purchase.ID, map[string]interface{}{"subscription_id": subscription.ID}); err != nil {
+				return nil, err
+			}
+			purchase.SubscriptionID = &subscription.ID
+		}
+	}
+	return subscription, nil
+}
+
+func subscriptionPanelIdentity(subscription *database.CustomerSubscription) (int64, uuid.UUID) {
+	if subscription == nil {
+		return 0, uuid.Nil
+	}
+	userID := int64(0)
+	if subscription.PanelUserID != nil {
+		userID = *subscription.PanelUserID
+	}
+	userUUID := uuid.Nil
+	if subscription.PanelUserUUID != nil {
+		userUUID = *subscription.PanelUserUUID
+	}
+	return userID, userUUID
+}
+
+func (s PaymentService) panelStateForSubscription(ctx context.Context, customer *database.Customer, subscription *database.CustomerSubscription) (*remnawave.UserState, error) {
+	userID, userUUID := subscriptionPanelIdentity(subscription)
+	if userID > 0 || userUUID != uuid.Nil {
+		return s.remnawaveClient.GetUserStateByIdentity(ctx, userID, userUUID)
+	}
+	if subscription != nil && subscription.IsPrimary {
+		return s.remnawaveClient.GetUserStateByTelegramID(ctx, customer.TelegramID)
+	}
+	return nil, nil
+}
+
+func (s PaymentService) persistSubscriptionPanelState(ctx context.Context, customer *database.Customer, subscription *database.CustomerSubscription, user *remnawave.PanelUser) error {
+	if user == nil {
+		return errors.New("panel user is required")
+	}
+	if s.subscriptionRepository != nil && subscription != nil && subscription.ID > 0 {
+		return s.subscriptionRepository.UpdatePanelState(ctx, subscription, user.ID, user.UUID, user.SubscriptionURL, user.ExpireAt)
+	}
+	return s.customerRepository.UpdateFields(ctx, customer.ID, map[string]interface{}{
+		"subscription_link": user.SubscriptionURL,
+		"expire_at":         user.ExpireAt,
+	})
+}
+
+func customerForSubscription(customer *database.Customer, subscription *database.CustomerSubscription) *database.Customer {
+	if customer == nil || subscription == nil || subscription.IsPrimary {
+		return customer
+	}
+	copyCustomer := *customer
+	copyCustomer.SubscriptionLink = subscription.SubscriptionLink
+	copyCustomer.ExpireAt = subscription.ExpireAt
+	return &copyCustomer
 }
 
 func shouldAccumulateEntitlements(customer *database.Customer, panelState *remnawave.UserState) bool {

@@ -56,6 +56,28 @@
 .profile-svg-icon--phone { --profile-icon: url("./assets/device-phone.svg"); }
 
 .modal__sheet--device-packs { max-height: min(82vh, 640px); overflow: auto; }
+.modal__sheet--device-packs-purchase {
+  max-height: min(92dvh, 680px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal__sheet--device-packs-purchase .modal__header { flex: 0 0 auto; }
+.device-pack-modal__scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+.device-pack-modal__footer {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--surface-strong);
+}
 .device-pack-grid,
 .device-pack-admin-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .device-pack-card.pricing-card {
@@ -81,6 +103,7 @@
 .device-pack-empty { grid-column: 1 / -1; padding: 18px 14px; display: grid; gap: 5px; text-align: center; border: 1px dashed var(--line); border-radius: 8px; }
 .device-pack-empty span { color: var(--muted); font-size: 12px; line-height: 1.4; }
 .device-pack-modal__actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 14px; }
+.device-pack-modal__footer .device-pack-modal__actions { margin-top: 0; }
 .device-pack-modal__actions .btn { width: 100%; min-height: 44px; }
 .device-pack-form__actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
 .device-pack-modal__hint { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.4; text-align: center; }
@@ -1593,6 +1616,142 @@ img { display: block; max-width: 100%; }
   box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+}
+
+.subscription-switcher {
+  position: relative;
+  z-index: 14;
+  width: min(100%, 304px);
+  margin: 2px auto 8px;
+  display: grid;
+  justify-items: center;
+}
+
+.subscription-switcher__trigger {
+  min-width: 132px;
+  min-height: 38px;
+  max-width: 100%;
+  padding: 7px 12px 7px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--control-bg);
+  color: var(--button-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: var(--glass-shadow-soft);
+}
+
+.subscription-switcher__trigger > span:first-child {
+  min-width: 0;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subscription-switcher__chevron {
+  width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  transition: transform .2s cubic-bezier(.22, 1, .36, 1);
+}
+
+.subscription-switcher__chevron svg,
+.subscription-switcher__check svg,
+.subscription-switcher__actions svg { width: 15px; height: 15px; }
+.subscription-switcher.is-expanded .subscription-switcher__chevron { transform: rotate(180deg); }
+
+.subscription-switcher__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  width: min(304px, calc(100vw - 32px));
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-strong);
+  color: var(--text);
+  box-shadow: var(--glass-shadow), 0 18px 42px color-mix(in srgb, var(--bg) 54%, transparent);
+  transform-origin: 50% 0;
+}
+
+.subscription-switcher__menu.is-open {
+  animation: subscriptionMenuIn .22s cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.subscription-switcher__menu.is-closing {
+  pointer-events: none;
+  animation: subscriptionMenuOut .18s cubic-bezier(.4, 0, 1, 1) both;
+}
+
+.subscription-switcher__list,
+.subscription-switcher__actions { display: grid; gap: 3px; }
+.subscription-switcher__actions { margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--line-soft); }
+
+.subscription-switcher__item,
+.subscription-switcher__actions button {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+
+.subscription-switcher__item { justify-content: space-between; }
+.subscription-switcher__item.is-active {
+  border-color: var(--line);
+  background: var(--control-bg);
+}
+.subscription-switcher__item-copy { min-width: 0; display: grid; gap: 3px; }
+.subscription-switcher__item-copy strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.subscription-switcher__item-copy small { color: var(--muted); font-size: 10px; }
+.subscription-switcher__check { width: 18px; height: 18px; flex: 0 0 18px; display: grid; place-items: center; color: var(--icon-color); }
+.subscription-switcher__actions button { font-size: 12px; font-weight: 700; }
+.subscription-switcher__actions button > svg { flex: 0 0 15px; color: var(--icon-color); }
+.subscription-switcher__actions button:disabled { opacity: .42; }
+.subscription-switcher__actions .subscription-switcher__delete:not(:disabled) { color: var(--danger); }
+.subscription-switcher__actions .subscription-switcher__delete:not(:disabled) svg { color: currentColor; }
+
+.subscription-switcher :where(button):focus-visible,
+.modal__sheet--subscription-editor :where(button, input):focus-visible {
+  outline: 2px solid var(--icon-color);
+  outline-offset: 2px;
+}
+
+.modal__sheet--subscription-editor,
+.modal__sheet--subscription-delete { max-height: min(72dvh, 430px); }
+.subscription-editor__actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 20px; }
+.subscription-editor__actions .btn { width: 100%; min-height: 44px; }
+.subscription-delete__description { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.subscription-delete__confirm { border-color: color-mix(in srgb, var(--danger) 54%, var(--line)); color: var(--danger); }
+
+@keyframes subscriptionMenuIn {
+  from { opacity: 0; transform: translate(-50%, -7px) scale(.98); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+@keyframes subscriptionMenuOut {
+  from { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -5px) scale(.985); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subscription-switcher__menu { animation-duration: 1ms !important; }
+  .subscription-switcher__chevron { transition-duration: 1ms; }
 }
 .dashboard-compact > .card--status-compact,
 .dashboard-compact > .action-stack--dashboard {

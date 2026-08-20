@@ -47,6 +47,7 @@ type Purchase struct {
 	ID                        int64          `db:"id"`
 	Amount                    float64        `db:"amount"`
 	CustomerID                int64          `db:"customer_id"`
+	SubscriptionID            *int64         `db:"subscription_id"`
 	CreatedAt                 time.Time      `db:"created_at"`
 	Month                     int            `db:"month"`
 	PlanID                    *string        `db:"plan_id"`
@@ -123,6 +124,7 @@ var purchaseSelectColumns = []string{
 	"id",
 	"amount",
 	"customer_id",
+	"subscription_id",
 	"created_at",
 	"month",
 	"plan_id",
@@ -160,6 +162,7 @@ func scanPurchase(scanner interface {
 		&purchase.ID,
 		&purchase.Amount,
 		&purchase.CustomerID,
+		&purchase.SubscriptionID,
 		&purchase.CreatedAt,
 		&purchase.Month,
 		&purchase.PlanID,
@@ -199,6 +202,7 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 		Columns(
 			"amount",
 			"customer_id",
+			"subscription_id",
 			"month",
 			"plan_id",
 			"traffic_limit_bytes",
@@ -229,6 +233,7 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 		Values(
 			purchase.Amount,
 			purchase.CustomerID,
+			purchase.SubscriptionID,
 			purchase.Month,
 			purchase.PlanID,
 			purchase.TrafficLimitBytes,
@@ -613,6 +618,35 @@ func (pr *PurchaseRepository) FindHighestSuccessfulPurchaseByCustomer(ctx contex
 	return p, nil
 }
 
+func (pr *PurchaseRepository) FindHighestSuccessfulPurchaseBySubscription(ctx context.Context, customerID, subscriptionID int64) (*Purchase, error) {
+	query := sq.Select(purchaseSelectColumns...).
+		From("purchase").
+		Where(sq.And{
+			sq.Eq{"customer_id": customerID},
+			sq.Eq{"subscription_id": subscriptionID},
+			sq.Eq{"status": PurchaseStatusPaid},
+			sq.Gt{"month": 0},
+		}).
+		OrderBy("month DESC", "paid_at DESC NULLS LAST", "created_at DESC").
+		Limit(1).
+		PlaceholderFormat(sq.Dollar)
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build query: %w", err)
+	}
+
+	p := &Purchase{}
+	if err := scanPurchase(pr.pool.QueryRow(ctx, sql, args...), p); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("query purchase: %w", err)
+	}
+
+	return p, nil
+}
+
 func (pr *PurchaseRepository) FindLatestSuccessfulYookasaPurchaseByCustomer(ctx context.Context, customerID int64) (*Purchase, error) {
 	query := sq.Select(purchaseSelectColumns...).
 		From("purchase").
@@ -667,6 +701,36 @@ func (pr *PurchaseRepository) HasPendingAutoPaymentByCustomer(ctx context.Contex
 			return false, nil
 		}
 		return false, fmt.Errorf("query pending auto payment: %w", err)
+	}
+
+	return true, nil
+}
+
+func (pr *PurchaseRepository) HasPendingPurchaseBySubscription(ctx context.Context, customerID, subscriptionID int64) (bool, error) {
+	query := sq.Select("1").
+		From("purchase").
+		Where(sq.And{
+			sq.Eq{"customer_id": customerID},
+			sq.Eq{"subscription_id": subscriptionID},
+			sq.Or{
+				sq.Eq{"status": PurchaseStatusNew},
+				sq.Eq{"status": PurchaseStatusPending},
+			},
+		}).
+		Limit(1).
+		PlaceholderFormat(sq.Dollar)
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return false, fmt.Errorf("build query: %w", err)
+	}
+
+	var exists int
+	if err := pr.pool.QueryRow(ctx, sql, args...).Scan(&exists); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("query pending subscription purchase: %w", err)
 	}
 
 	return true, nil
