@@ -2792,7 +2792,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		if err != nil {
 			slog.Warn("mini app: sync traffic limit failed", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID))
 		}
-		h.trackDeviceNotifications(ctx, customer, panelState)
+		h.trackDeviceNotifications(ctx, customer, activeSubscription, panelState)
 	}
 
 	subscriptionData := h.buildSubscriptionPayload(viewCustomer, highestPurchase, panelState)
@@ -4155,13 +4155,13 @@ func sessionDisplayName(sess *session) string {
 	return strconv.FormatInt(sess.User.ID, 10)
 }
 
-func (h *Handler) trackDeviceNotifications(ctx context.Context, customer *database.Customer, panelState *remnawave.UserState) {
-	if h == nil || h.customerRepository == nil || h.telegramBot == nil || customer == nil || panelState == nil {
+func (h *Handler) trackDeviceNotifications(ctx context.Context, customer *database.Customer, subscription *database.CustomerSubscription, panelState *remnawave.UserState) {
+	if h == nil || h.customerRepository == nil || h.telegramBot == nil || customer == nil || subscription == nil || subscription.ID <= 0 || panelState == nil {
 		return
 	}
-	added, limitReached, err := h.customerRepository.ClaimDeviceNotifications(ctx, customer.TelegramID, panelState.UsedDevices, panelState.DeviceLimit)
+	added, limitReached, err := h.customerRepository.ClaimDeviceNotifications(ctx, customer.TelegramID, subscription.ID, panelState.UsedDevices, panelState.DeviceLimit)
 	if err != nil {
-		slog.Warn("mini app: claim device notifications", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID))
+		slog.Warn("mini app: claim device notifications", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID), "subscriptionId", subscription.ID)
 		return
 	}
 	if added <= 0 && !limitReached {
