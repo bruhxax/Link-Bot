@@ -1013,32 +1013,39 @@ func optionalUUID(raw string) (uuid.UUID, error) {
 }
 
 func (r *Client) ListSquads(ctx context.Context) (SquadCatalog, error) {
-	internalResponse, err := r.client.InternalSquad().GetInternalSquads(ctx)
-	if err != nil {
-		return SquadCatalog{}, err
-	}
-	internalPayload, ok := internalResponse.(*remapi.InternalSquadsResponse)
-	if !ok {
-		return SquadCatalog{}, errors.New("unknown internal squads response type")
-	}
-	externalResponse, err := r.client.ExternalSquad().GetExternalSquads(ctx)
-	if err != nil {
-		return SquadCatalog{}, err
-	}
-	externalPayload, ok := externalResponse.(*remapi.ExternalSquadsResponse)
-	if !ok {
-		return SquadCatalog{}, errors.New("unknown external squads response type")
-	}
 	result := SquadCatalog{Internal: []SquadOption{}, External: []SquadOption{}}
-	internalItems := internalPayload.GetResponse()
-	for _, item := range internalItems.GetInternalSquads() {
-		result.Internal = append(result.Internal, SquadOption{UUID: item.UUID.String(), Name: strings.TrimSpace(item.Name)})
+	loadErrors := make([]error, 0, 2)
+
+	// Decode only the stable squad fields used by Link-Bot. Remnawave 3.x
+	// changed other squad fields, which older generated SDKs reject even though
+	// the list endpoint and the uuid/name fields stayed compatible.
+	var internalPayload struct {
+		Response struct {
+			InternalSquads []PanelSquad `json:"internalSquads"`
+		} `json:"response"`
 	}
-	externalItems := externalPayload.GetResponse()
-	for _, item := range externalItems.GetExternalSquads() {
-		result.External = append(result.External, SquadOption{UUID: item.UUID.String(), Name: strings.TrimSpace(item.Name)})
+	if err := r.doAPIJSON(ctx, http.MethodGet, "/api/internal-squads", nil, &internalPayload); err != nil {
+		loadErrors = append(loadErrors, fmt.Errorf("load internal squads: %w", err))
+	} else {
+		for _, item := range internalPayload.Response.InternalSquads {
+			result.Internal = append(result.Internal, SquadOption{UUID: item.UUID.String(), Name: strings.TrimSpace(item.Name)})
+		}
 	}
-	return result, nil
+
+	var externalPayload struct {
+		Response struct {
+			ExternalSquads []PanelSquad `json:"externalSquads"`
+		} `json:"response"`
+	}
+	if err := r.doAPIJSON(ctx, http.MethodGet, "/api/external-squads", nil, &externalPayload); err != nil {
+		loadErrors = append(loadErrors, fmt.Errorf("load external squads: %w", err))
+	} else {
+		for _, item := range externalPayload.Response.ExternalSquads {
+			result.External = append(result.External, SquadOption{UUID: item.UUID.String(), Name: strings.TrimSpace(item.Name)})
+		}
+	}
+
+	return result, errors.Join(loadErrors...)
 }
 
 func generateUsername(template string, customerId int64, telegramId int64) string {

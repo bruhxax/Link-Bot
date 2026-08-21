@@ -3632,10 +3632,9 @@ func (h *Handler) buildAdminPayload(ctx context.Context) (*adminPayload, error) 
 	}
 	if h.remnawaveClient != nil {
 		squads, err := h.remnawaveClient.ListSquads(ctx)
+		payload.Squads = squads
 		if err != nil {
 			slog.Warn("mini app: load squads for admin failed", "error", err)
-		} else {
-			payload.Squads = squads
 		}
 	}
 	if h.errorReporter != nil {
