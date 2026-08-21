@@ -2960,6 +2960,38 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 	}
 	viewCustomer := customerForActiveSubscription(customer, activeSubscription)
 
+	// Panel-backed sections are independent. Start them together so a slow node
+	// or squad request does not extend the subscription refresh sequentially.
+	type serverLoadResult struct {
+		payload serversPayload
+		err     error
+	}
+	var serverLoad <-chan serverLoadResult
+	if !fast && settings.Features["server_status"] {
+		loaded := make(chan serverLoadResult, 1)
+		serverLoad = loaded
+		go func() {
+			serverCtx, serverCancel := context.WithTimeout(ctx, 3*time.Second)
+			defer serverCancel()
+			payload, loadErr := h.buildServersPayload(serverCtx)
+			loaded <- serverLoadResult{payload: payload, err: loadErr}
+		}()
+	}
+
+	type adminLoadResult struct {
+		payload *adminPayload
+		err     error
+	}
+	var adminLoad <-chan adminLoadResult
+	if h.isAdmin(sess.User.ID) {
+		loaded := make(chan adminLoadResult, 1)
+		adminLoad = loaded
+		go func() {
+			payload, loadErr := h.buildAdminPayload(ctx)
+			loaded <- adminLoadResult{payload: payload, err: loadErr}
+		}()
+	}
+
 	var panelState *remnawave.UserState
 	panelLookupFailed := false
 	if !fast && h.remnawaveClient != nil {
@@ -3008,12 +3040,11 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 	}
 
 	serverStatus := serversPayload{Items: []serverNodePayload{}}
-	if !fast && settings.Features["server_status"] {
-		serverCtx, serverCancel := context.WithTimeout(ctx, 3*time.Second)
-		serverStatus, err = h.buildServersPayload(serverCtx)
-		serverCancel()
-		if err != nil {
-			slog.Warn("mini app: load server status failed", "error", err)
+	if serverLoad != nil {
+		loaded := <-serverLoad
+		serverStatus = loaded.payload
+		if loaded.err != nil {
+			slog.Warn("mini app: load server status failed", "error", loaded.err)
 			serverStatus = serversPayload{Items: []serverNodePayload{}}
 		}
 	}
@@ -3045,10 +3076,11 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 	}
 
 	var adminData *adminPayload
-	if h.isAdmin(sess.User.ID) {
-		adminData, err = h.buildAdminPayload(ctx)
-		if err != nil {
-			return nil, err
+	if adminLoad != nil {
+		loaded := <-adminLoad
+		adminData = loaded.payload
+		if loaded.err != nil {
+			return nil, loaded.err
 		}
 	}
 

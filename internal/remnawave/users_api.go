@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -69,6 +71,10 @@ type remnawaveAPIError struct {
 	Body       string
 }
 
+var errEmptyRemnawaveResponse = errors.New("empty remnawave response")
+
+const remnawaveReadRetryAttempts = 3
+
 func (e *remnawaveAPIError) Error() string {
 	if e == nil {
 		return "remnawave request failed"
@@ -80,22 +86,48 @@ func (e *remnawaveAPIError) Error() string {
 }
 
 func (r *Client) doAPIJSON(ctx context.Context, method, path string, requestBody any, responseBody any) error {
-	var body io.Reader
+	var encodedBody []byte
 	if requestBody != nil {
 		encoded, err := json.Marshal(requestBody)
 		if err != nil {
 			return err
 		}
-		body = bytes.NewReader(encoded)
+		encodedBody = encoded
 	}
 
+	attempts := 1
+	if method == http.MethodGet || method == http.MethodHead {
+		attempts = remnawaveReadRetryAttempts
+	}
+
+	var lastErr error
+	for attempt := 0; attempt < attempts; attempt++ {
+		lastErr = r.doAPIJSONOnce(ctx, method, path, encodedBody, requestBody != nil, responseBody)
+		if lastErr == nil {
+			return nil
+		}
+		if attempt+1 >= attempts || ctx.Err() != nil || !isRetryableRemnawaveReadError(lastErr) {
+			return lastErr
+		}
+		if err := waitForRemnawaveRetry(ctx, time.Duration(attempt+1)*100*time.Millisecond); err != nil {
+			return errors.Join(lastErr, err)
+		}
+	}
+	return lastErr
+}
+
+func (r *Client) doAPIJSONOnce(ctx context.Context, method, path string, encodedBody []byte, hasBody bool, responseBody any) error {
+	var body io.Reader
+	if hasBody {
+		body = bytes.NewReader(encodedBody)
+	}
 	req, err := http.NewRequestWithContext(ctx, method, r.baseURL+path, body)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+r.token)
 	req.Header.Set("Accept", "application/json")
-	if requestBody != nil {
+	if hasBody {
 		req.Header.Set("Content-Type", "application/json")
 	}
 
@@ -116,13 +148,57 @@ func (r *Client) doAPIJSON(ctx context.Context, method, path string, requestBody
 			Body:       strings.TrimSpace(string(data)),
 		}
 	}
-	if responseBody == nil || len(bytes.TrimSpace(data)) == 0 {
+	if responseBody == nil {
 		return nil
 	}
-	if err := json.Unmarshal(data, responseBody); err != nil {
+	if len(bytes.TrimSpace(data)) == 0 {
+		return fmt.Errorf("decode remnawave response: %w", errEmptyRemnawaveResponse)
+	}
+
+	// Decode into a fresh value so a truncated attempt cannot leave partially
+	// populated fields behind before a successful retry.
+	target := reflect.ValueOf(responseBody)
+	if target.Kind() != reflect.Pointer || target.IsNil() {
+		return errors.New("remnawave response target must be a non-nil pointer")
+	}
+	decoded := reflect.New(target.Elem().Type())
+	if err := json.Unmarshal(data, decoded.Interface()); err != nil {
 		return fmt.Errorf("decode remnawave response: %w", err)
 	}
+	target.Elem().Set(decoded.Elem())
 	return nil
+}
+
+func isRetryableRemnawaveReadError(err error) bool {
+	if errors.Is(err, errEmptyRemnawaveResponse) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	var syntaxErr *json.SyntaxError
+	if errors.As(err, &syntaxErr) {
+		return true
+	}
+	var apiErr *remnawaveAPIError
+	if errors.As(err, &apiErr) {
+		switch apiErr.StatusCode {
+		case http.StatusRequestTimeout, http.StatusTooEarly, http.StatusTooManyRequests,
+			http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+			return true
+		}
+		return false
+	}
+	var networkErr net.Error
+	return errors.As(err, &networkErr)
+}
+
+func waitForRemnawaveRetry(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func isLegacyFallbackError(err error) bool {
@@ -144,7 +220,7 @@ func (r *Client) streamUsers(ctx context.Context, filters url.Values) ([]PanelUs
 	}
 	filters = cloneValues(filters)
 	if filters.Get("size") == "" {
-		filters.Set("size", "500")
+		filters.Set("size", "200")
 	}
 
 	users := make([]PanelUser, 0, 500)

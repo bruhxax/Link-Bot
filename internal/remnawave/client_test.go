@@ -8,21 +8,18 @@ import (
 	"testing"
 )
 
-func TestPingUsesSingleLightweightRequest(t *testing.T) {
+func TestPingUsesSingleDedicatedHealthRequest(t *testing.T) {
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
-		if r.URL.Path != "/api/users/stream" {
-			t.Fatalf("path = %q, want /api/users/stream", r.URL.Path)
-		}
-		if got := r.URL.Query().Get("size"); got != "1" {
-			t.Fatalf("size = %q, want 1", got)
+		if r.URL.Path != "/api/system/health" {
+			t.Fatalf("path = %q, want /api/system/health", r.URL.Path)
 		}
 		if got := r.Header.Get("Authorization"); got != "Bearer token" {
 			t.Fatalf("Authorization = %q", got)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"response":{"users":[],"hasMore":true,"nextCursor":"next"}}`))
+		_, _ = w.Write([]byte(`{"response":{"isHealthy":true}}`))
 	}))
 	defer server.Close()
 

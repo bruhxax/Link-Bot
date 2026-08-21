@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	remapi "github.com/Jolymmiles/remnawave-api-go/v2/api"
@@ -22,10 +23,13 @@ import (
 )
 
 type Client struct {
-	client     *remapi.ClientExt
-	httpClient *http.Client
-	baseURL    string
-	token      string
+	client       *remapi.ClientExt
+	httpClient   *http.Client
+	baseURL      string
+	token        string
+	squadCacheMu sync.RWMutex
+	squadCache   SquadCatalog
+	squadCacheAt time.Time
 }
 
 type SquadOption struct {
@@ -225,18 +229,26 @@ func NewClient(baseURL, token, mode string) *Client {
 }
 
 func (r *Client) Ping(ctx context.Context) error {
-	// A healthcheck must not download every panel user. One authenticated page is
-	// enough to verify that the API and its database are responding.
+	// Remnawave 3.x exposes a dedicated system health endpoint. Using the users
+	// stream here made a slow or truncated catalog response look like an outage.
 	var payload struct{}
-	err := r.doAPIJSON(ctx, http.MethodGet, "/api/users/stream?size=1", nil, &payload)
+	err := r.doAPIJSON(ctx, http.MethodGet, "/api/system/health", nil, &payload)
 	if err == nil {
 		return nil
 	}
 	if !isLegacyFallbackError(err) {
 		return err
 	}
+
+	streamErr := r.doAPIJSON(ctx, http.MethodGet, "/api/users/stream?size=1", nil, &payload)
+	if streamErr == nil {
+		return nil
+	}
+	if !isLegacyFallbackError(streamErr) {
+		return errors.Join(err, streamErr)
+	}
 	_, legacyErr := r.client.Users().GetAllUsers(ctx, 1, 0)
-	return legacyErr
+	return errors.Join(err, streamErr, legacyErr)
 }
 
 func (r *Client) GetUsers(ctx context.Context) (*[]PanelUser, error) {
@@ -757,6 +769,9 @@ func legacyProvisioningOptions(isTrialUser bool) ProvisioningOptions {
 func (r *Client) getPanelUserByTelegramID(ctx context.Context, telegramId int64) (*PanelUser, error) {
 	filters := make(url.Values)
 	filters.Set("telegramId", strconv.FormatInt(telegramId, 10))
+	// A Telegram account can own several subscriptions, but never needs the
+	// expensive default catalog page used by background synchronization.
+	filters.Set("size", "20")
 	users, err := r.streamUsers(ctx, filters)
 	if err == nil {
 		if existingUser := pickPanelTelegramUser(users, telegramId); existingUser != nil {
@@ -1024,39 +1039,94 @@ func optionalUUID(raw string) (uuid.UUID, error) {
 }
 
 func (r *Client) ListSquads(ctx context.Context) (SquadCatalog, error) {
+	if cached, ok := r.cachedSquadCatalog(2 * time.Minute); ok {
+		return cached, nil
+	}
+
 	result := SquadCatalog{Internal: []SquadOption{}, External: []SquadOption{}}
 	loadErrors := make([]error, 0, 2)
+	type squadLoadResult struct {
+		kind  string
+		items []SquadOption
+		err   error
+	}
+	loaded := make(chan squadLoadResult, 2)
 
 	// Decode only the stable squad fields used by Link-Bot. Remnawave 3.x
 	// changed other squad fields, which older generated SDKs reject even though
 	// the list endpoint and the uuid/name fields stayed compatible.
-	var internalPayload struct {
-		Response struct {
-			InternalSquads []PanelSquad `json:"internalSquads"`
-		} `json:"response"`
-	}
-	if err := r.doAPIJSON(ctx, http.MethodGet, "/api/internal-squads", nil, &internalPayload); err != nil {
-		loadErrors = append(loadErrors, fmt.Errorf("load internal squads: %w", err))
-	} else {
-		for _, item := range internalPayload.Response.InternalSquads {
-			result.Internal = append(result.Internal, SquadOption{UUID: item.UUID.String(), Name: strings.TrimSpace(item.Name)})
+	go func() {
+		var payload struct {
+			Response struct {
+				InternalSquads []PanelSquad `json:"internalSquads"`
+			} `json:"response"`
+		}
+		err := r.doAPIJSON(ctx, http.MethodGet, "/api/internal-squads", nil, &payload)
+		items := make([]SquadOption, 0, len(payload.Response.InternalSquads))
+		for _, item := range payload.Response.InternalSquads {
+			items = append(items, SquadOption{UUID: item.UUID.String(), Name: strings.TrimSpace(item.Name)})
+		}
+		loaded <- squadLoadResult{kind: "internal", items: items, err: err}
+	}()
+	go func() {
+		var payload struct {
+			Response struct {
+				ExternalSquads []PanelSquad `json:"externalSquads"`
+			} `json:"response"`
+		}
+		err := r.doAPIJSON(ctx, http.MethodGet, "/api/external-squads", nil, &payload)
+		items := make([]SquadOption, 0, len(payload.Response.ExternalSquads))
+		for _, item := range payload.Response.ExternalSquads {
+			items = append(items, SquadOption{UUID: item.UUID.String(), Name: strings.TrimSpace(item.Name)})
+		}
+		loaded <- squadLoadResult{kind: "external", items: items, err: err}
+	}()
+
+	for i := 0; i < 2; i++ {
+		load := <-loaded
+		if load.err != nil {
+			loadErrors = append(loadErrors, fmt.Errorf("load %s squads: %w", load.kind, load.err))
+			continue
+		}
+		if load.kind == "internal" {
+			result.Internal = load.items
+		} else {
+			result.External = load.items
 		}
 	}
 
-	var externalPayload struct {
-		Response struct {
-			ExternalSquads []PanelSquad `json:"externalSquads"`
-		} `json:"response"`
+	loadErr := errors.Join(loadErrors...)
+	if loadErr == nil {
+		r.storeSquadCatalog(result)
+		return cloneSquadCatalog(result), nil
 	}
-	if err := r.doAPIJSON(ctx, http.MethodGet, "/api/external-squads", nil, &externalPayload); err != nil {
-		loadErrors = append(loadErrors, fmt.Errorf("load external squads: %w", err))
-	} else {
-		for _, item := range externalPayload.Response.ExternalSquads {
-			result.External = append(result.External, SquadOption{UUID: item.UUID.String(), Name: strings.TrimSpace(item.Name)})
-		}
+	if stale, ok := r.cachedSquadCatalog(0); ok {
+		return stale, loadErr
 	}
+	return result, loadErr
+}
 
-	return result, errors.Join(loadErrors...)
+func (r *Client) cachedSquadCatalog(maxAge time.Duration) (SquadCatalog, bool) {
+	r.squadCacheMu.RLock()
+	defer r.squadCacheMu.RUnlock()
+	if r.squadCacheAt.IsZero() || (maxAge > 0 && time.Since(r.squadCacheAt) > maxAge) {
+		return SquadCatalog{}, false
+	}
+	return cloneSquadCatalog(r.squadCache), true
+}
+
+func (r *Client) storeSquadCatalog(catalog SquadCatalog) {
+	r.squadCacheMu.Lock()
+	defer r.squadCacheMu.Unlock()
+	r.squadCache = cloneSquadCatalog(catalog)
+	r.squadCacheAt = time.Now()
+}
+
+func cloneSquadCatalog(catalog SquadCatalog) SquadCatalog {
+	return SquadCatalog{
+		Internal: append([]SquadOption(nil), catalog.Internal...),
+		External: append([]SquadOption(nil), catalog.External...),
+	}
 }
 
 func generateUsername(template string, customerId int64, telegramId int64) string {

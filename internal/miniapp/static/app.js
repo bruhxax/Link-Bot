@@ -16,6 +16,13 @@ const installGuideMode = urlParams.get("install") === "desktop";
 const themeMeta = document.querySelector('meta[name="theme-color"]');
 const reducedMotionMedia = window.matchMedia?.("(prefers-reduced-motion: reduce)");
 
+document.addEventListener("error", (event) => {
+  const image = event.target;
+  if (image instanceof HTMLImageElement && image.matches("[data-browser-brand-logo]")) {
+    image.hidden = true;
+  }
+}, true);
+
 configureBackgroundPerformance();
 preventMiniAppZoom();
 registerPWAServiceWorker();
@@ -363,13 +370,19 @@ async function startTelegramBrowserLogin(trigger) {
   }
 }
 
-function browserAuthCopy() {
+function browserAuthBrand() {
+  const content = getRuntimeSettings()?.content || {};
+  const name = String(content.brandName || state.data?.brand?.name || "Link-Bot").trim() || "Link-Bot";
+  const logoUrl = resolveBrandMarkURL(content.logoUrl || state.data?.brand?.logoUrl || "");
+  return { name, logoUrl };
+}
+
+function browserAuthCopy(brandName = browserAuthBrand().name) {
+  const name = String(brandName || "Link-Bot").trim() || "Link-Bot";
   const isEnglish = /^en\b/i.test(navigator.language || "");
   if (isEnglish) {
     return {
-      title: "Sign in to Link-Bot",
-      text: "Use Telegram or Gmail to open your browser dashboard with your subscription, payments and support history.",
-      telegramHint: "Telegram will open for one-tap confirmation — no phone number or code needed.",
+      title: `Sign in to ${name}`,
       openBot: "Open Telegram bot",
       loginFailed: "Telegram authorization failed",
       loginUnavailable: "Telegram login is temporarily unavailable",
@@ -377,9 +390,7 @@ function browserAuthCopy() {
   }
 
   return {
-    title: "Войти в Link-Bot",
-    text: "Войдите через Telegram или Gmail, чтобы открыть браузерную версию кабинета с подпиской, оплатами и поддержкой.",
-    telegramHint: "Откроется Telegram — подтвердите вход одним нажатием. Номер и код вводить не нужно.",
+    title: `Войти в ${name}`,
     openBot: "Открыть Telegram-бота",
     loginFailed: "Не удалось авторизоваться через Telegram",
     loginUnavailable: "Вход через Telegram временно недоступен",
@@ -4574,23 +4585,23 @@ function renderStateScreen(kind, message = "", meta = null) {
     </div>
   `;
   if (kind === "telegram") {
-    const copy = browserAuthCopy();
+    const brand = browserAuthBrand();
+    const copy = browserAuthCopy(brand.name);
+    const fallbackMark = Array.from(brand.name)[0]?.toLocaleUpperCase() || "L";
     return `
       <div class="state-screen state-screen--browser-auth">
         <section class="browser-auth" aria-labelledby="browser-auth-title">
-          <img class="browser-auth__logo" src="${BRAND_MARK_URL}" alt="Link-Bot">
-          <div class="browser-auth__eyebrow">Link-Bot Web</div>
+          <div class="browser-auth__logo-shell" aria-hidden="true">
+            <span class="browser-auth__logo-fallback">${escapeHtml(fallbackMark)}</span>
+            <img class="browser-auth__logo" data-browser-brand-logo src="${escapeAttribute(brand.logoUrl)}" alt="">
+          </div>
+          <div class="browser-auth__eyebrow">${escapeHtml(brand.name)} Web</div>
           <h1 class="browser-auth__title" id="browser-auth-title">${escapeHtml(copy.title)}</h1>
-          <p class="browser-auth__text">${escapeHtml(copy.text)}</p>
           <div class="browser-auth__actions">
-            <button class="browser-auth__telegram" type="button" data-action="telegram-browser-login" aria-describedby="telegram-login-hint">
+            <button class="browser-auth__telegram" type="button" data-action="telegram-browser-login">
               <span class="browser-auth__telegram-icon" aria-hidden="true">${icon("telegram")}</span>
               <span>${escapeHtml(telegramLoginButtonLabel())}</span>
             </button>
-            <div class="browser-auth__telegram-hint" id="telegram-login-hint">
-              <span class="browser-auth__telegram-hint-icon" aria-hidden="true">${icon("check")}</span>
-              <span>${escapeHtml(copy.telegramHint)}</span>
-            </div>
             <div class="google-button-shell google-button-shell--browser" data-google-mode="login">
               <button class="browser-auth__google" type="button" data-action="google-browser-login">
                 <span class="browser-auth__google-icon" aria-hidden="true">${icon("googleColor")}</span>

@@ -4645,10 +4645,29 @@ button.rating-star {
   text-align: center;
 }
 
-.browser-auth__logo {
+.browser-auth__logo-shell {
+	position: relative;
   width: 64px;
   height: 64px;
   border-radius: 8px;
+	overflow: hidden;
+	display: grid;
+	place-items: center;
+	background: var(--surface-strong);
+	color: var(--text);
+}
+
+.browser-auth__logo-fallback {
+	font-size: 24px;
+	font-weight: 800;
+	line-height: 1;
+}
+
+.browser-auth__logo {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
   object-fit: cover;
 }
 
@@ -4668,14 +4687,6 @@ button.rating-star {
   font-weight: 800;
   line-height: 1.15;
   letter-spacing: 0;
-}
-
-.browser-auth__text {
-  margin: 0;
-  max-width: 340px;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.55;
 }
 
 .browser-auth__actions {
@@ -4752,32 +4763,6 @@ button.rating-star {
   width: 18px;
   height: 18px;
   display: block;
-}
-
-.browser-auth__telegram-hint {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
-  gap: 9px;
-  align-items: start;
-  padding: 2px 4px 4px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
-  text-align: left;
-}
-
-.browser-auth__telegram-hint-icon {
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #79c6ef;
-}
-
-.browser-auth__telegram-hint-icon svg {
-  width: 16px;
-  height: 16px;
 }
 
 .google-login-widget {

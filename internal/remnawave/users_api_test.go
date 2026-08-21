@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,6 +21,9 @@ func TestGetPanelUserByTelegramIDUsesV3Stream(t *testing.T) {
 		if got := r.URL.Query().Get("telegramId"); got != "6402520205" {
 			t.Fatalf("unexpected telegramId: %s", got)
 		}
+		if got := r.URL.Query().Get("size"); got != "20" {
+			t.Fatalf("unexpected page size: %s", got)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"response":{"users":[{"id":1281,"shortUuid":"abc123","username":"link_user","status":"ACTIVE","expireAt":"2026-08-10T12:00:00Z","telegramId":6402520205,"subscriptionUrl":"https://example.com/sub"}],"nextCursor":null,"hasMore":false}}`))
 	}))
@@ -31,6 +35,95 @@ func TestGetPanelUserByTelegramIDUsesV3Stream(t *testing.T) {
 	}
 	if user == nil || user.ID != 1281 || user.UUID != uuid.Nil || user.TelegramID == nil || *user.TelegramID != telegramID {
 		t.Fatalf("unexpected user: %#v", user)
+	}
+}
+
+func TestDoAPIJSONRetriesTruncatedGETResponse(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if requests.Add(1) == 1 {
+			_, _ = w.Write([]byte(`{"response":{"ok":`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"response":{"ok":true}}`))
+	}))
+	defer server.Close()
+
+	var payload struct {
+		Response struct {
+			OK bool `json:"ok"`
+		} `json:"response"`
+	}
+	if err := NewClient(server.URL, "token", "remote").doAPIJSON(context.Background(), http.MethodGet, "/api/test", nil, &payload); err != nil {
+		t.Fatalf("doAPIJSON() error = %v", err)
+	}
+	if !payload.Response.OK || requests.Load() != 2 {
+		t.Fatalf("payload = %#v, requests = %d", payload, requests.Load())
+	}
+}
+
+func TestDoAPIJSONDoesNotRetryMutationResponse(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"response":{"id":`))
+	}))
+	defer server.Close()
+
+	var payload map[string]any
+	err := NewClient(server.URL, "token", "remote").doAPIJSON(context.Background(), http.MethodPatch, "/api/users", map[string]any{"id": 1}, &payload)
+	if err == nil {
+		t.Fatal("doAPIJSON() must reject a truncated mutation response")
+	}
+	if requests.Load() != 1 {
+		t.Fatalf("mutation request count = %d, want 1", requests.Load())
+	}
+}
+
+func TestPingUsesDedicatedSystemHealthEndpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/system/health" {
+			t.Fatalf("unexpected healthcheck path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"response":{"isHealthy":true}}`))
+	}))
+	defer server.Close()
+
+	if err := NewClient(server.URL, "token", "remote").Ping(context.Background()); err != nil {
+		t.Fatalf("Ping() error = %v", err)
+	}
+}
+
+func TestListSquadsCachesSuccessfulCatalog(t *testing.T) {
+	var internalRequests atomic.Int32
+	var externalRequests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/internal-squads":
+			internalRequests.Add(1)
+			_, _ = w.Write([]byte(`{"response":{"internalSquads":[{"uuid":"11111111-1111-1111-1111-111111111111","name":"Main"}]}}`))
+		case "/api/external-squads":
+			externalRequests.Add(1)
+			_, _ = w.Write([]byte(`{"response":{"externalSquads":[{"uuid":"22222222-2222-2222-2222-222222222222","name":"External"}]}}`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "token", "remote")
+	for i := 0; i < 2; i++ {
+		catalog, err := client.ListSquads(context.Background())
+		if err != nil || len(catalog.Internal) != 1 || len(catalog.External) != 1 {
+			t.Fatalf("ListSquads() = %#v, %v", catalog, err)
+		}
+	}
+	if internalRequests.Load() != 1 || externalRequests.Load() != 1 {
+		t.Fatalf("request counts = internal %d, external %d", internalRequests.Load(), externalRequests.Load())
 	}
 }
 
