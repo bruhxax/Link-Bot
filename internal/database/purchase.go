@@ -707,16 +707,24 @@ func (pr *PurchaseRepository) HasPendingAutoPaymentByCustomer(ctx context.Contex
 }
 
 func (pr *PurchaseRepository) HasPendingPurchaseBySubscription(ctx context.Context, customerID, subscriptionID int64) (bool, error) {
+	return pr.HasPendingPurchaseBySubscriptionSince(ctx, customerID, subscriptionID, time.Time{})
+}
+
+func (pr *PurchaseRepository) HasPendingPurchaseBySubscriptionSince(ctx context.Context, customerID, subscriptionID int64, createdAfter time.Time) (bool, error) {
+	conditions := sq.And{
+		sq.Eq{"customer_id": customerID},
+		sq.Eq{"subscription_id": subscriptionID},
+		sq.Or{
+			sq.Eq{"status": PurchaseStatusNew},
+			sq.Eq{"status": PurchaseStatusPending},
+		},
+	}
+	if !createdAfter.IsZero() {
+		conditions = append(conditions, sq.GtOrEq{"created_at": createdAfter.UTC()})
+	}
 	query := sq.Select("1").
 		From("purchase").
-		Where(sq.And{
-			sq.Eq{"customer_id": customerID},
-			sq.Eq{"subscription_id": subscriptionID},
-			sq.Or{
-				sq.Eq{"status": PurchaseStatusNew},
-				sq.Eq{"status": PurchaseStatusPending},
-			},
-		}).
+		Where(conditions).
 		Limit(1).
 		PlaceholderFormat(sq.Dollar)
 

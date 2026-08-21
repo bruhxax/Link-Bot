@@ -114,3 +114,15 @@ func TestBuildSubscriptionPayloadDoesNotTreatPaidPanelPlanAsTrial(t *testing.T) 
 		t.Fatalf("expected russian 6 months label, got %q", payload.PlanLabel)
 	}
 }
+
+func TestBonusLabelDoesNotOverrideTransferredPlan(t *testing.T) {
+	t.Parallel()
+
+	review := &reviewItemPayload{RewardGranted: true}
+	if shouldLabelSubscriptionAsBonus(subscriptionPayload{Status: "active", PlanMonths: 1}, nil, review) {
+		t.Fatal("review bonus must not replace a resolved paid plan label")
+	}
+	if !shouldLabelSubscriptionAsBonus(subscriptionPayload{Status: "active"}, nil, review) {
+		t.Fatal("active reward-only access should keep the bonus label")
+	}
+}

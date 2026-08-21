@@ -482,6 +482,7 @@ const (
 	reviewRewardDays         = 2
 	reviewRewardTrafficBytes = int64(20 * 1024 * 1024 * 1024)
 	reviewListLimit          = 100
+	adminRebindPendingWindow = 24 * time.Hour
 )
 
 func NewHandler(
@@ -1722,6 +1723,7 @@ func (h *Handler) handleAdminRebindSubscription(w http.ResponseWriter, r *http.R
 		}
 	}
 	if h.purchaseRepository != nil {
+		pendingCreatedAfter := time.Now().UTC().Add(-adminRebindPendingWindow)
 		sourceSubscriptions, err := h.subscriptionRepository.ListByPanelIdentity(r.Context(), req.UserID, userUUID, req.SubscriptionLink)
 		if err != nil {
 			slog.Error("mini app: load source subscription payments", "error", err, "userId", req.UserID)
@@ -1729,7 +1731,7 @@ func (h *Handler) handleAdminRebindSubscription(w http.ResponseWriter, r *http.R
 			return
 		}
 		for _, sourceSubscription := range sourceSubscriptions {
-			hasPending, err := h.purchaseRepository.HasPendingPurchaseBySubscription(r.Context(), sourceSubscription.CustomerID, sourceSubscription.ID)
+			hasPending, err := h.purchaseRepository.HasPendingPurchaseBySubscriptionSince(r.Context(), sourceSubscription.CustomerID, sourceSubscription.ID, pendingCreatedAfter)
 			if err != nil {
 				slog.Error("mini app: check source subscription payments", "error", err, "subscriptionId", sourceSubscription.ID)
 				h.writeError(w, http.StatusInternalServerError, "subscription_rebind_failed", "Failed to check subscription payments")
@@ -1741,7 +1743,7 @@ func (h *Handler) handleAdminRebindSubscription(w http.ResponseWriter, r *http.R
 			}
 		}
 		if targetSubscription != nil {
-			hasPending, err := h.purchaseRepository.HasPendingPurchaseBySubscription(r.Context(), targetCustomer.ID, targetSubscription.ID)
+			hasPending, err := h.purchaseRepository.HasPendingPurchaseBySubscriptionSince(r.Context(), targetCustomer.ID, targetSubscription.ID, pendingCreatedAfter)
 			if err != nil {
 				slog.Error("mini app: check target subscription payments", "error", err, "subscriptionId", targetSubscription.ID)
 				h.writeError(w, http.StatusInternalServerError, "subscription_rebind_failed", "Failed to check subscription payments")
@@ -2998,7 +3000,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 	}
 
 	subscriptionData := h.buildSubscriptionPayload(viewCustomer, highestPurchase, panelState)
-	if subscriptionData.Status == "active" && highestPurchase == nil && reviewsData.MyReview != nil && reviewsData.MyReview.RewardGranted {
+	if shouldLabelSubscriptionAsBonus(subscriptionData, highestPurchase, reviewsData.MyReview) {
 		subscriptionData.IsTrial = false
 		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(customer.Language)), "en") {
 			subscriptionData.PlanLabel = "Bonus"
@@ -3085,7 +3087,7 @@ func (h *Handler) syncSubscriptionTrafficLimit(ctx context.Context, customer *da
 		} else {
 			expectedLimitBytes = int64(config.TrafficLimitForMonths(highestPurchase.Month))
 		}
-	case customer.TrialUsed:
+	case subscription != nil && subscription.IsPrimary && customer.TrialUsed:
 		expectedLimitBytes = trialTrafficLimitBytes(trial)
 	default:
 		return panelState, nil
@@ -3102,7 +3104,7 @@ func (h *Handler) syncSubscriptionTrafficLimit(ctx context.Context, customer *da
 		} else {
 			expectedDeviceLimit = config.DeviceLimitForMonths(highestPurchase.Month)
 		}
-	case customer.TrialUsed:
+	case subscription != nil && subscription.IsPrimary && customer.TrialUsed:
 		expectedDeviceLimit = trial.DeviceLimit
 	}
 
@@ -3230,6 +3232,10 @@ func (h *Handler) buildSubscriptionPayload(customer *database.Customer, highestP
 // callers that intentionally use legacy defaults without a runtime service.
 func buildSubscriptionPayload(customer *database.Customer, highestPurchase *database.Purchase, panelState *remnawave.UserState) subscriptionPayload {
 	return (&Handler{}).buildSubscriptionPayload(customer, highestPurchase, panelState)
+}
+
+func shouldLabelSubscriptionAsBonus(payload subscriptionPayload, highestPurchase *database.Purchase, review *reviewItemPayload) bool {
+	return payload.Status == "active" && payload.PlanMonths <= 0 && highestPurchase == nil && review != nil && review.RewardGranted
 }
 
 func (h *Handler) resolveSubscriptionPlanMonths(highestPurchase *database.Purchase, panelState *remnawave.UserState) int {

@@ -279,6 +279,20 @@ func (sr *SubscriptionRepository) TransferPanelSubscription(
 		}
 	}
 
+	// A panel subscription owns its purchase snapshots as well as its access
+	// link. Keep those snapshots with the subscription when it changes account;
+	// otherwise the destination is mistaken for a trial/bonus and can be
+	// provisioned with the wrong limits on the next Mini App bootstrap.
+	sourceSubscriptionIDs := make([]int64, 0, len(matching))
+	destinationMatchesSource := false
+	for i := range matching {
+		if destination != nil && matching[i].ID == destination.ID {
+			destinationMatchesSource = true
+			continue
+		}
+		sourceSubscriptionIDs = append(sourceSubscriptionIDs, matching[i].ID)
+	}
+
 	affectedCustomers := make(map[int64]struct{})
 	for i := range matching {
 		existing := &matching[i]
@@ -374,6 +388,36 @@ func (sr *SubscriptionRepository) TransferPanelSubscription(
 			return nil, fmt.Errorf("create subscription transfer destination: %w", err)
 		}
 		destination = &created
+	}
+
+	if !destinationMatchesSource {
+		// Replacing a slot must not let the displaced subscription's old plan
+		// snapshot override the transferred plan. The financial record remains
+		// attached to the same customer, but no longer describes this slot.
+		if _, err := tx.Exec(ctx, `
+			UPDATE purchase
+			SET subscription_id = NULL
+			WHERE subscription_id = $1
+		`, destination.ID); err != nil {
+			return nil, fmt.Errorf("detach replaced subscription purchases: %w", err)
+		}
+	}
+	if len(sourceSubscriptionIDs) > 0 {
+		if _, err := tx.Exec(ctx, `
+			UPDATE purchase
+			SET customer_id = $1,
+			    subscription_id = $2
+			WHERE subscription_id = ANY($3::bigint[])
+		`, targetCustomerID, destination.ID, sourceSubscriptionIDs); err != nil {
+			return nil, fmt.Errorf("transfer subscription purchases: %w", err)
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM device_notification_state
+		WHERE subscription_id = $1
+		   OR subscription_id = ANY($2::bigint[])
+	`, destination.ID, sourceSubscriptionIDs); err != nil {
+		return nil, fmt.Errorf("reset transferred subscription device notifications: %w", err)
 	}
 
 	var expireValue interface{}
