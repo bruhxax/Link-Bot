@@ -8052,6 +8052,68 @@ body.has-open-modal .admin-save-bar {
   }
 }
 
+/* Keep the standalone browser cabinet as compact as the Telegram Mini App.
+   Telegram sessions are intentionally excluded so their existing layout stays unchanged. */
+:root[data-client="browser"] #app {
+  width: min(100%, 430px);
+  max-width: 430px;
+}
+
+@media (min-width: 700px) {
+  :root[data-client="browser"] .page-scroll {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  :root[data-client="browser"] .hero-center {
+    min-height: 220px;
+  }
+
+  :root[data-client="browser"] .pricing-list {
+    grid-template-columns: repeat(var(--plan-columns, 2), minmax(0, 1fr));
+  }
+
+  :root[data-client="browser"] .pricing-card:not(.pricing-card--wide) .pricing-card__content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :root[data-client="browser"] .pricing-card:not(.pricing-card--wide) .pricing-card__price-stack {
+    justify-items: start;
+  }
+
+  :root[data-client="browser"] .bottom-nav {
+    max-width: calc(100% - 24px);
+  }
+
+  :root[data-client="browser"] .modal {
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  :root[data-client="browser"] .modal__sheet {
+    width: min(430px, 100%);
+    max-width: 430px;
+    max-height: calc(100dvh - 48px);
+    margin: 0;
+    border-radius: 8px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  :root[data-client="browser"] .modal__sheet--devices {
+    max-height: min(72dvh, 640px);
+  }
+
+  :root[data-client="browser"] .modal__sheet--support {
+    width: min(390px, 100%);
+  }
+
+  :root[data-client="browser"] .modal__sheet--thread {
+    width: min(430px, 100%);
+    height: min(82dvh, 720px);
+  }
+}
+
 /* Compact profile subpages. */
 .referral-card {
   margin-bottom: 8px;

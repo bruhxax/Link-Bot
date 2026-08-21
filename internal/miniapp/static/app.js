@@ -1,6 +1,8 @@
 const app = document.getElementById("app");
 const toast = document.getElementById("toast");
 const tg = window.Telegram?.WebApp;
+const clientSurface = String(tg?.initData || "").trim() ? "telegram" : "browser";
+document.documentElement.dataset.client = clientSurface;
 const telegramBotUsername = document.querySelector('meta[name="telegram-bot-username"]')?.content?.trim() || "";
 const telegramBotID = document.querySelector('meta[name="telegram-bot-id"]')?.content?.trim() || "";
 const googleMetaClientID = document.querySelector('meta[name="google-client-id"]')?.content?.trim() || "";
