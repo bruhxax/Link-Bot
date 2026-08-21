@@ -178,6 +178,30 @@ func TestCheckoutPlansIncludesCustomPlan(t *testing.T) {
 	}
 }
 
+func TestCheckoutPlansIncludesFreePlanAndNormalizesOneTimeRule(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Plans = []PlanSettings{
+		{ID: "free_1m", Enabled: true, Months: 1, PriceRub: 0, FreeOneTime: true, TrafficGB: 100, DeviceLimit: 2},
+		{ID: "paid_1m", Enabled: true, Months: 1, PriceRub: 100, FreeOneTime: true, TrafficGB: 100, DeviceLimit: 2},
+	}
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if settings.Plans[1].FreeOneTime {
+		t.Fatal("paid plan must not keep the free one-time rule")
+	}
+
+	service := &Service{}
+	service.value.Store(settings)
+	plans := service.CheckoutPlans()
+	if len(plans) != 2 {
+		t.Fatalf("checkout plans length = %d, want 2", len(plans))
+	}
+	if plans[0].PriceRub != 0 || plans[0].PriceStars != 0 || !plans[0].FreeOneTime {
+		t.Fatalf("free checkout plan mismatch: %+v", plans[0])
+	}
+}
+
 func TestNormalizeAndValidateUsesNavigationDimensions(t *testing.T) {
 	settings := DefaultSettings()
 	for index := range settings.Layout.Elements {

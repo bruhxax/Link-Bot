@@ -20,6 +20,7 @@ func (s *Service) CheckoutPlans() []planbook.CheckoutPlan {
 			Months:             item.Months,
 			PriceRub:           item.PriceRub,
 			PriceStars:         planbook.StarsForRub(item.PriceRub),
+			FreeOneTime:        item.FreeOneTime,
 			DeviceLimitCount:   item.DeviceLimit,
 			Wide:               item.Wide,
 			Variant:            planbook.VariantRegular,
@@ -31,9 +32,6 @@ func (s *Service) CheckoutPlans() []planbook.CheckoutPlan {
 			plan.Variant = planbook.VariantUnlimited
 		} else {
 			plan.TrafficLimitBytes = int64(item.TrafficGB) * gibibyte
-		}
-		if plan.PriceRub <= 0 && plan.PriceStars <= 0 {
-			continue
 		}
 		result = append(result, plan)
 	}

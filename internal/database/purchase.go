@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -25,6 +26,7 @@ const (
 	InvoiceTypeFreeKassa InvoiceType = "freekassa"
 	InvoiceTypeHeleket   InvoiceType = "heleket"
 	InvoiceTypePally     InvoiceType = "pally"
+	InvoiceTypeFree      InvoiceType = "free"
 )
 
 type PurchaseStatus string
@@ -55,6 +57,8 @@ type Purchase struct {
 	DeviceLimitCount          *int           `db:"device_limit_count"`
 	PurchaseKind              PurchaseKind   `db:"purchase_kind"`
 	ExtraDevices              int            `db:"extra_devices"`
+	IsFreePlan                bool           `db:"is_free_plan"`
+	FreePlanOneTime           bool           `db:"free_plan_one_time"`
 	PaidAt                    *time.Time     `db:"paid_at"`
 	Currency                  string         `db:"currency"`
 	ExpireAt                  *time.Time     `db:"expire_at"`
@@ -114,6 +118,60 @@ func (pr *PurchaseRepository) LockForProcessing(ctx context.Context, purchaseID 
 	}, nil
 }
 
+// LockFreePlanActivation serializes claims of the same free plan by one
+// customer across all bot replicas. It is intentionally held while Remnawave
+// provisioning is performed so two different purchase requests cannot both
+// pass the eligibility check.
+func (pr *PurchaseRepository) LockFreePlanActivation(ctx context.Context, customerID int64, planID string) (func() error, error) {
+	planID = strings.TrimSpace(planID)
+	if customerID <= 0 || planID == "" {
+		return nil, errors.New("invalid free plan activation key")
+	}
+
+	conn, err := pr.pool.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("acquire free plan activation connection: %w", err)
+	}
+	lockName := fmt.Sprintf("free-plan:%d:%s", customerID, planID)
+	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock(hashtextextended($1, 0))", lockName); err != nil {
+		conn.Release()
+		return nil, fmt.Errorf("lock free plan activation: %w", err)
+	}
+
+	return func() error {
+		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		defer conn.Release()
+		if _, err := conn.Exec(unlockCtx, "SELECT pg_advisory_unlock(hashtextextended($1, 0))", lockName); err != nil {
+			return fmt.Errorf("unlock free plan activation: %w", err)
+		}
+		return nil
+	}, nil
+}
+
+func (pr *PurchaseRepository) HasSuccessfulFreePlanPurchase(ctx context.Context, customerID int64, planID string, excludePurchaseID int64) (bool, error) {
+	planID = strings.TrimSpace(planID)
+	if customerID <= 0 || planID == "" {
+		return false, errors.New("invalid free plan purchase query")
+	}
+	var exists bool
+	err := pr.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM purchase
+			WHERE customer_id = $1
+			  AND plan_id = $2
+			  AND is_free_plan = TRUE
+			  AND status = $3
+			  AND ($4 <= 0 OR id <> $4)
+		)
+	`, customerID, planID, PurchaseStatusPaid, excludePurchaseID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("query successful free plan purchase: %w", err)
+	}
+	return exists, nil
+}
+
 func NewPurchaseRepository(pool *pgxpool.Pool) *PurchaseRepository {
 	return &PurchaseRepository{
 		pool: pool,
@@ -132,6 +190,8 @@ var purchaseSelectColumns = []string{
 	"device_limit_count",
 	"purchase_kind",
 	"extra_devices",
+	"is_free_plan",
+	"free_plan_one_time",
 	"paid_at",
 	"currency",
 	"expire_at",
@@ -170,6 +230,8 @@ func scanPurchase(scanner interface {
 		&purchase.DeviceLimitCount,
 		&purchase.PurchaseKind,
 		&purchase.ExtraDevices,
+		&purchase.IsFreePlan,
+		&purchase.FreePlanOneTime,
 		&purchase.PaidAt,
 		&purchase.Currency,
 		&purchase.ExpireAt,
@@ -209,6 +271,8 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 			"device_limit_count",
 			"purchase_kind",
 			"extra_devices",
+			"is_free_plan",
+			"free_plan_one_time",
 			"currency",
 			"expire_at",
 			"status",
@@ -240,6 +304,8 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 			purchase.DeviceLimitCount,
 			purchase.PurchaseKind,
 			purchase.ExtraDevices,
+			purchase.IsFreePlan,
+			purchase.FreePlanOneTime,
 			purchase.Currency,
 			purchase.ExpireAt,
 			purchase.Status,

@@ -68,7 +68,16 @@ type CreatePurchaseOptions struct {
 	PromoDiscountPercent int
 	PurchaseKind         database.PurchaseKind
 	ExtraDevices         int
+	IsFreePlan           bool
+	FreePlanOneTime      bool
 }
+
+const freePlanRenewalWindow = 7 * 24 * time.Hour
+
+var (
+	ErrFreePlanAlreadyUsed = errors.New("free plan already used")
+	ErrFreePlanTooEarly    = errors.New("free plan is available during the last week")
+)
 
 type SubscriptionActivatedPreviewOptions struct {
 	Text              string
@@ -159,6 +168,39 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	subscription, err := s.subscriptionForPurchase(ctx, customer, purchase)
 	if err != nil {
 		return err
+	}
+	if purchase.IsFreePlan {
+		planID := ""
+		if purchase.PlanID != nil {
+			planID = strings.TrimSpace(*purchase.PlanID)
+		}
+		releaseFreePlan, lockErr := s.purchaseRepository.LockFreePlanActivation(ctx, customer.ID, planID)
+		if lockErr != nil {
+			return lockErr
+		}
+		defer func() {
+			if err := releaseFreePlan(); err != nil {
+				slog.Error("payment: release free plan activation lock failed", "purchaseId", utils.MaskHalfInt64(purchaseId), "error", err)
+			}
+		}()
+
+		// A different purchase can finish while this request waits for the
+		// customer/plan lock, so refresh the selected subscription before the
+		// authoritative eligibility check.
+		subscription, err = s.subscriptionForPurchase(ctx, customer, purchase)
+		if err != nil {
+			return err
+		}
+		eligibilityErr := s.ValidateFreePlanEligibility(ctx, customer.ID, planID, purchase.FreePlanOneTime, subscription)
+		if eligibilityErr != nil {
+			// A paid device pack must never be lost if another free-plan claim was
+			// fulfilled first. In that edge case, fulfill only the paid devices.
+			if purchase.ExtraDevices > 0 && purchase.Amount > 0 {
+				purchase.PurchaseKind = database.PurchaseKindExtraDevices
+			} else {
+				return eligibilityErr
+			}
+		}
 	}
 
 	s.completePromoRedemption(ctx, purchase, customer)
@@ -538,6 +580,8 @@ func (s PaymentService) CreatePurchase(ctx context.Context, amount float64, mont
 
 func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount float64, months int, customer *database.Customer, invoiceType database.InvoiceType, options CreatePurchaseOptions) (url string, purchaseId int64, err error) {
 	switch invoiceType {
+	case database.InvoiceTypeFree:
+		url, purchaseId, err = s.createFreePlanPurchase(ctx, months, customer, options)
 	case database.InvoiceTypeCrypto:
 		url, purchaseId, err = s.createCryptoInvoice(ctx, amount, months, customer, options)
 	case database.InvoiceTypeYookasa:
@@ -577,6 +621,61 @@ func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount fl
 		})
 	}
 	return url, purchaseId, err
+}
+
+func validateFreePlanEligibility(oneTime, previouslyUsed bool, expireAt *time.Time, now time.Time) error {
+	if oneTime && previouslyUsed {
+		return ErrFreePlanAlreadyUsed
+	}
+	if expireAt != nil && expireAt.After(now.Add(freePlanRenewalWindow)) {
+		return ErrFreePlanTooEarly
+	}
+	return nil
+}
+
+func (s PaymentService) ValidateFreePlanEligibility(ctx context.Context, customerID int64, planID string, oneTime bool, subscription *database.CustomerSubscription) error {
+	previouslyUsed := false
+	var err error
+	if oneTime {
+		previouslyUsed, err = s.purchaseRepository.HasSuccessfulFreePlanPurchase(ctx, customerID, planID, 0)
+		if err != nil {
+			return err
+		}
+	}
+	var expireAt *time.Time
+	if subscription != nil {
+		expireAt = subscription.ExpireAt
+	}
+	return validateFreePlanEligibility(oneTime, previouslyUsed, expireAt, time.Now())
+}
+
+func (s PaymentService) createFreePlanPurchase(ctx context.Context, months int, customer *database.Customer, options CreatePurchaseOptions) (string, int64, error) {
+	purchaseID, err := s.purchaseRepository.Create(ctx, &database.Purchase{
+		InvoiceType:       database.InvoiceTypeFree,
+		Status:            database.PurchaseStatusNew,
+		Amount:            0,
+		Currency:          "RUB",
+		CustomerID:        customer.ID,
+		SubscriptionID:    options.SubscriptionID,
+		Month:             months,
+		PlanID:            optionalTrimmedStringPointer(options.PlanID),
+		TrafficLimitBytes: options.TrafficLimitBytes,
+		DeviceLimitCount:  options.DeviceLimitCount,
+		AgreementAccepted: options.AgreementAccepted,
+		PurchaseKind:      options.PurchaseKind,
+		IsFreePlan:        true,
+		FreePlanOneTime:   options.FreePlanOneTime,
+	})
+	if err != nil {
+		return "", 0, err
+	}
+	if err := s.ProcessPurchaseById(ctx, purchaseID); err != nil {
+		if cancelErr := s.purchaseRepository.UpdateFields(ctx, purchaseID, map[string]interface{}{"status": database.PurchaseStatusCancel}); cancelErr != nil {
+			slog.Error("payment: cancel failed free plan purchase", "purchase_id", utils.MaskHalfInt64(purchaseID), "error", cancelErr)
+		}
+		return "", purchaseID, err
+	}
+	return "", purchaseID, nil
 }
 
 var ErrCustomerNotFound = errors.New("customer not found")
@@ -653,6 +752,8 @@ func (s PaymentService) createCryptoInvoice(ctx context.Context, amount float64,
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
 		PurchaseKind:             options.PurchaseKind,
 		ExtraDevices:             options.ExtraDevices,
+		IsFreePlan:               options.IsFreePlan,
+		FreePlanOneTime:          options.FreePlanOneTime,
 	})
 	if err != nil {
 		slog.Error("Error creating purchase", "error", err)
@@ -713,6 +814,8 @@ func (s PaymentService) createYookasaInvoice(ctx context.Context, amount float64
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
 		PurchaseKind:             options.PurchaseKind,
 		ExtraDevices:             options.ExtraDevices,
+		IsFreePlan:               options.IsFreePlan,
+		FreePlanOneTime:          options.FreePlanOneTime,
 	})
 	if err != nil {
 		slog.Error("Error creating purchase", "error", err)
@@ -762,6 +865,8 @@ func (s PaymentService) createExternalInvoice(ctx context.Context, amount float6
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
 		PurchaseKind:             options.PurchaseKind,
 		ExtraDevices:             options.ExtraDevices,
+		IsFreePlan:               options.IsFreePlan,
+		FreePlanOneTime:          options.FreePlanOneTime,
 	})
 	if err != nil {
 		return "", 0, err
@@ -923,6 +1028,8 @@ func (s PaymentService) createTelegramInvoice(ctx context.Context, amount float6
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
 		PurchaseKind:             options.PurchaseKind,
 		ExtraDevices:             options.ExtraDevices,
+		IsFreePlan:               options.IsFreePlan,
+		FreePlanOneTime:          options.FreePlanOneTime,
 	})
 	if err != nil {
 		slog.Error("Error creating purchase", "error", err)

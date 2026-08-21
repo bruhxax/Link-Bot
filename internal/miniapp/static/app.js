@@ -1556,7 +1556,7 @@ function buildPreviewRuntimeSettings() {
 		},
 		appearance: { backgroundMode: "animated", compact: true, showFrames: true, colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", waveBackground: "#000000", waveDot: "#ebebeb" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
-		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, priceRub: plan.priceRub, priceStars: plan.priceStars, trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], externalSquadUuid: "" })),
+		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], externalSquadUuid: "" })),
 		devicePacks: [],
 		trial: { enabled: true, days: 3, trafficGb: 10, unlimitedTraffic: false, deviceLimit: 5, internalSquadUuids: [], externalSquadUuid: "", trafficResetStrategy: "MONTH", tag: "" },
 		grace: { enabled: false, days: 1, internalSquadUuids: [] },
@@ -2182,7 +2182,14 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
         const runtime = buildPreviewRuntimeSettings();
         state.data.support.isAdmin = true;
         state.data.runtime = runtime;
-        state.data.admin = { settings: runtime, events: [] };
+        state.data.admin = {
+			settings: runtime,
+			events: [],
+			squads: {
+				internal: ["White", "Netherlands", "Netherlands OBHOD", "Germany", "Germany OBHOD", "Sweden", "Sweden 2", "Fin 2"].map((name, index) => ({ uuid: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, name })),
+				external: [{ uuid: "10000000-0000-4000-8000-000000000001", name: "Default external" }],
+			},
+		};
 		state.adminSettingsDraft = deepClone(runtime);
 		seedEditableCopy(state.adminSettingsDraft);
 		state.currentPage = "dashboard";
@@ -2332,6 +2339,9 @@ function mapApiErrorMessage(code, fallback) {
     agreement_required: copy.agreementRequired,
     unsupported_payment_method: copy.paymentUnavailable,
     unsupported_plan: state.locale === "en" ? "This plan is unavailable" : "Этот тариф недоступен",
+	free_plan_already_used: state.locale === "en" ? "This free plan can only be claimed once" : "Этот бесплатный тариф можно получить только один раз",
+	free_plan_too_early: state.locale === "en" ? "You can claim it again during the last 7 days" : "Повторно получить тариф можно за 7 дней до окончания подписки",
+	free_plan_failed: state.locale === "en" ? "Could not activate the free plan" : "Не удалось активировать бесплатный тариф",
     promo_code_required: copy.promoCodeRequired,
     promo_not_found: copy.promoInvalid,
     promo_expired: copy.promoExpired,
@@ -2374,6 +2384,7 @@ function runtimePlanToPayload(plan, index = 0) {
 		months,
 		priceRub: Math.max(0, Number(plan?.priceRub || 0)),
 		priceStars: Math.max(0, Number(plan?.priceStars || 0)),
+		freeOneTime: Boolean(plan?.freeOneTime),
 		trafficLimitBytes: trafficGb > 0 ? trafficGb * (1024 ** 3) : 0,
 		deviceLimitCount: Math.max(0, Number(plan?.deviceLimit || 0)),
 		variant: trafficGb === 0 || plan?.unlimitedTraffic ? "unlimited" : "regular",
@@ -3281,7 +3292,7 @@ function renderAdminVisualPlans() {
 	return (state.adminSettingsDraft?.plans || []).map((plan, index) => {
 		if (plan.enabled === false) return "";
 		const selected = state.adminLayoutSelection === `plan:${plan.id}`;
-		return `<div class="admin-ui-plan ${plan.wide ? "is-wide" : ""} ${selected ? "is-selected" : ""}" data-ui-plan-index="${index}" data-ui-plan-id="${escapeAttribute(plan.id)}" tabindex="0" role="button" aria-pressed="${selected}"><strong>${escapeHtml(plan.titleRu || plan.titleEn || plan.id)}</strong><span>${plan.unlimitedTraffic ? "\u0411\u0435\u0437\u043b\u0438\u043c\u0438\u0442\u043d\u044b\u0439 \u0442\u0440\u0430\u0444\u0438\u043a" : `${Number(plan.trafficGb || 0).toLocaleString("ru-RU")} \u0413\u0411`}</span><b>${Number(plan.priceRub || 0)} \u0420</b><i data-ui-plan-resize aria-hidden="true">${icon("resize")}</i></div>`;
+		return `<div class="admin-ui-plan ${plan.wide ? "is-wide" : ""} ${selected ? "is-selected" : ""}" data-ui-plan-index="${index}" data-ui-plan-id="${escapeAttribute(plan.id)}" tabindex="0" role="button" aria-pressed="${selected}"><strong>${escapeHtml(plan.titleRu || plan.titleEn || plan.id)}</strong><span>${plan.unlimitedTraffic ? "\u0411\u0435\u0437\u043b\u0438\u043c\u0438\u0442\u043d\u044b\u0439 \u0442\u0440\u0430\u0444\u0438\u043a" : `${Number(plan.trafficGb || 0).toLocaleString("ru-RU")} \u0413\u0411`}</span><b>${Number(plan.priceRub || 0) === 0 ? "Бесплатно" : `${Number(plan.priceRub || 0)} \u0420`}</b><i data-ui-plan-resize aria-hidden="true">${icon("resize")}</i></div>`;
 	}).join("");
 }
 
@@ -3325,10 +3336,30 @@ function renderInternalSquadSelector(selectedValues, inputKey, emptyMeansAll = t
 	const selected = Array.isArray(selectedValues) ? selectedValues.map(String) : [];
 	const allSelected = emptyMeansAll && selected.length === 0;
 	if (!squads.length) return `<div class="admin-squads__empty">Список внутренних сквадов недоступен</div>`;
+	const selectedCount = allSelected ? squads.length : squads.filter((squad) => selected.includes(String(squad.uuid))).length;
 	const hint = emptyMeansAll
 		? "Если выбраны все, новые пользователи добавляются во все внутренние сквады."
 		: "Выберите один или несколько сквадов для временного доступа.";
-	return `<div class="admin-squads__list">${squads.map((squad) => `<label class="admin-squad-option"><input type="checkbox" data-input="${escapeAttribute(inputKey)}" value="${escapeAttribute(squad.uuid)}" ${allSelected || selected.includes(String(squad.uuid)) ? "checked" : ""}><span><strong>${escapeHtml(squad.name || "Без названия")}</strong><small>${escapeHtml(squad.uuid)}</small></span></label>`).join("")}</div><p class="admin-squads__hint">${hint}</p>`;
+	const everySelected = selectedCount === squads.length;
+	return `<div class="admin-squads__toolbar"><span>${selectedCount} из ${squads.length}</span><button type="button" data-action="admin-select-all-squads" data-value="${escapeAttribute(inputKey)}" ${everySelected ? "disabled" : ""}>${icon("check")}Выбрать все</button></div><div class="admin-squads__list">${squads.map((squad) => `<label class="admin-squad-option"><input type="checkbox" data-input="${escapeAttribute(inputKey)}" value="${escapeAttribute(squad.uuid)}" ${allSelected || selected.includes(String(squad.uuid)) ? "checked" : ""}><span><strong>${escapeHtml(squad.name || "Без названия")}</strong></span></label>`).join("")}</div><p class="admin-squads__hint">${hint}</p>`;
+}
+
+function selectAllAdminSquads(inputKey) {
+	const all = adminSquads().internal.map((item) => String(item.uuid));
+	if (!all.length) return;
+	if (inputKey === "admin-plan-internal-squad" && state.adminPlanFormDraft) {
+		state.adminPlanFormDraft.internalSquadUuids = [];
+	} else if (inputKey === "admin-trial-internal-squad" && state.adminSettingsDraft?.trial) {
+		state.adminSettingsDraft.trial.internalSquadUuids = [];
+		state.adminSettingsDirty = true;
+	} else if (inputKey === "admin-grace-internal-squad" && state.adminSettingsDraft?.grace) {
+		state.adminSettingsDraft.grace.internalSquadUuids = all;
+		state.adminSettingsDirty = true;
+	} else {
+		return;
+	}
+	haptic("light");
+	render({ preserveScroll: true });
 }
 
 function renderExternalSquadSelector(selectedValue, inputKey) {
@@ -3369,6 +3400,7 @@ function renderAdminPlanEditor(plan, index) {
 		<div class="admin-toggle-list admin-toggle-list--inline">${renderAdminToggle("Активен", `plans.${index}.enabled`)}${renderAdminToggle("Безлимит", `plans.${index}.unlimitedTraffic`)}${renderAdminToggle("На всю ширину", `plans.${index}.wide`)}</div>
 		${renderAdminSettingField("Название", `plans.${index}.titleRu`)}
 		<div class="admin-editor__grid">${renderAdminSettingField("Цена ₽", `plans.${index}.priceRub`, { type: "number", min: 0 })}${renderAdminSettingField("Устройств", `plans.${index}.deviceLimit`, { type: "number", min: 0 })}</div>
+		${Number(plan.priceRub || 0) === 0 ? `<div class="admin-toggle-list">${renderAdminToggle("Можно взять только 1 раз", `plans.${index}.freeOneTime`)}</div>` : ""}
 		${renderAdminSettingField("Трафик, ГБ", `plans.${index}.trafficGb`, { type: "number", min: 0 })}
 	</div>`;
 }
@@ -3427,11 +3459,12 @@ function renderAdminPlanEditorModal() {
 		<div class="admin-plan-modal__body">
 		<div class="admin-plan-modal__grid">
 			<label class="admin-field"><span>Срок, месяцев</span><input class="admin-field__control" type="number" min="1" max="120" inputmode="numeric" data-input="admin-plan-months" value="${escapeAttribute(plan.months ?? 0)}"></label>
-			<label class="admin-field"><span>Цена, ₽</span><input class="admin-field__control" type="number" min="1" max="1000000" inputmode="numeric" data-input="admin-plan-price" value="${escapeAttribute(plan.priceRub ?? 0)}"></label>
+			<label class="admin-field"><span>Цена, ₽</span><input class="admin-field__control" type="number" min="0" max="1000000" inputmode="numeric" data-input="admin-plan-price" value="${escapeAttribute(plan.priceRub ?? 0)}"></label>
 			<label class="admin-field"><span>Трафик, ГБ (0 = безлимит)</span><input class="admin-field__control" type="number" min="0" max="1000000" inputmode="numeric" data-input="admin-plan-traffic" value="${escapeAttribute(plan.trafficGb ?? 0)}"></label>
 			<label class="admin-field"><span>Устройства (0 = безлимит)</span><input class="admin-field__control" type="number" min="0" max="1000" inputmode="numeric" data-input="admin-plan-devices" value="${escapeAttribute(plan.deviceLimit ?? 0)}"></label>
 		</div>
 		<div class="admin-plan-stars"><span>Telegram Stars</span><strong>${escapeHtml(String(stars))}</strong><small>Автоматически: 1 ⭐ = 1,47 ₽</small></div>
+		<label class="admin-plan-free-rule" ${Number(plan.priceRub || 0) === 0 ? "" : "hidden"}><span><strong>Можно взять только 1 раз</strong><small>Если выключено, повторно получить тариф можно за 7 дней до окончания.</small></span><input data-input="admin-plan-free-once" type="checkbox" ${plan.freeOneTime ? "checked" : ""}></label>
 		<section class="admin-squads"><h3>Внутренние сквады</h3>${renderInternalSquadSelector(plan.internalSquadUuids, "admin-plan-internal-squad")}${renderExternalSquadSelector(plan.externalSquadUuid, "admin-plan-external-squad")}</section>
 		<button class="btn btn--green-filled admin-plan-modal__save" type="button" data-action="admin-apply-plan-edit">${icon("check")}Применить</button>
 		</div>
@@ -3749,7 +3782,9 @@ function renderBuyPage() {
   const method = getSelectedPaymentMethod();
   const devicePack = getSelectedDevicePack();
   const promoStatus = getPromoStatus();
-  const payLabel = plan && method ? `${copy.pay} ${formatCheckoutPrice(plan, devicePack, method.id)}` : copy.paymentUnavailable;
+  const freeCheckout = Boolean(plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !devicePack);
+  const freeLabel = state.locale === "en" ? "Get for free" : "Получить бесплатно";
+  const payLabel = freeCheckout ? freeLabel : (plan && method ? `${copy.pay} ${formatCheckoutPrice(plan, devicePack, method.id)}` : copy.paymentUnavailable);
   const displayedPlans = getDisplayedPlans();
   const devicePacks = getDevicePacks();
   if (!state.adminPlanEditing && !displayedPlans.length && !devicePacks.length) {
@@ -3767,19 +3802,19 @@ function renderBuyPage() {
   const planList = displayedPlans.length ? `<div class="pricing-list ${state.adminPlanEditing ? "pricing-list--admin" : ""}" style="--plan-columns:${Math.max(1, Math.min(2, Number(getRuntimeSettings()?.layout?.planColumns || 2)))}">${displayedPlans.map((item) => renderPlanCard(item, planKey(item) === planKey(plan))).join("")}</div>` : `<div class="commerce-empty commerce-empty--compact"><div class="commerce-empty__title">${escapeHtml(copy.noPlansTitle)}</div></div>`;
   const methodTitle = method?.label || copy.noPaymentMethodsTitle;
   const methodHint = method?.hint || copy.noPaymentMethodsHint;
-  const checkoutDisabled = !plan || !method || state.busyMethod || state.adminPlanEditing;
+  const checkoutDisabled = !plan || (!freeCheckout && !method) || state.busyMethod || state.adminPlanEditing;
   const checkout = `<div class="card card--checkout">
 		<div class="summary-row checkout-summary"><div><div class="summary-row__title">${copy.selectedPlan}</div><div class="summary-row__value">${plan ? getPlanDisplayTitle(plan, state.locale) : "—"}</div></div>${plan?.recommended ? `<span class="badge badge--inline">${copy.best}</span>` : plan?.savingsPercent ? `<span class="badge badge--inline">${copy.savings(plan.savingsPercent)}</span>` : ""}</div>
         <div class="payment-stack">
-		<button class="pay-selector checkout-payment ${method ? "" : "checkout-payment--empty"}" type="button" data-action="open-pay-modal" ${method ? "" : "disabled aria-disabled=\"true\""}><span class="pay-selector__icon ${method ? "pay-selector__icon--brand" : ""}">${method ? renderPaymentMethodLogo(method) : icon("wallet")}</span><span class="pay-selector__copy"><strong>${escapeHtml(methodTitle)}</strong><span>${escapeHtml(methodHint)}</span></span><span class="pay-selector__tail">${method ? icon("checkoutEdit") : ""}</span></button>
-        ${featureEnabled("promocodes") ? `<div class="promo-box checkout-promo">
+		${freeCheckout ? `<div class="checkout-free-note"><span>${icon("check")}</span><div><strong>${escapeHtml(freeLabel)}</strong><small>${state.locale === "en" ? "No payment method or redirect is required." : "Способ оплаты не нужен — тариф активируется сразу."}</small></div></div>` : `<button class="pay-selector checkout-payment ${method ? "" : "checkout-payment--empty"}" type="button" data-action="open-pay-modal" ${method ? "" : "disabled aria-disabled=\"true\""}><span class="pay-selector__icon ${method ? "pay-selector__icon--brand" : ""}">${method ? renderPaymentMethodLogo(method) : icon("wallet")}</span><span class="pay-selector__copy"><strong>${escapeHtml(methodTitle)}</strong><span>${escapeHtml(methodHint)}</span></span><span class="pay-selector__tail">${method ? icon("checkoutEdit") : ""}</span></button>`}
+        ${featureEnabled("promocodes") && !freeCheckout ? `<div class="promo-box checkout-promo">
           <span class="support-field__label">${escapeHtml(copy.promoCode || "Promo code")}</span>
           <div class="promo-box__row">
             <input class="support-field__input promo-box__input" type="text" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" aria-describedby="promo-status" placeholder="${escapeAttribute(copy.promoCodePlaceholder || "")}" value="${escapeAttribute(state.promoCodeDraft)}" data-input="promo-code">
           </div>
           <div class="promo-box__status ${promoStatus ? `promo-box__status--${escapeAttribute(promoStatus.type)}` : "promo-box__status--empty"}" id="promo-status" data-promo-status role="status" aria-live="polite">${promoStatus ? escapeHtml(promoStatus.message) : ""}</div>
         </div>` : ""}
-        ${state.data.meta?.starsNeedPriorPurchase ? `<div class="note">${copy.starsNeedPriorPurchase}</div>` : ""}
+		${state.data.meta?.starsNeedPriorPurchase && !freeCheckout ? `<div class="note">${copy.starsNeedPriorPurchase}</div>` : ""}
 		<button class="btn btn--green-filled buy-action" type="button" data-action="pay-selected" ${checkoutDisabled ? "disabled aria-disabled=\"true\"" : ""}>${icon(state.busyMethod ? "refresh" : "cart")}${payLabel}</button>
         </div>
       </div>`;
@@ -4776,7 +4811,7 @@ function renderPlanCard(plan, selected) {
   const hasDuration = Number(plan?.months || 0) > 0;
   const unlimited = hasDuration && planHasUnlimitedTraffic(plan);
   const title = hasDuration ? getPlanBaseTitle(plan, state.locale) : (state.locale === "en" ? "New plan" : "Новый тариф");
-  const price = Number(plan?.priceRub || 0) > 0 ? formatCurrency(plan.priceRub, state.locale) : "—";
+  const price = Number(plan?.priceRub || 0) > 0 ? formatCurrency(plan.priceRub, state.locale) : (state.locale === "en" ? "Free" : "Бесплатно");
   const content = `
       <div class="pricing-card__content">
         <div class="pricing-card__copy">
@@ -4814,7 +4849,7 @@ function renderPaymentHistoryItem(item) {
 
   return `
     <div class="payment-item payment-item--${escapeAttribute(method.id)}">
-      <span class="payment-item__logo" title="${escapeAttribute(method.label)}"><img src="${escapeAttribute(method.logo)}" alt="${escapeAttribute(method.label)}" loading="lazy"></span>
+      <span class="payment-item__logo" title="${escapeAttribute(method.label)}">${method.logo ? `<img src="${escapeAttribute(method.logo)}" alt="${escapeAttribute(method.label)}" loading="lazy">` : icon("check")}</span>
       <div class="payment-item__main">
         <strong>${escapeHtml(planLabel)}</strong>
         <span>${escapeHtml(dateLabel)}</span>
@@ -4832,6 +4867,7 @@ function paymentHistoryMethodMeta(item, copy) {
   const invoiceType = String(item?.invoiceType || "").toLowerCase();
   const title = String(item?.paymentMethodTitle || "").trim();
   const normalized = `${invoiceType} ${title}`.toLowerCase();
+	if (invoiceType === "free") return { id: "free", label: title || (state.locale === "en" ? "Free activation" : "Бесплатная активация"), logo: "" };
   const providers = ["lava", "wata", "platega", "freekassa", "heleket", "pally"];
   const provider = providers.find((name) => normalized.includes(name));
   if (provider) {
@@ -5229,6 +5265,7 @@ function bindRootActions() {
 			if (action === "admin-delete-plan") return deleteAdminPlan(value);
 			if (action === "admin-close-plan-modal") return closeAdminPlanEditorModal();
 			if (action === "admin-apply-plan-edit") return applyAdminPlanEdit();
+			if (action === "admin-select-all-squads") return selectAllAdminSquads(value);
 			if (action === "admin-add-profile-button") return openAdminProfileEditor("", { create: true });
 			if (action === "admin-close-profile-editor") return closeAdminProfileEditorModal();
 			if (action === "admin-apply-profile-edit") return applyAdminProfileEdit();
@@ -5398,6 +5435,7 @@ function bindRootActions() {
 		if (!inputKey) return;
 		if (inputKey === "admin-plan-internal-squad" && state.adminPlanFormDraft) {
 			state.adminPlanFormDraft.internalSquadUuids = updateAdminSquadSelection(state.adminPlanFormDraft.internalSquadUuids, target.value, Boolean(target.checked));
+			render({ preserveScroll: true });
 			return;
 		}
 		if (inputKey === "admin-device-pack-devices" && state.adminDevicePackFormDraft) { state.adminDevicePackFormDraft.devices = Number(target.value || 0); return; }
@@ -5410,7 +5448,7 @@ function bindRootActions() {
 		if (inputKey === "admin-trial-internal-squad" && state.adminSettingsDraft?.trial) {
 			state.adminSettingsDraft.trial.internalSquadUuids = updateAdminSquadSelection(state.adminSettingsDraft.trial.internalSquadUuids, target.value, Boolean(target.checked));
 			state.adminSettingsDirty = true;
-			syncAdminSaveBarDOM();
+			render({ preserveScroll: true });
 			return;
 		}
 		if (inputKey === "admin-trial-external-squad" && state.adminSettingsDraft?.trial) {
@@ -5422,13 +5460,21 @@ function bindRootActions() {
 		if (inputKey === "admin-grace-internal-squad" && state.adminSettingsDraft?.grace) {
 			state.adminSettingsDraft.grace.internalSquadUuids = updateAdminSquadSelection(state.adminSettingsDraft.grace.internalSquadUuids, target.value, Boolean(target.checked), false);
 			state.adminSettingsDirty = true;
-			syncAdminSaveBarDOM();
+			render({ preserveScroll: true });
 			return;
 		}
 		if (inputKey.startsWith("admin-plan-") && state.adminPlanFormDraft) {
 			const numeric = Math.max(0, Number(target.value || 0));
 			if (inputKey === "admin-plan-months") state.adminPlanFormDraft.months = numeric;
-			if (inputKey === "admin-plan-price") state.adminPlanFormDraft.priceRub = numeric;
+			if (inputKey === "admin-plan-price") {
+				state.adminPlanFormDraft.priceRub = numeric;
+				if (numeric > 0) state.adminPlanFormDraft.freeOneTime = false;
+				const freeRule = app.querySelector(".admin-plan-free-rule");
+				if (freeRule) freeRule.hidden = numeric !== 0;
+				const freeToggle = freeRule?.querySelector('[data-input="admin-plan-free-once"]');
+				if (freeToggle && numeric > 0) freeToggle.checked = false;
+			}
+			if (inputKey === "admin-plan-free-once") state.adminPlanFormDraft.freeOneTime = Boolean(target.checked);
 			if (inputKey === "admin-plan-traffic") state.adminPlanFormDraft.trafficGb = numeric;
 			if (inputKey === "admin-plan-devices") state.adminPlanFormDraft.deviceLimit = numeric;
 			return;
@@ -6110,7 +6156,7 @@ function addAdminPlan() {
 	const plans = state.adminSettingsDraft?.plans;
 	if (!Array.isArray(plans)) return;
 	const id = `custom_${Date.now().toString(36)}`;
-	const plan = { id, enabled: false, months: 0, titleRu: "", titleEn: "", priceRub: 0, priceStars: 0, trafficGb: 0, unlimitedTraffic: true, deviceLimit: 0, wide: false, internalSquadUuids: [], externalSquadUuid: "" };
+	const plan = { id, enabled: false, months: 0, titleRu: "", titleEn: "", priceRub: 0, priceStars: 0, freeOneTime: false, trafficGb: 0, unlimitedTraffic: true, deviceLimit: 0, wide: false, internalSquadUuids: [], externalSquadUuid: "" };
 	plans.push(plan);
 	state.adminSettingsDirty = true;
 	state.adminPlanEditingID = id;
@@ -6148,7 +6194,7 @@ function applyAdminPlanEdit() {
 	const trafficGb = Math.trunc(Number(draft.trafficGb || 0));
 	const deviceLimit = Math.trunc(Number(draft.deviceLimit || 0));
 	if (months < 1 || months > 120) return showToast(state.locale === "en" ? "Enter a duration from 1 to 120 months" : "Укажите срок от 1 до 120 месяцев", "danger");
-	if (priceRub < 1 || priceRub > 1000000) return showToast(state.locale === "en" ? "Enter a valid price" : "Укажите корректную цену", "danger");
+	if (priceRub < 0 || priceRub > 1000000) return showToast(state.locale === "en" ? "Enter a valid price" : "Укажите корректную цену", "danger");
 	if (trafficGb < 0 || trafficGb > 1000000 || deviceLimit < 0 || deviceLimit > 1000) return showToast(state.locale === "en" ? "Check the plan limits" : "Проверьте лимиты тарифа", "danger");
 	const current = plans[index];
 	plans[index] = {
@@ -6156,6 +6202,7 @@ function applyAdminPlanEdit() {
 		enabled: true,
 		months,
 		priceRub,
+		freeOneTime: priceRub === 0 && Boolean(draft.freeOneTime),
 		trafficGb,
 		unlimitedTraffic: trafficGb === 0,
 		deviceLimit,
@@ -7444,7 +7491,10 @@ function updateCheckoutPriceDom() {
   const plan = getSelectedPlan();
   const pack = getSelectedDevicePack();
   const method = getSelectedPaymentMethod();
-  const payLabel = plan ? `${t().pay} ${formatCheckoutPrice(plan, pack, method?.id)}` : t().pay;
+  const freeCheckout = Boolean(plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !pack);
+  const payLabel = freeCheckout
+    ? (state.locale === "en" ? "Get for free" : "Получить бесплатно")
+    : plan ? `${t().pay} ${formatCheckoutPrice(plan, pack, method?.id)}` : t().pay;
   action.disabled = Boolean(state.busyMethod);
   action.innerHTML = `${icon(state.busyMethod ? "refresh" : "cart")}${escapeHtml(payLabel)}`;
 }
@@ -7527,23 +7577,29 @@ async function startPayment({ deviceOnly = false } = {}) {
   const plan = getSelectedPlan();
   const devicePack = getSelectedDevicePack();
   const method = getSelectedPaymentMethod()?.id || "";
-  if ((!deviceOnly && !plan) || (deviceOnly && !devicePack) || !method) return showToast(t().paymentUnavailable);
+  const freeCheckout = Boolean(!deviceOnly && plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !devicePack);
+  if ((!deviceOnly && !plan) || (deviceOnly && !devicePack) || (!freeCheckout && !method)) return showToast(t().paymentUnavailable);
 
-  state.busyMethod = method;
+  state.busyMethod = freeCheckout ? "free" : method;
   render();
   let navigatingAway = false;
   try {
     const response = await post("/api/mini-app/purchase", {
       planId: plan?.id || "",
       months: plan?.months || 0,
-      paymentMethod: method,
+      paymentMethod: freeCheckout ? "" : method,
       agreementAccepted: true,
       promoCode: deviceOnly ? "" : (getActivePromo()?.code || ""),
 	  devicePackId: devicePack?.id || "",
 	  deviceOnly,
     });
     const { action, url, purchaseId } = response.data;
-    if (action === "open_invoice") {
+    if (action === "completed") {
+	  state.appliedPromo = null;
+	  state.promoCodeDraft = "";
+	  await safeRefresh();
+	  showToast(state.locale === "en" ? "Plan activated" : "Тариф активирован", "success");
+    } else if (action === "open_invoice") {
       if (typeof tg?.openInvoice === "function") {
         tg.openInvoice(url, async (status) => {
           if (status === "paid") {
@@ -8549,6 +8605,7 @@ function formatCurrency(value, locale) {
 
 function formatPaymentAmount(amount, currency, invoiceType) {
   const numeric = Number(amount || 0);
+	if (invoiceType === "free") return state.locale === "en" ? "Free" : "Бесплатно";
   if (invoiceType === "telegram" || currency === "XTR") {
     return `${formatNumber(numeric, state.locale)} Stars`;
   }
@@ -8569,6 +8626,7 @@ function formatPaymentDate(value) {
 }
 
 function paymentMethodTitleForHistory(invoiceType, copy) {
+	if (invoiceType === "free") return state.locale === "en" ? "Free activation" : "Бесплатная активация";
   if (invoiceType === "telegram") return copy.payMethodStars || "Telegram Stars";
   if (invoiceType === "crypto") return copy.payMethodCrypto || "Crypto";
   return copy.payMethodCard || "Card";

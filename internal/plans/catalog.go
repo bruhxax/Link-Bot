@@ -32,6 +32,7 @@ type CheckoutPlan struct {
 	Months             int
 	PriceRub           int
 	PriceStars         int
+	FreeOneTime        bool
 	TrafficLimitBytes  int64
 	DeviceLimitCount   int
 	Variant            string

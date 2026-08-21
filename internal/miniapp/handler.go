@@ -334,6 +334,7 @@ type planPayload struct {
 	Months            int    `json:"months"`
 	PriceRub          int    `json:"priceRub"`
 	PriceStars        int    `json:"priceStars"`
+	FreeOneTime       bool   `json:"freeOneTime,omitempty"`
 	TrafficLimitBytes int64  `json:"trafficLimitBytes"`
 	DeviceLimitCount  int    `json:"deviceLimitCount"`
 	Variant           string `json:"variant,omitempty"`
@@ -1252,23 +1253,6 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "Invalid request")
 		return
 	}
-
-	invoiceType, err := mapPaymentMethod(req.PaymentMethod)
-	if err != nil {
-		h.writeError(w, http.StatusBadRequest, "unsupported_payment_method", "Unsupported payment method")
-		return
-	}
-
-	allowedMethods, err := h.availablePaymentMethods(r.Context(), customer)
-	if err != nil {
-		slog.Error("mini app: resolve payment methods", "error", err)
-		h.writeError(w, http.StatusInternalServerError, "payment_config_failed", "Failed to resolve payment methods")
-		return
-	}
-	if !allowedMethods[req.PaymentMethod] {
-		h.writeError(w, http.StatusBadRequest, "unsupported_payment_method", "Unsupported payment method")
-		return
-	}
 	activeSubscription, _, err := h.loadCustomerSubscriptions(r.Context(), customer)
 	if err != nil || activeSubscription == nil {
 		h.writeError(w, http.StatusInternalServerError, "subscription_failed", "Не удалось определить подписку")
@@ -1284,6 +1268,9 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		trafficLimit   *int64
 		purchaseMonths int
 		planID         string
+		isFreePlan     bool
+		freePlanOnce   bool
+		invoiceType    database.InvoiceType
 	)
 
 	pack, hasPack := h.devicePackForRequest(req.DevicePackID)
@@ -1291,15 +1278,6 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		h.writeError(w, http.StatusBadRequest, "unsupported_device_pack", "Пакет устройств недоступен")
 		return
 	}
-	if hasPack {
-		extraDevices = pack.Devices
-		if invoiceType == database.InvoiceTypeTelegram {
-			price = pack.PriceStars
-		} else {
-			price = pack.PriceRub
-		}
-	}
-
 	if req.DeviceOnly {
 		if !hasPack {
 			h.writeError(w, http.StatusBadRequest, "device_pack_required", "Выберите пакет устройств")
@@ -1326,12 +1304,8 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 			h.writeError(w, http.StatusBadRequest, "unsupported_plan", "Unsupported plan")
 			return
 		}
-		planPrice, ok := checkoutAmountForPlan(plan, invoiceType)
-		if !ok {
-			h.writeError(w, http.StatusBadRequest, "unsupported_plan", "Unsupported plan")
-			return
-		}
-		price += planPrice
+		isFreePlan = plan.PriceRub == 0 && plan.PriceStars == 0
+		freePlanOnce = isFreePlan && plan.FreeOneTime
 		purchaseMonths = plan.Months
 		planID = plan.ID
 		trafficLimit = &plan.TrafficLimitBytes
@@ -1346,8 +1320,60 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		deviceLimit = &combinedDeviceLimit
 	}
 
+	needsPayment := req.DeviceOnly || hasPack || !isFreePlan
+	if needsPayment {
+		invoiceType, err = mapPaymentMethod(req.PaymentMethod)
+		if err != nil {
+			h.writeError(w, http.StatusBadRequest, "unsupported_payment_method", "Unsupported payment method")
+			return
+		}
+		allowedMethods, methodsErr := h.availablePaymentMethods(r.Context(), customer)
+		if methodsErr != nil {
+			slog.Error("mini app: resolve payment methods", "error", methodsErr)
+			h.writeError(w, http.StatusInternalServerError, "payment_config_failed", "Failed to resolve payment methods")
+			return
+		}
+		if !allowedMethods[req.PaymentMethod] {
+			h.writeError(w, http.StatusBadRequest, "unsupported_payment_method", "Unsupported payment method")
+			return
+		}
+		if hasPack {
+			extraDevices = pack.Devices
+			if invoiceType == database.InvoiceTypeTelegram {
+				price = pack.PriceStars
+			} else {
+				price = pack.PriceRub
+			}
+		}
+		if !req.DeviceOnly && !isFreePlan {
+			planPrice, amountOK := checkoutAmountForPlan(plan, invoiceType)
+			if !amountOK {
+				h.writeError(w, http.StatusBadRequest, "unsupported_plan", "Unsupported plan")
+				return
+			}
+			price += planPrice
+		}
+	} else {
+		invoiceType = database.InvoiceTypeFree
+	}
+
+	if isFreePlan {
+		if eligibilityErr := h.paymentService.ValidateFreePlanEligibility(r.Context(), customer.ID, plan.ID, freePlanOnce, activeSubscription); eligibilityErr != nil {
+			switch {
+			case errors.Is(eligibilityErr, payment.ErrFreePlanAlreadyUsed):
+				h.writeError(w, http.StatusConflict, "free_plan_already_used", "Этот бесплатный тариф можно получить только один раз")
+			case errors.Is(eligibilityErr, payment.ErrFreePlanTooEarly):
+				h.writeError(w, http.StatusConflict, "free_plan_too_early", "Повторное получение доступно за 7 дней до окончания подписки")
+			default:
+				slog.Error("mini app: validate free plan", "error", eligibilityErr, "plan_id", plan.ID)
+				h.writeError(w, http.StatusInternalServerError, "free_plan_failed", "Не удалось проверить бесплатный тариф")
+			}
+			return
+		}
+	}
+
 	var promo *database.PromoCode
-	if req.PromoCode != "" {
+	if req.PromoCode != "" && price > 0 {
 		unlockPromo := lockPromoPurchase(req.PromoCode)
 		defer unlockPromo()
 
@@ -1375,11 +1401,21 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		DeviceLimitCount:     deviceLimit,
 		PurchaseKind:         purchaseKind,
 		ExtraDevices:         extraDevices,
+		IsFreePlan:           isFreePlan,
+		FreePlanOneTime:      freePlanOnce,
 		PromoCodeID:          promoCodeIDOrNil(promo),
 		PromoCodeCode:        req.PromoCode,
 		PromoDiscountPercent: promoDiscountPercentOrZero(promo),
 	})
 	if err != nil {
+		if errors.Is(err, payment.ErrFreePlanAlreadyUsed) {
+			h.writeError(w, http.StatusConflict, "free_plan_already_used", "Этот бесплатный тариф можно получить только один раз")
+			return
+		}
+		if errors.Is(err, payment.ErrFreePlanTooEarly) {
+			h.writeError(w, http.StatusConflict, "free_plan_too_early", "Повторное получение доступно за 7 дней до окончания подписки")
+			return
+		}
 		slog.Error("mini app: create purchase", "error", err, "method", req.PaymentMethod, "months", req.Months)
 		h.writeError(w, http.StatusInternalServerError, "purchase_failed", "Failed to create purchase")
 		return
@@ -1387,6 +1423,8 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 
 	action := "open_link"
 	switch invoiceType {
+	case database.InvoiceTypeFree:
+		action = "completed"
 	case database.InvoiceTypeTelegram:
 		action = "open_invoice"
 	case database.InvoiceTypeYookasa:
@@ -3957,6 +3995,11 @@ func paymentMethodTitleForPurchase(purchase *database.Purchase, language string)
 func paymentMethodFallbackTitle(invoiceType database.InvoiceType, language string) string {
 	isEnglish := strings.HasPrefix(strings.ToLower(strings.TrimSpace(language)), "en")
 	switch invoiceType {
+	case database.InvoiceTypeFree:
+		if isEnglish {
+			return "Free activation"
+		}
+		return "Бесплатная активация"
 	case database.InvoiceTypeYookasa:
 		if isEnglish {
 			return "Bank card"
@@ -4799,10 +4842,6 @@ func (h *Handler) buildPlans() []planPayload {
 	bestSavings := -1
 
 	for _, plan := range checkout {
-		if plan.PriceRub == 0 {
-			continue
-		}
-
 		savings := 0
 		if baseMonthly > 0 && plan.Months > 1 {
 			fullPrice := baseMonthly * plan.Months
@@ -4817,6 +4856,7 @@ func (h *Handler) buildPlans() []planPayload {
 			Months:            plan.Months,
 			PriceRub:          plan.PriceRub,
 			PriceStars:        plan.PriceStars,
+			FreeOneTime:       plan.FreeOneTime,
 			TrafficLimitBytes: plan.TrafficLimitBytes,
 			DeviceLimitCount:  plan.DeviceLimitCount,
 			Variant:           plan.Variant,

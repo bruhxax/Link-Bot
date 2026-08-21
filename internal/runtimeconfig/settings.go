@@ -213,6 +213,7 @@ type PlanSettings struct {
 	TitleEN            string   `json:"titleEn"`
 	PriceRub           int      `json:"priceRub"`
 	PriceStars         int      `json:"priceStars"`
+	FreeOneTime        bool     `json:"freeOneTime"`
 	TrafficGB          int      `json:"trafficGb"`
 	UnlimitedTraffic   bool     `json:"unlimitedTraffic"`
 	DeviceLimit        int      `json:"deviceLimit"`
@@ -1322,6 +1323,9 @@ func validatePlans(value *[]PlanSettings, defaults []PlanSettings) error {
 			return fmt.Errorf("invalid price for plan %q", item.ID)
 		}
 		item.PriceStars = planbook.StarsForRub(item.PriceRub)
+		if item.PriceRub > 0 {
+			item.FreeOneTime = false
+		}
 		if item.TrafficGB < 0 || item.TrafficGB > 1000000 || item.DeviceLimit < 0 || item.DeviceLimit > 1000 {
 			return fmt.Errorf("invalid limits for plan %q", item.ID)
 		}

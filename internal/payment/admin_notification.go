@@ -176,6 +176,8 @@ func formatNotificationTime(t time.Time) string {
 
 func (s PaymentService) paymentMethodLabel(purchase *database.Purchase) string {
 	switch purchase.InvoiceType {
+	case database.InvoiceTypeFree:
+		return "Бесплатная активация"
 	case database.InvoiceTypeYookasa:
 		return "YooKassa"
 	case database.InvoiceTypeCrypto:
