@@ -8238,3 +8238,144 @@ body.has-open-modal .admin-save-bar {
 .modal__sheet--thread {
   margin-inline: auto;
 }
+
+/* Gift checkout: compact tariff rows follow the supplied reference. */
+.gift-page {
+  width: min(100%, 430px);
+  margin-inline: auto;
+  padding-bottom: 24px;
+}
+
+.gift-intro {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 4px 2px 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.gift-intro__icon,
+.gift-receipt__mark {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid #2e74e8;
+  border-radius: 10px;
+  color: #67a0ff;
+  background: #0b1d3a;
+}
+
+.gift-intro__icon svg,
+.gift-receipt__mark svg { width: 23px; height: 23px; }
+.gift-intro h1 { margin: 0; color: var(--text); font-size: 19px; line-height: 1.2; }
+.gift-intro p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+
+.gift-section { padding: 18px 0 0; }
+.gift-section__heading { display: grid; gap: 3px; margin: 0 2px 10px; }
+.gift-section__heading h2 { margin: 0; color: var(--text); font-size: 12px; line-height: 1.3; }
+.gift-section__heading span { color: var(--muted); font-size: 10px; line-height: 1.4; }
+.gift-section__heading--caps h2 { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+
+.gift-username {
+  display: flex;
+  align-items: center;
+  min-height: 50px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-strong);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.gift-username:focus-within { border-color: #4b8df5; box-shadow: 0 0 0 3px #102752; }
+.gift-username.is-invalid { border-color: var(--danger); }
+.gift-username__prefix { padding-left: 15px; color: #67a0ff; font-size: 15px; font-weight: 800; }
+.gift-username input { flex: 1; min-width: 0; height: 48px; padding: 0 14px 0 3px; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 14px; font-weight: 650; }
+.gift-username input::placeholder { color: var(--muted-2); font-weight: 500; }
+.gift-field-help { min-height: 15px; margin: 6px 3px 0; color: var(--muted); font-size: 9px; line-height: 1.4; }
+.gift-field-help.is-error { color: var(--danger); }
+
+.gift-plan-list { display: grid; gap: 8px; }
+.gift-plan-row {
+  width: 100%;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: #0d1a2e;
+  color: #f7f9ff;
+  text-align: left;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.gift-plan-row strong { font-size: 14px; line-height: 1.25; }
+.gift-plan-row span { color: #4e94ff; font-size: 14px; font-weight: 800; white-space: nowrap; }
+.gift-plan-row.is-selected { border-color: #2f78ef; background: #1264e8; }
+.gift-plan-row.is-selected span { color: #ffffff; }
+.gift-plan-row:active { transform: scale(.992); }
+.gift-plan-row:focus-visible,
+.gift-payment-row:focus-visible,
+.gift-submit:focus-visible,
+.gift-receipt__share button:focus-visible,
+.gift-receipt__done:focus-visible { outline: 3px solid #67a0ff; outline-offset: 2px; }
+
+.gift-empty { display: grid; gap: 4px; padding: 16px; border-block: 1px solid var(--line-soft); }
+.gift-empty strong { font-size: 12px; }
+.gift-empty span { color: var(--muted); font-size: 10px; }
+.gift-checkout { display: grid; gap: 10px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.gift-payment-row {
+  width: 100%; min-height: 54px; display: grid; grid-template-columns: 34px minmax(0, 1fr) 18px; align-items: center; gap: 10px;
+  padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-strong); color: var(--text); text-align: left;
+}
+.gift-payment-row__brand { display: grid; place-items: center; width: 30px; height: 30px; }
+.gift-payment-row__brand img { max-width: 28px; max-height: 28px; }
+.gift-payment-row > span:nth-child(2) { min-width: 0; display: grid; gap: 2px; }
+.gift-payment-row small { color: var(--muted); font-size: 8px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
+.gift-payment-row strong { overflow: hidden; color: var(--text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.gift-payment-row > svg { width: 16px; height: 16px; color: var(--muted); }
+.gift-submit,
+.gift-receipt__done {
+  min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 9px; border: 1px solid #2f78ef; border-radius: 10px; background: #1264e8; color: #ffffff; font-size: 13px; font-weight: 800;
+}
+.gift-submit svg { width: 19px; height: 19px; }
+.gift-submit:disabled { border-color: var(--line); background: var(--surface-strong); color: var(--muted); opacity: .7; }
+
+.modal__sheet--gift-receipt { max-height: min(88dvh, 650px); overflow: auto; }
+.gift-receipt__mark { width: 48px; height: 48px; margin-bottom: 12px; color: #ffffff; background: #1264e8; }
+.gift-receipt__header { align-items: flex-start; }
+.gift-receipt__message { margin: 4px 0 12px; color: var(--text); font-size: 11px; line-height: 1.55; white-space: pre-line; }
+.gift-receipt__delivery { display: flex; align-items: flex-start; gap: 9px; margin: 0; padding: 12px 0; border-block: 1px solid var(--line-soft); color: var(--muted); font-size: 10px; line-height: 1.5; }
+.gift-receipt__delivery svg { flex: 0 0 auto; width: 17px; height: 17px; color: #67a0ff; }
+.gift-receipt__delivery.is-delivered svg { color: var(--success); }
+.gift-receipt__share { padding-top: 14px; }
+.gift-receipt__share > p { margin: 0 0 10px; color: var(--text); font-size: 11px; line-height: 1.5; }
+.gift-receipt__share label { display: grid; gap: 6px; }
+.gift-receipt__share label > span { color: var(--muted); font-size: 9px; font-weight: 750; text-transform: uppercase; }
+.gift-receipt__share label > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surface-strong); }
+.gift-receipt__share input { min-width: 0; height: 44px; padding: 0 11px; border: 0; outline: 0; background: transparent; color: var(--muted); font-size: 10px; text-overflow: ellipsis; }
+.gift-receipt__share button { min-width: 104px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-left: 1px solid var(--line); background: #1264e8; color: #ffffff; font-size: 10px; font-weight: 800; }
+.gift-receipt__share button svg { width: 15px; height: 15px; }
+.gift-receipt__done { width: 100%; margin-top: 12px; }
+
+.admin-gift-editor .admin-payment-variables { margin-top: 12px; }
+.admin-gift-message .admin-field { margin-top: 12px; }
+.admin-gift-buttons__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 13px; border-top: 1px solid var(--line-soft); }
+.admin-gift-buttons__head > div { display: grid; gap: 2px; }
+.admin-gift-buttons__head strong { font-size: 11px; }
+.admin-gift-buttons__head span { color: var(--muted); font-size: 9px; }
+
+@media (max-width: 360px) {
+  .gift-plan-row { min-height: 54px; padding-inline: 13px; }
+  .gift-plan-row strong, .gift-plan-row span { font-size: 13px; }
+  .gift-receipt__share button { min-width: 46px; }
+  .gift-receipt__share button span { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gift-plan-row, .gift-username { transition: none; }
+}

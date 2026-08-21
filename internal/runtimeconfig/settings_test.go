@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"link-bot/internal/database"
 )
 
 func TestNormalizeAndValidatePreservesPlanOrder(t *testing.T) {
@@ -43,6 +45,41 @@ func TestDefaultSettingsStartsWithoutPlans(t *testing.T) {
 		!settings.Content.PaymentNotification.OpenUserButton.Enabled ||
 		!settings.Content.PaymentNotification.ProfileButton.Enabled {
 		t.Fatalf("unexpected default payment notification settings: %+v", settings.Content.PaymentNotification)
+	}
+	if strings.TrimSpace(settings.Content.Gift.Sender.Text) == "" || strings.TrimSpace(settings.Content.Gift.Recipient.Text) == "" ||
+		len(settings.Content.Gift.Sender.Buttons) == 0 || settings.Content.Gift.Sender.Buttons[0].Type != "gift" {
+		t.Fatalf("unexpected default gift settings: %+v", settings.Content.Gift)
+	}
+}
+
+func TestNormalizeGiftMessageSettingsPreservesDynamicGiftButton(t *testing.T) {
+	defaults := DefaultSettings().Content.Gift.Sender
+	message := TelegramGiftMessageSettings{
+		Text: " <b>Подарок для {recipient}</b> ",
+		Buttons: []database.BroadcastButton{{
+			ID: "gift_link", Type: "gift", Text: " Открыть подарок ", Style: " PRIMARY ",
+		}},
+	}
+	if err := NormalizeGiftMessageSettings(&message, defaults); err != nil {
+		t.Fatalf("NormalizeGiftMessageSettings() error = %v", err)
+	}
+	if message.Text != "<b>Подарок для {recipient}</b>" || len(message.Buttons) != 1 {
+		t.Fatalf("unexpected normalized gift message: %+v", message)
+	}
+	button := message.Buttons[0]
+	if button.Type != "gift" || button.URL != "" || button.Text != "Открыть подарок" || button.Style != "primary" {
+		t.Fatalf("unexpected normalized gift button: %+v", button)
+	}
+}
+
+func TestNormalizeGiftMessageSettingsRejectsUnsafeURL(t *testing.T) {
+	defaults := DefaultSettings().Content.Gift.Recipient
+	message := TelegramGiftMessageSettings{
+		Text:    "Подарок",
+		Buttons: []database.BroadcastButton{{ID: "bad", Type: "url", Text: "Открыть", URL: "javascript:alert(1)"}},
+	}
+	if err := NormalizeGiftMessageSettings(&message, defaults); err == nil {
+		t.Fatal("expected unsafe gift button URL error")
 	}
 }
 

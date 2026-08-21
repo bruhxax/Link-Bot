@@ -68,6 +68,25 @@ func (h Handler) StartCommandHandler(ctx context.Context, b *bot.Bot, update *mo
 			return
 		}
 	}
+	if err := h.customerRepository.UpdateTelegramUsername(ctxWithTime, existingCustomer.ID, update.Message.From.Username); err != nil {
+		slog.Error("error updating Telegram username", "error", err)
+		return
+	}
+	username := database.NormalizeTelegramUsername(update.Message.From.Username)
+	existingCustomer.TelegramUsername = nil
+	if username != "" {
+		existingCustomer.TelegramUsername = &username
+	}
+	startParam := ""
+	if fields := strings.Fields(update.Message.Text); len(fields) > 1 {
+		startParam = fields[1]
+	}
+	claimCtx := contextWithTelegramProfile(ctxWithTime, *update.Message.From)
+	if _, err := h.paymentService.ClaimPendingGifts(claimCtx, existingCustomer, update.Message.From.Username, startParam); err != nil {
+		slog.Error("error claiming subscription gift", "error", err, "telegramId", utils.MaskHalfInt64(existingCustomer.TelegramID))
+	} else if refreshed, refreshErr := h.customerRepository.FindById(ctxWithTime, existingCustomer.ID); refreshErr == nil && refreshed != nil {
+		existingCustomer = refreshed
+	}
 
 	h.deleteTrackedScreenMessage(ctxWithTime, b, update.Message.Chat.ID)
 

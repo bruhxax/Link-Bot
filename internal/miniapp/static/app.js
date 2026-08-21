@@ -675,7 +675,7 @@ const PAYMENT_LOGO_URLS = Object.freeze({
   pally: "/mini-app/assets/payment-pally.png",
 });
 
-const PAGES = ["dashboard", "buy", "setup", "support", "faq", "reviews", "referrals", "servers", "settings", "media", "login-methods", "payments", "terms", "privacy", "custom-page", "admin"];
+const PAGES = ["dashboard", "buy", "gift", "setup", "support", "faq", "reviews", "referrals", "servers", "settings", "media", "login-methods", "payments", "terms", "privacy", "custom-page", "admin"];
 const BOTTOM_NAV = ["dashboard", "buy", "support", "settings", "admin"];
 const SUPPORT_TABS = ["open", "history"];
 const PLATFORMS = ["windows", "android", "iphone", "mac"];
@@ -734,7 +734,12 @@ const previewPayload = {
       { id: 302, months: 1, planLabel: "Месяц", amount: 89, currency: "RUB", status: "paid", invoiceType: "yookassa", paymentMethodTitle: "Visa **** 4242", isAutoPayment: true, createdAt: new Date(Date.now() - 2 * 86400000).toISOString(), paidAt: new Date(Date.now() - 2 * 86400000).toISOString() },
     ],
   },
-  plans: [],
+  giftReceipt: null,
+  plans: [
+    { id: "gift-1m", months: 1, titleRu: "1 месяц", titleEn: "1 month", titleFa: "1 ماه", priceRub: 199, priceStars: 135, trafficLimitBytes: 0, deviceLimitCount: 3, recommended: true },
+    { id: "gift-3m", months: 3, titleRu: "3 месяца", titleEn: "3 months", titleFa: "3 ماه", priceRub: 450, priceStars: 305, trafficLimitBytes: 0, deviceLimitCount: 3 },
+    { id: "gift-6m", months: 6, titleRu: "6 месяцев", titleEn: "6 months", titleFa: "6 ماه", priceRub: 800, priceStars: 545, trafficLimitBytes: 0, deviceLimitCount: 3 },
+  ],
   paymentMethods: [{ id: "sbp" }, { id: "card" }, { id: "stars" }, { id: "crypto" }],
   links: { support: "https://t.me/your_support_username", channel: "https://t.me/your_channel_username" },
   servers: { items: [
@@ -745,15 +750,26 @@ const previewPayload = {
   meta: { now: new Date().toISOString(), botUrl: "https://t.me/your_bot_username", miniAppUrl: "https://example.com/mini-app/", googleClientId: "", starsNeedPriorPurchase: false },
 };
 
+if (previewMode && urlParams.get("giftReceipt") === "1") {
+	previewPayload.giftReceipt = {
+		purchaseId: 303,
+		recipientUsername: "examplefriend",
+		planLabel: "3 месяца",
+		shareUrl: "https://t.me/your_bot_username?start=gift_00000000-0000-4000-8000-000000000303",
+		delivered: false,
+		message: "<b>Вы отправили подарок @examplefriend</b>\n\nЕсли пользователь ещё не заходил в бота, подписка активируется после команды /start.",
+	};
+}
+
 const copybook = {
   ru: {
-    appName: "Link-Bot", refresh: "Обновить", retry: "Повторить", pageDashboard: "Личный кабинет", pageBuy: "Тарифы", pageSetup: "Установить и настроить", pageSupport: "Поддержка", pageFaq: "FAQ", pageReferrals: "Реферальная система", pageServers: "Статус серверов", pageSettings: "Профиль", pageAdmin: "Админ панель",
+    appName: "Link-Bot", refresh: "Обновить", retry: "Повторить", pageDashboard: "Личный кабинет", pageBuy: "Тарифы", pageGift: "Подарить", pageSetup: "Установить и настроить", pageSupport: "Поддержка", pageFaq: "FAQ", pageReferrals: "Реферальная система", pageServers: "Статус серверов", pageSettings: "Профиль", pageAdmin: "Админ панель",
     navDashboard: "Главная", navBuy: "Тарифы", navSupport: "Поддержка", navSettings: "Профиль", navAdmin: "Админ", dashboardLabel: "Основная", activeSubscription: "Подписка активна", inactiveSubscription: "Подписка не активна", trialAvailable: "Пробный доступ",
     buySubscription: "Купить подписку", extend: "Продлить", setup: "Подключиться", activateTrial: "Активировать пробный", support: "Поддержка", openAccess: "Открыть доступ", copyAccess: "Скопировать ссылку",
     loadingTitle: "Собираем ваш кабинет Link-Bot", loadingText: "Подтягиваем подписку, тарифы и быстрые действия.", openInTelegramTitle: "Откройте mini app из Telegram", openInTelegramText: "Telegram передаёт защищённые данные только внутри WebApp.", errorTitle: "Не удалось загрузить данные", subscriptionGateTitle: "Link-Bot Верификация", subscriptionGateLead: (channel) => `Чтобы открыть доступ к боту и mini app, подпишитесь на наш Telegram-канал ${channel}.`, subscriptionGateNews: "Там мы публикуем новости, обновления сервиса, важные изменения и полезные анонсы.", subscriptionGateHint: "После подписки нажмите кнопку ниже.", subscriptionGateOpen: "Link-Bot", subscriptionGateRetry: "✅ Я подписался",
     copied: "Ссылка скопирована", trialActivated: "Пробный период активирован", paymentOpened: "Окно оплаты открыто", invoiceOpened: "Инвойс открыт", paymentUnavailable: "Способ оплаты недоступен", noAccess: "Нет активной ссылки доступа", timeout: "Сервер не ответил вовремя", paymentCancelled: "Оплата отменена", paymentSuccess: "Успешная оплата", paymentPending: "Оплата ещё не завершена", resumePaymentTitle: "Оплата не завершена", resumePaymentText: "Продолжить оплату или вернуться в личный кабинет?", resumePaymentContinue: "Продолжить", resumePaymentReturn: "Вернуться в ЛК", paymentBrowserTitle: "Открыть оплату", paymentBrowserText: "Для СБП и банков на телефоне откроем YooKassa во внешнем браузере.", paymentBrowserOpen: "Открыть в браузере",
     invited: "Успешных приглашений", bonus: "Бонус", bonusDays: "Награда", expiresAt: "Истекает", quickAccess: "Быстрое подключение", shareReferral: "Поделиться", referralsHint: "Бонус начисляется только после того, как приглашённый пользователь оплатит любой тариф.", copyReferral: "Веб-ссылка", shareTelegram: "Telegram",
-    selectTerm: "Выберите срок", selectedPlan: "Выбранный тариф", paymentMethod: "Способ оплаты", choosePaymentMethod: "Выберите способ оплаты", pay: "Оплатить", best: "Выгодно", perPeriod: "за период", savings: (v) => `-${v}%`,
+    selectTerm: "Выберите срок", selectedPlan: "Выбранный тариф", paymentMethod: "Способ оплаты", choosePaymentMethod: "Выберите способ оплаты", pay: "Оплатить", best: "Выгодно", perPeriod: "за период", savings: (v) => `-${v}%`, giftProfileHint: "Подарить доступ другому пользователю", giftRecipient: "Кому подарить", giftRecipientHint: "Введите Telegram username получателя", giftUsernamePlaceholder: "username", giftPeriod: "Период подписки", giftAction: "Подарить", giftInvalidUsername: "Введите корректный @username", giftSelf: "Нельзя подарить подписку себе", giftSentTitle: "Подарок отправлен", giftSentTo: (username) => `Вы отправили подарок @${username}`, giftSentExisting: "Пользователь уже знаком с ботом — подписка доставлена автоматически.", giftSentPending: "Если пользователь ещё не заходил в бота, подарок придёт сразу после команды /start.", giftShareHint: "Отправьте ему ссылку на подарок, если его ещё нет в боте.", giftLinkLabel: "Ссылка на подарок", giftCopy: "Копировать", giftCopied: "Ссылка на подарок скопирована", giftDone: "Готово", giftPaymentStarted: "Оплата подарка открыта",
     starsNeedPriorPurchase: "Telegram Stars откроются после первой оплаты картой или криптой.", serverStatus: "Статус серверов", feedback: "Отзывы", channel: "Новости", tos: "Пользовательское соглашение", tosHint: "Условия использования сервиса Link-Bot", webVersion: "Открыть web-версию",
     supportTitle: "Поддержка", supportHint: "Связь с поддержкой и полезные ссылки в одном месте.", newTicket: "Новое обращение", newTicketHint: "Связаться с поддержкой", supportTickets: "Открытые", supportLinks: "Полезное", noTickets: "Нет открытых обращений", noTicketsHint: "Когда появятся тикеты, они отобразятся здесь.",
     supportOpenTab: "Открытые", supportHistoryTab: "История", supportFaqTitle: "Часто задаваемые вопросы", supportFaqHint: "Быстрые ответы перед созданием обращения", supportAdminHint: "Новые обращения и ответы появляются здесь автоматически.", supportNoOpenTitle: "Нет открытых обращений", supportNoOpenHint: "Когда появятся тикеты, они отобразятся здесь.", supportNoHistoryTitle: "История обращений пуста", supportNoHistoryHint: "Закрытые обращения будут храниться здесь.", supportCreateTitle: "Создать обращение", supportSubjectLabel: "Тема", supportSubjectPlaceholder: "Кратко опишите проблему", supportMessageLabel: "Сообщение", supportMessagePlaceholder: "Опишите вашу проблему или вопрос подробно...", supportSendButton: "Отправить", supportCloseButton: "Закрыть обращение", supportClosedTitle: "Обращение закрыто", supportClosedHint: "История переписки сохранена в разделе истории.", supportReplyPlaceholder: "Напишите сообщение...", supportLoadingThread: "Загружаем переписку...",
@@ -764,13 +780,13 @@ const copybook = {
     paymentsTitle: "Платежи", paymentsHint: "Оплаты и история покупок", autopayTitle: "Автоплатёж", paymentHistory: "История покупок", paymentHistoryEmpty: "Покупок пока нет", agreementText: "", agreementLink: "Пользовательское соглашение", agreementRequired: "Подтвердите соглашение перед оплатой",
   },
   en: {
-    appName: "Link-Bot", refresh: "Refresh", retry: "Retry", pageDashboard: "Dashboard", pageBuy: "Plans", pageSetup: "Setup", pageSupport: "Support", pageFaq: "FAQ", pageReferrals: "Referrals", pageServers: "Server status", pageSettings: "Profile", pageAdmin: "Admin panel",
+    appName: "Link-Bot", refresh: "Refresh", retry: "Retry", pageDashboard: "Dashboard", pageBuy: "Plans", pageGift: "Gift", pageSetup: "Setup", pageSupport: "Support", pageFaq: "FAQ", pageReferrals: "Referrals", pageServers: "Server status", pageSettings: "Profile", pageAdmin: "Admin panel",
     navDashboard: "Home", navBuy: "Plans", navSupport: "Support", navSettings: "Profile", navAdmin: "Admin", dashboardLabel: "Main", activeSubscription: "Subscription active", inactiveSubscription: "Subscription inactive", trialAvailable: "Trial access",
     buySubscription: "Buy subscription", extend: "Extend", setup: "Setup", activateTrial: "Activate trial", support: "Support", openAccess: "Open access", copyAccess: "Copy link",
     loadingTitle: "Building your Link-Bot dashboard", loadingText: "Loading subscription, plans and quick actions.", openInTelegramTitle: "Open this mini app from Telegram", openInTelegramText: "Telegram sends secure user data only inside the WebApp.", errorTitle: "Could not load data", subscriptionGateTitle: "Link-Bot Verification", subscriptionGateLead: (channel) => `To unlock the bot and mini app, subscribe to our Telegram channel ${channel}.`, subscriptionGateNews: "We post news, service updates, important changes and helpful announcements there.", subscriptionGateHint: "After subscribing, tap the button below.", subscriptionGateOpen: "Link-Bot", subscriptionGateRetry: "✅ I subscribed",
     copied: "Link copied", trialActivated: "Trial activated", paymentOpened: "Payment window opened", invoiceOpened: "Invoice opened", paymentUnavailable: "Payment method is unavailable", noAccess: "No active access link", timeout: "Server timeout", paymentCancelled: "Payment cancelled", paymentSuccess: "Payment successful", paymentPending: "Payment is not completed yet", resumePaymentTitle: "Payment not completed", resumePaymentText: "Continue payment or return to your dashboard?", resumePaymentContinue: "Continue", resumePaymentReturn: "Return to dashboard", paymentBrowserTitle: "Open payment", paymentBrowserText: "For SBP and mobile banking, we'll open YooKassa in your external browser.", paymentBrowserOpen: "Open in browser",
     invited: "Successful referrals", bonus: "Bonus", bonusDays: "Reward", expiresAt: "Expires", quickAccess: "Quick connection", shareReferral: "Share", referralsHint: "The reward is credited only after the invited user buys any subscription.", copyReferral: "Web link", shareTelegram: "Telegram",
-    selectTerm: "Choose a term", selectedPlan: "Selected plan", paymentMethod: "Payment method", choosePaymentMethod: "Choose payment method", pay: "Pay", best: "Best", perPeriod: "per period", savings: (v) => `-${v}%`,
+    selectTerm: "Choose a term", selectedPlan: "Selected plan", paymentMethod: "Payment method", choosePaymentMethod: "Choose payment method", pay: "Pay", best: "Best", perPeriod: "per period", savings: (v) => `-${v}%`, giftProfileHint: "Give access to another user", giftRecipient: "Recipient", giftRecipientHint: "Enter the recipient's Telegram username", giftUsernamePlaceholder: "username", giftPeriod: "Subscription period", giftAction: "Send gift", giftInvalidUsername: "Enter a valid @username", giftSelf: "You cannot gift a subscription to yourself", giftSentTitle: "Gift sent", giftSentTo: (username) => `You sent a gift to @${username}`, giftSentExisting: "The user already knows the bot, so the subscription was delivered automatically.", giftSentPending: "If the user has not opened the bot yet, the gift will arrive after /start.", giftShareHint: "Send this gift link if they have not used the bot yet.", giftLinkLabel: "Gift link", giftCopy: "Copy", giftCopied: "Gift link copied", giftDone: "Done", giftPaymentStarted: "Gift payment opened",
     starsNeedPriorPurchase: "Telegram Stars unlock after the first card or crypto payment.", serverStatus: "Server status", feedback: "Reviews", channel: "News", tos: "Terms of service", tosHint: "Rules and conditions for using Link-Bot", webVersion: "Open web version",
     supportTitle: "Support", supportHint: "Support and useful links in one place.", newTicket: "New ticket", newTicketHint: "Contact support", supportTickets: "Open", supportLinks: "Useful", noTickets: "No open tickets", noTicketsHint: "Your tickets will appear here.",
     faqTitle: "FAQ", faqHint: "Quick answers about setup and payments.", referralsTitle: "Referral program", appearance: "Appearance", appearanceHint: "Switch between light and dark themes inside the mini app.", theme: "Theme", darkTheme: "Dark", lightTheme: "Light", accentColor: "Accent", settingsLinks: "Useful links", referralSystem: "Referral system",
@@ -1352,7 +1368,7 @@ const ADMIN_LAYOUT_CATEGORIES = [
 const PROFILE_GROUP_ORDER = ["main", "purchases", "programs", "help", "account"];
 const PROFILE_DEFAULT_GROUPS = {
 	server_status: "main", media: "main", news: "main",
-	payments: "purchases",
+	gift: "purchases", payments: "purchases",
 	referrals: "programs", reviews: "programs",
 	terms: "help", privacy: "help",
 	login_methods: "account", web_version: "account", pwa_install: "account",
@@ -1365,6 +1381,7 @@ const ADMIN_LAYOUT_META = {
 	"support:tabs": ["\u0412\u043a\u043b\u0430\u0434\u043a\u0438", "menu"],
 	"support:tickets": ["\u041e\u0431\u0440\u0430\u0449\u0435\u043d\u0438\u044f", "headphonesAlt"],
 	"profile:server_status": ["\u0421\u0442\u0430\u0442\u0443\u0441 \u0441\u0435\u0440\u0432\u0435\u0440\u043e\u0432", "profileLayers"],
+	"profile:gift": ["\u041f\u043e\u0434\u0430\u0440\u0438\u0442\u044c", "gift"],
 	"profile:referrals": ["\u0420\u0435\u0444\u0435\u0440\u0430\u043b\u044c\u043d\u0430\u044f \u0441\u0438\u0441\u0442\u0435\u043c\u0430", "users"],
 	"profile:reviews": ["\u041e\u0442\u0437\u044b\u0432\u044b", "profileStar"],
 	"profile:payments": ["\u041f\u043b\u0430\u0442\u0435\u0436\u0438", "profileCard"],
@@ -1405,7 +1422,7 @@ const ADMIN_LAYOUT_DEFAULTS = [
 	["support", "faq", 11, 100, 64, false, "left"],
 	["support", "tabs_detail", 12, 100, 44, false, "left"],
 	["support", "tickets_detail", 13, 100, 220, false, "left"],
-	...["server_status", "referrals", "reviews", "payments", "media", "login_methods", "news", "web_version", "pwa_install", "terms", "privacy"].map((id, order) => ["profile", id, order, 100, 48, true, "left", PROFILE_DEFAULT_GROUPS[id]]),
+	...["server_status", "gift", "payments", "referrals", "reviews", "media", "login_methods", "news", "web_version", "pwa_install", "terms", "privacy"].map((id, order) => ["profile", id, order, 100, 48, true, "left", PROFILE_DEFAULT_GROUPS[id]]),
 	...["main", "purchases", "programs", "help", "account"].map((id, order) => ["profile", `group_${id}`, 20 + order, 100, 28, false, "left"]),
 	...["dashboard", "buy", "support", "settings", "admin"].map((id, order) => ["navigation", id, order, 44, 38, true, "center"]),
 ].map(([area, id, order, width, height, framed, align, group]) => ({ area, id, order, visible: true, width, height, framed, align, offsetX: 0, offsetY: 0, ...(group ? { group } : {}) }));
@@ -1638,9 +1655,9 @@ const ADMIN_APPEARANCE_PRESETS = [
 ];
 
 function buildPreviewRuntimeSettings() {
-	const features = Object.fromEntries(["mini_app", "stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "payments_history", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
+	const features = Object.fromEntries(["mini_app", "stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "payments_history", "gifts", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
-		version: 15,
+		version: 16,
 		localization: { language: "ru", fontFamily: "auto" },
 		maintenance: { enabled: false, titleRu: "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u044b", textRu: "", reasonRu: "" },
 		features,
@@ -1649,6 +1666,10 @@ function buildPreviewRuntimeSettings() {
 			verification: { text: "", banner: "", channelButton: { text: "Link-Bot", iconCustomEmojiId: "", style: "" }, confirmButton: { text: "Я подписался", iconCustomEmojiId: "", style: "" }, checkFailedText: "", notSubscribedText: "", verifiedText: "" },
 			startMenu: { trialButton: { text: "Попробовать бесплатно", iconCustomEmojiId: "5276422526350681413", style: "" }, dashboardButton: { text: "Вход", iconCustomEmojiId: "5278413853577734640", style: "" }, plansButton: { text: "Тарифы", iconCustomEmojiId: "5206626000665868017", style: "" }, supportButton: { text: "Чат с поддержкой", iconCustomEmojiId: "5206222720416643915", style: "" } },
 			commerce: { banner: "", tariffsText: "", paymentMethodsText: "", paymentReadyText: "", yookassaButton: { text: "СБП | Карта", iconCustomEmojiId: "5192678313415434135", style: "" }, cryptoButton: { text: "CryptoPay", iconCustomEmojiId: "5195058841988914267", style: "" }, starsButton: { text: "Telegram Stars", iconCustomEmojiId: "5242644275014951846", style: "" }, payButton: { text: "Оплатить", iconCustomEmojiId: "5206401524200145033", style: "" }, backButton: { text: "Назад", iconCustomEmojiId: "5877629862306385808", style: "" }, successText: "", successBanner: "", successButton: { text: "Личный кабинет", iconCustomEmojiId: "5278413853577734640", style: "" } },
+			gift: {
+				sender: { text: "<b>Подарок отправлен</b>\n\nВы подарили подписку пользователю <b>{recipient}</b>.\nТариф: <b>{plan}</b>.\n\nЕсли пользователь ещё не заходил в бот, отправьте ему ссылку: {gift_url}", buttons: [{ id: "gift_link", type: "gift", text: "Открыть подарок", iconCustomEmojiId: "", style: "primary" }] },
+				recipient: { text: "<b>Вам подарили подписку</b>\n\nПодарок от <b>{sender}</b>.\nТариф: <b>{plan}</b>.\nПодписка уже активирована.", buttons: [{ id: "gift_main", type: "main", text: "Открыть подписку", iconCustomEmojiId: "", style: "success" }] },
+			},
 			paymentNotification: { text: "💳 <b>Оплата:</b> <b>{{price}}</b>\n\n▦ <b>Тариф:</b> <b>{{sub}}</b>\n▦ <b>Доп. устройства:</b> <b>{{device}}</b>\n✈ <b>Telegram:</b> <b>{{username}}</b>\n◷ <b>Время:</b> <b>{{data}}</b>\n⚙ <b>Способ:</b> <b>{{integration}}</b>\n🏷 <b>Промокод:</b> <b>{{promo}}</b>\n▣ <b>Заказ:</b> <code>{{number}}</code>", openUserButton: { enabled: true, text: "Открыть пользователя в панели", iconCustomEmojiId: "", style: "primary" }, profileButton: { enabled: true, text: "Профиль", iconCustomEmojiId: "", style: "" } },
 		},
 		appearance: { backgroundMode: "animated", compact: true, showFrames: true, colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", waveBackground: "#000000", waveDot: "#ebebeb" } },
@@ -1755,6 +1776,11 @@ const state = {
   selectedPlatform: "windows",
   selectedPlanId: "",
   selectedPlanMonths: null,
+	selectedGiftPlanId: "",
+	giftUsernameDraft: "",
+	giftValidation: "",
+	giftBusy: "",
+	giftReceiptOpen: false,
   paymentMethod: readSetting(STORAGE_KEYS.payMethod, ""),
   serverFilter: "all",
   installGuidePlatform: getDefaultInstallPlatform(),
@@ -1816,6 +1842,7 @@ function pageFeatureEnabled(page) {
 		servers: "server_status",
 		media: "media",
 		payments: "payments_history",
+		gift: "gifts",
 		"login-methods": "login_methods",
 		terms: "terms",
 		privacy: "privacy",
@@ -2295,6 +2322,7 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
   try {
     if (!hasAuth() && previewMode) {
       state.data = deepClone(previewPayload);
+		syncGiftReceiptState();
       if (previewAdminMode) {
         const runtime = buildPreviewRuntimeSettings();
         state.data.support.isAdmin = true;
@@ -2332,6 +2360,7 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
     if (forceSubscriptionCheck) bootstrapHeaders["X-Force-Channel-Check"] = "1";
     const response = await post("/api/mini-app/bootstrap", null, bootstrapHeaders);
     state.data = response.data;
+		syncGiftReceiptState();
 		state.publicSettings = response.data?.runtime || state.publicSettings;
 		state.maintenance = null;
 		syncLocalizationFromSettings(response.data.runtime);
@@ -2535,8 +2564,13 @@ function ensureSelections() {
     state.selectedPlanId = planKey(selected);
     state.selectedPlanMonths = selected.months;
   }
+	const giftPlans = getGiftPlans();
+	if (!giftPlans.some((plan) => planKey(plan) === state.selectedGiftPlanId)) {
+		state.selectedGiftPlanId = planKey(giftPlans.find((plan) => plan.recommended) || giftPlans[0]);
+	}
 
-  const methods = getAvailableMethods(getSelectedPlan()).map((item) => item.id);
+	const checkoutPlan = state.currentPage === "gift" ? getSelectedGiftPlan() : getSelectedPlan();
+  const methods = getAvailableMethods(checkoutPlan).map((item) => item.id);
   if (!methods.length) state.paymentMethod = "";
   else if (!methods.includes(state.paymentMethod)) {
     state.paymentMethod = methods[0];
@@ -2551,6 +2585,10 @@ function ensureSelections() {
 		state.currentPage = "dashboard";
 		writeSetting(STORAGE_KEYS.page, state.currentPage);
 	}
+}
+
+function syncGiftReceiptState() {
+	if (state.data?.giftReceipt) state.giftReceiptOpen = true;
 }
 
 function isAdminUser() {
@@ -2568,7 +2606,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-	const modalOpen = state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen;
+	const modalOpen = state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -2626,6 +2664,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
       ${isModalVisible("payment-launch", state.paymentLaunchModalOpen) ? renderPaymentLaunchModal() : ""}
       ${isModalVisible("review-compose", state.reviewComposeOpen) ? renderReviewComposerModal() : ""}
 		${isModalVisible("review-detail", state.reviewDetailOpen) ? renderReviewDetailModal() : ""}
+		${isModalVisible("gift-receipt", state.giftReceiptOpen) ? renderGiftReceiptModal() : ""}
 		${state.adminPlanEditorModalOpen ? renderAdminPlanEditorModal() : ""}
 		${state.adminProfileEditorModalOpen ? renderAdminProfileEditorModal() : ""}
     </div>
@@ -2746,6 +2785,7 @@ function renderPages() {
   return [
     renderDashboardPage(),
     renderBuyPage(),
+		renderGiftPage(),
     renderSetupPage(),
     renderSupportPage(),
     renderFaqPage(),
@@ -2994,6 +3034,7 @@ function renderAdminFeaturesPage() {
 			hint: "Разделы, которые видит пользователь в профиле",
 			items: [
 				["server_status", "Статус серверов", "Состояние VPN-серверов"],
+				["gifts", "Подарки", "Дарение подписок другим пользователям"],
 				["payments_history", "Платежи", "История покупок"],
 				["reviews", "Отзывы", "Отзывы пользователей"],
 				["referrals", "Реферальная система", "Бонусы за приглашения"],
@@ -3032,6 +3073,7 @@ function renderAdminContentPage() {
 		["verification", "Верификация"],
 		["commerce", "Тарифы и оплата"],
 		["success", "После покупки"],
+		["gift", "Подарок"],
 		["payment-notifications", "Уведомления оплат"],
 		["support", "Поддержка"],
 		["notifications", "Уведомления"],
@@ -3052,6 +3094,7 @@ function renderAdminContentSection(section) {
 		case "verification": return renderAdminVerificationContent();
 		case "commerce": return renderAdminCommerceContent();
 		case "success": return renderAdminSuccessContent();
+		case "gift": return renderAdminGiftContent();
 		case "payment-notifications": return renderAdminPaymentNotificationContent();
 		case "support": return renderAdminSupportContent();
 		case "notifications": return renderAdminNotificationContent();
@@ -3125,6 +3168,54 @@ function renderAdminSuccessContent() {
 		${renderAdminSettingField("Текст после оплаты", "content.commerce.successText", { textarea: true, rows: 7 })}
 		${renderAdminTelegramButton("Переход в личный кабинет", "content.commerce.successButton")}
 	</section>`;
+}
+
+function renderAdminGiftContent() {
+	const gift = state.adminSettingsDraft?.content?.gift || { sender: { text: "", buttons: [] }, recipient: { text: "", buttons: [] } };
+	const variables = [
+		["{sender}", "username отправителя"],
+		["{recipient}", "username получателя"],
+		["{plan}", "название тарифа"],
+		["{gift_url}", "персональная ссылка /start"],
+	];
+	return `<section class="admin-editor__section admin-gift-editor">
+		<div class="admin-editor__section-head"><div><h3>Сообщения о подарке</h3><p>Тексты поддерживают Telegram HTML. Переменные заменяются перед отправкой.</p></div></div>
+		<div class="admin-payment-variables" aria-label="Переменные подарка">${variables.map(([name, hint]) => `<div><code>${escapeHtml(name)}</code><span>${escapeHtml(hint)}</span></div>`).join("")}</div>
+	</section>
+	${renderAdminGiftMessageEditor("sender", "Отправителю", "Показывает результат и ссылку, которой можно поделиться.", gift.sender)}
+	${renderAdminGiftMessageEditor("recipient", "Получателю", "Приходит после автоматической выдачи подарка или команды /start.", gift.recipient)}`;
+}
+
+function renderAdminGiftMessageEditor(kind, title, hint, message) {
+	const buttons = Array.isArray(message?.buttons) ? message.buttons : [];
+	const busy = state.adminBusy === `test-gift-${kind}`;
+	return `<section class="admin-editor__section admin-gift-message">
+		<div class="admin-editor__section-head"><div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(hint)}</p></div><button class="admin-reminder-test" type="button" data-action="admin-test-gift" data-value="${kind}" ${state.adminBusy ? "disabled" : ""}>${icon(busy ? "refresh" : "send")}<span>${busy ? "Отправляем" : "Отправить тест"}</span></button></div>
+		${renderAdminSettingField("Текст сообщения", `content.gift.${kind}.text`, { textarea: true, rows: 9 })}
+		<div class="admin-gift-buttons__head"><div><strong>Кнопки</strong><span>До 8 кнопок, как в рассылке</span></div><button class="admin-icon-button" type="button" data-action="admin-gift-add-button" data-value="${kind}" ${buttons.length >= 8 ? "disabled" : ""} aria-label="Добавить кнопку">${icon("plus")}</button></div>
+		<div class="admin-broadcast__buttons">${buttons.length ? buttons.map((button, index) => renderAdminGiftButton(kind, button, index)).join("") : `<p class="admin-broadcast__empty">Сообщение будет отправлено без кнопок.</p>`}</div>
+	</section>`;
+}
+
+function renderAdminGiftButton(kind, button, index) {
+	const typeOptions = [
+		["gift", "Ссылка на подарок"], ["url", "Ссылка"], ["main", "Главное меню"], ["reviews", "Отзывы"],
+		["referrals", "Реферальная система"], ["login_methods", "Способы входа"], ["support", "Поддержка"], ["devices", "Докупить устройства"],
+	];
+	const allowed = typeOptions.map(([value]) => value);
+	const type = allowed.includes(button?.type) ? button.type : "main";
+	const style = ["primary", "success", "danger"].includes(button?.style) ? button.style : "";
+	const styles = [["", "Обычная"], ["primary", "Синяя"], ["success", "Зелёная"], ["danger", "Красная"]];
+	return `<div class="admin-broadcast-button">
+		<div class="admin-broadcast-button__head"><strong>Кнопка ${index + 1}</strong><button class="admin-icon-button admin-icon-button--danger" type="button" data-action="admin-gift-remove-button" data-value="${index}" data-gift-kind="${kind}" aria-label="Удалить">${icon("trash")}</button></div>
+		<div class="admin-broadcast-button__grid">
+			<label><span>Тип</span><select data-gift-kind="${kind}" data-gift-index="${index}" data-gift-field="type">${typeOptions.map(([value, label]) => `<option value="${value}" ${type === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
+			<label><span>Текст кнопки</span><input type="text" maxlength="256" value="${escapeAttribute(button?.text || "")}" data-gift-kind="${kind}" data-gift-index="${index}" data-gift-field="text" placeholder="Открыть подарок"></label>
+		</div>
+		${type === "url" ? `<label><span>URL</span><input type="url" maxlength="256" value="${escapeAttribute(button?.url || "")}" data-gift-kind="${kind}" data-gift-index="${index}" data-gift-field="url" placeholder="https://..."></label>` : ""}
+		<label><span>ID premium emoji или полный код</span><input type="text" maxlength="128" value="${escapeAttribute(button?.iconCustomEmojiId || "")}" data-gift-kind="${kind}" data-gift-index="${index}" data-gift-field="iconCustomEmojiId" placeholder="5206222720416643915"></label>
+		<fieldset class="admin-broadcast-style"><legend>Цвет кнопки</legend><div>${styles.map(([value, label]) => `<button type="button" class="admin-broadcast-style__option ${style === value ? "is-selected" : ""}" data-action="admin-gift-set-style" data-gift-kind="${kind}" data-gift-index="${index}" data-value="${value}" aria-pressed="${style === value}"><i data-style="${value || "default"}"></i><span>${label}</span></button>`).join("")}</div></fieldset>
+	</div>`;
 }
 
 function renderAdminPaymentNotificationContent() {
@@ -4355,6 +4446,7 @@ function getProfileItems() {
 	const links = state.data?.links || {};
 	const definitions = {
 		server_status: { group: "main", label: copy.serverStatus, hint: formatServerStatusHint(), action: "go-page", value: "servers", icon: "profileLayers", feature: "server_status" },
+		gift: { group: "purchases", label: copy.pageGift || "Подарить", hint: copy.giftProfileHint || "", action: "go-page", value: "gift", icon: "gift", feature: "gifts" },
 		media: { group: "main", label: mediaLabel(), hint: mediaHint(), action: "go-page", value: "media", icon: "youtube", feature: "media" },
 		news: { group: "main", label: copy.channel, hint: linkHint(links.channel), action: "open-link", value: links.channel, icon: "profileLetter", feature: "news" },
 		payments: { group: "purchases", label: copy.paymentsTitle || "Payments", hint: copy.paymentsHint || "", action: "go-page", value: "payments", icon: "profileCard", feature: "payments_history" },
@@ -4512,6 +4604,53 @@ function renderLoginMethodsPage() {
       </div>
     </section>
   `;
+}
+
+function renderGiftPage() {
+	const copy = t();
+	const plans = getGiftPlans();
+	const selected = getSelectedGiftPlan();
+	const method = getSelectedPaymentMethod();
+	const username = normalizeGiftUsername(state.giftUsernameDraft);
+	const ownUsername = normalizeGiftUsername(state.data?.user?.username || "");
+	const validUsername = /^[a-z0-9_]{5,32}$/.test(username) && username !== ownUsername;
+	const busy = Boolean(state.giftBusy);
+	const error = state.giftValidation || (username && username === ownUsername ? copy.giftSelf : "");
+
+	return `
+		<section class="page gift-page ${pageClass("gift")}" id="page-gift" aria-labelledby="gift-page-heading">
+			<header class="gift-intro">
+				<span class="gift-intro__icon" aria-hidden="true">${icon("gift")}</span>
+				<div><h1 id="gift-page-heading">${escapeHtml(copy.pageGift || "Подарить")}</h1><p>${escapeHtml(copy.giftProfileHint || "")}</p></div>
+			</header>
+
+			<section class="gift-section" aria-labelledby="gift-recipient-heading">
+				<div class="gift-section__heading"><h2 id="gift-recipient-heading">${escapeHtml(copy.giftRecipient)}</h2><span>${escapeHtml(copy.giftRecipientHint)}</span></div>
+				<label class="gift-username ${error ? "is-invalid" : ""}">
+					<span class="gift-username__prefix" aria-hidden="true">@</span>
+					<input type="text" inputmode="text" autocapitalize="none" autocomplete="off" spellcheck="false" maxlength="33" value="${escapeAttribute(state.giftUsernameDraft)}" placeholder="${escapeAttribute(copy.giftUsernamePlaceholder)}" data-input="gift-username" aria-label="${escapeAttribute(copy.giftRecipient)}" aria-describedby="gift-username-help">
+				</label>
+				<div class="gift-field-help ${error ? "is-error" : ""}" id="gift-username-help" aria-live="polite">${escapeHtml(error || copy.giftRecipientHint)}</div>
+			</section>
+
+			<section class="gift-section" aria-labelledby="gift-period-heading">
+				<div class="gift-section__heading gift-section__heading--caps"><h2 id="gift-period-heading">${escapeHtml(copy.giftPeriod)}</h2></div>
+				${plans.length ? `<div class="gift-plan-list" role="radiogroup" aria-label="${escapeAttribute(copy.giftPeriod)}">${plans.map((plan) => {
+					const active = planKey(plan) === planKey(selected);
+					return `<button class="gift-plan-row ${active ? "is-selected" : ""}" type="button" role="radio" aria-checked="${active}" data-action="select-gift-plan" data-value="${escapeAttribute(planKey(plan))}"><strong>${escapeHtml(getPlanBaseTitle(plan, state.locale))}</strong><span>${escapeHtml(formatGiftPlanPrice(plan))}</span></button>`;
+				}).join("")}</div>` : `<div class="gift-empty"><strong>${escapeHtml(copy.noPlansTitle)}</strong><span>${escapeHtml(copy.noPlansHint)}</span></div>`}
+			</section>
+
+			<section class="gift-checkout" aria-label="${escapeAttribute(copy.paymentMethod)}">
+				<button class="gift-payment-row" type="button" data-action="open-pay-modal" ${!selected ? "disabled" : ""}>
+					<span class="gift-payment-row__brand">${method ? renderPaymentMethodLogo(method) : icon("wallet")}</span>
+					<span><small>${escapeHtml(copy.paymentMethod)}</small><strong>${escapeHtml(method?.label || copy.choosePaymentMethod)}</strong></span>
+					${icon("chevronRight")}
+				</button>
+				<button class="gift-submit" type="button" data-action="start-gift-payment" ${!selected || !method || !validUsername || busy ? "disabled" : ""}>${busy ? icon("refresh") : icon("gift")}<span>${escapeHtml(busy ? localizedText("Открываем оплату…", "Opening payment…", "در حال باز کردن پرداخت…") : copy.giftAction)}</span></button>
+			</section>
+		</section>
+	`;
 }
 
 function renderPaymentsPage() {
@@ -5149,7 +5288,37 @@ function renderPlatformButton(platform, selected) {
 
 function renderPayModal() {
   const copy = t();
-	return `<div class="modal open ${modalStateClass("pay")}"><button class="modal__backdrop" type="button" data-action="close-pay-modal"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title">${copy.choosePaymentMethod}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${localizedText("Закрыть способы оплаты", "Close payment methods", "بستن روش‌های پرداخت")}">${icon("close")}</button></div><div class="menu-list">${getAvailableMethods().map((method) => `<button class="pay-row ${state.paymentMethod === method.id ? "selected" : ""}" type="button" data-action="select-pay-method" data-value="${method.id}" aria-pressed="${state.paymentMethod === method.id}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(method.label)}</strong><span>${escapeHtml(method.hint)}</span></span><span class="pay-row__check">${state.paymentMethod === method.id ? icon("check") : ""}</span></button>`).join("") || `<div class="note">${copy.paymentUnavailable}</div>`}</div></div></div>`;
+	const plan = state.currentPage === "gift" ? getSelectedGiftPlan() : getSelectedPlan();
+	return `<div class="modal open ${modalStateClass("pay")}"><button class="modal__backdrop" type="button" data-action="close-pay-modal"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title">${copy.choosePaymentMethod}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${localizedText("Закрыть способы оплаты", "Close payment methods", "بستن روش‌های پرداخت")}">${icon("close")}</button></div><div class="menu-list">${getAvailableMethods(plan).map((method) => `<button class="pay-row ${state.paymentMethod === method.id ? "selected" : ""}" type="button" data-action="select-pay-method" data-value="${method.id}" aria-pressed="${state.paymentMethod === method.id}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(method.label)}</strong><span>${escapeHtml(method.hint)}</span></span><span class="pay-row__check">${state.paymentMethod === method.id ? icon("check") : ""}</span></button>`).join("") || `<div class="note">${copy.paymentUnavailable}</div>`}</div></div></div>`;
+}
+
+function renderGiftReceiptModal() {
+	const copy = t();
+	const receipt = state.data?.giftReceipt;
+	if (!receipt) return "";
+	const username = normalizeGiftUsername(receipt.recipientUsername || "");
+	const body = telegramMarkupToText(receipt.message || "");
+	const deliveryText = receipt.delivered
+		? localizedText("Подарок уже доставлен автоматически", "Gift delivered automatically", "هدیه به‌صورت خودکار تحویل شد")
+		: localizedText("Ожидает команду /start от получателя", "Waiting for the recipient to send /start", "در انتظار فرمان /start از گیرنده");
+	return `<div class="modal open gift-receipt-modal ${modalStateClass("gift-receipt")}" role="dialog" aria-modal="true" aria-labelledby="gift-receipt-title">
+		<button class="modal__backdrop" type="button" data-action="close-gift-receipt" aria-label="${escapeAttribute(copy.giftDone)}"></button>
+		<div class="modal__sheet modal__sheet--gift-receipt">
+			<div class="gift-receipt__mark" aria-hidden="true">${icon("gift")}</div>
+			<div class="modal__header gift-receipt__header"><div><div class="section-label">${escapeHtml(copy.giftSentTitle)}</div><div class="modal__title" id="gift-receipt-title">${escapeHtml(copy.giftSentTo(username))}</div></div><button class="header__btn" type="button" data-action="close-gift-receipt" aria-label="${escapeAttribute(copy.giftDone)}">${icon("close")}</button></div>
+			${body ? `<p class="gift-receipt__message">${escapeHtml(body)}</p>` : ""}
+			<p class="gift-receipt__delivery ${receipt.delivered ? "is-delivered" : ""}">${receipt.delivered ? icon("check") : icon("clock")}<span>${escapeHtml(deliveryText)}</span></p>
+			${receipt.shareUrl ? `<div class="gift-receipt__share"><p>${escapeHtml(copy.giftShareHint)}</p><label><span>${escapeHtml(copy.giftLinkLabel)}</span><div><input type="text" readonly value="${escapeAttribute(receipt.shareUrl)}" aria-label="${escapeAttribute(copy.giftLinkLabel)}"><button type="button" data-action="copy-gift-link" aria-label="${escapeAttribute(copy.giftCopy)}">${icon("copy")}<span>${escapeHtml(copy.giftCopy)}</span></button></div></label></div>` : ""}
+			<button class="gift-receipt__done" type="button" data-action="close-gift-receipt">${escapeHtml(copy.giftDone)}</button>
+		</div>
+	</div>`;
+}
+
+function telegramMarkupToText(value) {
+	const holder = document.createElement("div");
+	holder.innerHTML = String(value || "").replace(/<br\s*\/?>/gi, "\n").replace(/\n/g, "<br>");
+	holder.querySelectorAll("br").forEach((node) => node.replaceWith(document.createTextNode("\n")));
+	return String(holder.textContent || "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 function renderPaymentLaunchModal() {
@@ -5524,6 +5693,14 @@ function bindRootActions() {
         render();
         return;
       }
+		if (action === "select-gift-plan") {
+			const selectedPlan = getGiftPlans().find((plan) => planKey(plan) === value);
+			if (selectedPlan) state.selectedGiftPlanId = planKey(selectedPlan);
+			ensureSelections();
+			haptic("light");
+			render({ preserveScroll: true });
+			return;
+		}
       if (action === "open-pay-modal") { state.payModalOpen = true; render(); return; }
       if (action === "close-pay-modal") return requestModalClose("pay", () => { state.payModalOpen = false; });
       if (action === "close-payment-launch") return requestModalClose("payment-launch", () => { state.paymentLaunchModalOpen = false; state.paymentLaunchURL = ""; state.paymentLaunchPurchaseId = 0; });
@@ -5535,6 +5712,9 @@ function bindRootActions() {
       }
       if (action === "apply-promo") return await applyPromoCode();
       if (action === "pay-selected") return await startPayment();
+		if (action === "start-gift-payment") return await startGiftPayment();
+		if (action === "copy-gift-link") return state.data?.giftReceipt?.shareUrl ? copyToClipboard(state.data.giftReceipt.shareUrl).then(() => showToast(t().giftCopied, "success")) : undefined;
+		if (action === "close-gift-receipt") return closeGiftReceipt();
       if (action === "admin-create-promo") return await createAdminPromoCode();
       if (action === "admin-delete-promo") return await deleteAdminPromoCode(Number(value));
       if (action === "admin-find-subscription") return await findAdminSubscription();
@@ -5563,6 +5743,10 @@ function bindRootActions() {
 			if (action === "admin-test-reminder") return await testAdminSubscriptionReminder(value);
 			if (action === "admin-test-success") return await testAdminSubscriptionSuccess();
 			if (action === "admin-test-payment-notification") return await testAdminPaymentNotification();
+			if (action === "admin-test-gift") return await testAdminGift(value);
+			if (action === "admin-gift-add-button") return addAdminGiftButton(value);
+			if (action === "admin-gift-remove-button") return removeAdminGiftButton(target.dataset.giftKind, Number(value));
+			if (action === "admin-gift-set-style") return setAdminGiftButtonStyle(target.dataset.giftKind, Number(target.dataset.giftIndex), value);
 			if (action === "admin-appearance-preset") return applyAdminAppearancePreset(value);
 			if (action === "admin-save-settings") return await saveAdminSettings();
 			if (action === "admin-content-section") { state.adminContentSection = value || "start"; render(); return; }
@@ -5629,6 +5813,23 @@ function bindRootActions() {
 			state.adminBroadcastButtonsDirty = true;
 			const saveButton = app.querySelector('[data-action="admin-broadcast-save-buttons"]');
 			if (saveButton) saveButton.disabled = false;
+			return;
+		}
+		const giftKind = target?.dataset?.giftKind;
+		const giftIndex = Number(target?.dataset?.giftIndex);
+		const giftField = target?.dataset?.giftField;
+		const giftButtons = state.adminSettingsDraft?.content?.gift?.[giftKind]?.buttons;
+		if (["sender", "recipient"].includes(giftKind) && Number.isInteger(giftIndex) && giftIndex >= 0 && giftField && Array.isArray(giftButtons) && giftButtons[giftIndex]) {
+			const button = giftButtons[giftIndex];
+			button[giftField] = target.value;
+			if (giftField === "type") {
+				const allowed = ["gift", "url", "main", "reviews", "referrals", "login_methods", "support", "devices"];
+				button.type = allowed.includes(target.value) ? target.value : "main";
+				if (button.type !== "url") button.url = "";
+				render({ preserveScroll: true });
+			}
+			state.adminSettingsDirty = true;
+			syncAdminSaveBarDOM();
 			return;
 		}
 		const settingPath = target?.dataset?.settingPath;
@@ -5717,6 +5918,22 @@ function bindRootActions() {
 			state.subscriptionNameDraft = target.value;
 			const button = app.querySelector('[data-action="save-subscription"]');
 			if (button) button.disabled = !target.value.trim() || Boolean(state.subscriptionBusy);
+			return;
+		}
+		if (inputKey === "gift-username") {
+			const cleaned = String(target.value || "").replace(/\s+/g, "").replace(/^@{2,}/, "@");
+			state.giftUsernameDraft = cleaned;
+			if (target.value !== cleaned) target.value = cleaned;
+			state.giftValidation = "";
+			const username = normalizeGiftUsername(cleaned);
+			const own = normalizeGiftUsername(state.data?.user?.username || "");
+			const button = app.querySelector('[data-action="start-gift-payment"]');
+			if (button) button.disabled = !/^[a-z0-9_]{5,32}$/.test(username) || username === own || !getSelectedGiftPlan() || !getSelectedPaymentMethod() || Boolean(state.giftBusy);
+			const help = app.querySelector("#gift-username-help");
+			if (help && username === own) {
+				help.textContent = t().giftSelf;
+				help.classList.add("is-error");
+			}
 			return;
 		}
       if (inputKey === "promo-code") {
@@ -5874,6 +6091,68 @@ async function testAdminPaymentNotification() {
 		state.adminBusy = "";
 		render({ preserveScroll: true });
 		showToast("Тест отправлен в чат уведомлений об оплате", "success");
+	} catch (error) {
+		state.adminBusy = "";
+		render({ preserveScroll: true });
+		throw error;
+	}
+}
+
+function ensureAdminGiftDraft() {
+	if (!state.adminSettingsDraft?.content) return null;
+	if (!state.adminSettingsDraft.content.gift) {
+		state.adminSettingsDraft.content.gift = {
+			sender: { text: "", buttons: [] },
+			recipient: { text: "", buttons: [] },
+		};
+	}
+	for (const kind of ["sender", "recipient"]) {
+		if (!state.adminSettingsDraft.content.gift[kind]) state.adminSettingsDraft.content.gift[kind] = { text: "", buttons: [] };
+		if (!Array.isArray(state.adminSettingsDraft.content.gift[kind].buttons)) state.adminSettingsDraft.content.gift[kind].buttons = [];
+	}
+	return state.adminSettingsDraft.content.gift;
+}
+
+function addAdminGiftButton(kind) {
+	if (!["sender", "recipient"].includes(kind)) return;
+	const gift = ensureAdminGiftDraft();
+	const buttons = gift?.[kind]?.buttons;
+	if (!buttons || buttons.length >= 8) return;
+	buttons.push({ id: `gift_${kind}_${Date.now().toString(36)}`, type: kind === "sender" ? "gift" : "main", text: kind === "sender" ? "Открыть подарок" : "Личный кабинет", iconCustomEmojiId: "", style: kind === "sender" ? "primary" : "success", url: "" });
+	state.adminSettingsDirty = true;
+	haptic("light");
+	render({ preserveScroll: true });
+}
+
+function removeAdminGiftButton(kind, index) {
+	const buttons = ensureAdminGiftDraft()?.[kind]?.buttons;
+	if (!Array.isArray(buttons) || index < 0 || index >= buttons.length) return;
+	buttons.splice(index, 1);
+	state.adminSettingsDirty = true;
+	haptic("light");
+	render({ preserveScroll: true });
+}
+
+function setAdminGiftButtonStyle(kind, index, style) {
+	const buttons = ensureAdminGiftDraft()?.[kind]?.buttons;
+	if (!Array.isArray(buttons) || !buttons[index]) return;
+	buttons[index].style = ["primary", "success", "danger"].includes(style) ? style : "";
+	state.adminSettingsDirty = true;
+	haptic("light");
+	render({ preserveScroll: true });
+}
+
+async function testAdminGift(kind) {
+	if (!["sender", "recipient"].includes(kind) || state.adminBusy) return;
+	const message = ensureAdminGiftDraft()?.[kind];
+	if (!message) return;
+	state.adminBusy = `test-gift-${kind}`;
+	render({ preserveScroll: true });
+	try {
+		await post("/api/mini-app/admin/gifts/test", { kind, message });
+		state.adminBusy = "";
+		render({ preserveScroll: true });
+		showToast("Тестовое сообщение отправлено вам в Telegram", "success");
 	} catch (error) {
 		state.adminBusy = "";
 		render({ preserveScroll: true });
@@ -6114,6 +6393,7 @@ function syncAdminBroadcastPolling() {
 function getBuiltInProfileDefaults(id) {
 	const values = {
 		server_status: ["Статус серверов", "Состояние VPN-серверов"],
+		gift: ["Подарить", "Подарить подписку другому пользователю"],
 		payments: ["Платежи", "Оплаты и история покупок"],
 		reviews: ["Отзывы", "Отзывы пользователей сервиса"],
 		referrals: ["Реферальная система", "Бонусы за приглашённых пользователей"],
@@ -7907,6 +8187,90 @@ async function startPayment({ deviceOnly = false } = {}) {
   }
 }
 
+async function startGiftPayment() {
+	const copy = t();
+	const plan = getSelectedGiftPlan();
+	const method = getSelectedPaymentMethod()?.id || "";
+	const username = normalizeGiftUsername(state.giftUsernameDraft);
+	const ownUsername = normalizeGiftUsername(state.data?.user?.username || "");
+	if (!/^[a-z0-9_]{5,32}$/.test(username)) {
+		state.giftValidation = copy.giftInvalidUsername;
+		render({ preserveScroll: true });
+		return;
+	}
+	if (username === ownUsername) {
+		state.giftValidation = copy.giftSelf;
+		render({ preserveScroll: true });
+		return;
+	}
+	if (!plan || !method) return showToast(copy.paymentUnavailable, "danger");
+
+	state.giftBusy = method;
+	state.giftValidation = "";
+	render({ preserveScroll: true });
+	let navigatingAway = false;
+	try {
+		const response = await post("/api/mini-app/gifts/purchase", {
+			username,
+			planId: plan.id || "",
+			months: Number(plan.months || 0),
+			paymentMethod: method,
+		});
+		const { action, url, purchaseId } = response.data || {};
+		if (action === "open_invoice") {
+			if (typeof tg?.openInvoice === "function") {
+				tg.openInvoice(url, async (status) => {
+					if (status === "paid") {
+						await safeRefresh();
+						showToast(copy.giftSentTitle, "success");
+						return;
+					}
+					if (status && status !== "pending") showToast(copy.paymentCancelled, "danger");
+				});
+			} else {
+				openExternal(url);
+			}
+		} else if (action === "open_in_app") {
+			if (shouldLaunchYookassaInBrowser()) {
+				const numericPurchaseId = Number(purchaseId) || 0;
+				if (numericPurchaseId > 0) storePendingPayment({ purchaseId: numericPurchaseId, startedAt: Date.now() });
+				openExternal(url);
+				showToast(copy.giftPaymentStarted);
+				setTimeout(() => safeRefresh(), 4000);
+			} else {
+				navigatingAway = true;
+				navigateInMiniApp(url);
+			}
+		} else {
+			openExternal(url);
+			showToast(copy.giftPaymentStarted);
+			setTimeout(() => safeRefresh(), 4000);
+		}
+	} catch (error) {
+		if (["invalid_gift_username", "gift_to_self"].includes(String(error?.code || ""))) {
+			state.giftValidation = error.code === "gift_to_self" ? copy.giftSelf : copy.giftInvalidUsername;
+			render({ preserveScroll: true });
+			return;
+		}
+		throw error;
+	} finally {
+		state.giftBusy = "";
+		if (!navigatingAway) render({ preserveScroll: true });
+	}
+}
+
+function closeGiftReceipt() {
+	const receipt = state.data?.giftReceipt;
+	const finish = () => {
+		state.giftReceiptOpen = false;
+		if (state.data) state.data.giftReceipt = null;
+	};
+	requestModalClose("gift-receipt", finish);
+	if (Number(receipt?.purchaseId || 0) > 0) {
+		post("/api/mini-app/gifts/seen", { purchaseId: Number(receipt.purchaseId) }).catch(() => {});
+	}
+}
+
 async function createAdminPromoCode() {
   const code = normalizePromoCodeValue(state.adminPromoCodeDraft);
   const discountPercent = Number.parseInt(String(state.adminPromoDiscountDraft || "").trim(), 10);
@@ -8239,6 +8603,7 @@ function syncNativeBackButton() {
 function shouldShowNativeBackButton() {
 	return Boolean(
 		state.adminLayoutEditing || state.adminPlanEditing || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen ||
+		state.giftReceiptOpen ||
     state.supportThreadOpen ||
     state.supportComposeOpen ||
     state.devicesModalOpen ||
@@ -8254,12 +8619,13 @@ function shouldShowNativeBackButton() {
 
 function getNativeBackTargetPage() {
   if (state.currentPage === "faq") return "support";
-  if (["servers", "referrals", "reviews", "media", "login-methods", "payments", "terms", "privacy", "custom-page"].includes(state.currentPage)) return "settings";
+  if (["gift", "servers", "referrals", "reviews", "media", "login-methods", "payments", "terms", "privacy", "custom-page"].includes(state.currentPage)) return "settings";
   if (["buy", "setup", "support", "settings", "admin"].includes(state.currentPage)) return "dashboard";
   return "dashboard";
 }
 
 function handleNativeBackButton() {
+	if (state.giftReceiptOpen) return closeGiftReceipt();
 	if (state.adminProfileEditorModalOpen) return closeAdminProfileEditorModal();
 	if (state.adminPlanEditorModalOpen) return closeAdminPlanEditorModal();
 	if (state.adminPlanEditing) return exitAdminPlanEditor();
@@ -8283,6 +8649,7 @@ function handleNativeBackButton() {
 }
 
 function getActiveModalName() {
+	if (state.giftReceiptOpen) return "gift-receipt";
 	if (state.adminProfileEditorModalOpen) return "admin-profile-editor";
 	if (state.adminPlanEditorModalOpen) return "admin-plan-editor";
 	if (state.subscriptionDeleteOpen) return "subscription-delete";
@@ -8442,6 +8809,7 @@ function getPageTitle(page, short = false) {
   const map = {
     dashboard: short ? copy.navDashboard : copy.pageDashboard,
     buy: short ? copy.navBuy : copy.pageBuy,
+		gift: copy.pageGift || "Подарить",
     setup: copy.pageSetup,
     support: short ? copy.navSupport : copy.pageSupport,
     faq: copy.pageFaq,
@@ -8460,7 +8828,7 @@ function getPageTitle(page, short = false) {
 
 function headerBackAction() {
   if (state.currentPage === "dashboard") return 'data-action="open-sidebar"';
-  if (["media", "login-methods", "terms"].includes(state.currentPage)) return 'data-action="go-page" data-value="settings"';
+  if (["gift", "media", "login-methods", "payments", "terms"].includes(state.currentPage)) return 'data-action="go-page" data-value="settings"';
   if (state.currentPage === "admin" && state.adminSection !== "home") return 'data-action="close-admin-section"';
   return 'data-action="go-home"';
 }
@@ -8471,7 +8839,7 @@ function bottomNavIcon(page) {
 
 function getBottomNavActivePage() {
   if (state.currentPage === "faq") return "support";
-  if (["media", "login-methods", "payments", "terms", "referrals", "servers"].includes(state.currentPage)) return "settings";
+  if (["gift", "media", "login-methods", "payments", "terms", "referrals", "servers"].includes(state.currentPage)) return "settings";
   return state.currentPage;
 }
 
@@ -8609,6 +8977,24 @@ function getSelectedPlan() {
   return plans.find((plan) => planKey(plan) === state.selectedPlanId) || plans[0] || null;
 }
 
+function getGiftPlans() {
+	return (state.data?.plans || []).filter((plan) => plan && plan.enabled !== false && Number(plan.months || 0) > 0 && (Number(plan.priceRub || 0) > 0 || Number(plan.priceStars || 0) > 0));
+}
+
+function getSelectedGiftPlan() {
+	const plans = getGiftPlans();
+	return plans.find((plan) => planKey(plan) === state.selectedGiftPlanId) || plans.find((plan) => plan.recommended) || plans[0] || null;
+}
+
+function normalizeGiftUsername(value) {
+	return String(value || "").trim().replace(/^@+/, "").toLowerCase();
+}
+
+function formatGiftPlanPrice(plan) {
+	if (state.paymentMethod === "stars") return `${formatNumber(Number(plan?.priceStars || 0), state.locale)} ⭐`;
+	return formatCurrency(Number(plan?.priceRub || 0), state.locale);
+}
+
 function getAvailableMethods(plan = getSelectedPlan()) {
 	const pack = getSelectedDevicePack();
   return (state.data?.paymentMethods || [])
@@ -8618,7 +9004,8 @@ function getAvailableMethods(plan = getSelectedPlan()) {
 }
 
 function getSelectedPaymentMethod() {
-  const methods = getAvailableMethods();
+	const plan = state.currentPage === "gift" ? getSelectedGiftPlan() : getSelectedPlan();
+  const methods = getAvailableMethods(plan);
   return methods.find((method) => method.id === state.paymentMethod) || methods[0] || null;
 }
 
@@ -9304,6 +9691,8 @@ function icon(name) {
 		return `<span class="app-svg-icon app-svg-icon--${ADMIN_ICON_CLASSES[name]}" aria-hidden="true"></span>`;
 	}
   const icons = {
+		gift: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4 10h16v9.2A1.8 1.8 0 0 1 18.2 21H5.8A1.8 1.8 0 0 1 4 19.2V10ZM3 7.2h18V10H3V7.2ZM12 7.2V21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7.2H8.7A2.7 2.7 0 0 1 6 4.5 2.5 2.5 0 0 1 8.5 2c2.1 0 3.5 2.2 3.5 5.2Zm0 0h3.3A2.7 2.7 0 0 0 18 4.5 2.5 2.5 0 0 0 15.5 2C13.4 2 12 4.2 12 7.2Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+		clock: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 		language: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 12h17M12 3c2.2 2.5 3.3 5.5 3.3 9S14.2 18.5 12 21M12 3C9.8 5.5 8.7 8.5 8.7 12s1.1 6.5 3.3 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
 		wrench: `<svg viewBox="0 0 24 24" fill="none"><path d="M14.7 6.2a4.8 4.8 0 0 0-6.1 6.1L3.8 17a2.1 2.1 0 1 0 3 3l4.8-4.8a4.8 4.8 0 0 0 6.1-6.1l-2.8 2.8-2.8-.7-.7-2.8 3.3-2.2Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 		maintenanceKey: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12 8v5m0 3h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,

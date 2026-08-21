@@ -56,20 +56,23 @@ type PaymentService struct {
 }
 
 type CreatePurchaseOptions struct {
-	SubscriptionID       *int64
-	AgreementAccepted    bool
-	IsAutoPayment        bool
-	ParentPurchaseID     *int64
-	PlanID               string
-	TrafficLimitBytes    *int64
-	DeviceLimitCount     *int
-	PromoCodeID          *int64
-	PromoCodeCode        string
-	PromoDiscountPercent int
-	PurchaseKind         database.PurchaseKind
-	ExtraDevices         int
-	IsFreePlan           bool
-	FreePlanOneTime      bool
+	SubscriptionID          *int64
+	AgreementAccepted       bool
+	IsAutoPayment           bool
+	ParentPurchaseID        *int64
+	PlanID                  string
+	TrafficLimitBytes       *int64
+	DeviceLimitCount        *int
+	PromoCodeID             *int64
+	PromoCodeCode           string
+	PromoDiscountPercent    int
+	PurchaseKind            database.PurchaseKind
+	ExtraDevices            int
+	IsFreePlan              bool
+	FreePlanOneTime         bool
+	GiftRecipientUsername   string
+	GiftRecipientCustomerID *int64
+	GiftToken               *uuid.UUID
 }
 
 const freePlanRenewalWindow = 7 * 24 * time.Hour
@@ -174,6 +177,9 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	}
 	if customer == nil {
 		return fmt.Errorf("customer %s not found", utils.MaskHalfInt64(purchase.CustomerID))
+	}
+	if purchase.PurchaseKind == database.PurchaseKindGift {
+		return s.processGiftPurchase(ctx, purchase, customer)
 	}
 	subscription, err := s.subscriptionForPurchase(ctx, customer, purchase)
 	if err != nil {
@@ -767,6 +773,9 @@ func (s PaymentService) createCryptoInvoice(ctx context.Context, amount float64,
 		ExtraDevices:             options.ExtraDevices,
 		IsFreePlan:               options.IsFreePlan,
 		FreePlanOneTime:          options.FreePlanOneTime,
+		GiftRecipientUsername:    optionalTrimmedStringPointer(options.GiftRecipientUsername),
+		GiftRecipientCustomerID:  options.GiftRecipientCustomerID,
+		GiftToken:                options.GiftToken,
 	})
 	if err != nil {
 		slog.Error("Error creating purchase", "error", err)
@@ -829,6 +838,9 @@ func (s PaymentService) createYookasaInvoice(ctx context.Context, amount float64
 		ExtraDevices:             options.ExtraDevices,
 		IsFreePlan:               options.IsFreePlan,
 		FreePlanOneTime:          options.FreePlanOneTime,
+		GiftRecipientUsername:    optionalTrimmedStringPointer(options.GiftRecipientUsername),
+		GiftRecipientCustomerID:  options.GiftRecipientCustomerID,
+		GiftToken:                options.GiftToken,
 	})
 	if err != nil {
 		slog.Error("Error creating purchase", "error", err)
@@ -880,6 +892,9 @@ func (s PaymentService) createExternalInvoice(ctx context.Context, amount float6
 		ExtraDevices:             options.ExtraDevices,
 		IsFreePlan:               options.IsFreePlan,
 		FreePlanOneTime:          options.FreePlanOneTime,
+		GiftRecipientUsername:    optionalTrimmedStringPointer(options.GiftRecipientUsername),
+		GiftRecipientCustomerID:  options.GiftRecipientCustomerID,
+		GiftToken:                options.GiftToken,
 	})
 	if err != nil {
 		return "", 0, err
@@ -1043,6 +1058,9 @@ func (s PaymentService) createTelegramInvoice(ctx context.Context, amount float6
 		ExtraDevices:             options.ExtraDevices,
 		IsFreePlan:               options.IsFreePlan,
 		FreePlanOneTime:          options.FreePlanOneTime,
+		GiftRecipientUsername:    optionalTrimmedStringPointer(options.GiftRecipientUsername),
+		GiftRecipientCustomerID:  options.GiftRecipientCustomerID,
+		GiftToken:                options.GiftToken,
 	})
 	if err != nil {
 		slog.Error("Error creating purchase", "error", err)

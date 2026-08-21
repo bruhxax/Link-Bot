@@ -451,6 +451,12 @@ func buildKeyboard(buttons []database.BroadcastButton) models.ReplyMarkup {
 	return &models.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
+// BuildKeyboard exposes the same validated Telegram button rendering used by
+// broadcasts to other message flows, such as subscription gifts.
+func BuildKeyboard(buttons []database.BroadcastButton) models.ReplyMarkup {
+	return buildKeyboard(buttons)
+}
+
 func promoMiniAppURL(code string) string {
 	return miniAppPageURL("buy", map[string]string{"promo": database.NormalizePromoCode(code)})
 }

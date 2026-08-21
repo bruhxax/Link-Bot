@@ -16,12 +16,13 @@ import (
 
 	"github.com/google/uuid"
 
+	"link-bot/internal/broadcast"
 	"link-bot/internal/config"
 	"link-bot/internal/database"
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 15
+const CurrentVersion = 16
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -44,6 +45,7 @@ var featureOrder = []string{
 	"promocodes",
 	"server_status",
 	"payments_history",
+	"gifts",
 	"news",
 	"login_methods",
 	"terms",
@@ -168,6 +170,16 @@ type TelegramPaymentNotificationSettings struct {
 	ProfileButton  OptionalTelegramButtonSettings `json:"profileButton"`
 }
 
+type TelegramGiftMessageSettings struct {
+	Text    string                     `json:"text"`
+	Buttons []database.BroadcastButton `json:"buttons"`
+}
+
+type TelegramGiftSettings struct {
+	Sender    TelegramGiftMessageSettings `json:"sender"`
+	Recipient TelegramGiftMessageSettings `json:"recipient"`
+}
+
 type ContentSettings struct {
 	BrandName                  string                              `json:"brandName"`
 	AdminContact               string                              `json:"adminContact"`
@@ -186,6 +198,7 @@ type ContentSettings struct {
 	StartMenu                  TelegramStartMenuSettings           `json:"startMenu"`
 	Commerce                   TelegramCommerceSettings            `json:"commerce"`
 	PaymentNotification        TelegramPaymentNotificationSettings `json:"paymentNotification"`
+	Gift                       TelegramGiftSettings                `json:"gift"`
 }
 
 type TelegramButtonSettings struct {
@@ -441,6 +454,20 @@ func DefaultSettings() Settings {
 					},
 				},
 			},
+			Gift: TelegramGiftSettings{
+				Sender: TelegramGiftMessageSettings{
+					Text: "<b>Вы отправили подарок {recipient}</b>\n\nЕсли этот пользователь уже заходил в нашего бота, подарок придёт ему автоматически. Если нет — подписка активируется, когда он напишет /start.\n\nОтправьте ему ссылку на подарок, если его ещё нет в боте.",
+					Buttons: []database.BroadcastButton{{
+						ID: "gift_link", Type: "gift", Text: "Открыть подарок", Style: "primary",
+					}},
+				},
+				Recipient: TelegramGiftMessageSettings{
+					Text: "<b>Вам подарили подписку 🎁</b>\n\n{sender} отправил вам тариф <b>{plan}</b>. Подписка уже активирована и готова к использованию.",
+					Buttons: []database.BroadcastButton{{
+						ID: "gift_account", Type: "main", Text: "Личный кабинет", Style: "success",
+					}},
+				},
+			},
 		},
 		Appearance: AppearanceSettings{
 			BackgroundMode: "animated",
@@ -553,6 +580,20 @@ func LocalizeTelegramDefaults(content ContentSettings, language string) ContentS
 	content.Commerce.BackButton.Text = localized(content.Commerce.BackButton.Text, "Назад", "Back", "بازگشت")
 	content.Commerce.SuccessText = localized(content.Commerce.SuccessText, "<b>Подписка успешно активирована ✅</b>\n\nПриятного и безопасного интернета!", "<b>Subscription activated successfully ✅</b>\n\nEnjoy a safe connection!", "<b>اشتراک با موفقیت فعال شد ✅</b>\n\nاز اتصال امن خود لذت ببرید!")
 	content.Commerce.SuccessButton.Text = localized(content.Commerce.SuccessButton.Text, "Личный кабинет", "Account", "حساب کاربری")
+	content.Gift.Sender.Text = localized(content.Gift.Sender.Text,
+		"<b>Вы отправили подарок {recipient}</b>\n\nЕсли этот пользователь уже заходил в нашего бота, подарок придёт ему автоматически. Если нет — подписка активируется, когда он напишет /start.\n\nОтправьте ему ссылку на подарок, если его ещё нет в боте.",
+		"<b>You sent a gift to {recipient}</b>\n\nIf this user has already opened our bot, the gift will arrive automatically. Otherwise, the subscription activates when they send /start.\n\nSend them the gift link if they have not used the bot yet.",
+		"<b>شما برای {recipient} هدیه فرستادید</b>\n\nاگر این کاربر قبلاً ربات را باز کرده باشد، هدیه خودکار می‌رسد. در غیر این صورت با ارسال /start اشتراک فعال می‌شود.\n\nاگر هنوز از ربات استفاده نکرده است، لینک هدیه را برای او بفرستید.")
+	content.Gift.Recipient.Text = localized(content.Gift.Recipient.Text,
+		"<b>Вам подарили подписку 🎁</b>\n\n{sender} отправил вам тариф <b>{plan}</b>. Подписка уже активирована и готова к использованию.",
+		"<b>You received a subscription gift 🎁</b>\n\n{sender} sent you the <b>{plan}</b> plan. Your subscription is active and ready to use.",
+		"<b>یک اشتراک هدیه گرفتید 🎁</b>\n\n{sender} تعرفه <b>{plan}</b> را برای شما فرستاد. اشتراک فعال و آماده استفاده است.")
+	if len(content.Gift.Sender.Buttons) == 1 {
+		content.Gift.Sender.Buttons[0].Text = localized(content.Gift.Sender.Buttons[0].Text, "Открыть подарок", "Open gift", "باز کردن هدیه")
+	}
+	if len(content.Gift.Recipient.Buttons) == 1 {
+		content.Gift.Recipient.Buttons[0].Text = localized(content.Gift.Recipient.Buttons[0].Text, "Личный кабинет", "Account", "حساب کاربری")
+	}
 
 	content.Support.NewTicketText = localized(content.Support.NewTicketText, "🆕 <b>Новое обращение #{ticket_id}</b>\n\n👤 <b>Пользователь:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>Подписка:</b> {subscription}\n\n💬 <b>Сообщение:</b>\n{message}", "🆕 <b>New ticket #{ticket_id}</b>\n\n👤 <b>User:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>Subscription:</b> {subscription}\n\n💬 <b>Message:</b>\n{message}", "🆕 <b>درخواست جدید #{ticket_id}</b>\n\n👤 <b>کاربر:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>اشتراک:</b> {subscription}\n\n💬 <b>پیام:</b>\n{message}")
 	content.Support.CustomerReplyText = localized(content.Support.CustomerReplyText, "📩 <b>Обращение #{ticket_id}</b>\nПолучен новый ответ от пользователя.\n\n👤 <b>Пользователь:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>Подписка:</b> {subscription}\n\n{message}", "📩 <b>Ticket #{ticket_id}</b>\nA new reply was received from the user.\n\n👤 <b>User:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>Subscription:</b> {subscription}\n\n{message}", "📩 <b>درخواست #{ticket_id}</b>\nپاسخ جدیدی از کاربر دریافت شد.\n\n👤 <b>کاربر:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>اشتراک:</b> {subscription}\n\n{message}")
@@ -628,7 +669,7 @@ func uuidString(value uuid.UUID) string {
 func defaultLayoutElements() []LayoutElement {
 	profileGroups := map[string]string{
 		"server_status": "main", "media": "main", "news": "main",
-		"payments":  "purchases",
+		"payments": "purchases", "gift": "purchases",
 		"referrals": "programs", "reviews": "programs",
 		"terms": "help", "privacy": "help",
 		"login_methods": "account", "web_version": "account", "pwa_install": "account",
@@ -643,7 +684,7 @@ func defaultLayoutElements() []LayoutElement {
 	}{
 		{"buy", []string{"plans", "checkout"}, 100, 220, "left", false},
 		{"support", []string{"actions", "tabs", "tickets"}, 100, 92, "left", false},
-		{"profile", []string{"server_status", "referrals", "reviews", "payments", "media", "login_methods", "news", "web_version", "pwa_install", "terms", "privacy"}, 100, 48, "left", true},
+		{"profile", []string{"server_status", "gift", "payments", "referrals", "reviews", "media", "login_methods", "news", "web_version", "pwa_install", "terms", "privacy"}, 100, 48, "left", true},
 		{"navigation", []string{"dashboard", "buy", "support", "settings", "admin"}, 44, 38, "center", true},
 	}
 
@@ -1080,6 +1121,7 @@ func validateContent(value *ContentSettings, defaults ContentSettings, legacy bo
 	allowedProfileButtons := map[string]bool{
 		"server_status": true,
 		"payments":      true,
+		"gift":          true,
 		"reviews":       true,
 		"referrals":     true,
 		"media":         true,
@@ -1206,6 +1248,7 @@ func normalizeLegalDocument(value LegalDocumentSettings, fallbackTitle string) L
 func normalizeTelegramContent(value *ContentSettings, defaults ContentSettings, legacy bool) error {
 	if legacy {
 		value.PaymentNotification = defaults.PaymentNotification
+		value.Gift = defaults.Gift
 	}
 	value.PaymentNotification.Text = normalizedRequiredText(value.PaymentNotification.Text, defaults.PaymentNotification.Text, 3500)
 	if err := normalizeTelegramButton(&value.PaymentNotification.OpenUserButton.TelegramButtonSettings, defaults.PaymentNotification.OpenUserButton.TelegramButtonSettings); err != nil {
@@ -1213,6 +1256,12 @@ func normalizeTelegramContent(value *ContentSettings, defaults ContentSettings, 
 	}
 	if err := normalizeTelegramButton(&value.PaymentNotification.ProfileButton.TelegramButtonSettings, defaults.PaymentNotification.ProfileButton.TelegramButtonSettings); err != nil {
 		return fmt.Errorf("payment notification profile button: %w", err)
+	}
+	if err := NormalizeGiftMessageSettings(&value.Gift.Sender, defaults.Gift.Sender); err != nil {
+		return fmt.Errorf("gift sender message: %w", err)
+	}
+	if err := NormalizeGiftMessageSettings(&value.Gift.Recipient, defaults.Gift.Recipient); err != nil {
+		return fmt.Errorf("gift recipient message: %w", err)
 	}
 
 	value.Verification.Text = normalizedRequiredText(value.Verification.Text, defaults.Verification.Text, 3500)
@@ -1289,6 +1338,37 @@ func normalizeTelegramContent(value *ContentSettings, defaults ContentSettings, 
 			return fmt.Errorf("%s: %w", item.name, err)
 		}
 	}
+	return nil
+}
+
+func NormalizeGiftMessageSettings(value *TelegramGiftMessageSettings, fallback TelegramGiftMessageSettings) error {
+	if value == nil {
+		return errors.New("gift message is required")
+	}
+	value.Text = normalizedRequiredText(value.Text, fallback.Text, 3500)
+	if value.Buttons == nil {
+		value.Buttons = append([]database.BroadcastButton(nil), fallback.Buttons...)
+	}
+	mapped := append([]database.BroadcastButton(nil), value.Buttons...)
+	dynamic := make(map[int]bool)
+	for index := range mapped {
+		if strings.EqualFold(strings.TrimSpace(mapped[index].Type), "gift") {
+			dynamic[index] = true
+			mapped[index].Type = "url"
+			mapped[index].URL = "https://t.me/example_bot?start=gift_example"
+		}
+	}
+	clean, err := broadcast.ValidateButtons(mapped)
+	if err != nil {
+		return err
+	}
+	for index := range clean {
+		if dynamic[index] {
+			clean[index].Type = "gift"
+			clean[index].URL = ""
+		}
+	}
+	value.Buttons = clean
 	return nil
 }
 

@@ -26,6 +26,7 @@ func NewCustomerRepository(poll *pgxpool.Pool) *CustomerRepository {
 type Customer struct {
 	ID                            int64      `db:"id"`
 	TelegramID                    int64      `db:"telegram_id"`
+	TelegramUsername              *string    `db:"telegram_username"`
 	ExpireAt                      *time.Time `db:"expire_at"`
 	CreatedAt                     time.Time  `db:"created_at"`
 	SubscriptionLink              *string    `db:"subscription_link"`
@@ -50,6 +51,7 @@ type Customer struct {
 var customerSelectColumns = []string{
 	"id",
 	"telegram_id",
+	"telegram_username",
 	"expire_at",
 	"created_at",
 	"subscription_link",
@@ -77,6 +79,7 @@ func scanCustomer(scanner interface {
 	return scanner.Scan(
 		&customer.ID,
 		&customer.TelegramID,
+		&customer.TelegramUsername,
 		&customer.ExpireAt,
 		&customer.CreatedAt,
 		&customer.SubscriptionLink,
@@ -313,6 +316,65 @@ func (cr *CustomerRepository) FindByTelegramId(ctx context.Context, telegramId i
 	return &customer, nil
 }
 
+func NormalizeTelegramUsername(value string) string {
+	return strings.ToLower(strings.TrimPrefix(strings.TrimSpace(value), "@"))
+}
+
+func (cr *CustomerRepository) FindByTelegramUsername(ctx context.Context, username string) (*Customer, error) {
+	username = NormalizeTelegramUsername(username)
+	if username == "" {
+		return nil, nil
+	}
+	buildSelect := sq.Select(customerSelectColumns...).
+		From("customer").
+		Where("lower(telegram_username) = ?", username).
+		PlaceholderFormat(sq.Dollar)
+	sql, args, err := buildSelect.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build username select query: %w", err)
+	}
+	var customer Customer
+	if err := scanCustomer(cr.pool.QueryRow(ctx, sql, args...), &customer); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to query customer by Telegram username: %w", err)
+	}
+	return &customer, nil
+}
+
+// UpdateTelegramUsername transfers a current Telegram username from a stale
+// customer row before assigning it to the authenticated user. Telegram
+// usernames are globally unique but can be changed and reused over time.
+func (cr *CustomerRepository) UpdateTelegramUsername(ctx context.Context, customerID int64, username string) error {
+	username = NormalizeTelegramUsername(username)
+	tx, err := cr.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin Telegram username update: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	if username != "" {
+		if _, err = tx.Exec(ctx, `
+			UPDATE customer
+			SET telegram_username = NULL
+			WHERE id <> $1 AND lower(telegram_username) = $2
+		`, customerID, username); err != nil {
+			return fmt.Errorf("release stale Telegram username: %w", err)
+		}
+	}
+	var value interface{}
+	if username != "" {
+		value = username
+	}
+	if _, err = tx.Exec(ctx, `UPDATE customer SET telegram_username = $2 WHERE id = $1`, customerID, value); err != nil {
+		return fmt.Errorf("update Telegram username: %w", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit Telegram username update: %w", err)
+	}
+	return nil
+}
+
 func (cr *CustomerRepository) Create(ctx context.Context, customer *Customer) (*Customer, error) {
 	return cr.FindOrCreate(ctx, customer)
 }
@@ -336,7 +398,7 @@ func (cr *CustomerRepository) FindOrCreate(ctx context.Context, customer *Custom
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		ON CONFLICT (telegram_id) DO UPDATE SET telegram_id = customer.telegram_id
-			RETURNING id, telegram_id, expire_at, created_at, subscription_link, language, channel_subscription_verified_at, trial_used, autopay_enabled, autopay_plan_months,
+			RETURNING id, telegram_id, telegram_username, expire_at, created_at, subscription_link, language, channel_subscription_verified_at, trial_used, autopay_enabled, autopay_plan_months,
 			          yookasa_payment_method_id, yookasa_payment_method_type, yookasa_payment_method_title, yookasa_payment_method_saved_at,
 			          yookasa_last_charge_at, yookasa_last_charge_status, yookasa_last_charge_error,
 			          google_subject, google_email, google_email_verified, google_linked_at
@@ -437,7 +499,7 @@ func (cr *CustomerRepository) LinkGoogleIdentity(ctx context.Context, customerID
 		    google_email_verified = $4,
 		    google_linked_at = COALESCE(google_linked_at, NOW())
 		WHERE id = $1
-		RETURNING id, telegram_id, expire_at, created_at, subscription_link, language, channel_subscription_verified_at, trial_used, autopay_enabled, autopay_plan_months,
+		RETURNING id, telegram_id, telegram_username, expire_at, created_at, subscription_link, language, channel_subscription_verified_at, trial_used, autopay_enabled, autopay_plan_months,
 		          yookasa_payment_method_id, yookasa_payment_method_type, yookasa_payment_method_title, yookasa_payment_method_saved_at,
 		          yookasa_last_charge_at, yookasa_last_charge_status, yookasa_last_charge_error,
 		          google_subject, google_email, google_email_verified, google_linked_at

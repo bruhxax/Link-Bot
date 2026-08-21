@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -48,6 +49,7 @@ var embeddedStatic embed.FS
 var (
 	promoPurchaseLocks          sync.Map
 	adminSubscriptionRebindLock sync.Mutex
+	telegramGiftUsernamePattern = regexp.MustCompile(`^[a-z0-9_]{5,32}$`)
 )
 
 type Handler struct {
@@ -103,12 +105,22 @@ type bootstrapResponse struct {
 	Servers        serversPayload         `json:"servers"`
 	Support        supportPayload         `json:"support"`
 	Payments       paymentsPayload        `json:"payments"`
+	GiftReceipt    *giftReceiptPayload    `json:"giftReceipt,omitempty"`
 	Admin          *adminPayload          `json:"admin,omitempty"`
 	Plans          []planPayload          `json:"plans"`
 	PaymentMethods []paymentMethodPayload `json:"paymentMethods"`
 	Links          linksPayload           `json:"links"`
 	Meta           metaPayload            `json:"meta"`
 	Runtime        runtimeconfig.Settings `json:"runtime"`
+}
+
+type giftReceiptPayload struct {
+	PurchaseID        int64  `json:"purchaseId"`
+	RecipientUsername string `json:"recipientUsername"`
+	PlanLabel         string `json:"planLabel"`
+	ShareURL          string `json:"shareUrl"`
+	Delivered         bool   `json:"delivered"`
+	Message           string `json:"message"`
 }
 
 type brandPayload struct {
@@ -370,6 +382,22 @@ type purchaseRequest struct {
 	PromoCode         string `json:"promoCode,omitempty"`
 }
 
+type giftPurchaseRequest struct {
+	Username      string `json:"username"`
+	PlanID        string `json:"planId"`
+	Months        int    `json:"months"`
+	PaymentMethod string `json:"paymentMethod"`
+}
+
+type giftSeenRequest struct {
+	PurchaseID int64 `json:"purchaseId"`
+}
+
+type giftTestRequest struct {
+	Kind    string                                    `json:"kind"`
+	Message runtimeconfig.TelegramGiftMessageSettings `json:"message"`
+}
+
 type purchaseActionRequest struct {
 	PurchaseID int64 `json:"purchaseId"`
 }
@@ -569,6 +597,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/auth/google/link", h.withSession(h.handleLinkGoogle))
 	mux.HandleFunc("/api/mini-app/trial/activate", h.withSession(h.handleActivateTrial))
 	mux.HandleFunc("/api/mini-app/purchase", h.withSession(h.handleCreatePurchaseV2))
+	mux.HandleFunc("/api/mini-app/gifts/purchase", h.withSession(h.handleCreateGiftPurchase))
+	mux.HandleFunc("/api/mini-app/gifts/seen", h.withSession(h.handleGiftSeen))
 	mux.HandleFunc("/api/mini-app/purchase/cancel", h.withSession(h.handleCancelPurchase))
 	mux.HandleFunc("/api/mini-app/promocode/apply", h.withSession(h.handleApplyPromoCode))
 	mux.HandleFunc("/api/mini-app/payments/autopay", h.withSession(h.handleToggleAutoPayment))
@@ -585,6 +615,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/reminders/test", h.withSession(h.handleAdminReminderTest))
 	mux.HandleFunc("/api/mini-app/admin/success/test", h.withSession(h.handleAdminSuccessTest))
 	mux.HandleFunc("/api/mini-app/admin/payment-notifications/test", h.withSession(h.handleAdminPaymentNotificationTest))
+	mux.HandleFunc("/api/mini-app/admin/gifts/test", h.withSession(h.handleAdminGiftTest))
 	mux.HandleFunc("/api/mini-app/admin/events/resolve", h.withSession(h.handleAdminEventResolve))
 	mux.HandleFunc("/api/mini-app/admin/integrations/update", h.withSession(h.handleAdminIntegrationUpdate))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/state", h.withSession(h.handleAdminBroadcastState))
@@ -1444,6 +1475,108 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 			PurchaseID: purchaseID,
 		},
 	})
+}
+
+func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
+	if r.Method != http.MethodPost {
+		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		return
+	}
+	var req giftPurchaseRequest
+	if err := h.decodeJSONRequest(w, r, 4096, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Некорректный запрос")
+		return
+	}
+	username := database.NormalizeTelegramUsername(req.Username)
+	if !telegramGiftUsernamePattern.MatchString(username) {
+		h.writeError(w, http.StatusBadRequest, "invalid_gift_username", "Введите корректный Telegram username")
+		return
+	}
+	if database.NormalizeTelegramUsername(sess.User.Username) == username {
+		h.writeError(w, http.StatusBadRequest, "gift_to_self", "Нельзя подарить подписку самому себе")
+		return
+	}
+	plan, ok := h.checkoutPlanForRequest(req.PlanID, req.Months)
+	if !ok || (plan.PriceRub <= 0 && plan.PriceStars <= 0) {
+		h.writeError(w, http.StatusBadRequest, "unsupported_plan", "Этот тариф нельзя подарить")
+		return
+	}
+	invoiceType, err := mapPaymentMethod(req.PaymentMethod)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "unsupported_payment_method", "Этот способ оплаты недоступен")
+		return
+	}
+	allowedMethods, err := h.availablePaymentMethods(r.Context(), customer)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "payment_config_failed", "Не удалось определить способы оплаты")
+		return
+	}
+	if !allowedMethods[req.PaymentMethod] {
+		h.writeError(w, http.StatusBadRequest, "unsupported_payment_method", "Этот способ оплаты недоступен")
+		return
+	}
+	price, ok := checkoutAmountForPlan(plan, invoiceType)
+	if !ok || price <= 0 {
+		h.writeError(w, http.StatusBadRequest, "unsupported_plan", "Этот тариф нельзя подарить")
+		return
+	}
+	recipient, err := h.customerRepository.FindByTelegramUsername(r.Context(), username)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "gift_recipient_failed", "Не удалось проверить получателя")
+		return
+	}
+	if recipient != nil && recipient.ID == customer.ID {
+		h.writeError(w, http.StatusBadRequest, "gift_to_self", "Нельзя подарить подписку самому себе")
+		return
+	}
+	var recipientID *int64
+	if recipient != nil {
+		recipientID = &recipient.ID
+	}
+	token := uuid.New()
+	ctxWithProfile := contextWithSessionTelegramProfile(r.Context(), sess)
+	paymentURL, purchaseID, err := h.paymentService.CreatePurchaseWithOptions(ctxWithProfile, float64(price), plan.Months, customer, invoiceType, payment.CreatePurchaseOptions{
+		AgreementAccepted:       true,
+		PlanID:                  plan.ID,
+		TrafficLimitBytes:       &plan.TrafficLimitBytes,
+		DeviceLimitCount:        &plan.DeviceLimitCount,
+		PurchaseKind:            database.PurchaseKindGift,
+		GiftRecipientUsername:   username,
+		GiftRecipientCustomerID: recipientID,
+		GiftToken:               &token,
+	})
+	if err != nil {
+		slog.Error("mini app: create gift purchase", "error", err, "method", req.PaymentMethod, "months", req.Months)
+		h.writeError(w, http.StatusInternalServerError, "gift_purchase_failed", "Не удалось создать оплату подарка")
+		return
+	}
+	action := "open_link"
+	if invoiceType == database.InvoiceTypeTelegram {
+		action = "open_invoice"
+	} else if invoiceType == database.InvoiceTypeYookasa {
+		action = "open_in_app"
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{
+		"ok":   true,
+		"data": purchaseResponse{Action: action, URL: paymentURL, PurchaseID: purchaseID},
+	})
+}
+
+func (h *Handler) handleGiftSeen(w http.ResponseWriter, r *http.Request, _ *session, customer *database.Customer) {
+	if r.Method != http.MethodPost {
+		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		return
+	}
+	var req giftSeenRequest
+	if err := h.decodeJSONRequest(w, r, 2048, &req); err != nil || req.PurchaseID <= 0 {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Некорректный подарок")
+		return
+	}
+	if err := h.paymentService.MarkGiftReceiptSeen(r.Context(), req.PurchaseID, customer); err != nil {
+		h.writeError(w, http.StatusInternalServerError, "gift_seen_failed", "Не удалось закрыть уведомление")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (h *Handler) handleApplyPromoCode(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
@@ -3112,6 +3245,16 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 			History: []paymentHistoryPayload{},
 		}
 	}
+	var giftReceiptData *giftReceiptPayload
+	if receipt, receiptErr := h.paymentService.LatestGiftReceipt(ctx, customer); receiptErr != nil {
+		slog.Warn("mini app: load gift receipt failed", "error", receiptErr, "telegramId", utils.MaskHalfInt64(customer.TelegramID))
+	} else if receipt != nil {
+		giftReceiptData = &giftReceiptPayload{
+			PurchaseID: receipt.PurchaseID, RecipientUsername: receipt.RecipientUsername,
+			PlanLabel: receipt.PlanLabel, ShareURL: receipt.ShareURL,
+			Delivered: receipt.Delivered, Message: receipt.Message,
+		}
+	}
 
 	var adminData *adminPayload
 	if adminLoad != nil {
@@ -3183,6 +3326,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		Servers:        serverStatus,
 		Support:        supportData,
 		Payments:       paymentsData,
+		GiftReceipt:    giftReceiptData,
 		Admin:          adminData,
 		Plans:          h.buildPlans(),
 		PaymentMethods: mapPaymentMethods(allowedMethods),
@@ -4823,7 +4967,13 @@ func (h *Handler) ensureCustomer(ctx context.Context, sess *session) (*database.
 			slog.Warn("mini app: attach referral", "error", err)
 		}
 
-		return customer, nil
+		if err := h.customerRepository.UpdateTelegramUsername(ctx, customer.ID, sess.User.Username); err != nil {
+			return nil, err
+		}
+		if _, err := h.paymentService.ClaimPendingGifts(ctx, customer, sess.User.Username, sess.StartParam); err != nil {
+			slog.Warn("mini app: claim pending gifts for new customer failed", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID))
+		}
+		return h.customerRepository.FindById(ctx, customer.ID)
 	}
 	if customer.Language != langCode {
 		if err := h.customerRepository.UpdateFields(ctx, customer.ID, map[string]any{
@@ -4832,6 +4982,19 @@ func (h *Handler) ensureCustomer(ctx context.Context, sess *session) (*database.
 			return nil, err
 		}
 		customer.Language = langCode
+	}
+	if err := h.customerRepository.UpdateTelegramUsername(ctx, customer.ID, sess.User.Username); err != nil {
+		return nil, err
+	}
+	username := database.NormalizeTelegramUsername(sess.User.Username)
+	customer.TelegramUsername = nil
+	if username != "" {
+		customer.TelegramUsername = &username
+	}
+	if _, err := h.paymentService.ClaimPendingGifts(ctx, customer, sess.User.Username, sess.StartParam); err != nil {
+		slog.Warn("mini app: claim pending gifts failed", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID))
+	} else if refreshed, refreshErr := h.customerRepository.FindById(ctx, customer.ID); refreshErr == nil && refreshed != nil {
+		customer = refreshed
 	}
 
 	return customer, nil

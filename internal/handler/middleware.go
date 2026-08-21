@@ -50,6 +50,16 @@ func (h Handler) CreateCustomerIfNotExistMiddleware(next bot.HandlerFunc) bot.Ha
 				return
 			}
 		}
+		var username string
+		if update.Message != nil && update.Message.From != nil {
+			username = update.Message.From.Username
+		} else if update.CallbackQuery != nil {
+			username = update.CallbackQuery.From.Username
+		}
+		if err := h.customerRepository.UpdateTelegramUsername(ctx, existingCustomer.ID, username); err != nil {
+			slog.Error("error updating Telegram username", "error", err)
+			return
+		}
 
 		if update.CallbackQuery != nil && update.CallbackQuery.Data == CallbackVerifyChannel {
 			next(ctx, b, update)

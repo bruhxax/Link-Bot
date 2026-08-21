@@ -36,6 +36,7 @@ type PurchaseKind string
 const (
 	PurchaseKindSubscription PurchaseKind = "subscription"
 	PurchaseKindExtraDevices PurchaseKind = "extra_devices"
+	PurchaseKindGift         PurchaseKind = "gift"
 )
 
 const (
@@ -80,6 +81,11 @@ type Purchase struct {
 	YookasaPaymentMethodSaved bool           `db:"yookasa_payment_method_saved"`
 	ExternalPaymentID         *string        `db:"external_payment_id"`
 	ExternalPaymentURL        *string        `db:"external_payment_url"`
+	GiftRecipientUsername     *string        `db:"gift_recipient_username"`
+	GiftRecipientCustomerID   *int64         `db:"gift_recipient_customer_id"`
+	GiftToken                 *uuid.UUID     `db:"gift_token"`
+	GiftDeliveredAt           *time.Time     `db:"gift_delivered_at"`
+	GiftSenderSeenAt          *time.Time     `db:"gift_sender_seen_at"`
 }
 
 type PurchaseRepository struct {
@@ -213,6 +219,11 @@ var purchaseSelectColumns = []string{
 	"yookasa_payment_method_saved",
 	"external_payment_id",
 	"external_payment_url",
+	"gift_recipient_username",
+	"gift_recipient_customer_id",
+	"gift_token",
+	"gift_delivered_at",
+	"gift_sender_seen_at",
 }
 
 func scanPurchase(scanner interface {
@@ -253,6 +264,11 @@ func scanPurchase(scanner interface {
 		&purchase.YookasaPaymentMethodSaved,
 		&purchase.ExternalPaymentID,
 		&purchase.ExternalPaymentURL,
+		&purchase.GiftRecipientUsername,
+		&purchase.GiftRecipientCustomerID,
+		&purchase.GiftToken,
+		&purchase.GiftDeliveredAt,
+		&purchase.GiftSenderSeenAt,
 	)
 }
 
@@ -293,6 +309,11 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 			"yookasa_payment_method_saved",
 			"external_payment_id",
 			"external_payment_url",
+			"gift_recipient_username",
+			"gift_recipient_customer_id",
+			"gift_token",
+			"gift_delivered_at",
+			"gift_sender_seen_at",
 		).
 		Values(
 			purchase.Amount,
@@ -326,6 +347,11 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 			purchase.YookasaPaymentMethodSaved,
 			purchase.ExternalPaymentID,
 			purchase.ExternalPaymentURL,
+			purchase.GiftRecipientUsername,
+			purchase.GiftRecipientCustomerID,
+			purchase.GiftToken,
+			purchase.GiftDeliveredAt,
+			purchase.GiftSenderSeenAt,
 		).
 		Suffix("RETURNING id").
 		PlaceholderFormat(sq.Dollar)
@@ -466,6 +492,111 @@ func (pr *PurchaseRepository) MarkAsPaid(ctx context.Context, purchaseID int64) 
 	}
 
 	return pr.UpdateFields(ctx, purchaseID, updates)
+}
+
+func (pr *PurchaseRepository) FindLatestUnseenGiftBySender(ctx context.Context, senderCustomerID int64) (*Purchase, error) {
+	buildSelect := sq.Select(purchaseSelectColumns...).
+		From("purchase").
+		Where(sq.Eq{
+			"customer_id":         senderCustomerID,
+			"purchase_kind":       PurchaseKindGift,
+			"status":              PurchaseStatusPaid,
+			"gift_sender_seen_at": nil,
+		}).
+		OrderBy("paid_at DESC NULLS LAST", "id DESC").
+		Limit(1).
+		PlaceholderFormat(sq.Dollar)
+	sql, args, err := buildSelect.ToSql()
+	if err != nil {
+		return nil, err
+	}
+	purchase := &Purchase{}
+	if err := scanPurchase(pr.pool.QueryRow(ctx, sql, args...), purchase); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return purchase, nil
+}
+
+func (pr *PurchaseRepository) MarkGiftSenderSeen(ctx context.Context, purchaseID, senderCustomerID int64) error {
+	_, err := pr.pool.Exec(ctx, `
+		UPDATE purchase
+		SET gift_sender_seen_at = COALESCE(gift_sender_seen_at, NOW())
+		WHERE id = $1 AND customer_id = $2 AND purchase_kind = 'gift' AND status = 'paid'
+	`, purchaseID, senderCustomerID)
+	return err
+}
+
+func (pr *PurchaseRepository) ListClaimableGifts(ctx context.Context, recipientCustomerID int64, username string, token uuid.UUID) ([]Purchase, error) {
+	username = NormalizeTelegramUsername(username)
+	buildSelect := sq.Select(purchaseSelectColumns...).
+		From("purchase").
+		Where(sq.Eq{
+			"purchase_kind":     PurchaseKindGift,
+			"status":            PurchaseStatusPaid,
+			"gift_delivered_at": nil,
+		}).
+		Where(sq.Or{
+			sq.Eq{"gift_recipient_customer_id": recipientCustomerID},
+			sq.And{sq.Eq{"gift_recipient_customer_id": nil}, sq.Expr("lower(gift_recipient_username) = ?", username)},
+			sq.And{sq.Eq{"gift_recipient_customer_id": nil}, sq.Eq{"gift_token": token}},
+		}).
+		OrderBy("paid_at ASC NULLS LAST", "id ASC").
+		PlaceholderFormat(sq.Dollar)
+	sql, args, err := buildSelect.ToSql()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := pr.pool.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]Purchase, 0)
+	for rows.Next() {
+		var purchase Purchase
+		if err := scanPurchase(rows, &purchase); err != nil {
+			return nil, err
+		}
+		items = append(items, purchase)
+	}
+	return items, rows.Err()
+}
+
+func (pr *PurchaseRepository) AssignGiftRecipient(ctx context.Context, purchaseID, recipientCustomerID int64) (bool, error) {
+	result, err := pr.pool.Exec(ctx, `
+		UPDATE purchase
+		SET gift_recipient_customer_id = $2
+		WHERE id = $1
+		  AND purchase_kind = 'gift'
+		  AND status = 'paid'
+		  AND gift_delivered_at IS NULL
+		  AND (gift_recipient_customer_id IS NULL OR gift_recipient_customer_id = $2)
+	`, purchaseID, recipientCustomerID)
+	if err != nil {
+		return false, err
+	}
+	return result.RowsAffected() > 0, nil
+}
+
+func (pr *PurchaseRepository) MarkGiftPaidAndDelivered(ctx context.Context, purchaseID, recipientCustomerID int64) error {
+	result, err := pr.pool.Exec(ctx, `
+		UPDATE purchase
+		SET status = 'paid',
+		    paid_at = COALESCE(paid_at, NOW()),
+		    gift_recipient_customer_id = $2,
+		    gift_delivered_at = COALESCE(gift_delivered_at, NOW())
+		WHERE id = $1 AND purchase_kind = 'gift' AND gift_delivered_at IS NULL
+	`, purchaseID, recipientCustomerID)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("gift purchase %d was already delivered or not found", purchaseID)
+	}
+	return nil
 }
 
 func (pr *PurchaseRepository) GetOrAssignPaymentOrderNumber(ctx context.Context, purchaseID int64) (int64, error) {
