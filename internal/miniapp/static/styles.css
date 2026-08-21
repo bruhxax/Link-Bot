@@ -8165,3 +8165,9 @@ body.has-open-modal .admin-save-bar {
   border-color: var(--control-border) !important;
   background: var(--glass-selected) !important;
 }
+
+/* The narrow support thread leaves horizontal breathing room; split it evenly
+   so the conversation stays centered in Telegram and standalone browsers. */
+.modal__sheet--thread {
+  margin-inline: auto;
+}

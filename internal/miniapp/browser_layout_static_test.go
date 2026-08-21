@@ -44,4 +44,8 @@ func TestBrowserLayoutIsCenteredWithoutChangingTelegramMiniApp(t *testing.T) {
 		strings.Contains(styles, `:root[data-client="telegram"] .modal`) {
 		t.Fatal("browser layout fix must not override the Telegram Mini App")
 	}
+
+	if !strings.Contains(styles, ".modal__sheet--thread {\n  margin-inline: auto;\n}") {
+		t.Fatal("support thread sheet must split its horizontal margin evenly")
+	}
 }
