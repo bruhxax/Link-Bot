@@ -497,6 +497,21 @@ select:focus-visible {
 .admin-telegram-button { padding: 13px 0; border-top: 1px solid var(--line-soft); }
 .admin-telegram-button:first-of-type { padding-top: 0; border-top: 0; }
 .admin-telegram-button h4 { margin: 0 0 9px; color: var(--text); font-size: 11px; }
+.admin-payment-notification .admin-editor__section-head { align-items: flex-start; }
+.admin-payment-notification .admin-editor__section-head > div { min-width: 0; }
+.admin-payment-notification .admin-editor__section-head p { margin: 4px 0 0; max-width: 360px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.admin-payment-notification .admin-reminder-test svg { width: 15px; height: 15px; flex: 0 0 auto; }
+.admin-payment-variables { margin: 2px 0 10px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--line-soft); }
+.admin-payment-variables > div { min-width: 0; padding: 9px 0; display: grid; grid-template-columns: minmax(88px, auto) 1fr; align-items: baseline; gap: 8px; border-bottom: 1px solid var(--line-soft); }
+.admin-payment-variables > div:nth-child(odd) { padding-right: 12px; }
+.admin-payment-variables > div:nth-child(even) { padding-left: 12px; border-left: 1px solid var(--line-soft); }
+.admin-payment-variables code, .admin-payment-note code { color: var(--text); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 9px; font-weight: 800; }
+.admin-payment-variables span { min-width: 0; color: var(--muted); font-size: 9px; line-height: 1.35; }
+.admin-payment-note { margin: 0 0 12px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.admin-payment-button { padding: 0 0 3px; border-top: 1px solid var(--line-soft); }
+.admin-payment-button:first-of-type { border-top: 0; }
+.admin-payment-button__settings { padding-left: 12px; border-left: 1px solid var(--line-soft); }
+.admin-payment-button__settings .admin-telegram-button { padding-top: 9px; border-top: 0; }
 .admin-faq-item { padding: 14px 0; border-top: 1px solid var(--line-soft); }
 .admin-faq-item:first-child { padding-top: 0; border-top: 0; }
 .admin-faq-item__head { margin-bottom: 9px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -822,6 +837,10 @@ select:focus-visible {
 @media (max-width: 420px) {
   .admin-editor__grid--three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	.admin-telegram-button .admin-editor__grid--two { grid-template-columns: 1fr; }
+	.admin-payment-notification .admin-editor__section-head { align-items: stretch; flex-direction: column; }
+	.admin-payment-notification .admin-reminder-test { width: 100%; }
+	.admin-payment-variables { grid-template-columns: 1fr; }
+	.admin-payment-variables > div:nth-child(odd), .admin-payment-variables > div:nth-child(even) { padding-inline: 0; border-left: 0; }
   .admin-toggle-list--inline { grid-template-columns: 1fr; }
   .admin-builder-row__controls { grid-template-columns: 1fr 1fr; }
   .admin-save-bar { bottom: 66px; }

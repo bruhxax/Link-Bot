@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"link-bot/internal/database"
+	"link-bot/internal/runtimeconfig"
 )
 
 func TestBuildPaymentNotificationMessageUsesAssignedOrderNumber(t *testing.T) {
@@ -69,14 +70,61 @@ func TestBuildPaymentNotificationMessageShowsDeviceOnlyPurchase(t *testing.T) {
 	}
 
 	message := buildPaymentNotificationMessage(purchase, &database.Customer{}, "exampleuser", "YooKassa", time.Unix(0, 0), 447)
-	if !strings.Contains(message, "Покупка:</b> <b>Дополнительные устройства") {
-		t.Fatalf("notification must identify a device-only purchase: %s", message)
-	}
-	if !strings.Contains(message, "Устройства:</b> <b>+3") {
+	if !strings.Contains(message, "Доп. устройства:</b> <b>+3") {
 		t.Fatalf("notification must contain the purchased device count: %s", message)
 	}
 	if strings.Contains(message, "Тариф:") || strings.Contains(message, "0 месяцев") {
 		t.Fatalf("device-only notification must not contain a zero-month tariff: %s", message)
+	}
+}
+
+func TestBuildPaymentNotificationMessageUsesCustomTemplateAndEscapesValues(t *testing.T) {
+	purchase := &database.Purchase{Amount: 89, Currency: "RUB", Month: 1}
+	message := buildPaymentNotificationMessageWithTemplate(
+		"<b>{{username}}</b> | {{integration}} | {{sub}} | {{price}} | {{number}}",
+		purchase,
+		"unsafe<user>",
+		"Method & Test",
+		time.Unix(0, 0),
+		77,
+		"UTC",
+	)
+	if message != "<b>@unsafe&lt;user&gt;</b> | Method &amp; Test | 1 месяц | 89 RUB | 77" {
+		t.Fatalf("unexpected custom payment notification: %s", message)
+	}
+}
+
+func TestBuildPaymentNotificationMessageRemovesEmptyOptionalLines(t *testing.T) {
+	purchase := &database.Purchase{Amount: 89, Currency: "RUB", Month: 1}
+	message := buildPaymentNotificationMessageWithTemplate(
+		"Тариф: {{sub}}\nУстройства: {{device}}\nПромокод: {{promo}}\nЦена: {{price}}",
+		purchase,
+		"",
+		"YooKassa",
+		time.Unix(0, 0),
+		78,
+		"UTC",
+	)
+	if strings.Contains(message, "Устройства:") || strings.Contains(message, "Промокод:") {
+		t.Fatalf("optional empty lines were not removed: %s", message)
+	}
+	if !strings.Contains(message, "Тариф: 1 месяц") || !strings.Contains(message, "Цена: 89 RUB") {
+		t.Fatalf("required template values are missing: %s", message)
+	}
+}
+
+func TestBuildPaymentNotificationKeyboardHonorsVisibilityAndProfileTarget(t *testing.T) {
+	settings := runtimeconfig.DefaultSettings().Content.PaymentNotification
+	settings.OpenUserButton.Enabled = false
+	settings.ProfileButton.Style = "success"
+	settings.ProfileButton.IconCustomEmojiID = "5278413853577734640"
+	keyboard := buildPaymentNotificationKeyboard(settings, 0, 123456)
+	if keyboard == nil || len(keyboard.InlineKeyboard) != 1 || len(keyboard.InlineKeyboard[0]) != 1 {
+		t.Fatalf("unexpected payment notification keyboard: %#v", keyboard)
+	}
+	button := keyboard.InlineKeyboard[0][0]
+	if button.URL != "tg://user?id=123456" || button.Style != "success" || button.IconCustomEmojiID != "5278413853577734640" {
+		t.Fatalf("unexpected profile button: %#v", button)
 	}
 }
 

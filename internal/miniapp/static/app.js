@@ -1558,7 +1558,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 function buildPreviewRuntimeSettings() {
 	const features = Object.fromEntries(["mini_app", "stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "payments_history", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
-		version: 12,
+		version: 14,
 		maintenance: { enabled: false, titleRu: "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u044b", textRu: "", reasonRu: "" },
 		features,
 		content: {
@@ -1566,6 +1566,7 @@ function buildPreviewRuntimeSettings() {
 			verification: { text: "", banner: "", channelButton: { text: "Link-Bot", iconCustomEmojiId: "", style: "" }, confirmButton: { text: "Я подписался", iconCustomEmojiId: "", style: "" }, checkFailedText: "", notSubscribedText: "", verifiedText: "" },
 			startMenu: { trialButton: { text: "Попробовать бесплатно", iconCustomEmojiId: "5276422526350681413", style: "" }, dashboardButton: { text: "Вход", iconCustomEmojiId: "5278413853577734640", style: "" }, plansButton: { text: "Тарифы", iconCustomEmojiId: "5206626000665868017", style: "" }, supportButton: { text: "Чат с поддержкой", iconCustomEmojiId: "5206222720416643915", style: "" } },
 			commerce: { banner: "", tariffsText: "", paymentMethodsText: "", paymentReadyText: "", yookassaButton: { text: "СБП | Карта", iconCustomEmojiId: "5192678313415434135", style: "" }, cryptoButton: { text: "CryptoPay", iconCustomEmojiId: "5195058841988914267", style: "" }, starsButton: { text: "Telegram Stars", iconCustomEmojiId: "5242644275014951846", style: "" }, payButton: { text: "Оплатить", iconCustomEmojiId: "5206401524200145033", style: "" }, backButton: { text: "Назад", iconCustomEmojiId: "5877629862306385808", style: "" }, successText: "", successBanner: "", successButton: { text: "Личный кабинет", iconCustomEmojiId: "5278413853577734640", style: "" } },
+			paymentNotification: { text: "💳 <b>Оплата:</b> <b>{{price}}</b>\n\n▦ <b>Тариф:</b> <b>{{sub}}</b>\n▦ <b>Доп. устройства:</b> <b>{{device}}</b>\n✈ <b>Telegram:</b> <b>{{username}}</b>\n◷ <b>Время:</b> <b>{{data}}</b>\n⚙ <b>Способ:</b> <b>{{integration}}</b>\n🏷 <b>Промокод:</b> <b>{{promo}}</b>\n▣ <b>Заказ:</b> <code>{{number}}</code>", openUserButton: { enabled: true, text: "Открыть пользователя в панели", iconCustomEmojiId: "", style: "primary" }, profileButton: { enabled: true, text: "Профиль", iconCustomEmojiId: "", style: "" } },
 		},
 		appearance: { backgroundMode: "animated", compact: true, showFrames: true, colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", waveBackground: "#000000", waveDot: "#ebebeb" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
@@ -2913,6 +2914,7 @@ function renderAdminContentPage() {
 		["verification", "Верификация"],
 		["commerce", "Тарифы и оплата"],
 		["success", "После покупки"],
+		["payment-notifications", "Уведомления оплат"],
 		["support", "Поддержка"],
 		["notifications", "Уведомления"],
 		["panel", "Панель"],
@@ -2932,6 +2934,7 @@ function renderAdminContentSection(section) {
 		case "verification": return renderAdminVerificationContent();
 		case "commerce": return renderAdminCommerceContent();
 		case "success": return renderAdminSuccessContent();
+		case "payment-notifications": return renderAdminPaymentNotificationContent();
 		case "support": return renderAdminSupportContent();
 		case "notifications": return renderAdminNotificationContent();
 		case "panel": return renderAdminPanelContent();
@@ -3004,6 +3007,37 @@ function renderAdminSuccessContent() {
 		${renderAdminSettingField("Текст после оплаты", "content.commerce.successText", { textarea: true, rows: 7 })}
 		${renderAdminTelegramButton("Переход в личный кабинет", "content.commerce.successButton")}
 	</section>`;
+}
+
+function renderAdminPaymentNotificationContent() {
+	const busy = state.adminBusy === "test-payment-notification";
+	const variables = [
+		["{{data}}", "Время покупки: 22:17 | 21.08.26"],
+		["{{integration}}", "Способ оплаты"],
+		["{{promo}}", "Использованный промокод"],
+		["{{sub}}", "Купленный тариф"],
+		["{{username}}", "Telegram пользователя"],
+		["{{number}}", "Номер заказа"],
+		["{{price}}", "Оплаченная сумма"],
+		["{{device}}", "Количество докупленных устройств"],
+	];
+	return `<section class="admin-editor__section admin-payment-notification">
+		<div class="admin-editor__section-head"><div><h3>Уведомление об оплате</h3><p>Сообщение приходит в чат, указанный в интеграции бота уведомлений.</p></div><button class="admin-reminder-test" type="button" data-action="admin-test-payment-notification" ${state.adminBusy ? "disabled" : ""}>${icon("send")}<span>${busy ? "Отправляем" : "Отправить тест"}</span></button></div>
+		<div class="admin-payment-variables" aria-label="Переменные шаблона">${variables.map(([name, description]) => `<div><code>${escapeHtml(name)}</code><span>${escapeHtml(description)}</span></div>`).join("")}</div>
+		<p class="admin-payment-note">Строки с пустыми <code>{{promo}}</code>, <code>{{sub}}</code> или <code>{{device}}</code> скрываются автоматически.</p>
+		${renderAdminSettingField("Текст уведомления", "content.paymentNotification.text", { textarea: true, rows: 12 })}
+	</section>
+	<section class="admin-editor__section"><h3>Кнопки уведомления</h3>
+		${renderAdminPaymentNotificationButton("Открыть пользователя в панели", "Открывает настройки купившего пользователя в Remnawave.", "content.paymentNotification.openUserButton")}
+		${renderAdminPaymentNotificationButton("Профиль", "Открывает Telegram-профиль купившего пользователя.", "content.paymentNotification.profileButton")}
+	</section>`;
+}
+
+function renderAdminPaymentNotificationButton(title, hint, path) {
+	return `<div class="admin-payment-button">
+		${renderAdminFeatureToggle(title, hint, `${path}.enabled`)}
+		<div class="admin-payment-button__settings">${renderAdminTelegramButton("Оформление кнопки", path)}</div>
+	</div>`;
 }
 
 function renderAdminSupportContent() {
@@ -5407,6 +5441,7 @@ function bindRootActions() {
 			if (action === "admin-layout-reset-plan") return resetSelectedAdminPlan();
 			if (action === "admin-test-reminder") return await testAdminSubscriptionReminder(value);
 			if (action === "admin-test-success") return await testAdminSubscriptionSuccess();
+			if (action === "admin-test-payment-notification") return await testAdminPaymentNotification();
 			if (action === "admin-appearance-preset") return applyAdminAppearancePreset(value);
 			if (action === "admin-save-settings") return await saveAdminSettings();
 			if (action === "admin-content-section") { state.adminContentSection = value || "start"; render(); return; }
@@ -5697,6 +5732,27 @@ async function testAdminSubscriptionSuccess() {
 		state.adminBusy = "";
 		render({ preserveScroll: true });
 		showToast("Тестовое сообщение отправлено вам в Telegram", "success");
+	} catch (error) {
+		state.adminBusy = "";
+		render({ preserveScroll: true });
+		throw error;
+	}
+}
+
+async function testAdminPaymentNotification() {
+	if (!state.adminSettingsDraft || state.adminBusy) return;
+	const notification = getDeepValue(state.adminSettingsDraft, "content.paymentNotification", {}) || {};
+	state.adminBusy = "test-payment-notification";
+	render({ preserveScroll: true });
+	try {
+		await post("/api/mini-app/admin/payment-notifications/test", {
+			text: notification.text || "",
+			openUserButton: notification.openUserButton || {},
+			profileButton: notification.profileButton || {},
+		});
+		state.adminBusy = "";
+		render({ preserveScroll: true });
+		showToast("Тест отправлен в чат уведомлений об оплате", "success");
 	} catch (error) {
 		state.adminBusy = "";
 		render({ preserveScroll: true });

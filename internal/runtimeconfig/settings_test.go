@@ -1,6 +1,7 @@
 package runtimeconfig
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -37,6 +38,52 @@ func TestDefaultSettingsStartsWithoutPlans(t *testing.T) {
 	}
 	if settings.Panel.UsernameTemplate != "{{customer_id}}_{{telegram_id}}" {
 		t.Fatalf("default username template = %q", settings.Panel.UsernameTemplate)
+	}
+	if !strings.Contains(settings.Content.PaymentNotification.Text, "{{price}}") ||
+		!settings.Content.PaymentNotification.OpenUserButton.Enabled ||
+		!settings.Content.PaymentNotification.ProfileButton.Enabled {
+		t.Fatalf("unexpected default payment notification settings: %+v", settings.Content.PaymentNotification)
+	}
+}
+
+func TestNormalizeAndValidateMigratesPaymentNotificationDefaults(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Version = CurrentVersion - 1
+	settings.Content.PaymentNotification = TelegramPaymentNotificationSettings{}
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if strings.TrimSpace(settings.Content.PaymentNotification.Text) == "" ||
+		!settings.Content.PaymentNotification.OpenUserButton.Enabled ||
+		!settings.Content.PaymentNotification.ProfileButton.Enabled {
+		t.Fatalf("payment notification defaults were not migrated: %+v", settings.Content.PaymentNotification)
+	}
+}
+
+func TestNormalizeAndValidatePreservesDisabledPaymentNotificationButtons(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Content.PaymentNotification.OpenUserButton.Enabled = false
+	settings.Content.PaymentNotification.ProfileButton.Enabled = false
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if settings.Content.PaymentNotification.OpenUserButton.Enabled || settings.Content.PaymentNotification.ProfileButton.Enabled {
+		t.Fatalf("disabled payment notification buttons were re-enabled: %+v", settings.Content.PaymentNotification)
+	}
+}
+
+func TestPaymentNotificationButtonJSONUsesEditorFields(t *testing.T) {
+	raw, err := json.Marshal(DefaultSettings().Content.PaymentNotification.OpenUserButton)
+	if err != nil {
+		t.Fatalf("marshal payment notification button: %v", err)
+	}
+	encoded := string(raw)
+	for _, field := range []string{`"enabled":true`, `"text":"Открыть пользователя в панели"`, `"iconCustomEmojiId"`, `"style":"primary"`} {
+		if !strings.Contains(encoded, field) {
+			t.Fatalf("payment notification button JSON %s does not contain %s", encoded, field)
+		}
 	}
 }
 

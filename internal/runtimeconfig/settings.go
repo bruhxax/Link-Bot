@@ -21,7 +21,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 13
+const CurrentVersion = 14
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -151,23 +151,35 @@ type TelegramCommerceSettings struct {
 	SuccessButton      TelegramButtonSettings `json:"successButton"`
 }
 
+type OptionalTelegramButtonSettings struct {
+	Enabled bool `json:"enabled"`
+	TelegramButtonSettings
+}
+
+type TelegramPaymentNotificationSettings struct {
+	Text           string                         `json:"text"`
+	OpenUserButton OptionalTelegramButtonSettings `json:"openUserButton"`
+	ProfileButton  OptionalTelegramButtonSettings `json:"profileButton"`
+}
+
 type ContentSettings struct {
-	BrandName                  string                           `json:"brandName"`
-	AdminContact               string                           `json:"adminContact"`
-	LogoURL                    string                           `json:"logoUrl"`
-	StartTextRU                string                           `json:"startTextRu"`
-	StartImage                 string                           `json:"startImage"`
-	Copy                       map[string]map[string]string     `json:"copy"`
-	FAQ                        map[string][]FAQItem             `json:"faq"`
-	Links                      map[string]string                `json:"links"`
-	CustomLinks                []CustomLink                     `json:"customLinks"`
-	ProfileButtons             map[string]ProfileButtonSettings `json:"profileButtons"`
-	LegalDocuments             map[string]LegalDocumentSettings `json:"legalDocuments"`
-	SubscriptionReminderButton TelegramButtonSettings           `json:"subscriptionReminderButton"`
-	Verification               TelegramVerificationSettings     `json:"verification"`
-	Support                    TelegramSupportSettings          `json:"support"`
-	StartMenu                  TelegramStartMenuSettings        `json:"startMenu"`
-	Commerce                   TelegramCommerceSettings         `json:"commerce"`
+	BrandName                  string                              `json:"brandName"`
+	AdminContact               string                              `json:"adminContact"`
+	LogoURL                    string                              `json:"logoUrl"`
+	StartTextRU                string                              `json:"startTextRu"`
+	StartImage                 string                              `json:"startImage"`
+	Copy                       map[string]map[string]string        `json:"copy"`
+	FAQ                        map[string][]FAQItem                `json:"faq"`
+	Links                      map[string]string                   `json:"links"`
+	CustomLinks                []CustomLink                        `json:"customLinks"`
+	ProfileButtons             map[string]ProfileButtonSettings    `json:"profileButtons"`
+	LegalDocuments             map[string]LegalDocumentSettings    `json:"legalDocuments"`
+	SubscriptionReminderButton TelegramButtonSettings              `json:"subscriptionReminderButton"`
+	Verification               TelegramVerificationSettings        `json:"verification"`
+	Support                    TelegramSupportSettings             `json:"support"`
+	StartMenu                  TelegramStartMenuSettings           `json:"startMenu"`
+	Commerce                   TelegramCommerceSettings            `json:"commerce"`
+	PaymentNotification        TelegramPaymentNotificationSettings `json:"paymentNotification"`
 }
 
 type TelegramButtonSettings struct {
@@ -397,6 +409,22 @@ func DefaultSettings() Settings {
 					IconCustomEmojiID: "5278413853577734640",
 				},
 			},
+			PaymentNotification: TelegramPaymentNotificationSettings{
+				Text: premiumPaymentNotificationTemplate(),
+				OpenUserButton: OptionalTelegramButtonSettings{
+					Enabled: true,
+					TelegramButtonSettings: TelegramButtonSettings{
+						Text:  "Открыть пользователя в панели",
+						Style: "primary",
+					},
+				},
+				ProfileButton: OptionalTelegramButtonSettings{
+					Enabled: true,
+					TelegramButtonSettings: TelegramButtonSettings{
+						Text: "Профиль",
+					},
+				},
+			},
 		},
 		Appearance: AppearanceSettings{
 			BackgroundMode: "animated",
@@ -453,6 +481,18 @@ func DefaultSettings() Settings {
 			UsernameTemplate: "{{customer_id}}_{{telegram_id}}",
 		},
 	}
+}
+
+func premiumPaymentNotificationTemplate() string {
+	return `<tg-emoji emoji-id="5258204546391351475">☺️</tg-emoji> <b>Оплата:</b> <b>{{price}}</b>
+
+<tg-emoji emoji-id="5226513232549664618">☺️</tg-emoji> <b>Тариф:</b> <b>{{sub}}</b>
+<tg-emoji emoji-id="5226513232549664618">☺️</tg-emoji> <b>Доп. устройства:</b> <b>{{device}}</b>
+<tg-emoji emoji-id="5258073068852485953">☺️</tg-emoji> <b>Telegram:</b> <b>{{username}}</b>
+<tg-emoji emoji-id="5258419835922030550">☺️</tg-emoji> <b>Время:</b> <b>{{data}}</b>
+<tg-emoji emoji-id="5258096772776991776">☺️</tg-emoji> <b>Способ:</b> <b>{{integration}}</b>
+🏷 <b>Промокод:</b> <b>{{promo}}</b>
+<tg-emoji emoji-id="5258389041006518073">☺️</tg-emoji> <b>Заказ:</b> <code>{{number}}</code>`
 }
 
 func defaultDevicePacks() []DevicePackSettings {
@@ -1024,6 +1064,17 @@ func normalizeLegalDocument(value LegalDocumentSettings, fallbackTitle string) L
 }
 
 func normalizeTelegramContent(value *ContentSettings, defaults ContentSettings, legacy bool) error {
+	if legacy {
+		value.PaymentNotification = defaults.PaymentNotification
+	}
+	value.PaymentNotification.Text = normalizedRequiredText(value.PaymentNotification.Text, defaults.PaymentNotification.Text, 3500)
+	if err := normalizeTelegramButton(&value.PaymentNotification.OpenUserButton.TelegramButtonSettings, defaults.PaymentNotification.OpenUserButton.TelegramButtonSettings); err != nil {
+		return fmt.Errorf("payment notification open user button: %w", err)
+	}
+	if err := normalizeTelegramButton(&value.PaymentNotification.ProfileButton.TelegramButtonSettings, defaults.PaymentNotification.ProfileButton.TelegramButtonSettings); err != nil {
+		return fmt.Errorf("payment notification profile button: %w", err)
+	}
+
 	value.Verification.Text = normalizedRequiredText(value.Verification.Text, defaults.Verification.Text, 3500)
 	value.Verification.CheckFailedText = normalizedRequiredText(value.Verification.CheckFailedText, defaults.Verification.CheckFailedText, 300)
 	value.Verification.NotSubscribedText = normalizedRequiredText(value.Verification.NotSubscribedText, defaults.Verification.NotSubscribedText, 300)

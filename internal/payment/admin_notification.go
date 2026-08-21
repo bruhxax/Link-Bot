@@ -8,6 +8,7 @@ import (
 	"html"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -15,16 +16,36 @@ import (
 	"link-bot/internal/config"
 	"link-bot/internal/database"
 	"link-bot/internal/integrations"
+	"link-bot/internal/runtimeconfig"
 )
 
 type telegramSendMessageRequest struct {
-	ChatID    int64  `json:"chat_id"`
-	Text      string `json:"text"`
-	ParseMode string `json:"parse_mode,omitempty"`
+	ChatID      int64                         `json:"chat_id"`
+	Text        string                        `json:"text"`
+	ParseMode   string                        `json:"parse_mode,omitempty"`
+	ReplyMarkup *telegramInlineKeyboardMarkup `json:"reply_markup,omitempty"`
+}
+
+type telegramInlineKeyboardMarkup struct {
+	InlineKeyboard [][]telegramInlineKeyboardButton `json:"inline_keyboard"`
+}
+
+type telegramInlineKeyboardButton struct {
+	Text              string `json:"text"`
+	URL               string `json:"url"`
+	IconCustomEmojiID string `json:"icon_custom_emoji_id,omitempty"`
+	Style             string `json:"style,omitempty"`
+}
+
+type PaymentNotificationPreviewOptions struct {
+	Settings   runtimeconfig.TelegramPaymentNotificationSettings
+	TelegramID int64
+	Username   string
+	Customer   *database.Customer
 }
 
 func (s PaymentService) notifyAdminAboutPayment(ctx context.Context, purchase *database.Purchase, customer *database.Customer) {
-	token, chatID, _ := s.paymentNotificationConfig()
+	token, chatID, timezone := s.paymentNotificationConfig()
 	if token == "" || chatID == 0 {
 		return
 	}
@@ -44,11 +65,49 @@ func (s PaymentService) notifyAdminAboutPayment(ctx context.Context, purchase *d
 			orderNumber = assignedNumber
 		}
 	}
-	message := buildPaymentNotificationMessage(purchase, customer, username, method, time.Now(), orderNumber)
+	settings := s.paymentNotificationSettings()
+	message := buildPaymentNotificationMessageWithTemplate(settings.Text, purchase, username, method, time.Now(), orderNumber, timezone)
+	panelUserID := s.paymentNotificationPanelUserID(notifyCtx, purchase, customer)
+	telegramID := int64(0)
+	if customer != nil {
+		telegramID = customer.TelegramID
+	}
+	keyboard := buildPaymentNotificationKeyboard(settings, panelUserID, telegramID)
 
-	if err := sendTelegramNotification(notifyCtx, token, chatID, message); err != nil {
+	if err := sendTelegramNotification(notifyCtx, token, chatID, message, keyboard); err != nil {
 		slog.Error("failed to send payment notification", "error", err, "purchase_id", purchase.ID)
 	}
+}
+
+func (s PaymentService) paymentNotificationSettings() runtimeconfig.TelegramPaymentNotificationSettings {
+	settings := runtimeconfig.DefaultSettings().Content.PaymentNotification
+	if s.runtimeSettings != nil {
+		settings = s.runtimeSettings.Snapshot().Content.PaymentNotification
+	}
+	return settings
+}
+
+func (s PaymentService) paymentNotificationPanelUserID(ctx context.Context, purchase *database.Purchase, customer *database.Customer) int64 {
+	if s.subscriptionRepository == nil || customer == nil {
+		return 0
+	}
+	var (
+		subscription *database.CustomerSubscription
+		err          error
+	)
+	if purchase != nil && purchase.SubscriptionID != nil {
+		subscription, err = s.subscriptionRepository.FindForCustomer(ctx, customer.ID, *purchase.SubscriptionID)
+	} else {
+		subscription, err = s.subscriptionRepository.PrimaryByCustomer(ctx, customer.ID)
+	}
+	if err != nil {
+		slog.Warn("failed to resolve payment notification panel user", "error", err, "customer_id", customer.ID)
+		return 0
+	}
+	if subscription == nil || subscription.PanelUserID == nil {
+		return 0
+	}
+	return *subscription.PanelUserID
 }
 
 func usernameFromContext(ctx context.Context) string {
@@ -66,6 +125,28 @@ func buildPaymentNotificationMessage(
 	paidAt time.Time,
 	orderNumber int64,
 ) string {
+	_ = customer
+	defaults := runtimeconfig.DefaultSettings().Content.PaymentNotification
+	return buildPaymentNotificationMessageWithTemplate(
+		defaults.Text,
+		purchase,
+		username,
+		method,
+		paidAt,
+		orderNumber,
+		config.PaymentNotificationTimezone(),
+	)
+}
+
+func buildPaymentNotificationMessageWithTemplate(
+	template string,
+	purchase *database.Purchase,
+	username string,
+	method string,
+	paidAt time.Time,
+	orderNumber int64,
+	timezone string,
+) string {
 	usernameText := "-"
 	if username != "" {
 		usernameText = username
@@ -74,7 +155,7 @@ func buildPaymentNotificationMessage(
 		}
 	}
 
-	promoLine := ""
+	promoText := ""
 	if purchase.PromoCodeSnapshot != nil {
 		promoCode := strings.TrimSpace(*purchase.PromoCodeSnapshot)
 		if promoCode != "" {
@@ -82,62 +163,44 @@ func buildPaymentNotificationMessage(
 			if purchase.PromoCodeDiscountPercent != nil && *purchase.PromoCodeDiscountPercent > 0 {
 				discount = fmt.Sprintf(" (-%d%%)", *purchase.PromoCodeDiscountPercent)
 			}
-			promoLine = fmt.Sprintf("\n🏷 <b>Промокод:</b> <b>%s%s</b>", html.EscapeString(promoCode), discount)
+			promoText = promoCode + discount
 		}
 	}
-	purchaseLines := formatPaymentPurchaseLines(purchase)
 
-	return fmt.Sprintf(
-		"%s <b>Оплата:</b> <b>%s</b>\n\n"+
-			"%s\n"+
-			"%s <b>Telegram:</b> <b>%s</b>\n"+
-			"%s <b>Время:</b> <b>%s</b>\n"+
-			"%s <b>Способ:</b> <b>%s</b>%s\n"+
-			"%s <b>Заказ:</b> <code>%d</code>",
-		premiumEmoji("5258204546391351475"),
-		html.EscapeString(formatPurchaseAmount(purchase)),
-		purchaseLines,
-		premiumEmoji("5258073068852485953"),
-		html.EscapeString(usernameText),
-		premiumEmoji("5258419835922030550"),
-		html.EscapeString(formatNotificationTime(paidAt)),
-		premiumEmoji("5258096772776991776"),
-		html.EscapeString(method),
-		promoLine,
-		premiumEmoji("5258389041006518073"),
-		orderNumber,
-	)
-}
-
-func formatPaymentPurchaseLines(purchase *database.Purchase) string {
-	detailsEmoji := premiumEmoji("5226513232549664618")
-	if purchase.PurchaseKind == database.PurchaseKindExtraDevices {
-		return fmt.Sprintf(
-			"%s <b>Покупка:</b> <b>Дополнительные устройства</b>\n"+
-				"%s <b>Устройства:</b> <b>+%d</b>",
-			detailsEmoji,
-			detailsEmoji,
-			purchase.ExtraDevices,
-		)
+	subscriptionText := ""
+	if purchase.PurchaseKind != database.PurchaseKindExtraDevices && purchase.Month > 0 {
+		subscriptionText = formatTariff(purchase.Month)
 	}
-
-	lines := fmt.Sprintf(
-		"%s <b>Тариф:</b> <b>%s</b>",
-		detailsEmoji,
-		html.EscapeString(formatTariff(purchase.Month)),
-	)
+	deviceText := ""
 	if purchase.ExtraDevices > 0 {
-		lines += fmt.Sprintf(
-			"\n%s <b>Доп. устройства:</b> <b>+%d</b>",
-			detailsEmoji,
-			purchase.ExtraDevices,
-		)
+		deviceText = fmt.Sprintf("+%d", purchase.ExtraDevices)
 	}
-	return lines
-}
 
-func premiumEmoji(id string) string {
-	return fmt.Sprintf(`<tg-emoji emoji-id="%s">☺️</tg-emoji>`, id)
+	values := map[string]string{
+		"data":        formatNotificationTimeInLocation(paidAt, timezone),
+		"integration": strings.TrimSpace(method),
+		"promo":       promoText,
+		"sub":         subscriptionText,
+		"username":    usernameText,
+		"number":      strconv.FormatInt(orderNumber, 10),
+		"price":       formatPurchaseAmount(purchase),
+		"device":      deviceText,
+	}
+	template = strings.ReplaceAll(template, "\r\n", "\n")
+	lines := strings.Split(template, "\n")
+	clean := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if (values["promo"] == "" && strings.Contains(line, "{{promo}}")) ||
+			(values["device"] == "" && strings.Contains(line, "{{device}}")) ||
+			(values["sub"] == "" && strings.Contains(line, "{{sub}}")) {
+			continue
+		}
+		for name, value := range values {
+			line = strings.ReplaceAll(line, "{{"+name+"}}", html.EscapeString(value))
+		}
+		clean = append(clean, line)
+	}
+	return strings.TrimSpace(strings.Join(clean, "\n"))
 }
 
 func formatTariff(months int) string {
@@ -164,10 +227,14 @@ func formatPurchaseAmount(purchase *database.Purchase) string {
 	return fmt.Sprintf("%.2f %s", purchase.Amount, purchase.Currency)
 }
 
-func formatNotificationTime(t time.Time) string {
-	location, err := time.LoadLocation(config.PaymentNotificationTimezone())
+func formatNotificationTimeInLocation(t time.Time, timezone string) string {
+	timezone = strings.TrimSpace(timezone)
+	if timezone == "" {
+		timezone = "Europe/Moscow"
+	}
+	location, err := time.LoadLocation(timezone)
 	if err != nil {
-		slog.Warn("invalid payment notification timezone, using local timezone", "timezone", config.PaymentNotificationTimezone(), "error", err)
+		slog.Warn("invalid payment notification timezone, using local timezone", "timezone", timezone, "error", err)
 		location = time.Local
 	}
 
@@ -211,12 +278,98 @@ func (s PaymentService) paymentNotificationConfig() (string, int64, string) {
 	return "", 0, "Europe/Moscow"
 }
 
-func sendTelegramNotification(ctx context.Context, token string, chatID int64, text string) error {
-	payload, err := json.Marshal(telegramSendMessageRequest{
+func buildPaymentNotificationKeyboard(settings runtimeconfig.TelegramPaymentNotificationSettings, panelUserID, telegramID int64) *telegramInlineKeyboardMarkup {
+	rows := make([][]telegramInlineKeyboardButton, 0, 2)
+	if settings.OpenUserButton.Enabled {
+		if panelURL := paymentNotificationPanelURL(panelUserID); panelURL != "" {
+			rows = append(rows, []telegramInlineKeyboardButton{paymentNotificationButton(settings.OpenUserButton.TelegramButtonSettings, panelURL)})
+		}
+	}
+	if settings.ProfileButton.Enabled && telegramID > 0 {
+		rows = append(rows, []telegramInlineKeyboardButton{paymentNotificationButton(
+			settings.ProfileButton.TelegramButtonSettings,
+			fmt.Sprintf("tg://user?id=%d", telegramID),
+		)})
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return &telegramInlineKeyboardMarkup{InlineKeyboard: rows}
+}
+
+func paymentNotificationButton(settings runtimeconfig.TelegramButtonSettings, targetURL string) telegramInlineKeyboardButton {
+	return telegramInlineKeyboardButton{
+		Text:              settings.Text,
+		URL:               targetURL,
+		IconCustomEmojiID: settings.IconCustomEmojiID,
+		Style:             settings.Style,
+	}
+}
+
+func paymentNotificationPanelURL(panelUserID int64) string {
+	panelURL, err := url.Parse(strings.TrimSpace(config.RemnawaveUrl()))
+	if err != nil || panelURL.Scheme == "" || panelURL.Host == "" {
+		return ""
+	}
+	if panelURL.Scheme != "https" && panelURL.Scheme != "http" {
+		return ""
+	}
+	if panelUserID > 0 {
+		panelURL.Path = fmt.Sprintf("/dashboard/open/user/%d", panelUserID)
+	} else {
+		panelURL.Path = "/dashboard/management/users"
+	}
+	panelURL.RawQuery = ""
+	panelURL.Fragment = ""
+	return panelURL.String()
+}
+
+func (s PaymentService) SendPaymentNotificationPreview(ctx context.Context, options PaymentNotificationPreviewOptions) error {
+	token, chatID, timezone := s.paymentNotificationConfig()
+	if token == "" || chatID == 0 {
+		return fmt.Errorf("бот уведомлений об оплате не настроен")
+	}
+	purchase := &database.Purchase{
+		Amount:       239,
+		Currency:     "RUB",
+		Month:        3,
+		PurchaseKind: database.PurchaseKindSubscription,
+		ExtraDevices: 2,
+	}
+	promo := "PROMO20"
+	discount := 20
+	purchase.PromoCodeSnapshot = &promo
+	purchase.PromoCodeDiscountPercent = &discount
+	username := strings.TrimSpace(options.Username)
+	if username == "" {
+		username = "test_user"
+	}
+	previewCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
+	defer cancel()
+	message := buildPaymentNotificationMessageWithTemplate(
+		options.Settings.Text,
+		purchase,
+		username,
+		"YooKassa",
+		time.Now(),
+		532,
+		timezone,
+	)
+	panelUserID := s.paymentNotificationPanelUserID(previewCtx, nil, options.Customer)
+	keyboard := buildPaymentNotificationKeyboard(options.Settings, panelUserID, options.TelegramID)
+	return sendTelegramNotification(previewCtx, token, chatID, message, keyboard)
+}
+
+func sendTelegramNotification(ctx context.Context, token string, chatID int64, text string, keyboard ...*telegramInlineKeyboardMarkup) error {
+	request := telegramSendMessageRequest{
 		ChatID:    chatID,
 		Text:      text,
 		ParseMode: "HTML",
-	})
+	}
+	if len(keyboard) > 0 {
+		request.ReplyMarkup = keyboard[0]
+	}
+	payload, err := json.Marshal(request)
 	if err != nil {
 		return fmt.Errorf("marshal notification payload: %w", err)
 	}
