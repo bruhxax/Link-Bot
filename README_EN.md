@@ -169,7 +169,10 @@ curl https://bot.example.com/healthcheck
 2. Open the Mini App using the account specified in `ADMIN_TELEGRAM_ID`.
 3. Go to **Admin**.
 4. Configure integrations, plans, trial access, squads, content, and features.
-5. In [@BotFather](https://t.me/BotFather), run `/setdomain` and enter `bot.example.com`.
+5. Open the [@BotFather](https://t.me/BotFather?startapp) Mini App, select your bot → **Login Widget**, then add `https://bot.example.com` and `https://bot.example.com/mini-app/` to **Allowed URLs**.
+6. Keep the default `RS256` signing algorithm under **Login Widget → Advanced**.
+
+The browser dashboard uses the new **Log In With Telegram (OIDC)** flow: Telegram opens from a link and the user confirms sign-in without manually entering a phone number or code. The server validates the returned `id_token` against Telegram's official signing keys; no Client Secret is required in `.env`.
 
 > [!NOTE]
 > Payment keys, plans, trial settings, promo codes, links, banners, and visual appearance are configured through the admin panel. They do not need to be stored in `.env`.

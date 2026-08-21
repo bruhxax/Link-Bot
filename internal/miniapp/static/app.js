@@ -24,6 +24,7 @@ const STORAGE_KEYS = {
   page: "link-bot-page",
   theme: "link-bot-theme",
   payMethod: "link-bot-pay-method",
+  telegramIDToken: "link-bot-telegram-id-token",
   telegramLogin: "link-bot-telegram-login",
   googleLogin: "link-bot-google-login",
 };
@@ -87,14 +88,15 @@ function scheduleDashboardHydration() {
   }, 150);
 }
 
-window.onTelegramAuth = (user) => {
-  const loginData = serializeTelegramLoginAuth(user);
-  if (!loginData) {
+window.onTelegramAuth = (payload) => {
+  const idToken = String(payload?.id_token || "").trim();
+  if (payload?.error || !idToken) {
     showToast(browserAuthCopy().loginFailed, "danger");
     return;
   }
 
-  writeSessionSetting(STORAGE_KEYS.telegramLogin, loginData);
+  writeSessionSetting(STORAGE_KEYS.telegramIDToken, idToken);
+  writeSessionSetting(STORAGE_KEYS.telegramLogin, "");
   clearGoogleAuth();
   state.loading = true;
   state.error = "";
@@ -124,12 +126,17 @@ function readBrowserTelegramAuth() {
   return readSessionSetting(STORAGE_KEYS.telegramLogin, "");
 }
 
+function readBrowserTelegramIDToken() {
+  return readSessionSetting(STORAGE_KEYS.telegramIDToken, "");
+}
+
 function clearBrowserTelegramAuth() {
+  writeSessionSetting(STORAGE_KEYS.telegramIDToken, "");
   writeSessionSetting(STORAGE_KEYS.telegramLogin, "");
 }
 
 function hasTelegramAuth() {
-  return Boolean(tg?.initData || readBrowserTelegramAuth());
+  return Boolean(tg?.initData || readBrowserTelegramIDToken() || readBrowserTelegramAuth());
 }
 
 function readGoogleAuth() {
@@ -302,7 +309,7 @@ function loadTelegramLoginScript() {
 
     const script = document.createElement("script");
     script.async = true;
-    script.src = "https://telegram.org/js/telegram-widget.js?22";
+    script.src = "https://oauth.telegram.org/js/telegram-login.js?5";
     script.dataset.linkBotTelegramLogin = "1";
     script.onload = () => resolve();
     script.onerror = () => reject(new Error("telegram login script failed"));
@@ -330,12 +337,12 @@ async function startTelegramBrowserLogin(trigger) {
     if (typeof auth !== "function") throw new Error("telegram login auth unavailable");
 
     auth({
-      bot_id: telegramBotID,
-      request_access: "write",
+      client_id: Number(telegramBotID),
+      request_access: ["write"],
       lang: /^ru\b/i.test(navigator.language || "") ? "ru" : "en",
-    }, (user) => {
-      if (user) {
-        window.onTelegramAuth(user);
+    }, (payload) => {
+      if (payload?.id_token) {
+        window.onTelegramAuth(payload);
         return;
       }
       showToast(copy.loginFailed, "danger");
@@ -357,6 +364,7 @@ function browserAuthCopy() {
     return {
       title: "Sign in to Link-Bot",
       text: "Use Telegram or Gmail to open your browser dashboard with your subscription, payments and support history.",
+      telegramHint: "Telegram will open for one-tap confirmation — no phone number or code needed.",
       openBot: "Open Telegram bot",
       loginFailed: "Telegram authorization failed",
       loginUnavailable: "Telegram login is temporarily unavailable",
@@ -366,27 +374,11 @@ function browserAuthCopy() {
   return {
     title: "Войти в Link-Bot",
     text: "Войдите через Telegram или Gmail, чтобы открыть браузерную версию кабинета с подпиской, оплатами и поддержкой.",
+    telegramHint: "Откроется Telegram — подтвердите вход одним нажатием. Номер и код вводить не нужно.",
     openBot: "Открыть Telegram-бота",
     loginFailed: "Не удалось авторизоваться через Telegram",
     loginUnavailable: "Вход через Telegram временно недоступен",
   };
-}
-
-function mountTelegramLoginWidget() {
-  const container = document.getElementById("telegram-login-widget");
-  if (!container || container.dataset.mounted === "1") return;
-
-  const copy = browserAuthCopy();
-  if (!telegramBotUsername || !telegramBotID) {
-    container.textContent = copy.loginUnavailable;
-    return;
-  }
-
-  container.dataset.mounted = "1";
-  container.textContent = "";
-  loadTelegramLoginScript().catch(() => {
-    container.textContent = copy.loginUnavailable;
-  });
 }
 
 function getGoogleClientID() {
@@ -2260,6 +2252,9 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 }
 
 function getBrowserAuthHeaders() {
+  const telegramIDToken = readBrowserTelegramIDToken();
+  if (telegramIDToken) return { "X-Telegram-ID-Token": telegramIDToken };
+
   const telegramLogin = readBrowserTelegramAuth();
   if (telegramLogin) return { "X-Telegram-Login-Data": telegramLogin };
 
@@ -2291,6 +2286,11 @@ async function post(url, body, extraHeaders = null) {
       body: JSON.stringify(body || {}),
       signal: controller.signal,
     });
+    const telegramSessionData = String(response.headers.get("X-Telegram-Session-Data") || "").trim();
+    if (telegramSessionData) {
+      writeSessionSetting(STORAGE_KEYS.telegramLogin, telegramSessionData);
+      writeSessionSetting(STORAGE_KEYS.telegramIDToken, "");
+    }
     const payload = await response.json().catch(() => null);
     if (!response.ok || !payload?.ok) {
       const err = new Error(mapApiErrorMessage(payload?.error?.code, payload?.error?.message || "Request failed"));
@@ -2457,7 +2457,6 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   if (!state.data && !hasAuth() && !previewMode) {
     app.innerHTML = renderStateScreen("telegram");
     bindRootActions();
-    mountTelegramLoginWidget();
     mountGoogleLoginWidgets();
     return;
   }
@@ -2472,7 +2471,6 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   if (!state.data) {
     app.innerHTML = renderStateScreen("telegram");
     bindRootActions();
-    mountTelegramLoginWidget();
     mountGoogleLoginWidgets();
     return;
   }
@@ -4495,11 +4493,14 @@ function renderStateScreen(kind, message = "", meta = null) {
           <h1 class="browser-auth__title" id="browser-auth-title">${escapeHtml(copy.title)}</h1>
           <p class="browser-auth__text">${escapeHtml(copy.text)}</p>
           <div class="browser-auth__actions">
-            <div class="telegram-login-widget" id="telegram-login-widget" aria-live="polite"></div>
-            <button class="browser-auth__telegram" type="button" data-action="telegram-browser-login">
+            <button class="browser-auth__telegram" type="button" data-action="telegram-browser-login" aria-describedby="telegram-login-hint">
               <span class="browser-auth__telegram-icon" aria-hidden="true">${icon("telegram")}</span>
               <span>${escapeHtml(telegramLoginButtonLabel())}</span>
             </button>
+            <div class="browser-auth__telegram-hint" id="telegram-login-hint">
+              <span class="browser-auth__telegram-hint-icon" aria-hidden="true">${icon("check")}</span>
+              <span>${escapeHtml(copy.telegramHint)}</span>
+            </div>
             <div class="google-button-shell google-button-shell--browser" data-google-mode="login">
               <button class="browser-auth__google" type="button" data-action="google-browser-login">
                 <span class="browser-auth__google-icon" aria-hidden="true">${icon("googleColor")}</span>

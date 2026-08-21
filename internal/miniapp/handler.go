@@ -84,9 +84,10 @@ func lockPromoPurchase(code string) func() {
 }
 
 type authRequest struct {
-	InitData      string `json:"initData"`
-	LoginData     string `json:"loginData"`
-	GoogleIDToken string `json:"googleIdToken"`
+	InitData        string `json:"initData"`
+	LoginData       string `json:"loginData"`
+	TelegramIDToken string `json:"telegramIdToken"`
+	GoogleIDToken   string `json:"googleIdToken"`
 }
 
 type bootstrapResponse struct {
@@ -676,7 +677,7 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 			return
 		}
 
-		initData, loginData, googleToken, err := extractAuthData(r)
+		initData, loginData, telegramToken, googleToken, err := extractAuthData(r)
 		if err != nil {
 			slog.Warn("mini app: failed to extract auth data", "error", err)
 			h.writeError(w, http.StatusBadRequest, "invalid_request", "Некорректный запрос")
@@ -685,7 +686,7 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 
 		var sess *session
 		var customer *database.Customer
-		if strings.TrimSpace(googleToken) != "" && strings.TrimSpace(initData) == "" && strings.TrimSpace(loginData) == "" {
+		if strings.TrimSpace(googleToken) != "" && strings.TrimSpace(initData) == "" && strings.TrimSpace(loginData) == "" && strings.TrimSpace(telegramToken) == "" {
 			if h.runtimeSettings != nil && !h.runtimeSettings.FeatureEnabled("google") {
 				h.writeError(w, http.StatusServiceUnavailable, "feature_disabled", "Gmail login is temporarily unavailable")
 				return
@@ -694,6 +695,25 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 		} else {
 			if strings.TrimSpace(initData) != "" {
 				sess, err = parseAndValidateInitData(initData, config.TelegramToken())
+			} else if strings.TrimSpace(telegramToken) != "" {
+				var identity *telegramOIDCIdentity
+				identity, err = validateTelegramIDToken(r.Context(), telegramToken, telegramBotID())
+				if err == nil {
+					sess = &session{
+						AuthDate: identity.IssuedAt,
+						Provider: sessionProviderTelegram,
+						User: telegramUser{
+							ID:        identity.ID,
+							FirstName: identity.FirstName,
+							LastName:  identity.LastName,
+							Username:  identity.Username,
+							PhotoURL:  identity.Picture,
+						},
+					}
+					if sessionData, sessionErr := createTelegramBrowserSessionData(sess.User, config.TelegramToken(), currentMiniAppTime()); sessionErr == nil {
+						w.Header().Set("X-Telegram-Session-Data", sessionData)
+					}
+				}
 			} else {
 				sess, err = parseAndValidateLoginData(loginData, config.TelegramToken())
 			}
@@ -760,37 +780,40 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 	}
 }
 
-func extractAuthData(r *http.Request) (string, string, string, error) {
+func extractAuthData(r *http.Request) (string, string, string, string, error) {
 	if headerValue := strings.TrimSpace(r.Header.Get("X-Telegram-Init-Data")); headerValue != "" {
-		return headerValue, "", "", nil
+		return headerValue, "", "", "", nil
+	}
+	if headerValue := strings.TrimSpace(r.Header.Get("X-Telegram-ID-Token")); headerValue != "" {
+		return "", "", headerValue, "", nil
 	}
 	if headerValue := strings.TrimSpace(r.Header.Get("X-Telegram-Login-Data")); headerValue != "" {
-		return "", headerValue, "", nil
+		return "", headerValue, "", "", nil
 	}
 	if headerValue := strings.TrimSpace(r.Header.Get("X-Google-ID-Token")); headerValue != "" {
-		return "", "", headerValue, nil
+		return "", "", "", headerValue, nil
 	}
 
 	if r.Body == nil {
-		return "", "", "", nil
+		return "", "", "", "", nil
 	}
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 	r.Body = io.NopCloser(bytes.NewReader(body))
 
 	if len(bytes.TrimSpace(body)) == 0 {
-		return "", "", "", nil
+		return "", "", "", "", nil
 	}
 
 	var payload authRequest
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 
-	return strings.TrimSpace(payload.InitData), strings.TrimSpace(payload.LoginData), strings.TrimSpace(payload.GoogleIDToken), nil
+	return strings.TrimSpace(payload.InitData), strings.TrimSpace(payload.LoginData), strings.TrimSpace(payload.TelegramIDToken), strings.TrimSpace(payload.GoogleIDToken), nil
 }
 
 func (h *Handler) sessionFromGoogleLogin(ctx context.Context, idToken string) (*session, *database.Customer, error) {
@@ -4663,10 +4686,7 @@ func maxInt64(value, fallback int64) int64 {
 }
 
 func (h *Handler) ensureCustomer(ctx context.Context, sess *session) (*database.Customer, error) {
-	langCode := sess.User.LanguageCode
-	if langCode == "" {
-		langCode = config.DefaultLanguage()
-	}
+	langCode := strings.TrimSpace(sess.User.LanguageCode)
 
 	customer, err := h.customerRepository.FindByTelegramId(ctx, sess.User.ID)
 	if err != nil {
@@ -4674,6 +4694,9 @@ func (h *Handler) ensureCustomer(ctx context.Context, sess *session) (*database.
 	}
 
 	if customer == nil {
+		if langCode == "" {
+			langCode = config.DefaultLanguage()
+		}
 		customer, err = h.customerRepository.Create(ctx, &database.Customer{
 			TelegramID: sess.User.ID,
 			Language:   langCode,
@@ -4687,6 +4710,12 @@ func (h *Handler) ensureCustomer(ctx context.Context, sess *session) (*database.
 		}
 
 		return customer, nil
+	}
+	if langCode == "" {
+		langCode = customer.Language
+	}
+	if langCode == "" {
+		langCode = config.DefaultLanguage()
 	}
 
 	if customer.Language != langCode {

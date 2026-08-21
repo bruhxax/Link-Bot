@@ -115,6 +115,7 @@ func setCommonSecurityHeaders(w http.ResponseWriter) {
 
 func setHTMLSecurityHeaders(w http.ResponseWriter) {
 	setCommonSecurityHeaders(w)
+	w.Header().Set("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
 	w.Header().Set("Content-Security-Policy", strings.Join([]string{
 		"default-src 'self'",
 		"base-uri 'self'",
@@ -124,7 +125,7 @@ func setHTMLSecurityHeaders(w http.ResponseWriter) {
 		"child-src 'self' https://oauth.telegram.org https://telegram.org https://accounts.google.com",
 		"worker-src 'self'",
 		"form-action 'self'",
-		"script-src 'self' https://telegram.org https://accounts.google.com",
+		"script-src 'self' https://telegram.org https://oauth.telegram.org https://accounts.google.com",
 		"style-src 'self' 'unsafe-inline'",
 		"font-src 'self' data:",
 		"img-src 'self' https: data: blob:",

@@ -169,7 +169,10 @@ curl https://bot.example.com/healthcheck
 2. Откройте Mini App под аккаунтом из `ADMIN_TELEGRAM_ID`.
 3. Перейдите в раздел **Админка**.
 4. Настройте интеграции, тарифы, триал, сквады, контент и функции.
-5. В [@BotFather](https://t.me/BotFather) выполните `/setdomain` и укажите `bot.example.com`.
+5. В Mini App [@BotFather](https://t.me/BotFather?startapp) выберите бота → **Login Widget** и добавьте в **Allowed URLs** адреса `https://bot.example.com` и `https://bot.example.com/mini-app/`.
+6. В **Login Widget → Advanced** оставьте стандартный алгоритм подписи `RS256`.
+
+Браузерная версия использует новый **Log In With Telegram (OIDC)**: Telegram открывается по ссылке, а пользователь подтверждает вход без ручного ввода номера и кода. `id_token` проверяется на сервере по официальным ключам Telegram; Client Secret в `.env` не требуется.
 
 > [!NOTE]
 > Платёжные ключи, тарифы, триал, промокоды, ссылки, баннеры и оформление задаются через админку. Хранить их в `.env` не требуется.

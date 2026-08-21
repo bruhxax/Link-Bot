@@ -49,6 +49,32 @@ func TestParseAndValidateLoginDataRejectsBadHash(t *testing.T) {
 	}
 }
 
+func TestCreateTelegramBrowserSessionData(t *testing.T) {
+	const botToken = "123456:test-token"
+	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	originalTime := currentMiniAppTime
+	currentMiniAppTime = func() time.Time { return now }
+	defer func() { currentMiniAppTime = originalTime }()
+
+	encoded, err := createTelegramBrowserSessionData(telegramUser{
+		ID:        6402520205,
+		FirstName: "Maks",
+		LastName:  "Link",
+		Username:  "maks",
+		PhotoURL:  "https://cdn4.telesco.pe/avatar.jpg",
+	}, botToken, now)
+	if err != nil {
+		t.Fatalf("createTelegramBrowserSessionData returned error: %v", err)
+	}
+	sess, err := parseAndValidateLoginData(encoded, botToken)
+	if err != nil {
+		t.Fatalf("generated browser session is invalid: %v", err)
+	}
+	if sess.User.ID != 6402520205 || sess.User.FirstName != "Maks" || sess.User.LastName != "Link" || sess.User.Username != "maks" {
+		t.Fatalf("unexpected generated session: %+v", sess.User)
+	}
+}
+
 func signTelegramLoginValues(values url.Values, botToken string) string {
 	var pairs []string
 	for key, items := range values {

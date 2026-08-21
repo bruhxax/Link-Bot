@@ -172,6 +172,42 @@ func parseAndValidateLoginData(loginData, botToken string) (*session, error) {
 	}, nil
 }
 
+func createTelegramBrowserSessionData(user telegramUser, botToken string, now time.Time) (string, error) {
+	if user.ID <= 0 {
+		return "", fmt.Errorf("invalid user id")
+	}
+	if strings.TrimSpace(botToken) == "" {
+		return "", fmt.Errorf("missing bot token")
+	}
+
+	values := url.Values{}
+	values.Set("id", strconv.FormatInt(user.ID, 10))
+	values.Set("auth_date", strconv.FormatInt(now.UTC().Unix(), 10))
+	optional := map[string]string{
+		"first_name":    user.FirstName,
+		"last_name":     user.LastName,
+		"username":      user.Username,
+		"photo_url":     user.PhotoURL,
+		"language_code": user.LanguageCode,
+	}
+	for key, value := range optional {
+		if value = strings.TrimSpace(value); value != "" {
+			values.Set(key, value)
+		}
+	}
+
+	var pairs []string
+	for key, items := range values {
+		if len(items) > 0 {
+			pairs = append(pairs, fmt.Sprintf("%s=%s", key, items[0]))
+		}
+	}
+	sort.Strings(pairs)
+	secret := sha256.Sum256([]byte(botToken))
+	values.Set("hash", hex.EncodeToString(hmacSHA256(secret[:], []byte(strings.Join(pairs, "\n")))))
+	return values.Encode(), nil
+}
+
 func hmacSHA256(key, payload []byte) []byte {
 	mac := hmac.New(sha256.New, key)
 	mac.Write(payload)

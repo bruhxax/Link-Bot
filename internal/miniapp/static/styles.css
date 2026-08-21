@@ -4678,15 +4678,6 @@ button.rating-star {
   line-height: 1.55;
 }
 
-.telegram-login-widget {
-  min-height: 8px;
-  display: grid;
-  place-items: center;
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
 .browser-auth__actions {
   width: min(100%, 320px);
   display: grid;
@@ -4761,6 +4752,32 @@ button.rating-star {
   width: 18px;
   height: 18px;
   display: block;
+}
+
+.browser-auth__telegram-hint {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+  padding: 2px 4px 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.browser-auth__telegram-hint-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #79c6ef;
+}
+
+.browser-auth__telegram-hint-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .google-login-widget {
