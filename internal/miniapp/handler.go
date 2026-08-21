@@ -235,6 +235,23 @@ type adminSubscriptionPayload struct {
 	SubscriptionLink  string `json:"subscriptionLink,omitempty"`
 }
 
+type adminSubscriptionTargetPayload struct {
+	TelegramID int64                                `json:"telegramId"`
+	Maximum    int                                  `json:"maximum"`
+	CanAdd     bool                                 `json:"canAdd"`
+	Items      []adminSubscriptionTargetItemPayload `json:"items"`
+}
+
+type adminSubscriptionTargetItemPayload struct {
+	ID            int64  `json:"id"`
+	Name          string `json:"name"`
+	Position      int    `json:"position"`
+	IsPrimary     bool   `json:"isPrimary"`
+	Status        string `json:"status"`
+	ExpiresAt     string `json:"expiresAt,omitempty"`
+	MatchesSource bool   `json:"matchesSource"`
+}
+
 type promoCodePayload struct {
 	ID              int64  `json:"id"`
 	Code            string `json:"code"`
@@ -429,8 +446,17 @@ type adminSubscriptionFindRequest struct {
 }
 
 type adminSubscriptionRebindRequest struct {
+	UserID               int64  `json:"userId"`
+	UserUUID             string `json:"userUuid"`
+	SubscriptionLink     string `json:"subscriptionLink"`
+	TargetTelegramID     int64  `json:"targetTelegramId"`
+	TargetSubscriptionID int64  `json:"targetSubscriptionId"`
+}
+
+type adminSubscriptionTargetRequest struct {
 	UserID           int64  `json:"userId"`
 	UserUUID         string `json:"userUuid"`
+	SubscriptionLink string `json:"subscriptionLink"`
 	TargetTelegramID int64  `json:"targetTelegramId"`
 }
 
@@ -546,6 +572,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/promocodes/create", h.withSession(h.handleAdminCreatePromoCode))
 	mux.HandleFunc("/api/mini-app/admin/promocodes/delete", h.withSession(h.handleAdminDeletePromoCode))
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/find", h.withSession(h.handleAdminFindSubscription))
+	mux.HandleFunc("/api/mini-app/admin/subscriptions/target", h.withSession(h.handleAdminSubscriptionTarget))
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/rebind", h.withSession(h.handleAdminRebindSubscription))
 	mux.HandleFunc("/api/mini-app/admin/settings/update", h.withSession(h.handleAdminSettingsUpdate))
 	mux.HandleFunc("/api/mini-app/admin/reminders/test", h.withSession(h.handleAdminReminderTest))
@@ -1547,31 +1574,23 @@ func (h *Handler) handleAdminFindSubscription(w http.ResponseWriter, r *http.Req
 	})
 }
 
-func (h *Handler) handleAdminRebindSubscription(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
+func (h *Handler) handleAdminSubscriptionTarget(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
 	if !h.isAdmin(sess.User.ID) {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
-	if h.remnawaveClient == nil || h.customerRepository == nil || h.telegramBot == nil {
+	if h.customerRepository == nil || h.subscriptionRepository == nil {
 		h.writeError(w, http.StatusServiceUnavailable, "subscription_rebind_failed", "Subscription service is unavailable")
 		return
 	}
 
-	var req adminSubscriptionRebindRequest
+	var req adminSubscriptionTargetRequest
 	if err := h.decodeJSONRequest(w, r, 2048, &req); err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "Invalid request")
 		return
 	}
-	userUUID := uuid.Nil
-	if rawUUID := strings.TrimSpace(req.UserUUID); rawUUID != "" {
-		parsedUUID, err := uuid.Parse(rawUUID)
-		if err != nil {
-			h.writeError(w, http.StatusBadRequest, "invalid_request", "Invalid subscription or Telegram ID")
-			return
-		}
-		userUUID = parsedUUID
-	}
-	if (req.UserID <= 0 && userUUID == uuid.Nil) || req.TargetTelegramID <= 0 {
+	userUUID, err := parseAdminSubscriptionUUID(req.UserUUID)
+	if err != nil || (req.UserID <= 0 && userUUID == uuid.Nil) || req.TargetTelegramID <= 0 {
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "Invalid subscription or Telegram ID")
 		return
 	}
@@ -1585,6 +1604,154 @@ func (h *Handler) handleAdminRebindSubscription(w http.ResponseWriter, r *http.R
 	if targetCustomer == nil {
 		h.writeError(w, http.StatusNotFound, "target_not_registered", "Target account must start the bot first")
 		return
+	}
+	if _, err := h.subscriptionRepository.EnsurePrimary(r.Context(), targetCustomer); err != nil {
+		slog.Error("mini app: ensure subscription transfer target", "error", err, "targetTelegramId", utils.MaskHalfInt64(req.TargetTelegramID))
+		h.writeError(w, http.StatusInternalServerError, "subscription_rebind_failed", "Failed to load target subscriptions")
+		return
+	}
+	items, err := h.subscriptionRepository.ListByCustomer(r.Context(), targetCustomer.ID)
+	if err != nil {
+		slog.Error("mini app: list subscription transfer target", "error", err, "targetTelegramId", utils.MaskHalfInt64(req.TargetTelegramID))
+		h.writeError(w, http.StatusInternalServerError, "subscription_rebind_failed", "Failed to load target subscriptions")
+		return
+	}
+
+	payload := buildAdminSubscriptionTargetPayload(req.TargetTelegramID, items, req.UserID, userUUID, req.SubscriptionLink)
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": payload})
+}
+
+func parseAdminSubscriptionUUID(value string) (uuid.UUID, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return uuid.Nil, nil
+	}
+	return uuid.Parse(value)
+}
+
+func buildAdminSubscriptionTargetPayload(telegramID int64, subscriptions []database.CustomerSubscription, userID int64, userUUID uuid.UUID, subscriptionLink string) adminSubscriptionTargetPayload {
+	payload := adminSubscriptionTargetPayload{
+		TelegramID: telegramID,
+		Maximum:    database.MaxCustomerSubscriptions,
+		CanAdd:     len(subscriptions) < database.MaxCustomerSubscriptions,
+		Items:      make([]adminSubscriptionTargetItemPayload, 0, len(subscriptions)),
+	}
+	now := time.Now().UTC()
+	sourceLink := strings.TrimSpace(subscriptionLink)
+	for _, subscription := range subscriptions {
+		status := "empty"
+		expiresAt := ""
+		if subscription.ExpireAt != nil {
+			expiresAt = subscription.ExpireAt.UTC().Format(time.RFC3339)
+			if subscription.ExpireAt.After(now) {
+				status = "active"
+			} else {
+				status = "inactive"
+			}
+		}
+		matchesSource := (userID > 0 && subscription.PanelUserID != nil && *subscription.PanelUserID == userID) ||
+			(userUUID != uuid.Nil && subscription.PanelUserUUID != nil && *subscription.PanelUserUUID == userUUID) ||
+			(sourceLink != "" && subscription.SubscriptionLink != nil && strings.TrimSpace(*subscription.SubscriptionLink) == sourceLink)
+		payload.Items = append(payload.Items, adminSubscriptionTargetItemPayload{
+			ID: subscription.ID, Name: subscription.DisplayName, Position: subscription.Position,
+			IsPrimary: subscription.IsPrimary, Status: status, ExpiresAt: expiresAt, MatchesSource: matchesSource,
+		})
+	}
+	return payload
+}
+
+func (h *Handler) handleAdminRebindSubscription(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
+	if !h.isAdmin(sess.User.ID) {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+		return
+	}
+	if h.remnawaveClient == nil || h.customerRepository == nil || h.subscriptionRepository == nil || h.telegramBot == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "subscription_rebind_failed", "Subscription service is unavailable")
+		return
+	}
+
+	var req adminSubscriptionRebindRequest
+	if err := h.decodeJSONRequest(w, r, 2048, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Invalid request")
+		return
+	}
+	userUUID, err := parseAdminSubscriptionUUID(req.UserUUID)
+	if err != nil || (req.UserID <= 0 && userUUID == uuid.Nil) || req.TargetTelegramID <= 0 || req.TargetSubscriptionID < 0 {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Invalid subscription or Telegram ID")
+		return
+	}
+
+	targetCustomer, err := h.customerRepository.FindByTelegramId(r.Context(), req.TargetTelegramID)
+	if err != nil {
+		slog.Error("mini app: load subscription transfer target", "error", err, "targetTelegramId", utils.MaskHalfInt64(req.TargetTelegramID))
+		h.writeError(w, http.StatusInternalServerError, "subscription_rebind_failed", "Failed to load target account")
+		return
+	}
+	if targetCustomer == nil {
+		h.writeError(w, http.StatusNotFound, "target_not_registered", "Target account must start the bot first")
+		return
+	}
+	if _, err := h.subscriptionRepository.EnsurePrimary(r.Context(), targetCustomer); err != nil {
+		slog.Error("mini app: ensure subscription transfer target", "error", err, "targetTelegramId", utils.MaskHalfInt64(req.TargetTelegramID))
+		h.writeError(w, http.StatusInternalServerError, "subscription_rebind_failed", "Failed to load target subscriptions")
+		return
+	}
+
+	var targetSubscription *database.CustomerSubscription
+	if req.TargetSubscriptionID > 0 {
+		targetSubscription, err = h.subscriptionRepository.FindForCustomer(r.Context(), targetCustomer.ID, req.TargetSubscriptionID)
+		if err != nil {
+			slog.Error("mini app: load subscription transfer destination", "error", err, "targetTelegramId", utils.MaskHalfInt64(req.TargetTelegramID))
+			h.writeError(w, http.StatusInternalServerError, "subscription_rebind_failed", "Failed to load target subscription")
+			return
+		}
+		if targetSubscription == nil {
+			h.writeError(w, http.StatusBadRequest, "subscription_target_invalid", "Select a subscription to replace")
+			return
+		}
+	} else {
+		targetSubscriptions, err := h.subscriptionRepository.ListByCustomer(r.Context(), targetCustomer.ID)
+		if err != nil {
+			slog.Error("mini app: count subscription transfer target", "error", err, "targetTelegramId", utils.MaskHalfInt64(req.TargetTelegramID))
+			h.writeError(w, http.StatusInternalServerError, "subscription_rebind_failed", "Failed to load target subscriptions")
+			return
+		}
+		if len(targetSubscriptions) >= database.MaxCustomerSubscriptions {
+			h.writeError(w, http.StatusConflict, "subscription_target_full", "Target account already has three subscriptions")
+			return
+		}
+	}
+	if h.purchaseRepository != nil {
+		sourceSubscriptions, err := h.subscriptionRepository.ListByPanelIdentity(r.Context(), req.UserID, userUUID, req.SubscriptionLink)
+		if err != nil {
+			slog.Error("mini app: load source subscription payments", "error", err, "userId", req.UserID)
+			h.writeError(w, http.StatusInternalServerError, "subscription_rebind_failed", "Failed to check subscription payments")
+			return
+		}
+		for _, sourceSubscription := range sourceSubscriptions {
+			hasPending, err := h.purchaseRepository.HasPendingPurchaseBySubscription(r.Context(), sourceSubscription.CustomerID, sourceSubscription.ID)
+			if err != nil {
+				slog.Error("mini app: check source subscription payments", "error", err, "subscriptionId", sourceSubscription.ID)
+				h.writeError(w, http.StatusInternalServerError, "subscription_rebind_failed", "Failed to check subscription payments")
+				return
+			}
+			if hasPending {
+				h.writeError(w, http.StatusConflict, "subscription_source_pending", "Source subscription has a pending payment")
+				return
+			}
+		}
+		if targetSubscription != nil {
+			hasPending, err := h.purchaseRepository.HasPendingPurchaseBySubscription(r.Context(), targetCustomer.ID, targetSubscription.ID)
+			if err != nil {
+				slog.Error("mini app: check target subscription payments", "error", err, "subscriptionId", targetSubscription.ID)
+				h.writeError(w, http.StatusInternalServerError, "subscription_rebind_failed", "Failed to check subscription payments")
+				return
+			}
+			if hasPending {
+				h.writeError(w, http.StatusConflict, "subscription_target_pending", "Target subscription has a pending payment")
+				return
+			}
+		}
 	}
 
 	profileCtx, profileCancel := context.WithTimeout(r.Context(), 8*time.Second)
@@ -1605,7 +1772,33 @@ func (h *Handler) handleAdminRebindSubscription(w http.ResponseWriter, r *http.R
 
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	rebindResult, err := h.remnawaveClient.RebindUserTelegramID(ctx, req.UserID, userUUID, req.TargetTelegramID, targetDescription)
+	replaceUserID, replaceUserUUID := customerSubscriptionIdentity(targetSubscription)
+	if replaceUserID <= 0 && replaceUserUUID == uuid.Nil && targetSubscription != nil && targetSubscription.SubscriptionLink != nil {
+		replaced, findErr := h.remnawaveClient.FindUserBySubscriptionLink(ctx, *targetSubscription.SubscriptionLink)
+		if findErr != nil && !errors.Is(findErr, remnawave.ErrAdminSubscriptionNotFound) {
+			slog.Error("mini app: resolve replacement subscription", "error", findErr, "subscriptionId", targetSubscription.ID)
+			h.writeError(w, http.StatusBadGateway, "subscription_rebind_failed", "Failed to load target subscription")
+			return
+		}
+		if replaced != nil {
+			replaceUserID = replaced.ID
+			replaceUserUUID = replaced.UUID
+		}
+	}
+	if replaceUserID == req.UserID || (userUUID != uuid.Nil && replaceUserUUID == userUUID) {
+		replaceUserID = 0
+		replaceUserUUID = uuid.Nil
+	}
+
+	rebindResult, err := h.remnawaveClient.RebindUserTelegramID(
+		ctx,
+		req.UserID,
+		userUUID,
+		req.TargetTelegramID,
+		targetDescription,
+		replaceUserID,
+		replaceUserUUID,
+	)
 	if err != nil {
 		switch {
 		case errors.Is(err, remnawave.ErrAdminSubscriptionNotFound):
@@ -1623,22 +1816,31 @@ func (h *Handler) handleAdminRebindSubscription(w http.ResponseWriter, r *http.R
 	if previousTelegramID != nil {
 		oldTelegramID = *previousTelegramID
 	}
-	if err := h.customerRepository.TransferSubscriptionCache(
-		r.Context(),
+	_, err = h.subscriptionRepository.TransferPanelSubscription(
+		ctx,
+		updated.ID,
+		updated.UUID,
 		oldTelegramID,
-		req.TargetTelegramID,
-		updated.ExpireAt,
+		targetCustomer.ID,
+		req.TargetSubscriptionID,
+		updated.Username,
 		updated.SubscriptionLink,
-	); err != nil {
+		updated.ExpireAt,
+	)
+	if err != nil {
 		rollbackCtx, rollbackCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		rollbackErr := h.remnawaveClient.RestoreAdminRebind(rollbackCtx, req.UserID, userUUID, previousTelegramID, rebindResult.PreviousDescription, rebindResult.DisplacedSubscription)
 		rollbackCancel()
 		if rollbackErr != nil {
 			slog.Error("mini app: rollback admin subscription rebind", "error", rollbackErr, "userUuid", userUUID.String())
 		}
-		slog.Error("mini app: transfer subscription cache", "error", err, "targetTelegramId", utils.MaskHalfInt64(req.TargetTelegramID))
-		if errors.Is(err, database.ErrSubscriptionTransferTargetNotFound) {
-			h.writeError(w, http.StatusNotFound, "target_not_registered", "Target account must start the bot first")
+		slog.Error("mini app: transfer subscription owner", "error", err, "targetTelegramId", utils.MaskHalfInt64(req.TargetTelegramID))
+		if errors.Is(err, database.ErrSubscriptionLimitReached) {
+			h.writeError(w, http.StatusConflict, "subscription_target_full", "Target account already has three subscriptions")
+			return
+		}
+		if errors.Is(err, database.ErrSubscriptionTransferTarget) {
+			h.writeError(w, http.StatusBadRequest, "subscription_target_invalid", "Select a subscription to replace")
 			return
 		}
 		h.writeError(w, http.StatusInternalServerError, "subscription_rebind_failed", "Failed to save subscription owner")

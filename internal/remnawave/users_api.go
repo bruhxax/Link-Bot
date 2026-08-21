@@ -396,6 +396,19 @@ func findPanelUserByIDOrUsername(users []PanelUser, query string) *PanelUser {
 	return nil
 }
 
+func findPanelUserBySubscriptionLink(users []PanelUser, subscriptionLink string) *PanelUser {
+	subscriptionLink = strings.TrimSpace(subscriptionLink)
+	if subscriptionLink == "" {
+		return nil
+	}
+	for i := range users {
+		if strings.TrimSpace(users[i].SubscriptionURL) == subscriptionLink {
+			return &users[i]
+		}
+	}
+	return nil
+}
+
 func findPanelUser(users []PanelUser, userID int64, userUUID uuid.UUID) *PanelUser {
 	for i := range users {
 		if userID > 0 && users[i].ID == userID {
@@ -404,25 +417,6 @@ func findPanelUser(users []PanelUser, userID int64, userUUID uuid.UUID) *PanelUs
 		if userUUID != uuid.Nil && users[i].UUID == userUUID {
 			return &users[i]
 		}
-	}
-	return nil
-}
-
-func findOtherPanelUserByTelegramID(users []PanelUser, telegramID, excludedUserID int64, excludedUUID uuid.UUID) *PanelUser {
-	if telegramID <= 0 {
-		return nil
-	}
-	for i := range users {
-		if users[i].TelegramID == nil || *users[i].TelegramID != telegramID {
-			continue
-		}
-		if excludedUserID > 0 && users[i].ID == excludedUserID {
-			continue
-		}
-		if excludedUUID != uuid.Nil && users[i].UUID == excludedUUID {
-			continue
-		}
-		return &users[i]
 	}
 	return nil
 }

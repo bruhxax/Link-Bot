@@ -29,22 +29,17 @@ func TestFindUserByIDOrUsername(t *testing.T) {
 	}
 }
 
-func TestFindOtherUserByTelegramID(t *testing.T) {
-	selectedUUID := uuid.New()
-	displacedUUID := uuid.New()
-	targetTelegramID := int64(6402520205)
-	users := []PanelUser{
-		{ID: 1281, UUID: selectedUUID, TelegramID: &targetTelegramID},
-		{ID: 1282, UUID: displacedUUID, TelegramID: &targetTelegramID},
-	}
+func TestFindPanelUserBySubscriptionLink(t *testing.T) {
+	t.Parallel()
 
-	found := findOtherPanelUserByTelegramID(users, targetTelegramID, 1281, selectedUUID)
-	if found == nil || found.UUID != displacedUUID {
-		t.Fatalf("expected target lookup to return displaced subscription %s", displacedUUID)
+	userUUID := uuid.New()
+	users := []PanelUser{{ID: 1281, UUID: userUUID, SubscriptionURL: " https://example.test/sub/one "}}
+	got := findPanelUserBySubscriptionLink(users, "https://example.test/sub/one")
+	if got == nil || got.UUID != userUUID {
+		t.Fatalf("expected subscription URL lookup to find %s", userUUID)
 	}
-
-	if found := findOtherPanelUserByTelegramID(users, 0, 1281, selectedUUID); found != nil {
-		t.Fatalf("expected invalid Telegram ID lookup to return nil")
+	if got := findPanelUserBySubscriptionLink(users, ""); got != nil {
+		t.Fatal("empty subscription URL must not match")
 	}
 }
 

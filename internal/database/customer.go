@@ -19,8 +19,6 @@ type CustomerRepository struct {
 	pool *pgxpool.Pool
 }
 
-var ErrSubscriptionTransferTargetNotFound = errors.New("subscription transfer target customer not found")
-
 func NewCustomerRepository(poll *pgxpool.Pool) *CustomerRepository {
 	return &CustomerRepository{pool: poll}
 }
@@ -313,55 +311,6 @@ func (cr *CustomerRepository) FindByTelegramId(ctx context.Context, telegramId i
 	}
 
 	return &customer, nil
-}
-
-func (cr *CustomerRepository) TransferSubscriptionCache(
-	ctx context.Context,
-	oldTelegramID int64,
-	newTelegramID int64,
-	expireAt time.Time,
-	subscriptionLink string,
-) error {
-	if newTelegramID <= 0 {
-		return ErrSubscriptionTransferTargetNotFound
-	}
-
-	tx, err := cr.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin subscription cache transfer: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	result, err := tx.Exec(ctx, `
-		UPDATE customer
-		SET expire_at = $2,
-		    subscription_link = $3
-		WHERE telegram_id = $1
-	`, newTelegramID, expireAt.UTC(), strings.TrimSpace(subscriptionLink))
-	if err != nil {
-		return fmt.Errorf("update subscription transfer target: %w", err)
-	}
-	if result.RowsAffected() != 1 {
-		return ErrSubscriptionTransferTargetNotFound
-	}
-
-	if oldTelegramID > 0 && oldTelegramID != newTelegramID {
-		if _, err := tx.Exec(ctx, `
-			UPDATE customer
-			SET expire_at = NULL,
-			    subscription_link = NULL,
-			    autopay_enabled = FALSE,
-			    autopay_plan_months = NULL
-			WHERE telegram_id = $1
-		`, oldTelegramID); err != nil {
-			return fmt.Errorf("clear previous subscription owner cache: %w", err)
-		}
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit subscription cache transfer: %w", err)
-	}
-	return nil
 }
 
 func (cr *CustomerRepository) Create(ctx context.Context, customer *Customer) (*Customer, error) {

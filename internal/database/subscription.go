@@ -18,6 +18,7 @@ var (
 	ErrSubscriptionLimitReached     = errors.New("subscription limit reached")
 	ErrCustomerSubscriptionNotFound = errors.New("customer subscription not found")
 	ErrPrimarySubscriptionDelete    = errors.New("primary subscription cannot be deleted")
+	ErrSubscriptionTransferTarget   = errors.New("subscription transfer target is invalid")
 )
 
 type CustomerSubscription struct {
@@ -166,6 +167,324 @@ func (sr *SubscriptionRepository) ListByCustomer(ctx context.Context, customerID
 		return nil, fmt.Errorf("iterate customer subscriptions: %w", err)
 	}
 	return result, nil
+}
+
+func (sr *SubscriptionRepository) ListByPanelIdentity(ctx context.Context, panelUserID int64, panelUserUUID uuid.UUID, subscriptionLink string) ([]CustomerSubscription, error) {
+	var uuidValue interface{}
+	if panelUserUUID != uuid.Nil {
+		uuidValue = panelUserUUID
+	}
+	link := strings.TrimSpace(subscriptionLink)
+	rows, err := sr.pool.Query(ctx, `
+		SELECT id, customer_id, display_name, position, is_primary, panel_user_id,
+		       panel_user_uuid, subscription_link, expire_at, created_at, updated_at
+		FROM customer_subscription
+		WHERE (NULLIF($1::bigint, 0) IS NOT NULL AND panel_user_id = NULLIF($1::bigint, 0))
+		   OR ($2::uuid IS NOT NULL AND panel_user_uuid = $2::uuid)
+		   OR (NULLIF(BTRIM($3::text), '') IS NOT NULL AND BTRIM(subscription_link) = BTRIM($3::text))
+		ORDER BY customer_id ASC, is_primary DESC, id ASC
+	`, panelUserID, uuidValue, link)
+	if err != nil {
+		return nil, fmt.Errorf("list subscriptions by panel identity: %w", err)
+	}
+	defer rows.Close()
+
+	result := make([]CustomerSubscription, 0, 2)
+	for rows.Next() {
+		var subscription CustomerSubscription
+		if err := scanCustomerSubscription(rows, &subscription); err != nil {
+			return nil, fmt.Errorf("scan subscription by panel identity: %w", err)
+		}
+		result = append(result, subscription)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate subscriptions by panel identity: %w", err)
+	}
+	return result, nil
+}
+
+func (sr *SubscriptionRepository) TransferPanelSubscription(
+	ctx context.Context,
+	panelUserID int64,
+	panelUserUUID uuid.UUID,
+	previousTelegramID int64,
+	targetCustomerID int64,
+	targetSubscriptionID int64,
+	displayName string,
+	subscriptionLink string,
+	expireAt time.Time,
+) (*CustomerSubscription, error) {
+	if (panelUserID <= 0 && panelUserUUID == uuid.Nil) || targetCustomerID <= 0 {
+		return nil, ErrSubscriptionTransferTarget
+	}
+
+	tx, err := sr.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin subscription transfer: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", targetCustomerID); err != nil {
+		return nil, fmt.Errorf("lock target subscriptions: %w", err)
+	}
+	var targetExists bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM customer WHERE id = $1)`, targetCustomerID).Scan(&targetExists); err != nil {
+		return nil, fmt.Errorf("load subscription transfer target: %w", err)
+	}
+	if !targetExists {
+		return nil, ErrSubscriptionTransferTarget
+	}
+
+	var uuidValue interface{}
+	if panelUserUUID != uuid.Nil {
+		uuidValue = panelUserUUID
+	}
+	link := strings.TrimSpace(subscriptionLink)
+	matchingRows, err := tx.Query(ctx, `
+		SELECT id, customer_id, display_name, position, is_primary, panel_user_id,
+		       panel_user_uuid, subscription_link, expire_at, created_at, updated_at
+		FROM customer_subscription
+		WHERE (NULLIF($1::bigint, 0) IS NOT NULL AND panel_user_id = NULLIF($1::bigint, 0))
+		   OR ($2::uuid IS NOT NULL AND panel_user_uuid = $2::uuid)
+		   OR (NULLIF(BTRIM($3::text), '') IS NOT NULL AND BTRIM(subscription_link) = BTRIM($3::text))
+		ORDER BY is_primary DESC, id ASC
+		FOR UPDATE
+	`, panelUserID, uuidValue, link)
+	if err != nil {
+		return nil, fmt.Errorf("load existing subscription owners: %w", err)
+	}
+	matching := make([]CustomerSubscription, 0, 2)
+	for matchingRows.Next() {
+		var subscription CustomerSubscription
+		if err := scanCustomerSubscription(matchingRows, &subscription); err != nil {
+			matchingRows.Close()
+			return nil, fmt.Errorf("scan existing subscription owner: %w", err)
+		}
+		matching = append(matching, subscription)
+	}
+	if err := matchingRows.Err(); err != nil {
+		matchingRows.Close()
+		return nil, fmt.Errorf("iterate existing subscription owners: %w", err)
+	}
+	matchingRows.Close()
+
+	var destination *CustomerSubscription
+	if targetSubscriptionID > 0 {
+		destination, err = sr.findForCustomerTx(ctx, tx, targetCustomerID, targetSubscriptionID)
+		if err != nil {
+			return nil, err
+		}
+		if destination == nil {
+			return nil, ErrSubscriptionTransferTarget
+		}
+	}
+
+	affectedCustomers := make(map[int64]struct{})
+	for i := range matching {
+		existing := &matching[i]
+		if destination != nil && existing.ID == destination.ID {
+			continue
+		}
+		affectedCustomers[existing.CustomerID] = struct{}{}
+		if existing.IsPrimary {
+			if _, err := tx.Exec(ctx, `
+				UPDATE customer_subscription
+				SET panel_user_id = NULL,
+				    panel_user_uuid = NULL,
+				    subscription_link = NULL,
+				    expire_at = NULL,
+				    updated_at = NOW()
+				WHERE id = $1
+			`, existing.ID); err != nil {
+				return nil, fmt.Errorf("clear previous primary subscription owner: %w", err)
+			}
+			if _, err := tx.Exec(ctx, `
+				UPDATE customer
+				SET expire_at = NULL,
+				    subscription_link = NULL,
+				    autopay_enabled = FALSE,
+				    autopay_plan_months = NULL
+				WHERE id = $1
+			`, existing.CustomerID); err != nil {
+				return nil, fmt.Errorf("clear previous primary subscription cache: %w", err)
+			}
+			continue
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM customer_subscription WHERE id = $1`, existing.ID); err != nil {
+			return nil, fmt.Errorf("remove previous additional subscription owner: %w", err)
+		}
+	}
+
+	if previousTelegramID > 0 {
+		var fallbackCustomerID int64
+		var fallbackPrimaryID int64
+		err := tx.QueryRow(ctx, `
+			SELECT c.id, s.id
+			FROM customer AS c
+			JOIN customer_subscription AS s ON s.customer_id = c.id AND s.is_primary
+			WHERE c.telegram_id = $1
+			  AND c.id <> $2
+			  AND s.panel_user_id IS NULL
+			  AND s.panel_user_uuid IS NULL
+			  AND NULLIF(BTRIM(s.subscription_link), '') = NULLIF(BTRIM($3), '')
+			FOR UPDATE
+		`, previousTelegramID, targetCustomerID, link).Scan(&fallbackCustomerID, &fallbackPrimaryID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("load legacy subscription owner: %w", err)
+		}
+		if err == nil {
+			affectedCustomers[fallbackCustomerID] = struct{}{}
+			if _, err := tx.Exec(ctx, `
+				UPDATE customer_subscription
+				SET subscription_link = NULL, expire_at = NULL, updated_at = NOW()
+				WHERE id = $1
+			`, fallbackPrimaryID); err != nil {
+				return nil, fmt.Errorf("clear legacy primary subscription: %w", err)
+			}
+			if _, err := tx.Exec(ctx, `
+				UPDATE customer
+				SET expire_at = NULL,
+				    subscription_link = NULL,
+				    autopay_enabled = FALSE,
+				    autopay_plan_months = NULL
+				WHERE id = $1
+			`, fallbackCustomerID); err != nil {
+				return nil, fmt.Errorf("clear legacy primary subscription cache: %w", err)
+			}
+		}
+	}
+
+	if destination == nil {
+		positions, err := subscriptionPositionsTx(ctx, tx, targetCustomerID)
+		if err != nil {
+			return nil, err
+		}
+		position, ok := firstFreeSubscriptionPosition(positions)
+		if !ok {
+			return nil, ErrSubscriptionLimitReached
+		}
+		name := transferSubscriptionDisplayName(displayName, position)
+		var created CustomerSubscription
+		if err := scanCustomerSubscription(tx.QueryRow(ctx, `
+			INSERT INTO customer_subscription (customer_id, display_name, position, is_primary)
+			VALUES ($1, $2, $3, FALSE)
+			RETURNING id, customer_id, display_name, position, is_primary, panel_user_id,
+			          panel_user_uuid, subscription_link, expire_at, created_at, updated_at
+		`, targetCustomerID, name, position), &created); err != nil {
+			return nil, fmt.Errorf("create subscription transfer destination: %w", err)
+		}
+		destination = &created
+	}
+
+	var expireValue interface{}
+	if !expireAt.IsZero() {
+		expireValue = expireAt.UTC()
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE customer_subscription
+		SET panel_user_id = NULLIF($2, 0),
+		    panel_user_uuid = $3,
+		    subscription_link = NULLIF($4, ''),
+		    expire_at = $5,
+		    updated_at = NOW()
+		WHERE id = $1
+	`, destination.ID, panelUserID, uuidValue, link, expireValue); err != nil {
+		return nil, fmt.Errorf("assign transferred subscription: %w", err)
+	}
+	if destination.IsPrimary {
+		if _, err := tx.Exec(ctx, `
+			UPDATE customer
+			SET subscription_link = NULLIF($2, ''), expire_at = $3
+			WHERE id = $1
+		`, targetCustomerID, link, expireValue); err != nil {
+			return nil, fmt.Errorf("update transferred primary subscription cache: %w", err)
+		}
+	}
+
+	for customerID := range affectedCustomers {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO customer_subscription_selection (customer_id, subscription_id, updated_at)
+			SELECT $1, id, NOW()
+			FROM customer_subscription
+			WHERE customer_id = $1 AND is_primary
+			  AND NOT EXISTS (
+				SELECT 1 FROM customer_subscription_selection WHERE customer_id = $1
+			  )
+			ON CONFLICT (customer_id) DO NOTHING
+		`, customerID); err != nil {
+			return nil, fmt.Errorf("restore subscription selection after transfer: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit subscription transfer: %w", err)
+	}
+	return sr.FindByID(ctx, destination.ID)
+}
+
+func (sr *SubscriptionRepository) findForCustomerTx(ctx context.Context, tx pgx.Tx, customerID, subscriptionID int64) (*CustomerSubscription, error) {
+	var result CustomerSubscription
+	if err := scanCustomerSubscription(tx.QueryRow(ctx, `
+		SELECT id, customer_id, display_name, position, is_primary, panel_user_id,
+		       panel_user_uuid, subscription_link, expire_at, created_at, updated_at
+		FROM customer_subscription
+		WHERE id = $1 AND customer_id = $2
+		FOR UPDATE
+	`, subscriptionID, customerID), &result); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("query subscription transfer destination: %w", err)
+	}
+	return &result, nil
+}
+
+func subscriptionPositionsTx(ctx context.Context, tx pgx.Tx, customerID int64) ([]int, error) {
+	rows, err := tx.Query(ctx, `SELECT position FROM customer_subscription WHERE customer_id = $1 ORDER BY position FOR UPDATE`, customerID)
+	if err != nil {
+		return nil, fmt.Errorf("load subscription transfer positions: %w", err)
+	}
+	defer rows.Close()
+	positions := make([]int, 0, MaxCustomerSubscriptions)
+	for rows.Next() {
+		var position int
+		if err := rows.Scan(&position); err != nil {
+			return nil, fmt.Errorf("scan subscription transfer position: %w", err)
+		}
+		positions = append(positions, position)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate subscription transfer positions: %w", err)
+	}
+	return positions, nil
+}
+
+func firstFreeSubscriptionPosition(positions []int) (int, bool) {
+	used := make(map[int]bool, len(positions))
+	for _, position := range positions {
+		used[position] = true
+	}
+	for position := 1; position <= MaxCustomerSubscriptions; position++ {
+		if !used[position] {
+			return position, true
+		}
+	}
+	return 0, false
+}
+
+func transferSubscriptionDisplayName(value string, position int) string {
+	value = strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+	if value == "" {
+		return fmt.Sprintf("Подписка %d", position)
+	}
+	runes := []rune(value)
+	if len(runes) > 40 {
+		value = strings.TrimSpace(string(runes[:40]))
+	}
+	if value == "" {
+		return fmt.Sprintf("Подписка %d", position)
+	}
+	return value
 }
 
 func (sr *SubscriptionRepository) ActiveForCustomer(ctx context.Context, customer *Customer) (*CustomerSubscription, error) {

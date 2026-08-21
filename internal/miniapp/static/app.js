@@ -842,23 +842,28 @@ Object.assign(copybook.ru, {
   adminPromoUnlimited: "Без лимита",
   adminPromoNoExpiry: "Без срока",
   adminPromoUsage: (used, total) => total > 0 ? `${used}/${total} использ.` : `${used} использ.`,
-  adminSubscriptionManage: "Привязка подписки",
-  adminSubscriptionMenuHint: "Перенос доступа между Telegram-аккаунтами",
-  adminSubscriptionTitle: "Привязка подписки",
-  adminSubscriptionQueryLabel: "ID или имя подписки",
-  adminSubscriptionQueryPlaceholder: "Например, 1281 или 10204_1404001393",
-  adminSubscriptionFind: "Найти подписку",
-  adminSubscriptionPanelID: "ID в панели",
-  adminSubscriptionUsername: "Имя подписки",
-  adminSubscriptionCurrentTelegram: "Текущий Telegram ID",
-  adminSubscriptionStatus: "Статус",
-  adminSubscriptionExpires: "Действует до",
-  adminSubscriptionTargetLabel: "Новый Telegram ID",
+  adminSubscriptionManage: "Перепривязка",
+  adminSubscriptionMenuHint: "Перенос подписки на другой аккаунт",
+  adminSubscriptionTitle: "Перепривязка подписки",
+  adminSubscriptionQueryLabel: "Подписка в панели",
+  adminSubscriptionQueryPlaceholder: "ID или имя",
+  adminSubscriptionFind: "Найти",
+  adminSubscriptionCurrentTelegram: "Telegram",
+  adminSubscriptionTargetLabel: "Telegram ID получателя",
   adminSubscriptionTargetPlaceholder: "Введите Telegram ID",
-  adminSubscriptionTargetHint: "Новый аккаунт должен хотя бы один раз запустить бота командой /start.",
-  adminSubscriptionRebind: "Перепривязать подписку",
+  adminSubscriptionLoadTarget: "Показать подписки",
+  adminSubscriptionDestinationTitle: "Подписки пользователя",
+  adminSubscriptionAddNew: "Добавить как новую",
+  adminSubscriptionAddNewMeta: (count, maximum) => `Занято ${count} из ${maximum}`,
+  adminSubscriptionReplace: "Заменить",
+  adminSubscriptionAlreadyHere: "Уже находится здесь",
+  adminSubscriptionPrimary: "Основная",
+  adminSubscriptionStatusActive: "Активна",
+  adminSubscriptionStatusInactive: "Не активна",
+  adminSubscriptionStatusEmpty: "Без подписки",
+  adminSubscriptionRebind: "Перенести подписку",
   adminSubscriptionSuccess: "Подписка перепривязана",
-  adminSubscriptionConfirm: (username, telegramID) => `Перепривязать ${username} к Telegram ID ${telegramID}? На прежнем аккаунте управление подпиской пропадёт. Если у нового аккаунта уже есть другая подписка, она будет отвязана.`,
+  adminSubscriptionConfirm: (username, telegramID, destination) => `Перенести ${username} на Telegram ID ${telegramID} — ${destination}?`,
 });
 
 Object.assign(copybook.en, {
@@ -879,23 +884,28 @@ Object.assign(copybook.en, {
   adminPromoUnlimited: "Unlimited",
   adminPromoNoExpiry: "No expiry",
   adminPromoUsage: (used, total) => total > 0 ? `${used}/${total} used` : `${used} used`,
-  adminSubscriptionManage: "Subscription binding",
-  adminSubscriptionMenuHint: "Move access between Telegram accounts",
-  adminSubscriptionTitle: "Subscription binding",
-  adminSubscriptionQueryLabel: "Subscription ID or username",
-  adminSubscriptionQueryPlaceholder: "For example, 1281 or 10204_1404001393",
-  adminSubscriptionFind: "Find subscription",
-  adminSubscriptionPanelID: "Panel ID",
-  adminSubscriptionUsername: "Subscription username",
-  adminSubscriptionCurrentTelegram: "Current Telegram ID",
-  adminSubscriptionStatus: "Status",
-  adminSubscriptionExpires: "Expires",
-  adminSubscriptionTargetLabel: "New Telegram ID",
+  adminSubscriptionManage: "Rebinding",
+  adminSubscriptionMenuHint: "Move a subscription to another account",
+  adminSubscriptionTitle: "Rebind subscription",
+  adminSubscriptionQueryLabel: "Panel subscription",
+  adminSubscriptionQueryPlaceholder: "ID or username",
+  adminSubscriptionFind: "Find",
+  adminSubscriptionCurrentTelegram: "Telegram",
+  adminSubscriptionTargetLabel: "Recipient Telegram ID",
   adminSubscriptionTargetPlaceholder: "Enter Telegram ID",
-  adminSubscriptionTargetHint: "The new account must start the bot with /start at least once.",
-  adminSubscriptionRebind: "Rebind subscription",
+  adminSubscriptionLoadTarget: "Show subscriptions",
+  adminSubscriptionDestinationTitle: "User subscriptions",
+  adminSubscriptionAddNew: "Add as new",
+  adminSubscriptionAddNewMeta: (count, maximum) => `${count} of ${maximum} used`,
+  adminSubscriptionReplace: "Replace",
+  adminSubscriptionAlreadyHere: "Already assigned here",
+  adminSubscriptionPrimary: "Primary",
+  adminSubscriptionStatusActive: "Active",
+  adminSubscriptionStatusInactive: "Inactive",
+  adminSubscriptionStatusEmpty: "No subscription",
+  adminSubscriptionRebind: "Move subscription",
   adminSubscriptionSuccess: "Subscription rebound",
-  adminSubscriptionConfirm: (username, telegramID) => `Rebind ${username} to Telegram ID ${telegramID}? The previous account will lose subscription management. If the new account already has another subscription, it will be unlinked.`,
+  adminSubscriptionConfirm: (username, telegramID, destination) => `Move ${username} to Telegram ID ${telegramID} — ${destination}?`,
 });
 
 Object.assign(copybook.ru, {
@@ -1629,6 +1639,8 @@ const state = {
   adminSubscriptionQuery: "",
   adminSubscriptionTargetTelegramID: "",
   adminSubscriptionResult: null,
+  adminSubscriptionTargetResult: null,
+  adminSubscriptionDestination: "",
   adminBusy: "",
 	adminBroadcast: null,
 	adminBroadcastButtonsDraft: [],
@@ -2334,6 +2346,10 @@ function mapApiErrorMessage(code, fallback) {
     invalid_subscription_query: state.locale === "en" ? "Enter a panel ID or subscription username" : "Введите ID из панели или имя подписки",
     subscription_not_found: state.locale === "en" ? "Subscription not found" : "Подписка не найдена",
     target_not_registered: state.locale === "en" ? "The new account must start the bot with /start first" : "Новый аккаунт должен сначала запустить бота командой /start",
+    subscription_target_full: state.locale === "en" ? "This account already has three subscriptions" : "У пользователя уже три подписки — выберите одну для замены",
+    subscription_target_invalid: state.locale === "en" ? "Select where to place the subscription" : "Выберите, куда перенести подписку",
+    subscription_source_pending: state.locale === "en" ? "Finish or cancel the source subscription payment first" : "Сначала завершите или отмените оплату переносимой подписки",
+    subscription_target_pending: state.locale === "en" ? "Finish or cancel the selected subscription payment first" : "Сначала завершите или отмените оплату выбранной подписки",
     subscription_rebind_failed: state.locale === "en" ? "Could not rebind the subscription" : "Не удалось перепривязать подписку",
     google_not_configured: googleAuthCopy().loginUnavailable,
     google_not_linked: state.locale === "en" ? "Link Gmail in the mini app first" : "\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u043f\u0440\u0438\u0432\u044f\u0436\u0438\u0442\u0435 Gmail \u0432 mini app",
@@ -3516,10 +3532,22 @@ function renderAdminColorField(label, path) {
 function renderAdminSubscriptionsPage() {
   const copy = t();
   const item = state.adminSubscriptionResult;
+  const target = state.adminSubscriptionTargetResult;
   const status = String(item?.status || "-").toUpperCase();
   const statusActive = status === "ACTIVE";
+  const sourceStatusLabel = statusActive
+    ? (copy.adminSubscriptionStatusActive || "Active")
+    : (copy.adminSubscriptionStatusInactive || "Inactive");
   const expires = item?.expiresAt ? formatDateLabel(item.expiresAt, state.locale) : "-";
   const currentTelegramID = item?.currentTelegramId ? String(item.currentTelegramId) : "-";
+  const targetItems = Array.isArray(target?.items) ? target.items : [];
+  const targetMaximum = Math.max(1, Number(target?.maximum || 3));
+  const destinationSelected = String(state.adminSubscriptionDestination || "");
+  const targetStatusLabel = (value) => {
+    if (value === "active") return copy.adminSubscriptionStatusActive || "Active";
+    if (value === "inactive") return copy.adminSubscriptionStatusInactive || "Inactive";
+    return copy.adminSubscriptionStatusEmpty || "No subscription";
+  };
   return `
     <section class="page ${pageClass("admin")}" id="page-admin">
       <div class="card admin-subscription-panel">
@@ -3533,19 +3561,47 @@ function renderAdminSubscriptionsPage() {
         </div>
         ${item ? `
           <div class="admin-subscription-result" aria-live="polite">
-            <dl class="admin-subscription-details">
-              <div><dt>${escapeHtml(copy.adminSubscriptionPanelID || "Panel ID")}</dt><dd>${escapeHtml(String(item.id || "-"))}</dd></div>
-              <div><dt>${escapeHtml(copy.adminSubscriptionUsername || "Username")}</dt><dd>${escapeHtml(item.username || "-")}</dd></div>
-              <div><dt>${escapeHtml(copy.adminSubscriptionCurrentTelegram || "Current Telegram ID")}</dt><dd>${escapeHtml(currentTelegramID)}</dd></div>
-              <div><dt>${escapeHtml(copy.adminSubscriptionStatus || "Status")}</dt><dd class="admin-subscription-status admin-subscription-status--${statusActive ? "active" : "inactive"}">${escapeHtml(status)}</dd></div>
-              <div><dt>${escapeHtml(copy.adminSubscriptionExpires || "Expires")}</dt><dd>${escapeHtml(expires)}</dd></div>
-            </dl>
-            <label class="support-field admin-subscription-target">
-              <span class="support-field__label">${escapeHtml(copy.adminSubscriptionTargetLabel || "New Telegram ID")}</span>
-              <input class="support-field__input" type="text" inputmode="numeric" autocomplete="off" maxlength="20" placeholder="${escapeAttribute(copy.adminSubscriptionTargetPlaceholder || "")}" value="${escapeAttribute(state.adminSubscriptionTargetTelegramID)}" data-input="admin-subscription-target">
-              <span class="support-field__hint">${escapeHtml(copy.adminSubscriptionTargetHint || "")}</span>
-            </label>
-            <button class="btn admin-subscription-submit" type="button" data-action="admin-rebind-subscription" ${state.adminBusy === "rebind-subscription" ? "disabled" : ""}>${icon(state.adminBusy === "rebind-subscription" ? "refresh" : "key")}${escapeHtml(copy.adminSubscriptionRebind || "Rebind subscription")}</button>
+            <div class="admin-subscription-source">
+              <div class="admin-subscription-source__main">
+                <strong>${escapeHtml(item.username || String(item.id || "-"))}</strong>
+                <span class="admin-subscription-status admin-subscription-status--${statusActive ? "active" : "inactive"}">${escapeHtml(sourceStatusLabel)}</span>
+              </div>
+              <div class="admin-subscription-source__meta"><span>ID ${escapeHtml(String(item.id || "-"))}</span><span>${escapeHtml(copy.adminSubscriptionCurrentTelegram || "Telegram")} ${escapeHtml(currentTelegramID)}</span><span>${escapeHtml(expires)}</span></div>
+            </div>
+            <div class="admin-subscription-target-search">
+              <label class="support-field admin-subscription-target">
+                <span class="support-field__label">${escapeHtml(copy.adminSubscriptionTargetLabel || "Recipient Telegram ID")}</span>
+                <input class="support-field__input" type="text" inputmode="numeric" autocomplete="off" maxlength="20" placeholder="${escapeAttribute(copy.adminSubscriptionTargetPlaceholder || "")}" value="${escapeAttribute(state.adminSubscriptionTargetTelegramID)}" data-input="admin-subscription-target">
+              </label>
+              <button class="btn admin-subscription-load-target" type="button" data-action="admin-load-subscription-target" ${state.adminBusy === "load-subscription-target" ? "disabled" : ""}>${icon(state.adminBusy === "load-subscription-target" ? "refresh" : "users")}${escapeHtml(copy.adminSubscriptionLoadTarget || "Show subscriptions")}</button>
+            </div>
+            ${target ? `
+              <div class="admin-subscription-destination">
+                <div class="admin-subscription-destination__head"><strong>${escapeHtml(copy.adminSubscriptionDestinationTitle || "User subscriptions")}</strong><span>${escapeHtml(String(target.telegramId || ""))}</span></div>
+                <div class="admin-subscription-destination__list" role="radiogroup" aria-label="${escapeAttribute(copy.adminSubscriptionDestinationTitle || "User subscriptions")}">
+                  ${target.canAdd ? `
+                    <label class="admin-subscription-option ${destinationSelected === "add" ? "is-selected" : ""}">
+                      <span class="admin-subscription-option__copy"><strong>${escapeHtml(copy.adminSubscriptionAddNew || "Add as new")}</strong><small>${escapeHtml(typeof copy.adminSubscriptionAddNewMeta === "function" ? copy.adminSubscriptionAddNewMeta(targetItems.length, targetMaximum) : `${targetItems.length}/${targetMaximum}`)}</small></span><span class="admin-subscription-option__action" aria-hidden="true"></span>
+                      <input type="radio" name="admin-subscription-destination" value="add" data-input="admin-subscription-destination" ${destinationSelected === "add" ? "checked" : ""}>
+                    </label>
+                  ` : ""}
+                  ${targetItems.map((subscription) => {
+                    const value = String(subscription.id || "");
+                    const selected = destinationSelected === value;
+                    const meta = [
+                      subscription.isPrimary ? (copy.adminSubscriptionPrimary || "Primary") : "",
+                      targetStatusLabel(subscription.status),
+                      subscription.expiresAt ? formatDateLabel(subscription.expiresAt, state.locale) : "",
+                    ].filter(Boolean).join(" · ");
+                    const actionLabel = subscription.matchesSource
+                      ? (copy.adminSubscriptionAlreadyHere || "Already assigned here")
+                      : (copy.adminSubscriptionReplace || "Replace");
+                    return `<label class="admin-subscription-option ${selected ? "is-selected" : ""}"><span class="admin-subscription-option__copy"><strong>${escapeHtml(subscription.name || `#${value}`)}</strong><small>${escapeHtml(meta)}</small></span><span class="admin-subscription-option__action">${escapeHtml(actionLabel)}</span><input type="radio" name="admin-subscription-destination" value="${escapeAttribute(value)}" data-input="admin-subscription-destination" ${selected ? "checked" : ""}></label>`;
+                  }).join("")}
+                </div>
+                <button class="btn admin-subscription-submit" type="button" data-action="admin-rebind-subscription" ${!destinationSelected || state.adminBusy === "rebind-subscription" ? "disabled" : ""}>${icon(state.adminBusy === "rebind-subscription" ? "refresh" : "key")}${escapeHtml(copy.adminSubscriptionRebind || "Move subscription")}</button>
+              </div>
+            ` : ""}
           </div>
         ` : ""}
       </div>
@@ -3623,7 +3679,7 @@ function renderDashboardPage() {
 
 	const blocks = {
 		brand: `<div class="hero-center hero-center--brand">${renderLayoutDetail("dashboard", "logo", `<div class="hero-brand" style="--runtime-logo-width:${Math.max(48, Math.min(220, Number(getRuntimeSettings()?.layout?.logoWidth || 188)))}px"><img src="${escapeAttribute(resolveBrandMarkURL(state.data.brand.logoUrl))}" alt="${escapeAttribute(state.data.brand.name || "Link-Bot")}" loading="eager" draggable="false"></div>`, "runtime-detail-item--logo")}${renderLayoutDetail("dashboard", "username", `<div class="hero-handle">${escapeHtml(avatarLabel)}</div>`, "runtime-detail-item--username")}</div>`,
-		subscription: active ? `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", `<div class="sub-bar__name">${title}</div>`, "runtime-detail-item--status")}${renderLayoutDetail("dashboard", "expires", `<div class="sub-bar__date"><span class="sub-bar__date-icon">${icon("calendarDays")}</span><span>${expires}</span></div>`, "runtime-detail-item--status")}</div><div class="sub-bar__row sub-bar__row--pills">${trafficLabel ? renderLayoutDetail("dashboard", "traffic", `<span class="sub-pill"><span class="sub-pill__icon">${icon("chartLine")}</span><span>${escapeHtml(trafficLabel)}</span></span>`, "runtime-detail-item--pill") : ""}${deviceLabel ? renderLayoutDetail("dashboard", "devices", `<button class="sub-pill sub-pill--button" type="button" data-action="open-devices-modal"><span>${escapeHtml(deviceLabel)}</span><span class="sub-pill__edit">${icon("userPen")}</span></button>`, "runtime-detail-item--pill") : ""}</div></div></div></div>` : "",
+		subscription: active ? `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", `<div class="sub-bar__name">${title}</div>`, "runtime-detail-item--status runtime-detail-item--plan")}${renderLayoutDetail("dashboard", "expires", `<div class="sub-bar__date"><span class="sub-bar__date-icon">${icon("calendarDays")}</span><span>${expires}</span></div>`, "runtime-detail-item--status")}</div><div class="sub-bar__row sub-bar__row--pills">${trafficLabel ? renderLayoutDetail("dashboard", "traffic", `<span class="sub-pill"><span class="sub-pill__icon">${icon("chartLine")}</span><span>${escapeHtml(trafficLabel)}</span></span>`, "runtime-detail-item--pill") : ""}${deviceLabel ? renderLayoutDetail("dashboard", "devices", `<button class="sub-pill sub-pill--button" type="button" data-action="open-devices-modal"><span>${escapeHtml(deviceLabel)}</span><span class="sub-pill__edit">${icon("userPen")}</span></button>`, "runtime-detail-item--pill") : ""}</div></div></div></div>` : "",
 		actions: `<div class="dashboard-compact">${actionStack}</div>`,
 	};
 	return `<section class="page ${pageClass("dashboard")}" id="page-dashboard">${renderSubscriptionSwitcher()}${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
@@ -3822,7 +3878,7 @@ function renderDevicePackModal() {
 	const packList = packs.length
 		? `<div class="device-pack-grid">${packs.map((pack) => renderDevicePackCard(pack, String(pack.id) === String(selected?.id))).join("")}</div>`
 		: `<div class="device-pack-empty" role="status"><strong>Пакеты устройств пока не настроены</strong><span>Администратор может добавить их в разделе «Тарифы».</span></div>`;
-	return `<div class="modal open ${modalStateClass("device-packs")}" role="dialog" aria-modal="true" aria-labelledby="device-pack-modal-title"><button class="modal__backdrop" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-purchase"><div class="modal__header"><div><div class="section-label">УСТРОЙСТВА</div><div class="modal__title" id="device-pack-modal-title">Докупить устройства</div></div><button class="header__btn" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств">${icon("close")}</button></div><div class="device-pack-modal__scroll">${packList}</div><div class="device-pack-modal__footer"><div class="device-pack-modal__actions"><button class="btn btn--green-filled" type="button" data-action="buy-device-pack" ${selected && canBuyNow ? "" : "disabled"}>${icon("cart")}Докупить</button><button class="btn" type="button" data-action="continue-device-pack" ${selected ? "" : "disabled"}>Продолжить</button></div>${canBuyNow ? "" : `<p class="device-pack-modal__hint">Отдельная докупка доступна для активной подписки с лимитом устройств.</p>`}</div></div></div>`;
+	return `<div class="modal open ${modalStateClass("device-packs")}" role="dialog" aria-modal="true" aria-labelledby="device-pack-modal-title"><button class="modal__backdrop" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-purchase"><div class="modal__header"><div><div class="section-label">УСТРОЙСТВА</div><div class="modal__title" id="device-pack-modal-title">Докупить устройства</div></div><button class="header__btn" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств">${icon("close")}</button></div><div class="device-pack-modal__scroll">${packList}</div><div class="device-pack-modal__footer"><div class="device-pack-modal__actions"><button class="btn btn--green-filled" type="button" data-action="buy-device-pack" ${selected && canBuyNow ? "" : "disabled"}>${icon("cart")}Докупить</button><button class="btn" type="button" data-action="continue-device-pack" ${selected ? "" : "disabled"}>Продолжить</button></div></div></div></div>`;
 }
 
 function renderAdminDevicePackModal() {
@@ -5221,6 +5277,7 @@ function bindRootActions() {
       if (action === "admin-create-promo") return await createAdminPromoCode();
       if (action === "admin-delete-promo") return await deleteAdminPromoCode(Number(value));
       if (action === "admin-find-subscription") return await findAdminSubscription();
+      if (action === "admin-load-subscription-target") return await loadAdminSubscriptionTarget();
       if (action === "admin-rebind-subscription") return await rebindAdminSubscription();
 			if (action === "admin-broadcast-capture") return await startAdminBroadcastCapture();
 			if (action === "admin-broadcast-add-button") return addAdminBroadcastButton();
@@ -5405,11 +5462,20 @@ function bindRootActions() {
         state.adminSubscriptionQuery = target.value;
         state.adminSubscriptionResult = null;
         state.adminSubscriptionTargetTelegramID = "";
+        state.adminSubscriptionTargetResult = null;
+        state.adminSubscriptionDestination = "";
         return;
       }
       if (inputKey === "admin-subscription-target") {
         state.adminSubscriptionTargetTelegramID = target.value.replace(/\D+/g, "");
         if (target.value !== state.adminSubscriptionTargetTelegramID) target.value = state.adminSubscriptionTargetTelegramID;
+        state.adminSubscriptionTargetResult = null;
+        state.adminSubscriptionDestination = "";
+        return;
+      }
+      if (inputKey === "admin-subscription-destination") {
+        state.adminSubscriptionDestination = String(target.value || "");
+        render({ preserveScroll: true });
         return;
       }
 
@@ -7618,6 +7684,8 @@ async function findAdminSubscription() {
   state.adminBusy = "find-subscription";
   state.adminSubscriptionResult = null;
   state.adminSubscriptionTargetTelegramID = "";
+  state.adminSubscriptionTargetResult = null;
+  state.adminSubscriptionDestination = "";
   render();
   try {
     const response = await post("/api/mini-app/admin/subscriptions/find", { query });
@@ -7631,8 +7699,7 @@ async function findAdminSubscription() {
   }
 }
 
-async function rebindAdminSubscription() {
-  const copy = t();
+async function loadAdminSubscriptionTarget() {
   const item = state.adminSubscriptionResult;
   const targetTelegramId = Number.parseInt(String(state.adminSubscriptionTargetTelegramID || "").trim(), 10);
   const userId = Number(item?.id || 0);
@@ -7641,8 +7708,48 @@ async function rebindAdminSubscription() {
     return showToast(state.locale === "en" ? "Enter a valid Telegram ID" : "Введите корректный Telegram ID");
   }
 
+  state.adminBusy = "load-subscription-target";
+  state.adminSubscriptionTargetResult = null;
+  state.adminSubscriptionDestination = "";
+  render({ preserveScroll: true });
+  try {
+    const response = await post("/api/mini-app/admin/subscriptions/target", {
+      userId,
+      userUuid,
+      subscriptionLink: String(item?.subscriptionLink || ""),
+      targetTelegramId,
+    });
+    state.adminSubscriptionTargetResult = response.data || null;
+    const matching = (response.data?.items || []).find((subscription) => subscription.matchesSource);
+    state.adminSubscriptionDestination = matching?.id ? String(matching.id) : (response.data?.canAdd ? "add" : "");
+    state.adminBusy = "";
+    render({ preserveScroll: true });
+  } catch (error) {
+    state.adminBusy = "";
+    render({ preserveScroll: true });
+    throw error;
+  }
+}
+
+async function rebindAdminSubscription() {
+  const copy = t();
+  const item = state.adminSubscriptionResult;
+  const target = state.adminSubscriptionTargetResult;
+  const targetTelegramId = Number.parseInt(String(state.adminSubscriptionTargetTelegramID || "").trim(), 10);
+  const userId = Number(item?.id || 0);
+  const userUuid = String(item?.userUuid || "").trim();
+  const destination = String(state.adminSubscriptionDestination || "");
+  const targetSubscriptionId = destination === "add" ? 0 : Number.parseInt(destination, 10);
+  if ((userId <= 0 && !userUuid) || !target || !Number.isSafeInteger(targetTelegramId) || targetTelegramId <= 0 || (destination !== "add" && (!Number.isSafeInteger(targetSubscriptionId) || targetSubscriptionId <= 0))) {
+    return showToast(state.locale === "en" ? "Enter a valid Telegram ID" : "Введите корректный Telegram ID");
+  }
+
+  const destinationItem = (target.items || []).find((subscription) => Number(subscription.id) === targetSubscriptionId);
+  const destinationLabel = destination === "add"
+    ? (copy.adminSubscriptionAddNew || "Add as new")
+    : (destinationItem?.name || `#${targetSubscriptionId}`);
   const question = typeof copy.adminSubscriptionConfirm === "function"
-    ? copy.adminSubscriptionConfirm(item.username || item.id || "subscription", targetTelegramId)
+    ? copy.adminSubscriptionConfirm(item.username || item.id || "subscription", targetTelegramId, destinationLabel)
     : `Rebind subscription to ${targetTelegramId}?`;
   if (!window.confirm(question)) return;
 
@@ -7652,10 +7759,14 @@ async function rebindAdminSubscription() {
     const response = await post("/api/mini-app/admin/subscriptions/rebind", {
       userId,
       userUuid,
+      subscriptionLink: String(item?.subscriptionLink || ""),
       targetTelegramId,
+      targetSubscriptionId,
     });
     state.adminSubscriptionResult = response.data || item;
     state.adminSubscriptionTargetTelegramID = "";
+    state.adminSubscriptionTargetResult = null;
+    state.adminSubscriptionDestination = "";
     state.adminBusy = "";
     render();
     showToast(copy.adminSubscriptionSuccess || "Subscription rebound", "success");
@@ -7741,6 +7852,8 @@ function setPage(page) {
     state.adminSubscriptionQuery = "";
     state.adminSubscriptionTargetTelegramID = "";
     state.adminSubscriptionResult = null;
+    state.adminSubscriptionTargetResult = null;
+    state.adminSubscriptionDestination = "";
   }
   if (nextPage !== "support") {
     state.supportComposeOpen = false;

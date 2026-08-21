@@ -267,7 +267,27 @@ func (r *Client) FindUserByIDOrUsername(ctx context.Context, query string) (*Adm
 	return adminSubscriptionFromUser(user), nil
 }
 
-func (r *Client) RebindUserTelegramID(ctx context.Context, userID int64, userUUID uuid.UUID, targetTelegramID int64, targetDescription string) (*AdminRebindResult, error) {
+func (r *Client) FindUserBySubscriptionLink(ctx context.Context, subscriptionLink string) (*AdminSubscription, error) {
+	users, err := r.GetUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	user := findPanelUserBySubscriptionLink(*users, subscriptionLink)
+	if user == nil {
+		return nil, ErrAdminSubscriptionNotFound
+	}
+	return adminSubscriptionFromUser(user), nil
+}
+
+func (r *Client) RebindUserTelegramID(
+	ctx context.Context,
+	userID int64,
+	userUUID uuid.UUID,
+	targetTelegramID int64,
+	targetDescription string,
+	replaceUserID int64,
+	replaceUserUUID uuid.UUID,
+) (*AdminRebindResult, error) {
 	if (userID <= 0 && userUUID == uuid.Nil) || targetTelegramID <= 0 {
 		return nil, ErrAdminSubscriptionNotFound
 	}
@@ -289,19 +309,14 @@ func (r *Client) RebindUserTelegramID(ctx context.Context, userID int64, userUUI
 	currentSubscription := adminSubscriptionFromUser(current)
 	previousTelegramID := currentSubscription.TelegramID
 	previousDescription := currentSubscription.Description
-	if previousTelegramID != nil && *previousTelegramID == targetTelegramID {
-		updated, err := r.updateAdminUserTelegramProfile(ctx, current, previousTelegramID, &targetDescription)
-		if err != nil {
-			return nil, err
-		}
-		return &AdminRebindResult{
-			Subscription:        updated,
-			PreviousTelegramID:  previousTelegramID,
-			PreviousDescription: previousDescription,
-		}, nil
-	}
 
-	displacedUser := findOtherPanelUserByTelegramID(*users, targetTelegramID, current.ID, current.UUID)
+	var displacedUser *PanelUser
+	if replaceUserID > 0 || replaceUserUUID != uuid.Nil {
+		candidate := findPanelUser(*users, replaceUserID, replaceUserUUID)
+		if candidate != nil && (candidate.ID != current.ID || candidate.UUID != current.UUID) {
+			displacedUser = candidate
+		}
+	}
 	var displacedSubscription *AdminSubscription
 	if displacedUser != nil {
 		displacedSubscription = adminSubscriptionFromUser(displacedUser)
