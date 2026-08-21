@@ -39,6 +39,13 @@ func (s PaymentService) processGiftPurchase(ctx context.Context, purchase *datab
 	if err != nil {
 		return err
 	}
+	if recipient != nil && recipient.ID == sender.ID {
+		return errors.New("a subscription gift cannot be delivered to its sender")
+	}
+
+	// A gift promo belongs to the purchaser, not the recipient. Complete the
+	// redemption through the same idempotent path as a regular subscription.
+	s.completePromoRedemption(ctx, purchase, sender)
 	if recipient == nil {
 		if err := s.purchaseRepository.MarkAsPaid(ctx, purchase.ID); err != nil {
 			return err
@@ -48,10 +55,6 @@ func (s PaymentService) processGiftPurchase(ctx context.Context, purchase *datab
 		s.sendGiftNotification(ctx, sender, purchase, true)
 		return nil
 	}
-	if recipient.ID == sender.ID {
-		return errors.New("a subscription gift cannot be delivered to its sender")
-	}
-
 	if err := s.deliverGiftEntitlements(ctx, purchase, recipient); err != nil {
 		return err
 	}

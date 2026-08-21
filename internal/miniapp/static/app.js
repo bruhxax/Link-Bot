@@ -4611,6 +4611,7 @@ function renderGiftPage() {
 	const plans = getGiftPlans();
 	const selected = getSelectedGiftPlan();
 	const method = getSelectedPaymentMethod();
+	const promoStatus = getPromoStatus();
 	const username = normalizeGiftUsername(state.giftUsernameDraft);
 	const ownUsername = normalizeGiftUsername(state.data?.user?.username || "");
 	const validUsername = /^[a-z0-9_]{5,32}$/.test(username) && username !== ownUsername;
@@ -4624,7 +4625,7 @@ function renderGiftPage() {
 				<div><h1 id="gift-page-heading">${escapeHtml(copy.pageGift || "Подарить")}</h1><p>${escapeHtml(copy.giftProfileHint || "")}</p></div>
 			</header>
 
-			<section class="gift-section" aria-labelledby="gift-recipient-heading">
+			<section class="gift-section">
 				<div class="gift-section__heading"><h2 id="gift-recipient-heading">${escapeHtml(copy.giftRecipient)}</h2><span>${escapeHtml(copy.giftRecipientHint)}</span></div>
 				<label class="gift-username ${error ? "is-invalid" : ""}">
 					<span class="gift-username__prefix" aria-hidden="true">@</span>
@@ -4633,13 +4634,19 @@ function renderGiftPage() {
 				<div class="gift-field-help ${error ? "is-error" : ""}" id="gift-username-help" aria-live="polite">${escapeHtml(error || copy.giftRecipientHint)}</div>
 			</section>
 
-			<section class="gift-section" aria-labelledby="gift-period-heading">
+			<section class="gift-section">
 				<div class="gift-section__heading gift-section__heading--caps"><h2 id="gift-period-heading">${escapeHtml(copy.giftPeriod)}</h2></div>
 				${plans.length ? `<div class="gift-plan-list" role="radiogroup" aria-label="${escapeAttribute(copy.giftPeriod)}">${plans.map((plan) => {
 					const active = planKey(plan) === planKey(selected);
-					return `<button class="gift-plan-row ${active ? "is-selected" : ""}" type="button" role="radio" aria-checked="${active}" data-action="select-gift-plan" data-value="${escapeAttribute(planKey(plan))}"><strong>${escapeHtml(getPlanBaseTitle(plan, state.locale))}</strong><span>${escapeHtml(formatGiftPlanPrice(plan))}</span></button>`;
+					return `<button class="gift-plan-row ${active ? "is-selected" : ""}" type="button" role="radio" aria-checked="${active}" data-action="select-gift-plan" data-value="${escapeAttribute(planKey(plan))}"><strong>${escapeHtml(getGiftPlanTitle(plan, state.locale))}</strong><span data-gift-plan-price="${escapeAttribute(planKey(plan))}">${escapeHtml(formatGiftPlanPrice(plan))}</span></button>`;
 				}).join("")}</div>` : `<div class="gift-empty"><strong>${escapeHtml(copy.noPlansTitle)}</strong><span>${escapeHtml(copy.noPlansHint)}</span></div>`}
 			</section>
+
+			${featureEnabled("promocodes") ? `<section class="gift-promo promo-box">
+				<label class="support-field__label" id="gift-promo-label" for="gift-promo-code">${escapeHtml(copy.promoCode || "Промокод")}</label>
+				<div class="promo-box__row"><input class="support-field__input promo-box__input" id="gift-promo-code" type="text" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" aria-describedby="gift-promo-status" placeholder="${escapeAttribute(copy.promoCodePlaceholder || "")}" value="${escapeAttribute(state.promoCodeDraft)}" data-input="promo-code"></div>
+				<div class="promo-box__status ${promoStatus ? `promo-box__status--${escapeAttribute(promoStatus.type)}` : "promo-box__status--empty"}" id="gift-promo-status" data-promo-status role="status" aria-live="polite">${promoStatus ? escapeHtml(promoStatus.message) : ""}</div>
+			</section>` : ""}
 
 			<section class="gift-checkout" aria-label="${escapeAttribute(copy.paymentMethod)}">
 				<button class="gift-payment-row" type="button" data-action="open-pay-modal" ${!selected ? "disabled" : ""}>
@@ -5297,18 +5304,18 @@ function renderGiftReceiptModal() {
 	const receipt = state.data?.giftReceipt;
 	if (!receipt) return "";
 	const username = normalizeGiftUsername(receipt.recipientUsername || "");
-	const body = telegramMarkupToText(receipt.message || "");
-	const deliveryText = receipt.delivered
-		? localizedText("Подарок уже доставлен автоматически", "Gift delivered automatically", "هدیه به‌صورت خودکار تحویل شد")
-		: localizedText("Ожидает команду /start от получателя", "Waiting for the recipient to send /start", "در انتظار فرمان /start از گیرنده");
+	const deliveryTitle = receipt.delivered
+		? localizedText("Подписка активирована", "Subscription activated", "اشتراک فعال شد")
+		: localizedText("Отправьте ссылку получателю", "Send the link to the recipient", "لینک را برای گیرنده بفرستید");
+	const deliveryHint = receipt.delivered
+		? localizedText(`@${username} уже получил подарок`, `@${username} has received the gift`, `@${username} هدیه را دریافت کرده است`)
+		: localizedText("По ссылке подарок активируется в боте", "The link activates the gift in the bot", "هدیه با این لینک در ربات فعال می‌شود");
 	return `<div class="modal open gift-receipt-modal ${modalStateClass("gift-receipt")}" role="dialog" aria-modal="true" aria-labelledby="gift-receipt-title">
 		<button class="modal__backdrop" type="button" data-action="close-gift-receipt" aria-label="${escapeAttribute(copy.giftDone)}"></button>
 		<div class="modal__sheet modal__sheet--gift-receipt">
-			<div class="gift-receipt__mark" aria-hidden="true">${icon("gift")}</div>
-			<div class="modal__header gift-receipt__header"><div><div class="section-label">${escapeHtml(copy.giftSentTitle)}</div><div class="modal__title" id="gift-receipt-title">${escapeHtml(copy.giftSentTo(username))}</div></div><button class="header__btn" type="button" data-action="close-gift-receipt" aria-label="${escapeAttribute(copy.giftDone)}">${icon("close")}</button></div>
-			${body ? `<p class="gift-receipt__message">${escapeHtml(body)}</p>` : ""}
-			<p class="gift-receipt__delivery ${receipt.delivered ? "is-delivered" : ""}">${receipt.delivered ? icon("check") : icon("clock")}<span>${escapeHtml(deliveryText)}</span></p>
-			${receipt.shareUrl ? `<div class="gift-receipt__share"><p>${escapeHtml(copy.giftShareHint)}</p><label><span>${escapeHtml(copy.giftLinkLabel)}</span><div><input type="text" readonly value="${escapeAttribute(receipt.shareUrl)}" aria-label="${escapeAttribute(copy.giftLinkLabel)}"><button type="button" data-action="copy-gift-link" aria-label="${escapeAttribute(copy.giftCopy)}">${icon("copy")}<span>${escapeHtml(copy.giftCopy)}</span></button></div></label></div>` : ""}
+			<div class="gift-receipt__top"><div class="gift-receipt__mark" aria-hidden="true">${icon("gift")}</div><div><div class="section-label">${escapeHtml(copy.giftSentTitle)}</div><div class="modal__title" id="gift-receipt-title">@${escapeHtml(username)}</div></div><button class="header__btn" type="button" data-action="close-gift-receipt" aria-label="${escapeAttribute(copy.giftDone)}">${icon("close")}</button></div>
+			<div class="gift-receipt__delivery ${receipt.delivered ? "is-delivered" : ""}">${receipt.delivered ? icon("check") : icon("clock")}<span><strong>${escapeHtml(deliveryTitle)}</strong><small>${escapeHtml(deliveryHint)}</small></span></div>
+			${receipt.shareUrl && !receipt.delivered ? `<div class="gift-receipt__share"><label><span>${escapeHtml(copy.giftLinkLabel)}</span><div><input type="text" readonly value="${escapeAttribute(receipt.shareUrl)}" aria-label="${escapeAttribute(copy.giftLinkLabel)}"><button type="button" data-action="copy-gift-link" aria-label="${escapeAttribute(copy.giftCopy)}">${icon("copy")}<span>${escapeHtml(copy.giftCopy)}</span></button></div></label></div>` : ""}
 			<button class="gift-receipt__done" type="button" data-action="close-gift-receipt">${escapeHtml(copy.giftDone)}</button>
 		</div>
 	</div>`;
@@ -8006,15 +8013,22 @@ function getPromoStatus() {
 }
 
 function updatePromoStatusDom() {
-  const statusNode = app.querySelector("[data-promo-status]");
-  if (!statusNode) return;
-  const status = getPromoStatus();
-  statusNode.textContent = status?.message || "";
-  statusNode.className = `promo-box__status ${status ? `promo-box__status--${status.type}` : "promo-box__status--empty"}`;
+	const status = getPromoStatus();
+	app.querySelectorAll("[data-promo-status]").forEach((statusNode) => {
+		statusNode.textContent = status?.message || "";
+		statusNode.className = `promo-box__status ${status ? `promo-box__status--${status.type}` : "promo-box__status--empty"}`;
+	});
 }
 
 function updateCheckoutPriceDom() {
-  const action = app.querySelector(".buy-action");
+	if (state.currentPage === "gift") {
+		app.querySelectorAll("[data-gift-plan-price]").forEach((node) => {
+			const plan = getGiftPlans().find((item) => planKey(item) === node.dataset.giftPlanPrice);
+			if (plan) node.textContent = formatGiftPlanPrice(plan);
+		});
+		return;
+	}
+	const action = app.querySelector(".buy-action");
   if (!action) return;
   const plan = getSelectedPlan();
   const pack = getSelectedDevicePack();
@@ -8215,12 +8229,15 @@ async function startGiftPayment() {
 			planId: plan.id || "",
 			months: Number(plan.months || 0),
 			paymentMethod: method,
+			promoCode: getActivePromo()?.code || "",
 		});
 		const { action, url, purchaseId } = response.data || {};
 		if (action === "open_invoice") {
 			if (typeof tg?.openInvoice === "function") {
 				tg.openInvoice(url, async (status) => {
 					if (status === "paid") {
+						state.appliedPromo = null;
+						state.promoCodeDraft = "";
 						await safeRefresh();
 						showToast(copy.giftSentTitle, "success");
 						return;
@@ -8247,6 +8264,7 @@ async function startGiftPayment() {
 			setTimeout(() => safeRefresh(), 4000);
 		}
 	} catch (error) {
+		if (String(error?.code || "").startsWith("promo_")) state.appliedPromo = null;
 		if (["invalid_gift_username", "gift_to_self"].includes(String(error?.code || ""))) {
 			state.giftValidation = error.code === "gift_to_self" ? copy.giftSelf : copy.giftInvalidUsername;
 			render({ preserveScroll: true });
@@ -8738,6 +8756,7 @@ function applyAppearance() {
 	Object.entries(variables).forEach(([name, value]) => { if (value) document.documentElement.style.setProperty(name, value); });
   document.documentElement.style.setProperty("--accent", accent.accent);
   document.documentElement.style.setProperty("--accent-strong", accent.strong);
+  document.documentElement.style.setProperty("--accent-contrast", readableTextColor(accentColor));
   document.documentElement.style.setProperty("--accent-soft", accent.soft);
   document.documentElement.style.setProperty("--accent-border", accent.border);
   document.documentElement.style.setProperty("--particle-color", accent.particle);
@@ -8790,6 +8809,15 @@ function hexToRGBA(hex, alpha) {
 	if (!/^[0-9a-f]{6}$/i.test(value)) return `rgba(186,23,61,${alpha})`;
 	const number = Number.parseInt(value, 16);
 	return `rgba(${(number >> 16) & 255},${(number >> 8) & 255},${number & 255},${alpha})`;
+}
+
+function readableTextColor(hex) {
+	const normalized = String(hex || "").trim().replace(/^#/, "");
+	if (!/^[0-9a-f]{6}$/i.test(normalized)) return "#ffffff";
+	const channels = [0, 2, 4].map((offset) => Number.parseInt(normalized.slice(offset, offset + 2), 16) / 255);
+	const linear = channels.map((value) => value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+	const luminance = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+	return luminance > 0.42 ? "#000000" : "#ffffff";
 }
 
 function getPageTitle(page, short = false) {
@@ -8990,9 +9018,22 @@ function normalizeGiftUsername(value) {
 	return String(value || "").trim().replace(/^@+/, "").toLowerCase();
 }
 
+function getGiftPlanTitle(plan, locale) {
+	const title = getPlanBaseTitle(plan, locale);
+	if (!planHasUnlimitedTraffic(plan)) return title;
+	const unlimited = locale === "fa" ? "نامحدود" : locale === "en" ? "unlimited" : "безлимит";
+	return `${title} | ${unlimited}`;
+}
+
 function formatGiftPlanPrice(plan) {
-	if (state.paymentMethod === "stars") return `${formatNumber(Number(plan?.priceStars || 0), state.locale)} ⭐`;
-	return formatCurrency(Number(plan?.priceRub || 0), state.locale);
+	const methodID = getSelectedPaymentMethod()?.id || state.paymentMethod;
+	const basePrice = methodID === "stars" ? Number(plan?.priceStars || 0) : Number(plan?.priceRub || 0);
+	const promo = getActivePromo();
+	const amount = basePrice > 0 && promo?.discountPercent
+		? Math.max(1, Math.round(basePrice * (100 - promo.discountPercent) / 100))
+		: basePrice;
+	if (methodID === "stars") return `${formatNumber(amount, state.locale)} ⭐`;
+	return formatCurrency(amount, state.locale);
 }
 
 function getAvailableMethods(plan = getSelectedPlan()) {

@@ -387,6 +387,7 @@ type giftPurchaseRequest struct {
 	PlanID        string `json:"planId"`
 	Months        int    `json:"months"`
 	PaymentMethod string `json:"paymentMethod"`
+	PromoCode     string `json:"promoCode,omitempty"`
 }
 
 type giftSeenRequest struct {
@@ -1520,6 +1521,25 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 		h.writeError(w, http.StatusBadRequest, "unsupported_plan", "Этот тариф нельзя подарить")
 		return
 	}
+	var promo *database.PromoCode
+	if req.PromoCode != "" {
+		unlockPromo := lockPromoPurchase(req.PromoCode)
+		defer unlockPromo()
+
+		promo, normalizedCode, promoErrCode, promoErr := h.resolvePromoCode(r.Context(), customer.ID, req.PromoCode)
+		if promoErr != nil {
+			slog.Error("mini app: resolve gift promo code", "error", promoErr, "method", req.PaymentMethod, "months", req.Months)
+			h.writeError(w, http.StatusInternalServerError, "promo_failed", promoErrorMessage("promo_failed"))
+			return
+		}
+		if promoErrCode != "" {
+			h.writeError(w, http.StatusBadRequest, promoErrCode, promoErrorMessage(promoErrCode))
+			return
+		}
+
+		req.PromoCode = normalizedCode
+		price = applyDiscount(price, promo.DiscountPercent)
+	}
 	recipient, err := h.customerRepository.FindByTelegramUsername(r.Context(), username)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "gift_recipient_failed", "Не удалось проверить получателя")
@@ -1541,6 +1561,9 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 		TrafficLimitBytes:       &plan.TrafficLimitBytes,
 		DeviceLimitCount:        &plan.DeviceLimitCount,
 		PurchaseKind:            database.PurchaseKindGift,
+		PromoCodeID:             promoCodeIDOrNil(promo),
+		PromoCodeCode:           req.PromoCode,
+		PromoDiscountPercent:    promoDiscountPercentOrZero(promo),
 		GiftRecipientUsername:   username,
 		GiftRecipientCustomerID: recipientID,
 		GiftToken:               &token,
