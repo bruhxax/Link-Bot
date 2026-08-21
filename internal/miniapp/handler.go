@@ -4906,6 +4906,24 @@ func buildReferralShareURL(refCode int64) string {
 }
 
 func buildPaymentReturnTarget(purchaseID int64, status string) string {
+	return buildPaymentReturnTargetForBot(telegramBotUsername(), purchaseID, status)
+}
+
+func buildPaymentReturnTargetForBot(username string, purchaseID int64, status string) string {
+	status = normalizePaymentReturnStatus(status)
+	username = strings.TrimSpace(username)
+	if username != "" {
+		target := &url.URL{Scheme: "https", Host: "t.me", Path: "/" + username}
+		query := target.Query()
+		query.Set("startapp", fmt.Sprintf("payment_return_%d_%s", purchaseID, status))
+		target.RawQuery = query.Encode()
+		return target.String()
+	}
+
+	return buildPaymentReturnWebTarget(purchaseID, status)
+}
+
+func buildPaymentReturnWebTarget(purchaseID int64, status string) string {
 	target := &url.URL{Path: "/mini-app/"}
 	query := target.Query()
 	query.Set("paymentReturn", "1")
@@ -4916,6 +4934,13 @@ func buildPaymentReturnTarget(purchaseID int64, status string) string {
 	query.Set("provider", "yookasa")
 	target.RawQuery = query.Encode()
 	return target.String()
+}
+
+func normalizePaymentReturnStatus(status string) string {
+	if strings.EqualFold(strings.TrimSpace(status), string(database.PurchaseStatusPaid)) {
+		return string(database.PurchaseStatusPaid)
+	}
+	return string(database.PurchaseStatusCancel)
 }
 
 func formatOptionalTime(value time.Time) string {

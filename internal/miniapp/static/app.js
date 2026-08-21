@@ -2132,7 +2132,7 @@ async function handlePostBootstrapFlow() {
   const paymentReturn = getPaymentReturnState();
   if (paymentReturn) {
     clearPendingPayment();
-    clearPaymentReturnState();
+    clearPaymentReturnState(paymentReturn);
     moveToDashboard();
     if (paymentReturn.status === "paid") {
       showToast(t().paymentSuccess, "success");
@@ -8397,14 +8397,39 @@ function navigateInMiniApp(url) {
 }
 
 function getPaymentReturnState() {
-  if (urlParams.get("paymentReturn") !== "1") return null;
+  if (urlParams.get("paymentReturn") === "1") {
+    return {
+      status: urlParams.get("paymentStatus") || "pending",
+      purchaseId: Number(urlParams.get("purchaseId") || 0),
+    };
+  }
+
+  const startParam = String(
+    tg?.initDataUnsafe?.start_param
+      || urlParams.get("tgWebAppStartParam")
+      || "",
+  ).trim();
+  const match = /^payment_return_(\d+)_(paid|cancel)$/i.exec(startParam);
+  if (!match) return null;
+
+  const storageKey = `link-bot-payment-return:${startParam.toLowerCase()}`;
+  try {
+    if (window.sessionStorage.getItem(storageKey) === "1") return null;
+  } catch {}
+
   return {
-    status: urlParams.get("paymentStatus") || "pending",
-    purchaseId: Number(urlParams.get("purchaseId") || 0),
+    status: match[2].toLowerCase(),
+    purchaseId: Number(match[1] || 0),
+    startParam,
   };
 }
 
-function clearPaymentReturnState() {
+function clearPaymentReturnState(paymentReturn) {
+  if (paymentReturn?.startParam) {
+    try {
+      window.sessionStorage.setItem(`link-bot-payment-return:${paymentReturn.startParam.toLowerCase()}`, "1");
+    } catch {}
+  }
   const url = new URL(window.location.href);
   url.searchParams.delete("paymentReturn");
   url.searchParams.delete("paymentStatus");
