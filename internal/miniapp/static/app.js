@@ -309,7 +309,9 @@ function loadTelegramLoginScript() {
 
     const script = document.createElement("script");
     script.async = true;
-    script.src = "https://oauth.telegram.org/js/telegram-login.js?5";
+    // The Telegram SDK is cached for several days. Use a fresh version key so
+    // browsers load the build that always adds the required redirect URI.
+    script.src = "https://oauth.telegram.org/js/telegram-login.js?6";
     script.dataset.linkBotTelegramLogin = "1";
     script.onload = () => resolve();
     script.onerror = () => reject(new Error("telegram login script failed"));
@@ -338,6 +340,9 @@ async function startTelegramBrowserLogin(trigger) {
 
     auth({
       client_id: Number(telegramBotID),
+      // Keep the current page explicit for SDK builds that accept this option.
+      // The latest SDK derives the same redirect value internally.
+      redirect_uri: `${window.location.origin}${window.location.pathname}`,
       request_access: ["write"],
       lang: /^ru\b/i.test(navigator.language || "") ? "ru" : "en",
     }, (payload) => {

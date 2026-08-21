@@ -30,6 +30,23 @@ func TestStaticAssetVersionChangesWithContent(t *testing.T) {
 	}
 }
 
+func TestTelegramOIDCLoginKeepsRedirectCompatibility(t *testing.T) {
+	appJS, err := embeddedStatic.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read embedded app.js: %v", err)
+	}
+
+	source := string(appJS)
+	for _, required := range []string{
+		"https://oauth.telegram.org/js/telegram-login.js?6",
+		"redirect_uri: `${window.location.origin}${window.location.pathname}`",
+	} {
+		if !strings.Contains(source, required) {
+			t.Fatalf("app.js is missing Telegram OIDC redirect compatibility fragment %q", required)
+		}
+	}
+}
+
 func TestServeIndexInjectsAssetVersion(t *testing.T) {
 	handler := &Handler{
 		staticFS: fstest.MapFS{
