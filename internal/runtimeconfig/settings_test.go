@@ -202,6 +202,23 @@ func TestCheckoutPlansIncludesFreePlanAndNormalizesOneTimeRule(t *testing.T) {
 	}
 }
 
+func TestCheckoutPlansPreservesExplicitEmptySquadSelection(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Plans = []PlanSettings{
+		{ID: "no_squads", Enabled: true, Months: 1, InternalSquadsConfigured: true},
+	}
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+
+	service := &Service{}
+	service.value.Store(settings)
+	plans := service.CheckoutPlans()
+	if len(plans) != 1 || !plans[0].InternalSquadsConfigured || len(plans[0].InternalSquadUUIDs) != 0 {
+		t.Fatalf("explicit empty squad selection was not preserved: %+v", plans)
+	}
+}
+
 func TestNormalizeAndValidateUsesNavigationDimensions(t *testing.T) {
 	settings := DefaultSettings()
 	for index := range settings.Layout.Elements {

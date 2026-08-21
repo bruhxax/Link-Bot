@@ -55,3 +55,36 @@ func TestListSquadsPreservesPartialCatalog(t *testing.T) {
 		t.Fatalf("catalog = %#v", catalog)
 	}
 }
+
+func TestResolveInternalSquadsSupportsExplicitEmptySelection(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	squads, err := NewClient(server.URL, "token", "remote").resolveInternalSquadsWithMode(context.Background(), nil, false)
+	if err != nil {
+		t.Fatalf("resolveInternalSquadsWithMode() error = %v", err)
+	}
+	if len(squads) != 0 || requests != 0 {
+		t.Fatalf("explicit empty selection = %v with %d API requests, want no squads and no request", squads, requests)
+	}
+}
+
+func TestResolveInternalSquadsKeepsLegacyEmptyAsAll(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"response":{"total":1,"internalSquads":[{"uuid":"7d3258cf-2b39-4ad0-8b11-fbcd30d76348","viewPosition":1,"name":"Main","info":{"membersCount":0,"inboundsCount":0},"inbounds":[],"createdAt":"2026-08-21T00:00:00Z","updatedAt":"2026-08-21T00:00:00Z"}]}}`))
+	}))
+	defer server.Close()
+
+	squads, err := NewClient(server.URL, "token", "remote").resolveInternalSquadsWithMode(context.Background(), nil, true)
+	if err != nil {
+		t.Fatalf("resolveInternalSquadsWithMode() error = %v", err)
+	}
+	if len(squads) != 1 || squads[0].String() != "7d3258cf-2b39-4ad0-8b11-fbcd30d76348" {
+		t.Fatalf("legacy empty selection = %v, want all squads", squads)
+	}
+}

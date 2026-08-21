@@ -6852,7 +6852,7 @@ body.is-plan-editing .page-scroll {
 .admin-squads__toolbar > span { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 .admin-squads__toolbar button { min-height: 40px; display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 11px; font-weight: 750; cursor: pointer; }
 .admin-squads__toolbar button svg { width: 15px; height: 15px; }
-.admin-squads__toolbar button:disabled { color: var(--muted); cursor: default; }
+.admin-squads__toolbar button.is-all-selected { color: var(--success); }
 .admin-squads__toolbar button:focus-visible { outline: 2px solid var(--success); outline-offset: 2px; }
 .admin-squads__list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--border); }
 .admin-squad-option { min-height: 40px; display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 8px; padding: 3px 8px 3px 0; border-bottom: 1px solid var(--border); cursor: pointer; }

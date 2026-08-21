@@ -28,17 +28,18 @@ const (
 )
 
 type CheckoutPlan struct {
-	ID                 string
-	Months             int
-	PriceRub           int
-	PriceStars         int
-	FreeOneTime        bool
-	TrafficLimitBytes  int64
-	DeviceLimitCount   int
-	Variant            string
-	Wide               bool
-	InternalSquadUUIDs []string
-	ExternalSquadUUID  string
+	ID                       string
+	Months                   int
+	PriceRub                 int
+	PriceStars               int
+	FreeOneTime              bool
+	TrafficLimitBytes        int64
+	DeviceLimitCount         int
+	Variant                  string
+	Wide                     bool
+	InternalSquadUUIDs       []string
+	InternalSquadsConfigured bool
+	ExternalSquadUUID        string
 }
 
 func StarsForRub(priceRub int) int {

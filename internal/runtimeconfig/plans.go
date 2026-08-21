@@ -16,16 +16,17 @@ func (s *Service) CheckoutPlans() []planbook.CheckoutPlan {
 			continue
 		}
 		plan := planbook.CheckoutPlan{
-			ID:                 item.ID,
-			Months:             item.Months,
-			PriceRub:           item.PriceRub,
-			PriceStars:         planbook.StarsForRub(item.PriceRub),
-			FreeOneTime:        item.FreeOneTime,
-			DeviceLimitCount:   item.DeviceLimit,
-			Wide:               item.Wide,
-			Variant:            planbook.VariantRegular,
-			InternalSquadUUIDs: append([]string(nil), item.InternalSquadUUIDs...),
-			ExternalSquadUUID:  item.ExternalSquadUUID,
+			ID:                       item.ID,
+			Months:                   item.Months,
+			PriceRub:                 item.PriceRub,
+			PriceStars:               planbook.StarsForRub(item.PriceRub),
+			FreeOneTime:              item.FreeOneTime,
+			DeviceLimitCount:         item.DeviceLimit,
+			Wide:                     item.Wide,
+			Variant:                  planbook.VariantRegular,
+			InternalSquadUUIDs:       append([]string(nil), item.InternalSquadUUIDs...),
+			InternalSquadsConfigured: item.InternalSquadsConfigured,
+			ExternalSquadUUID:        item.ExternalSquadUUID,
 		}
 		if item.UnlimitedTraffic || item.TrafficGB == 0 {
 			plan.TrafficLimitBytes = 0

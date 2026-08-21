@@ -273,6 +273,7 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	if purchase.PlanID != nil && s.runtimeSettings != nil {
 		if plan, ok := s.runtimeSettings.CheckoutPlan(*purchase.PlanID, purchase.Month); ok {
 			provisioning.InternalSquadUUIDs = append([]string(nil), plan.InternalSquadUUIDs...)
+			provisioning.InternalSquadsConfigured = plan.InternalSquadsConfigured
 			provisioning.ExternalSquadUUID = plan.ExternalSquadUUID
 			provisioning.TrafficResetStrategy = config.TrafficLimitResetStrategy()
 			provisioning.Tag = config.RemnawaveTag()
@@ -1090,12 +1091,13 @@ func (s PaymentService) ActivateTrial(ctx context.Context, telegramId int64) (st
 		trafficLimit = 0
 	}
 	user, err := s.remnawaveClient.CreateOrUpdateUserWithOptions(ctx, customer.ID, telegramId, trafficLimit, trial.DeviceLimit, trial.Days, remnawave.ProvisioningOptions{
-		InternalSquadUUIDs:   append([]string(nil), trial.InternalSquadUUIDs...),
-		ExternalSquadUUID:    trial.ExternalSquadUUID,
-		TrafficResetStrategy: trial.TrafficResetStrategy,
-		Tag:                  trial.Tag,
-		ApplySquads:          true,
-		UsernameTemplate:     panelUsernameTemplate(s.runtimeSettings),
+		InternalSquadUUIDs:       append([]string(nil), trial.InternalSquadUUIDs...),
+		InternalSquadsConfigured: trial.InternalSquadsConfigured,
+		ExternalSquadUUID:        trial.ExternalSquadUUID,
+		TrafficResetStrategy:     trial.TrafficResetStrategy,
+		Tag:                      trial.Tag,
+		ApplySquads:              true,
+		UsernameTemplate:         panelUsernameTemplate(s.runtimeSettings),
 	})
 	if err != nil {
 		slog.Error("Error creating user", "error", err)

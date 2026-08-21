@@ -1556,9 +1556,9 @@ function buildPreviewRuntimeSettings() {
 		},
 		appearance: { backgroundMode: "animated", compact: true, showFrames: true, colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", waveBackground: "#000000", waveDot: "#ebebeb" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
-		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], externalSquadUuid: "" })),
+		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
 		devicePacks: [],
-		trial: { enabled: true, days: 3, trafficGb: 10, unlimitedTraffic: false, deviceLimit: 5, internalSquadUuids: [], externalSquadUuid: "", trafficResetStrategy: "MONTH", tag: "" },
+		trial: { enabled: true, days: 3, trafficGb: 10, unlimitedTraffic: false, deviceLimit: 5, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "", trafficResetStrategy: "MONTH", tag: "" },
 		grace: { enabled: false, days: 1, internalSquadUuids: [] },
 		panel: { usernameTemplate: "{{customer_id}}_{{telegram_id}}" },
 	};
@@ -3327,8 +3327,7 @@ function updateAdminSquadSelection(currentValues, uuid, checked, emptyMeansAll =
 	const selected = new Set(current);
 	if (checked) selected.add(String(uuid));
 	else selected.delete(String(uuid));
-	const result = available.filter((value) => selected.has(value));
-	return emptyMeansAll && result.length === available.length ? [] : result;
+	return available.filter((value) => selected.has(value));
 }
 
 function renderInternalSquadSelector(selectedValues, inputKey, emptyMeansAll = true) {
@@ -3341,25 +3340,76 @@ function renderInternalSquadSelector(selectedValues, inputKey, emptyMeansAll = t
 		? "Если выбраны все, новые пользователи добавляются во все внутренние сквады."
 		: "Выберите один или несколько сквадов для временного доступа.";
 	const everySelected = selectedCount === squads.length;
-	return `<div class="admin-squads__toolbar"><span>${selectedCount} из ${squads.length}</span><button type="button" data-action="admin-select-all-squads" data-value="${escapeAttribute(inputKey)}" ${everySelected ? "disabled" : ""}>${icon("check")}Выбрать все</button></div><div class="admin-squads__list">${squads.map((squad) => `<label class="admin-squad-option"><input type="checkbox" data-input="${escapeAttribute(inputKey)}" value="${escapeAttribute(squad.uuid)}" ${allSelected || selected.includes(String(squad.uuid)) ? "checked" : ""}><span><strong>${escapeHtml(squad.name || "Без названия")}</strong></span></label>`).join("")}</div><p class="admin-squads__hint">${hint}</p>`;
+	return `<div class="admin-squad-selector" data-squad-selector="${escapeAttribute(inputKey)}"><div class="admin-squads__toolbar"><button class="${everySelected ? "is-all-selected" : ""}" type="button" data-action="admin-select-all-squads" data-value="${escapeAttribute(inputKey)}" aria-pressed="${everySelected}" aria-label="${everySelected ? "Снять выбор со всех сквадов" : "Выбрать все сквады"}">${icon("check")}Выбрать все</button><span>${selectedCount} из ${squads.length}</span></div><div class="admin-squads__list">${squads.map((squad) => `<label class="admin-squad-option"><input type="checkbox" data-input="${escapeAttribute(inputKey)}" value="${escapeAttribute(squad.uuid)}" ${allSelected || selected.includes(String(squad.uuid)) ? "checked" : ""}><span><strong>${escapeHtml(squad.name || "Без названия")}</strong></span></label>`).join("")}</div><p class="admin-squads__hint">${hint}</p></div>`;
+}
+
+function adminSquadSelection(inputKey) {
+	if (inputKey === "admin-plan-internal-squad" && state.adminPlanFormDraft) {
+		return { values: state.adminPlanFormDraft.internalSquadUuids, emptyMeansAll: !state.adminPlanFormDraft.internalSquadsConfigured };
+	}
+	if (inputKey === "admin-trial-internal-squad" && state.adminSettingsDraft?.trial) {
+		return { values: state.adminSettingsDraft.trial.internalSquadUuids, emptyMeansAll: !state.adminSettingsDraft.trial.internalSquadsConfigured };
+	}
+	if (inputKey === "admin-grace-internal-squad" && state.adminSettingsDraft?.grace) {
+		return { values: state.adminSettingsDraft.grace.internalSquadUuids, emptyMeansAll: false };
+	}
+	return null;
+}
+
+function setAdminSquadSelection(inputKey, values) {
+	const next = Array.isArray(values) ? [...values] : [];
+	if (inputKey === "admin-plan-internal-squad" && state.adminPlanFormDraft) {
+		state.adminPlanFormDraft.internalSquadUuids = next;
+		state.adminPlanFormDraft.internalSquadsConfigured = true;
+		return true;
+	}
+	if (inputKey === "admin-trial-internal-squad" && state.adminSettingsDraft?.trial) {
+		state.adminSettingsDraft.trial.internalSquadUuids = next;
+		state.adminSettingsDraft.trial.internalSquadsConfigured = true;
+		state.adminSettingsDirty = true;
+		syncAdminSaveBarDOM();
+		return true;
+	}
+	if (inputKey === "admin-grace-internal-squad" && state.adminSettingsDraft?.grace) {
+		state.adminSettingsDraft.grace.internalSquadUuids = next;
+		state.adminSettingsDirty = true;
+		syncAdminSaveBarDOM();
+		return true;
+	}
+	return false;
+}
+
+function syncAdminSquadSelector(inputKey, selectedValues, emptyMeansAll = false) {
+	const root = [...app.querySelectorAll(".admin-squad-selector")].find((item) => item.dataset.squadSelector === inputKey);
+	if (!root) return;
+	const selected = new Set(Array.isArray(selectedValues) ? selectedValues.map(String) : []);
+	const checkboxes = [...root.querySelectorAll('input[type="checkbox"]')];
+	const allSelected = emptyMeansAll && selected.size === 0;
+	checkboxes.forEach((checkbox) => { checkbox.checked = allSelected || selected.has(String(checkbox.value)); });
+	const selectedCount = allSelected ? checkboxes.length : checkboxes.filter((checkbox) => checkbox.checked).length;
+	const everySelected = checkboxes.length > 0 && selectedCount === checkboxes.length;
+	const button = root.querySelector('[data-action="admin-select-all-squads"]');
+	if (button) {
+		button.classList.toggle("is-all-selected", everySelected);
+		button.setAttribute("aria-pressed", String(everySelected));
+		button.setAttribute("aria-label", everySelected ? "Снять выбор со всех сквадов" : "Выбрать все сквады");
+	}
+	const counter = root.querySelector(".admin-squads__toolbar > span");
+	if (counter) counter.textContent = `${selectedCount} из ${checkboxes.length}`;
 }
 
 function selectAllAdminSquads(inputKey) {
 	const all = adminSquads().internal.map((item) => String(item.uuid));
-	if (!all.length) return;
-	if (inputKey === "admin-plan-internal-squad" && state.adminPlanFormDraft) {
-		state.adminPlanFormDraft.internalSquadUuids = [];
-	} else if (inputKey === "admin-trial-internal-squad" && state.adminSettingsDraft?.trial) {
-		state.adminSettingsDraft.trial.internalSquadUuids = [];
-		state.adminSettingsDirty = true;
-	} else if (inputKey === "admin-grace-internal-squad" && state.adminSettingsDraft?.grace) {
-		state.adminSettingsDraft.grace.internalSquadUuids = all;
-		state.adminSettingsDirty = true;
-	} else {
-		return;
-	}
+	const current = adminSquadSelection(inputKey);
+	if (!all.length || !current) return;
+	const currentValues = Array.isArray(current.values) ? current.values.map(String) : [];
+	const selected = current.emptyMeansAll && currentValues.length === 0
+		? all
+		: all.filter((uuid) => currentValues.includes(uuid));
+	const next = selected.length === all.length ? [] : all;
+	if (!setAdminSquadSelection(inputKey, next)) return;
+	syncAdminSquadSelector(inputKey, next);
 	haptic("light");
-	render({ preserveScroll: true });
 }
 
 function renderExternalSquadSelector(selectedValue, inputKey) {
@@ -3373,7 +3423,7 @@ function renderAdminTrialPage() {
 		<div class="admin-toggle-list">${renderAdminToggle("Триал включен", "trial.enabled")}${renderAdminToggle("Безлимитный трафик", "trial.unlimitedTraffic")}</div>
 		<div class="admin-editor__grid admin-editor__grid--three">${renderAdminSettingField("Срок, дней", "trial.days", { type: "number", min: 0, max: 365 })}${renderAdminSettingField("Трафик, ГБ", "trial.trafficGb", { type: "number", min: 0 })}${renderAdminSettingField("Устройств", "trial.deviceLimit", { type: "number", min: 0 })}</div>
 		<div class="admin-editor__grid">${renderAdminSettingField("Тег в панели", "trial.tag")}${renderAdminTrialResetStrategy()}</div>
-		<section class="admin-squads"><h3>Внутренние сквады</h3>${renderInternalSquadSelector(trial.internalSquadUuids, "admin-trial-internal-squad")}${renderExternalSquadSelector(trial.externalSquadUuid, "admin-trial-external-squad")}</section>
+		<section class="admin-squads"><h3>Внутренние сквады</h3>${renderInternalSquadSelector(trial.internalSquadUuids, "admin-trial-internal-squad", !trial.internalSquadsConfigured)}${renderExternalSquadSelector(trial.externalSquadUuid, "admin-trial-external-squad")}</section>
 	</div>`);
 }
 
@@ -3465,7 +3515,7 @@ function renderAdminPlanEditorModal() {
 		</div>
 		<div class="admin-plan-stars"><span>Telegram Stars</span><strong>${escapeHtml(String(stars))}</strong><small>Автоматически: 1 ⭐ = 1,47 ₽</small></div>
 		<label class="admin-plan-free-rule" ${Number(plan.priceRub || 0) === 0 ? "" : "hidden"}><span><strong>Можно взять только 1 раз</strong><small>Если выключено, повторно получить тариф можно за 7 дней до окончания.</small></span><input data-input="admin-plan-free-once" type="checkbox" ${plan.freeOneTime ? "checked" : ""}></label>
-		<section class="admin-squads"><h3>Внутренние сквады</h3>${renderInternalSquadSelector(plan.internalSquadUuids, "admin-plan-internal-squad")}${renderExternalSquadSelector(plan.externalSquadUuid, "admin-plan-external-squad")}</section>
+		<section class="admin-squads"><h3>Внутренние сквады</h3>${renderInternalSquadSelector(plan.internalSquadUuids, "admin-plan-internal-squad", !plan.internalSquadsConfigured)}${renderExternalSquadSelector(plan.externalSquadUuid, "admin-plan-external-squad")}</section>
 		<button class="btn btn--green-filled admin-plan-modal__save" type="button" data-action="admin-apply-plan-edit">${icon("check")}Применить</button>
 		</div>
 	</div></div>`;
@@ -5434,8 +5484,10 @@ function bindRootActions() {
 		const inputKey = target?.dataset?.input;
 		if (!inputKey) return;
 		if (inputKey === "admin-plan-internal-squad" && state.adminPlanFormDraft) {
-			state.adminPlanFormDraft.internalSquadUuids = updateAdminSquadSelection(state.adminPlanFormDraft.internalSquadUuids, target.value, Boolean(target.checked));
-			render({ preserveScroll: true });
+			const current = adminSquadSelection(inputKey);
+			const next = updateAdminSquadSelection(current?.values, target.value, Boolean(target.checked), current?.emptyMeansAll);
+			setAdminSquadSelection(inputKey, next);
+			syncAdminSquadSelector(inputKey, next);
 			return;
 		}
 		if (inputKey === "admin-device-pack-devices" && state.adminDevicePackFormDraft) { state.adminDevicePackFormDraft.devices = Number(target.value || 0); return; }
@@ -5446,9 +5498,10 @@ function bindRootActions() {
 			return;
 		}
 		if (inputKey === "admin-trial-internal-squad" && state.adminSettingsDraft?.trial) {
-			state.adminSettingsDraft.trial.internalSquadUuids = updateAdminSquadSelection(state.adminSettingsDraft.trial.internalSquadUuids, target.value, Boolean(target.checked));
-			state.adminSettingsDirty = true;
-			render({ preserveScroll: true });
+			const current = adminSquadSelection(inputKey);
+			const next = updateAdminSquadSelection(current?.values, target.value, Boolean(target.checked), current?.emptyMeansAll);
+			setAdminSquadSelection(inputKey, next);
+			syncAdminSquadSelector(inputKey, next);
 			return;
 		}
 		if (inputKey === "admin-trial-external-squad" && state.adminSettingsDraft?.trial) {
@@ -5458,9 +5511,10 @@ function bindRootActions() {
 			return;
 		}
 		if (inputKey === "admin-grace-internal-squad" && state.adminSettingsDraft?.grace) {
-			state.adminSettingsDraft.grace.internalSquadUuids = updateAdminSquadSelection(state.adminSettingsDraft.grace.internalSquadUuids, target.value, Boolean(target.checked), false);
-			state.adminSettingsDirty = true;
-			render({ preserveScroll: true });
+			const current = adminSquadSelection(inputKey);
+			const next = updateAdminSquadSelection(current?.values, target.value, Boolean(target.checked), false);
+			setAdminSquadSelection(inputKey, next);
+			syncAdminSquadSelector(inputKey, next);
 			return;
 		}
 		if (inputKey.startsWith("admin-plan-") && state.adminPlanFormDraft) {
@@ -6156,7 +6210,7 @@ function addAdminPlan() {
 	const plans = state.adminSettingsDraft?.plans;
 	if (!Array.isArray(plans)) return;
 	const id = `custom_${Date.now().toString(36)}`;
-	const plan = { id, enabled: false, months: 0, titleRu: "", titleEn: "", priceRub: 0, priceStars: 0, freeOneTime: false, trafficGb: 0, unlimitedTraffic: true, deviceLimit: 0, wide: false, internalSquadUuids: [], externalSquadUuid: "" };
+	const plan = { id, enabled: false, months: 0, titleRu: "", titleEn: "", priceRub: 0, priceStars: 0, freeOneTime: false, trafficGb: 0, unlimitedTraffic: true, deviceLimit: 0, wide: false, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" };
 	plans.push(plan);
 	state.adminSettingsDirty = true;
 	state.adminPlanEditingID = id;
@@ -6210,6 +6264,7 @@ function applyAdminPlanEdit() {
 		titleEn: getPlanCardTitle(months, "en"),
 		priceStars: Math.max(0, Math.round(priceRub / 1.47)),
 		internalSquadUuids: Array.isArray(draft.internalSquadUuids) ? [...draft.internalSquadUuids] : [],
+		internalSquadsConfigured: Boolean(draft.internalSquadsConfigured),
 		externalSquadUuid: String(draft.externalSquadUuid || ""),
 	};
 	state.adminSettingsDirty = true;

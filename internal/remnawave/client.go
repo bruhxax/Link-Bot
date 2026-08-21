@@ -44,13 +44,14 @@ type GraceAccessResult struct {
 }
 
 type ProvisioningOptions struct {
-	InternalSquadUUIDs   []string
-	ExternalSquadUUID    string
-	TrafficResetStrategy string
-	Tag                  string
-	ApplySquads          bool
-	UsernameTemplate     string
-	UsernameSuffix       string
+	InternalSquadUUIDs       []string
+	InternalSquadsConfigured bool
+	ExternalSquadUUID        string
+	TrafficResetStrategy     string
+	Tag                      string
+	ApplySquads              bool
+	UsernameTemplate         string
+	UsernameSuffix           string
 }
 
 type UserState struct {
@@ -750,7 +751,7 @@ func legacyProvisioningOptions(isTrialUser bool) ProvisioningOptions {
 	if external != uuid.Nil {
 		externalValue = external.String()
 	}
-	return ProvisioningOptions{InternalSquadUUIDs: internal, ExternalSquadUUID: externalValue, TrafficResetStrategy: strategy, Tag: tag, ApplySquads: true}
+	return ProvisioningOptions{InternalSquadUUIDs: internal, InternalSquadsConfigured: len(internal) > 0, ExternalSquadUUID: externalValue, TrafficResetStrategy: strategy, Tag: tag, ApplySquads: true}
 }
 
 func (r *Client) getPanelUserByTelegramID(ctx context.Context, telegramId int64) (*PanelUser, error) {
@@ -861,7 +862,7 @@ func (r *Client) updateUserWithOptions(ctx context.Context, existingUser *PanelU
 	}
 	if options.ApplySquads {
 		var err error
-		squadIDs, err = r.resolveInternalSquads(ctx, options.InternalSquadUUIDs)
+		squadIDs, err = r.resolveInternalSquadsWithMode(ctx, options.InternalSquadUUIDs, !options.InternalSquadsConfigured)
 		if err != nil {
 			return nil, err
 		}
@@ -924,7 +925,7 @@ func (r *Client) createUserWithOptions(ctx context.Context, customerId int64, te
 	username := generateUsername(options.UsernameTemplate, customerId, telegramId)
 	username = appendUsernameSuffix(username, options.UsernameSuffix)
 
-	squadIDs, err := r.resolveInternalSquads(ctx, options.InternalSquadUUIDs)
+	squadIDs, err := r.resolveInternalSquadsWithMode(ctx, options.InternalSquadUUIDs, !options.InternalSquadsConfigured)
 	if err != nil {
 		return nil, err
 	}
@@ -969,6 +970,13 @@ func (r *Client) createUserWithOptions(ctx context.Context, customerId int64, te
 }
 
 func (r *Client) resolveInternalSquads(ctx context.Context, selected []string) ([]uuid.UUID, error) {
+	return r.resolveInternalSquadsWithMode(ctx, selected, true)
+}
+
+func (r *Client) resolveInternalSquadsWithMode(ctx context.Context, selected []string, emptyMeansAll bool) ([]uuid.UUID, error) {
+	if !emptyMeansAll && len(selected) == 0 {
+		return []uuid.UUID{}, nil
+	}
 	response, err := r.client.InternalSquad().GetInternalSquads(ctx)
 	if err != nil {
 		return nil, err
@@ -986,6 +994,9 @@ func (r *Client) resolveInternalSquads(ctx context.Context, selected []string) (
 		if value != uuid.Nil {
 			wanted[value] = struct{}{}
 		}
+	}
+	if !emptyMeansAll && len(wanted) == 0 {
+		return []uuid.UUID{}, nil
 	}
 	result := make([]uuid.UUID, 0)
 	responsePayload := payload.GetResponse()

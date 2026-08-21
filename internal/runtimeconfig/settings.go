@@ -206,20 +206,21 @@ type LayoutSettings struct {
 }
 
 type PlanSettings struct {
-	ID                 string   `json:"id"`
-	Enabled            bool     `json:"enabled"`
-	Months             int      `json:"months"`
-	TitleRU            string   `json:"titleRu"`
-	TitleEN            string   `json:"titleEn"`
-	PriceRub           int      `json:"priceRub"`
-	PriceStars         int      `json:"priceStars"`
-	FreeOneTime        bool     `json:"freeOneTime"`
-	TrafficGB          int      `json:"trafficGb"`
-	UnlimitedTraffic   bool     `json:"unlimitedTraffic"`
-	DeviceLimit        int      `json:"deviceLimit"`
-	Wide               bool     `json:"wide"`
-	InternalSquadUUIDs []string `json:"internalSquadUuids"`
-	ExternalSquadUUID  string   `json:"externalSquadUuid"`
+	ID                       string   `json:"id"`
+	Enabled                  bool     `json:"enabled"`
+	Months                   int      `json:"months"`
+	TitleRU                  string   `json:"titleRu"`
+	TitleEN                  string   `json:"titleEn"`
+	PriceRub                 int      `json:"priceRub"`
+	PriceStars               int      `json:"priceStars"`
+	FreeOneTime              bool     `json:"freeOneTime"`
+	TrafficGB                int      `json:"trafficGb"`
+	UnlimitedTraffic         bool     `json:"unlimitedTraffic"`
+	DeviceLimit              int      `json:"deviceLimit"`
+	Wide                     bool     `json:"wide"`
+	InternalSquadUUIDs       []string `json:"internalSquadUuids"`
+	InternalSquadsConfigured bool     `json:"internalSquadsConfigured"`
+	ExternalSquadUUID        string   `json:"externalSquadUuid"`
 }
 
 type DevicePackSettings struct {
@@ -232,15 +233,16 @@ type DevicePackSettings struct {
 }
 
 type TrialSettings struct {
-	Enabled              bool     `json:"enabled"`
-	Days                 int      `json:"days"`
-	TrafficGB            int      `json:"trafficGb"`
-	UnlimitedTraffic     bool     `json:"unlimitedTraffic"`
-	DeviceLimit          int      `json:"deviceLimit"`
-	InternalSquadUUIDs   []string `json:"internalSquadUuids"`
-	ExternalSquadUUID    string   `json:"externalSquadUuid"`
-	TrafficResetStrategy string   `json:"trafficResetStrategy"`
-	Tag                  string   `json:"tag"`
+	Enabled                  bool     `json:"enabled"`
+	Days                     int      `json:"days"`
+	TrafficGB                int      `json:"trafficGb"`
+	UnlimitedTraffic         bool     `json:"unlimitedTraffic"`
+	DeviceLimit              int      `json:"deviceLimit"`
+	InternalSquadUUIDs       []string `json:"internalSquadUuids"`
+	InternalSquadsConfigured bool     `json:"internalSquadsConfigured"`
+	ExternalSquadUUID        string   `json:"externalSquadUuid"`
+	TrafficResetStrategy     string   `json:"trafficResetStrategy"`
+	Tag                      string   `json:"tag"`
 }
 
 type GraceSettings struct {
@@ -433,15 +435,16 @@ func DefaultSettings() Settings {
 		Plans:       defaultPlans(),
 		DevicePacks: defaultDevicePacks(),
 		Trial: TrialSettings{
-			Enabled:              config.TrialDays() > 0,
-			Days:                 config.TrialDays(),
-			TrafficGB:            config.TrialTrafficLimitGB(),
-			UnlimitedTraffic:     config.TrialTrafficLimitGB() == 0,
-			DeviceLimit:          config.TrialDeviceLimit(),
-			InternalSquadUUIDs:   uuidMapStrings(config.TrialInternalSquads()),
-			ExternalSquadUUID:    uuidString(config.TrialExternalSquadUUID()),
-			TrafficResetStrategy: config.TrialTrafficLimitResetStrategy(),
-			Tag:                  config.TrialRemnawaveTag(),
+			Enabled:                  config.TrialDays() > 0,
+			Days:                     config.TrialDays(),
+			TrafficGB:                config.TrialTrafficLimitGB(),
+			UnlimitedTraffic:         config.TrialTrafficLimitGB() == 0,
+			DeviceLimit:              config.TrialDeviceLimit(),
+			InternalSquadUUIDs:       uuidMapStrings(config.TrialInternalSquads()),
+			InternalSquadsConfigured: len(config.TrialInternalSquads()) > 0,
+			ExternalSquadUUID:        uuidString(config.TrialExternalSquadUUID()),
+			TrafficResetStrategy:     config.TrialTrafficLimitResetStrategy(),
+			Tag:                      config.TrialRemnawaveTag(),
 		},
 		Grace: GraceSettings{
 			Days: 1,
