@@ -50,7 +50,7 @@ It combines a user dashboard, payments, subscription management, support, and ad
 
 | 📣 Marketing and notifications | 🛠️ Administration |
 |---|---|
-| • Promo codes<br>• Referral system<br>• Broadcasts<br>• Subscription expiration and error notifications | • Support tickets and FAQ<br>• Maintenance mode<br>• Content, appearance, and feature editor directly in the admin panel |
+| • Promo codes<br>• Referral system<br>• Broadcasts<br>• Subscription expiration and error notifications | • Support tickets and FAQ<br>• Russian, English, and Persian with RTL and the Vazir font<br>• Maintenance mode<br>• Content, appearance, and feature editor directly in the admin panel |
 
 ---
 
@@ -133,6 +133,11 @@ PUBLIC_HOST=bot.example.com
 PUBLIC_BASE_URL=https://bot.example.com
 
 REFERRAL_DAYS=0
+
+# Global Telegram bot and Mini App language: ru, en, or fa
+DEFAULT_LANGUAGE=ru
+# auto uses Vazir for Persian and Montserrat for other languages
+DEFAULT_FONT=auto
 ```
 
 If the panel API is protected by Caddy Security, set
@@ -168,7 +173,7 @@ curl https://bot.example.com/healthcheck
 1. Open the bot and send `/start`.
 2. Open the Mini App using the account specified in `ADMIN_TELEGRAM_ID`.
 3. Go to **Admin**.
-4. Configure integrations, plans, trial access, squads, content, and features.
+4. Configure integrations, plans, trial access, squads, content, and features. Language and font can also be changed under **Admin → Language and font**.
 5. Open the [@BotFather](https://t.me/BotFather?startapp) Mini App, select your bot → **Login Widget**, then add `https://bot.example.com` and `https://bot.example.com/mini-app/` to **Allowed URLs**.
 6. Keep the default `RS256` signing algorithm under **Login Widget → Advanced**.
 

@@ -197,39 +197,39 @@ function getDefaultInstallPlatform() {
 }
 
 function webVersionLabel() {
-  return state.locale === "en" ? "Open web version" : "\u041e\u0442\u043a\u0440\u044b\u0442\u044c \u0432\u0435\u0431-\u0432\u0435\u0440\u0441\u0438\u044e";
+	return localizedText("Открыть веб-версию", "Open web version", "باز کردن نسخه وب");
 }
 
 function webVersionHint() {
-  return state.locale === "en" ? "Browser dashboard" : "\u0411\u0440\u0430\u0443\u0437\u0435\u0440\u043d\u0430\u044f \u0432\u0435\u0440\u0441\u0438\u044f \u043a\u0430\u0431\u0438\u043d\u0435\u0442\u0430";
+	return localizedText("Браузерная версия кабинета", "Browser dashboard", "حساب کاربری در مرورگر");
 }
 
 function addToHomeLabel() {
-  return state.locale === "en" ? "Add to home screen" : "\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u043d\u0430 \u0440\u0430\u0431\u043e\u0447\u0438\u0439 \u0441\u0442\u043e\u043b";
+	return localizedText("Добавить на рабочий стол", "Add to home screen", "افزودن به صفحه اصلی");
 }
 
 function addToHomeHint() {
-  return state.locale === "en" ? "iOS and Android install guide" : "\u0418\u043d\u0441\u0442\u0440\u0443\u043a\u0446\u0438\u044f \u0434\u043b\u044f iOS \u0438 Android";
+	return localizedText("Инструкция для iOS и Android", "iOS and Android install guide", "راهنمای نصب برای iOS و Android");
 }
 
 function mediaLabel() {
-  return state.locale === "en" ? "Media" : "\u041c\u0435\u0434\u0438\u0430";
+	return localizedText("Медиа", "Media", "رسانه");
 }
 
 function mediaHint() {
-  return state.locale === "en" ? "Videos and materials" : "\u0412\u0438\u0434\u0435\u043e \u0438 \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b\u044b";
+	return localizedText("Видео и материалы", "Videos and materials", "ویدیوها و مطالب");
 }
 
 function mediaComingSoonLabel() {
-  return state.locale === "en" ? "Coming soon" : "\u0411\u0443\u0434\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e \u0432 \u0441\u043a\u043e\u0440\u043e\u043c \u0432\u0440\u0435\u043c\u0435\u043d\u0438";
+	return localizedText("Скоро будет доступно", "Coming soon", "به‌زودی در دسترس خواهد بود");
 }
 
 function loginMethodsLabel() {
-  return state.locale === "en" ? "Sign-in method" : "\u0421\u043f\u043e\u0441\u043e\u0431 \u0432\u0445\u043e\u0434\u0430";
+	return localizedText("Способ входа", "Sign-in method", "روش ورود");
 }
 
 function loginMethodsHint() {
-  return state.locale === "en" ? "Telegram and Gmail" : "Telegram \u0438 Gmail";
+	return localizedText("Telegram и Gmail", "Telegram and Gmail", "Telegram و Gmail");
 }
 
 function gmailLabel() {
@@ -241,15 +241,15 @@ function telegramLabel() {
 }
 
 function authLinkedLabel() {
-  return state.locale === "en" ? "Linked" : "\u041f\u0440\u0438\u0432\u044f\u0437\u0430\u043d";
+	return localizedText("Привязан", "Linked", "متصل");
 }
 
 function authNotLinkedLabel() {
-  return state.locale === "en" ? "Not linked" : "\u041d\u0435 \u043f\u0440\u0438\u0432\u044f\u0437\u0430\u043d";
+	return localizedText("Не привязан", "Not linked", "متصل نیست");
 }
 
 function gmailLinkHint() {
-  return state.locale === "en" ? "Use the same account from the browser" : "\u0412\u0445\u043e\u0434 \u0432 \u0442\u043e\u0442 \u0436\u0435 \u0430\u043a\u043a\u0430\u0443\u043d\u0442 \u0447\u0435\u0440\u0435\u0437 \u0431\u0440\u0430\u0443\u0437\u0435\u0440";
+	return localizedText("Вход в тот же аккаунт через браузер", "Use the same account from the browser", "ورود به همین حساب از مرورگر");
 }
 
 function openWebVersion() {
@@ -293,15 +293,15 @@ function readTelegramLoginRedirectData() {
 }
 
 function telegramLoginButtonLabel() {
-  return /^en\b/i.test(navigator.language || "") ? "Sign in with Telegram" : "\u0412\u043e\u0439\u0442\u0438 \u0447\u0435\u0440\u0435\u0437 Telegram";
+	return localizedText("Войти через Telegram", "Sign in with Telegram", "ورود با Telegram");
 }
 
 function gmailLoginButtonLabel() {
-  return /^en\b/i.test(navigator.language || "") ? "Sign in with Gmail" : "\u0412\u043e\u0439\u0442\u0438 \u0447\u0435\u0440\u0435\u0437 Gmail";
+	return localizedText("Войти через Gmail", "Sign in with Gmail", "ورود با Gmail");
 }
 
 function gmailLinkButtonLabel() {
-  return state.locale === "en" ? "Link Gmail" : "\u041f\u0440\u0438\u0432\u044f\u0437\u0430\u0442\u044c Gmail";
+	return localizedText("Привязать Gmail", "Link Gmail", "اتصال Gmail");
 }
 
 function loadTelegramLoginScript() {
@@ -353,7 +353,7 @@ async function startTelegramBrowserLogin(trigger) {
       // The latest SDK derives the same redirect value internally.
       redirect_uri: `${window.location.origin}${window.location.pathname}`,
       request_access: ["write"],
-      lang: /^ru\b/i.test(navigator.language || "") ? "ru" : "en",
+		lang: state.locale,
     }, (payload) => {
       if (payload?.id_token) {
         window.onTelegramAuth(payload);
@@ -381,8 +381,15 @@ function browserAuthBrand() {
 
 function browserAuthCopy(brandName = browserAuthBrand().name) {
   const name = String(brandName || "Link-Bot").trim() || "Link-Bot";
-  const isEnglish = /^en\b/i.test(navigator.language || "");
-  if (isEnglish) {
+	if (state.locale === "fa") {
+		return {
+			title: `ورود به ${name}`,
+			openBot: "باز کردن ربات Telegram",
+			loginFailed: "ورود با Telegram انجام نشد",
+			loginUnavailable: "ورود با Telegram موقتاً در دسترس نیست",
+		};
+	}
+	if (state.locale === "en") {
     return {
       title: `Sign in to ${name}`,
       openBot: "Open Telegram bot",
@@ -405,7 +412,15 @@ function getGoogleClientID() {
 }
 
 function googleAuthCopy() {
-  if (state.locale === "en" || /^en\b/i.test(navigator.language || "")) {
+	if (state.locale === "fa") {
+		return {
+			loginUnavailable: "ورود با Gmail هنوز تنظیم نشده است",
+			loginFailed: "ورود با Gmail انجام نشد",
+			linked: "Gmail متصل شد",
+			linkFailed: "اتصال Gmail انجام نشد",
+		};
+	}
+  if (state.locale === "en") {
     return {
       loginUnavailable: "Gmail login is not configured yet",
       loginFailed: "Gmail authorization failed",
@@ -539,7 +554,7 @@ async function startGoogleLogin(mode = "login", trigger = null) {
   try {
     await ensureGoogleLoginReady();
     mountGoogleLoginWidgets();
-    showToast(state.locale === "en" ? "Tap the Gmail button again" : "\u041d\u0430\u0436\u043c\u0438\u0442\u0435 \u043a\u043d\u043e\u043f\u043a\u0443 Gmail \u0435\u0449\u0451 \u0440\u0430\u0437");
+		showToast(localizedText("Нажмите кнопку Gmail ещё раз", "Tap the Gmail button again", "دکمه Gmail را دوباره بزنید"));
   } catch (error) {
     showToast(error?.message || googleAuthCopy().loginUnavailable, "danger");
   } finally {
@@ -561,7 +576,7 @@ async function startGoogleLinkRedirect(trigger = null) {
     if (!authUrl) throw new Error(googleAuthCopy().linkFailed);
     scheduleGoogleLinkRefresh();
     openExternal(authUrl);
-    showToast(state.locale === "en" ? "Finish Gmail linking in the browser" : "\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u0435 \u043f\u0440\u0438\u0432\u044f\u0437\u043a\u0443 Gmail \u0432 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0435");
+		showToast(localizedText("Завершите привязку Gmail в браузере", "Finish Gmail linking in the browser", "اتصال Gmail را در مرورگر کامل کنید"));
   } catch (error) {
     showToast(error?.message || googleAuthCopy().linkFailed, "danger");
   } finally {
@@ -602,7 +617,7 @@ async function linkGoogleAccount(token) {
   try {
     const response = await post("/api/mini-app/auth/google/link", { googleIdToken: token });
     state.data = response.data;
-    state.locale = pickLocale(response.data?.user?.languageCode || state.locale);
+		syncLocalizationFromSettings(response.data?.runtime);
     ensureSelections();
     state.loginMethodBusy = "";
     render();
@@ -934,6 +949,30 @@ Object.assign(copybook.en, {
   noPaymentMethodsHint: "Connect a payment provider in Integrations.",
 });
 
+copybook.fa = {
+  ...copybook.en,
+  appName: "Link-Bot", refresh: "به‌روزرسانی", retry: "تلاش دوباره", pageDashboard: "حساب کاربری", pageBuy: "تعرفه‌ها", pageSetup: "نصب و راه‌اندازی", pageSupport: "پشتیبانی", pageFaq: "پرسش‌های متداول", pageReferrals: "دعوت دوستان", pageServers: "وضعیت سرورها", pageSettings: "پروفایل", pageAdmin: "پنل مدیریت",
+  navDashboard: "خانه", navBuy: "تعرفه‌ها", navSupport: "پشتیبانی", navSettings: "پروفایل", navAdmin: "مدیریت", dashboardLabel: "اصلی", activeSubscription: "اشتراک فعال است", inactiveSubscription: "اشتراک غیرفعال است", trialAvailable: "دسترسی آزمایشی",
+  buySubscription: "خرید اشتراک", extend: "تمدید", setup: "اتصال", activateTrial: "فعال‌کردن آزمایشی", support: "پشتیبانی", openAccess: "باز کردن دسترسی", copyAccess: "کپی لینک",
+  loadingTitle: "در حال آماده‌سازی حساب Link-Bot", loadingText: "اشتراک، تعرفه‌ها و گزینه‌های سریع در حال بارگذاری است.", openInTelegramTitle: "مینی‌اپ را از Telegram باز کنید", openInTelegramText: "Telegram اطلاعات امن کاربر را فقط داخل WebApp ارسال می‌کند.", errorTitle: "بارگذاری اطلاعات انجام نشد", subscriptionGateTitle: "تأیید Link-Bot", subscriptionGateLead: (channel) => `برای باز شدن ربات و مینی‌اپ، در کانال Telegram ما ${channel} عضو شوید.`, subscriptionGateNews: "خبرها، به‌روزرسانی‌ها و اطلاعیه‌های مهم در این کانال منتشر می‌شود.", subscriptionGateHint: "پس از عضویت، دکمه زیر را بزنید.", subscriptionGateOpen: "Link-Bot", subscriptionGateRetry: "✅ عضو شدم",
+  copied: "لینک کپی شد", trialActivated: "دوره آزمایشی فعال شد", paymentOpened: "صفحه پرداخت باز شد", invoiceOpened: "فاکتور باز شد", paymentUnavailable: "این روش پرداخت در دسترس نیست", noAccess: "لینک دسترسی فعالی وجود ندارد", timeout: "زمان پاسخ سرور تمام شد", paymentCancelled: "پرداخت لغو شد", paymentSuccess: "پرداخت موفق بود", paymentPending: "پرداخت هنوز تکمیل نشده است", resumePaymentTitle: "پرداخت تکمیل نشده", resumePaymentText: "پرداخت را ادامه می‌دهید یا به حساب کاربری برمی‌گردید؟", resumePaymentContinue: "ادامه", resumePaymentReturn: "بازگشت به حساب", paymentBrowserTitle: "باز کردن پرداخت", paymentBrowserText: "برای پرداخت بانکی، YooKassa در مرورگر خارجی باز می‌شود.", paymentBrowserOpen: "باز کردن در مرورگر",
+  invited: "دعوت‌های موفق", bonus: "پاداش", bonusDays: "هدیه", expiresAt: "پایان", quickAccess: "اتصال سریع", shareReferral: "اشتراک‌گذاری", referralsHint: "پاداش زمانی ثبت می‌شود که دوست دعوت‌شده یک اشتراک بخرد.", copyReferral: "لینک وب", shareTelegram: "Telegram",
+  selectTerm: "مدت را انتخاب کنید", selectedPlan: "تعرفه انتخاب‌شده", paymentMethod: "روش پرداخت", choosePaymentMethod: "روش پرداخت را انتخاب کنید", pay: "پرداخت", best: "پیشنهاد ویژه", perPeriod: "برای این دوره", savings: (v) => `${v}٪ تخفیف`,
+  starsNeedPriorPurchase: "Telegram Stars پس از اولین پرداخت با کارت یا ارز دیجیتال فعال می‌شود.", serverStatus: "وضعیت سرورها", feedback: "دیدگاه‌ها", channel: "اخبار", tos: "شرایط استفاده", tosHint: "قوانین و شرایط استفاده از Link-Bot", webVersion: "باز کردن نسخه وب",
+  supportTitle: "پشتیبانی", supportHint: "پشتیبانی و لینک‌های کاربردی در یک بخش.", newTicket: "درخواست جدید", newTicketHint: "ارتباط با پشتیبانی", supportTickets: "باز", supportLinks: "کاربردی", noTickets: "درخواست بازی وجود ندارد", noTicketsHint: "درخواست‌های شما در اینجا نمایش داده می‌شوند.",
+  supportOpenTab: "باز", supportHistoryTab: "تاریخچه", supportFaqTitle: "پرسش‌های متداول", supportFaqHint: "پاسخ‌های سریع پیش از ایجاد درخواست", supportAdminHint: "درخواست‌ها و پاسخ‌های جدید به‌صورت خودکار اینجا نمایش داده می‌شوند.", supportNoOpenTitle: "درخواست بازی وجود ندارد", supportNoOpenHint: "درخواست جدید در اینجا نمایش داده می‌شود.", supportNoHistoryTitle: "تاریخچه درخواست‌ها خالی است", supportNoHistoryHint: "درخواست‌های بسته‌شده اینجا نگه‌داری می‌شوند.", supportCreateTitle: "ایجاد درخواست", supportSubjectLabel: "موضوع", supportSubjectPlaceholder: "مشکل را کوتاه توضیح دهید", supportMessageLabel: "پیام", supportMessagePlaceholder: "مشکل یا پرسش خود را با جزئیات بنویسید...", supportSendButton: "ارسال", supportCloseButton: "بستن درخواست", supportClosedTitle: "درخواست بسته شد", supportClosedHint: "گفت‌وگو در تاریخچه ذخیره شده است.", supportReplyPlaceholder: "پیام خود را بنویسید...", supportLoadingThread: "در حال بارگذاری گفت‌وگو...",
+  faqTitle: "پرسش‌های متداول", faqHint: "پاسخ‌های کوتاه درباره اتصال و پرداخت.", referralsTitle: "برنامه دعوت دوستان", appearance: "ظاهر", appearanceHint: "حالت روشن یا تیره مینی‌اپ را انتخاب کنید.", theme: "پوسته", darkTheme: "تیره", lightTheme: "روشن", accentColor: "رنگ تأکیدی", settingsLinks: "لینک‌های کاربردی", referralSystem: "سیستم دعوت دوستان",
+  setupTitle: "راه‌اندازی اتصال", setupHint: "دستگاه را انتخاب کنید و در چند مرحله متصل شوید.", setupMissing: "ابتدا به دسترسی فعال نیاز دارید", setupMissingHint: "یک تعرفه بخرید یا دوره آزمایشی را فعال کنید.", instructions: "راهنما", accessLink: "لینک دسترسی", serverAll: "همه", serverOnline: "آنلاین", serverOffline: "آفلاین", serverTotal: "مجموع", serverStatusEmpty: "سروری پیدا نشد", serverStatusHint: "وضعیت زنده سرورها از پنل",
+  payMethodSbp: "SBP", payMethodSbpHint: "سامانه پرداخت سریع", payMethodCard: "کارت", payMethodCardHint: "پرداخت با کارت بانکی", payMethodStars: "Telegram Stars", payMethodStarsHint: "پرداخت با ستاره Telegram", payMethodCrypto: "Crypto Pay", payMethodCryptoHint: "پرداخت با ارز دیجیتال", subscriptionExpiringTemplate: "⚠️ <b>اشتراک به‌زودی پایان می‌یابد</b>\n\nتاریخ پایان:\n<b>{date}</b>\n\nبرای حفظ اتصال، اشتراک را تمدید کنید.", subscriptionExpiredTemplate: "⚠️ <b>اشتراک پایان یافته است</b>\n\nتاریخ پایان:\n<b>{date}</b>\n\nبرای بازیابی دسترسی یک تعرفه انتخاب کنید.", subscriptionRenewButton: "🔄 تمدید اشتراک", ready: "آماده", waiting: "پس از فعال‌سازی",
+  monthLabel: (c) => `${formatNumber(c, "fa")} ماه`, dayLabel: (c) => `${formatNumber(c, "fa")} روز`,
+  paymentsTitle: "پرداخت‌ها", paymentsHint: "پرداخت‌ها و تاریخچه خرید", autopayTitle: "پرداخت خودکار", paymentHistory: "تاریخچه خرید", paymentHistoryEmpty: "هنوز خریدی انجام نشده", agreementText: "", agreementLink: "شرایط استفاده", agreementRequired: "پیش از پرداخت، شرایط استفاده را تأیید کنید",
+  promoCode: "کد تخفیف", promoCodeHint: "تخفیف روی تعرفه انتخاب‌شده اعمال می‌شود", promoCodePlaceholder: "کد تخفیف را وارد کنید", promoApply: "اعمال", promoApplied: "کد تخفیف اعمال شد", promoAppliedHint: (code, percent) => `${code} · ${percent}٪ تخفیف`, promoExpiresAt: "معتبر تا", promoCodeRequired: "کد تخفیف را وارد کنید", promoInvalid: "کد تخفیف پیدا نشد", promoExpired: "کد تخفیف منقضی شده است", promoInactive: "کد تخفیف غیرفعال است", promoInvalidFormat: "کد فقط می‌تواند شامل حروف، عدد، - و _ باشد", promoInvalidDiscount: "تخفیف باید بین ۱ تا ۹۹ درصد باشد", promoInvalidExpiry: "تاریخ پایان معتبر وارد کنید", promoCreateFailed: "ساخت کد تخفیف انجام نشد", promoCreateSuccess: "کد تخفیف ساخته شد", promoAlreadyExists: "این کد از قبل وجود دارد", promoUnavailable: "کدهای تخفیف موقتاً در دسترس نیستند", promoFinalPrice: "قیمت با تخفیف",
+  adminPromoTitle: "کدهای تخفیف", adminPromoHint: "برای خریدها کد تخفیف بسازید.", adminPromoCreate: "ساخت کد", adminPromoCodeLabel: "کد", adminPromoDiscountLabel: "تخفیف، ٪", adminPromoExpiresLabel: "معتبر تا", adminPromoExpiresPlaceholder: "اختیاری", adminPromoListTitle: "کدهای ساخته‌شده", adminPromoEmpty: "هنوز کدی ساخته نشده", adminPromoStatusActive: "فعال", adminPromoStatusExpired: "منقضی", adminPromoStatusInactive: "غیرفعال", promoAlreadyUsed: "این کد قبلاً استفاده شده است", promoPending: "یک خرید پرداخت‌نشده با این کد دارید", promoLimitReached: "ظرفیت استفاده از کد تمام شده است", promoInvalidLimit: "محدودیت کاربر معتبر وارد کنید", promoDeleteFailed: "حذف کد انجام نشد", promoDeleteSuccess: "کد حذف شد", promoCompactHint: "تخفیف پس از پرداخت موفق اعمال می‌شود",
+  adminPanelHint: "مدیریت ابزارهای مینی‌اپ", adminPromoMenuHint: "ساخت، محدودیت و حذف کدها", adminPromoManage: "کدهای تخفیف", adminPromoLimitLabel: "محدودیت کاربران", adminPromoLimitPlaceholder: "اختیاری", adminPromoDelete: "حذف", adminPromoStatusExhausted: "تمام‌شده", adminPromoUnlimited: "بدون محدودیت", adminPromoNoExpiry: "بدون تاریخ پایان", adminPromoUsage: (used, total) => total > 0 ? `${used} از ${total} استفاده` : `${used} استفاده`,
+  adminSubscriptionManage: "انتقال اشتراک", adminSubscriptionMenuHint: "انتقال اشتراک به حساب دیگر", adminSubscriptionTitle: "انتقال اشتراک", adminSubscriptionQueryLabel: "اشتراک پنل", adminSubscriptionQueryPlaceholder: "شناسه یا نام کاربری", adminSubscriptionFind: "جستجو", adminSubscriptionCurrentTelegram: "Telegram", adminSubscriptionTargetLabel: "Telegram ID گیرنده", adminSubscriptionTargetPlaceholder: "Telegram ID را وارد کنید", adminSubscriptionLoadTarget: "نمایش اشتراک‌ها", adminSubscriptionDestinationTitle: "اشتراک‌های کاربر", adminSubscriptionAddNew: "افزودن به‌عنوان اشتراک جدید", adminSubscriptionAddNewMeta: (count, maximum) => `${count} از ${maximum} استفاده شده`, adminSubscriptionReplace: "جایگزینی", adminSubscriptionAlreadyHere: "قبلاً به این حساب متصل است", adminSubscriptionPrimary: "اصلی", adminSubscriptionStatusActive: "فعال", adminSubscriptionStatusInactive: "غیرفعال", adminSubscriptionStatusEmpty: "بدون اشتراک", adminSubscriptionRebind: "انتقال اشتراک", adminSubscriptionSuccess: "اشتراک منتقل شد", adminSubscriptionConfirm: (username, telegramID, destination) => `اشتراک ${username} به Telegram ID ${telegramID} در ${destination} منتقل شود؟`,
+  noPlansTitle: "هنوز تعرفه‌ای تنظیم نشده", noPlansHint: "پس از افزودن تعرفه، خرید در دسترس خواهد بود.", adminNoPlansHint: "با دکمه زیر اولین تعرفه را اضافه کنید.", noPaymentMethodsTitle: "روش پرداختی تنظیم نشده", noPaymentMethodsHint: "یک ارائه‌دهنده پرداخت را در بخش اتصال‌ها فعال کنید.",
+};
+
 const FAQS = {
   ru: [
     ["Не получается подключиться к VPN", "Откройте страницу установки, выберите устройство и нажмите «Открыть доступ». Если проблема остаётся, отправьте ссылку доступа в поддержку."],
@@ -945,6 +984,12 @@ const FAQS = {
     ["How do I renew quickly?", "Open the Plans page, choose a term and pay with a convenient method. The dashboard will refresh automatically after payment."],
     ["Where is my connection link?", "If your subscription is active, the link is available on the dashboard and setup page. You can open or copy it in one tap."],
   ],
+	fa: [
+		["نمی‌توانم به VPN متصل شوم", "صفحه راه‌اندازی را باز کنید، دستگاه را انتخاب کنید و «باز کردن دسترسی» را بزنید. اگر مشکل ادامه داشت، لینک دسترسی را برای پشتیبانی ارسال کنید."],
+		["چطور اشتراک را سریع تمدید کنم؟", "به بخش «تعرفه‌ها» بروید، مدت و روش پرداخت را انتخاب کنید. پس از پرداخت موفق، وضعیت خودکار به‌روز می‌شود."],
+		["لینک اتصال کجاست؟", "اگر اشتراک فعال باشد، لینک در صفحه اصلی و راه‌اندازی دیده می‌شود و با یک لمس باز یا کپی می‌شود."],
+		["چرا همه سرورها n/a هستند؟", "اشتراک را در برنامه اتصال به‌روزرسانی کنید و دوباره تست پینگ بگیرید."],
+	],
 };
 
 FAQS.ru = [["Почему все сервера показывают n/a?", "Сервера часто обновляются для лучшей производительности, обновите подписку в Happ и еще раз сделайте тест пинга."]];
@@ -1139,6 +1184,27 @@ const TERMS_ARTICLE = {
     ],
     footer: "© 2026 Link-Bot. All rights reserved.",
   },
+	fa: {
+		title: "شرایط استفاده",
+		effectiveLabel: "تاریخ اجرا",
+		jurisdiction: "حوزه قضایی: فدراسیون روسیه",
+		intro: [
+			"این شرایط، نحوه استفاده از سرویس Link-Bot و حقوق و مسئولیت‌های کاربر و مدیریت را مشخص می‌کند.",
+			"با استفاده از Link-Bot، کاربر تأیید می‌کند که این شرایط را خوانده، فهمیده و پذیرفته است.",
+		],
+		sections: [
+			{ title: "۱. شرایط عمومی", paragraphs: ["۱.۱. این شرایط مطابق قوانین فدراسیون روسیه یک پیشنهاد عمومی است.", "۱.۲. استفاده از Link-Bot به‌معنای پذیرش کامل این شرایط است.", "۱.۳. مدیریت می‌تواند شرایط را بدون اطلاع قبلی به‌روزرسانی کند.", "۱.۴. باز کردن مینی‌اپ، ربات Telegram یا نسخه مرورگر به‌معنای مطالعه و پذیرش شرایط است."] },
+			{ title: "۲. شرح سرویس", paragraphs: ["۲.۱. Link-Bot دسترسی VPN را برای رمزنگاری ترافیک و بهبود مسیر شبکه فراهم می‌کند.", "۲.۲. سرویس به‌صورت «همان‌گونه که هست» ارائه می‌شود و دسترس‌پذیری، سرعت یا کارکرد بدون وقفه تضمین نمی‌شود."] },
+			{ title: "۳. حساب و دسترسی", paragraphs: ["۳.۱. دسترسی از طریق مینی‌اپ Telegram، ربات و شناسه‌های مرتبط ارائه می‌شود.", "۳.۲. اشتراک‌گذاری دسترسی با اشخاص ثالث یا دور زدن محدودیت تعرفه ممنوع است."] },
+			{ title: "۴. پرداخت و پاداش", paragraphs: ["۴.۱. دسترسی پولی مطابق تعرفه‌های نمایش‌داده‌شده در Link-Bot ارائه می‌شود.", "۴.۲. در صورت سوءاستفاده یا فعالیت مشکوک، دوره آزمایشی، پاداش دعوت و سایر هدایا می‌توانند لغو شوند.", "۴.۳. هنگام پرداخت با کارت، روش پرداخت می‌تواند برای تمدید خودکار ذخیره شود. پرداخت خودکار از بخش «پرداخت‌ها» قابل غیرفعال‌کردن است."] },
+			{ title: "۵. حقوق مدیریت", paragraphs: ["۵.۱. مدیریت می‌تواند در صورت نیاز اشتراک یا دسترسی را محدود، تعلیق یا لغو کند.", "۵.۲. Link-Bot ممکن است به دلایل فنی، حقوقی، مالی یا سایر شرایط متوقف شود."] },
+			{ title: "۶. مسئولیت", paragraphs: ["۶.۱. استفاده از Link-Bot با مسئولیت خود کاربر انجام می‌شود.", "۶.۲. مدیریت مسئول زیان مستقیم یا غیرمستقیم ناشی از استفاده یا ناتوانی در استفاده از سرویس نیست."] },
+			{ title: "۷. تماس", paragraphs: ["۷.۱. ارتباط از طریق Telegram به نشانی @your_support_username یا پشتیبانی داخل Link-Bot انجام می‌شود."] },
+		],
+		contactTitle: "ارتباط با ما",
+		contacts: ["Telegram: @your_support_username", "پشتیبانی داخل Link-Bot"],
+		footer: "© 2026 Link-Bot. همه حقوق محفوظ است.",
+	},
 };
 
 const PRIVACY_ARTICLE = {
@@ -1228,11 +1294,27 @@ const PRIVACY_ARTICLE = {
     ],
     footer: "© 2026 Link-Bot. All rights reserved.",
   },
+	fa: {
+		title: "سیاست حفظ حریم خصوصی",
+		effectiveLabel: "تاریخ اجرا",
+		jurisdiction: "پردازش اطلاعات کاربران Link-Bot",
+		intro: ["این سیاست توضیح می‌دهد Link-Bot چه اطلاعاتی را، با چه هدفی پردازش می‌کند و کاربر چگونه می‌تواند با مدیریت تماس بگیرد.", "استفاده از ربات، مینی‌اپ یا نسخه مرورگر به‌معنای مطالعه این سیاست است."],
+		sections: [
+			{ title: "۱. اطلاعات پردازش‌شده", paragraphs: ["Link-Bot ممکن است Telegram ID، نام، username، زبان، اطلاعات نشست، اشتراک، پرداخت و درخواست‌های پشتیبانی را پردازش کند.", "اطلاعات کارت بانکی توسط ارائه‌دهندگان پرداخت پردازش می‌شود و در Link-Bot ذخیره نمی‌شود."] },
+			{ title: "۲. هدف پردازش", paragraphs: ["اطلاعات برای ورود، مدیریت اشتراک، پرداخت، پشتیبانی، جلوگیری از سوءاستفاده و بهبود سرویس استفاده می‌شود."] },
+			{ title: "۳. نگه‌داری و انتقال", paragraphs: ["اطلاعات فقط تا زمانی نگه‌داری می‌شود که برای ارائه سرویس و انجام تعهدات لازم باشد.", "اطلاعات تنها در حد لازم با ارائه‌دهندگان زیرساخت و پرداخت یا طبق الزام قانون به اشتراک گذاشته می‌شود."] },
+			{ title: "۴. حقوق کاربر", paragraphs: ["کاربر می‌تواند در صورتی که نگه‌داری اطلاعات طبق قرارداد یا قانون لازم نباشد، اصلاح یا حذف آن را درخواست کند."] },
+		],
+		contactTitle: "ارتباط با مدیریت",
+		contacts: ["Telegram: @your_support_username", "پشتیبانی داخل Link-Bot"],
+		footer: "© 2026 Link-Bot. همه حقوق محفوظ است.",
+	},
 };
 
 const SETUP_STEPS = {
   ru: { windows: ["Откройте ссылку доступа", "Импортируйте конфиг в клиент", "Нажмите подключиться"], android: ["Откройте ссылку доступа", "Выберите Android-клиент", "Подтвердите импорт и подключение"], iphone: ["Откройте ссылку доступа", "Импортируйте конфиг в приложение", "Разрешите VPN-профиль"], mac: ["Откройте ссылку доступа", "Добавьте конфиг в клиент", "Запустите подключение"] },
   en: { windows: ["Open the access link", "Import the config into the client", "Start the connection"], android: ["Open the access link", "Choose the Android client", "Confirm import and connect"], iphone: ["Open the access link", "Import the config into the app", "Allow the VPN profile"], mac: ["Open the access link", "Add the config to the client", "Start the connection"] },
+	fa: { windows: ["لینک دسترسی را باز کنید", "تنظیمات را در برنامه وارد کنید", "اتصال را شروع کنید"], android: ["لینک دسترسی را باز کنید", "برنامه Android را انتخاب کنید", "ورود تنظیمات و اتصال را تأیید کنید"], iphone: ["لینک دسترسی را باز کنید", "تنظیمات را در برنامه وارد کنید", "پروفایل VPN را مجاز کنید"], mac: ["لینک دسترسی را باز کنید", "تنظیمات را به برنامه اضافه کنید", "اتصال را شروع کنید"] },
 };
 
 const INSTALL_GUIDES = {
@@ -1558,7 +1640,8 @@ const ADMIN_APPEARANCE_PRESETS = [
 function buildPreviewRuntimeSettings() {
 	const features = Object.fromEntries(["mini_app", "stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "payments_history", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
-		version: 14,
+		version: 15,
+		localization: { language: "ru", fontFamily: "auto" },
 		maintenance: { enabled: false, titleRu: "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u044b", textRu: "", reasonRu: "" },
 		features,
 		content: {
@@ -1570,7 +1653,7 @@ function buildPreviewRuntimeSettings() {
 		},
 		appearance: { backgroundMode: "animated", compact: true, showFrames: true, colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", waveBackground: "#000000", waveDot: "#ebebeb" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
-		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
+		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, titleFa: `${plan.months} \u0645\u0627\u0647`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
 		devicePacks: [],
 		trial: { enabled: true, days: 3, trafficGb: 10, unlimitedTraffic: false, deviceLimit: 5, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "", trafficResetStrategy: "MONTH", tag: "" },
 		grace: { enabled: false, days: 1, internalSquadUuids: [] },
@@ -1923,6 +2006,15 @@ function getDeepValue(root, path, fallback = "") {
 }
 
 function supportText() {
+	if (state.locale === "fa") {
+		return {
+			open: "باز", history: "تاریخچه", faq: "پرسش‌های متداول", faqHint: "پاسخ‌های سریع پیش از ایجاد درخواست",
+			noOpenTitle: "درخواست بازی وجود ندارد", noOpenHint: "درخواست جدید در اینجا نمایش داده می‌شود.", noHistoryTitle: "تاریخچه درخواست‌ها خالی است", noHistoryHint: "درخواست‌های بسته‌شده اینجا نگه‌داری می‌شوند.",
+			createTitle: "ایجاد درخواست", subject: "موضوع", subjectPlaceholder: "مشکل را کوتاه توضیح دهید", message: "پیام", messagePlaceholder: "مشکل یا پرسش خود را با جزئیات بنویسید...", send: "ارسال",
+			ticketFallback: (id) => `درخواست #${id}`, you: "شما", admin: "پشتیبانی", closeTicket: "بستن درخواست", closed: "درخواست بسته شد", closedHint: "گفت‌وگو در تاریخچه در دسترس است.", replyPlaceholder: "پاسخ خود را بنویسید...",
+			ticketCreated: "درخواست ارسال شد", replySent: "پاسخ ارسال شد", ticketClosedToast: "درخواست بسته شد", loadingThread: "در حال بارگذاری گفت‌وگو...", customer: "نام کاربری", subscription: "اشتراک", unread: "جدید",
+		};
+	}
   if (state.locale === "en") {
     return {
       open: "Open",
@@ -1991,6 +2083,11 @@ function supportText() {
 }
 
 function deviceText() {
+	if (state.locale === "fa") {
+		return {
+			title: "دستگاه‌ها", connected: (used, limit) => `متصل: ${used}/${limit <= 0 ? "\u221E" : limit} دستگاه`, added: "افزوده‌شده:", emptyTitle: "دستگاهی متصل نیست", emptyHint: "دستگاه‌های اشتراک شما اینجا نمایش داده می‌شوند.", deleted: "دستگاه حذف شد", delete: "حذف دستگاه",
+		};
+	}
   if (state.locale === "en") {
     return {
       title: "Devices",
@@ -2015,6 +2112,11 @@ function deviceText() {
 }
 
 function reviewsText() {
+	if (state.locale === "fa") {
+		return {
+			leaveReview: "ثبت دیدگاه", thanksTitle: "دیدگاه شما منتشر شده است", viewMine: "مشاهده دیدگاه من", emptyTitle: "هنوز دیدگاهی ثبت نشده", emptyHint: "اولین نفری باشید که Link-Bot را ارزیابی می‌کند.", ratingLabel: "امتیاز", commentLabel: "دیدگاه", commentPlaceholder: "تجربه خود و موارد قابل بهبود را بنویسید...", submit: "ارسال دیدگاه", ratingRequired: "امتیازی بین ۱ تا ۵ انتخاب کنید", alreadyReviewed: "هر کاربر فقط یک دیدگاه می‌تواند ثبت کند", rewardHint: "پس از ارسال، ۲ روز و ۲۰ گیگابایت هدیه می‌گیرید.", rewardToast: "هدیه دیدگاه ثبت شد: ۲ روز و ۲۰ گیگابایت", reviewsCount: (count) => `${formatNumber(count, "fa")} دیدگاه`, mine: "دیدگاه من", delete: "حذف دیدگاه", deleteSuccess: "دیدگاه حذف شد",
+		};
+	}
   if (state.locale === "en") {
     return {
       leaveReview: "Leave a review",
@@ -2103,6 +2205,7 @@ async function loadPublicConfig() {
 	try {
 		const response = await getJSON("/api/mini-app/public-config");
 		state.publicSettings = response?.data || null;
+		syncLocalizationFromSettings(state.publicSettings);
 	} catch {
 		state.publicSettings = null;
 	}
@@ -2210,7 +2313,7 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
         state.adminSection = "layout";
 		state.adminLayoutEditing = true;
       }
-      state.locale = pickLocale(previewPayload.user.languageCode);
+			syncLocalizationFromSettings(state.data.runtime);
       ensureSelections();
       state.subscriptionGate = null;
       state.error = "";
@@ -2231,7 +2334,7 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
     state.data = response.data;
 		state.publicSettings = response.data?.runtime || state.publicSettings;
 		state.maintenance = null;
-    state.locale = pickLocale(response.data.user.languageCode);
+		syncLocalizationFromSettings(response.data.runtime);
 		syncAdminSettingsDraft();
     ensureSelections();
     state.subscriptionGate = null;
@@ -2352,10 +2455,10 @@ function mapApiErrorMessage(code, fallback) {
   const messages = {
     agreement_required: copy.agreementRequired,
     unsupported_payment_method: copy.paymentUnavailable,
-    unsupported_plan: state.locale === "en" ? "This plan is unavailable" : "Этот тариф недоступен",
-	free_plan_already_used: state.locale === "en" ? "This free plan can only be claimed once" : "Этот бесплатный тариф можно получить только один раз",
-	free_plan_too_early: state.locale === "en" ? "You can claim it again during the last 7 days" : "Повторно получить тариф можно за 7 дней до окончания подписки",
-	free_plan_failed: state.locale === "en" ? "Could not activate the free plan" : "Не удалось активировать бесплатный тариф",
+	unsupported_plan: localizedText("Этот тариф недоступен", "This plan is unavailable", "این تعرفه در دسترس نیست"),
+	free_plan_already_used: localizedText("Этот бесплатный тариф можно получить только один раз", "This free plan can only be claimed once", "این تعرفه رایگان فقط یک‌بار قابل دریافت است"),
+	free_plan_too_early: localizedText("Повторно получить тариф можно за 7 дней до окончания подписки", "You can claim it again during the last 7 days", "در ۷ روز پایانی اشتراک می‌توانید دوباره آن را دریافت کنید"),
+	free_plan_failed: localizedText("Не удалось активировать бесплатный тариф", "Could not activate the free plan", "فعال‌سازی تعرفه رایگان انجام نشد"),
     promo_code_required: copy.promoCodeRequired,
     promo_not_found: copy.promoInvalid,
     promo_expired: copy.promoExpired,
@@ -2372,20 +2475,20 @@ function mapApiErrorMessage(code, fallback) {
     promo_delete_failed: copy.promoDeleteFailed,
     promo_failed: copy.promoUnavailable,
     promo_unavailable: copy.promoUnavailable,
-    invalid_subscription_query: state.locale === "en" ? "Enter a panel ID or subscription username" : "Введите ID из панели или имя подписки",
-    subscription_not_found: state.locale === "en" ? "Subscription not found" : "Подписка не найдена",
-    target_not_registered: state.locale === "en" ? "The new account must start the bot with /start first" : "Новый аккаунт должен сначала запустить бота командой /start",
-    subscription_target_full: state.locale === "en" ? "This account already has three subscriptions" : "У пользователя уже три подписки — выберите одну для замены",
-    subscription_target_invalid: state.locale === "en" ? "Select where to place the subscription" : "Выберите, куда перенести подписку",
-    subscription_source_pending: state.locale === "en" ? "Finish or cancel the source subscription payment first" : "Сначала завершите или отмените оплату переносимой подписки",
-    subscription_target_pending: state.locale === "en" ? "Finish or cancel the selected subscription payment first" : "Сначала завершите или отмените оплату выбранной подписки",
-    subscription_rebind_failed: state.locale === "en" ? "Could not rebind the subscription" : "Не удалось перепривязать подписку",
+	invalid_subscription_query: localizedText("Введите ID из панели или имя подписки", "Enter a panel ID or subscription username", "شناسه پنل یا نام اشتراک را وارد کنید"),
+	subscription_not_found: localizedText("Подписка не найдена", "Subscription not found", "اشتراک پیدا نشد"),
+	target_not_registered: localizedText("Новый аккаунт должен сначала запустить бота командой /start", "The new account must start the bot with /start first", "حساب جدید باید ابتدا ربات را با /start اجرا کند"),
+	subscription_target_full: localizedText("У пользователя уже три подписки — выберите одну для замены", "This account already has three subscriptions", "این حساب سه اشتراک دارد؛ یکی را برای جایگزینی انتخاب کنید"),
+	subscription_target_invalid: localizedText("Выберите, куда перенести подписку", "Select where to place the subscription", "محل انتقال اشتراک را انتخاب کنید"),
+	subscription_source_pending: localizedText("Сначала завершите или отмените оплату переносимой подписки", "Finish or cancel the source subscription payment first", "ابتدا پرداخت اشتراک مبدأ را تکمیل یا لغو کنید"),
+	subscription_target_pending: localizedText("Сначала завершите или отмените оплату выбранной подписки", "Finish or cancel the selected subscription payment first", "ابتدا پرداخت اشتراک انتخاب‌شده را تکمیل یا لغو کنید"),
+	subscription_rebind_failed: localizedText("Не удалось перепривязать подписку", "Could not rebind the subscription", "انتقال اشتراک انجام نشد"),
     google_not_configured: googleAuthCopy().loginUnavailable,
-    google_not_linked: state.locale === "en" ? "Link Gmail in the mini app first" : "\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u043f\u0440\u0438\u0432\u044f\u0436\u0438\u0442\u0435 Gmail \u0432 mini app",
-    google_already_linked: state.locale === "en" ? "This Gmail is already linked to another account" : "\u042d\u0442\u0430 Gmail-\u043f\u043e\u0447\u0442\u0430 \u0443\u0436\u0435 \u043f\u0440\u0438\u0432\u044f\u0437\u0430\u043d\u0430 \u043a \u0434\u0440\u0443\u0433\u043e\u043c\u0443 \u0430\u043a\u043a\u0430\u0443\u043d\u0442\u0443",
+	google_not_linked: localizedText("Сначала привяжите Gmail в mini app", "Link Gmail in the mini app first", "ابتدا Gmail را در مینی‌اپ متصل کنید"),
+	google_already_linked: localizedText("Эта Gmail-почта уже привязана к другому аккаунту", "This Gmail is already linked to another account", "این Gmail به حساب دیگری متصل است"),
     google_invalid: googleAuthCopy().loginFailed,
     google_link_failed: googleAuthCopy().linkFailed,
-    too_many_requests: state.locale === "en" ? "Too many requests, please slow down a bit" : "Слишком много запросов, попробуйте чуть позже",
+	too_many_requests: localizedText("Слишком много запросов, попробуйте чуть позже", "Too many requests, please slow down a bit", "درخواست‌ها بیش از حد است؛ کمی بعد دوباره تلاش کنید"),
   };
   return messages[code] || fallback || t().errorTitle;
 }
@@ -2405,6 +2508,7 @@ function runtimePlanToPayload(plan, index = 0) {
 		wide: Boolean(plan?.wide),
 		titleRu: String(plan?.titleRu || ""),
 		titleEn: String(plan?.titleEn || ""),
+		titleFa: String(plan?.titleFa || ""),
 		enabled: plan?.enabled !== false,
 		adminDraft: true,
 	};
@@ -2664,6 +2768,7 @@ function renderAdminPage() {
 	syncAdminSettingsDraft();
 	if (state.adminSection === "promocodes") return renderAdminPromocodesPage();
 	if (state.adminSection === "subscriptions") return renderAdminSubscriptionsPage();
+	if (state.adminSection === "localization") return renderAdminLocalizationPage();
 	if (state.adminSection === "maintenance") return renderAdminMaintenancePage();
 	if (state.adminSection === "diagnostics") return renderAdminDiagnosticsPage();
 	if (state.adminSection === "features") return renderAdminFeaturesPage();
@@ -2675,30 +2780,43 @@ function renderAdminPage() {
 	if (state.adminSection === "grace") return renderAdminGracePage();
 	if (state.adminSection === "broadcast") return renderAdminBroadcastPage();
 	if (state.adminSection === "integrations") return renderAdminIntegrationsPage();
-	const english = state.locale === "en";
 	return `
 		<section class="page admin-page ${pageClass("admin")}" id="page-admin">
-			${renderAdminMenuGroup(english ? "System" : "Система", [
-				[english ? "Maintenance mode" : "Режим аварии", "", "maintenance", "adminMaintenance"],
-				[english ? "Diagnostics" : "Диагностика", "", "diagnostics", "adminDiagnostics"],
-				[english ? "Functions" : "Управление функциями", "", "features", "adminFeatures"],
-				[english ? "Trial" : "Триал", "", "trial", "adminTrial"],
-				[english ? "Access after expiry" : "Доступ после окончания", "", "grace", "adminTrial"],
-				[english ? "Subscription binding" : "Привязка подписок", "", "subscriptions", "adminSubscriptions"],
-				[english ? "Integrations" : "Интеграции", "", "integrations", "adminIntegrations"],
+			${renderAdminMenuGroup(localizedText("Система", "System", "سیستم"), [
+				[localizedText("Язык и шрифт", "Language and font", "زبان و فونت"), "", "localization", "language"],
+				[localizedText("Режим аварии", "Maintenance mode", "حالت تعمیر"), "", "maintenance", "adminMaintenance"],
+				[localizedText("Диагностика", "Diagnostics", "عیب‌یابی"), "", "diagnostics", "adminDiagnostics"],
+				[localizedText("Управление функциями", "Functions", "مدیریت امکانات"), "", "features", "adminFeatures"],
+				[localizedText("Триал", "Trial", "آزمایشی"), "", "trial", "adminTrial"],
+				[localizedText("Доступ после окончания", "Access after expiry", "دسترسی پس از انقضا"), "", "grace", "adminTrial"],
+				[localizedText("Привязка подписок", "Subscription binding", "اتصال اشتراک‌ها"), "", "subscriptions", "adminSubscriptions"],
+				[localizedText("Интеграции", "Integrations", "یکپارچه‌سازی‌ها"), "", "integrations", "adminIntegrations"],
 			])}
-			${renderAdminMenuGroup(english ? "Interface" : "Интерфейс", [
-				[english ? "Content" : "Редактор контента", "", "content", "adminContent"],
-				[english ? "Appearance" : "Оформление", "", "appearance", "adminAppearance"],
-				[english ? "UI builder" : "Конструктор UI", "", "layout", "grid"],
-				[english ? "Plans" : "Тарифы", "", "plans", "cartShopping"],
+			${renderAdminMenuGroup(localizedText("Интерфейс", "Interface", "رابط کاربری"), [
+				[localizedText("Редактор контента", "Content", "ویرایشگر محتوا"), "", "content", "adminContent"],
+				[localizedText("Оформление", "Appearance", "ظاهر"), "", "appearance", "adminAppearance"],
+				[localizedText("Конструктор UI", "UI builder", "سازنده رابط"), "", "layout", "grid"],
+				[localizedText("Тарифы", "Plans", "تعرفه‌ها"), "", "plans", "cartShopping"],
 			])}
-			${renderAdminMenuGroup(english ? "Operations" : "Операции", [
-				[english ? "Broadcast" : "Рассылка", "", "broadcast", "adminBroadcast"],
-				[english ? "Promo codes" : "Промокоды", "", "promocodes", "adminPromocodes"],
+			${renderAdminMenuGroup(localizedText("Операции", "Operations", "عملیات"), [
+				[localizedText("Рассылка", "Broadcast", "ارسال همگانی"), "", "broadcast", "adminBroadcast"],
+				[localizedText("Промокоды", "Promo codes", "کدهای تخفیف"), "", "promocodes", "adminPromocodes"],
 			])}
 		</section>
 	`;
+}
+
+function renderAdminLocalizationPage() {
+	const localization = state.adminSettingsDraft?.localization || { language: "ru", fontFamily: "auto" };
+	const title = localizedText("Язык и шрифт", "Language and font", "زبان و فونت");
+	const languageLabel = localizedText("Язык бота и Mini App", "Bot and Mini App language", "زبان ربات و Mini App");
+	const fontLabel = localizedText("Шрифт Mini App", "Mini App font", "فونت Mini App");
+	const hint = localizedText("После сохранения язык изменится в Telegram-боте и Mini App для всех пользователей.", "After saving, the Telegram bot and Mini App language changes for every user.", "پس از ذخیره، زبان ربات تلگرام و Mini App برای همه کاربران تغییر می‌کند.");
+	const fontHint = localizedText("В режиме «Автоматически» Vazir включается для фарси, а Montserrat — для русского и английского.", "Automatic uses Vazir for Persian and Montserrat for Russian and English.", "حالت خودکار برای فارسی از Vazir و برای روسی و انگلیسی از Montserrat استفاده می‌کند.");
+	return renderAdminEditorPage(title, `<section class="admin-editor__section admin-localization"><p class="admin-localization__hint">${escapeHtml(hint)}</p><div class="admin-editor__grid">
+		<label class="admin-field"><span>${escapeHtml(languageLabel)}</span><select class="admin-field__control" data-setting-path="localization.language" data-setting-type="text"><option value="ru" ${localization.language === "ru" ? "selected" : ""}>Русский</option><option value="en" ${localization.language === "en" ? "selected" : ""}>English</option><option value="fa" ${localization.language === "fa" ? "selected" : ""}>فارسی</option></select></label>
+		<label class="admin-field"><span>${escapeHtml(fontLabel)}</span><select class="admin-field__control" data-setting-path="localization.fontFamily" data-setting-type="text"><option value="auto" ${localization.fontFamily === "auto" ? "selected" : ""}>${escapeHtml(localizedText("Автоматически", "Automatic", "خودکار"))}</option><option value="montserrat" ${localization.fontFamily === "montserrat" ? "selected" : ""}>Montserrat</option><option value="vazir" ${localization.fontFamily === "vazir" ? "selected" : ""}>Vazir</option></select></label>
+	</div><p class="admin-localization__font-hint">${escapeHtml(fontHint)}</p></section>`);
 }
 
 function renderAdminMenuGroup(label, items) {
@@ -3518,10 +3636,10 @@ function renderAdminEditorPage(title, body) {
 function renderAdminSaveBar(className = "") {
 	const busy = state.adminBusy === "save-settings";
 	const status = busy
-		? (state.locale === "en" ? "Saving..." : "Сохраняем...")
+		? localizedText("Сохраняем...", "Saving...", "در حال ذخیره...")
 		: state.adminSettingsDirty
-			? (state.locale === "en" ? "Unsaved changes" : "Есть несохранённые изменения")
-			: (state.locale === "en" ? "Changes saved" : "Изменения сохранены");
+			? localizedText("Есть несохранённые изменения", "Unsaved changes", "تغییرات ذخیره‌نشده")
+			: localizedText("Изменения сохранены", "Changes saved", "تغییرات ذخیره شد");
 	const resetButton = state.adminLayoutEditing
 		? `<button class="admin-save-bar__reset" type="button" data-action="admin-layout-reset-category" ${busy ? "disabled" : ""} aria-label="${state.locale === "en" ? "Reset current screen" : "Сбросить текущий экран"}">${icon("reset")}<span>${state.locale === "en" ? "Reset" : "Сбросить"}</span></button>`
 		: "";
@@ -3529,7 +3647,7 @@ function renderAdminSaveBar(className = "") {
 		? `<button class="admin-save-bar__add" type="button" data-action="admin-add-profile-button" ${busy ? "disabled" : ""}>${icon("plus")}<span>${state.locale === "en" ? "Add" : "Добавить"}</span></button>`
 		: "";
 	const profileClass = profileAddButton ? "admin-save-bar--profile-layout" : "";
-	return `<div class="admin-save-bar ${className} ${profileClass}" role="status" aria-live="polite"><span>${escapeHtml(status)}</span><div class="admin-save-bar__actions">${profileAddButton}${resetButton}<button type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""}>${icon(busy ? "refresh" : "check")}<span>${state.locale === "en" ? "Save" : "Сохранить"}</span></button>${state.adminLayoutEditing ? `<button class="admin-save-bar__close" type="button" data-action="admin-layout-exit" aria-label="${state.locale === "en" ? "Exit editor" : "Выйти из редактора"}">${icon("close")}</button>` : ""}</div></div>`;
+	return `<div class="admin-save-bar ${className} ${profileClass}" role="status" aria-live="polite"><span>${escapeHtml(status)}</span><div class="admin-save-bar__actions">${profileAddButton}${resetButton}<button type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""}>${icon(busy ? "refresh" : "check")}<span>${localizedText("Сохранить", "Save", "ذخیره")}</span></button>${state.adminLayoutEditing ? `<button class="admin-save-bar__close" type="button" data-action="admin-layout-exit" aria-label="${state.locale === "en" ? "Exit editor" : "Выйти из редактора"}">${icon("close")}</button>` : ""}</div></div>`;
 }
 
 function renderAdminPlanSaveBar() {
@@ -3829,9 +3947,9 @@ function getActiveSubscriptionItem() {
 }
 
 function subscriptionSwitcherCopy() {
-	return state.locale === "en"
-		? { rename: "Rename", create: "Create", remove: "Delete", primary: "Primary", active: "Active", inactive: "Inactive", primaryDelete: "The primary subscription cannot be deleted" }
-		: { rename: "Переименовать", create: "Создать", remove: "Удалить", primary: "Основная", active: "Активна", inactive: "Не активна", primaryDelete: "Основную подписку удалить нельзя" };
+	if (state.locale === "fa") return { rename: "تغییر نام", create: "ایجاد", remove: "حذف", primary: "اصلی", active: "فعال", inactive: "غیرفعال", primaryDelete: "اشتراک اصلی قابل حذف نیست" };
+	if (state.locale === "en") return { rename: "Rename", create: "Create", remove: "Delete", primary: "Primary", active: "Active", inactive: "Inactive", primaryDelete: "The primary subscription cannot be deleted" };
+	return { rename: "Переименовать", create: "Создать", remove: "Удалить", primary: "Основная", active: "Активна", inactive: "Не активна", primaryDelete: "Основную подписку удалить нельзя" };
 }
 
 function renderSubscriptionSwitcher() {
@@ -3842,7 +3960,7 @@ function renderSubscriptionSwitcher() {
 	const menuVisible = state.subscriptionMenuOpen || state.subscriptionMenuClosing;
 	const maximum = Math.max(1, Number(state.data?.subscriptions?.maximum || 3));
 	const canCreate = items.length < maximum;
-	const menu = menuVisible ? `<div class="subscription-switcher__menu ${state.subscriptionMenuClosing ? "is-closing" : "is-open"}" role="menu" aria-label="${state.locale === "en" ? "Subscriptions" : "Подписки"}">
+	const menu = menuVisible ? `<div class="subscription-switcher__menu ${state.subscriptionMenuClosing ? "is-closing" : "is-open"}" role="menu" aria-label="${localizedText("Подписки", "Subscriptions", "اشتراک‌ها")}">
 		<div class="subscription-switcher__list">${items.map((item) => `<button class="subscription-switcher__item ${item.isActive ? "is-active" : ""}" type="button" role="menuitemradio" aria-checked="${Boolean(item.isActive)}" data-action="select-subscription" data-value="${escapeAttribute(String(item.id || 0))}" ${state.subscriptionBusy ? "disabled" : ""}><span class="subscription-switcher__item-copy"><strong>${escapeHtml(item.name || copy.primary)}</strong><small>${item.status === "active" ? copy.active : copy.inactive}${item.isPrimary ? ` · ${copy.primary}` : ""}</small></span><span class="subscription-switcher__check">${item.isActive ? icon("check") : ""}</span></button>`).join("")}</div>
 		<div class="subscription-switcher__actions">
 			<button type="button" role="menuitem" data-action="open-subscription-rename" ${state.subscriptionBusy ? "disabled" : ""}>${icon("pencil")}<span>${copy.rename}</span></button>
@@ -3855,21 +3973,20 @@ function renderSubscriptionSwitcher() {
 
 function renderSubscriptionEditorModal() {
 	const createMode = state.subscriptionEditorMode === "create";
-	const title = state.locale === "en" ? (createMode ? "Create subscription" : "Rename subscription") : (createMode ? "Создать подписку" : "Переименовать подписку");
-	const label = state.locale === "en" ? "Name" : "Название";
-	const save = state.locale === "en" ? (createMode ? "Create" : "Save") : (createMode ? "Создать" : "Сохранить");
-	const cancel = state.locale === "en" ? "Cancel" : "Отмена";
+	const title = createMode ? localizedText("Создать подписку", "Create subscription", "ایجاد اشتراک") : localizedText("Переименовать подписку", "Rename subscription", "تغییر نام اشتراک");
+	const label = localizedText("Название", "Name", "نام");
+	const save = createMode ? localizedText("Создать", "Create", "ایجاد") : localizedText("Сохранить", "Save", "ذخیره");
+	const cancel = localizedText("Отмена", "Cancel", "لغو");
 	return `<div class="modal open ${modalStateClass("subscription-editor")}" role="dialog" aria-modal="true" aria-labelledby="subscription-editor-title"><button class="modal__backdrop" type="button" data-action="close-subscription-editor" aria-label="${escapeAttribute(cancel)}"></button><div class="modal__sheet modal__sheet--subscription-editor"><div class="modal__header"><div class="modal__title" id="subscription-editor-title">${escapeHtml(title)}</div><button class="header__btn" type="button" data-action="close-subscription-editor" aria-label="${escapeAttribute(cancel)}">${icon("close")}</button></div><label class="support-field"><span class="support-field__label">${escapeHtml(label)}</span><input class="support-field__input" type="text" maxlength="40" autocomplete="off" value="${escapeAttribute(state.subscriptionNameDraft)}" data-input="subscription-name" autofocus></label><div class="subscription-editor__actions"><button class="btn" type="button" data-action="close-subscription-editor" ${state.subscriptionBusy ? "disabled" : ""}>${escapeHtml(cancel)}</button><button class="btn btn--green-filled" type="button" data-action="save-subscription" ${!state.subscriptionNameDraft.trim() || state.subscriptionBusy ? "disabled" : ""}>${icon(state.subscriptionBusy ? "refresh" : "check")}${escapeHtml(save)}</button></div></div></div>`;
 }
 
 function renderSubscriptionDeleteModal() {
 	const active = getActiveSubscriptionItem();
-	const title = state.locale === "en" ? "Delete subscription" : "Удалить подписку";
-	const body = state.locale === "en"
-		? `Delete “${state.subscriptionDeleteName || active?.name || ""}”? Its access in the panel will also be deleted.`
-		: `Удалить «${state.subscriptionDeleteName || active?.name || ""}»? Доступ этой подписки в панели тоже будет удалён.`;
-	const cancel = state.locale === "en" ? "Cancel" : "Отмена";
-	const remove = state.locale === "en" ? "Delete" : "Удалить";
+	const name = state.subscriptionDeleteName || active?.name || "";
+	const title = localizedText("Удалить подписку", "Delete subscription", "حذف اشتراک");
+	const body = localizedText(`Удалить «${name}»? Доступ этой подписки в панели тоже будет удалён.`, `Delete “${name}”? Its access in the panel will also be deleted.`, `اشتراک «${name}» حذف شود؟ دسترسی آن در پنل نیز حذف خواهد شد.`);
+	const cancel = localizedText("Отмена", "Cancel", "لغو");
+	const remove = localizedText("Удалить", "Delete", "حذف");
 	return `<div class="modal open ${modalStateClass("subscription-delete")}" role="alertdialog" aria-modal="true" aria-labelledby="subscription-delete-title" aria-describedby="subscription-delete-description"><button class="modal__backdrop" type="button" data-action="close-subscription-delete" aria-label="${escapeAttribute(cancel)}"></button><div class="modal__sheet modal__sheet--subscription-delete"><div class="modal__header"><div class="modal__title" id="subscription-delete-title">${escapeHtml(title)}</div><button class="header__btn" type="button" data-action="close-subscription-delete" aria-label="${escapeAttribute(cancel)}">${icon("close")}</button></div><p class="subscription-delete__description" id="subscription-delete-description">${escapeHtml(body)}</p><div class="subscription-editor__actions"><button class="btn" type="button" data-action="close-subscription-delete" ${state.subscriptionBusy ? "disabled" : ""}>${escapeHtml(cancel)}</button><button class="btn subscription-delete__confirm" type="button" data-action="confirm-subscription-delete" ${state.subscriptionBusy ? "disabled" : ""}>${icon(state.subscriptionBusy ? "refresh" : "trash")}${escapeHtml(remove)}</button></div></div></div>`;
 }
 
@@ -3880,7 +3997,7 @@ function renderBuyPage() {
   const devicePack = getSelectedDevicePack();
   const promoStatus = getPromoStatus();
   const freeCheckout = Boolean(plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !devicePack);
-  const freeLabel = state.locale === "en" ? "Get for free" : "Получить бесплатно";
+	const freeLabel = localizedText("Получить бесплатно", "Get for free", "دریافت رایگان");
   const payLabel = freeCheckout ? freeLabel : (plan && method ? `${copy.pay} ${formatCheckoutPrice(plan, devicePack, method.id)}` : copy.paymentUnavailable);
   const displayedPlans = getDisplayedPlans();
   const devicePacks = getDevicePacks();
@@ -3903,7 +4020,7 @@ function renderBuyPage() {
   const checkout = `<div class="card card--checkout">
 		<div class="summary-row checkout-summary"><div><div class="summary-row__title">${copy.selectedPlan}</div><div class="summary-row__value">${plan ? getPlanDisplayTitle(plan, state.locale) : "—"}</div></div>${plan?.recommended ? `<span class="badge badge--inline">${copy.best}</span>` : plan?.savingsPercent ? `<span class="badge badge--inline">${copy.savings(plan.savingsPercent)}</span>` : ""}</div>
         <div class="payment-stack">
-		${freeCheckout ? `<div class="checkout-free-note"><span>${icon("check")}</span><div><strong>${escapeHtml(freeLabel)}</strong><small>${state.locale === "en" ? "No payment method or redirect is required." : "Способ оплаты не нужен — тариф активируется сразу."}</small></div></div>` : `<button class="pay-selector checkout-payment ${method ? "" : "checkout-payment--empty"}" type="button" data-action="open-pay-modal" ${method ? "" : "disabled aria-disabled=\"true\""}><span class="pay-selector__icon ${method ? "pay-selector__icon--brand" : ""}">${method ? renderPaymentMethodLogo(method) : icon("wallet")}</span><span class="pay-selector__copy"><strong>${escapeHtml(methodTitle)}</strong><span>${escapeHtml(methodHint)}</span></span><span class="pay-selector__tail">${method ? icon("checkoutEdit") : ""}</span></button>`}
+		${freeCheckout ? `<div class="checkout-free-note"><span>${icon("check")}</span><div><strong>${escapeHtml(freeLabel)}</strong><small>${localizedText("Способ оплаты не нужен — тариф активируется сразу.", "No payment method or redirect is required.", "نیازی به روش پرداخت نیست؛ تعرفه فوراً فعال می‌شود.")}</small></div></div>` : `<button class="pay-selector checkout-payment ${method ? "" : "checkout-payment--empty"}" type="button" data-action="open-pay-modal" ${method ? "" : "disabled aria-disabled=\"true\""}><span class="pay-selector__icon ${method ? "pay-selector__icon--brand" : ""}">${method ? renderPaymentMethodLogo(method) : icon("wallet")}</span><span class="pay-selector__copy"><strong>${escapeHtml(methodTitle)}</strong><span>${escapeHtml(methodHint)}</span></span><span class="pay-selector__tail">${method ? icon("checkoutEdit") : ""}</span></button>`}
         ${featureEnabled("promocodes") && !freeCheckout ? `<div class="promo-box checkout-promo">
           <span class="support-field__label">${escapeHtml(copy.promoCode || "Promo code")}</span>
           <div class="promo-box__row">
@@ -4213,9 +4330,11 @@ function renderServersPage() {
 function renderSettingsPage() {
 	const groups = { main: [], purchases: [], programs: [], help: [], account: [] };
 	for (const item of getProfileItems()) groups[item.group]?.push(item);
-	const labels = state.locale === "en"
-		? { main: "Main", purchases: "Purchases and bonuses", programs: "Programs", help: "Help", account: "Account" }
-		: { main: "Главная", purchases: "Покупки и бонусы", programs: "Программы", help: "Помощь", account: "Аккаунт" };
+	const labels = state.locale === "fa"
+		? { main: "اصلی", purchases: "خریدها و پاداش‌ها", programs: "برنامه‌ها", help: "راهنما", account: "حساب" }
+		: state.locale === "en"
+			? { main: "Main", purchases: "Purchases and bonuses", programs: "Programs", help: "Help", account: "Account" }
+			: { main: "Главная", purchases: "Покупки и бонусы", programs: "Программы", help: "Помощь", account: "Аккаунт" };
 	const orderedGroups = PROFILE_GROUP_ORDER
 		.map((key) => [key, groups[key]])
 		.filter(([, items]) => state.adminLayoutEditing || items.length);
@@ -4245,7 +4364,7 @@ function getProfileItems() {
 		web_version: { group: "account", label: webVersionLabel(), hint: webVersionHint(), action: "open-web-version", value: "", icon: "profileExternal", feature: "web_version" },
 		pwa_install: { group: "account", label: addToHomeLabel(), hint: addToHomeHint(), action: "open-install-guide", value: "", icon: "profileDownload", feature: "pwa_install" },
 		terms: { group: "help", label: copy.tos, hint: replaceRuntimeBrandTokens(copy.tosHint || copy.tos), action: "go-page", value: "terms", icon: "profileChecklist", feature: "terms" },
-		privacy: { group: "help", label: "Политика конфиденциальности", hint: "Как сервис обрабатывает данные", action: "go-page", value: "privacy", icon: "profileChecklist", feature: "privacy" },
+		privacy: { group: "help", label: localizedText("Политика конфиденциальности", "Privacy policy", "سیاست حفظ حریم خصوصی"), hint: localizedText("Как сервис обрабатывает данные", "How the service processes data", "نحوه پردازش داده‌ها در سرویس"), action: "go-page", value: "privacy", icon: "profileChecklist", feature: "privacy" },
 	};
 	const settings = getRuntimeSettings()?.content || {};
 	const overrides = settings.profileButtons || {};
@@ -4361,7 +4480,7 @@ function renderLoginMethodsPage() {
       <div class="google-button-shell google-button-shell--method" ${state.loginMethodBusy === "google" ? "data-google-disabled=\"1\"" : ""}>
         <button class="btn btn--google" type="button" data-action="google-link-login" ${state.loginMethodBusy === "google" ? "disabled" : ""}>
           <span class="btn__icon" aria-hidden="true">${icon("googleColor")}</span>
-          <span>${escapeHtml(state.loginMethodBusy === "google" ? (state.locale === "en" ? "Linking..." : "\u041f\u0440\u0438\u0432\u044f\u0437\u044b\u0432\u0430\u0435\u043c...") : gmailLinkButtonLabel())}</span>
+		  <span>${escapeHtml(state.loginMethodBusy === "google" ? localizedText("Привязываем...", "Linking...", "در حال اتصال...") : gmailLinkButtonLabel())}</span>
         </button>
       </div>
     </div>
@@ -4373,8 +4492,8 @@ function renderLoginMethodsPage() {
         <div class="login-method-card__head">
           <span class="login-method-card__icon">${icon("lockAlt")}</span>
           <div>
-            <div class="login-method-card__title">${escapeHtml(state.locale === "en" ? "Account sign-in" : "\u0412\u0445\u043e\u0434 \u0432 \u0430\u043a\u043a\u0430\u0443\u043d\u0442")}</div>
-            <div class="login-method-card__hint">${escapeHtml(state.locale === "en" ? `Current method: ${providerLabel}` : `\u0421\u0435\u0439\u0447\u0430\u0441 \u0432\u0445\u043e\u0434: ${providerLabel}`)}</div>
+			<div class="login-method-card__title">${escapeHtml(localizedText("Вход в аккаунт", "Account sign-in", "ورود به حساب"))}</div>
+			<div class="login-method-card__hint">${escapeHtml(localizedText(`Сейчас вход: ${providerLabel}`, `Current method: ${providerLabel}`, `روش فعلی: ${providerLabel}`))}</div>
           </div>
         </div>
         <div class="login-method-list">
@@ -4548,9 +4667,9 @@ function renderThemeSwitch() {
 
 function renderStateScreen(kind, message = "", meta = null) {
 	if (kind === "maintenance") {
-		const title = meta?.titleRu || "Технические работы";
-		const text = meta?.textRu || "Сервис временно недоступен. Попробуйте немного позже.";
-		const reason = meta?.reasonRu || "Плановые работы";
+		const title = meta?.titleRu || localizedText("Технические работы", "Maintenance", "تعمیرات فنی");
+		const text = meta?.textRu || localizedText("Сервис временно недоступен. Попробуйте немного позже.", "The service is temporarily unavailable. Please try again later.", "سرویس موقتاً در دسترس نیست. کمی بعد دوباره تلاش کنید.");
+		const reason = meta?.reasonRu || localizedText("Плановые работы", "Scheduled maintenance", "تعمیرات برنامه‌ریزی‌شده");
 		return `
 			<div class="state-screen state-screen--maintenance">
 				<section class="maintenance-card" aria-labelledby="maintenance-title">
@@ -4558,8 +4677,8 @@ function renderStateScreen(kind, message = "", meta = null) {
 					<div class="maintenance-card__eyebrow">${escapeHtml(getRuntimeSettings()?.content?.brandName || "Link-Bot")}</div>
 					<h1 class="maintenance-card__title" id="maintenance-title">${escapeHtml(title)}</h1>
 					<p class="maintenance-card__text">${escapeHtml(text)}</p>
-					<div class="maintenance-card__reason"><span>Причина</span><strong>${escapeHtml(reason)}</strong></div>
-					<div class="maintenance-card__waiting" role="status" aria-label="Технические работы"><span></span><span></span><span></span></div>
+					<div class="maintenance-card__reason"><span>${localizedText("Причина", "Reason", "دلیل")}</span><strong>${escapeHtml(reason)}</strong></div>
+					<div class="maintenance-card__waiting" role="status" aria-label="${escapeAttribute(title)}"><span></span><span></span><span></span></div>
 				</section>
 			</div>
 		`;
@@ -4823,6 +4942,7 @@ function formatServerStatusHint() {
 }
 
 function getPlanCardTitle(months, locale) {
+	if (locale === "fa") return `${Number(months || 0)} ماه`;
   if (locale === "en") {
     switch (Number(months || 0)) {
       case 1: return "1 month";
@@ -4843,7 +4963,7 @@ function getPlanCardTitle(months, locale) {
 }
 
 function getPlanBaseTitle(plan, locale) {
-	const configuredTitle = locale === "en" ? plan?.titleEn : plan?.titleRu;
+	const configuredTitle = locale === "fa" ? plan?.titleFa : locale === "en" ? plan?.titleEn : plan?.titleRu;
 	return String(configuredTitle || "").trim() || getPlanCardTitle(plan?.months, locale);
 }
 
@@ -4855,11 +4975,12 @@ function planHasUnlimitedTraffic(plan) {
 function getPlanDisplayTitle(plan, locale) {
 	const title = getPlanBaseTitle(plan, locale);
 	if (!planHasUnlimitedTraffic(plan)) return title;
-	return locale === "en" ? `${title} · Unlimited` : `${title} · Безлимит`;
+	return locale === "fa" ? `${title} · نامحدود` : locale === "en" ? `${title} · Unlimited` : `${title} · Безлимит`;
 }
 
 function getPlanDetails(planOrMonths, locale) {
   const isEn = locale === "en";
+	const isFa = locale === "fa";
   const plan = typeof planOrMonths === "object" && planOrMonths ? planOrMonths : null;
   const months = Number((plan ? plan.months : planOrMonths) || 0);
   const trafficLimit = plan ? Number(plan.trafficLimitBytes || 0) : NaN;
@@ -4867,11 +4988,11 @@ function getPlanDetails(planOrMonths, locale) {
 
   if (plan && Number.isFinite(trafficLimit)) {
     const traffic = trafficLimit <= 0
-      ? (isEn ? "Unlimited traffic" : "Безлимитный трафик")
-      : `${formatTrafficLimitValue(trafficLimit, locale)} ${isEn ? "GB" : "ГБ"}`;
+			? (isFa ? "ترافیک نامحدود" : isEn ? "Unlimited traffic" : "Безлимитный трафик")
+			: `${formatTrafficLimitValue(trafficLimit, locale)} ${isFa ? "گیگابایت" : isEn ? "GB" : "ГБ"}`;
     const devices = Number.isFinite(deviceLimit) && deviceLimit <= 0
-      ? (isEn ? "Unlimited devices" : "Безлимит устройств")
-      : `${isEn ? "Up to" : "До"} ${formatNumber(deviceLimit || 5, locale)} ${isEn ? "devices" : "устройств"}`;
+			? (isFa ? "دستگاه نامحدود" : isEn ? "Unlimited devices" : "Безлимит устройств")
+			: `${isFa ? "تا" : isEn ? "Up to" : "До"} ${formatNumber(deviceLimit || 5, locale)} ${isFa ? "دستگاه" : isEn ? "devices" : "устройств"}`;
     return { traffic, devices };
   }
 
@@ -4890,7 +5011,7 @@ function getPlanDetails(planOrMonths, locale) {
 }
 
 function planPricePrefix(locale) {
-  return locale === "en" ? "from" : "от";
+	return locale === "fa" ? "از" : locale === "en" ? "from" : "от";
 }
 
 function renderMenuRow(label, hint, action, value, iconName, options = {}) {
@@ -4907,17 +5028,17 @@ function renderPlanCard(plan, selected) {
   const details = getPlanDetails(plan, state.locale);
   const hasDuration = Number(plan?.months || 0) > 0;
   const unlimited = hasDuration && planHasUnlimitedTraffic(plan);
-  const title = hasDuration ? getPlanBaseTitle(plan, state.locale) : (state.locale === "en" ? "New plan" : "Новый тариф");
-  const price = Number(plan?.priceRub || 0) > 0 ? formatCurrency(plan.priceRub, state.locale) : (state.locale === "en" ? "Free" : "Бесплатно");
+	const title = hasDuration ? getPlanBaseTitle(plan, state.locale) : localizedText("Новый тариф", "New plan", "تعرفه جدید");
+	const price = Number(plan?.priceRub || 0) > 0 ? formatCurrency(plan.priceRub, state.locale) : localizedText("Бесплатно", "Free", "رایگان");
   const content = `
       <div class="pricing-card__content">
         <div class="pricing-card__copy">
           <div class="pricing-card__name-row">
 			<div class="pricing-card__name">${escapeHtml(title)}</div>
-			${unlimited ? `<span class="pricing-card__unlimited-badge">${state.locale === "en" ? "Unlimited" : "Безлимит"}</span>` : ""}
+			${unlimited ? `<span class="pricing-card__unlimited-badge">${localizedText("Безлимит", "Unlimited", "نامحدود")}</span>` : ""}
           </div>
-          <div class="pricing-card__spec">${escapeHtml(Number(plan?.months || 0) > 0 ? details.traffic : (state.locale === "en" ? "Set traffic" : "Укажите трафик"))}</div>
-          <div class="pricing-card__spec">${escapeHtml(Number(plan?.months || 0) > 0 ? details.devices : (state.locale === "en" ? "Set device limit" : "Укажите устройства"))}</div>
+		  <div class="pricing-card__spec">${escapeHtml(Number(plan?.months || 0) > 0 ? details.traffic : localizedText("Укажите трафик", "Set traffic", "ترافیک را مشخص کنید"))}</div>
+		  <div class="pricing-card__spec">${escapeHtml(Number(plan?.months || 0) > 0 ? details.devices : localizedText("Укажите устройства", "Set device limit", "تعداد دستگاه را مشخص کنید"))}</div>
         </div>
         <div class="pricing-card__price-stack">
           <div class="pricing-card__price-row">
@@ -4964,7 +5085,7 @@ function paymentHistoryMethodMeta(item, copy) {
   const invoiceType = String(item?.invoiceType || "").toLowerCase();
   const title = String(item?.paymentMethodTitle || "").trim();
   const normalized = `${invoiceType} ${title}`.toLowerCase();
-	if (invoiceType === "free") return { id: "free", label: title || (state.locale === "en" ? "Free activation" : "Бесплатная активация"), logo: "" };
+	if (invoiceType === "free") return { id: "free", label: title || localizedText("Бесплатная активация", "Free activation", "فعال‌سازی رایگان"), logo: "" };
   const providers = ["lava", "wata", "platega", "freekassa", "heleket", "pally"];
   const provider = providers.find((name) => normalized.includes(name));
   if (provider) {
@@ -5028,7 +5149,7 @@ function renderPlatformButton(platform, selected) {
 
 function renderPayModal() {
   const copy = t();
-  return `<div class="modal open ${modalStateClass("pay")}"><button class="modal__backdrop" type="button" data-action="close-pay-modal"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title">${copy.choosePaymentMethod}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${state.locale === "en" ? "Close payment methods" : "Закрыть способы оплаты"}">${icon("close")}</button></div><div class="menu-list">${getAvailableMethods().map((method) => `<button class="pay-row ${state.paymentMethod === method.id ? "selected" : ""}" type="button" data-action="select-pay-method" data-value="${method.id}" aria-pressed="${state.paymentMethod === method.id}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(method.label)}</strong><span>${escapeHtml(method.hint)}</span></span><span class="pay-row__check">${state.paymentMethod === method.id ? icon("check") : ""}</span></button>`).join("") || `<div class="note">${copy.paymentUnavailable}</div>`}</div></div></div>`;
+	return `<div class="modal open ${modalStateClass("pay")}"><button class="modal__backdrop" type="button" data-action="close-pay-modal"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title">${copy.choosePaymentMethod}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${localizedText("Закрыть способы оплаты", "Close payment methods", "بستن روش‌های پرداخت")}">${icon("close")}</button></div><div class="menu-list">${getAvailableMethods().map((method) => `<button class="pay-row ${state.paymentMethod === method.id ? "selected" : ""}" type="button" data-action="select-pay-method" data-value="${method.id}" aria-pressed="${state.paymentMethod === method.id}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(method.label)}</strong><span>${escapeHtml(method.hint)}</span></span><span class="pay-row__check">${state.paymentMethod === method.id ? icon("check") : ""}</span></button>`).join("") || `<div class="note">${copy.paymentUnavailable}</div>`}</div></div></div>`;
 }
 
 function renderPaymentLaunchModal() {
@@ -5168,7 +5289,7 @@ function renderDeviceRow(device) {
 
 function renderSupportComposerModal() {
   const scopy = supportText();
-  const closeLabel = state.locale === "en" ? "Close" : "Закрыть";
+	const closeLabel = localizedText("Закрыть", "Close", "بستن");
   return `
     <div class="modal open ${modalStateClass("support-compose")}">
       <button class="modal__backdrop" type="button" data-action="close-support-compose" aria-label="${escapeAttribute(closeLabel)}"></button>
@@ -5193,7 +5314,7 @@ function renderSupportComposerModal() {
 function renderSupportThreadModal() {
   const thread = state.activeSupportThread;
   const scopy = supportText();
-  const closeLabel = state.locale === "en" ? "Close" : "Закрыть";
+	const closeLabel = localizedText("Закрыть", "Close", "بستن");
   if (!thread) {
     return `
       <div class="modal open ${modalStateClass("support-thread")}">
@@ -5254,7 +5375,7 @@ function renderSupportMessage(message) {
   const fromAdmin = message.authorRole === "admin";
   const viewerIsAdmin = Boolean(state.data?.support?.isAdmin);
   const isMine = viewerIsAdmin ? fromAdmin : !fromAdmin;
-  const peerName = String(state.activeSupportThread?.ticket?.customerName || "").trim() || (state.locale === "en" ? "Customer" : "Пользователь");
+	const peerName = String(state.activeSupportThread?.ticket?.customerName || "").trim() || localizedText("Пользователь", "Customer", "کاربر");
   const authorLabel = isMine ? scopy.you : (fromAdmin ? scopy.admin : peerName);
   return `
     <div class="support-message ${isMine ? "support-message--mine" : "support-message--peer"} ${fromAdmin ? "support-message--admin-author" : "support-message--customer-author"} ${message.pending ? "support-message--pending" : ""}">
@@ -5646,7 +5767,7 @@ function bindRootActions() {
 		const supportReply = event.target.closest?.('[data-input="support-reply"]');
 		if (supportReply && event.key === "Enter" && !event.shiftKey && !event.isComposing) {
 			event.preventDefault();
-			void sendSupportMessage().catch((error) => showToast(error?.message || (state.locale === "en" ? "Failed to send message" : "Не удалось отправить сообщение")));
+			void sendSupportMessage().catch((error) => showToast(error?.message || localizedText("Не удалось отправить сообщение", "Failed to send message", "ارسال پیام انجام نشد")));
 			return;
 		}
 		const planHandle = event.target.closest?.("[data-admin-plan-drag]");
@@ -5794,6 +5915,8 @@ async function saveAdminSettings() {
 		}
 		state.adminSettingsDraft = deepClone(response.data);
 		seedEditableCopy(state.adminSettingsDraft);
+		syncLocalizationFromSettings(response.data);
+		applyAppearance();
 		if (state.adminLayoutEditing) {
 			state.adminLayoutBaseline = deepClone(state.adminSettingsDraft);
 			state.adminLayoutBaselineDirty = false;
@@ -5808,7 +5931,7 @@ async function saveAdminSettings() {
 		state.adminJSONDrafts = {};
 		state.adminBusy = "";
 		render({ preserveScroll: true });
-		showToast(state.locale === "en" ? "Settings saved" : "Настройки сохранены", "success");
+		showToast(localizedText("Настройки сохранены", "Settings saved", "تنظیمات ذخیره شد"), "success");
 	} catch (error) {
 		state.adminBusy = "";
 		syncAdminSaveBarDOM();
@@ -5819,15 +5942,15 @@ async function saveAdminSettings() {
 function syncAdminSaveBarDOM() {
 	const busy = state.adminBusy === "save-settings";
 	const status = state.adminSettingsDirty
-		? (state.locale === "en" ? "Unsaved changes" : "\u0415\u0441\u0442\u044c \u043d\u0435\u0441\u043e\u0445\u0440\u0430\u043d\u0451\u043d\u043d\u044b\u0435 \u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u044f")
-		: (state.locale === "en" ? "All changes saved" : "\u0412\u0441\u0435 \u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u044f \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u044b");
+		? localizedText("Есть несохранённые изменения", "Unsaved changes", "تغییرات ذخیره‌نشده")
+		: localizedText("Все изменения сохранены", "All changes saved", "همه تغییرات ذخیره شد");
 	app.querySelectorAll(".admin-save-bar").forEach((bar) => {
 		const label = bar.querySelector(":scope > span");
 		const button = bar.querySelector('[data-action="admin-save-settings"]');
 		if (label) label.textContent = status;
 		if (!button) return;
 		button.disabled = busy || !state.adminSettingsDirty;
-		button.innerHTML = `${icon(busy ? "refresh" : "check")}<span>${state.locale === "en" ? "Save" : "\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c"}</span>`;
+		button.innerHTML = `${icon(busy ? "refresh" : "check")}<span>${localizedText("Сохранить", "Save", "ذخیره")}</span>`;
 	});
 }
 
@@ -6279,7 +6402,7 @@ function addAdminPlan() {
 	const plans = state.adminSettingsDraft?.plans;
 	if (!Array.isArray(plans)) return;
 	const id = `custom_${Date.now().toString(36)}`;
-	const plan = { id, enabled: false, months: 0, titleRu: "", titleEn: "", priceRub: 0, priceStars: 0, freeOneTime: false, trafficGb: 0, unlimitedTraffic: true, deviceLimit: 0, wide: false, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" };
+	const plan = { id, enabled: false, months: 0, titleRu: "", titleEn: "", titleFa: "", priceRub: 0, priceStars: 0, freeOneTime: false, trafficGb: 0, unlimitedTraffic: true, deviceLimit: 0, wide: false, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" };
 	plans.push(plan);
 	state.adminSettingsDirty = true;
 	state.adminPlanEditingID = id;
@@ -6331,6 +6454,7 @@ function applyAdminPlanEdit() {
 		deviceLimit,
 		titleRu: getPlanCardTitle(months, "ru"),
 		titleEn: getPlanCardTitle(months, "en"),
+		titleFa: getPlanCardTitle(months, "fa"),
 		priceStars: Math.max(0, Math.round(priceRub / 1.47)),
 		internalSquadUuids: Array.isArray(draft.internalSquadUuids) ? [...draft.internalSquadUuids] : [],
 		internalSquadsConfigured: Boolean(draft.internalSquadsConfigured),
@@ -7237,7 +7361,7 @@ async function submitReview() {
     state.reviewDraftRating = 0;
     state.reviewDraftComment = "";
     state.data = response.data;
-    state.locale = pickLocale(response.data?.user?.languageCode || state.locale);
+		syncLocalizationFromSettings(response.data?.runtime);
     ensureSelections();
     render();
     showToast(response.message || copy.rewardToast, "success");
@@ -7451,7 +7575,7 @@ function requestSubscriptionMenuClose(onClosed = null) {
 function applySubscriptionBootstrap(data) {
 	if (!data) return;
 	state.data = data;
-	state.locale = pickLocale(data.user?.languageCode);
+	syncLocalizationFromSettings(data.runtime);
 	state.appliedPromo = null;
 	state.promoCodeDraft = "";
 	ensureSelections();
@@ -7565,7 +7689,7 @@ function closeSubscriptionDelete() {
 async function activateTrial() {
   const response = await post("/api/mini-app/trial/activate");
   state.data = response.data;
-  state.locale = pickLocale(response.data.user.languageCode);
+	syncLocalizationFromSettings(response.data.runtime);
   ensureSelections();
   state.error = "";
   render();
@@ -7616,8 +7740,8 @@ function updateCheckoutPriceDom() {
   const pack = getSelectedDevicePack();
   const method = getSelectedPaymentMethod();
   const freeCheckout = Boolean(plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !pack);
-  const payLabel = freeCheckout
-    ? (state.locale === "en" ? "Get for free" : "Получить бесплатно")
+	const payLabel = freeCheckout
+		? localizedText("Получить бесплатно", "Get for free", "دریافت رایگان")
     : plan ? `${t().pay} ${formatCheckoutPrice(plan, pack, method?.id)}` : t().pay;
   action.disabled = Boolean(state.busyMethod);
   action.innerHTML = `${icon(state.busyMethod ? "refresh" : "cart")}${escapeHtml(payLabel)}`;
@@ -7646,6 +7770,10 @@ function schedulePromoAutoApply() {
 }
 
 function getPromoValidationMessage(error) {
+	if (state.locale === "fa") {
+		if (error?.code === "promo_not_found") return "این کد تخفیف وجود ندارد";
+		return error?.message || "کد تخفیف پیدا نشد";
+	}
   if (state.locale === "en") {
     if (error?.code === "promo_not_found") return "This promo code does not exist";
     return error?.message || "Promo code not found";
@@ -7666,7 +7794,7 @@ async function applyPromoCode(options = {}) {
   state.promoBusy = "apply";
   state.promoValidation = {
     type: "pending",
-    message: state.locale === "en" ? "Checking promo code..." : "Проверяем промокод...",
+		message: localizedText("Проверяем промокод...", "Checking promo code...", "در حال بررسی کد تخفیف..."),
   };
   if (silent) syncPromoCheckoutDom();
   else render();
@@ -7678,7 +7806,7 @@ async function applyPromoCode(options = {}) {
     state.promoBusy = "";
     state.promoValidation = {
       type: "success",
-      message: state.locale === "en" ? "Promo code applied" : "Промокод применен",
+		  message: localizedText("Промокод применен", "Promo code applied", "کد تخفیف اعمال شد"),
     };
     if (silent) syncPromoCheckoutDom({ price: true });
     else render();
@@ -7722,7 +7850,7 @@ async function startPayment({ deviceOnly = false } = {}) {
 	  state.appliedPromo = null;
 	  state.promoCodeDraft = "";
 	  await safeRefresh();
-	  showToast(state.locale === "en" ? "Plan activated" : "Тариф активирован", "success");
+		showToast(localizedText("Тариф активирован", "Plan activated", "تعرفه فعال شد"), "success");
     } else if (action === "open_invoice") {
       if (typeof tg?.openInvoice === "function") {
         tg.openInvoice(url, async (status) => {
@@ -8194,6 +8322,7 @@ function requestModalClose(name, onClosed) {
 }
 
 function applyAppearance() {
+	syncLocalizationFromSettings();
 	const appearance = getRuntimeSettings()?.appearance || {};
 	const colors = appearance.colors || {};
 	const accentColor = colors.accent || PALETTE.accent.accent;
@@ -8299,9 +8428,13 @@ function hexToRGBA(hex, alpha) {
 function getPageTitle(page, short = false) {
   const copy = t();
 	if (page === "admin" && !short && state.adminSection !== "home") {
-		const labels = state.locale === "en" ? {
+		const labels = state.locale === "fa" ? {
+			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", features: "امکانات", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها",
+		} : state.locale === "en" ? {
+			localization: "Language and font",
 			maintenance: "Maintenance", diagnostics: "Diagnostics", features: "Functions", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations",
 		} : {
+			localization: "Язык и шрифт",
 			maintenance: "Режим аварии", diagnostics: "Диагностика", features: "Функции", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции",
 		};
 		return labels[state.adminSection] || copy.pageAdmin || "Admin panel";
@@ -8356,13 +8489,13 @@ function supportTicketTitle(ticket) {
 }
 
 function formatSupportStatus(status) {
-  if (status === "closed") return state.locale === "en" ? "Closed" : "Закрыто";
-  return state.locale === "en" ? "Open" : "Открыто";
+  if (status === "closed") return localizedText("Закрыто", "Closed", "بسته");
+  return localizedText("Открыто", "Open", "باز");
 }
 
 function formatSupportDate(value) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat(state.locale === "en" ? "en-US" : "ru-RU", {
+  return new Intl.DateTimeFormat(intlLocale(), {
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",
@@ -8374,7 +8507,7 @@ function formatSupportTime(value) {
   if (!value) return "--:--";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "--:--";
-  return new Intl.DateTimeFormat(state.locale === "en" ? "en-US" : "ru-RU", {
+  return new Intl.DateTimeFormat(intlLocale(), {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -8388,7 +8521,7 @@ function formatTelegramUsername(value) {
 
 function formatTermsDate(value) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat(state.locale === "en" ? "en-US" : "ru-RU", {
+  return new Intl.DateTimeFormat(intlLocale(), {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -8397,7 +8530,7 @@ function formatTermsDate(value) {
 
 function formatReviewDate(value) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat(state.locale === "en" ? "en-US" : "ru-RU", {
+  return new Intl.DateTimeFormat(intlLocale(), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -8406,7 +8539,7 @@ function formatReviewDate(value) {
 
 function formatAverageRating(value, locale) {
   const numeric = Number(value || 0);
-  return new Intl.NumberFormat(locale === "en" ? "en-US" : "ru-RU", {
+  return new Intl.NumberFormat(intlLocale(locale), {
     minimumFractionDigits: numeric > 0 && !Number.isInteger(numeric) ? 1 : 0,
     maximumFractionDigits: 1,
   }).format(numeric);
@@ -8432,7 +8565,7 @@ function reviewsSummaryHint() {
   const reviews = state.data?.reviews || {};
   const count = Number(reviews.count || 0);
   const average = formatAverageRating(reviews.average || 0, state.locale);
-  if (!count) return state.locale === "en" ? "No reviews yet" : "Пока нет отзывов";
+  if (!count) return localizedText("Пока нет отзывов", "No reviews yet", "هنوز دیدگاهی ثبت نشده");
   return `${average} • ${reviewsText().reviewsCount(count)}`;
 }
 
@@ -8446,24 +8579,24 @@ function getCurrentSubscriptionPlanLabel() {
   if (subscription.planLabel) return String(subscription.planLabel);
   if (subscription.isTrial) return getTrialPlanLabel();
   switch (Number(subscription.planMonths || 0)) {
-    case 1: return state.locale === "en" ? "1 Month" : "Месяц";
-    case 3: return state.locale === "en" ? "3 Months" : "3 Месяца";
-    case 6: return state.locale === "en" ? "6 Months" : "6 Месяцев";
-    case 12: return state.locale === "en" ? "Yearly" : "Годовой";
-    default: return state.locale === "en" ? "Subscription active" : "Подписка";
+    case 1: return localizedText("Месяц", "1 Month", "۱ ماه");
+    case 3: return localizedText("3 Месяца", "3 Months", "۳ ماه");
+    case 6: return localizedText("6 Месяцев", "6 Months", "۶ ماه");
+    case 12: return localizedText("Годовой", "Yearly", "سالانه");
+    default: return localizedText("Подписка", "Subscription active", "اشتراک فعال");
   }
 }
 
 function getTrialPlanLabel() {
-  return state.locale === "en" ? "Trial" : "Пробный";
+  return localizedText("Пробный", "Trial", "آزمایشی");
 }
 
 function getInactiveSubscriptionLabel() {
-  return state.locale === "en" ? "No subscription" : "Нет подписки";
+  return localizedText("Нет подписки", "No subscription", "بدون اشتراک");
 }
 
 function getUntilLabel() {
-  return state.locale === "en" ? "Until" : "До";
+  return localizedText("До", "Until", "تا");
 }
 
 function planKey(plan) {
@@ -8518,7 +8651,32 @@ function pageClass(page) {
 }
 
 function pickLocale(code) {
-  return String(code || "ru").toLowerCase().startsWith("en") ? "en" : "ru";
+	const value = String(code || "ru").trim().toLowerCase();
+	if (value.startsWith("fa") || value.startsWith("persian") || value.startsWith("farsi")) return "fa";
+	if (value.startsWith("en")) return "en";
+	return "ru";
+}
+
+function localizedText(ru, en, fa) {
+	if (state.locale === "fa") return fa || en || ru;
+	if (state.locale === "en") return en || ru;
+	return ru;
+}
+
+function intlLocale(locale = state.locale) {
+	if (locale === "fa") return "fa-IR";
+	if (locale === "en") return "en-US";
+	return "ru-RU";
+}
+
+function syncLocalizationFromSettings(settings = null) {
+	const localization = settings?.localization || getRuntimeSettings()?.localization || {};
+	state.locale = pickLocale(localization.language || state.locale || "ru");
+	const configuredFont = ["auto", "montserrat", "vazir"].includes(localization.fontFamily) ? localization.fontFamily : "auto";
+	const resolvedFont = state.locale === "fa" && (configuredFont === "auto" || configuredFont === "vazir") ? "vazir" : "montserrat";
+	document.documentElement.lang = state.locale;
+	document.documentElement.dir = state.locale === "fa" ? "rtl" : "ltr";
+	document.documentElement.dataset.font = resolvedFont;
 }
 
 function openExternal(url) {
@@ -8710,13 +8868,13 @@ async function copyToClipboard(value) {
 
 function formatDateLabel(value, locale) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  return new Intl.DateTimeFormat(intlLocale(locale), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
 
 function formatShortDateLabel(value, locale) {
   if (!value) return "—";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "вЂ”";
+  if (Number.isNaN(date.getTime())) return "—";
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const year = String(date.getFullYear()).slice(-2);
@@ -8724,12 +8882,12 @@ function formatShortDateLabel(value, locale) {
 }
 
 function formatCurrency(value, locale) {
-  return new Intl.NumberFormat(locale === "en" ? "en-US" : "ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat(intlLocale(locale), { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(value);
 }
 
 function formatPaymentAmount(amount, currency, invoiceType) {
   const numeric = Number(amount || 0);
-	if (invoiceType === "free") return state.locale === "en" ? "Free" : "Бесплатно";
+	if (invoiceType === "free") return localizedText("Бесплатно", "Free", "رایگان");
   if (invoiceType === "telegram" || currency === "XTR") {
     return `${formatNumber(numeric, state.locale)} Stars`;
   }
@@ -8737,27 +8895,27 @@ function formatPaymentAmount(amount, currency, invoiceType) {
 }
 
 function formatPaymentStatus(status) {
-  if (status === "paid") return state.locale === "en" ? "Paid" : "Оплачено";
-  if (status === "pending" || status === "new") return state.locale === "en" ? "Pending" : "В ожидании";
-  if (status === "cancel" || status === "canceled") return state.locale === "en" ? "Canceled" : "Отменено";
-  if (status === "failed") return state.locale === "en" ? "Failed" : "Ошибка";
+  if (status === "paid") return localizedText("Оплачено", "Paid", "پرداخت‌شده");
+  if (status === "pending" || status === "new") return localizedText("В ожидании", "Pending", "در انتظار");
+  if (status === "cancel" || status === "canceled") return localizedText("Отменено", "Canceled", "لغوشده");
+  if (status === "failed") return localizedText("Ошибка", "Failed", "ناموفق");
   return status ? String(status) : "—";
 }
 
 function formatPaymentDate(value) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat(state.locale === "en" ? "en-US" : "ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" }).format(new Date(value));
+  return new Intl.DateTimeFormat(intlLocale(), { day: "2-digit", month: "2-digit", year: "2-digit" }).format(new Date(value));
 }
 
 function paymentMethodTitleForHistory(invoiceType, copy) {
-	if (invoiceType === "free") return state.locale === "en" ? "Free activation" : "Бесплатная активация";
+	if (invoiceType === "free") return localizedText("Бесплатная активация", "Free activation", "فعال‌سازی رایگان");
   if (invoiceType === "telegram") return copy.payMethodStars || "Telegram Stars";
   if (invoiceType === "crypto") return copy.payMethodCrypto || "Crypto";
   return copy.payMethodCard || "Card";
 }
 
 function formatNumber(value, locale) {
-  return new Intl.NumberFormat(locale === "en" ? "en-US" : "ru-RU").format(Number(value || 0));
+  return new Intl.NumberFormat(intlLocale(locale)).format(Number(value || 0));
 }
 
 function formatTrafficBadgeLabel(usedBytes, limitBytes, locale) {
@@ -8788,7 +8946,7 @@ function formatTrafficLimitValue(bytes, locale) {
 }
 
 function formatCompactDecimal(value, locale, maximumFractionDigits) {
-  return new Intl.NumberFormat(locale === "en" ? "en-US" : "ru-RU", {
+  return new Intl.NumberFormat(intlLocale(locale), {
     minimumFractionDigits: 0,
     maximumFractionDigits,
   }).format(value);
@@ -8798,8 +8956,9 @@ function formatDeviceBadgeLabel(usedCount, limitCount, locale) {
   const limit = Number(limitCount || 0);
   if (!Number.isFinite(limit)) return "";
   const used = formatNumber(Math.max(0, Number(usedCount || 0)), locale);
-  if (limit <= 0) return `${used}/\u221E ${locale === "en" ? "devices" : "устройств"}`;
-  return `${used}/${formatNumber(limit, locale)} ${locale === "en" ? "devices" : "устройств"}`;
+  const label = locale === "fa" ? "دستگاه" : locale === "en" ? "devices" : "устройств";
+  if (limit <= 0) return `${used}/\u221E ${label}`;
+  return `${used}/${formatNumber(limit, locale)} ${label}`;
 }
 
 function formatReferralRewardLabel(referral, locale) {
@@ -8839,7 +8998,7 @@ function getDeviceSecondary(device) {
 
 function formatDeviceCreatedAt(value) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat(state.locale === "en" ? "en-US" : "ru-RU", {
+	return new Intl.DateTimeFormat(intlLocale(), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -9145,6 +9304,7 @@ function icon(name) {
 		return `<span class="app-svg-icon app-svg-icon--${ADMIN_ICON_CLASSES[name]}" aria-hidden="true"></span>`;
 	}
   const icons = {
+		language: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 12h17M12 3c2.2 2.5 3.3 5.5 3.3 9S14.2 18.5 12 21M12 3C9.8 5.5 8.7 8.5 8.7 12s1.1 6.5 3.3 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
 		wrench: `<svg viewBox="0 0 24 24" fill="none"><path d="M14.7 6.2a4.8 4.8 0 0 0-6.1 6.1L3.8 17a2.1 2.1 0 1 0 3 3l4.8-4.8a4.8 4.8 0 0 0 6.1-6.1l-2.8 2.8-2.8-.7-.7-2.8 3.3-2.2Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 		maintenanceKey: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12 8v5m0 3h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 		alert: `<svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 17h.01M10.3 4.9 3.4 17a2 2 0 0 0 1.7 3h13.8a2 2 0 0 0 1.7-3L13.7 4.9a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,

@@ -93,6 +93,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	tm.SetActiveLanguage(runtimeSettings.Language())
 	integrationSettings, err := integrations.NewService(ctx, paymentIntegrationRepository)
 	if err != nil {
 		panic(err)
@@ -128,7 +129,7 @@ func main() {
 	go runSubscriptionCheck(syncService, subService)
 
 	h := handler.NewHandler(syncService, paymentService, tm, customerRepository, purchaseRepository, cryptoPayClient, yookasaClient, referralRepository, cache, runtimeSettings, errorReporter)
-	miniAppHandler := miniapp.NewHandler(customerRepository, purchaseRepository, promoCodeRepository, referralRepository, supportRepository, reviewRepository, paymentService, remnawaveClient, b, broadcastService, subService, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository)
+	miniAppHandler := miniapp.NewHandler(customerRepository, purchaseRepository, promoCodeRepository, referralRepository, supportRepository, reviewRepository, paymentService, remnawaveClient, b, broadcastService, subService, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository, tm)
 	miniAppHandler.StartSupportAutoCloser(ctx)
 	operations.StartHealthMonitor(ctx, pool, remnawaveClient, errorReporter)
 
@@ -155,23 +156,17 @@ func main() {
 		})
 	}
 
-	// Set bot commands for Russian
-	_, err = b.SetMyCommands(ctx, &bot.SetMyCommandsParams{
-		Commands: []models.BotCommand{
-			{Command: "start", Description: "Начать работу с ботом"},
-			{Command: "connect", Description: "Подключиться"},
-		},
-		LanguageCode: "ru",
-	})
-
-	// Set bot commands for English
-	_, err = b.SetMyCommands(ctx, &bot.SetMyCommandsParams{
-		Commands: []models.BotCommand{
-			{Command: "start", Description: "Start using the bot"},
-			{Command: "connect", Description: "Connect"},
-		},
-		LanguageCode: "en",
-	})
+	startDescription, connectDescription := translation.CommandDescriptions(tm.ActiveLanguage())
+	localizedCommands := []models.BotCommand{
+		{Command: "start", Description: startDescription},
+		{Command: "connect", Description: connectDescription},
+	}
+	for _, languageCode := range []string{"", "ru", "en", "fa"} {
+		_, err = b.SetMyCommands(ctx, &bot.SetMyCommandsParams{Commands: localizedCommands, LanguageCode: languageCode})
+		if err != nil {
+			slog.Warn("set localized bot commands failed", "languageCode", languageCode, "error", err)
+		}
+	}
 
 	config.SetBotURL(fmt.Sprintf("https://t.me/%s", me.Username))
 	startPaymentNotificationBot(ctx, integrationSettings)

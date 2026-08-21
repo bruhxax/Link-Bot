@@ -19,6 +19,7 @@ type Translation map[string]string
 type Manager struct {
 	translations    map[string]Translation
 	defaultLanguage string
+	activeLanguage  string
 	mu              sync.RWMutex
 }
 
@@ -32,6 +33,7 @@ func GetInstance() *Manager {
 		instance = &Manager{
 			translations:    make(map[string]Translation),
 			defaultLanguage: "en",
+			activeLanguage:  "en",
 		}
 	})
 	return instance
@@ -42,7 +44,8 @@ func (tm *Manager) InitTranslations(translationsDir string, defaultLanguage stri
 	defer tm.mu.Unlock()
 
 	if defaultLanguage != "" {
-		tm.defaultLanguage = defaultLanguage
+		tm.defaultLanguage = NormalizeLanguageCode(defaultLanguage)
+		tm.activeLanguage = tm.defaultLanguage
 	}
 
 	tm.translations = make(map[string]Translation)
@@ -61,8 +64,53 @@ func (tm *Manager) InitTranslations(translationsDir string, defaultLanguage stri
 		tm.defaultLanguage = fallbackLanguage(tm.translations)
 		slog.Warn("translations: default language unavailable, using fallback", "requested", requested, "fallback", tm.defaultLanguage)
 	}
+	if _, exists := tm.translations[tm.activeLanguage]; !exists {
+		tm.activeLanguage = tm.defaultLanguage
+	}
 
 	return nil
+}
+
+func NormalizeLanguageCode(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	switch {
+	case strings.HasPrefix(value, "fa"), strings.HasPrefix(value, "persian"), strings.HasPrefix(value, "farsi"):
+		return "fa"
+	case strings.HasPrefix(value, "en"):
+		return "en"
+	default:
+		return "ru"
+	}
+}
+
+func (tm *Manager) SetActiveLanguage(language string) {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	language = NormalizeLanguageCode(language)
+	if _, exists := tm.translations[language]; !exists {
+		language = tm.defaultLanguage
+	}
+	tm.activeLanguage = language
+}
+
+func (tm *Manager) ActiveLanguage() string {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+	if tm.activeLanguage != "" {
+		return tm.activeLanguage
+	}
+	return tm.defaultLanguage
+}
+
+func CommandDescriptions(language string) (start, connect string) {
+	switch NormalizeLanguageCode(language) {
+	case "fa":
+		return "شروع کار با ربات", "اتصال"
+	case "en":
+		return "Start using the bot", "Connect"
+	default:
+		return "Начать работу с ботом", "Подключиться"
+	}
 }
 
 func (tm *Manager) loadDirectory(source fs.FS, directory string, overwrite bool) error {
@@ -108,6 +156,11 @@ func fallbackLanguage(values map[string]Translation) string {
 func (tm *Manager) GetText(langCode, key string) string {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()
+	if tm.activeLanguage != "" {
+		langCode = tm.activeLanguage
+	} else {
+		langCode = NormalizeLanguageCode(langCode)
+	}
 
 	if translation, exists := tm.translations[langCode]; exists {
 		if text, exists := translation[key]; exists && text != "" {

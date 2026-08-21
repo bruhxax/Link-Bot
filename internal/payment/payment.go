@@ -87,6 +87,16 @@ type SubscriptionActivatedPreviewOptions struct {
 	ButtonStyle       string
 }
 
+func (s PaymentService) language() string {
+	if s.runtimeSettings != nil {
+		return s.runtimeSettings.Language()
+	}
+	if s.translation != nil {
+		return s.translation.ActiveLanguage()
+	}
+	return config.DefaultLanguage()
+}
+
 func lockTrialActivation(telegramId int64) func() {
 	actual, _ := trialActivationLocks.LoadOrStore(telegramId, &sync.Mutex{})
 	mu := actual.(*sync.Mutex)
@@ -396,7 +406,7 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	_, err = s.telegramBot.SendMessage(ctxReferee, &bot.SendMessageParams{
 		ChatID:    refereeCustomer.TelegramID,
 		ParseMode: models.ParseModeHTML,
-		Text:      buildReferralBonusGrantedText(refereeCustomer.Language),
+		Text:      buildReferralBonusGrantedText(s.language()),
 		ReplyMarkup: models.InlineKeyboardMarkup{
 			InlineKeyboard: s.createConnectKeyboard(refereeCustomer),
 		},
@@ -410,7 +420,8 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 func (s PaymentService) sendSubscriptionActivatedMessage(ctx context.Context, customer *database.Customer) error {
 	commerce := runtimeconfig.DefaultSettings().Content.Commerce
 	if s.runtimeSettings != nil {
-		commerce = s.runtimeSettings.Snapshot().Content.Commerce
+		settings := s.runtimeSettings.Snapshot()
+		commerce = runtimeconfig.LocalizeTelegramDefaults(settings.Content, settings.Localization.Language).Commerce
 	}
 	return s.sendSubscriptionActivatedMessageWithCommerce(ctx, customer, commerce)
 }
@@ -539,7 +550,8 @@ func readTelegramAsset(name string) ([]byte, error) {
 func (s PaymentService) createConnectKeyboard(customer *database.Customer) [][]models.InlineKeyboardButton {
 	settings := runtimeconfig.DefaultSettings().Content.Commerce.SuccessButton
 	if s.runtimeSettings != nil {
-		settings = s.runtimeSettings.Snapshot().Content.Commerce.SuccessButton
+		runtime := s.runtimeSettings.Snapshot()
+		settings = runtimeconfig.LocalizeTelegramDefaults(runtime.Content, runtime.Localization.Language).Commerce.SuccessButton
 	}
 	return s.createConnectKeyboardWithSettings(customer, settings)
 }
@@ -1474,6 +1486,13 @@ func buildReferralBonusGrantedText(langCode string) string {
 			trafficGb,
 		)
 	}
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(langCode)), "fa") {
+		return fmt.Sprintf(
+			"پاداش دعوت برای شما ثبت شد: %d روز و %d گیگابایت.\nاین پاداش پس از خرید اشتراک توسط دوست دعوت‌شده فعال می‌شود.",
+			days,
+			trafficGb,
+		)
+	}
 
 	return fmt.Sprintf(
 		"<tg-emoji emoji-id='5258362837411045098'>☺️</tg-emoji> Вам начислен реферальный бонус: +%d дней и +%d ГБ.\nБонус выдаётся после покупки тарифа приглашённым пользователем.",
@@ -1825,8 +1844,11 @@ func (s PaymentService) notifyAutoPaymentSuccess(ctx context.Context, customer *
 	}
 
 	text := fmt.Sprintf("Автоплатёж выполнен успешно. Подписка продлена на %d мес.", months)
-	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(customer.Language)), "en") {
+	language := s.language()
+	if strings.HasPrefix(language, "en") {
 		text = fmt.Sprintf("Auto payment succeeded. Your subscription was renewed for %d month(s).", months)
+	} else if strings.HasPrefix(language, "fa") {
+		text = fmt.Sprintf("پرداخت خودکار با موفقیت انجام شد. اشتراک شما برای %d ماه تمدید شد.", months)
 	}
 
 	_, err := s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
@@ -1850,8 +1872,14 @@ func (s PaymentService) notifyAutoPaymentFailure(ctx context.Context, customer *
 	if reason != "" {
 		text = fmt.Sprintf("%s\n\n%s", text, reason)
 	}
-	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(customer.Language)), "en") {
+	language := s.language()
+	if strings.HasPrefix(language, "en") {
 		text = "Auto payment failed. Check your payment method in the Payments section."
+		if reason != "" {
+			text = fmt.Sprintf("%s\n\n%s", text, reason)
+		}
+	} else if strings.HasPrefix(language, "fa") {
+		text = "پرداخت خودکار انجام نشد. روش پرداخت را در بخش «پرداخت‌ها» بررسی کنید."
 		if reason != "" {
 			text = fmt.Sprintf("%s\n\n%s", text, reason)
 		}

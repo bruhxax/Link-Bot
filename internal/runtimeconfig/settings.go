@@ -21,7 +21,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 14
+const CurrentVersion = 15
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -53,17 +53,23 @@ var featureOrder = []string{
 }
 
 type Settings struct {
-	Version     int                  `json:"version"`
-	Maintenance MaintenanceSettings  `json:"maintenance"`
-	Features    map[string]bool      `json:"features"`
-	Content     ContentSettings      `json:"content"`
-	Appearance  AppearanceSettings   `json:"appearance"`
-	Layout      LayoutSettings       `json:"layout"`
-	Plans       []PlanSettings       `json:"plans"`
-	DevicePacks []DevicePackSettings `json:"devicePacks"`
-	Trial       TrialSettings        `json:"trial"`
-	Grace       GraceSettings        `json:"grace"`
-	Panel       PanelSettings        `json:"panel"`
+	Version      int                  `json:"version"`
+	Localization LocalizationSettings `json:"localization"`
+	Maintenance  MaintenanceSettings  `json:"maintenance"`
+	Features     map[string]bool      `json:"features"`
+	Content      ContentSettings      `json:"content"`
+	Appearance   AppearanceSettings   `json:"appearance"`
+	Layout       LayoutSettings       `json:"layout"`
+	Plans        []PlanSettings       `json:"plans"`
+	DevicePacks  []DevicePackSettings `json:"devicePacks"`
+	Trial        TrialSettings        `json:"trial"`
+	Grace        GraceSettings        `json:"grace"`
+	Panel        PanelSettings        `json:"panel"`
+}
+
+type LocalizationSettings struct {
+	Language   string `json:"language"`
+	FontFamily string `json:"fontFamily"`
 }
 
 type MaintenanceSettings struct {
@@ -223,6 +229,7 @@ type PlanSettings struct {
 	Months                   int      `json:"months"`
 	TitleRU                  string   `json:"titleRu"`
 	TitleEN                  string   `json:"titleEn"`
+	TitleFA                  string   `json:"titleFa"`
 	PriceRub                 int      `json:"priceRub"`
 	PriceStars               int      `json:"priceStars"`
 	FreeOneTime              bool     `json:"freeOneTime"`
@@ -311,9 +318,18 @@ func DefaultSettings() Settings {
 	for _, name := range featureOrder {
 		features[name] = true
 	}
+	language := normalizeRuntimeLanguage(config.DefaultLanguage())
+	fontFamily := strings.ToLower(strings.TrimSpace(config.DefaultFont()))
+	if fontFamily != "montserrat" && fontFamily != "vazir" {
+		fontFamily = "auto"
+	}
 
-	return Settings{
+	settings := Settings{
 		Version: CurrentVersion,
+		Localization: LocalizationSettings{
+			Language:   language,
+			FontFamily: fontFamily,
+		},
 		Maintenance: MaintenanceSettings{
 			TitleRU:  "Технические работы",
 			TextRU:   "Сервис временно недоступен. Попробуйте немного позже.",
@@ -481,6 +497,90 @@ func DefaultSettings() Settings {
 			UsernameTemplate: "{{customer_id}}_{{telegram_id}}",
 		},
 	}
+	settings.Content = LocalizeTelegramDefaults(settings.Content, language)
+	return settings
+}
+
+func normalizeRuntimeLanguage(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "fa", "fa-ir", "persian", "farsi":
+		return "fa"
+	case "en", "en-us", "en-gb":
+		return "en"
+	default:
+		return "ru"
+	}
+}
+
+// LocalizeTelegramDefaults translates only bundled defaults. Values customized
+// in the content editor are intentionally preserved when the global language changes.
+func LocalizeTelegramDefaults(content ContentSettings, language string) ContentSettings {
+	language = normalizeRuntimeLanguage(language)
+	localized := func(current, ru, en, fa string) string {
+		current = strings.TrimSpace(current)
+		if current != "" && current != strings.TrimSpace(ru) && current != strings.TrimSpace(en) && current != strings.TrimSpace(fa) {
+			return current
+		}
+		switch language {
+		case "fa":
+			return fa
+		case "en":
+			return en
+		default:
+			return ru
+		}
+	}
+
+	content.Verification.Text = localized(content.Verification.Text,
+		"<b>Link-Bot Верификация</b>\n\nЧтобы открыть доступ к боту и mini app, подпишитесь на наш Telegram-канал <b>%s</b>.\n\nТам мы публикуем новости, обновления сервиса, важные изменения и полезные анонсы.\n\nПосле подписки нажмите кнопку ниже.",
+		"<b>Link-Bot Verification</b>\n\nTo open the bot and Mini App, subscribe to our Telegram channel <b>%s</b>.\n\nWe publish service news, updates and important notices there.\n\nAfter subscribing, tap the button below.",
+		"<b>تأیید Link-Bot</b>\n\nبرای دسترسی به ربات و Mini App، در کانال Telegram ما <b>%s</b> عضو شوید.\n\nخبرها، به‌روزرسانی‌ها و اطلاعیه‌های مهم در آنجا منتشر می‌شود.\n\nپس از عضویت، دکمه زیر را بزنید.")
+	content.Verification.ConfirmButton.Text = localized(content.Verification.ConfirmButton.Text, "✅ Я подписался", "✅ I subscribed", "✅ عضو شدم")
+	content.Verification.CheckFailedText = localized(content.Verification.CheckFailedText, "Не удалось проверить подписку. Попробуйте ещё раз", "Could not verify the subscription. Try again", "بررسی عضویت انجام نشد. دوباره تلاش کنید")
+	content.Verification.NotSubscribedText = localized(content.Verification.NotSubscribedText, "Подписка пока не найдена", "Subscription not found yet", "هنوز عضویت شما پیدا نشد")
+	content.Verification.VerifiedText = localized(content.Verification.VerifiedText, "Готово, доступ открыт", "Done, access is open", "انجام شد؛ دسترسی باز شد")
+
+	content.StartMenu.TrialButton.Text = localized(content.StartMenu.TrialButton.Text, "Попробовать бесплатно", "Try for free", "استفاده آزمایشی")
+	content.StartMenu.DashboardButton.Text = localized(content.StartMenu.DashboardButton.Text, "Вход", "Account", "حساب کاربری")
+	content.StartMenu.PlansButton.Text = localized(content.StartMenu.PlansButton.Text, "Тарифы", "Plans", "تعرفه‌ها")
+	content.StartMenu.SupportButton.Text = localized(content.StartMenu.SupportButton.Text, "Чат с поддержкой", "Support chat", "گفت‌وگو با پشتیبانی")
+
+	content.Commerce.TariffsText = localized(content.Commerce.TariffsText, `<b><tg-emoji emoji-id="5206626000665868017">☺️</tg-emoji> Выберите подходящий тариф</b>`, `<b><tg-emoji emoji-id="5206626000665868017">☺️</tg-emoji> Choose a plan</b>`, `<b><tg-emoji emoji-id="5206626000665868017">☺️</tg-emoji> یک تعرفه انتخاب کنید</b>`)
+	content.Commerce.PaymentMethodsText = localized(content.Commerce.PaymentMethodsText, `<b><tg-emoji emoji-id="5192678313415434135">☺️</tg-emoji> Выберите способ оплаты</b>`, `<b><tg-emoji emoji-id="5192678313415434135">☺️</tg-emoji> Choose a payment method</b>`, `<b><tg-emoji emoji-id="5192678313415434135">☺️</tg-emoji> روش پرداخت را انتخاب کنید</b>`)
+	content.Commerce.PaymentReadyText = localized(content.Commerce.PaymentReadyText, `<b><tg-emoji emoji-id="5278305362703835500">☺️</tg-emoji> Подписка активируется автоматически после оплаты</b>`, `<b><tg-emoji emoji-id="5278305362703835500">☺️</tg-emoji> The subscription activates automatically after payment</b>`, `<b><tg-emoji emoji-id="5278305362703835500">☺️</tg-emoji> اشتراک پس از پرداخت خودکار فعال می‌شود</b>`)
+	content.Commerce.YookassaButton.Text = localized(content.Commerce.YookassaButton.Text, "СБП | Карта", "Card | SBP", "کارت بانکی")
+	content.Commerce.PayButton.Text = localized(content.Commerce.PayButton.Text, "Оплатить", "Pay", "پرداخت")
+	content.Commerce.BackButton.Text = localized(content.Commerce.BackButton.Text, "Назад", "Back", "بازگشت")
+	content.Commerce.SuccessText = localized(content.Commerce.SuccessText, "<b>Подписка успешно активирована ✅</b>\n\nПриятного и безопасного интернета!", "<b>Subscription activated successfully ✅</b>\n\nEnjoy a safe connection!", "<b>اشتراک با موفقیت فعال شد ✅</b>\n\nاز اتصال امن خود لذت ببرید!")
+	content.Commerce.SuccessButton.Text = localized(content.Commerce.SuccessButton.Text, "Личный кабинет", "Account", "حساب کاربری")
+
+	content.Support.NewTicketText = localized(content.Support.NewTicketText, "🆕 <b>Новое обращение #{ticket_id}</b>\n\n👤 <b>Пользователь:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>Подписка:</b> {subscription}\n\n💬 <b>Сообщение:</b>\n{message}", "🆕 <b>New ticket #{ticket_id}</b>\n\n👤 <b>User:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>Subscription:</b> {subscription}\n\n💬 <b>Message:</b>\n{message}", "🆕 <b>درخواست جدید #{ticket_id}</b>\n\n👤 <b>کاربر:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>اشتراک:</b> {subscription}\n\n💬 <b>پیام:</b>\n{message}")
+	content.Support.CustomerReplyText = localized(content.Support.CustomerReplyText, "📩 <b>Обращение #{ticket_id}</b>\nПолучен новый ответ от пользователя.\n\n👤 <b>Пользователь:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>Подписка:</b> {subscription}\n\n{message}", "📩 <b>Ticket #{ticket_id}</b>\nA new reply was received from the user.\n\n👤 <b>User:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>Subscription:</b> {subscription}\n\n{message}", "📩 <b>درخواست #{ticket_id}</b>\nپاسخ جدیدی از کاربر دریافت شد.\n\n👤 <b>کاربر:</b> {name}\n🔗 <b>Username:</b> {username}\n💎 <b>اشتراک:</b> {subscription}\n\n{message}")
+	content.Support.AdminReplyText = localized(content.Support.AdminReplyText, "📬 <b>Обращение #{ticket_id}</b>\nПоддержка ответила на ваше сообщение.\n\n{message}", "📬 <b>Ticket #{ticket_id}</b>\nSupport replied to your message.\n\n{message}", "📬 <b>درخواست #{ticket_id}</b>\nپشتیبانی به پیام شما پاسخ داد.\n\n{message}")
+	content.Support.ClosedText = localized(content.Support.ClosedText, "💌 <b>Обращение #{ticket_id} закрыто.</b>\nИстория переписки доступна в Mini app.", "💌 <b>Ticket #{ticket_id} is closed.</b>\nThe conversation remains available in the Mini App.", "💌 <b>درخواست #{ticket_id} بسته شد.</b>\nتاریخچه گفت‌وگو در Mini App در دسترس است.")
+	content.Support.OpenButton.Text = localized(content.Support.OpenButton.Text, "Открыть Mini app", "Open Mini App", "باز کردن Mini App")
+	return content
+}
+
+func LocalizeMaintenanceDefaults(settings MaintenanceSettings, language string) MaintenanceSettings {
+	language = normalizeRuntimeLanguage(language)
+	localized := func(current, ru, en, fa string) string {
+		current = strings.TrimSpace(current)
+		if current != "" && current != ru && current != en && current != fa {
+			return current
+		}
+		if language == "fa" {
+			return fa
+		}
+		if language == "en" {
+			return en
+		}
+		return ru
+	}
+	settings.TitleRU = localized(settings.TitleRU, "Технические работы", "Maintenance", "تعمیرات فنی")
+	settings.TextRU = localized(settings.TextRU, "Сервис временно недоступен. Попробуйте немного позже.", "The service is temporarily unavailable. Please try again later.", "سرویس موقتاً در دسترس نیست. کمی بعد دوباره تلاش کنید.")
+	settings.ReasonRU = localized(settings.ReasonRU, "Плановые работы", "Scheduled maintenance", "تعمیرات برنامه‌ریزی‌شده")
+	return settings
 }
 
 func premiumPaymentNotificationTemplate() string {
@@ -616,6 +716,14 @@ func (s *Service) Snapshot() Settings {
 	return cloneSettings(current)
 }
 
+func (s *Service) Language() string {
+	return s.Snapshot().Localization.Language
+}
+
+func (s *Service) FontFamily() string {
+	return s.Snapshot().Localization.FontFamily
+}
+
 func (s *Service) Update(ctx context.Context, next Settings, updatedBy int64) (Settings, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -653,9 +761,12 @@ func (s *Service) GraceSettings() GraceSettings {
 }
 
 func (s *Service) StartText(locale, fallback string) string {
+	locale = s.Language()
 	content := s.Snapshot().Content
-	if value := strings.TrimSpace(content.StartTextRU); value != "" {
-		return value
+	if locale == "ru" {
+		if value := strings.TrimSpace(content.StartTextRU); value != "" {
+			return value
+		}
 	}
 	return fallback
 }
@@ -669,7 +780,8 @@ func (s *Service) StartImage(fallback string) string {
 
 func (s *Service) ContentText(locale, key, fallback string) string {
 	settings := s.Snapshot()
-	if values := settings.Content.Copy["ru"]; values != nil {
+	locale = settings.Localization.Language
+	if values := settings.Content.Copy[locale]; values != nil {
 		if value := strings.TrimSpace(values[key]); value != "" {
 			return value
 		}
@@ -738,6 +850,11 @@ func NormalizeAndValidate(settings *Settings) error {
 		}
 	}
 
+	if err := validateLocalization(&settings.Localization, defaults.Localization); err != nil {
+		return err
+	}
+	settings.Content = LocalizeTelegramDefaults(settings.Content, settings.Localization.Language)
+	settings.Maintenance = LocalizeMaintenanceDefaults(settings.Maintenance, settings.Localization.Language)
 	normalizeMaintenance(&settings.Maintenance, defaults.Maintenance)
 	if err := validateContent(&settings.Content, defaults.Content, previousVersion < CurrentVersion); err != nil {
 		return err
@@ -768,6 +885,29 @@ func NormalizeAndValidate(settings *Settings) error {
 		return err
 	}
 	return nil
+}
+
+func validateLocalization(value *LocalizationSettings, defaults LocalizationSettings) error {
+	value.Language = strings.ToLower(strings.TrimSpace(value.Language))
+	if value.Language == "" {
+		value.Language = defaults.Language
+	}
+	switch value.Language {
+	case "ru", "en", "fa":
+	default:
+		return errors.New("language must be one of: ru, en, fa")
+	}
+
+	value.FontFamily = strings.ToLower(strings.TrimSpace(value.FontFamily))
+	if value.FontFamily == "" {
+		value.FontFamily = defaults.FontFamily
+	}
+	switch value.FontFamily {
+	case "auto", "montserrat", "vazir":
+		return nil
+	default:
+		return errors.New("font family must be one of: auto, montserrat, vazir")
+	}
 }
 
 func ensureCustomProfileLayout(layout *LayoutSettings, links []CustomLink) {
@@ -1385,6 +1525,7 @@ func validatePlans(value *[]PlanSettings, defaults []PlanSettings) error {
 		}
 		item.TitleRU = limit(strings.TrimSpace(item.TitleRU), 80)
 		item.TitleEN = limit(strings.TrimSpace(item.TitleEN), 80)
+		item.TitleFA = limit(strings.TrimSpace(item.TitleFA), 80)
 		if item.TitleRU == "" {
 			item.TitleRU = fallback.TitleRU
 			if item.TitleRU == "" && item.Months > 0 {
@@ -1395,6 +1536,12 @@ func validatePlans(value *[]PlanSettings, defaults []PlanSettings) error {
 			item.TitleEN = fallback.TitleEN
 			if item.TitleEN == "" && item.Months > 0 {
 				item.TitleEN = planTitleEN(item.Months)
+			}
+		}
+		if item.TitleFA == "" {
+			item.TitleFA = fallback.TitleFA
+			if item.TitleFA == "" && item.Months > 0 {
+				item.TitleFA = planTitleFA(item.Months)
 			}
 		}
 		var err error
@@ -1571,6 +1718,10 @@ func planTitleEN(months int) string {
 		ending = "month"
 	}
 	return fmt.Sprintf("%d %s", months, ending)
+}
+
+func planTitleFA(months int) string {
+	return fmt.Sprintf("%d ماه", months)
 }
 
 func cloneSettings(value Settings) Settings {

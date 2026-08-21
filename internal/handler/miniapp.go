@@ -85,7 +85,8 @@ func (h Handler) telegramStartMenuSettings() runtimeconfig.TelegramStartMenuSett
 	if h.runtimeSettings == nil {
 		return runtimeconfig.DefaultSettings().Content.StartMenu
 	}
-	return h.runtimeSettings.Snapshot().Content.StartMenu
+	settings := h.runtimeSettings.Snapshot()
+	return runtimeconfig.LocalizeTelegramDefaults(settings.Content, settings.Localization.Language).StartMenu
 }
 
 func (h Handler) miniAppTariffsButtonText(lang string) string {

@@ -22,6 +22,7 @@ type config struct {
 	remnawaveUrl, remnawaveToken, remnawaveMode, remnawaveTag string
 	googleClientID                                            string
 	defaultLanguage                                           string
+	defaultFont                                               string
 	databaseURL                                               string
 	cryptoPayURL, cryptoPayToken, cryptoPayAcceptedAssets     string
 	botURL                                                    string
@@ -94,6 +95,9 @@ func TrialRemnawaveTag() string {
 
 func DefaultLanguage() string {
 	return conf.defaultLanguage
+}
+func DefaultFont() string {
+	return conf.defaultFont
 }
 func GoogleClientID() string {
 	return conf.googleClientID
@@ -559,7 +563,8 @@ func InitConfig() {
 	conf.trialTrafficLimitResetStrategy = envStringDefault("TRIAL_TRAFFIC_LIMIT_RESET_STRATEGY", "MONTH")
 	conf.trafficLimitResetStrategy = envStringDefault("TRAFFIC_LIMIT_RESET_STRATEGY", "MONTH")
 
-	conf.defaultLanguage = envStringDefault("DEFAULT_LANGUAGE", "ru")
+	conf.defaultLanguage = normalizeLanguage(envStringDefault("DEFAULT_LANGUAGE", "ru"))
+	conf.defaultFont = normalizeFont(envStringDefault("DEFAULT_FONT", "auto"))
 	conf.googleClientID = envStringDefault("GOOGLE_CLIENT_ID", "")
 
 	conf.daysInMonth = envIntDefault("DAYS_IN_MONTH", 30)
@@ -767,6 +772,34 @@ func InitConfig() {
 		conf.moynalogURL = envStringDefault("MOYNALOG_URL", "https://moynalog.ru/api/v1")
 		conf.moynalogUsername = mustEnv("MOYNALOG_USERNAME")
 		conf.moynalogPassword = mustEnv("MOYNALOG_PASSWORD")
+	}
+}
+
+func normalizeLanguage(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	switch {
+	case strings.HasPrefix(value, "fa"), strings.HasPrefix(value, "persian"), strings.HasPrefix(value, "farsi"):
+		return "fa"
+	case strings.HasPrefix(value, "en"):
+		return "en"
+	case strings.HasPrefix(value, "ru"):
+		return "ru"
+	default:
+		panic("DEFAULT_LANGUAGE must be one of: ru, en, fa")
+	}
+}
+
+func normalizeFont(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	switch value {
+	case "", "auto":
+		return "auto"
+	case "montserrat":
+		return "montserrat"
+	case "vazir":
+		return "vazir"
+	default:
+		panic("DEFAULT_FONT must be one of: auto, montserrat, vazir")
 	}
 }
 

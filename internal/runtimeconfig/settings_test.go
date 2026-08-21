@@ -46,6 +46,27 @@ func TestDefaultSettingsStartsWithoutPlans(t *testing.T) {
 	}
 }
 
+func TestLocalizeTelegramDefaultsTranslatesBundledTextAndPreservesCustomText(t *testing.T) {
+	content := DefaultSettings().Content
+	content.StartMenu.SupportButton.Text = "My custom support button"
+
+	localized := LocalizeTelegramDefaults(content, "fa")
+	if localized.StartMenu.PlansButton.Text != "تعرفه‌ها" {
+		t.Fatalf("Persian plans button = %q", localized.StartMenu.PlansButton.Text)
+	}
+	if localized.Commerce.PayButton.Text != "پرداخت" {
+		t.Fatalf("Persian pay button = %q", localized.Commerce.PayButton.Text)
+	}
+	if localized.StartMenu.SupportButton.Text != "My custom support button" {
+		t.Fatalf("custom button was overwritten: %q", localized.StartMenu.SupportButton.Text)
+	}
+
+	english := LocalizeTelegramDefaults(localized, "en")
+	if english.StartMenu.PlansButton.Text != "Plans" || english.Commerce.PayButton.Text != "Pay" {
+		t.Fatalf("English defaults were not restored: %+v", english.StartMenu)
+	}
+}
+
 func TestNormalizeAndValidateMigratesPaymentNotificationDefaults(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Version = CurrentVersion - 1

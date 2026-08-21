@@ -291,7 +291,8 @@ func (h Handler) telegramVerificationSettings() runtimeconfig.TelegramVerificati
 	if h.runtimeSettings == nil {
 		return runtimeconfig.DefaultSettings().Content.Verification
 	}
-	return h.runtimeSettings.Snapshot().Content.Verification
+	settings := h.runtimeSettings.Snapshot()
+	return runtimeconfig.LocalizeTelegramDefaults(settings.Content, settings.Localization.Language).Verification
 }
 
 func (h Handler) answerRequiredChannelSubscriptionCallback(ctx context.Context, b *bot.Bot, callback *models.CallbackQuery, langCode string, key string) {

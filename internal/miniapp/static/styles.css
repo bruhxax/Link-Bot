@@ -7,6 +7,22 @@
   unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
 }
 
+@font-face {
+  font-family: "Vazir";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("https://cdn.jsdelivr.net/gh/persian-computing/vazir-font@44b82b3c3fecf487514ff73d9272bceb9bda0d74/dist/Vazir.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Vazir";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("https://cdn.jsdelivr.net/gh/persian-computing/vazir-font@44b82b3c3fecf487514ff73d9272bceb9bda0d74/dist/Vazir-Bold.woff2") format("woff2");
+}
+
 /* Device pack purchase and editor */
 .device-pack-trigger-row {
   width: 100%;
@@ -898,6 +914,38 @@ body {
   -moz-osx-font-smoothing: grayscale;
   touch-action: pan-y;
 }
+
+html[data-font="vazir"] body,
+html[data-font="vazir"] button,
+html[data-font="vazir"] input,
+html[data-font="vazir"] select,
+html[data-font="vazir"] textarea {
+  font-family: "Vazir", Tahoma, sans-serif;
+}
+
+html[dir="rtl"] body { direction: rtl; }
+html[dir="rtl"] :where(
+  .menu-row__copy,
+  .pay-row__copy,
+  .admin-field,
+  .admin-integration__summary,
+  .support-ticket,
+  .subscription-switcher__item-copy,
+  .pricing-card__copy,
+  .login-method-card,
+  .device-row__copy,
+  .checkout-summary
+) { text-align: right; }
+html[dir="rtl"] :where(input[type="url"], input[type="email"], code, .admin-field__code) {
+  direction: ltr;
+  text-align: left;
+}
+html[dir="rtl"] :where(.header__btn, .menu-row__tail, .subscription-switcher__chevron) svg { transform: scaleX(-1); }
+
+.admin-localization { display: grid; gap: 14px; }
+.admin-localization__hint,
+.admin-localization__font-hint { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.admin-localization__font-hint { padding-top: 10px; border-top: 1px solid var(--line-soft); }
 
 html,
 body,

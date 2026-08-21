@@ -392,7 +392,8 @@ func (h Handler) telegramCommerceSettings() runtimeconfig.TelegramCommerceSettin
 	if h.runtimeSettings == nil {
 		return runtimeconfig.DefaultSettings().Content.Commerce
 	}
-	return h.runtimeSettings.Snapshot().Content.Commerce
+	settings := h.runtimeSettings.Snapshot()
+	return runtimeconfig.LocalizeTelegramDefaults(settings.Content, settings.Localization.Language).Commerce
 }
 
 func (h Handler) sendScreenPhotoReplacing(

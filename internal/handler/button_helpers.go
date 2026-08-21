@@ -16,9 +16,10 @@ const (
 func (h Handler) premiumBackButton(callbackData string) models.InlineKeyboardButton {
 	settings := runtimeconfig.TelegramButtonSettings{Text: "Назад", IconCustomEmojiID: botBackEmojiID}
 	if h.runtimeSettings != nil {
-		settings = h.runtimeSettings.Snapshot().Content.Commerce.BackButton
+		runtime := h.runtimeSettings.Snapshot()
+		settings = runtimeconfig.LocalizeTelegramDefaults(runtime.Content, runtime.Localization.Language).Commerce.BackButton
 	}
-	button := telegramButton(settings, "Назад", botBackEmojiID)
+	button := telegramButton(settings, settings.Text, botBackEmojiID)
 	button.CallbackData = callbackData
 	return button
 }
@@ -26,9 +27,10 @@ func (h Handler) premiumBackButton(callbackData string) models.InlineKeyboardBut
 func (h Handler) premiumPayURLButton(url string) models.InlineKeyboardButton {
 	settings := runtimeconfig.TelegramButtonSettings{Text: "Оплатить", IconCustomEmojiID: botPayEmojiID}
 	if h.runtimeSettings != nil {
-		settings = h.runtimeSettings.Snapshot().Content.Commerce.PayButton
+		runtime := h.runtimeSettings.Snapshot()
+		settings = runtimeconfig.LocalizeTelegramDefaults(runtime.Content, runtime.Localization.Language).Commerce.PayButton
 	}
-	button := telegramButton(settings, "Оплатить", botPayEmojiID)
+	button := telegramButton(settings, settings.Text, botPayEmojiID)
 	button.URL = url
 	return button
 }

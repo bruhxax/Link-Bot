@@ -53,9 +53,13 @@ func (s *Service) CheckoutPlan(planID string, months int) (planbook.CheckoutPlan
 }
 
 func (s *Service) PlanTitle(planID, locale string) string {
+	locale = s.Language()
 	for _, item := range s.Snapshot().Plans {
 		if item.ID != planID {
 			continue
+		}
+		if strings.HasPrefix(strings.ToLower(locale), "fa") {
+			return item.TitleFA
 		}
 		if strings.HasPrefix(strings.ToLower(locale), "en") {
 			return item.TitleEN

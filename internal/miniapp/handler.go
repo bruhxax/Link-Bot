@@ -38,6 +38,7 @@ import (
 	planbook "link-bot/internal/plans"
 	"link-bot/internal/remnawave"
 	"link-bot/internal/runtimeconfig"
+	"link-bot/internal/translation"
 	"link-bot/utils"
 )
 
@@ -69,6 +70,7 @@ type Handler struct {
 	broadcastService       *broadcast.Service
 	subscriptionService    *notification.SubscriptionService
 	integrationSettings    *integrations.Service
+	translation            *translation.Manager
 }
 
 func lockPromoPurchase(code string) func() {
@@ -503,6 +505,7 @@ func NewHandler(
 	errorReporter *operations.Reporter,
 	integrationSettings *integrations.Service,
 	subscriptionRepository *database.SubscriptionRepository,
+	translationManager *translation.Manager,
 ) *Handler {
 	staticFS, err := fs.Sub(embeddedStatic, "static")
 	if err != nil {
@@ -533,6 +536,7 @@ func NewHandler(
 		runtimeSettings:        runtimeSettings,
 		errorReporter:          errorReporter,
 		integrationSettings:    integrationSettings,
+		translation:            translationManager,
 	}
 }
 
@@ -739,7 +743,7 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 			return
 		}
 		if h.runtimeSettings != nil {
-			maintenance := h.runtimeSettings.Maintenance()
+			maintenance := runtimeconfig.LocalizeMaintenanceDefaults(h.runtimeSettings.Maintenance(), h.runtimeSettings.Language())
 			if maintenance.Enabled && !h.isAdmin(sess.User.ID) {
 				h.writeErrorWithMeta(w, http.StatusServiceUnavailable, "maintenance", "Service is under maintenance", maintenance)
 				return
@@ -845,7 +849,7 @@ func (h *Handler) sessionFromGoogleLogin(ctx context.Context, idToken string) (*
 			ID:           customer.TelegramID,
 			FirstName:    identity.Name,
 			PhotoURL:     identity.Picture,
-			LanguageCode: customer.Language,
+			LanguageCode: h.language(),
 		},
 		GoogleSubject:       identity.Subject,
 		GoogleEmail:         identity.Email,
@@ -1969,12 +1973,45 @@ func (h *Handler) handleAdminSettingsUpdate(w http.ResponseWriter, r *http.Reque
 		h.writeError(w, http.StatusBadRequest, "invalid_settings", err.Error())
 		return
 	}
+	if h.translation != nil {
+		h.translation.SetActiveLanguage(settings.Localization.Language)
+		h.applyTelegramLocalization(r.Context())
+	}
 
 	h.writeJSON(w, http.StatusOK, map[string]any{
 		"ok":      true,
 		"message": "settings_updated",
 		"data":    settings,
 	})
+}
+
+func (h *Handler) applyTelegramLocalization(ctx context.Context) {
+	if h.telegramBot == nil || h.translation == nil {
+		return
+	}
+	startDescription, connectDescription := translation.CommandDescriptions(h.translation.ActiveLanguage())
+	commands := []models.BotCommand{
+		{Command: "start", Description: startDescription},
+		{Command: "connect", Description: connectDescription},
+	}
+	for _, languageCode := range []string{"", "ru", "en", "fa"} {
+		if _, err := h.telegramBot.SetMyCommands(ctx, &bot.SetMyCommandsParams{Commands: commands, LanguageCode: languageCode}); err != nil {
+			slog.Warn("mini app: update localized bot commands failed", "languageCode", languageCode, "error", err)
+		}
+	}
+	if config.GetMiniAppURL() == "" {
+		return
+	}
+	_, err := h.telegramBot.SetChatMenuButton(ctx, &bot.SetChatMenuButtonParams{
+		MenuButton: &models.MenuButtonWebApp{
+			Type:   models.MenuButtonTypeWebApp,
+			Text:   h.translation.GetText(h.translation.ActiveLanguage(), "web_app_button_text"),
+			WebApp: models.WebAppInfo{URL: config.GetMiniAppURL()},
+		},
+	})
+	if err != nil {
+		slog.Warn("mini app: update localized menu button failed", "error", err)
+	}
 }
 
 func (h *Handler) handleAdminIntegrationUpdate(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
@@ -3096,9 +3133,12 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 	subscriptionData := h.buildSubscriptionPayload(viewCustomer, highestPurchase, panelState)
 	if shouldLabelSubscriptionAsBonus(subscriptionData, highestPurchase, reviewsData.MyReview) {
 		subscriptionData.IsTrial = false
-		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(customer.Language)), "en") {
+		switch settings.Localization.Language {
+		case "fa":
+			subscriptionData.PlanLabel = "هدیه"
+		case "en":
 			subscriptionData.PlanLabel = "Bonus"
-		} else {
+		default:
 			subscriptionData.PlanLabel = "Бонус"
 		}
 	}
@@ -3119,7 +3159,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 				return strings.TrimSpace(panelState.PanelUsername)
 			}(),
 			PhotoURL:       sess.User.PhotoURL,
-			LanguageCode:   customer.Language,
+			LanguageCode:   settings.Localization.Language,
 			AuthProvider:   fallbackText(sess.Provider, sessionProviderTelegram),
 			GoogleEmail:    customerGoogleEmail(customer),
 			GoogleLinked:   customerGoogleSubject(customer) != "",
@@ -3254,10 +3294,7 @@ func (h *Handler) syncSubscriptionTrafficLimit(ctx context.Context, customer *da
 
 func (h *Handler) buildSubscriptionPayload(customer *database.Customer, highestPurchase *database.Purchase, panelState *remnawave.UserState) subscriptionPayload {
 	payload := subscriptionPayload{Status: "inactive", Devices: []devicePayload{}}
-	language := ""
-	if customer != nil {
-		language = customer.Language
-	}
+	language := h.language()
 	resolvedPlanMonths := h.resolveSubscriptionPlanMonths(highestPurchase, panelState)
 
 	if panelState != nil {
@@ -3618,6 +3655,7 @@ func (h *Handler) buildPaymentsPayload(ctx context.Context, customer *database.C
 	if customer == nil {
 		return result, nil
 	}
+	language := h.language()
 
 	realPaymentMethod := customer.YookasaPaymentMethodID != nil && *customer.YookasaPaymentMethodID != uuid.Nil
 	result.HasPaymentMethod = realPaymentMethod
@@ -3637,10 +3675,10 @@ func (h *Handler) buildPaymentsPayload(ctx context.Context, customer *database.C
 	if realPaymentMethod {
 		methodTitle := strings.TrimSpace(valueOrEmpty(customer.YookasaPaymentMethodTitle))
 		if methodTitle == "" && latestYookasaPurchase != nil {
-			methodTitle = paymentMethodTitleForPurchase(latestYookasaPurchase, customer.Language)
+			methodTitle = paymentMethodTitleForPurchase(latestYookasaPurchase, language)
 		}
 		if methodTitle == "" {
-			methodTitle = paymentMethodFallbackTitle(database.InvoiceTypeYookasa, customer.Language)
+			methodTitle = paymentMethodFallbackTitle(database.InvoiceTypeYookasa, language)
 		}
 
 		result.Method = &savedPaymentMethodPayload{
@@ -3651,7 +3689,7 @@ func (h *Handler) buildPaymentsPayload(ctx context.Context, customer *database.C
 	} else if config.PaymentMethodDemoEnabled() {
 		methodTitle := strings.TrimSpace(config.PaymentMethodDemoTitle())
 		if methodTitle == "" {
-			methodTitle = paymentMethodFallbackTitle(database.InvoiceTypeYookasa, customer.Language)
+			methodTitle = paymentMethodFallbackTitle(database.InvoiceTypeYookasa, language)
 		}
 		result.HasPaymentMethod = true
 		result.Method = &savedPaymentMethodPayload{
@@ -3671,12 +3709,12 @@ func (h *Handler) buildPaymentsPayload(ctx context.Context, customer *database.C
 		history = append(history, paymentHistoryPayload{
 			ID:                 purchase.ID,
 			Months:             purchase.Month,
-			PlanLabel:          planLabelForPurchase(&purchase, purchase.Month, customer.Language),
+			PlanLabel:          planLabelForPurchase(&purchase, purchase.Month, language),
 			Amount:             purchase.Amount,
 			Currency:           strings.TrimSpace(purchase.Currency),
 			Status:             string(purchase.Status),
 			InvoiceType:        string(purchase.InvoiceType),
-			PaymentMethodTitle: paymentMethodTitleForPurchase(&purchase, customer.Language),
+			PaymentMethodTitle: paymentMethodTitleForPurchase(&purchase, language),
 			IsAutoPayment:      purchase.IsAutoPayment,
 			CreatedAt:          formatOptionalTime(purchase.CreatedAt),
 			PaidAt:             formatOptionalTime(timeOrNil(purchase.PaidAt)),
@@ -4673,7 +4711,8 @@ func (h *Handler) supportNotificationSettings() runtimeconfig.TelegramSupportSet
 	if h.runtimeSettings == nil {
 		return runtimeconfig.DefaultSettings().Content.Support
 	}
-	return h.runtimeSettings.Snapshot().Content.Support
+	settings := h.runtimeSettings.Snapshot()
+	return runtimeconfig.LocalizeTelegramDefaults(settings.Content, settings.Localization.Language).Support
 }
 
 func renderSupportNotification(template string, ticket *database.SupportTicket, message string) string {
@@ -4761,7 +4800,7 @@ func maxInt64(value, fallback int64) int64 {
 }
 
 func (h *Handler) ensureCustomer(ctx context.Context, sess *session) (*database.Customer, error) {
-	langCode := strings.TrimSpace(sess.User.LanguageCode)
+	langCode := h.language()
 
 	customer, err := h.customerRepository.FindByTelegramId(ctx, sess.User.ID)
 	if err != nil {
@@ -4786,13 +4825,6 @@ func (h *Handler) ensureCustomer(ctx context.Context, sess *session) (*database.
 
 		return customer, nil
 	}
-	if langCode == "" {
-		langCode = customer.Language
-	}
-	if langCode == "" {
-		langCode = config.DefaultLanguage()
-	}
-
 	if customer.Language != langCode {
 		if err := h.customerRepository.UpdateFields(ctx, customer.ID, map[string]any{
 			"language": langCode,
@@ -4917,6 +4949,13 @@ func (h *Handler) runtimeFeatureEnabled(name string) bool {
 		return true
 	}
 	return h.runtimeSettings.FeatureEnabled(name)
+}
+
+func (h *Handler) language() string {
+	if h.runtimeSettings == nil {
+		return config.DefaultLanguage()
+	}
+	return h.runtimeSettings.Language()
 }
 
 func (h *Handler) runtimeLink(name, fallback string) string {
