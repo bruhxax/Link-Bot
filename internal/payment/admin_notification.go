@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -37,6 +39,30 @@ type telegramInlineKeyboardButton struct {
 	Style             string `json:"style,omitempty"`
 }
 
+type telegramAPIResponse struct {
+	OK          bool   `json:"ok"`
+	ErrorCode   int    `json:"error_code,omitempty"`
+	Description string `json:"description,omitempty"`
+	Parameters  struct {
+		RetryAfter int `json:"retry_after,omitempty"`
+	} `json:"parameters,omitempty"`
+}
+
+type telegramAPIError struct {
+	StatusCode  int
+	ErrorCode   int
+	Description string
+	RetryAfter  time.Duration
+}
+
+func (e *telegramAPIError) Error() string {
+	description := strings.TrimSpace(e.Description)
+	if description == "" {
+		description = "unknown Telegram API error"
+	}
+	return fmt.Sprintf("telegram notification bot returned status %d, code %d: %s", e.StatusCode, e.ErrorCode, description)
+}
+
 type PaymentNotificationPreviewOptions struct {
 	Settings   runtimeconfig.TelegramPaymentNotificationSettings
 	TelegramID int64
@@ -51,9 +77,16 @@ func (s PaymentService) notifyAdminAboutPayment(ctx context.Context, purchase *d
 	}
 
 	username := usernameFromContext(ctx)
+	profileUsername := ""
+	if customer != nil && customer.TelegramUsername != nil {
+		profileUsername = strings.TrimSpace(*customer.TelegramUsername)
+		if username == "" {
+			username = profileUsername
+		}
+	}
 	method := s.paymentMethodLabel(purchase)
 
-	notifyCtx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	notifyCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	orderNumber := purchase.ID
@@ -68,13 +101,20 @@ func (s PaymentService) notifyAdminAboutPayment(ctx context.Context, purchase *d
 	settings := s.paymentNotificationSettings()
 	message := buildPaymentNotificationMessageWithTemplate(settings.Text, purchase, username, method, time.Now(), orderNumber, timezone)
 	panelUserID := s.paymentNotificationPanelUserID(notifyCtx, purchase, customer)
-	telegramID := int64(0)
-	if customer != nil {
-		telegramID = customer.TelegramID
-	}
-	keyboard := buildPaymentNotificationKeyboard(settings, panelUserID, telegramID)
+	keyboard := buildPaymentNotificationKeyboard(settings, panelUserID, profileUsername)
 
 	if err := sendTelegramNotification(notifyCtx, token, chatID, message, keyboard); err != nil {
+		if isTelegramButtonUserInvalid(err) && paymentNotificationProfileURL(profileUsername) != "" {
+			fallbackSettings := settings
+			fallbackSettings.ProfileButton.Enabled = false
+			fallbackKeyboard := buildPaymentNotificationKeyboard(fallbackSettings, panelUserID, "")
+			slog.Warn("payment notification profile button rejected; retrying without it", "error", err, "purchase_id", purchase.ID)
+			if fallbackErr := sendTelegramNotification(notifyCtx, token, chatID, message, fallbackKeyboard); fallbackErr == nil {
+				return
+			} else {
+				err = fmt.Errorf("profile button rejected (%v); fallback delivery failed: %w", err, fallbackErr)
+			}
+		}
 		slog.Error("failed to send payment notification", "error", err, "purchase_id", purchase.ID)
 	}
 }
@@ -278,23 +318,47 @@ func (s PaymentService) paymentNotificationConfig() (string, int64, string) {
 	return "", 0, "Europe/Moscow"
 }
 
-func buildPaymentNotificationKeyboard(settings runtimeconfig.TelegramPaymentNotificationSettings, panelUserID, telegramID int64) *telegramInlineKeyboardMarkup {
+func buildPaymentNotificationKeyboard(settings runtimeconfig.TelegramPaymentNotificationSettings, panelUserID int64, profileUsername string) *telegramInlineKeyboardMarkup {
 	rows := make([][]telegramInlineKeyboardButton, 0, 2)
 	if settings.OpenUserButton.Enabled {
 		if panelURL := paymentNotificationPanelURL(panelUserID); panelURL != "" {
 			rows = append(rows, []telegramInlineKeyboardButton{paymentNotificationButton(settings.OpenUserButton.TelegramButtonSettings, panelURL)})
 		}
 	}
-	if settings.ProfileButton.Enabled && telegramID > 0 {
+	if profileURL := paymentNotificationProfileURL(profileUsername); settings.ProfileButton.Enabled && profileURL != "" {
 		rows = append(rows, []telegramInlineKeyboardButton{paymentNotificationButton(
 			settings.ProfileButton.TelegramButtonSettings,
-			fmt.Sprintf("tg://user?id=%d", telegramID),
+			profileURL,
 		)})
 	}
 	if len(rows) == 0 {
 		return nil
 	}
 	return &telegramInlineKeyboardMarkup{InlineKeyboard: rows}
+}
+
+func paymentNotificationProfileURL(username string) string {
+	username = strings.TrimSpace(username)
+	for _, prefix := range []string{"https://t.me/", "http://t.me/", "t.me/", "@"} {
+		if strings.HasPrefix(strings.ToLower(username), prefix) {
+			username = username[len(prefix):]
+			break
+		}
+	}
+	username = strings.TrimSpace(username)
+	if username == "" || len(username) > 64 {
+		return ""
+	}
+	for _, character := range username {
+		if (character >= 'a' && character <= 'z') ||
+			(character >= 'A' && character <= 'Z') ||
+			(character >= '0' && character <= '9') ||
+			character == '_' {
+			continue
+		}
+		return ""
+	}
+	return "https://t.me/" + username
 }
 
 func paymentNotificationButton(settings runtimeconfig.TelegramButtonSettings, targetURL string) telegramInlineKeyboardButton {
@@ -356,7 +420,7 @@ func (s PaymentService) SendPaymentNotificationPreview(ctx context.Context, opti
 		timezone,
 	)
 	panelUserID := s.paymentNotificationPanelUserID(previewCtx, nil, options.Customer)
-	keyboard := buildPaymentNotificationKeyboard(options.Settings, panelUserID, options.TelegramID)
+	keyboard := buildPaymentNotificationKeyboard(options.Settings, panelUserID, username)
 	return sendTelegramNotification(previewCtx, token, chatID, message, keyboard)
 }
 
@@ -369,12 +433,39 @@ func sendTelegramNotification(ctx context.Context, token string, chatID int64, t
 	if len(keyboard) > 0 {
 		request.ReplyMarkup = keyboard[0]
 	}
+	endpoint := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token)
+	return sendTelegramNotificationRequest(ctx, http.DefaultClient, endpoint, request)
+}
+
+func sendTelegramNotificationRequest(ctx context.Context, client *http.Client, endpoint string, request telegramSendMessageRequest) error {
+	if client == nil {
+		client = http.DefaultClient
+	}
 	payload, err := json.Marshal(request)
 	if err != nil {
 		return fmt.Errorf("marshal notification payload: %w", err)
 	}
 
-	endpoint := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token)
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		lastErr = performTelegramNotificationRequest(ctx, client, endpoint, payload)
+		if lastErr == nil || !isRetryableTelegramNotificationError(lastErr) || attempt == 2 {
+			return lastErr
+		}
+		delay := telegramNotificationRetryDelay(attempt, lastErr)
+		slog.Warn("retrying Telegram payment notification", "attempt", attempt+2, "delay", delay, "error", lastErr)
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return lastErr
+}
+
+func performTelegramNotificationRequest(ctx context.Context, client *http.Client, endpoint string, payload []byte) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
 	if err != nil {
 		return fmt.Errorf("create notification request: %w", err)
@@ -386,10 +477,55 @@ func sendTelegramNotification(ctx context.Context, token string, chatID int64, t
 		return fmt.Errorf("send notification request: %w", err)
 	}
 	defer resp.Body.Close()
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, 32*1024))
+	if readErr != nil {
+		return fmt.Errorf("read notification response: %w", readErr)
+	}
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return fmt.Errorf("telegram notification bot returned status %d", resp.StatusCode)
+		apiResponse := telegramAPIResponse{}
+		_ = json.Unmarshal(body, &apiResponse)
+		description := strings.TrimSpace(apiResponse.Description)
+		if description == "" {
+			description = strings.TrimSpace(string(body))
+		}
+		return &telegramAPIError{
+			StatusCode:  resp.StatusCode,
+			ErrorCode:   apiResponse.ErrorCode,
+			Description: description,
+			RetryAfter:  time.Duration(apiResponse.Parameters.RetryAfter) * time.Second,
+		}
 	}
 
 	return nil
+}
+
+func isTelegramButtonUserInvalid(err error) bool {
+	var apiErr *telegramAPIError
+	return errors.As(err, &apiErr) && strings.Contains(strings.ToUpper(apiErr.Description), "BUTTON_USER_INVALID")
+}
+
+func isRetryableTelegramNotificationError(err error) bool {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	var apiErr *telegramAPIError
+	if errors.As(err, &apiErr) {
+		return apiErr.StatusCode == http.StatusTooManyRequests || apiErr.StatusCode >= http.StatusInternalServerError
+	}
+	return true
+}
+
+func telegramNotificationRetryDelay(attempt int, err error) time.Duration {
+	var apiErr *telegramAPIError
+	if errors.As(err, &apiErr) && apiErr.RetryAfter > 0 {
+		if apiErr.RetryAfter > 3*time.Second {
+			return 3 * time.Second
+		}
+		return apiErr.RetryAfter
+	}
+	if attempt <= 0 {
+		return 250 * time.Millisecond
+	}
+	return 750 * time.Millisecond
 }

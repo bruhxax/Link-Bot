@@ -1,6 +1,10 @@
 package payment
 
 import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -118,13 +122,77 @@ func TestBuildPaymentNotificationKeyboardHonorsVisibilityAndProfileTarget(t *tes
 	settings.OpenUserButton.Enabled = false
 	settings.ProfileButton.Style = "success"
 	settings.ProfileButton.IconCustomEmojiID = "5278413853577734640"
-	keyboard := buildPaymentNotificationKeyboard(settings, 0, 123456)
+	keyboard := buildPaymentNotificationKeyboard(settings, 0, "Example_User")
 	if keyboard == nil || len(keyboard.InlineKeyboard) != 1 || len(keyboard.InlineKeyboard[0]) != 1 {
 		t.Fatalf("unexpected payment notification keyboard: %#v", keyboard)
 	}
 	button := keyboard.InlineKeyboard[0][0]
-	if button.URL != "tg://user?id=123456" || button.Style != "success" || button.IconCustomEmojiID != "5278413853577734640" {
+	if button.URL != "https://t.me/Example_User" || button.Style != "success" || button.IconCustomEmojiID != "5278413853577734640" {
 		t.Fatalf("unexpected profile button: %#v", button)
+	}
+}
+
+func TestBuildPaymentNotificationKeyboardOmitsProfileWithoutValidUsername(t *testing.T) {
+	settings := runtimeconfig.DefaultSettings().Content.PaymentNotification
+	settings.OpenUserButton.Enabled = false
+	for _, username := range []string{"", "@", "invalid username", "https://example.com/user"} {
+		if keyboard := buildPaymentNotificationKeyboard(settings, 0, username); keyboard != nil {
+			t.Fatalf("profile button must be omitted for %q: %#v", username, keyboard)
+		}
+	}
+}
+
+func TestPaymentNotificationProfileURLNormalizesTelegramUsername(t *testing.T) {
+	for input, expected := range map[string]string{
+		"@Example_User":              "https://t.me/Example_User",
+		"https://t.me/Example_User": "https://t.me/Example_User",
+		"t.me/example123":            "https://t.me/example123",
+	} {
+		if actual := paymentNotificationProfileURL(input); actual != expected {
+			t.Fatalf("paymentNotificationProfileURL(%q) = %q, want %q", input, actual, expected)
+		}
+	}
+}
+
+func TestSendTelegramNotificationIncludesAPIErrorDescription(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/json")
+		response.WriteHeader(http.StatusBadRequest)
+		_, _ = response.Write([]byte(`{"ok":false,"error_code":400,"description":"Bad Request: BUTTON_USER_INVALID"}`))
+	}))
+	defer server.Close()
+
+	err := sendTelegramNotificationRequest(context.Background(), server.Client(), server.URL, telegramSendMessageRequest{ChatID: 1, Text: "test"})
+	var apiErr *telegramAPIError
+	if !errors.As(err, &apiErr) || apiErr.ErrorCode != 400 || !strings.Contains(err.Error(), "BUTTON_USER_INVALID") {
+		t.Fatalf("unexpected Telegram API error: %v", err)
+	}
+	if !isTelegramButtonUserInvalid(err) {
+		t.Fatalf("BUTTON_USER_INVALID must be recognized: %v", err)
+	}
+}
+
+func TestSendTelegramNotificationRetriesServerErrors(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		attempts++
+		response.Header().Set("Content-Type", "application/json")
+		if attempts < 3 {
+			response.WriteHeader(http.StatusBadGateway)
+			_, _ = response.Write([]byte(`{"ok":false,"error_code":502,"description":"Bad Gateway"}`))
+			return
+		}
+		_, _ = response.Write([]byte(`{"ok":true,"result":{}}`))
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := sendTelegramNotificationRequest(ctx, server.Client(), server.URL, telegramSendMessageRequest{ChatID: 1, Text: "test"}); err != nil {
+		t.Fatalf("retry delivery failed: %v", err)
+	}
+	if attempts != 3 {
+		t.Fatalf("attempts = %d, want 3", attempts)
 	}
 }
 
