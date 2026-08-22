@@ -1744,9 +1744,11 @@ img { display: block; max-width: 100%; }
   padding: 7px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: var(--surface-strong);
+  background: color-mix(in srgb, var(--bg) 76%, transparent);
   color: var(--text);
   box-shadow: var(--glass-shadow), 0 18px 42px color-mix(in srgb, var(--bg) 54%, transparent);
+  backdrop-filter: blur(16px) saturate(1.08);
+  -webkit-backdrop-filter: blur(16px) saturate(1.08);
   transform-origin: 50% 0;
 }
 
