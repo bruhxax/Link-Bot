@@ -5836,7 +5836,7 @@ function bindRootActions() {
 		if (value === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 		return;
 	  }
-      if (action === "close-admin-section") { state.adminSection = "home"; state.adminBroadcastConfirmOpen = false; haptic("light"); renderAdminTransition(); return; }
+	  if (action === "close-admin-section") return closeAdminSection();
 			if (action === "admin-layout-exit") return exitAdminLayoutEditor();
 			if (action === "admin-plan-exit") return exitAdminPlanEditor();
 			if (action === "open-device-packs") { state.devicePackModalOpen = true; render({ preserveScroll: true }); return; }
@@ -9038,6 +9038,14 @@ function renderAdminTransition({ preserveScroll = false, scrollTop = 0 } = {}) {
 	render({ preserveScroll, scrollTop });
 }
 
+function closeAdminSection() {
+	if (state.adminSection === "home") return;
+	state.adminSection = "home";
+	state.adminBroadcastConfirmOpen = false;
+	haptic("light");
+	renderAdminTransition();
+}
+
 function setPage(page) {
   const nextPage = normalizePage(page);
 	if (state.adminPlanEditing) {
@@ -9059,6 +9067,7 @@ function setPage(page) {
 	}
   const samePage = nextPage === state.currentPage;
   rememberCurrentScroll();
+	if (samePage && nextPage === "admin" && state.adminSection !== "home") return closeAdminSection();
 	if (samePage && !state.sidebarOpen && !state.payModalOpen && !state.paymentLaunchModalOpen && !state.devicesModalOpen && !state.reviewComposeOpen && !state.reviewDetailOpen && !state.notificationPopoverOpen && !state.notificationPopoverClosing) return;
   state.animatePageEntry = !samePage;
   state.currentPage = nextPage;
