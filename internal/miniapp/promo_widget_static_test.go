@@ -28,6 +28,20 @@ func TestPromoWidgetWiresEditorValidationAndCheckout(t *testing.T) {
 	}
 }
 
+func TestRuntimeLayoutUsesBlockNamesInsteadOfEntryIndexes(t *testing.T) {
+	appJS, err := os.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	content := string(appJS)
+	if !strings.Contains(content, `for (const [order, id] of Object.keys(blocks).entries())`) {
+		t.Fatal("runtime layout does not map block entry indexes to block IDs")
+	}
+	if strings.Contains(content, `for (const [id, order] of Object.keys(blocks).entries())`) {
+		t.Fatal("runtime layout still treats entry indexes as block IDs")
+	}
+}
+
 func TestPromoWidgetUsesThemeAwareSVGAndAccessibleControls(t *testing.T) {
 	styles, err := os.ReadFile("static/styles.css")
 	if err != nil {

@@ -1954,7 +1954,7 @@ function layoutEditableData(area, id) {
 function renderRuntimeLayoutArea(area, blocks, className = "") {
 	let entries = getLayoutElements(area).filter((item) => Object.prototype.hasOwnProperty.call(blocks, item.id));
 	const present = new Set(entries.map((item) => item.id));
-	for (const [id, order] of Object.keys(blocks).entries()) {
+	for (const [order, id] of Object.keys(blocks).entries()) {
 		if (present.has(id) || getLayoutElement(area, id)?.visible === false) continue;
 		const fallback = ADMIN_LAYOUT_DEFAULTS.find((item) => item.area === area && item.id === id);
 		entries.push(fallback ? deepClone(fallback) : { id, area, order, visible: true, width: 100, height: 52, framed: false, align: "left", offsetX: 0, offsetY: 0 });
