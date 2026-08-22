@@ -1375,6 +1375,7 @@ const PROFILE_DEFAULT_GROUPS = {
 };
 
 const ADMIN_LAYOUT_META = {
+	"dashboard:promo_widget": ["Промокод", "gift"],
 	"buy:plans": ["\u0422\u0430\u0440\u0438\u0444\u044b", "cartShopping"],
 	"buy:checkout": ["\u041e\u043f\u043b\u0430\u0442\u0430", "wallet"],
 	"support:actions": ["\u0411\u044b\u0441\u0442\u0440\u044b\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044f", "plus"],
@@ -1426,6 +1427,7 @@ const ADMIN_LAYOUT_DEFAULTS = [
 	...["main", "purchases", "programs", "help", "account"].map((id, order) => ["profile", `group_${id}`, 20 + order, 100, 28, false, "left"]),
 	...["dashboard", "buy", "support", "settings", "admin"].map((id, order) => ["navigation", id, order, 44, 38, true, "center"]),
 ].map(([area, id, order, width, height, framed, align, group]) => ({ area, id, order, visible: true, width, height, framed, align, offsetX: 0, offsetY: 0, ...(group ? { group } : {}) }));
+ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "promo_widget", order: 18, visible: false, width: 42, height: 92, framed: false, align: "center", offsetX: 0, offsetY: 0, promoCode: "" });
 
 const ADMIN_APPEARANCE_PRESETS = [
 	{
@@ -1746,6 +1748,10 @@ const state = {
 	adminProfileEditorModalOpen: false,
 	adminProfileEditingID: "",
 	adminProfileFormDraft: null,
+	adminPromoWidgetEditorOpen: false,
+	adminPromoWidgetCodeDraft: "",
+	adminPromoWidgetValidation: null,
+	adminPromoWidgetBusy: "",
 	activeCustomPageID: "",
   adminPromoCodeDraft: "",
   adminPromoDiscountDraft: "",
@@ -1905,9 +1911,14 @@ function getLayoutElementIndex(area, id) {
 	return state.adminSettingsDraft?.layout?.elements?.findIndex((item) => item?.area === area && item?.id === id) ?? -1;
 }
 
-function renderLayoutEditHandles() {
+function renderLayoutEditHandles(area = "", id = "") {
 	if (!state.adminLayoutEditing) return "";
-	return `<span class="layout-editable__move" aria-hidden="true">${icon("move")}</span><span class="layout-editable__resize" data-ui-resize-handle aria-hidden="true">${icon("resize")}</span>`;
+	const moveLabel = localizedText("Переместить элемент", "Move element", "جابجایی عنصر");
+	const resizeLabel = localizedText("Изменить размер", "Resize element", "تغییر اندازه عنصر");
+	const edit = area === "dashboard" && id === "promo_widget"
+		? `<button class="layout-editable__edit" type="button" data-action="admin-edit-promo-widget" aria-label="${escapeAttribute(localizedText("Изменить промокод", "Edit promo code", "ویرایش کد تخفیف"))}" title="${escapeAttribute(localizedText("Изменить промокод", "Edit promo code", "ویرایش کد تخفیف"))}">${icon("pencil")}</button>`
+		: "";
+	return `<button class="layout-editable__move" type="button" data-ui-move-handle aria-label="${escapeAttribute(moveLabel)}" title="${escapeAttribute(moveLabel)}">${icon("move")}</button>${edit}<button class="layout-editable__resize" type="button" data-ui-resize-handle aria-label="${escapeAttribute(resizeLabel)}" title="${escapeAttribute(resizeLabel)}">${icon("resize")}</button>`;
 }
 
 function renderLayoutDetail(area, id, content, className = "") {
@@ -1919,7 +1930,7 @@ function renderLayoutDetail(area, id, content, className = "") {
 	const editable = state.adminLayoutEditing && area === "dashboard" && index >= 0;
 	const selected = editable && state.adminLayoutSelection === `${area}:${id}`;
 	const key = escapeAttribute(`${area}:${id}`);
-	return `<div class="runtime-detail-item ${className} ${editable ? "layout-editable" : ""} ${selected ? "is-selected" : ""}" data-runtime-align="${escapeAttribute(layout.align || "left")}" data-runtime-layout-key="${key}" style="${escapeAttribute(runtimeLayoutStyle(layout, area))}" ${editable ? `data-ui-layout-index="${index}" data-layout-edit-key="${key}" tabindex="0"` : ""}>${content}${renderLayoutEditHandles()}</div>`;
+	return `<div class="runtime-detail-item ${className} ${editable ? "layout-editable" : ""} ${selected ? "is-selected" : ""}" data-runtime-align="${escapeAttribute(layout.align || "left")}" data-runtime-layout-key="${key}" style="${escapeAttribute(runtimeLayoutStyle(layout, area))}" ${editable ? `data-ui-layout-index="${index}" data-layout-edit-key="${key}" tabindex="0"` : ""}>${content}${renderLayoutEditHandles(area, id)}</div>`;
 }
 
 function layoutEditableData(area, id) {
@@ -1936,15 +1947,19 @@ function layoutEditableData(area, id) {
 	return {
 		className: `layout-editable ${state.adminLayoutSelection === `${area}:${id}` ? "is-selected" : ""}`,
 		attributes: `${runtimeAttributes} data-ui-layout-index="${index}" data-layout-edit-key="${key}" tabindex="0"`,
-		handles: renderLayoutEditHandles(),
+		handles: renderLayoutEditHandles(area, id),
 	};
 }
 
 function renderRuntimeLayoutArea(area, blocks, className = "") {
 	let entries = getLayoutElements(area).filter((item) => Object.prototype.hasOwnProperty.call(blocks, item.id));
-	if (!entries.length) {
-		entries = Object.keys(blocks).map((id, order) => ({ id, area, order, visible: true, width: 100, height: 52, framed: false, align: "left", offsetX: 0, offsetY: 0 }));
+	const present = new Set(entries.map((item) => item.id));
+	for (const [id, order] of Object.keys(blocks).entries()) {
+		if (present.has(id) || getLayoutElement(area, id)?.visible === false) continue;
+		const fallback = ADMIN_LAYOUT_DEFAULTS.find((item) => item.area === area && item.id === id);
+		entries.push(fallback ? deepClone(fallback) : { id, area, order, visible: true, width: 100, height: 52, framed: false, align: "left", offsetX: 0, offsetY: 0 });
 	}
+	entries.sort((left, right) => Number(left.order || 0) - Number(right.order || 0));
 	return `<div class="runtime-layout-area runtime-layout-area--${escapeAttribute(area)} ${escapeAttribute(className)}">
 		${entries.map((item) => {
 			const editable = layoutEditableData(area, item.id);
@@ -2606,7 +2621,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-	const modalOpen = state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen;
+	const modalOpen = state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -2667,6 +2682,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
 		${isModalVisible("gift-receipt", state.giftReceiptOpen) ? renderGiftReceiptModal() : ""}
 		${state.adminPlanEditorModalOpen ? renderAdminPlanEditorModal() : ""}
 		${state.adminProfileEditorModalOpen ? renderAdminProfileEditorModal() : ""}
+		${isModalVisible("admin-promo-widget", state.adminPromoWidgetEditorOpen) ? renderAdminPromoWidgetModal() : ""}
     </div>
   `;
   bindRootActions();
@@ -3737,8 +3753,11 @@ function renderAdminSaveBar(className = "") {
 	const profileAddButton = state.adminLayoutEditing && state.currentPage === "settings"
 		? `<button class="admin-save-bar__add" type="button" data-action="admin-add-profile-button" ${busy ? "disabled" : ""}>${icon("plus")}<span>${state.locale === "en" ? "Add" : "Добавить"}</span></button>`
 		: "";
-	const profileClass = profileAddButton ? "admin-save-bar--profile-layout" : "";
-	return `<div class="admin-save-bar ${className} ${profileClass}" role="status" aria-live="polite"><span>${escapeHtml(status)}</span><div class="admin-save-bar__actions">${profileAddButton}${resetButton}<button type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""}>${icon(busy ? "refresh" : "check")}<span>${localizedText("Сохранить", "Save", "ذخیره")}</span></button>${state.adminLayoutEditing ? `<button class="admin-save-bar__close" type="button" data-action="admin-layout-exit" aria-label="${state.locale === "en" ? "Exit editor" : "Выйти из редактора"}">${icon("close")}</button>` : ""}</div></div>`;
+	const promoWidgetButton = state.adminLayoutEditing && state.currentPage === "dashboard"
+		? `<button class="admin-save-bar__promo" type="button" data-action="admin-add-promo-widget" ${busy ? "disabled" : ""}><span class="admin-save-bar__promo-icon" aria-hidden="true"></span><span>${localizedText("Промокод", "Promo code", "کد تخفیف")}</span></button>`
+		: "";
+	const profileClass = profileAddButton ? "admin-save-bar--profile-layout" : (promoWidgetButton ? "admin-save-bar--promo-layout" : "");
+	return `<div class="admin-save-bar ${className} ${profileClass}" role="status" aria-live="polite"><span>${escapeHtml(status)}</span><div class="admin-save-bar__actions">${profileAddButton}${promoWidgetButton}${resetButton}<button type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""}>${icon(busy ? "refresh" : "check")}<span>${localizedText("Сохранить", "Save", "ذخیره")}</span></button>${state.adminLayoutEditing ? `<button class="admin-save-bar__close" type="button" data-action="admin-layout-exit" aria-label="${state.locale === "en" ? "Exit editor" : "Выйти из редактора"}">${icon("close")}</button>` : ""}</div></div>`;
 }
 
 function renderAdminPlanSaveBar() {
@@ -3822,6 +3841,38 @@ function renderAdminProfileEditorModal() {
 			<footer class="admin-profile-modal__footer">
 				${custom && !item.isNew ? `<button class="admin-profile-modal__delete" type="button" data-action="admin-delete-profile-button">${icon("trash")}<span>Удалить</span></button>` : "<span></span>"}
 				<button class="btn btn--green-filled" type="button" data-action="admin-apply-profile-edit">${icon("check")}<span>Применить</span></button>
+			</footer>
+		</div>
+	</div>`;
+}
+
+function renderAdminPromoWidgetModal() {
+	const item = getAdminPromoWidgetItem();
+	const validation = state.adminPromoWidgetValidation;
+	const busy = state.adminPromoWidgetBusy === "validate";
+	const title = localizedText("Промокод для виджета", "Widget promo code", "کد تخفیف ویجت");
+	const hint = localizedText(
+		"Проверим код и добавим подарок на главный экран. По нажатию откроются тарифы со скидкой.",
+		"We will validate the code and add the gift to the home screen. A tap opens plans with the discount applied.",
+		"کد بررسی می‌شود و هدیه به صفحه اصلی اضافه خواهد شد. با لمس آن، تعرفه‌ها با تخفیف باز می‌شوند."
+	);
+	return `<div class="modal open ${modalStateClass("admin-promo-widget")}" role="dialog" aria-modal="true" aria-labelledby="admin-promo-widget-title" aria-describedby="admin-promo-widget-hint">
+		<button class="modal__backdrop" type="button" data-action="admin-close-promo-widget" aria-label="${escapeAttribute(localizedText("Закрыть", "Close", "بستن"))}"></button>
+		<div class="modal__sheet modal__sheet--promo-widget">
+			<header class="promo-widget-editor__header">
+				<span class="promo-widget-editor__mark" aria-hidden="true"></span>
+				<div><span>${localizedText("ВИДЖЕТ", "WIDGET", "ویجت")}</span><h2 id="admin-promo-widget-title">${escapeHtml(title)}</h2></div>
+				<button type="button" data-action="admin-close-promo-widget" aria-label="${escapeAttribute(localizedText("Закрыть", "Close", "بستن"))}">${icon("close")}</button>
+			</header>
+			<p id="admin-promo-widget-hint" class="promo-widget-editor__hint">${escapeHtml(hint)}</p>
+			<label class="admin-field promo-widget-editor__field" for="admin-promo-widget-code">
+				<span>${localizedText("Действующий промокод", "Active promo code", "کد تخفیف فعال")}</span>
+				<input class="admin-field__control" id="admin-promo-widget-code" type="text" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" placeholder="LINK20" value="${escapeAttribute(state.adminPromoWidgetCodeDraft)}" data-input="admin-promo-widget-code" aria-describedby="admin-promo-widget-status">
+			</label>
+			<div class="promo-widget-editor__status ${validation ? `is-${escapeAttribute(validation.type)}` : ""}" id="admin-promo-widget-status" aria-live="polite">${escapeHtml(validation?.message || localizedText("Код будет проверен перед добавлением", "The code will be validated before it is added", "کد پیش از افزودن بررسی می‌شود"))}</div>
+			<footer class="promo-widget-editor__actions">
+				${item?.visible !== false ? `<button class="promo-widget-editor__remove" type="button" data-action="admin-remove-promo-widget" ${busy ? "disabled" : ""}>${icon("trash")}<span>${localizedText("Убрать", "Remove", "حذف")}</span></button>` : "<span></span>"}
+				<button class="btn btn--green-filled" type="button" data-action="admin-validate-promo-widget" ${busy || !normalizePromoCodeValue(state.adminPromoWidgetCodeDraft) ? "disabled" : ""}>${icon(busy ? "refresh" : "check")}<span>${busy ? localizedText("Проверяем", "Checking", "در حال بررسی") : localizedText("Применить", "Apply", "اعمال")}</span></button>
 			</footer>
 		</div>
 	</div>`;
@@ -4018,13 +4069,29 @@ function renderDashboardPage() {
 			? `<button class="btn btn--green" type="button" data-action="activate-trial">${icon("cart")}${copy.activateTrial}</button>`
 			: "";
 	const actionStack = `<div class="action-stack action-stack--dashboard">${renderLayoutDetail("dashboard", "primary_action", primaryAction, "runtime-detail-item--action")}${secondaryAction ? renderLayoutDetail("dashboard", "secondary_action", secondaryAction, "runtime-detail-item--action") : ""}</div>`;
+	const promoWidgetItem = getLayoutElement("dashboard", "promo_widget");
+	const promoWidgetVisible = promoWidgetItem?.visible !== false && (Boolean(promoWidgetItem?.promoCode) || state.adminLayoutEditing);
 
 	const blocks = {
 		brand: `<div class="hero-center hero-center--brand">${renderLayoutDetail("dashboard", "logo", `<div class="hero-brand" style="--runtime-logo-width:${Math.max(48, Math.min(220, Number(getRuntimeSettings()?.layout?.logoWidth || 188)))}px"><img src="${escapeAttribute(resolveBrandMarkURL(state.data.brand.logoUrl))}" alt="${escapeAttribute(state.data.brand.name || "Link-Bot")}" loading="eager" draggable="false"></div>`, "runtime-detail-item--logo")}${renderLayoutDetail("dashboard", "username", `<div class="hero-handle">${escapeHtml(avatarLabel)}</div>`, "runtime-detail-item--username")}</div>`,
 		subscription: active ? `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", `<div class="sub-bar__name">${title}</div>`, "runtime-detail-item--status runtime-detail-item--plan")}${renderLayoutDetail("dashboard", "expires", `<div class="sub-bar__date"><span class="sub-bar__date-icon">${icon("calendarDays")}</span><span>${expires}</span></div>`, "runtime-detail-item--status")}</div><div class="sub-bar__row sub-bar__row--pills">${trafficLabel ? renderLayoutDetail("dashboard", "traffic", `<span class="sub-pill"><span class="sub-pill__icon">${icon("chartLine")}</span><span>${escapeHtml(trafficLabel)}</span></span>`, "runtime-detail-item--pill") : ""}${deviceLabel ? renderLayoutDetail("dashboard", "devices", `<button class="sub-pill sub-pill--button" type="button" data-action="open-devices-modal"><span>${escapeHtml(deviceLabel)}</span><span class="sub-pill__edit">${icon("userPen")}</span></button>`, "runtime-detail-item--pill") : ""}</div></div></div></div>` : "",
 		actions: `<div class="dashboard-compact">${actionStack}</div>`,
+		...(promoWidgetVisible ? { promo_widget: renderPromoGiftWidget(promoWidgetItem) } : {}),
 	};
 	return `<section class="page ${pageClass("dashboard")}" id="page-dashboard">${renderSubscriptionSwitcher()}${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
+}
+
+function renderPromoGiftWidget(item) {
+	const code = normalizePromoCodeValue(item?.promoCode || "");
+	const title = localizedText("Подарок", "Gift", "هدیه");
+	const hint = code
+		? localizedText(`Промокод ${code}`, `Promo code ${code}`, `کد تخفیف ${code}`)
+		: localizedText("Настройте промокод", "Set a promo code", "کد تخفیف را تنظیم کنید");
+	return `<button class="promo-gift-widget" type="button" data-action="open-promo-widget-checkout" data-value="${escapeAttribute(code)}" aria-label="${escapeAttribute(`${title}. ${hint}`)}">
+		<span class="promo-gift-widget__mark" aria-hidden="true"></span>
+		<span class="promo-gift-widget__copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(hint)}</small></span>
+		<span class="promo-gift-widget__arrow" aria-hidden="true">${icon("arrow")}</span>
+	</button>`;
 }
 
 function getSubscriptionItems() {
@@ -5580,6 +5647,10 @@ function bindRootActions() {
 			event.preventDefault();
 			return openAdminProfileEditor(value);
 		}
+		if (action === "admin-edit-promo-widget") {
+			event.preventDefault();
+			return openAdminPromoWidgetEditor();
+		}
 		const editableNode = event.target.closest?.("[data-layout-edit-key]");
 		if (state.adminLayoutEditing && editableNode) {
 			selectAdminLayoutNode(editableNode);
@@ -5661,6 +5732,10 @@ function bindRootActions() {
 			if (action === "admin-apply-plan-edit") return applyAdminPlanEdit();
 			if (action === "admin-select-all-squads") return selectAllAdminSquads(value);
 			if (action === "admin-add-profile-button") return openAdminProfileEditor("", { create: true });
+			if (action === "admin-add-promo-widget") return openAdminPromoWidgetEditor();
+			if (action === "admin-close-promo-widget") return closeAdminPromoWidgetEditor();
+			if (action === "admin-validate-promo-widget") return await validateAdminPromoWidget();
+			if (action === "admin-remove-promo-widget") return removeAdminPromoWidget();
 			if (action === "admin-close-profile-editor") return closeAdminProfileEditorModal();
 			if (action === "admin-apply-profile-edit") return applyAdminProfileEdit();
 			if (action === "admin-delete-profile-button") return deleteAdminProfileButton();
@@ -5668,6 +5743,7 @@ function bindRootActions() {
 			if (action === "admin-remove-legal-section") return removeAdminLegalSection(Number(value));
       if (action === "go-home") return setPage("dashboard");
       if (action === "go-page") return value === "setup" ? openSubscriptionAccess() : setPage(value);
+		if (action === "open-promo-widget-checkout") return await openPromoWidgetCheckout(value);
       if (action === "open-review-compose") { state.reviewComposeOpen = true; render(); return; }
       if (action === "close-review-compose") return requestModalClose("review-compose", () => { state.reviewComposeOpen = false; state.reviewDraftRating = 0; state.reviewDraftComment = ""; state.reviewBusy = ""; });
       if (action === "set-review-rating") { state.reviewDraftRating = Number(value) || 0; haptic("light"); render(); return; }
@@ -5927,6 +6003,20 @@ function bindRootActions() {
 			if (button) button.disabled = !target.value.trim() || Boolean(state.subscriptionBusy);
 			return;
 		}
+		if (inputKey === "admin-promo-widget-code") {
+			const normalized = normalizePromoCodeValue(target.value);
+			state.adminPromoWidgetCodeDraft = normalized;
+			state.adminPromoWidgetValidation = null;
+			if (target.value !== normalized) target.value = normalized;
+			const button = app.querySelector('[data-action="admin-validate-promo-widget"]');
+			if (button) button.disabled = !normalized || Boolean(state.adminPromoWidgetBusy);
+			const status = app.querySelector("#admin-promo-widget-status");
+			if (status) {
+				status.className = "promo-widget-editor__status";
+				status.textContent = localizedText("Код будет проверен перед добавлением", "The code will be validated before it is added", "کد پیش از افزودن بررسی می‌شود");
+			}
+			return;
+		}
 		if (inputKey === "gift-username") {
 			const cleaned = String(target.value || "").replace(/\s+/g, "").replace(/^@{2,}/, "@");
 			state.giftUsernameDraft = cleaned;
@@ -5988,6 +6078,17 @@ function bindRootActions() {
 	app.addEventListener("pointerdown", beginAdminPlanPointer);
 	app.addEventListener("pointerdown", beginAdminLayoutPointer);
 	app.addEventListener("keydown", (event) => {
+		if (state.adminPromoWidgetEditorOpen && event.key === "Escape") {
+			event.preventDefault();
+			closeAdminPromoWidgetEditor();
+			return;
+		}
+		const promoWidgetInput = event.target.closest?.('[data-input="admin-promo-widget-code"]');
+		if (promoWidgetInput && event.key === "Enter" && !event.isComposing) {
+			event.preventDefault();
+			void validateAdminPromoWidget();
+			return;
+		}
 		const supportReply = event.target.closest?.('[data-input="support-reply"]');
 		if (supportReply && event.key === "Enter" && !event.shiftKey && !event.isComposing) {
 			event.preventDefault();
@@ -6002,6 +6103,11 @@ function bindRootActions() {
 			const index = plans.findIndex((item) => String(item.id) === String(node?.dataset?.adminPlanId || ""));
 			moveAdminPlan(index, ["ArrowLeft", "ArrowUp"].includes(event.key) ? -1 : 1);
 			return;
+		}
+		const layoutHandle = event.target.closest?.("[data-ui-move-handle], [data-ui-resize-handle]");
+		if (state.adminLayoutEditing && layoutHandle && ["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"].includes(event.key)) {
+			event.preventDefault();
+			return nudgeAdminLayoutElement(layoutHandle.closest("[data-layout-edit-key]"), layoutHandle.hasAttribute("data-ui-resize-handle") ? "resize" : "move", event.key, event.shiftKey);
 		}
 		if (!(["Enter", " "].includes(event.key))) return;
 		const node = event.target.closest?.("[data-layout-edit-key]");
@@ -6587,6 +6693,94 @@ function moveAdminFAQItem(index, direction) {
 function markAdminLayoutDirty() {
 	state.adminSettingsDirty = true;
 	syncAdminSaveBarDOM();
+}
+
+function getAdminPromoWidgetItem() {
+	ensureAdminVisualLayoutDraft();
+	return state.adminSettingsDraft?.layout?.elements?.find((item) => item?.area === "dashboard" && item?.id === "promo_widget") || null;
+}
+
+function openAdminPromoWidgetEditor() {
+	const item = getAdminPromoWidgetItem();
+	if (!item || state.adminBusy) return;
+	state.adminLayoutSelection = "dashboard:promo_widget";
+	state.adminPromoWidgetCodeDraft = normalizePromoCodeValue(item.promoCode || "");
+	state.adminPromoWidgetValidation = null;
+	state.adminPromoWidgetBusy = "";
+	state.adminPromoWidgetEditorOpen = true;
+	haptic("light");
+	render({ preserveScroll: true });
+}
+
+function closeAdminPromoWidgetEditor() {
+	if (state.adminPromoWidgetBusy) return;
+	requestModalClose("admin-promo-widget", () => {
+		state.adminPromoWidgetEditorOpen = false;
+		state.adminPromoWidgetCodeDraft = "";
+		state.adminPromoWidgetValidation = null;
+	});
+}
+
+async function validateAdminPromoWidget() {
+	const code = normalizePromoCodeValue(state.adminPromoWidgetCodeDraft);
+	if (!/^[A-Z0-9_-]{3,32}$/.test(code) || state.adminPromoWidgetBusy) {
+		state.adminPromoWidgetValidation = { type: "error", message: localizedText("Введите корректный промокод", "Enter a valid promo code", "یک کد تخفیف معتبر وارد کنید") };
+		render({ preserveScroll: true });
+		return;
+	}
+
+	state.adminPromoWidgetBusy = "validate";
+	state.adminPromoWidgetValidation = { type: "pending", message: localizedText("Проверяем промокод...", "Checking promo code...", "در حال بررسی کد تخفیف...") };
+	render({ preserveScroll: true });
+	try {
+		const response = await post("/api/mini-app/admin/promocodes/validate", { code });
+		const item = getAdminPromoWidgetItem();
+		if (!item) throw new Error(localizedText("Не удалось добавить виджет", "Could not add the widget", "افزودن ویجت انجام نشد"));
+		item.promoCode = normalizePromoCodeValue(response.data?.code || code);
+		item.visible = true;
+		state.adminLayoutSelection = "dashboard:promo_widget";
+		state.adminPromoWidgetBusy = "";
+		state.adminPromoWidgetValidation = { type: "success", message: localizedText("Промокод активен", "Promo code is active", "کد تخفیف فعال است") };
+		markAdminLayoutDirty();
+		requestModalClose("admin-promo-widget", () => {
+			state.adminPromoWidgetEditorOpen = false;
+			state.adminPromoWidgetCodeDraft = "";
+			state.adminPromoWidgetValidation = null;
+		});
+		haptic("success");
+		showToast(localizedText("Виджет промокода добавлен", "Promo widget added", "ویجت کد تخفیف اضافه شد"), "success");
+	} catch (error) {
+		state.adminPromoWidgetBusy = "";
+		state.adminPromoWidgetValidation = { type: "error", message: getPromoValidationMessage(error) };
+		render({ preserveScroll: true });
+	}
+}
+
+function removeAdminPromoWidget() {
+	const item = getAdminPromoWidgetItem();
+	if (!item || state.adminPromoWidgetBusy) return;
+	item.visible = false;
+	markAdminLayoutDirty();
+	requestModalClose("admin-promo-widget", () => {
+		state.adminPromoWidgetEditorOpen = false;
+		state.adminPromoWidgetCodeDraft = "";
+		state.adminPromoWidgetValidation = null;
+	});
+	haptic("light");
+	showToast(localizedText("Виджет убран. Сохраните изменения.", "Widget removed. Save the changes.", "ویجت حذف شد. تغییرات را ذخیره کنید."), "success");
+}
+
+async function openPromoWidgetCheckout(rawCode) {
+	const code = normalizePromoCodeValue(rawCode);
+	if (!code) return showToast(localizedText("Для виджета не задан промокод", "No promo code is set for this widget", "برای این ویجت کد تخفیف تعیین نشده است"), "danger");
+	state.promoCodeDraft = code;
+	state.appliedPromo = null;
+	state.promoValidation = null;
+	state.animatePageEntry = state.currentPage !== "buy";
+	state.currentPage = "buy";
+	writeSetting(STORAGE_KEYS.page, "buy");
+	render({ preserveScroll: false, scrollTop: 0 });
+	await applyPromoCode();
 }
 
 function syncAdminLayoutBackgroundAnimation() {
@@ -7229,8 +7423,42 @@ function applyAdminLayoutNodeStyle(node, item) {
 	node.style.setProperty("--runtime-y", `${item.offsetY}px`);
 }
 
+function adminLayoutMinimumSize(item) {
+	if (item?.area === "navigation") return { width: 28, height: 24 };
+	if (item?.area === "dashboard" && item?.id === "promo_widget") return { width: 64, height: 64 };
+	if (item?.area === "dashboard" && ["username", "plan_name"].includes(item?.id)) return { width: 64, height: 20 };
+	return { width: 32, height: 20 };
+}
+
+function nudgeAdminLayoutElement(node, mode, key, largeStep = false) {
+	const item = getAdminLayoutItemForNode(node);
+	if (!node || !item) return;
+	selectAdminLayoutNode(node);
+	const step = largeStep ? 16 : ADMIN_LAYOUT_GRID_SIZE;
+	const horizontal = key === "ArrowLeft" ? -step : (key === "ArrowRight" ? step : 0);
+	const vertical = key === "ArrowUp" ? -step : (key === "ArrowDown" ? step : 0);
+	if (mode === "resize") {
+		const minimum = adminLayoutMinimumSize(item);
+		const parentWidth = Math.max(1, Number(node.dataset.editorParentWidth || node.parentElement?.clientWidth || 1));
+		const currentWidth = Math.max(minimum.width, Number(node.dataset.editorWidth || node.getBoundingClientRect().width));
+		const currentHeight = Math.max(minimum.height, Number(node.dataset.editorHeight || node.getBoundingClientRect().height));
+		const width = Math.max(minimum.width, currentWidth + horizontal);
+		const height = Math.max(minimum.height, Math.min(720, currentHeight + vertical));
+		item.width = item.area === "navigation" ? Math.min(100, Math.round(width)) : Math.min(150, Math.round((width / parentWidth) * 10000) / 100);
+		item.height = Math.round(height);
+	} else {
+		item.positionX = Math.round(Math.max(-2000, Math.min(2000, Number(item.positionX || 0) + horizontal)) * 100) / 100;
+		item.positionY = Math.round(Math.max(-2000, Math.min(4000, Number(item.positionY || 0) + vertical)) * 100) / 100;
+		item.offsetX = 0;
+		item.offsetY = 0;
+	}
+	applyAdminLayoutNodeStyle(node, item);
+	markAdminLayoutDirty();
+}
+
 function beginAdminLayoutPointer(event) {
 	if (!state.adminLayoutEditing || event.button > 0 || !event.isPrimary) return;
+	if (event.target.closest?.('[data-action="admin-edit-promo-widget"]')) return;
 	const layoutNode = event.target.closest?.("[data-layout-edit-key]");
 	if (!layoutNode) return;
 	const item = getAdminLayoutItemForNode(layoutNode);
@@ -7304,9 +7532,9 @@ function flushAdminLayoutPointerFrame() {
 	const item = pointer.item;
 	if (pointer.mode === "resize") {
 		const isNavigation = item.area === "navigation";
-		const isCompactDashboardLabel = item.area === "dashboard" && ["username", "plan_name"].includes(item.id);
-		const minWidth = isNavigation ? 28 : (isCompactDashboardLabel ? 64 : 32);
-		const minHeight = isNavigation ? 24 : 20;
+		const minimum = adminLayoutMinimumSize(item);
+		const minWidth = minimum.width;
+		const minHeight = minimum.height;
 		const maxWidth = Math.max(minWidth, pointer.surfaceWidth - pointer.startLeft);
 		const maxHeight = isNavigation ? 96 : Math.max(minHeight, pointer.surfaceHeight - pointer.startTop + 240);
 		const snappedRight = snapAdminLayoutEdge(pointer.startLeft + Math.max(minWidth, Math.min(maxWidth, pointer.startWidth + dx)), pointer.siblings, "x");
@@ -8620,7 +8848,7 @@ function syncNativeBackButton() {
 
 function shouldShowNativeBackButton() {
 	return Boolean(
-		state.adminLayoutEditing || state.adminPlanEditing || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen ||
+		state.adminLayoutEditing || state.adminPlanEditing || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen ||
 		state.giftReceiptOpen ||
     state.supportThreadOpen ||
     state.supportComposeOpen ||
@@ -8644,6 +8872,7 @@ function getNativeBackTargetPage() {
 
 function handleNativeBackButton() {
 	if (state.giftReceiptOpen) return closeGiftReceipt();
+	if (state.adminPromoWidgetEditorOpen) return closeAdminPromoWidgetEditor();
 	if (state.adminProfileEditorModalOpen) return closeAdminProfileEditorModal();
 	if (state.adminPlanEditorModalOpen) return closeAdminPlanEditorModal();
 	if (state.adminPlanEditing) return exitAdminPlanEditor();
@@ -8668,6 +8897,7 @@ function handleNativeBackButton() {
 
 function getActiveModalName() {
 	if (state.giftReceiptOpen) return "gift-receipt";
+	if (state.adminPromoWidgetEditorOpen) return "admin-promo-widget";
 	if (state.adminProfileEditorModalOpen) return "admin-profile-editor";
 	if (state.adminPlanEditorModalOpen) return "admin-plan-editor";
 	if (state.subscriptionDeleteOpen) return "subscription-delete";

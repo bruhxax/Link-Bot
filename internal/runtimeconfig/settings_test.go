@@ -456,6 +456,7 @@ func TestNormalizeAndValidateAddsVisualEditorAreas(t *testing.T) {
 	required := map[string]bool{
 		"dashboard:logo":          false,
 		"dashboard:traffic":       false,
+		"dashboard:promo_widget":  false,
 		"buy:plans":               false,
 		"buy:plan_6m":             false,
 		"buy:pay_button":          false,
@@ -480,6 +481,43 @@ func TestNormalizeAndValidateAddsVisualEditorAreas(t *testing.T) {
 		if !found {
 			t.Fatalf("missing default visual editor element %s", key)
 		}
+	}
+}
+
+func TestNormalizeAndValidatePromoWidgetCode(t *testing.T) {
+	settings := DefaultSettings()
+	found := false
+	for index := range settings.Layout.Elements {
+		item := &settings.Layout.Elements[index]
+		if item.Area == "dashboard" && item.ID == "promo_widget" {
+			item.Visible = true
+			item.PromoCode = " gift_20 "
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("default promo widget layout element is missing")
+	}
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	for _, item := range settings.Layout.Elements {
+		if item.Area == "dashboard" && item.ID == "promo_widget" && item.PromoCode != "GIFT_20" {
+			t.Fatalf("normalized promo widget code = %q, want GIFT_20", item.PromoCode)
+		}
+	}
+
+	for index := range settings.Layout.Elements {
+		item := &settings.Layout.Elements[index]
+		if item.Area == "dashboard" && item.ID == "promo_widget" {
+			item.PromoCode = "bad code!"
+			break
+		}
+	}
+	if err := NormalizeAndValidate(&settings); err == nil || !strings.Contains(err.Error(), "invalid promo code") {
+		t.Fatalf("NormalizeAndValidate() error = %v, want invalid promo code", err)
 	}
 }
 

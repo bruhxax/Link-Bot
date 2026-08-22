@@ -31,6 +31,7 @@ var (
 	telegramUserPattern   = regexp.MustCompile(`^[A-Za-z0-9_]{5,32}$`)
 	customEmojiIDPattern  = regexp.MustCompile(`^[0-9]{5,32}$`)
 	customEmojiTagPattern = regexp.MustCompile(`(?is)<tg-emoji\s+emoji-id=["']([0-9]{5,32})["'][^>]*>.*?</tg-emoji>`)
+	promoCodePattern      = regexp.MustCompile(`^[A-Z0-9_-]{3,32}$`)
 )
 
 var featureOrder = []string{
@@ -228,6 +229,7 @@ type LayoutElement struct {
 	PositionX *float64 `json:"positionX,omitempty"`
 	PositionY *float64 `json:"positionY,omitempty"`
 	Group     string   `json:"group,omitempty"`
+	PromoCode string   `json:"promoCode,omitempty"`
 }
 
 type LayoutSettings struct {
@@ -727,6 +729,7 @@ func defaultLayoutElements() []LayoutElement {
 		{ID: "devices", Area: "dashboard", Order: 15, Visible: true, Width: 48, Height: 36, Align: "right"},
 		{ID: "primary_action", Area: "dashboard", Order: 16, Visible: true, Width: 100, Height: 44, Align: "center"},
 		{ID: "secondary_action", Area: "dashboard", Order: 17, Visible: true, Width: 100, Height: 44, Align: "center"},
+		{ID: "promo_widget", Area: "dashboard", Order: 18, Visible: false, Width: 42, Height: 92, Align: "center"},
 		{ID: "plan_1m", Area: "buy", Order: 10, Visible: true, Width: 100, Height: 112, Align: "left"},
 		{ID: "plan_1m_unlimited", Area: "buy", Order: 11, Visible: true, Width: 100, Height: 112, Align: "left"},
 		{ID: "plan_3m", Area: "buy", Order: 12, Visible: true, Width: 100, Height: 112, Align: "left"},
@@ -1491,6 +1494,14 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings) error {
 		}
 		item.Align = strings.ToLower(strings.TrimSpace(item.Align))
 		item.Group = strings.ToLower(strings.TrimSpace(item.Group))
+		item.PromoCode = strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(item.PromoCode), " ", ""))
+		if item.Area == "dashboard" && item.ID == "promo_widget" {
+			if item.PromoCode != "" && !promoCodePattern.MatchString(item.PromoCode) {
+				return fmt.Errorf("invalid promo code for %q", key)
+			}
+		} else {
+			item.PromoCode = ""
+		}
 		if item.Area == "profile" && !strings.HasPrefix(item.ID, "group_") {
 			if item.Group == "" {
 				item.Group = fallback.Group
@@ -1538,6 +1549,13 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings) error {
 				item.Width = fallback.Width
 			}
 			if item.Height < 24 || item.Height > 96 {
+				item.Height = fallback.Height
+			}
+		} else if item.Area == "dashboard" && item.ID == "promo_widget" {
+			if item.Width < 10 || item.Width > 150 {
+				item.Width = fallback.Width
+			}
+			if item.Height < 64 || item.Height > 720 {
 				item.Height = fallback.Height
 			}
 		} else if item.Area == "profile" {

@@ -608,6 +608,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/reviews/create", h.withSession(h.handleCreateReview))
 	mux.HandleFunc("/api/mini-app/admin/reviews/delete", h.withSession(h.handleAdminDeleteReview))
 	mux.HandleFunc("/api/mini-app/admin/promocodes/create", h.withSession(h.handleAdminCreatePromoCode))
+	mux.HandleFunc("/api/mini-app/admin/promocodes/validate", h.withSession(h.handleAdminValidatePromoCode))
 	mux.HandleFunc("/api/mini-app/admin/promocodes/delete", h.withSession(h.handleAdminDeletePromoCode))
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/find", h.withSession(h.handleAdminFindSubscription))
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/target", h.withSession(h.handleAdminSubscriptionTarget))
@@ -1714,6 +1715,44 @@ func (h *Handler) handleAdminCreatePromoCode(w http.ResponseWriter, r *http.Requ
 		"ok":      true,
 		"message": "promo_created",
 		"data":    payload,
+	})
+}
+
+func (h *Handler) handleAdminValidatePromoCode(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
+	if !h.isAdmin(sess.User.ID) {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+		return
+	}
+
+	var req promoCodeApplyRequest
+	if err := h.decodeJSONRequest(w, r, 2048, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Invalid request")
+		return
+	}
+
+	promo, normalizedCode, promoErrCode, err := h.resolvePromoCode(r.Context(), 0, req.Code)
+	if err != nil {
+		slog.Error("mini app: validate promo widget code", "error", err, "telegramId", utils.MaskHalfInt64(sess.User.ID))
+		h.writeError(w, http.StatusInternalServerError, "promo_failed", promoErrorMessage("promo_failed"))
+		return
+	}
+	if promoErrCode != "" {
+		h.writeError(w, http.StatusBadRequest, promoErrCode, promoErrorMessage(promoErrCode))
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true,
+		"data": promoCodePayload{
+			ID:              promo.ID,
+			Code:            normalizedCode,
+			DiscountPercent: promo.DiscountPercent,
+			ExpiresAt:       formatOptionalTime(timeOrNil(promo.ExpiresAt)),
+			MaxRedemptions:  optionalIntValue(promo.MaxRedemptions),
+			RedemptionCount: promo.RedemptionCount,
+			Status:          promoStatus(promo, time.Now().UTC()),
+			CreatedAt:       promo.CreatedAt.UTC().Format(time.RFC3339),
+		},
 	})
 }
 
