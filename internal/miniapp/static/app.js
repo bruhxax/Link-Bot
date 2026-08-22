@@ -1427,7 +1427,7 @@ const ADMIN_LAYOUT_DEFAULTS = [
 	...["main", "purchases", "programs", "help", "account"].map((id, order) => ["profile", `group_${id}`, 20 + order, 100, 28, false, "left"]),
 	...["dashboard", "buy", "support", "settings", "admin"].map((id, order) => ["navigation", id, order, 44, 38, true, "center"]),
 ].map(([area, id, order, width, height, framed, align, group]) => ({ area, id, order, visible: true, width, height, framed, align, offsetX: 0, offsetY: 0, ...(group ? { group } : {}) }));
-ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "promo_widget", order: 18, visible: false, width: 42, height: 92, framed: false, align: "center", offsetX: 0, offsetY: 0, promoCode: "" });
+ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "promo_widget", order: 18, visible: false, width: 42, height: 92, framed: false, align: "center", offsetX: 0, offsetY: 0, promoCode: "", iconBubble: true });
 
 const ADMIN_APPEARANCE_PRESETS = [
 	{
@@ -1895,12 +1895,13 @@ function mountedRuntimeLocalLeft(item, parentWidth, renderedWidth, flowLocalLeft
 
 function runtimeLayoutStyle(item, area = item?.area) {
 	const isNavigation = area === "navigation";
+	const isPromoWidget = area === "dashboard" && item?.id === "promo_widget";
 	const width = isNavigation
 		? Math.max(28, Math.min(100, Number(item?.width || 44)))
-		: Math.max(10, Math.min(150, Number(item?.width || 100)));
+		: Math.max(isPromoWidget ? 6 : 10, Math.min(150, Number(item?.width || 100)));
 	const height = isNavigation
 		? Math.max(24, Math.min(96, Number(item?.height || 38)))
-		: Math.max(20, Math.min(720, Number(item?.height || 52)));
+		: Math.max(isPromoWidget ? 36 : 20, Math.min(720, Number(item?.height || 52)));
 	const positioned = hasStoredLayoutPosition(item);
 	const offsetX = positioned ? 0 : Math.max(-1000, Math.min(1000, Number(item?.offsetX || 0)));
 	const offsetY = positioned ? 0 : Math.max(-1000, Math.min(1000, Number(item?.offsetY || 0)));
@@ -3869,6 +3870,11 @@ function renderAdminPromoWidgetModal() {
 				<span>${localizedText("Действующий промокод", "Active promo code", "کد تخفیف فعال")}</span>
 				<input class="admin-field__control" id="admin-promo-widget-code" type="text" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" placeholder="LINK20" value="${escapeAttribute(state.adminPromoWidgetCodeDraft)}" data-input="admin-promo-widget-code" aria-describedby="admin-promo-widget-status">
 			</label>
+			<label class="admin-toggle promo-widget-editor__bubble">
+				<span>${localizedText("Фон вокруг иконки", "Background around icon", "پس‌زمینه دور آیکن")}</span>
+				<input type="checkbox" data-input="admin-promo-widget-bubble" ${item?.iconBubble !== false ? "checked" : ""}>
+				<i aria-hidden="true"></i>
+			</label>
 			<div class="promo-widget-editor__status ${validation ? `is-${escapeAttribute(validation.type)}` : ""}" id="admin-promo-widget-status" aria-live="polite">${escapeHtml(validation?.message || localizedText("Код будет проверен перед добавлением", "The code will be validated before it is added", "کد پیش از افزودن بررسی می‌شود"))}</div>
 			<footer class="promo-widget-editor__actions">
 				${item?.visible !== false ? `<button class="promo-widget-editor__remove" type="button" data-action="admin-remove-promo-widget" ${busy ? "disabled" : ""}>${icon("trash")}<span>${localizedText("Убрать", "Remove", "حذف")}</span></button>` : "<span></span>"}
@@ -4083,11 +4089,12 @@ function renderDashboardPage() {
 
 function renderPromoGiftWidget(item) {
 	const code = normalizePromoCodeValue(item?.promoCode || "");
+	const bubbleClass = item?.iconBubble === false ? "promo-gift-widget--plain" : "promo-gift-widget--bubble";
 	const title = localizedText("Подарок", "Gift", "هدیه");
 	const hint = code
 		? localizedText(`Промокод ${code}`, `Promo code ${code}`, `کد تخفیف ${code}`)
 		: localizedText("Настройте промокод", "Set a promo code", "کد تخفیف را تنظیم کنید");
-	return `<button class="promo-gift-widget" type="button" data-action="open-promo-widget-checkout" data-value="${escapeAttribute(code)}" aria-label="${escapeAttribute(`${title}. ${hint}`)}">
+	return `<button class="promo-gift-widget ${bubbleClass}" type="button" data-action="open-promo-widget-checkout" data-value="${escapeAttribute(code)}" aria-label="${escapeAttribute(`${title}. ${hint}`)}">
 		<span class="promo-gift-widget__mark" aria-hidden="true"></span>
 		<span class="promo-gift-widget__copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(hint)}</small></span>
 		<span class="promo-gift-widget__arrow" aria-hidden="true">${icon("arrow")}</span>
@@ -6017,6 +6024,16 @@ function bindRootActions() {
 			}
 			return;
 		}
+		if (inputKey === "admin-promo-widget-bubble") {
+			const item = getAdminPromoWidgetItem();
+			if (!item) return;
+			item.iconBubble = Boolean(target.checked);
+			const widget = app.querySelector('[data-runtime-id="promo_widget"] .promo-gift-widget');
+			widget?.classList.toggle("promo-gift-widget--bubble", item.iconBubble);
+			widget?.classList.toggle("promo-gift-widget--plain", !item.iconBubble);
+			markAdminLayoutDirty();
+			return;
+		}
 		if (inputKey === "gift-username") {
 			const cleaned = String(target.value || "").replace(/\s+/g, "").replace(/^@{2,}/, "@");
 			state.giftUsernameDraft = cleaned;
@@ -7425,7 +7442,7 @@ function applyAdminLayoutNodeStyle(node, item) {
 
 function adminLayoutMinimumSize(item) {
 	if (item?.area === "navigation") return { width: 28, height: 24 };
-	if (item?.area === "dashboard" && item?.id === "promo_widget") return { width: 64, height: 64 };
+	if (item?.area === "dashboard" && item?.id === "promo_widget") return { width: 36, height: 36 };
 	if (item?.area === "dashboard" && ["username", "plan_name"].includes(item?.id)) return { width: 64, height: 20 };
 	return { width: 32, height: 20 };
 }

@@ -6347,9 +6347,9 @@ body.is-editing-layout { overscroll-behavior: none; }
 }
 
 .admin-save-bar__promo-icon {
-  width: 17px;
-  height: 17px;
-  color: var(--accent);
+	width: 17px;
+	height: 17px;
+	color: var(--icon-color);
 }
 
 body.is-layout-editing .page-scroll {
@@ -6760,9 +6760,9 @@ body.is-editing-layout * { overscroll-behavior: none; }
 }
 
 .promo-gift-widget {
-  width: 100%;
-  height: 100%;
-  min-height: 64px;
+	width: 100%;
+	height: 100%;
+	min-height: 36px;
   padding: 11px 12px;
   display: grid;
   grid-template-columns: minmax(38px, 42px) minmax(0, 1fr) 18px;
@@ -6783,17 +6783,17 @@ body.is-editing-layout * { overscroll-behavior: none; }
   position: absolute;
   inset: 0 auto 0 0;
   width: 2px;
-  background: var(--accent);
+	background: var(--icon-color);
 }
 
 .promo-gift-widget:hover {
-  border-color: color-mix(in srgb, var(--accent) 62%, var(--line-soft));
+	border-color: color-mix(in srgb, var(--icon-color) 62%, var(--line-soft));
   background: color-mix(in srgb, var(--surface-strong) 76%, transparent);
 }
 
 .promo-gift-widget:active { transform: scale(.985); }
 .promo-gift-widget:focus-visible {
-  outline: 2px solid var(--accent);
+	outline: 2px solid var(--icon-color);
   outline-offset: 2px;
 }
 
@@ -6802,7 +6802,7 @@ body.is-layout-editing .promo-gift-widget:active { transform: none; }
 .promo-gift-widget__mark {
   width: 100%;
   aspect-ratio: 1;
-  color: var(--accent);
+	color: var(--icon-color);
 }
 
 .promo-gift-widget__copy {
@@ -6830,22 +6830,32 @@ body.is-layout-editing .promo-gift-widget:active { transform: none; }
 .promo-gift-widget__arrow {
   display: grid;
   place-items: center;
-  color: var(--accent);
+	color: var(--icon-color);
 }
 
 .promo-gift-widget__arrow svg { width: 16px; height: 16px; }
 
 @container (max-width: 125px) {
-  .promo-gift-widget {
-    padding: 12px;
+	.promo-gift-widget {
+		padding: clamp(4px, 10cqw, 12px);
     grid-template-columns: 1fr;
     place-items: center;
   }
   .promo-gift-widget::before { inset: auto 0 0; width: auto; height: 2px; }
-  .promo-gift-widget__mark { width: min(58cqw, 58cqh); }
+	.promo-gift-widget__mark { width: min(68cqw, 68cqh); }
   .promo-gift-widget__copy,
   .promo-gift-widget__arrow { display: none; }
 }
+
+.promo-gift-widget--plain {
+	overflow: visible;
+	background: transparent;
+	border-color: transparent;
+	border-radius: 0;
+}
+
+.promo-gift-widget--plain::before { display: none; }
+.promo-gift-widget--plain:hover { border-color: transparent; background: transparent; }
 
 /* Promo widget editor. */
 .modal__sheet--promo-widget {
@@ -6870,7 +6880,7 @@ body.is-layout-editing .promo-gift-widget:active { transform: none; }
 .promo-widget-editor__mark {
   width: 30px;
   height: 30px;
-  color: var(--accent);
+	color: var(--icon-color);
 }
 
 .promo-widget-editor__header > div {
@@ -6924,6 +6934,11 @@ body.is-layout-editing .promo-gift-widget:active { transform: none; }
 .promo-widget-editor__field .admin-field__control:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.promo-widget-editor__bubble {
+	min-height: 42px;
+	margin: 4px 14px 0;
 }
 
 .promo-widget-editor__status {
@@ -8687,3 +8702,53 @@ body.has-open-modal .admin-save-bar {
 @media (prefers-reduced-motion: reduce) {
   .gift-plan-row, .gift-username { transition: none; }
 }
+
+/* Compact live-editor toolbar: one calm surface, flat utility controls. */
+.admin-save-bar--layout-editor {
+	width: fit-content;
+	max-width: calc(100vw - 16px);
+	min-width: 0;
+	min-height: 48px;
+	padding: 4px;
+	gap: 0;
+	border-radius: 7px;
+	box-shadow: 0 10px 24px rgba(0, 0, 0, .3);
+}
+
+.admin-save-bar--layout-editor > span {
+	display: block;
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+.admin-save-bar--layout-editor .admin-save-bar__actions {
+	gap: 4px;
+}
+
+.admin-save-bar--layout-editor button {
+	height: 40px;
+	min-height: 40px;
+}
+
+.admin-save-bar--layout-editor .admin-save-bar__promo,
+.admin-save-bar--layout-editor .admin-save-bar__add {
+	min-width: 94px;
+	padding-inline: 9px;
+}
+
+.admin-save-bar--layout-editor .admin-save-bar__reset,
+.admin-save-bar--layout-editor .admin-save-bar__close {
+	width: 40px;
+	min-width: 40px;
+	padding: 0;
+	background: transparent;
+	border: 0;
+	border-radius: 0;
+}
+
+.admin-save-bar--layout-editor .admin-save-bar__reset span { display: none; }
+.admin-save-bar--layout-editor [data-action="admin-save-settings"] { min-width: 104px; }
+.admin-save-bar--layout-editor .admin-save-bar__close { margin-left: 2px; }

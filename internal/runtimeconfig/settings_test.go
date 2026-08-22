@@ -521,6 +521,50 @@ func TestNormalizeAndValidatePromoWidgetCode(t *testing.T) {
 	}
 }
 
+func TestNormalizeAndValidatePromoWidgetIconBubble(t *testing.T) {
+	settings := DefaultSettings()
+	found := false
+	for index := range settings.Layout.Elements {
+		item := &settings.Layout.Elements[index]
+		if item.Area != "dashboard" || item.ID != "promo_widget" {
+			continue
+		}
+		found = true
+		if item.IconBubble == nil || !*item.IconBubble {
+			t.Fatal("default promo widget icon bubble must be enabled")
+		}
+		disabled := false
+		item.IconBubble = &disabled
+	}
+	if !found {
+		t.Fatal("default promo widget layout element is missing")
+	}
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	for _, item := range settings.Layout.Elements {
+		if item.Area == "dashboard" && item.ID == "promo_widget" && (item.IconBubble == nil || *item.IconBubble) {
+			t.Fatal("disabled promo widget icon bubble was not preserved")
+		}
+	}
+
+	for index := range settings.Layout.Elements {
+		item := &settings.Layout.Elements[index]
+		if item.Area == "dashboard" && item.ID == "promo_widget" {
+			item.IconBubble = nil
+		}
+	}
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() legacy settings error = %v", err)
+	}
+	for _, item := range settings.Layout.Elements {
+		if item.Area == "dashboard" && item.ID == "promo_widget" && (item.IconBubble == nil || !*item.IconBubble) {
+			t.Fatal("legacy promo widget did not receive the default icon bubble")
+		}
+	}
+}
+
 func TestNormalizeAndValidateRemovesDashboardWrappers(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Layout.Elements = append(settings.Layout.Elements,

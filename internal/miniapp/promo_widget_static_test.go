@@ -17,10 +17,13 @@ func TestPromoWidgetWiresEditorValidationAndCheckout(t *testing.T) {
 		`data-action="admin-add-promo-widget"`,
 		`data-action="admin-edit-promo-widget"`,
 		`data-action="admin-validate-promo-widget"`,
+		`data-input="admin-promo-widget-bubble"`,
 		`/api/mini-app/admin/promocodes/validate`,
 		`data-action="open-promo-widget-checkout"`,
 		`await applyPromoCode();`,
 		`class="promo-gift-widget__mark"`,
+		`promo-gift-widget--plain`,
+		`return { width: 36, height: 36 }`,
 	} {
 		if !strings.Contains(content, expected) {
 			t.Fatalf("app.js does not contain %q", expected)
@@ -52,6 +55,10 @@ func TestPromoWidgetUsesThemeAwareSVGAndAccessibleControls(t *testing.T) {
 		`.promo-gift-widget`,
 		`url("/mini-app/assets/promo-gift.svg")`,
 		`color: var(--accent)`,
+		`color: var(--icon-color)`,
+		`.promo-gift-widget--plain`,
+		`.admin-save-bar--layout-editor .admin-save-bar__close`,
+		`clip-path: inset(50%)`,
 		`.layout-editable__edit:focus-visible`,
 		`outline-color: var(--accent)`,
 		`@media (prefers-reduced-motion: reduce)`,

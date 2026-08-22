@@ -216,20 +216,21 @@ type AppearanceSettings struct {
 }
 
 type LayoutElement struct {
-	ID        string   `json:"id"`
-	Area      string   `json:"area"`
-	Order     int      `json:"order"`
-	Visible   bool     `json:"visible"`
-	Width     float64  `json:"width"`
-	Height    int      `json:"height"`
-	Framed    bool     `json:"framed"`
-	Align     string   `json:"align"`
-	OffsetX   int      `json:"offsetX"`
-	OffsetY   int      `json:"offsetY"`
-	PositionX *float64 `json:"positionX,omitempty"`
-	PositionY *float64 `json:"positionY,omitempty"`
-	Group     string   `json:"group,omitempty"`
-	PromoCode string   `json:"promoCode,omitempty"`
+	ID         string   `json:"id"`
+	Area       string   `json:"area"`
+	Order      int      `json:"order"`
+	Visible    bool     `json:"visible"`
+	Width      float64  `json:"width"`
+	Height     int      `json:"height"`
+	Framed     bool     `json:"framed"`
+	Align      string   `json:"align"`
+	OffsetX    int      `json:"offsetX"`
+	OffsetY    int      `json:"offsetY"`
+	PositionX  *float64 `json:"positionX,omitempty"`
+	PositionY  *float64 `json:"positionY,omitempty"`
+	Group      string   `json:"group,omitempty"`
+	PromoCode  string   `json:"promoCode,omitempty"`
+	IconBubble *bool    `json:"iconBubble,omitempty"`
 }
 
 type LayoutSettings struct {
@@ -668,6 +669,10 @@ func uuidString(value uuid.UUID) string {
 	return value.String()
 }
 
+func boolPointer(value bool) *bool {
+	return &value
+}
+
 func defaultLayoutElements() []LayoutElement {
 	profileGroups := map[string]string{
 		"server_status": "main", "media": "main", "news": "main",
@@ -729,7 +734,7 @@ func defaultLayoutElements() []LayoutElement {
 		{ID: "devices", Area: "dashboard", Order: 15, Visible: true, Width: 48, Height: 36, Align: "right"},
 		{ID: "primary_action", Area: "dashboard", Order: 16, Visible: true, Width: 100, Height: 44, Align: "center"},
 		{ID: "secondary_action", Area: "dashboard", Order: 17, Visible: true, Width: 100, Height: 44, Align: "center"},
-		{ID: "promo_widget", Area: "dashboard", Order: 18, Visible: false, Width: 42, Height: 92, Align: "center"},
+		{ID: "promo_widget", Area: "dashboard", Order: 18, Visible: false, Width: 42, Height: 92, Align: "center", IconBubble: boolPointer(true)},
 		{ID: "plan_1m", Area: "buy", Order: 10, Visible: true, Width: 100, Height: 112, Align: "left"},
 		{ID: "plan_1m_unlimited", Area: "buy", Order: 11, Visible: true, Width: 100, Height: 112, Align: "left"},
 		{ID: "plan_3m", Area: "buy", Order: 12, Visible: true, Width: 100, Height: 112, Align: "left"},
@@ -1496,11 +1501,15 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings) error {
 		item.Group = strings.ToLower(strings.TrimSpace(item.Group))
 		item.PromoCode = strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(item.PromoCode), " ", ""))
 		if item.Area == "dashboard" && item.ID == "promo_widget" {
+			if item.IconBubble == nil {
+				item.IconBubble = boolPointer(true)
+			}
 			if item.PromoCode != "" && !promoCodePattern.MatchString(item.PromoCode) {
 				return fmt.Errorf("invalid promo code for %q", key)
 			}
 		} else {
 			item.PromoCode = ""
+			item.IconBubble = nil
 		}
 		if item.Area == "profile" && !strings.HasPrefix(item.ID, "group_") {
 			if item.Group == "" {
@@ -1552,10 +1561,10 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings) error {
 				item.Height = fallback.Height
 			}
 		} else if item.Area == "dashboard" && item.ID == "promo_widget" {
-			if item.Width < 10 || item.Width > 150 {
+			if item.Width < 6 || item.Width > 150 {
 				item.Width = fallback.Width
 			}
-			if item.Height < 64 || item.Height > 720 {
+			if item.Height < 36 || item.Height > 720 {
 				item.Height = fallback.Height
 			}
 		} else if item.Area == "profile" {
