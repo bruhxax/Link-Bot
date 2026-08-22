@@ -1707,6 +1707,7 @@ const state = {
 	subscriptionEditorMode: "rename",
 	subscriptionNameDraft: "",
 	subscriptionBusy: "",
+	subscriptionSwitchAnimation: "",
 	devicePackModalOpen: false,
 	selectedDevicePackId: "",
 	adminDevicePackEditorOpen: false,
@@ -1808,6 +1809,7 @@ const state = {
 state.currentPage = normalizePage(state.currentPage);
 
 let pageAnimationEnabled = false;
+let subscriptionSwitchAnimation = "";
 let supportListPollTimer = 0;
 let supportThreadPollTimer = 0;
 let previousActiveModalName = "";
@@ -2644,6 +2646,10 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
 	syncAdminLayoutBackgroundAnimation();
   pageAnimationEnabled = Boolean(state.animatePageEntry);
   state.animatePageEntry = false;
+	subscriptionSwitchAnimation = /^(?:in|out)-(?:next|previous)$/.test(state.subscriptionSwitchAnimation)
+		? state.subscriptionSwitchAnimation
+		: "";
+	state.subscriptionSwitchAnimation = "";
   applyAppearance();
   if (isInstallGuideMode()) {
     app.innerHTML = renderInstallGuidePage();
@@ -2713,6 +2719,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
 	syncAdminBroadcastPolling();
   mountGoogleLoginWidgets();
   pageAnimationEnabled = false;
+	subscriptionSwitchAnimation = "";
 }
 
 function mountAdminContentTabs() {
@@ -4141,7 +4148,8 @@ function renderDashboardPage() {
 		...(promoWidgetVisible ? { promo_widget: renderPromoGiftWidget(promoWidgetItem) } : {}),
 		...(notificationWidgetVisible ? { notification_widget: renderNotificationWidget(notificationWidgetItem) } : {}),
 	};
-	return `<section class="page ${pageClass("dashboard")}" id="page-dashboard">${renderSubscriptionSwitcher()}${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
+	const switchAnimationClass = subscriptionSwitchAnimation ? `subscription-switch--${subscriptionSwitchAnimation}` : "";
+	return `<section class="page ${pageClass("dashboard")} ${switchAnimationClass}" id="page-dashboard">${renderSubscriptionSwitcher()}${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
 }
 
 function renderPromoGiftWidget(item) {
@@ -4230,10 +4238,14 @@ function renderSubscriptionSwitcher() {
 	const copy = subscriptionSwitcherCopy();
 	const active = getActiveSubscriptionItem();
 	const menuVisible = state.subscriptionMenuOpen || state.subscriptionMenuClosing;
+	const switchingID = Number(String(state.subscriptionBusy || "").replace("select-", "")) || 0;
 	const maximum = Math.max(1, Number(state.data?.subscriptions?.maximum || 3));
 	const canCreate = items.length < maximum;
-	const menu = menuVisible ? `<div class="subscription-switcher__menu ${state.subscriptionMenuClosing ? "is-closing" : "is-open"}" role="menu" aria-label="${localizedText("Подписки", "Subscriptions", "اشتراک‌ها")}">
-		<div class="subscription-switcher__list">${items.map((item) => `<button class="subscription-switcher__item ${item.isActive ? "is-active" : ""}" type="button" role="menuitemradio" aria-checked="${Boolean(item.isActive)}" data-action="select-subscription" data-value="${escapeAttribute(String(item.id || 0))}" ${state.subscriptionBusy ? "disabled" : ""}><span class="subscription-switcher__item-copy"><strong>${escapeHtml(item.name || copy.primary)}</strong><small>${item.status === "active" ? copy.active : copy.inactive}${item.isPrimary ? ` · ${copy.primary}` : ""}</small></span><span class="subscription-switcher__check">${item.isActive ? icon("check") : ""}</span></button>`).join("")}</div>
+	const menu = menuVisible ? `<div class="subscription-switcher__menu ${state.subscriptionMenuClosing ? "is-closing" : "is-open"}" role="menu" aria-label="${localizedText("Подписки", "Subscriptions", "اشتراک‌ها")}" aria-busy="${Boolean(switchingID)}">
+		<div class="subscription-switcher__list">${items.map((item) => {
+			const isSwitching = Number(item.id) === switchingID;
+			return `<button class="subscription-switcher__item ${item.isActive ? "is-active" : ""} ${isSwitching ? "is-switching" : ""}" type="button" role="menuitemradio" aria-checked="${Boolean(item.isActive)}" aria-busy="${isSwitching}" data-action="select-subscription" data-value="${escapeAttribute(String(item.id || 0))}" ${state.subscriptionBusy ? "disabled" : ""}><span class="subscription-switcher__item-copy"><strong>${escapeHtml(item.name || copy.primary)}</strong><small>${item.status === "active" ? copy.active : copy.inactive}${item.isPrimary ? ` · ${copy.primary}` : ""}</small></span><span class="subscription-switcher__check">${isSwitching ? `<span class="subscription-switcher__progress" aria-hidden="true"></span>` : (item.isActive ? icon("check") : "")}</span></button>`;
+		}).join("")}</div>
 		<div class="subscription-switcher__actions">
 			<button type="button" role="menuitem" data-action="open-subscription-rename" ${state.subscriptionBusy ? "disabled" : ""}>${icon("pencil")}<span>${copy.rename}</span></button>
 			${canCreate ? `<button type="button" role="menuitem" data-action="open-subscription-create" ${state.subscriptionBusy ? "disabled" : ""}>${icon("plus")}<span>${copy.create}</span></button>` : ""}
@@ -8373,25 +8385,48 @@ function applySubscriptionBootstrap(data) {
 async function selectSubscription(id) {
 	const active = getActiveSubscriptionItem();
 	if (!id || Number(active?.id) === id || state.subscriptionBusy) return requestSubscriptionMenuClose();
+	const items = getSubscriptionItems();
+	const activeIndex = items.findIndex((item) => Number(item.id) === Number(active?.id));
+	const targetIndex = items.findIndex((item) => Number(item.id) === id);
+	let direction = targetIndex >= activeIndex ? "next" : "previous";
+	if (document.documentElement.dir === "rtl") direction = direction === "next" ? "previous" : "next";
 	state.subscriptionBusy = `select-${id}`;
-	requestSubscriptionMenuClose();
+	markSubscriptionSwitchPending(id);
 	try {
 		const response = await post("/api/mini-app/subscriptions/select", { id });
-		applySubscriptionBootstrap(response.data);
-		state.subscriptionBusy = "";
-		window.clearTimeout(subscriptionMenuTimer);
-		state.subscriptionMenuOpen = false;
-		state.subscriptionMenuClosing = false;
-		render({ preserveScroll: true });
-		haptic("light");
+		if (!state.subscriptionMenuOpen && !state.subscriptionMenuClosing) {
+			applySubscriptionBootstrap(response.data);
+			state.subscriptionBusy = "";
+			state.subscriptionSwitchAnimation = `in-${direction}`;
+			render({ preserveScroll: true });
+			haptic("light");
+			return;
+		}
+		state.subscriptionSwitchAnimation = `out-${direction}`;
+		requestSubscriptionMenuClose(() => {
+			applySubscriptionBootstrap(response.data);
+			state.subscriptionBusy = "";
+			state.subscriptionSwitchAnimation = `in-${direction}`;
+			haptic("light");
+		});
 	} catch (error) {
 		state.subscriptionBusy = "";
-		window.clearTimeout(subscriptionMenuTimer);
-		state.subscriptionMenuOpen = false;
-		state.subscriptionMenuClosing = false;
 		render({ preserveScroll: true });
 		throw error;
 	}
+}
+
+function markSubscriptionSwitchPending(id) {
+	const menu = app.querySelector(".subscription-switcher__menu");
+	if (!menu) return;
+	menu.setAttribute("aria-busy", "true");
+	for (const button of menu.querySelectorAll("button")) button.disabled = true;
+	const target = Array.from(menu.querySelectorAll('[data-action="select-subscription"]')).find((button) => button.dataset.value === String(id));
+	if (!target) return;
+	target.classList.add("is-switching");
+	target.setAttribute("aria-busy", "true");
+	const status = target.querySelector(".subscription-switcher__check");
+	if (status) status.innerHTML = `<span class="subscription-switcher__progress" aria-hidden="true"></span>`;
 }
 
 function openSubscriptionEditor(mode) {

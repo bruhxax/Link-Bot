@@ -1803,10 +1803,23 @@ img { display: block; max-width: 100%; }
   border-color: var(--line);
   background: var(--control-bg);
 }
+.subscription-switcher__item.is-switching {
+  border-color: color-mix(in srgb, var(--icon-color) 68%, var(--line));
+  background: color-mix(in srgb, var(--icon-color) 10%, transparent);
+}
 .subscription-switcher__item-copy { min-width: 0; display: grid; gap: 3px; }
 .subscription-switcher__item-copy strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .subscription-switcher__item-copy small { color: var(--muted); font-size: 10px; }
 .subscription-switcher__check { width: 18px; height: 18px; flex: 0 0 18px; display: grid; place-items: center; color: var(--icon-color); }
+.subscription-switcher__progress {
+  width: 14px;
+  height: 14px;
+  display: block;
+  border: 1.5px solid color-mix(in srgb, var(--icon-color) 24%, transparent);
+  border-top-color: var(--icon-color);
+  border-radius: 50%;
+  animation: subscriptionSwitchProgress .8s linear infinite;
+}
 .subscription-switcher__actions button { position: relative; font-size: 12px; font-weight: 700; }
 .subscription-switcher__actions button > svg { flex: 0 0 15px; color: var(--icon-color); }
 .subscription-switcher__actions button:disabled { opacity: .42; }
@@ -1836,9 +1849,57 @@ img { display: block; max-width: 100%; }
   to { opacity: 0; transform: translate(-50%, -5px) scale(.985); }
 }
 
+@keyframes subscriptionSwitchProgress { to { transform: rotate(360deg); } }
+
+#page-dashboard.subscription-switch--out-next .runtime-layout-area--dashboard,
+#page-dashboard.subscription-switch--out-next > .subscription-switcher .subscription-switcher__trigger > span:first-child {
+  animation: subscriptionContentOutNext .18s cubic-bezier(.4, 0, 1, 1) both;
+}
+
+#page-dashboard.subscription-switch--out-previous .runtime-layout-area--dashboard,
+#page-dashboard.subscription-switch--out-previous > .subscription-switcher .subscription-switcher__trigger > span:first-child {
+  animation: subscriptionContentOutPrevious .18s cubic-bezier(.4, 0, 1, 1) both;
+}
+
+#page-dashboard.subscription-switch--in-next .runtime-layout-area--dashboard,
+#page-dashboard.subscription-switch--in-next > .subscription-switcher .subscription-switcher__trigger > span:first-child {
+  animation: subscriptionContentInNext .38s cubic-bezier(.22, 1, .36, 1) both;
+}
+
+#page-dashboard.subscription-switch--in-previous .runtime-layout-area--dashboard,
+#page-dashboard.subscription-switch--in-previous > .subscription-switcher .subscription-switcher__trigger > span:first-child {
+  animation: subscriptionContentInPrevious .38s cubic-bezier(.22, 1, .36, 1) both;
+}
+
+@keyframes subscriptionContentOutNext {
+  from { opacity: 1; transform: translateX(0); filter: blur(0); }
+  to { opacity: 0; transform: translateX(-8px); filter: blur(2px); }
+}
+
+@keyframes subscriptionContentOutPrevious {
+  from { opacity: 1; transform: translateX(0); filter: blur(0); }
+  to { opacity: 0; transform: translateX(8px); filter: blur(2px); }
+}
+
+@keyframes subscriptionContentInNext {
+  from { opacity: 0; transform: translateX(12px); filter: blur(3px); }
+  to { opacity: 1; transform: translateX(0); filter: blur(0); }
+}
+
+@keyframes subscriptionContentInPrevious {
+  from { opacity: 0; transform: translateX(-12px); filter: blur(3px); }
+  to { opacity: 1; transform: translateX(0); filter: blur(0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .subscription-switcher__menu { animation-duration: 1ms !important; }
   .subscription-switcher__chevron { transition-duration: 1ms; }
+  .subscription-switcher__progress,
+  #page-dashboard[class*="subscription-switch--"] .runtime-layout-area--dashboard,
+  #page-dashboard[class*="subscription-switch--"] > .subscription-switcher .subscription-switcher__trigger > span:first-child {
+    animation: none !important;
+    filter: none !important;
+  }
 }
 .dashboard-compact > .card--status-compact,
 .dashboard-compact > .action-stack--dashboard {
