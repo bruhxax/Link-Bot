@@ -454,17 +454,18 @@ func TestNormalizeAndValidateAddsVisualEditorAreas(t *testing.T) {
 	}
 
 	required := map[string]bool{
-		"dashboard:logo":          false,
-		"dashboard:traffic":       false,
-		"dashboard:promo_widget":  false,
-		"buy:plans":               false,
-		"buy:plan_6m":             false,
-		"buy:pay_button":          false,
-		"support:tickets":         false,
-		"support:new_ticket":      false,
-		"profile:payments":        false,
-		"profile:group_purchases": false,
-		"navigation:buy":          false,
+		"dashboard:logo":                false,
+		"dashboard:traffic":             false,
+		"dashboard:promo_widget":        false,
+		"dashboard:notification_widget": false,
+		"buy:plans":                     false,
+		"buy:plan_6m":                   false,
+		"buy:pay_button":                false,
+		"support:tickets":               false,
+		"support:new_ticket":            false,
+		"profile:payments":              false,
+		"profile:group_purchases":       false,
+		"navigation:buy":                false,
 	}
 	for _, item := range settings.Layout.Elements {
 		key := item.Area + ":" + item.ID
@@ -561,6 +562,68 @@ func TestNormalizeAndValidatePromoWidgetIconBubble(t *testing.T) {
 	for _, item := range settings.Layout.Elements {
 		if item.Area == "dashboard" && item.ID == "promo_widget" && (item.IconBubble == nil || !*item.IconBubble) {
 			t.Fatal("legacy promo widget did not receive the default icon bubble")
+		}
+	}
+}
+
+func TestNormalizeAndValidateNotificationWidget(t *testing.T) {
+	settings := DefaultSettings()
+	found := false
+	for index := range settings.Layout.Elements {
+		item := &settings.Layout.Elements[index]
+		if item.Area != "dashboard" || item.ID != "notification_widget" {
+			continue
+		}
+		found = true
+		if item.Visible {
+			t.Fatal("default notification widget must be hidden")
+		}
+		if item.IconBubble == nil || !*item.IconBubble {
+			t.Fatal("default notification widget icon bubble must be enabled")
+		}
+		disabled := false
+		item.IconBubble = &disabled
+		item.NotificationText = "  Важная новость  "
+		item.Visible = true
+	}
+	if !found {
+		t.Fatal("default notification widget layout element is missing")
+	}
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	for _, item := range settings.Layout.Elements {
+		if item.Area == "dashboard" && item.ID == "notification_widget" {
+			if item.NotificationText != "Важная новость" || item.IconBubble == nil || *item.IconBubble {
+				t.Fatalf("unexpected normalized notification widget: %+v", item)
+			}
+		}
+	}
+
+	for index := range settings.Layout.Elements {
+		item := &settings.Layout.Elements[index]
+		if item.Area == "dashboard" && item.ID == "notification_widget" {
+			item.IconBubble = nil
+			item.NotificationText = strings.Repeat("я", 2001)
+		}
+	}
+	if err := NormalizeAndValidate(&settings); err == nil || !strings.Contains(err.Error(), "notification text is too long") {
+		t.Fatalf("NormalizeAndValidate() error = %v, want notification text length error", err)
+	}
+
+	for index := range settings.Layout.Elements {
+		item := &settings.Layout.Elements[index]
+		if item.Area == "dashboard" && item.ID == "notification_widget" {
+			item.NotificationText = "Legacy text"
+		}
+	}
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() legacy settings error = %v", err)
+	}
+	for _, item := range settings.Layout.Elements {
+		if item.Area == "dashboard" && item.ID == "notification_widget" && (item.IconBubble == nil || !*item.IconBubble) {
+			t.Fatal("legacy notification widget did not receive the default icon bubble")
 		}
 	}
 }

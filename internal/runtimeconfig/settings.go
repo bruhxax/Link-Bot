@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -216,21 +217,22 @@ type AppearanceSettings struct {
 }
 
 type LayoutElement struct {
-	ID         string   `json:"id"`
-	Area       string   `json:"area"`
-	Order      int      `json:"order"`
-	Visible    bool     `json:"visible"`
-	Width      float64  `json:"width"`
-	Height     int      `json:"height"`
-	Framed     bool     `json:"framed"`
-	Align      string   `json:"align"`
-	OffsetX    int      `json:"offsetX"`
-	OffsetY    int      `json:"offsetY"`
-	PositionX  *float64 `json:"positionX,omitempty"`
-	PositionY  *float64 `json:"positionY,omitempty"`
-	Group      string   `json:"group,omitempty"`
-	PromoCode  string   `json:"promoCode,omitempty"`
-	IconBubble *bool    `json:"iconBubble,omitempty"`
+	ID               string   `json:"id"`
+	Area             string   `json:"area"`
+	Order            int      `json:"order"`
+	Visible          bool     `json:"visible"`
+	Width            float64  `json:"width"`
+	Height           int      `json:"height"`
+	Framed           bool     `json:"framed"`
+	Align            string   `json:"align"`
+	OffsetX          int      `json:"offsetX"`
+	OffsetY          int      `json:"offsetY"`
+	PositionX        *float64 `json:"positionX,omitempty"`
+	PositionY        *float64 `json:"positionY,omitempty"`
+	Group            string   `json:"group,omitempty"`
+	PromoCode        string   `json:"promoCode,omitempty"`
+	NotificationText string   `json:"notificationText,omitempty"`
+	IconBubble       *bool    `json:"iconBubble,omitempty"`
 }
 
 type LayoutSettings struct {
@@ -735,6 +737,7 @@ func defaultLayoutElements() []LayoutElement {
 		{ID: "primary_action", Area: "dashboard", Order: 16, Visible: true, Width: 100, Height: 44, Align: "center"},
 		{ID: "secondary_action", Area: "dashboard", Order: 17, Visible: true, Width: 100, Height: 44, Align: "center"},
 		{ID: "promo_widget", Area: "dashboard", Order: 18, Visible: false, Width: 42, Height: 92, Align: "center", IconBubble: boolPointer(true)},
+		{ID: "notification_widget", Area: "dashboard", Order: 19, Visible: false, Width: 42, Height: 92, Align: "center", IconBubble: boolPointer(true)},
 		{ID: "plan_1m", Area: "buy", Order: 10, Visible: true, Width: 100, Height: 112, Align: "left"},
 		{ID: "plan_1m_unlimited", Area: "buy", Order: 11, Visible: true, Width: 100, Height: 112, Align: "left"},
 		{ID: "plan_3m", Area: "buy", Order: 12, Visible: true, Width: 100, Height: 112, Align: "left"},
@@ -1500,16 +1503,29 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings) error {
 		item.Align = strings.ToLower(strings.TrimSpace(item.Align))
 		item.Group = strings.ToLower(strings.TrimSpace(item.Group))
 		item.PromoCode = strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(item.PromoCode), " ", ""))
-		if item.Area == "dashboard" && item.ID == "promo_widget" {
+		item.NotificationText = strings.TrimSpace(item.NotificationText)
+		isPromoWidget := item.Area == "dashboard" && item.ID == "promo_widget"
+		isNotificationWidget := item.Area == "dashboard" && item.ID == "notification_widget"
+		if isPromoWidget || isNotificationWidget {
 			if item.IconBubble == nil {
 				item.IconBubble = boolPointer(true)
 			}
+		} else {
+			item.IconBubble = nil
+		}
+		if isPromoWidget {
 			if item.PromoCode != "" && !promoCodePattern.MatchString(item.PromoCode) {
 				return fmt.Errorf("invalid promo code for %q", key)
 			}
 		} else {
 			item.PromoCode = ""
-			item.IconBubble = nil
+		}
+		if isNotificationWidget {
+			if utf8.RuneCountInString(item.NotificationText) > 2000 {
+				return fmt.Errorf("notification text is too long for %q", key)
+			}
+		} else {
+			item.NotificationText = ""
 		}
 		if item.Area == "profile" && !strings.HasPrefix(item.ID, "group_") {
 			if item.Group == "" {
@@ -1560,7 +1576,7 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings) error {
 			if item.Height < 24 || item.Height > 96 {
 				item.Height = fallback.Height
 			}
-		} else if item.Area == "dashboard" && item.ID == "promo_widget" {
+		} else if item.Area == "dashboard" && contains([]string{"promo_widget", "notification_widget"}, item.ID) {
 			if item.Width < 6 || item.Width > 150 {
 				item.Width = fallback.Width
 			}

@@ -36,6 +36,7 @@ const STORAGE_KEYS = {
   telegramIDToken: "link-bot-telegram-id-token",
   telegramLogin: "link-bot-telegram-login",
   googleLogin: "link-bot-google-login",
+	notificationRead: "link-bot-notification-read",
 };
 
 consumeTelegramLoginRedirect();
@@ -1376,6 +1377,7 @@ const PROFILE_DEFAULT_GROUPS = {
 
 const ADMIN_LAYOUT_META = {
 	"dashboard:promo_widget": ["Промокод", "gift"],
+	"dashboard:notification_widget": ["Уведомление", "profileLetter"],
 	"buy:plans": ["\u0422\u0430\u0440\u0438\u0444\u044b", "cartShopping"],
 	"buy:checkout": ["\u041e\u043f\u043b\u0430\u0442\u0430", "wallet"],
 	"support:actions": ["\u0411\u044b\u0441\u0442\u0440\u044b\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044f", "plus"],
@@ -1428,6 +1430,7 @@ const ADMIN_LAYOUT_DEFAULTS = [
 	...["dashboard", "buy", "support", "settings", "admin"].map((id, order) => ["navigation", id, order, 44, 38, true, "center"]),
 ].map(([area, id, order, width, height, framed, align, group]) => ({ area, id, order, visible: true, width, height, framed, align, offsetX: 0, offsetY: 0, ...(group ? { group } : {}) }));
 ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "promo_widget", order: 18, visible: false, width: 42, height: 92, framed: false, align: "center", offsetX: 0, offsetY: 0, promoCode: "", iconBubble: true });
+ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "notification_widget", order: 19, visible: false, width: 42, height: 92, framed: false, align: "center", offsetX: 0, offsetY: 0, notificationText: "", iconBubble: true });
 
 const ADMIN_APPEARANCE_PRESETS = [
 	{
@@ -1752,6 +1755,11 @@ const state = {
 	adminPromoWidgetCodeDraft: "",
 	adminPromoWidgetValidation: null,
 	adminPromoWidgetBusy: "",
+	adminNotificationWidgetEditorOpen: false,
+	adminNotificationWidgetTextDraft: "",
+	notificationPopoverOpen: false,
+	notificationPopoverClosing: false,
+	notificationPopoverAlign: "center",
 	activeCustomPageID: "",
   adminPromoCodeDraft: "",
   adminPromoDiscountDraft: "",
@@ -1807,6 +1815,7 @@ let animatedModalName = "";
 let closingModalName = "";
 let closingModalTimer = 0;
 let subscriptionMenuTimer = 0;
+let notificationPopoverTimer = 0;
 let previousBottomNavIndex = -1;
 let pendingBottomNavAnimation = null;
 let promoApplyTimer = 0;
@@ -1895,13 +1904,13 @@ function mountedRuntimeLocalLeft(item, parentWidth, renderedWidth, flowLocalLeft
 
 function runtimeLayoutStyle(item, area = item?.area) {
 	const isNavigation = area === "navigation";
-	const isPromoWidget = area === "dashboard" && item?.id === "promo_widget";
+	const isCompactWidget = area === "dashboard" && ["promo_widget", "notification_widget"].includes(item?.id);
 	const width = isNavigation
 		? Math.max(28, Math.min(100, Number(item?.width || 44)))
-		: Math.max(isPromoWidget ? 6 : 10, Math.min(150, Number(item?.width || 100)));
+		: Math.max(isCompactWidget ? 6 : 10, Math.min(150, Number(item?.width || 100)));
 	const height = isNavigation
 		? Math.max(24, Math.min(96, Number(item?.height || 38)))
-		: Math.max(isPromoWidget ? 36 : 20, Math.min(720, Number(item?.height || 52)));
+		: Math.max(isCompactWidget ? 36 : 20, Math.min(720, Number(item?.height || 52)));
 	const positioned = hasStoredLayoutPosition(item);
 	const offsetX = positioned ? 0 : Math.max(-1000, Math.min(1000, Number(item?.offsetX || 0)));
 	const offsetY = positioned ? 0 : Math.max(-1000, Math.min(1000, Number(item?.offsetY || 0)));
@@ -1916,9 +1925,14 @@ function renderLayoutEditHandles(area = "", id = "") {
 	if (!state.adminLayoutEditing) return "";
 	const moveLabel = localizedText("Переместить элемент", "Move element", "جابجایی عنصر");
 	const resizeLabel = localizedText("Изменить размер", "Resize element", "تغییر اندازه عنصر");
-	const edit = area === "dashboard" && id === "promo_widget"
-		? `<button class="layout-editable__edit" type="button" data-action="admin-edit-promo-widget" aria-label="${escapeAttribute(localizedText("Изменить промокод", "Edit promo code", "ویرایش کد تخفیف"))}" title="${escapeAttribute(localizedText("Изменить промокод", "Edit promo code", "ویرایش کد تخفیف"))}">${icon("pencil")}</button>`
-		: "";
+	let edit = "";
+	if (area === "dashboard" && id === "promo_widget") {
+		const label = localizedText("Изменить промокод", "Edit promo code", "ویرایش کد تخفیف");
+		edit = `<button class="layout-editable__edit" type="button" data-action="admin-edit-promo-widget" aria-label="${escapeAttribute(label)}" title="${escapeAttribute(label)}">${icon("pencil")}</button>`;
+	} else if (area === "dashboard" && id === "notification_widget") {
+		const label = localizedText("Изменить уведомление", "Edit notification", "ویرایش اعلان");
+		edit = `<button class="layout-editable__edit" type="button" data-action="admin-edit-notification-widget" aria-label="${escapeAttribute(label)}" title="${escapeAttribute(label)}">${icon("pencil")}</button>`;
+	}
 	return `<button class="layout-editable__move" type="button" data-ui-move-handle aria-label="${escapeAttribute(moveLabel)}" title="${escapeAttribute(moveLabel)}">${icon("move")}</button>${edit}<button class="layout-editable__resize" type="button" data-ui-resize-handle aria-label="${escapeAttribute(resizeLabel)}" title="${escapeAttribute(resizeLabel)}">${icon("resize")}</button>`;
 }
 
@@ -2622,7 +2636,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-	const modalOpen = state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen;
+	const modalOpen = state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -2684,6 +2698,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
 		${state.adminPlanEditorModalOpen ? renderAdminPlanEditorModal() : ""}
 		${state.adminProfileEditorModalOpen ? renderAdminProfileEditorModal() : ""}
 		${isModalVisible("admin-promo-widget", state.adminPromoWidgetEditorOpen) ? renderAdminPromoWidgetModal() : ""}
+		${isModalVisible("admin-notification-widget", state.adminNotificationWidgetEditorOpen) ? renderAdminNotificationWidgetModal() : ""}
     </div>
   `;
   bindRootActions();
@@ -3755,10 +3770,13 @@ function renderAdminSaveBar(className = "") {
 		? `<button class="admin-save-bar__add" type="button" data-action="admin-add-profile-button" ${busy ? "disabled" : ""}>${icon("plus")}<span>${state.locale === "en" ? "Add" : "Добавить"}</span></button>`
 		: "";
 	const promoWidgetButton = state.adminLayoutEditing && state.currentPage === "dashboard"
-		? `<button class="admin-save-bar__promo" type="button" data-action="admin-add-promo-widget" ${busy ? "disabled" : ""}><span class="admin-save-bar__promo-icon" aria-hidden="true"></span><span>${localizedText("Промокод", "Promo code", "کد تخفیف")}</span></button>`
+		? `<button class="admin-save-bar__promo admin-save-bar__widget" type="button" data-action="admin-add-promo-widget" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(localizedText("Промокод", "Promo code", "کد تخفیف"))}" title="${escapeAttribute(localizedText("Промокод", "Promo code", "کد تخفیف"))}"><span class="admin-save-bar__promo-icon" aria-hidden="true"></span><span>${localizedText("Промокод", "Promo code", "کد تخفیف")}</span></button>`
 		: "";
-	const profileClass = profileAddButton ? "admin-save-bar--profile-layout" : (promoWidgetButton ? "admin-save-bar--promo-layout" : "");
-	return `<div class="admin-save-bar ${className} ${profileClass}" role="status" aria-live="polite"><span>${escapeHtml(status)}</span><div class="admin-save-bar__actions">${profileAddButton}${promoWidgetButton}${resetButton}<button type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""}>${icon(busy ? "refresh" : "check")}<span>${localizedText("Сохранить", "Save", "ذخیره")}</span></button>${state.adminLayoutEditing ? `<button class="admin-save-bar__close" type="button" data-action="admin-layout-exit" aria-label="${state.locale === "en" ? "Exit editor" : "Выйти из редактора"}">${icon("close")}</button>` : ""}</div></div>`;
+	const notificationWidgetButton = state.adminLayoutEditing && state.currentPage === "dashboard"
+		? `<button class="admin-save-bar__notification admin-save-bar__widget" type="button" data-action="admin-add-notification-widget" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(localizedText("Уведомление", "Notification", "اعلان"))}" title="${escapeAttribute(localizedText("Уведомление", "Notification", "اعلان"))}"><span class="admin-save-bar__notification-icon" aria-hidden="true"></span><span>${localizedText("Уведомление", "Notification", "اعلان")}</span></button>`
+		: "";
+	const profileClass = profileAddButton ? "admin-save-bar--profile-layout" : (promoWidgetButton ? "admin-save-bar--promo-layout admin-save-bar--widget-layout" : "");
+	return `<div class="admin-save-bar ${className} ${profileClass}" role="status" aria-live="polite"><span>${escapeHtml(status)}</span><div class="admin-save-bar__actions">${profileAddButton}${promoWidgetButton}${notificationWidgetButton}${resetButton}<button type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""}>${icon(busy ? "refresh" : "check")}<span>${localizedText("Сохранить", "Save", "ذخیره")}</span></button>${state.adminLayoutEditing ? `<button class="admin-save-bar__close" type="button" data-action="admin-layout-exit" aria-label="${state.locale === "en" ? "Exit editor" : "Выйти из редактора"}">${icon("close")}</button>` : ""}</div></div>`;
 }
 
 function renderAdminPlanSaveBar() {
@@ -3879,6 +3897,42 @@ function renderAdminPromoWidgetModal() {
 			<footer class="promo-widget-editor__actions">
 				${item?.visible !== false ? `<button class="promo-widget-editor__remove" type="button" data-action="admin-remove-promo-widget" ${busy ? "disabled" : ""}>${icon("trash")}<span>${localizedText("Убрать", "Remove", "حذف")}</span></button>` : "<span></span>"}
 				<button class="btn btn--green-filled" type="button" data-action="admin-validate-promo-widget" ${busy || !normalizePromoCodeValue(state.adminPromoWidgetCodeDraft) ? "disabled" : ""}>${icon(busy ? "refresh" : "check")}<span>${busy ? localizedText("Проверяем", "Checking", "در حال بررسی") : localizedText("Применить", "Apply", "اعمال")}</span></button>
+			</footer>
+		</div>
+	</div>`;
+}
+
+function renderAdminNotificationWidgetModal() {
+	const item = getAdminNotificationWidgetItem();
+	const text = state.adminNotificationWidgetTextDraft;
+	const title = localizedText("Текст уведомления", "Notification text", "متن اعلان");
+	const hint = localizedText(
+		"После изменения текста у пользователей снова появится красная точка до первого открытия.",
+		"After the text changes, users will see the red dot again until they open it.",
+		"پس از تغییر متن، نقطه قرمز تا اولین باز کردن دوباره نمایش داده می‌شود."
+	);
+	return `<div class="modal open ${modalStateClass("admin-notification-widget")}" role="dialog" aria-modal="true" aria-labelledby="admin-notification-widget-title" aria-describedby="admin-notification-widget-hint">
+		<button class="modal__backdrop" type="button" data-action="admin-close-notification-widget" aria-label="${escapeAttribute(localizedText("Закрыть", "Close", "بستن"))}"></button>
+		<div class="modal__sheet modal__sheet--promo-widget modal__sheet--notification-widget">
+			<header class="promo-widget-editor__header notification-widget-editor__header">
+				<span class="notification-widget-editor__mark" aria-hidden="true"></span>
+				<div><span>${localizedText("ВИДЖЕТ", "WIDGET", "ویجت")}</span><h2 id="admin-notification-widget-title">${escapeHtml(title)}</h2></div>
+				<button type="button" data-action="admin-close-notification-widget" aria-label="${escapeAttribute(localizedText("Закрыть", "Close", "بستن"))}">${icon("close")}</button>
+			</header>
+			<p id="admin-notification-widget-hint" class="promo-widget-editor__hint">${escapeHtml(hint)}</p>
+			<label class="admin-field promo-widget-editor__field" for="admin-notification-widget-text">
+				<span>${localizedText("Сообщение", "Message", "پیام")}</span>
+				<textarea class="admin-field__control notification-widget-editor__textarea" id="admin-notification-widget-text" rows="6" maxlength="2000" placeholder="${escapeAttribute(localizedText("Напишите новость или важное объявление", "Write a news item or important announcement", "خبر یا اطلاعیه مهم را بنویسید"))}" data-input="admin-notification-widget-text" aria-describedby="admin-notification-widget-counter">${escapeHtml(text)}</textarea>
+			</label>
+			<label class="admin-toggle promo-widget-editor__bubble">
+				<span>${localizedText("Фон вокруг иконки", "Background around icon", "پس‌زمینه دور آیکن")}</span>
+				<input type="checkbox" data-input="admin-notification-widget-bubble" ${item?.iconBubble !== false ? "checked" : ""}>
+				<i aria-hidden="true"></i>
+			</label>
+			<div class="notification-widget-editor__counter" id="admin-notification-widget-counter" aria-live="polite">${text.length}/2000</div>
+			<footer class="promo-widget-editor__actions">
+				${item?.visible !== false ? `<button class="promo-widget-editor__remove" type="button" data-action="admin-remove-notification-widget">${icon("trash")}<span>${localizedText("Убрать", "Remove", "حذف")}</span></button>` : "<span></span>"}
+				<button class="btn btn--green-filled" type="button" data-action="admin-apply-notification-widget" ${!text.trim() ? "disabled" : ""}>${icon("check")}<span>${localizedText("Применить", "Apply", "اعمال")}</span></button>
 			</footer>
 		</div>
 	</div>`;
@@ -4077,12 +4131,15 @@ function renderDashboardPage() {
 	const actionStack = `<div class="action-stack action-stack--dashboard">${renderLayoutDetail("dashboard", "primary_action", primaryAction, "runtime-detail-item--action")}${secondaryAction ? renderLayoutDetail("dashboard", "secondary_action", secondaryAction, "runtime-detail-item--action") : ""}</div>`;
 	const promoWidgetItem = getLayoutElement("dashboard", "promo_widget");
 	const promoWidgetVisible = promoWidgetItem?.visible !== false && (Boolean(promoWidgetItem?.promoCode) || state.adminLayoutEditing);
+	const notificationWidgetItem = getLayoutElement("dashboard", "notification_widget");
+	const notificationWidgetVisible = notificationWidgetItem?.visible !== false && (Boolean(String(notificationWidgetItem?.notificationText || "").trim()) || state.adminLayoutEditing);
 
 	const blocks = {
 		brand: `<div class="hero-center hero-center--brand">${renderLayoutDetail("dashboard", "logo", `<div class="hero-brand" style="--runtime-logo-width:${Math.max(48, Math.min(220, Number(getRuntimeSettings()?.layout?.logoWidth || 188)))}px"><img src="${escapeAttribute(resolveBrandMarkURL(state.data.brand.logoUrl))}" alt="${escapeAttribute(state.data.brand.name || "Link-Bot")}" loading="eager" draggable="false"></div>`, "runtime-detail-item--logo")}${renderLayoutDetail("dashboard", "username", `<div class="hero-handle">${escapeHtml(avatarLabel)}</div>`, "runtime-detail-item--username")}</div>`,
 		subscription: active ? `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", `<div class="sub-bar__name">${title}</div>`, "runtime-detail-item--status runtime-detail-item--plan")}${renderLayoutDetail("dashboard", "expires", `<div class="sub-bar__date"><span class="sub-bar__date-icon">${icon("calendarDays")}</span><span>${expires}</span></div>`, "runtime-detail-item--status")}</div><div class="sub-bar__row sub-bar__row--pills">${trafficLabel ? renderLayoutDetail("dashboard", "traffic", `<span class="sub-pill"><span class="sub-pill__icon">${icon("chartLine")}</span><span>${escapeHtml(trafficLabel)}</span></span>`, "runtime-detail-item--pill") : ""}${deviceLabel ? renderLayoutDetail("dashboard", "devices", `<button class="sub-pill sub-pill--button" type="button" data-action="open-devices-modal"><span>${escapeHtml(deviceLabel)}</span><span class="sub-pill__edit">${icon("userPen")}</span></button>`, "runtime-detail-item--pill") : ""}</div></div></div></div>` : "",
 		actions: `<div class="dashboard-compact">${actionStack}</div>`,
 		...(promoWidgetVisible ? { promo_widget: renderPromoGiftWidget(promoWidgetItem) } : {}),
+		...(notificationWidgetVisible ? { notification_widget: renderNotificationWidget(notificationWidgetItem) } : {}),
 	};
 	return `<section class="page ${pageClass("dashboard")}" id="page-dashboard">${renderSubscriptionSwitcher()}${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
 }
@@ -4094,11 +4151,61 @@ function renderPromoGiftWidget(item) {
 	const hint = code
 		? localizedText(`Промокод ${code}`, `Promo code ${code}`, `کد تخفیف ${code}`)
 		: localizedText("Настройте промокод", "Set a promo code", "کد تخفیف را تنظیم کنید");
-	return `<button class="promo-gift-widget ${bubbleClass}" type="button" data-action="open-promo-widget-checkout" data-value="${escapeAttribute(code)}" aria-label="${escapeAttribute(`${title}. ${hint}`)}">
+	return `<button class="home-widget promo-gift-widget ${bubbleClass}" type="button" data-action="open-promo-widget-checkout" data-value="${escapeAttribute(code)}" aria-label="${escapeAttribute(`${title}. ${hint}`)}">
 		<span class="promo-gift-widget__mark" aria-hidden="true"></span>
 		<span class="promo-gift-widget__copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(hint)}</small></span>
 		<span class="promo-gift-widget__arrow" aria-hidden="true">${icon("arrow")}</span>
 	</button>`;
+}
+
+function notificationWidgetFingerprint(text) {
+	const normalized = String(text || "").trim();
+	let hash = 2166136261;
+	for (let index = 0; index < normalized.length; index += 1) {
+		hash ^= normalized.charCodeAt(index);
+		hash = Math.imul(hash, 16777619);
+	}
+	return `${normalized.length}-${(hash >>> 0).toString(36)}`;
+}
+
+function notificationWidgetReadStorageKey() {
+	const userID = state.data?.user?.telegramId || state.data?.user?.telegramID || state.data?.user?.id || "anonymous";
+	return `${STORAGE_KEYS.notificationRead}:${userID}`;
+}
+
+function isNotificationWidgetUnread(text) {
+	const normalized = String(text || "").trim();
+	return Boolean(normalized) && readSetting(notificationWidgetReadStorageKey(), "") !== notificationWidgetFingerprint(normalized);
+}
+
+function markNotificationWidgetRead(text) {
+	const normalized = String(text || "").trim();
+	if (normalized) writeSetting(notificationWidgetReadStorageKey(), notificationWidgetFingerprint(normalized));
+}
+
+function renderNotificationWidget(item) {
+	const text = String(item?.notificationText || "").trim();
+	const title = localizedText("Уведомление", "Notification", "اعلان");
+	const hint = localizedText("Открыть сообщение", "Open message", "باز کردن پیام");
+	const unread = isNotificationWidgetUnread(text);
+	const menuVisible = !state.adminLayoutEditing && (state.notificationPopoverOpen || state.notificationPopoverClosing);
+	const align = ["start", "center", "end"].includes(state.notificationPopoverAlign) ? state.notificationPopoverAlign : "center";
+	const bubbleClass = item?.iconBubble === false ? "notification-widget--plain" : "notification-widget--bubble";
+	const unreadLabel = unread
+		? localizedText("Новое уведомление", "New notification", "اعلان جدید")
+		: title;
+	const menu = menuVisible ? `<div class="notification-popover notification-popover--${align} ${state.notificationPopoverClosing ? "is-closing" : "is-open"}" role="dialog" aria-modal="false" aria-label="${escapeAttribute(title)}" tabindex="-1">
+		<div class="notification-popover__heading"><span class="notification-popover__icon" aria-hidden="true"></span><strong>${escapeHtml(title)}</strong></div>
+		<div class="notification-popover__text">${escapeHtml(text)}</div>
+	</div>` : "";
+	return `<div class="notification-widget-shell ${menuVisible ? "is-expanded" : ""}">
+		<button class="home-widget notification-widget ${bubbleClass}" type="button" data-action="open-notification-widget" aria-haspopup="dialog" aria-expanded="${Boolean(state.notificationPopoverOpen)}" aria-label="${escapeAttribute(`${unreadLabel}. ${hint}`)}">
+			<span class="notification-widget__mark-wrap" aria-hidden="true"><span class="notification-widget__mark"></span>${unread ? `<span class="notification-widget__unread"></span>` : ""}</span>
+			<span class="notification-widget__copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(hint)}</small></span>
+			<span class="notification-widget__arrow" aria-hidden="true">${icon("arrow")}</span>
+		</button>
+		${menu}
+	</div>`;
 }
 
 function getSubscriptionItems() {
@@ -5646,10 +5753,14 @@ function bindRootActions() {
     const target = event.target.closest("[data-action]");
     if (!target) {
 		if (state.subscriptionMenuOpen && !event.target.closest(".subscription-switcher")) requestSubscriptionMenuClose();
+		if ((state.notificationPopoverOpen || state.notificationPopoverClosing) && !event.target.closest(".notification-widget-shell")) requestNotificationPopoverClose();
 		return;
 	}
     const action = target.dataset.action;
     const value = target.dataset.value || "";
+		if ((state.notificationPopoverOpen || state.notificationPopoverClosing) && !event.target.closest(".notification-widget-shell") && action !== "open-notification-widget") {
+			requestNotificationPopoverClose();
+		}
 		if (action === "admin-edit-profile-button") {
 			event.preventDefault();
 			return openAdminProfileEditor(value);
@@ -5657,6 +5768,10 @@ function bindRootActions() {
 		if (action === "admin-edit-promo-widget") {
 			event.preventDefault();
 			return openAdminPromoWidgetEditor();
+		}
+		if (action === "admin-edit-notification-widget") {
+			event.preventDefault();
+			return openAdminNotificationWidgetEditor();
 		}
 		const editableNode = event.target.closest?.("[data-layout-edit-key]");
 		if (state.adminLayoutEditing && editableNode) {
@@ -5743,6 +5858,10 @@ function bindRootActions() {
 			if (action === "admin-close-promo-widget") return closeAdminPromoWidgetEditor();
 			if (action === "admin-validate-promo-widget") return await validateAdminPromoWidget();
 			if (action === "admin-remove-promo-widget") return removeAdminPromoWidget();
+			if (action === "admin-add-notification-widget") return openAdminNotificationWidgetEditor();
+			if (action === "admin-close-notification-widget") return closeAdminNotificationWidgetEditor();
+			if (action === "admin-apply-notification-widget") return applyAdminNotificationWidget();
+			if (action === "admin-remove-notification-widget") return removeAdminNotificationWidget();
 			if (action === "admin-close-profile-editor") return closeAdminProfileEditorModal();
 			if (action === "admin-apply-profile-edit") return applyAdminProfileEdit();
 			if (action === "admin-delete-profile-button") return deleteAdminProfileButton();
@@ -5751,6 +5870,7 @@ function bindRootActions() {
       if (action === "go-home") return setPage("dashboard");
       if (action === "go-page") return value === "setup" ? openSubscriptionAccess() : setPage(value);
 		if (action === "open-promo-widget-checkout") return await openPromoWidgetCheckout(value);
+		if (action === "open-notification-widget") return toggleNotificationPopover(target);
       if (action === "open-review-compose") { state.reviewComposeOpen = true; render(); return; }
       if (action === "close-review-compose") return requestModalClose("review-compose", () => { state.reviewComposeOpen = false; state.reviewDraftRating = 0; state.reviewDraftComment = ""; state.reviewBusy = ""; });
       if (action === "set-review-rating") { state.reviewDraftRating = Number(value) || 0; haptic("light"); render(); return; }
@@ -6034,6 +6154,24 @@ function bindRootActions() {
 			markAdminLayoutDirty();
 			return;
 		}
+		if (inputKey === "admin-notification-widget-text") {
+			state.adminNotificationWidgetTextDraft = String(target.value || "").slice(0, 2000);
+			const button = app.querySelector('[data-action="admin-apply-notification-widget"]');
+			if (button) button.disabled = !state.adminNotificationWidgetTextDraft.trim();
+			const counter = app.querySelector("#admin-notification-widget-counter");
+			if (counter) counter.textContent = `${state.adminNotificationWidgetTextDraft.length}/2000`;
+			return;
+		}
+		if (inputKey === "admin-notification-widget-bubble") {
+			const item = getAdminNotificationWidgetItem();
+			if (!item) return;
+			item.iconBubble = Boolean(target.checked);
+			const widget = app.querySelector('[data-runtime-id="notification_widget"] .notification-widget');
+			widget?.classList.toggle("notification-widget--bubble", item.iconBubble);
+			widget?.classList.toggle("notification-widget--plain", !item.iconBubble);
+			markAdminLayoutDirty();
+			return;
+		}
 		if (inputKey === "gift-username") {
 			const cleaned = String(target.value || "").replace(/\s+/g, "").replace(/^@{2,}/, "@");
 			state.giftUsernameDraft = cleaned;
@@ -6095,9 +6233,19 @@ function bindRootActions() {
 	app.addEventListener("pointerdown", beginAdminPlanPointer);
 	app.addEventListener("pointerdown", beginAdminLayoutPointer);
 	app.addEventListener("keydown", (event) => {
+		if (state.adminNotificationWidgetEditorOpen && event.key === "Escape") {
+			event.preventDefault();
+			closeAdminNotificationWidgetEditor();
+			return;
+		}
 		if (state.adminPromoWidgetEditorOpen && event.key === "Escape") {
 			event.preventDefault();
 			closeAdminPromoWidgetEditor();
+			return;
+		}
+		if ((state.notificationPopoverOpen || state.notificationPopoverClosing) && event.key === "Escape") {
+			event.preventDefault();
+			requestNotificationPopoverClose();
 			return;
 		}
 		const promoWidgetInput = event.target.closest?.('[data-input="admin-promo-widget-code"]');
@@ -6787,6 +6935,60 @@ function removeAdminPromoWidget() {
 	showToast(localizedText("Виджет убран. Сохраните изменения.", "Widget removed. Save the changes.", "ویجت حذف شد. تغییرات را ذخیره کنید."), "success");
 }
 
+function getAdminNotificationWidgetItem() {
+	ensureAdminVisualLayoutDraft();
+	return state.adminSettingsDraft?.layout?.elements?.find((item) => item?.area === "dashboard" && item?.id === "notification_widget") || null;
+}
+
+function openAdminNotificationWidgetEditor() {
+	const item = getAdminNotificationWidgetItem();
+	if (!item || state.adminBusy) return;
+	state.adminLayoutSelection = "dashboard:notification_widget";
+	state.adminNotificationWidgetTextDraft = String(item.notificationText || "").slice(0, 2000);
+	state.adminNotificationWidgetEditorOpen = true;
+	haptic("light");
+	render({ preserveScroll: true });
+}
+
+function closeAdminNotificationWidgetEditor() {
+	requestModalClose("admin-notification-widget", () => {
+		state.adminNotificationWidgetEditorOpen = false;
+		state.adminNotificationWidgetTextDraft = "";
+	});
+}
+
+function applyAdminNotificationWidget() {
+	const item = getAdminNotificationWidgetItem();
+	const text = String(state.adminNotificationWidgetTextDraft || "").trim();
+	if (!item || !text) {
+		showToast(localizedText("Введите текст уведомления", "Enter notification text", "متن اعلان را وارد کنید"), "danger");
+		return;
+	}
+	item.notificationText = text;
+	item.visible = true;
+	state.adminLayoutSelection = "dashboard:notification_widget";
+	markAdminLayoutDirty();
+	requestModalClose("admin-notification-widget", () => {
+		state.adminNotificationWidgetEditorOpen = false;
+		state.adminNotificationWidgetTextDraft = "";
+	});
+	haptic("success");
+	showToast(localizedText("Виджет уведомлений добавлен", "Notification widget added", "ویجت اعلان اضافه شد"), "success");
+}
+
+function removeAdminNotificationWidget() {
+	const item = getAdminNotificationWidgetItem();
+	if (!item) return;
+	item.visible = false;
+	markAdminLayoutDirty();
+	requestModalClose("admin-notification-widget", () => {
+		state.adminNotificationWidgetEditorOpen = false;
+		state.adminNotificationWidgetTextDraft = "";
+	});
+	haptic("light");
+	showToast(localizedText("Виджет убран. Сохраните изменения.", "Widget removed. Save the changes.", "ویجت حذف شد. تغییرات را ذخیره کنید."), "success");
+}
+
 async function openPromoWidgetCheckout(rawCode) {
 	const code = normalizePromoCodeValue(rawCode);
 	if (!code) return showToast(localizedText("Для виджета не задан промокод", "No promo code is set for this widget", "برای این ویجت کد تخفیف تعیین نشده است"), "danger");
@@ -6798,6 +7000,58 @@ async function openPromoWidgetCheckout(rawCode) {
 	writeSetting(STORAGE_KEYS.page, "buy");
 	render({ preserveScroll: false, scrollTop: 0 });
 	await applyPromoCode();
+}
+
+function toggleNotificationPopover(button) {
+	if (state.notificationPopoverOpen || state.notificationPopoverClosing) {
+		requestNotificationPopoverClose();
+		return;
+	}
+	const item = getLayoutElement("dashboard", "notification_widget");
+	const text = String(item?.notificationText || "").trim();
+	if (!text) return showToast(localizedText("Уведомление пока пустое", "The notification is empty", "اعلان هنوز خالی است"), "danger");
+	const rect = button?.getBoundingClientRect?.();
+	const center = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+	state.notificationPopoverAlign = center < window.innerWidth * 0.38 ? "start" : (center > window.innerWidth * 0.62 ? "end" : "center");
+	window.clearTimeout(subscriptionMenuTimer);
+	state.subscriptionMenuOpen = false;
+	state.subscriptionMenuClosing = false;
+	window.clearTimeout(notificationPopoverTimer);
+	state.notificationPopoverClosing = false;
+	state.notificationPopoverOpen = true;
+	markNotificationWidgetRead(text);
+	haptic("light");
+	render({ preserveScroll: true });
+	window.requestAnimationFrame(() => {
+		const popover = app.querySelector(".notification-popover.is-open");
+		popover?.focus({ preventScroll: true });
+		ensureNotificationPopoverVisible(popover);
+	});
+}
+
+function ensureNotificationPopoverVisible(popover) {
+	const scroll = app.querySelector(".page-scroll");
+	if (!popover || !scroll) return;
+	const popoverRect = popover.getBoundingClientRect();
+	const scrollRect = scroll.getBoundingClientRect();
+	const overflow = popoverRect.bottom - scrollRect.bottom + 12;
+	if (overflow > 0) scroll.scrollBy({ top: overflow, behavior: reducedMotionMedia?.matches ? "auto" : "smooth" });
+}
+
+function requestNotificationPopoverClose(onClosed = null) {
+	window.clearTimeout(notificationPopoverTimer);
+	if (!state.notificationPopoverOpen && !state.notificationPopoverClosing) {
+		onClosed?.();
+		return;
+	}
+	state.notificationPopoverOpen = false;
+	state.notificationPopoverClosing = true;
+	render({ preserveScroll: true });
+	notificationPopoverTimer = window.setTimeout(() => {
+		state.notificationPopoverClosing = false;
+		onClosed?.();
+		render({ preserveScroll: true });
+	}, reducedMotionMedia?.matches ? 0 : 210);
 }
 
 function syncAdminLayoutBackgroundAnimation() {
@@ -7004,6 +7258,9 @@ function resetAdminPlans() {
 function enterAdminLayoutEditor() {
 	syncAdminSettingsDraft();
 	if (!state.adminSettingsDraft) return;
+	window.clearTimeout(notificationPopoverTimer);
+	state.notificationPopoverOpen = false;
+	state.notificationPopoverClosing = false;
 	state.adminLayoutBaseline = deepClone(state.adminSettingsDraft);
 	state.adminLayoutBaselineDirty = state.adminSettingsDirty;
 	state.adminLayoutBaselineJSONDrafts = deepClone(state.adminJSONDrafts || {});
@@ -7442,7 +7699,7 @@ function applyAdminLayoutNodeStyle(node, item) {
 
 function adminLayoutMinimumSize(item) {
 	if (item?.area === "navigation") return { width: 28, height: 24 };
-	if (item?.area === "dashboard" && item?.id === "promo_widget") return { width: 36, height: 36 };
+	if (item?.area === "dashboard" && ["promo_widget", "notification_widget"].includes(item?.id)) return { width: 36, height: 36 };
 	if (item?.area === "dashboard" && ["username", "plan_name"].includes(item?.id)) return { width: 64, height: 20 };
 	return { width: 32, height: 20 };
 }
@@ -8767,7 +9024,7 @@ function setPage(page) {
 	}
   const samePage = nextPage === state.currentPage;
   rememberCurrentScroll();
-  if (samePage && !state.sidebarOpen && !state.payModalOpen && !state.paymentLaunchModalOpen && !state.devicesModalOpen && !state.reviewComposeOpen && !state.reviewDetailOpen) return;
+	if (samePage && !state.sidebarOpen && !state.payModalOpen && !state.paymentLaunchModalOpen && !state.devicesModalOpen && !state.reviewComposeOpen && !state.reviewDetailOpen && !state.notificationPopoverOpen && !state.notificationPopoverClosing) return;
   state.animatePageEntry = !samePage;
   state.currentPage = nextPage;
   state.sidebarOpen = false;
@@ -8781,8 +9038,11 @@ function setPage(page) {
   state.activeReviewId = 0;
   state.reviewDraftRating = 0;
   state.reviewDraftComment = "";
-  state.reviewBusy = "";
-  state.deviceBusyHwid = "";
+	state.reviewBusy = "";
+	state.deviceBusyHwid = "";
+	window.clearTimeout(notificationPopoverTimer);
+	state.notificationPopoverOpen = false;
+	state.notificationPopoverClosing = false;
   if (nextPage !== "admin") {
     state.adminSection = "home";
     state.adminBusy = "";
@@ -8865,7 +9125,7 @@ function syncNativeBackButton() {
 
 function shouldShowNativeBackButton() {
 	return Boolean(
-		state.adminLayoutEditing || state.adminPlanEditing || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen ||
+		state.adminLayoutEditing || state.adminPlanEditing || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.notificationPopoverOpen || state.notificationPopoverClosing ||
 		state.giftReceiptOpen ||
     state.supportThreadOpen ||
     state.supportComposeOpen ||
@@ -8889,6 +9149,7 @@ function getNativeBackTargetPage() {
 
 function handleNativeBackButton() {
 	if (state.giftReceiptOpen) return closeGiftReceipt();
+	if (state.adminNotificationWidgetEditorOpen) return closeAdminNotificationWidgetEditor();
 	if (state.adminPromoWidgetEditorOpen) return closeAdminPromoWidgetEditor();
 	if (state.adminProfileEditorModalOpen) return closeAdminProfileEditorModal();
 	if (state.adminPlanEditorModalOpen) return closeAdminPlanEditorModal();
@@ -8897,6 +9158,7 @@ function handleNativeBackButton() {
 	if (state.subscriptionDeleteOpen) return closeSubscriptionDelete();
 	if (state.subscriptionEditorOpen) return closeSubscriptionEditor();
 	if (state.subscriptionMenuOpen || state.subscriptionMenuClosing) return requestSubscriptionMenuClose();
+	if (state.notificationPopoverOpen || state.notificationPopoverClosing) return requestNotificationPopoverClose();
   if (state.supportThreadOpen) return requestModalClose("support-thread", () => { state.supportThreadOpen = false; state.activeSupportTicketId = 0; state.activeSupportThread = null; state.supportReplyDraft = ""; });
   if (state.supportComposeOpen) return requestModalClose("support-compose", () => { state.supportComposeOpen = false; state.supportDraftSubject = ""; state.supportDraftMessage = ""; });
   if (state.devicesModalOpen) return requestModalClose("devices", () => { state.devicesModalOpen = false; state.deviceBusyHwid = ""; });
@@ -8914,6 +9176,7 @@ function handleNativeBackButton() {
 
 function getActiveModalName() {
 	if (state.giftReceiptOpen) return "gift-receipt";
+	if (state.adminNotificationWidgetEditorOpen) return "admin-notification-widget";
 	if (state.adminPromoWidgetEditorOpen) return "admin-promo-widget";
 	if (state.adminProfileEditorModalOpen) return "admin-profile-editor";
 	if (state.adminPlanEditorModalOpen) return "admin-plan-editor";
