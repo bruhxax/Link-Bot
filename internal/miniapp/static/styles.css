@@ -4877,8 +4877,10 @@ button.rating-star {
 }
 
 .modal__sheet--devices {
-  padding: 14px;
-  max-height: min(72vh, 640px);
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px calc(14px + var(--safe-bottom));
+  max-height: min(78dvh, 600px);
   overflow: hidden;
 }
 
@@ -4894,31 +4896,34 @@ button.rating-star {
 }
 
 .modal__header--devices {
-  margin-bottom: 10px;
+  flex: 0 0 auto;
+  margin-bottom: 5px;
 }
 
 .device-modal__subtitle {
-  margin-top: 5px;
+  margin-top: 3px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 10px;
+  line-height: 1.35;
 }
 
 .device-list {
-  max-height: min(56vh, 500px);
+  min-height: 0;
+  max-height: min(62dvh, 520px);
   overflow-y: auto;
-  border: 1px solid var(--line-soft);
-  border-radius: 12px;
-  background: var(--surface);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   scrollbar-gutter: stable;
 }
 
 .device-row {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 40px;
+  grid-template-columns: 22px minmax(0, 1fr) 34px;
   align-items: center;
-  gap: 10px;
-  min-height: 70px;
-  padding: 10px 6px 10px 12px;
+  gap: 8px;
+  min-height: 58px;
+  padding: 7px 0;
 }
 
 .device-row + .device-row {
@@ -4929,8 +4934,8 @@ button.rating-star {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   color: var(--icon-color);
 }
 
@@ -4947,7 +4952,7 @@ button.rating-star {
 
 .device-row__title {
   min-width: 0;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: -.02em;
   white-space: nowrap;
@@ -4958,20 +4963,20 @@ button.rating-star {
 .device-row__meta,
 .device-row__date {
   color: var(--muted);
-  font-size: 11px;
-  line-height: 1.45;
+  font-size: 10px;
+  line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .device-row__delete {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: color-mix(in srgb, var(--danger) 76%, white 24%);
+  color: var(--danger);
   background: transparent;
   border: 0;
   border-radius: 8px;
@@ -4979,8 +4984,12 @@ button.rating-star {
 }
 
 .device-row__delete svg {
-  width: 17px;
-  height: 17px;
+  width: 19px;
+  height: 19px;
+}
+
+.btn--trial svg {
+  color: var(--icon-color);
 }
 
 .device-row__delete.is-loading svg {
@@ -5754,7 +5763,7 @@ body.is-install-guide #app {
   }
 
   .device-list {
-    max-height: min(56vh, 460px);
+    max-height: min(64dvh, 500px);
   }
 
   .support-thread__header {
@@ -9118,7 +9127,7 @@ body.has-open-modal .admin-save-bar {
   }
 
   :root[data-client="browser"] .modal__sheet--devices {
-    max-height: min(72dvh, 640px);
+    max-height: min(78dvh, 600px);
   }
 
   :root[data-client="browser"] .modal__sheet--support {

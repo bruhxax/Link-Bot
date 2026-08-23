@@ -1400,8 +1400,8 @@ const ADMIN_LAYOUT_META = {
 	"profile:terms": ["\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c\u0441\u043a\u043e\u0435 \u0441\u043e\u0433\u043b\u0430\u0448\u0435\u043d\u0438\u0435", "profileChecklist"],
 	"profile:privacy": ["Политика конфиденциальности", "profileChecklist"],
 	"navigation:dashboard": ["\u0413\u043b\u0430\u0432\u043d\u0430\u044f", "houseLine"],
-	"navigation:buy": ["\u0422\u0430\u0440\u0438\u0444\u044b", "cartShopping"],
-	"navigation:support": ["\u041f\u043e\u0434\u0434\u0435\u0440\u0436\u043a\u0430", "headphonesAlt"],
+	"navigation:buy": ["\u0422\u0430\u0440\u0438\u0444\u044b", "shop"],
+	"navigation:support": ["\u041f\u043e\u0434\u0434\u0435\u0440\u0436\u043a\u0430", "sms"],
 	"navigation:settings": ["\u041f\u0440\u043e\u0444\u0438\u043b\u044c", "userAlt"],
 	"navigation:admin": ["\u0410\u0434\u043c\u0438\u043d", "grid"],
 };
@@ -4139,7 +4139,7 @@ function renderDashboardPage() {
 	const secondaryAction = active
 		? `<button class="btn btn--green" type="button" data-action="go-page" data-value="setup">${icon("arrowDownSquare")}${copy.setup}</button>`
 		: trialEligible
-			? `<button class="btn btn--green" type="button" data-action="activate-trial">${icon("cart")}${copy.activateTrial}</button>`
+			? `<button class="btn btn--green btn--trial" type="button" data-action="activate-trial">${icon("gift")}${copy.activateTrial}</button>`
 			: "";
 	const actionStack = `<div class="action-stack action-stack--dashboard">${renderLayoutDetail("dashboard", "primary_action", primaryAction, "runtime-detail-item--action")}${secondaryAction ? renderLayoutDetail("dashboard", "secondary_action", secondaryAction, "runtime-detail-item--action") : ""}</div>`;
 	const promoWidgetItem = getLayoutElement("dashboard", "promo_widget");
@@ -4498,7 +4498,7 @@ function renderSetupQRCode() {
   const subscriptionLink = String(state.data?.subscription?.subscriptionLink || "").trim();
   let qrCode = "";
   try {
-    qrCode = renderQRCodeSVG(subscriptionLink, { border: 2, ecc: "M", pixelSize: 7, whiteColor: "transparent", blackColor: "currentColor" }).replace("<svg ", '<svg data-preserve-color="true" ');
+    qrCode = renderQRCodeSVG(subscriptionLink, { border: 2, ecc: "M", pixelSize: 7, rounded: 0.22, whiteColor: "transparent", blackColor: "currentColor" }).replace("<svg ", '<svg data-preserve-color="true" ');
   } catch {
     qrCode = icon("alert");
   }
@@ -5635,17 +5635,18 @@ function renderDevicesModal() {
   const devices = getSubscriptionDevices();
   const used = formatNumber(state.data?.subscription?.deviceUsedCount || 0, state.locale);
   const limit = formatNumber(state.data?.subscription?.deviceLimitCount || 0, state.locale);
+  const closeLabel = localizedText("Закрыть", "Close", "بستن");
 
   return `
-    <div class="modal open ${modalStateClass("devices")}">
-      <button class="modal__backdrop" type="button" data-action="close-devices-modal"></button>
+    <div class="modal open ${modalStateClass("devices")}" role="dialog" aria-modal="true" aria-labelledby="devices-modal-title">
+      <button class="modal__backdrop" type="button" data-action="close-devices-modal" aria-label="${escapeAttribute(closeLabel)}"></button>
       <div class="modal__sheet modal__sheet--devices">
         <div class="modal__header modal__header--devices">
           <div>
-            <div class="modal__title">${escapeHtml(copy.title)}</div>
+            <div class="modal__title" id="devices-modal-title">${escapeHtml(copy.title)}</div>
             <div class="device-modal__subtitle">${escapeHtml(copy.connected(used, limit))}</div>
           </div>
-          <button class="header__btn" type="button" data-action="close-devices-modal">${icon("close")}</button>
+          <button class="header__btn" type="button" data-action="close-devices-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button>
         </div>
         ${devices.length ? `<div class="device-list" role="list">${devices.map((device) => renderDeviceRow(device)).join("")}</div>` : `
           <div class="device-empty">
@@ -9549,7 +9550,7 @@ function headerBackAction() {
 }
 
 function bottomNavIcon(page) {
-  return { dashboard: "houseLine", buy: "cartShopping", support: "headphonesAlt", settings: "userAlt", admin: "grid" }[page] || "houseLine";
+  return { dashboard: "houseLine", buy: "shop", support: "sms", settings: "userAlt", admin: "grid" }[page] || "houseLine";
 }
 
 function getBottomNavActivePage() {
@@ -10447,7 +10448,9 @@ function icon(name) {
 		return `<span class="app-svg-icon app-svg-icon--${ADMIN_ICON_CLASSES[name]}" aria-hidden="true"></span>`;
 	}
   const icons = {
-		gift: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4 10h16v9.2A1.8 1.8 0 0 1 18.2 21H5.8A1.8 1.8 0 0 1 4 19.2V10ZM3 7.2h18V10H3V7.2ZM12 7.2V21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7.2H8.7A2.7 2.7 0 0 1 6 4.5 2.5 2.5 0 0 1 8.5 2c2.1 0 3.5 2.2 3.5 5.2Zm0 0h3.3A2.7 2.7 0 0 0 18 4.5 2.5 2.5 0 0 0 15.5 2C13.4 2 12 4.2 12 7.2Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+		gift: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M19.97 10H3.96997V18C3.96997 21 4.96997 22 7.96997 22H15.97C18.97 22 19.97 21 19.97 18V10Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M21.5 7V8C21.5 9.1 20.97 10 19.5 10H4.5C2.97 10 2.5 9.1 2.5 8V7C2.5 5.9 2.97 5 4.5 5H19.5C20.97 5 21.5 5.9 21.5 7Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.64 4.99994H6.12003C5.78003 4.62994 5.79003 4.05994 6.15003 3.69994L7.57003 2.27994C7.94003 1.90994 8.55003 1.90994 8.92003 2.27994L11.64 4.99994Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M17.87 4.99994H12.35L15.07 2.27994C15.44 1.90994 16.05 1.90994 16.42 2.27994L17.84 3.69994C18.2 4.05994 18.21 4.62994 17.87 4.99994Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.93994 10V15.14C8.93994 15.94 9.81994 16.41 10.4899 15.98L11.4299 15.36C11.7699 15.14 12.1999 15.14 12.5299 15.36L13.4199 15.96C14.0799 16.4 14.9699 15.93 14.9699 15.13V10H8.93994Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+		shop: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3.00999 11.22V15.71C3.00999 20.2 4.80999 22 9.29999 22H14.69C19.18 22 20.98 20.2 20.98 15.71V11.22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12C13.83 12 15.18 10.51 15 8.68L14.34 2H9.67L9 8.68C8.82 10.51 10.17 12 12 12Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.31 12C20.33 12 21.81 10.36 21.61 8.35L21.33 5.6C20.97 3 19.97 2 17.35 2H14.3L15 9.01C15.17 10.66 16.66 12 18.31 12Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.64 12C7.29 12 8.78 10.66 8.94 9.01L9.16 6.8L9.64001 2H6.59C3.97001 2 2.97 3 2.61 5.6L2.34 8.35C2.14 10.36 3.62 12 5.64 12Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 17C10.33 17 9.5 17.83 9.5 19.5V22H14.5V19.5C14.5 17.83 13.67 17 12 17Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+		sms: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M17 20.5H7C4 20.5 2 19 2 15.5V8.5C2 5 4 3.5 7 3.5H17C20 3.5 22 5 22 8.5V15.5C22 19 20 20.5 17 20.5Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 9L13.87 11.5C12.84 12.32 11.15 12.32 10.12 11.5L7 9" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 		clock: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 		language: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 12h17M12 3c2.2 2.5 3.3 5.5 3.3 9S14.2 18.5 12 21M12 3C9.8 5.5 8.7 8.5 8.7 12s1.1 6.5 3.3 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
 		wrench: `<svg viewBox="0 0 24 24" fill="none"><path d="M14.7 6.2a4.8 4.8 0 0 0-6.1 6.1L3.8 17a2.1 2.1 0 1 0 3 3l4.8-4.8a4.8 4.8 0 0 0 6.1-6.1l-2.8 2.8-2.8-.7-.7-2.8 3.3-2.2Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
@@ -10518,7 +10521,7 @@ function icon(name) {
     copy: `<svg viewBox="0 0 24 24" fill="none"><rect x="8" y="8" width="11" height="11" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
     share: `<svg viewBox="0 0 24 24" fill="none"><path d="M8 12.5 16.5 8M8 11.5 16.5 16M6 13.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm12 6a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm0-11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     pencil: `<svg viewBox="0 0 24 24" fill="none"><path d="m4 20 4.5-1 9-9a2.1 2.1 0 0 0-3-3l-9 9L4 20Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m13.5 7.5 3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
-    trash: `<svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7m-8 0 1 11a2 2 0 0 0 2 1.8h4a2 2 0 0 0 2-1.8L17 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    trash: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M9 22H15C20 22 22 20 22 15V9C22 4 20 2 15 2H9C4 2 2 4 2 9V15C2 20 4 22 9 22Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M17.9 9.04997C15.72 8.82997 13.52 8.71997 11.33 8.71997C10.03 8.71997 8.72997 8.78997 7.43997 8.91997L6.09998 9.04997" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.70996 8.38994L9.84996 7.52994C9.94996 6.90994 10.03 6.43994 11.14 6.43994H12.86C13.97 6.43994 14.0499 6.92994 14.1499 7.52994L14.2899 8.37994" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M16.49 9.12988L16.06 15.7299C15.99 16.7599 15.93 17.5599 14.1 17.5599H9.89C8.06 17.5599 7.99999 16.7599 7.92999 15.7299L7.5 9.12988" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     arrow: `<svg viewBox="0 0 24 24" fill="none"><path d="M7 17 17 7M9 7h8v8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     chevron: `<svg viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     check: `<svg viewBox="0 0 24 24" fill="none"><path d="m5 12 4.5 4.5L19 7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>`,

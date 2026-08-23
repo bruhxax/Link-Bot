@@ -28,6 +28,7 @@ func TestSubscriptionSetupStaysInsideMiniApp(t *testing.T) {
 		`class="setup-qr-inline"`,
 		`data-action="copy-access"`,
 		`renderQRCodeSVG(subscriptionLink`,
+		`rounded: 0.22`,
 	} {
 		if !strings.Contains(source, expected) {
 			t.Fatalf("app.js does not contain %q", expected)
@@ -35,6 +36,26 @@ func TestSubscriptionSetupStaysInsideMiniApp(t *testing.T) {
 	}
 	if strings.Contains(source, `value === "setup" ? openSubscriptionAccess()`) {
 		t.Fatal("setup navigation still bypasses the in-app page")
+	}
+}
+
+func TestSubscriptionQRCodeUsesRoundedDataModulesAndKeepsFinderPatternsSolid(t *testing.T) {
+	qrSource, err := os.ReadFile("static/uqr.mjs")
+	if err != nil {
+		t.Fatalf("read uqr.mjs: %v", err)
+	}
+
+	source := string(qrSource)
+	for _, expected := range []string{
+		`rounded = 0`,
+		`type !== QrCodeDataType.Position`,
+		`type !== QrCodeDataType.Alignment`,
+		`rx="${radius}"`,
+		`shape-rendering="geometricPrecision"`,
+	} {
+		if !strings.Contains(source, expected) {
+			t.Fatalf("uqr.mjs does not contain %q", expected)
+		}
 	}
 }
 

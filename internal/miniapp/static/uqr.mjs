@@ -715,23 +715,31 @@ function renderSVG(data, options = {}) {
   const result = encode(data, options);
   const {
     pixelSize = 10,
+    rounded = 0,
     whiteColor = "white",
     blackColor = "black"
   } = options;
   const height = result.size * pixelSize;
   const width = result.size * pixelSize;
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}">`;
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" shape-rendering="geometricPrecision">`;
   const paths = [];
+  const roundedModules = [];
+  const radius = Math.max(0, Math.min(pixelSize / 2, Number(rounded) * pixelSize));
   for (let row = 0; row < result.size; row++) {
     for (let col = 0; col < result.size; col++) {
       const x = col * pixelSize;
       const y = row * pixelSize;
-      if (result.data[row][col])
+      if (!result.data[row][col])
+        continue;
+      const type = result.types[row][col];
+      if (radius > 0 && type !== QrCodeDataType.Position && type !== QrCodeDataType.Alignment)
+        roundedModules.push(`<rect x="${x}" y="${y}" width="${pixelSize}" height="${pixelSize}" rx="${radius}" ry="${radius}"/>`);
+      else
         paths.push(`M${x},${y}h${pixelSize}v${pixelSize}h-${pixelSize}z`);
     }
   }
   svg += `<rect fill="${escapeAttr(whiteColor)}" width="${width}" height="${height}"/>`;
-  svg += `<path fill="${escapeAttr(blackColor)}" d="${paths.join("")}"/>`;
+  svg += `<g fill="${escapeAttr(blackColor)}"><path d="${paths.join("")}"/>${roundedModules.join("")}</g>`;
   svg += "</svg>";
   return svg;
 }
