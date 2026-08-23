@@ -23,7 +23,8 @@ func TestSubscriptionSetupStaysInsideMiniApp(t *testing.T) {
 		`data-input="setup-platform"`,
 		`data-action="select-setup-app"`,
 		`data-action="open-setup-app"`,
-		`data-action="open-setup-qr"`,
+		`class="setup-qr-inline"`,
+		`data-action="copy-access"`,
 		`renderQRCodeSVG(subscriptionLink`,
 	} {
 		if !strings.Contains(source, expected) {
@@ -46,16 +47,20 @@ func TestSubscriptionSetupCatalogContainsSupportedPlatformsAndSafeSchemes(t *tes
 		`id: "android"`,
 		`id: "macos"`,
 		`id: "windows"`,
-		`id: "linux"`,
 		`id: "android-tv"`,
 		`id: "apple-tv"`,
 		`scheme: "happ://add/"`,
-		`scheme: "stash://install-config?url="`,
-		`scheme: "sub://"`,
+		`scheme: "incy://import/"`,
+		`https://apps.apple.com/ru/app/incy/id6756943388`,
 		`if (!/^https?:$/.test(parsed.protocol))`,
 	} {
 		if !strings.Contains(source, expected) {
 			t.Fatalf("setup-apps.js does not contain %q", expected)
+		}
+	}
+	for _, unexpected := range []string{`id: "linux"`, `id: "stash"`, `id: "flclashx"`, `id: "koala-clash"`} {
+		if strings.Contains(source, unexpected) {
+			t.Fatalf("setup-apps.js still contains unsupported catalog item %q", unexpected)
 		}
 	}
 }
@@ -68,7 +73,8 @@ func TestSubscriptionAppOpenerClearsSensitiveFragment(t *testing.T) {
 	source := string(openerJS)
 	for _, expected := range []string{
 		`window.history.replaceState(null, "", window.location.pathname);`,
-		`window.location.href = clientURL;`,
+		`window.location.assign(clientURL);`,
+		`window.setTimeout(launchClient, 120);`,
 		`rel="noopener noreferrer"`,
 		`copyText(subscription, copy.copied)`,
 	} {

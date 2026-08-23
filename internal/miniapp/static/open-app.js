@@ -11,12 +11,12 @@ const toast = document.getElementById("opener-toast");
 
 const copybook = {
   ru: {
-    eyebrow: "ПОДПИСКА ГОТОВА",
-    title: (name) => `Открыть в ${name}`,
-    hint: (name) => `Нажмите кнопку ниже — ${name} откроется и добавит подписку автоматически.`,
-    open: (name) => `Открыть в ${name}`,
-    fallback: "Если приложение не открылось",
-    fallbackHint: "Установите его, вернитесь на эту страницу и нажмите кнопку ещё раз.",
+    eyebrow: "ОТКРЫВАЕМ КЛИЕНТ",
+    title: (name) => `Открываем ${name}`,
+    hint: () => "Запрос на открытие появится автоматически. Если его нет, нажмите кнопку ниже.",
+    open: (name) => `Добавить в ${name}`,
+    fallback: "Клиент не установлен?",
+    fallbackHint: "Установите приложение и вернитесь сюда — повторная кнопка останется доступна.",
     copy: "Скопировать ссылку",
     copied: "Ссылка скопирована",
     back: "Вернуться в Mini App",
@@ -24,12 +24,12 @@ const copybook = {
     invalidHint: "Вернитесь в Mini App и откройте подключение ещё раз.",
   },
   en: {
-    eyebrow: "SUBSCRIPTION IS READY",
-    title: (name) => `Open in ${name}`,
-    hint: (name) => `Tap the button below — ${name} will open and add the subscription automatically.`,
-    open: (name) => `Open in ${name}`,
-    fallback: "If the app did not open",
-    fallbackHint: "Install it, return to this page and tap the button again.",
+    eyebrow: "OPENING CLIENT",
+    title: (name) => `Opening ${name}`,
+    hint: () => "The open prompt appears automatically. If it does not, use the button below.",
+    open: (name) => `Add to ${name}`,
+    fallback: "Client not installed?",
+    fallbackHint: "Install the app and return here — the retry button will remain available.",
     copy: "Copy subscription link",
     copied: "Link copied",
     back: "Back to Mini App",
@@ -37,12 +37,12 @@ const copybook = {
     invalidHint: "Return to Mini App and open the setup flow again.",
   },
   fa: {
-    eyebrow: "اشتراک آماده است",
-    title: (name) => `باز کردن در ${name}`,
-    hint: (name) => `دکمه زیر را بزنید؛ ${name} باز می‌شود و اشتراک را خودکار اضافه می‌کند.`,
-    open: (name) => `باز کردن در ${name}`,
-    fallback: "اگر برنامه باز نشد",
-    fallbackHint: "آن را نصب کنید، به این صفحه برگردید و دوباره دکمه را بزنید.",
+    eyebrow: "در حال باز کردن کلاینت",
+    title: (name) => `در حال باز کردن ${name}`,
+    hint: () => "درخواست باز کردن خودکار ظاهر می‌شود. اگر نشد، دکمه زیر را بزنید.",
+    open: (name) => `افزودن به ${name}`,
+    fallback: "کلاینت نصب نیست؟",
+    fallbackHint: "برنامه را نصب کنید و به این صفحه برگردید؛ دکمه تلاش دوباره در دسترس می‌ماند.",
     copy: "کپی لینک اشتراک",
     copied: "لینک کپی شد",
     back: "بازگشت به Mini App",
@@ -128,8 +128,10 @@ function boot() {
   document.title = copy.title(app.name);
   const installLinks = (app.links || []).slice(0, 4).map((item) => `<a href="${escapeHTML(item.url)}" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 5h5v5M10 14 19 5M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>${escapeHTML(getLocalizedSetupValue(item.label, locale))}</a>`).join("");
   root.innerHTML = `<section class="opener-card"><span class="opener-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 17 17 7M9 7h8v8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></span><p class="opener-eyebrow">${escapeHTML(copy.eyebrow)}</p><h1>${escapeHTML(copy.title(app.name))}</h1><p class="opener-platform">${escapeHTML(getLocalizedSetupValue(platform.name, locale))}</p><p class="opener-hint">${escapeHTML(copy.hint(app.name))}</p><button class="opener-primary" id="open-client" type="button"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>${escapeHTML(copy.open(app.name))}</button><div class="opener-fallback"><h2>${escapeHTML(copy.fallback)}</h2><p>${escapeHTML(copy.fallbackHint)}</p><div class="opener-install-links">${installLinks}</div></div><button class="opener-copy" id="copy-subscription" type="button"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>${escapeHTML(copy.copy)}</button><a class="opener-back" href="/mini-app/">${escapeHTML(copy.back)}</a></section>`;
-  document.getElementById("open-client")?.addEventListener("click", () => { window.location.href = clientURL; });
+  const launchClient = () => { window.location.assign(clientURL); };
+  document.getElementById("open-client")?.addEventListener("click", launchClient);
   document.getElementById("copy-subscription")?.addEventListener("click", () => copyText(subscription, copy.copied));
+  window.setTimeout(launchClient, 120);
 }
 
 boot();

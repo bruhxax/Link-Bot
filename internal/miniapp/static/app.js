@@ -1794,7 +1794,6 @@ const state = {
   selectedFaqIndex: -1,
   selectedPlatform: detectSetupPlatform(navigator.userAgent, tg?.platform),
   selectedSetupAppID: "",
-  setupQrOpen: false,
   selectedPlanId: "",
   selectedPlanMonths: null,
 	selectedGiftPlanId: "",
@@ -2644,7 +2643,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-	const modalOpen = state.setupQrOpen || state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen;
+	const modalOpen = state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -2707,7 +2706,6 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
       ${isModalVisible("review-compose", state.reviewComposeOpen) ? renderReviewComposerModal() : ""}
 		${isModalVisible("review-detail", state.reviewDetailOpen) ? renderReviewDetailModal() : ""}
 		${isModalVisible("gift-receipt", state.giftReceiptOpen) ? renderGiftReceiptModal() : ""}
-		${isModalVisible("setup-qr", state.setupQrOpen) ? renderSetupQRModal() : ""}
 		${state.adminPlanEditorModalOpen ? renderAdminPlanEditorModal() : ""}
 		${state.adminProfileEditorModalOpen ? renderAdminProfileEditorModal() : ""}
 		${isModalVisible("admin-promo-widget", state.adminPromoWidgetEditorOpen) ? renderAdminPromoWidgetModal() : ""}
@@ -4443,16 +4441,13 @@ function setupGuideCopy() {
     installMobile: localizedText("Откройте магазин приложений или скачайте APK, затем установите клиент.", "Open the app store or download the APK, then install the client.", "فروشگاه برنامه را باز کنید یا APK را دانلود و نصب کنید."),
     installDesktop: localizedText("Скачайте версию для своего процессора и установите приложение.", "Download the build for your processor and install the app.", "نسخه مناسب پردازنده خود را دانلود و نصب کنید."),
     addTitle: localizedText("Добавление подписки", "Add subscription", "افزودن اشتراک"),
-    addHint: (appName) => localizedText(`Откроется веб-страница. На ней нажмите «Открыть в ${appName}» — подписка добавится автоматически.`, `A web page will open. Tap “Open in ${appName}” there to add the subscription automatically.`, `صفحه وب باز می‌شود. برای افزودن خودکار اشتراک روی «باز کردن در ${appName}» بزنید.`),
+    addHint: (appName) => localizedText(`${appName} откроется автоматически. Если запрос не появился, нажмите кнопку ещё раз.`, `${appName} will open automatically. If no prompt appears, tap the button again.`, `${appName} به‌صورت خودکار باز می‌شود. اگر پیامی ظاهر نشد، دوباره دکمه را بزنید.`),
     addButton: localizedText("Добавить подписку", "Add subscription", "افزودن اشتراک"),
     connectTitle: localizedText("Подключение и использование", "Connect and use", "اتصال و استفاده"),
     connectHint: localizedText("Откройте приложение, выберите сервер и нажмите кнопку подключения. При необходимости разрешите создание VPN-конфигурации.", "Open the app, choose a server and tap connect. Allow the VPN configuration if prompted.", "برنامه را باز کنید، سرور را انتخاب و اتصال را بزنید. در صورت درخواست، مجوز VPN را تأیید کنید."),
-    otherWays: localizedText("Другие способы", "Other options", "روش‌های دیگر"),
-    qr: localizedText("Показать QR-код", "Show QR code", "نمایش QR کد"),
     copy: localizedText("Скопировать ссылку", "Copy link", "کپی لینک"),
-    qrTitle: localizedText("Получение ссылки", "Get the link", "دریافت لینک"),
-    qrHint: localizedText("Отсканируйте QR-код в приложении или скопируйте ссылку вручную.", "Scan the QR code in the app or copy the link manually.", "QR کد را در برنامه اسکن کنید یا لینک را کپی کنید."),
-    close: localizedText("Закрыть", "Close", "بستن"),
+    qrTitle: localizedText("QR-код подписки", "Subscription QR code", "کد QR اشتراک"),
+    qrHint: localizedText("Отсканируйте его в VPN-клиенте на другом устройстве.", "Scan it in the VPN client on another device.", "آن را در کلاینت VPN دستگاه دیگری اسکن کنید."),
   };
 }
 
@@ -4465,7 +4460,10 @@ function getSelectedSetupApp() {
 
 function setupInstallHint(platformID) {
   const copy = setupGuideCopy();
-  return ["ios", "android", "android-tv", "apple-tv"].includes(platformID) ? copy.installMobile : copy.installDesktop;
+  if (["ios", "apple-tv"].includes(platformID)) {
+    return localizedText("Откройте App Store и установите клиент.", "Open the App Store and install the client.", "App Store را باز و کلاینت را نصب کنید.");
+  }
+  return ["android", "android-tv"].includes(platformID) ? copy.installMobile : copy.installDesktop;
 }
 
 function renderSetupPlatformSelect(platform) {
@@ -4477,12 +4475,24 @@ function renderSetupAppTabs(platform, selectedApp) {
   const copy = setupGuideCopy();
   return `<div class="setup-apps" role="tablist" aria-label="${escapeAttribute(copy.chooseApp)}">${platform.apps.map((appItem) => {
     const selected = appItem.id === selectedApp.id;
-    return `<button class="setup-app ${selected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${selected}" data-action="select-setup-app" data-value="${escapeAttribute(appItem.id)}"><span>${escapeHtml(appItem.name)}</span>${appItem.featured ? `<small>${escapeHtml(copy.recommended)}</small>` : ""}</button>`;
+    return `<button class="setup-app ${selected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${selected}" data-action="select-setup-app" data-value="${escapeAttribute(appItem.id)}"><span>${escapeHtml(appItem.name)}</span></button>`;
   }).join("")}</div>`;
 }
 
 function renderSetupInstallLinks(appItem) {
   return `<div class="setup-install-links">${(appItem.links || []).map((item) => `<button class="setup-link-button" type="button" data-action="open-link" data-value="${escapeAttribute(item.url)}">${icon("external")}<span>${escapeHtml(getLocalizedSetupValue(item.label, state.locale))}</span></button>`).join("")}</div>`;
+}
+
+function renderSetupQRCode() {
+  const guide = setupGuideCopy();
+  const subscriptionLink = String(state.data?.subscription?.subscriptionLink || "").trim();
+  let qrCode = "";
+  try {
+    qrCode = renderQRCodeSVG(subscriptionLink, { border: 2, ecc: "M", pixelSize: 7, whiteColor: "transparent", blackColor: "currentColor" }).replace("<svg ", '<svg data-preserve-color="true" ');
+  } catch {
+    qrCode = icon("alert");
+  }
+  return `<section class="setup-qr-inline" aria-labelledby="setup-qr-title"><div class="setup-qr-copy"><h2 id="setup-qr-title">${escapeHtml(guide.qrTitle)}</h2><p>${escapeHtml(guide.qrHint)}</p></div><div class="setup-qr-code" role="img" aria-label="${escapeAttribute(guide.qrTitle)}">${qrCode}</div><button class="setup-copy-action" type="button" data-action="copy-access">${icon("copy")}<span>${escapeHtml(guide.copy)}</span></button></section>`;
 }
 
 function renderSetupPage() {
@@ -4515,7 +4525,7 @@ function renderSetupPage() {
               <div class="setup-step__body"><h2>${escapeHtml(guide.connectTitle)}</h2><p>${escapeHtml(guide.connectHint)}</p></div>
             </li>
           </ol>
-          <div class="setup-tools"><span>${escapeHtml(guide.otherWays)}</span><div><button type="button" data-action="open-setup-qr">${icon("qr")}<span>${escapeHtml(guide.qr)}</span></button><button type="button" data-action="copy-access">${icon("copy")}<span>${escapeHtml(guide.copy)}</span></button></div></div>
+          ${renderSetupQRCode()}
         </div>
       ` : `
         <div class="card">
@@ -4524,18 +4534,6 @@ function renderSetupPage() {
       `}
     </section>
   `;
-}
-
-function renderSetupQRModal() {
-  const guide = setupGuideCopy();
-  const subscriptionLink = String(state.data?.subscription?.subscriptionLink || "").trim();
-  let qrCode = "";
-  try {
-    qrCode = renderQRCodeSVG(subscriptionLink, { border: 2, ecc: "M", pixelSize: 8, whiteColor: "transparent", blackColor: "currentColor" }).replace("<svg ", '<svg data-preserve-color="true" ');
-  } catch {
-    qrCode = icon("alert");
-  }
-  return `<div class="modal open ${modalStateClass("setup-qr")}" role="dialog" aria-modal="true" aria-labelledby="setup-qr-title"><button class="modal__backdrop" type="button" data-action="close-setup-qr" aria-label="${escapeAttribute(guide.close)}"></button><div class="modal__sheet setup-qr-sheet"><div class="modal__header"><div class="modal__title" id="setup-qr-title">${escapeHtml(guide.qrTitle)}</div><button class="header__btn" type="button" data-action="close-setup-qr" aria-label="${escapeAttribute(guide.close)}">${icon("close")}</button></div><div class="setup-qr-code" aria-hidden="true">${qrCode}</div><p>${escapeHtml(guide.qrHint)}</p><button class="setup-primary-action" type="button" data-action="copy-access">${icon("copy")}<span>${escapeHtml(guide.copy)}</span></button></div></div>`;
 }
 
 function renderSupportPage() {
@@ -5985,8 +5983,6 @@ function bindRootActions() {
       if (action === "toggle-faq") { const index = Number(value); state.selectedFaqIndex = state.selectedFaqIndex === index ? -1 : index; render(); return; }
 		if (action === "select-setup-app") { state.selectedSetupAppID = value; haptic("light"); render({ preserveScroll: true }); return; }
 		if (action === "open-setup-app") return openSelectedSetupApp();
-		if (action === "open-setup-qr") { state.setupQrOpen = true; render({ preserveScroll: true }); return; }
-		if (action === "close-setup-qr") return requestModalClose("setup-qr", () => { state.setupQrOpen = false; });
       if (action === "select-plan") {
         const selectedPlan = (state.data?.plans || []).find((plan) => planKey(plan) === value);
         if (selectedPlan) {
@@ -9281,7 +9277,6 @@ function getNativeBackTargetPage() {
 }
 
 function handleNativeBackButton() {
-	if (state.setupQrOpen) return requestModalClose("setup-qr", () => { state.setupQrOpen = false; });
 	if (state.giftReceiptOpen) return closeGiftReceipt();
 	if (state.adminNotificationWidgetEditorOpen) return closeAdminNotificationWidgetEditor();
 	if (state.adminPromoWidgetEditorOpen) return closeAdminPromoWidgetEditor();
@@ -9309,7 +9304,6 @@ function handleNativeBackButton() {
 }
 
 function getActiveModalName() {
-	if (state.setupQrOpen) return "setup-qr";
 	if (state.giftReceiptOpen) return "gift-receipt";
 	if (state.adminNotificationWidgetEditorOpen) return "admin-notification-widget";
 	if (state.adminPromoWidgetEditorOpen) return "admin-promo-widget";
