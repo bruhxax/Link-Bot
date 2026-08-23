@@ -1,3 +1,13 @@
+import {
+  SETUP_PLATFORMS,
+  buildSetupClientURL,
+  detectSetupPlatform,
+  getLocalizedSetupValue,
+  getSetupApp,
+  getSetupPlatform,
+} from "./setup-apps.js";
+import { renderSVG as renderQRCodeSVG } from "./uqr.mjs";
+
 const app = document.getElementById("app");
 const toast = document.getElementById("toast");
 const tg = window.Telegram?.WebApp;
@@ -679,7 +689,7 @@ const PAYMENT_LOGO_URLS = Object.freeze({
 const PAGES = ["dashboard", "buy", "gift", "setup", "support", "faq", "reviews", "referrals", "servers", "settings", "media", "login-methods", "payments", "terms", "privacy", "custom-page", "admin"];
 const BOTTOM_NAV = ["dashboard", "buy", "support", "settings", "admin"];
 const SUPPORT_TABS = ["open", "history"];
-const PLATFORMS = ["windows", "android", "iphone", "mac"];
+const PLATFORMS = SETUP_PLATFORMS.map((platform) => platform.id);
 
 const PALETTE = {
   accent: {
@@ -1328,12 +1338,6 @@ const PRIVACY_ARTICLE = {
 	},
 };
 
-const SETUP_STEPS = {
-  ru: { windows: ["Откройте ссылку доступа", "Импортируйте конфиг в клиент", "Нажмите подключиться"], android: ["Откройте ссылку доступа", "Выберите Android-клиент", "Подтвердите импорт и подключение"], iphone: ["Откройте ссылку доступа", "Импортируйте конфиг в приложение", "Разрешите VPN-профиль"], mac: ["Откройте ссылку доступа", "Добавьте конфиг в клиент", "Запустите подключение"] },
-  en: { windows: ["Open the access link", "Import the config into the client", "Start the connection"], android: ["Open the access link", "Choose the Android client", "Confirm import and connect"], iphone: ["Open the access link", "Import the config into the app", "Allow the VPN profile"], mac: ["Open the access link", "Add the config to the client", "Start the connection"] },
-	fa: { windows: ["لینک دسترسی را باز کنید", "تنظیمات را در برنامه وارد کنید", "اتصال را شروع کنید"], android: ["لینک دسترسی را باز کنید", "برنامه Android را انتخاب کنید", "ورود تنظیمات و اتصال را تأیید کنید"], iphone: ["لینک دسترسی را باز کنید", "تنظیمات را در برنامه وارد کنید", "پروفایل VPN را مجاز کنید"], mac: ["لینک دسترسی را باز کنید", "تنظیمات را به برنامه اضافه کنید", "اتصال را شروع کنید"] },
-};
-
 const INSTALL_GUIDES = {
   android: {
     icon: "android",
@@ -1788,7 +1792,9 @@ const state = {
 	adminLayoutCategory: "dashboard",
 	adminLayoutSelection: "dashboard:logo",
   selectedFaqIndex: -1,
-  selectedPlatform: "windows",
+  selectedPlatform: detectSetupPlatform(navigator.userAgent, tg?.platform),
+  selectedSetupAppID: "",
+  setupQrOpen: false,
   selectedPlanId: "",
   selectedPlanMonths: null,
 	selectedGiftPlanId: "",
@@ -2638,7 +2644,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-	const modalOpen = state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen;
+	const modalOpen = state.setupQrOpen || state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -2701,6 +2707,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
       ${isModalVisible("review-compose", state.reviewComposeOpen) ? renderReviewComposerModal() : ""}
 		${isModalVisible("review-detail", state.reviewDetailOpen) ? renderReviewDetailModal() : ""}
 		${isModalVisible("gift-receipt", state.giftReceiptOpen) ? renderGiftReceiptModal() : ""}
+		${isModalVisible("setup-qr", state.setupQrOpen) ? renderSetupQRModal() : ""}
 		${state.adminPlanEditorModalOpen ? renderAdminPlanEditorModal() : ""}
 		${state.adminProfileEditorModalOpen ? renderAdminProfileEditorModal() : ""}
 		${isModalVisible("admin-promo-widget", state.adminPromoWidgetEditorOpen) ? renderAdminPromoWidgetModal() : ""}
@@ -4425,24 +4432,90 @@ function renderAdminDevicePackModal() {
 	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-close-device-packs"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-admin"><div class="modal__header"><div><div class="section-label">ТАРИФЫ</div><div class="modal__title">Пакеты устройств</div></div><button class="header__btn" type="button" data-action="admin-close-device-packs">${icon("close")}</button></div>${editor}<div class="device-pack-admin-list">${cards}</div></div></div>`;
 }
 
+function setupGuideCopy() {
+  return {
+    eyebrow: localizedText("ПОДКЛЮЧЕНИЕ", "CONNECTION", "اتصال"),
+    title: localizedText("Установка", "Setup", "راه‌اندازی"),
+    platform: localizedText("Устройство", "Device", "دستگاه"),
+    chooseApp: localizedText("Выберите приложение", "Choose an app", "برنامه را انتخاب کنید"),
+    recommended: localizedText("Рекомендуем", "Recommended", "پیشنهاد شده"),
+    installTitle: localizedText("Установка приложения", "Install the app", "نصب برنامه"),
+    installMobile: localizedText("Откройте магазин приложений или скачайте APK, затем установите клиент.", "Open the app store or download the APK, then install the client.", "فروشگاه برنامه را باز کنید یا APK را دانلود و نصب کنید."),
+    installDesktop: localizedText("Скачайте версию для своего процессора и установите приложение.", "Download the build for your processor and install the app.", "نسخه مناسب پردازنده خود را دانلود و نصب کنید."),
+    addTitle: localizedText("Добавление подписки", "Add subscription", "افزودن اشتراک"),
+    addHint: (appName) => localizedText(`Откроется веб-страница. На ней нажмите «Открыть в ${appName}» — подписка добавится автоматически.`, `A web page will open. Tap “Open in ${appName}” there to add the subscription automatically.`, `صفحه وب باز می‌شود. برای افزودن خودکار اشتراک روی «باز کردن در ${appName}» بزنید.`),
+    addButton: localizedText("Добавить подписку", "Add subscription", "افزودن اشتراک"),
+    connectTitle: localizedText("Подключение и использование", "Connect and use", "اتصال و استفاده"),
+    connectHint: localizedText("Откройте приложение, выберите сервер и нажмите кнопку подключения. При необходимости разрешите создание VPN-конфигурации.", "Open the app, choose a server and tap connect. Allow the VPN configuration if prompted.", "برنامه را باز کنید، سرور را انتخاب و اتصال را بزنید. در صورت درخواست، مجوز VPN را تأیید کنید."),
+    otherWays: localizedText("Другие способы", "Other options", "روش‌های دیگر"),
+    qr: localizedText("Показать QR-код", "Show QR code", "نمایش QR کد"),
+    copy: localizedText("Скопировать ссылку", "Copy link", "کپی لینک"),
+    qrTitle: localizedText("Получение ссылки", "Get the link", "دریافت لینک"),
+    qrHint: localizedText("Отсканируйте QR-код в приложении или скопируйте ссылку вручную.", "Scan the QR code in the app or copy the link manually.", "QR کد را در برنامه اسکن کنید یا لینک را کپی کنید."),
+    close: localizedText("Закрыть", "Close", "بستن"),
+  };
+}
+
+function getSelectedSetupApp() {
+  const platform = getSetupPlatform(state.selectedPlatform);
+  const selected = getSetupApp(platform.id, state.selectedSetupAppID);
+  if (selected && state.selectedSetupAppID !== selected.id) state.selectedSetupAppID = selected.id;
+  return selected;
+}
+
+function setupInstallHint(platformID) {
+  const copy = setupGuideCopy();
+  return ["ios", "android", "android-tv", "apple-tv"].includes(platformID) ? copy.installMobile : copy.installDesktop;
+}
+
+function renderSetupPlatformSelect(platform) {
+  const copy = setupGuideCopy();
+  return `<label class="setup-platform-select"><span class="sr-only">${escapeHtml(copy.platform)}</span><span class="setup-platform-select__icon" aria-hidden="true">${icon(platformIcon(platform.id))}</span><select data-input="setup-platform" aria-label="${escapeAttribute(copy.platform)}">${SETUP_PLATFORMS.map((item) => `<option value="${escapeAttribute(item.id)}" ${item.id === platform.id ? "selected" : ""}>${escapeHtml(getLocalizedSetupValue(item.name, state.locale))}</option>`).join("")}</select><span class="setup-platform-select__chevron" aria-hidden="true">${icon("chevron")}</span></label>`;
+}
+
+function renderSetupAppTabs(platform, selectedApp) {
+  const copy = setupGuideCopy();
+  return `<div class="setup-apps" role="tablist" aria-label="${escapeAttribute(copy.chooseApp)}">${platform.apps.map((appItem) => {
+    const selected = appItem.id === selectedApp.id;
+    return `<button class="setup-app ${selected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${selected}" data-action="select-setup-app" data-value="${escapeAttribute(appItem.id)}"><span>${escapeHtml(appItem.name)}</span>${appItem.featured ? `<small>${escapeHtml(copy.recommended)}</small>` : ""}</button>`;
+  }).join("")}</div>`;
+}
+
+function renderSetupInstallLinks(appItem) {
+  return `<div class="setup-install-links">${(appItem.links || []).map((item) => `<button class="setup-link-button" type="button" data-action="open-link" data-value="${escapeAttribute(item.url)}">${icon("external")}<span>${escapeHtml(getLocalizedSetupValue(item.label, state.locale))}</span></button>`).join("")}</div>`;
+}
+
 function renderSetupPage() {
   const copy = t();
+  const guide = setupGuideCopy();
   const active = isSubscriptionActive() && state.data.subscription.hasAccessLink;
-  const steps = (SETUP_STEPS[state.locale] || SETUP_STEPS.ru)[state.selectedPlatform] || [];
+  const platform = getSetupPlatform(state.selectedPlatform);
+  const selectedApp = getSelectedSetupApp();
   return `
-    <section class="page ${pageClass("setup")}" id="page-setup">
-      <div class="setup-orbit"><span class="setup-orbit__ring"></span><span class="setup-orbit__ring"></span><span class="setup-orbit__ring"></span><span class="setup-orbit__ring"></span><span class="setup-orbit__center">${icon(platformIcon(state.selectedPlatform))}</span></div>
-      <div class="setup-title">${copy.setupTitle}</div>
-      <div class="setup-subtitle">${copy.setupHint}</div>
-      <div class="platform-grid">${PLATFORMS.map((platform) => renderPlatformButton(platform, platform === state.selectedPlatform)).join("")}</div>
+    <section class="page page-setup ${pageClass("setup")}" id="page-setup">
       ${active ? `
-        <div class="card">
-          <div class="section-label">${copy.instructions}</div>
-          <div class="step-list">${steps.map((step, index) => `<div class="step-item"><span class="step-item__index">${index + 1}</span><span>${escapeHtml(step)}</span></div>`).join("")}</div>
-          <div class="setup-access-stack">
-            <div class="action-stack action-stack--compact"><button class="btn btn--green-filled" type="button" data-action="open-access">${icon("arrow")}${copy.openAccess}</button></div>
-            <div class="quick-link quick-link--flat"><div class="quick-link__copy"><span>${copy.accessLink}</span><strong>${escapeHtml(maskLink(state.data.subscription.subscriptionLink))}</strong></div><button class="quick-link__action" type="button" data-action="copy-access" aria-label="${escapeAttribute(copy.copyAccess)}">${icon("copy")}</button></div>
+        <div class="setup-guide">
+          <div class="setup-guide__header">
+            <div><div class="section-label">${escapeHtml(guide.eyebrow)}</div><h1>${escapeHtml(guide.title)}</h1></div>
+            ${renderSetupPlatformSelect(platform)}
           </div>
+          <div class="setup-guide__app-label">${escapeHtml(guide.chooseApp)}</div>
+          ${renderSetupAppTabs(platform, selectedApp)}
+          <ol class="setup-timeline">
+            <li class="setup-step">
+              <span class="setup-step__marker" aria-hidden="true">${icon("download")}</span>
+              <div class="setup-step__body"><h2>${escapeHtml(guide.installTitle)}</h2><p>${escapeHtml(setupInstallHint(platform.id))}</p>${renderSetupInstallLinks(selectedApp)}</div>
+            </li>
+            <li class="setup-step">
+              <span class="setup-step__marker" aria-hidden="true">${icon("arrowDownSquare")}</span>
+              <div class="setup-step__body"><h2>${escapeHtml(guide.addTitle)}</h2><p>${escapeHtml(guide.addHint(selectedApp.name))}</p><button class="setup-primary-action" type="button" data-action="open-setup-app">${icon("plus")}<span>${escapeHtml(guide.addButton)}</span></button></div>
+            </li>
+            <li class="setup-step setup-step--last">
+              <span class="setup-step__marker" aria-hidden="true">${icon("check")}</span>
+              <div class="setup-step__body"><h2>${escapeHtml(guide.connectTitle)}</h2><p>${escapeHtml(guide.connectHint)}</p></div>
+            </li>
+          </ol>
+          <div class="setup-tools"><span>${escapeHtml(guide.otherWays)}</span><div><button type="button" data-action="open-setup-qr">${icon("qr")}<span>${escapeHtml(guide.qr)}</span></button><button type="button" data-action="copy-access">${icon("copy")}<span>${escapeHtml(guide.copy)}</span></button></div></div>
         </div>
       ` : `
         <div class="card">
@@ -4451,6 +4524,18 @@ function renderSetupPage() {
       `}
     </section>
   `;
+}
+
+function renderSetupQRModal() {
+  const guide = setupGuideCopy();
+  const subscriptionLink = String(state.data?.subscription?.subscriptionLink || "").trim();
+  let qrCode = "";
+  try {
+    qrCode = renderQRCodeSVG(subscriptionLink, { border: 2, ecc: "M", pixelSize: 8, whiteColor: "transparent", blackColor: "currentColor" }).replace("<svg ", '<svg data-preserve-color="true" ');
+  } catch {
+    qrCode = icon("alert");
+  }
+  return `<div class="modal open ${modalStateClass("setup-qr")}" role="dialog" aria-modal="true" aria-labelledby="setup-qr-title"><button class="modal__backdrop" type="button" data-action="close-setup-qr" aria-label="${escapeAttribute(guide.close)}"></button><div class="modal__sheet setup-qr-sheet"><div class="modal__header"><div class="modal__title" id="setup-qr-title">${escapeHtml(guide.qrTitle)}</div><button class="header__btn" type="button" data-action="close-setup-qr" aria-label="${escapeAttribute(guide.close)}">${icon("close")}</button></div><div class="setup-qr-code" aria-hidden="true">${qrCode}</div><p>${escapeHtml(guide.qrHint)}</p><button class="setup-primary-action" type="button" data-action="copy-access">${icon("copy")}<span>${escapeHtml(guide.copy)}</span></button></div></div>`;
 }
 
 function renderSupportPage() {
@@ -5481,11 +5566,6 @@ function renderAdminPromoRow(item) {
   `;
 }
 
-function renderPlatformButton(platform, selected) {
-  const label = { windows: "Windows", android: "Android", iphone: "iPhone", mac: "macOS" }[platform];
-  return `<button class="platform-btn ${selected ? "selected" : ""}" type="button" data-action="select-platform" data-value="${platform}"><span class="platform-btn__icon">${icon(platformIcon(platform))}</span><span class="platform-btn__label">${label}</span></button>`;
-}
-
 function renderPayModal() {
   const copy = t();
 	const plan = state.currentPage === "gift" ? getSelectedGiftPlan() : getSelectedPlan();
@@ -5880,7 +5960,7 @@ function bindRootActions() {
 			if (action === "admin-add-legal-section") return addAdminLegalSection();
 			if (action === "admin-remove-legal-section") return removeAdminLegalSection(Number(value));
       if (action === "go-home") return setPage("dashboard");
-      if (action === "go-page") return value === "setup" ? openSubscriptionAccess() : setPage(value);
+		if (action === "go-page") return setPage(value);
 		if (action === "open-promo-widget-checkout") return await openPromoWidgetCheckout(value);
 		if (action === "open-notification-widget") return toggleNotificationPopover(target);
       if (action === "open-review-compose") { state.reviewComposeOpen = true; render(); return; }
@@ -5903,7 +5983,10 @@ function bindRootActions() {
       if (action === "close-support-ticket") return await closeSupportTicket();
       if (action === "set-server-filter") { state.serverFilter = ["all", "online", "offline"].includes(value) ? value : "all"; render(); return; }
       if (action === "toggle-faq") { const index = Number(value); state.selectedFaqIndex = state.selectedFaqIndex === index ? -1 : index; render(); return; }
-      if (action === "select-platform") { state.selectedPlatform = PLATFORMS.includes(value) ? value : "windows"; haptic("light"); render(); return; }
+		if (action === "select-setup-app") { state.selectedSetupAppID = value; haptic("light"); render({ preserveScroll: true }); return; }
+		if (action === "open-setup-app") return openSelectedSetupApp();
+		if (action === "open-setup-qr") { state.setupQrOpen = true; render({ preserveScroll: true }); return; }
+		if (action === "close-setup-qr") return requestModalClose("setup-qr", () => { state.setupQrOpen = false; });
       if (action === "select-plan") {
         const selectedPlan = (state.data?.plans || []).find((plan) => planKey(plan) === value);
         if (selectedPlan) {
@@ -5986,7 +6069,6 @@ function bindRootActions() {
       if (action === "open-install-guide") return openInstallGuide();
       if (action === "open-custom-page") { state.activeCustomPageID = value; return setPage("custom-page"); }
       if (action === "set-install-platform") { state.installGuidePlatform = value === "ios" ? "ios" : "android"; haptic("light"); render(); return; }
-      if (action === "open-access") return openSubscriptionAccess();
       if (action === "copy-access") return state.data?.subscription?.subscriptionLink ? copyToClipboard(state.data.subscription.subscriptionLink).then(() => showToast(t().copied)) : showToast(t().noAccess);
       if (action === "share-referral") return state.data?.referral?.shareUrl ? openExternal(state.data.referral.shareUrl) : undefined;
       if (action === "copy-referral") return state.data?.referral?.shareUrl ? copyToClipboard(state.data.referral.shareUrl).then(() => showToast(t().copied)) : undefined;
@@ -6075,6 +6157,13 @@ function bindRootActions() {
 		}
 		const inputKey = target?.dataset?.input;
 		if (!inputKey) return;
+		if (inputKey === "setup-platform") {
+			state.selectedPlatform = PLATFORMS.includes(target.value) ? target.value : "windows";
+			state.selectedSetupAppID = "";
+			haptic("light");
+			render({ preserveScroll: true });
+			return;
+		}
 		if (inputKey === "admin-plan-internal-squad" && state.adminPlanFormDraft) {
 			const current = adminSquadSelection(inputKey);
 			const next = updateAdminSquadSelection(current?.values, target.value, Boolean(target.checked), current?.emptyMeansAll);
@@ -9192,6 +9281,7 @@ function getNativeBackTargetPage() {
 }
 
 function handleNativeBackButton() {
+	if (state.setupQrOpen) return requestModalClose("setup-qr", () => { state.setupQrOpen = false; });
 	if (state.giftReceiptOpen) return closeGiftReceipt();
 	if (state.adminNotificationWidgetEditorOpen) return closeAdminNotificationWidgetEditor();
 	if (state.adminPromoWidgetEditorOpen) return closeAdminPromoWidgetEditor();
@@ -9219,6 +9309,7 @@ function handleNativeBackButton() {
 }
 
 function getActiveModalName() {
+	if (state.setupQrOpen) return "setup-qr";
 	if (state.giftReceiptOpen) return "gift-receipt";
 	if (state.adminNotificationWidgetEditorOpen) return "admin-notification-widget";
 	if (state.adminPromoWidgetEditorOpen) return "admin-promo-widget";
@@ -9421,12 +9512,13 @@ function bottomNavIcon(page) {
 
 function getBottomNavActivePage() {
   if (state.currentPage === "faq") return "support";
+	if (state.currentPage === "setup") return "dashboard";
   if (["gift", "media", "login-methods", "payments", "terms", "referrals", "servers"].includes(state.currentPage)) return "settings";
   return state.currentPage;
 }
 
 function platformIcon(platform) {
-  return { windows: "windows", android: "android", iphone: "apple", mac: "mac" }[platform] || "windows";
+  return getSetupPlatform(platform)?.icon || "windows";
 }
 
 function isSubscriptionActive() {
@@ -9677,18 +9769,45 @@ function openExternal(url) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
-function openSubscriptionAccess() {
-  const link = String(state.data?.subscription?.subscriptionLink || "").trim();
-  if (!isSubscriptionActive() || !link) {
+function setupBridgeColor(variable, fallback) {
+  const value = window.getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+  return /^#[0-9a-f]{3,8}$/i.test(value) ? value : fallback;
+}
+
+function buildSetupBridgeURL(platformID, appID, subscriptionURL) {
+  buildSetupClientURL(platformID, appID, subscriptionURL);
+  const target = new URL(getWebVersionURL());
+  target.pathname = "/mini-app/open-app";
+  target.search = "";
+  const fragment = new URLSearchParams({
+    platform: platformID,
+    app: appID,
+    subscription: subscriptionURL,
+    lang: state.locale,
+    accent: setupBridgeColor("--accent", "#ba173d"),
+		contrast: setupBridgeColor("--accent-contrast", "#ffffff"),
+    icon: setupBridgeColor("--icon-color", "#f3f3f3"),
+    background: setupBridgeColor("--bg", "#000000"),
+    surface: setupBridgeColor("--surface", "#08090c"),
+    text: setupBridgeColor("--text", "#f3f3f3"),
+  });
+  target.hash = fragment.toString();
+  return target.toString();
+}
+
+function openSelectedSetupApp() {
+  const subscriptionLink = String(state.data?.subscription?.subscriptionLink || "").trim();
+  if (!isSubscriptionActive() || !subscriptionLink) {
     showToast(t().noAccess);
     return setPage("buy");
   }
-  state.sidebarOpen = false;
-  state.payModalOpen = false;
-  state.paymentLaunchModalOpen = false;
-  state.devicesModalOpen = false;
-  openExternal(link);
-  render();
+  const appItem = getSelectedSetupApp();
+  if (!appItem) return showToast(localizedText("Приложение недоступно", "App is unavailable", "برنامه در دسترس نیست"));
+  try {
+    openExternal(buildSetupBridgeURL(state.selectedPlatform, appItem.id, subscriptionLink));
+  } catch {
+    showToast(localizedText("Не удалось подготовить ссылку", "Failed to prepare the link", "آماده‌سازی لینک انجام نشد"));
+  }
 }
 
 function shouldLaunchYookassaInBrowser() {
@@ -10312,6 +10431,9 @@ function icon(name) {
     safari: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><path d="m14.9 8.2-1.7 5-5 1.7 1.7-5 5-1.7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
     dotsVertical: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="5" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="19" r="1.7" fill="currentColor"/></svg>`,
     download: `<svg viewBox="0 0 24 24" fill="none"><path d="M12 4v10M8 10l4 4 4-4M5 16v2.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V16" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+		qr: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h2v2h-2v-2Zm4 0h2v2h-2v-2Zm-4 4h2v2h-2v-2Zm3-1h3v3h-3v-3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`,
+		tv: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="13" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="m9 21 3-3 3 3M9 2l3 3 3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+		linux: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M8.2 10.2C7.5 8.4 7.8 4 12 4s4.5 4.4 3.8 6.2c1.7 1.6 2.7 4 2.2 6.2-.4 1.8-1.7 3.6-3.2 3.6-.9 0-1.5-.5-2.8-.5s-1.9.5-2.8.5c-1.5 0-2.8-1.8-3.2-3.6-.5-2.2.5-4.6 2.2-6.2Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 9.4h.01M14 9.4h.01M10.3 12.3c1 .8 2.4.8 3.4 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m7 18-2 2M17 18l2 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
     appleOutline: `<svg viewBox="0 0 24 24" fill="none"><path d="M15.6 4.2c-.8.8-1.4 2-1.2 3.3 1.1.1 2.3-.6 3-1.5.7-.8 1.2-2 1.1-3.1-1.1 0-2.2.6-2.9 1.3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M17.5 12.2c0-2 1.6-3 1.7-3.1-.9-1.3-2.4-1.5-2.9-1.5-1.2-.1-2.4.7-3 .7-.7 0-1.7-.7-2.7-.7-1.4 0-2.7.8-3.4 2.1-1.4 2.4-.4 6.1 1 8 .7 1 1.5 2 2.5 2s1.5-.6 2.7-.6 1.6.6 2.7.6 1.9-1 2.5-2c.8-1.1 1.1-2.2 1.1-2.3-.1 0-2.2-.8-2.2-3.2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
     shareNodes: `<svg viewBox="0 0 24 24" fill="none"><circle cx="18" cy="5" r="2.4" stroke="currentColor" stroke-width="1.9"/><circle cx="6" cy="12" r="2.4" stroke="currentColor" stroke-width="1.9"/><circle cx="18" cy="19" r="2.4" stroke="currentColor" stroke-width="1.9"/><path d="m8.2 10.9 7.6-4.7M8.2 13.1l7.6 4.7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>`,
     homeOutline: `<svg viewBox="0 0 24 24" fill="none"><path d="m4 11 8-7 8 7v8.5a1.5 1.5 0 0 1-1.5 1.5H15v-6H9v6H5.5A1.5 1.5 0 0 1 4 19.5V11Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>`,

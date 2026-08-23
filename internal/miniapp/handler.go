@@ -574,6 +574,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 	mux.HandleFunc("/", h.serveRoot)
 	mux.HandleFunc("/mini-app", h.serveIndex)
+	mux.HandleFunc("/mini-app/open-app", h.serveAppOpener)
 	mux.HandleFunc("/mini-app/payment-return", h.handlePaymentReturnRedirect)
 	mux.HandleFunc("/mini-app/google/callback", h.serveGoogleLinkCallback)
 	mux.HandleFunc("/mini-app/", func(w http.ResponseWriter, r *http.Request) {
@@ -671,6 +672,28 @@ func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
 	data = bytes.ReplaceAll(data, []byte("__TELEGRAM_BOT_ID__"), []byte(html.EscapeString(telegramBotID())))
 	data = bytes.ReplaceAll(data, []byte("__GOOGLE_CLIENT_ID__"), []byte(html.EscapeString(config.GoogleClientID())))
 	data = bytes.ReplaceAll(data, []byte("__ASSET_VERSION__"), []byte(h.assetVersion))
+	_, _ = w.Write(data)
+}
+
+func (h *Handler) serveAppOpener(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	data, err := fs.ReadFile(h.staticFS, "open-app.html")
+	if err != nil {
+		http.Error(w, "app opener is unavailable", http.StatusInternalServerError)
+		return
+	}
+
+	setHTMLSecurityHeaders(w)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	data = bytes.ReplaceAll(data, []byte("__ASSET_VERSION__"), []byte(h.assetVersion))
+	if r.Method == http.MethodHead {
+		return
+	}
 	_, _ = w.Write(data)
 }
 

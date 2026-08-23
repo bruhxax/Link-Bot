@@ -1,0 +1,102 @@
+package miniapp
+
+import (
+	"net/http/httptest"
+	"os"
+	"strings"
+	"testing"
+	"testing/fstest"
+)
+
+func TestSubscriptionSetupStaysInsideMiniApp(t *testing.T) {
+	appJS, err := os.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+
+	source := string(appJS)
+	for _, expected := range []string{
+		`data-value="setup"`,
+		`if (action === "go-page") return setPage(value);`,
+		`target.pathname = "/mini-app/open-app";`,
+		`target.hash = fragment.toString();`,
+		`data-input="setup-platform"`,
+		`data-action="select-setup-app"`,
+		`data-action="open-setup-app"`,
+		`data-action="open-setup-qr"`,
+		`renderQRCodeSVG(subscriptionLink`,
+	} {
+		if !strings.Contains(source, expected) {
+			t.Fatalf("app.js does not contain %q", expected)
+		}
+	}
+	if strings.Contains(source, `value === "setup" ? openSubscriptionAccess()`) {
+		t.Fatal("setup navigation still bypasses the in-app page")
+	}
+}
+
+func TestSubscriptionSetupCatalogContainsSupportedPlatformsAndSafeSchemes(t *testing.T) {
+	catalog, err := os.ReadFile("static/setup-apps.js")
+	if err != nil {
+		t.Fatalf("read setup-apps.js: %v", err)
+	}
+	source := string(catalog)
+	for _, expected := range []string{
+		`id: "ios"`,
+		`id: "android"`,
+		`id: "macos"`,
+		`id: "windows"`,
+		`id: "linux"`,
+		`id: "android-tv"`,
+		`id: "apple-tv"`,
+		`scheme: "happ://add/"`,
+		`scheme: "stash://install-config?url="`,
+		`scheme: "sub://"`,
+		`if (!/^https?:$/.test(parsed.protocol))`,
+	} {
+		if !strings.Contains(source, expected) {
+			t.Fatalf("setup-apps.js does not contain %q", expected)
+		}
+	}
+}
+
+func TestSubscriptionAppOpenerClearsSensitiveFragment(t *testing.T) {
+	openerJS, err := os.ReadFile("static/open-app.js")
+	if err != nil {
+		t.Fatalf("read open-app.js: %v", err)
+	}
+	source := string(openerJS)
+	for _, expected := range []string{
+		`window.history.replaceState(null, "", window.location.pathname);`,
+		`window.location.href = clientURL;`,
+		`rel="noopener noreferrer"`,
+		`copyText(subscription, copy.copied)`,
+	} {
+		if !strings.Contains(source, expected) {
+			t.Fatalf("open-app.js does not contain %q", expected)
+		}
+	}
+}
+
+func TestServeAppOpenerInjectsAssetVersion(t *testing.T) {
+	handler := &Handler{
+		staticFS: fstest.MapFS{
+			"open-app.html": &fstest.MapFile{Data: []byte(`<script src="/mini-app/open-app.js?v=__ASSET_VERSION__"></script>`)},
+		},
+		assetVersion: "setup123",
+	}
+	request := httptest.NewRequest("GET", "/mini-app/open-app", nil)
+	response := httptest.NewRecorder()
+
+	handler.serveAppOpener(response, request)
+
+	if response.Code != 200 {
+		t.Fatalf("status = %d, want 200", response.Code)
+	}
+	if body := response.Body.String(); !strings.Contains(body, "open-app.js?v=setup123") || strings.Contains(body, "__ASSET_VERSION__") {
+		t.Fatalf("opener body has stale asset version: %q", body)
+	}
+	if cacheControl := response.Header().Get("Cache-Control"); cacheControl != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", cacheControl)
+	}
+}
