@@ -23,6 +23,7 @@
 html {
   height: 100%;
   background: var(--bg);
+  -webkit-tap-highlight-color: transparent;
 }
 body {
   min-height: 100%;
@@ -129,6 +130,10 @@ button, a { font: inherit; -webkit-tap-highlight-color: transparent; }
 .opener-toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
 
 button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* Touch input keeps press feedback without WebView focus rings. */
+@media (hover: none) and (pointer: coarse) {
+  :focus, :focus-visible, :focus-within { outline: none !important; outline-offset: 0 !important; }
+}
 @media (hover: hover) and (pointer: fine) {
   .opener-primary:hover, .opener-secondary:hover { opacity: .9; }
   .opener-copy:hover, .opener-install-links a:hover { border-color: color-mix(in srgb, var(--accent) 58%, var(--line)); }

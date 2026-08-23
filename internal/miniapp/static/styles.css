@@ -1238,6 +1238,7 @@ body {
   font-family: "Montserrat", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
   touch-action: pan-y;
 }
 
@@ -9398,4 +9399,24 @@ body.has-open-modal .admin-save-bar {
 
 	.admin-save-bar--widget-layout .admin-save-bar__widget > span:last-child { display: none; }
 	.admin-save-bar--widget-layout [data-action="admin-save-settings"] { min-width: 100px; }
+}
+
+/* Touch input keeps press feedback without WebView focus rings. */
+@media (hover: none) and (pointer: coarse) {
+	:focus,
+	:focus-visible,
+	:focus-within {
+		outline: none !important;
+		outline-offset: 0 !important;
+	}
+
+	.setup-platform-select:focus-within,
+	.support-field__input:focus,
+	.support-field__textarea:focus,
+	.support-reply__textarea:focus,
+	.admin-subscription-option:focus-within,
+	.promo-widget-editor__field .admin-field__control:focus,
+	.gift-username:focus-within {
+		box-shadow: none !important;
+	}
 }

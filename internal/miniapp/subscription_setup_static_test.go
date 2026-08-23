@@ -138,6 +138,26 @@ func TestSubscriptionAppOpenerFillsViewport(t *testing.T) {
 	}
 }
 
+func TestMiniAppTouchInputDoesNotShowWebViewFocusRings(t *testing.T) {
+	for _, path := range []string{"static/styles.css", "static/open-app.css"} {
+		styles, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		source := string(styles)
+		for _, expected := range []string{
+			"-webkit-tap-highlight-color: transparent;",
+			"/* Touch input keeps press feedback without WebView focus rings. */",
+			"@media (hover: none) and (pointer: coarse)",
+			"outline: none !important;",
+		} {
+			if !strings.Contains(source, expected) {
+				t.Fatalf("%s does not contain %q", path, expected)
+			}
+		}
+	}
+}
+
 func TestServeAppOpenerInjectsAssetVersion(t *testing.T) {
 	handler := &Handler{
 		staticFS: fstest.MapFS{
