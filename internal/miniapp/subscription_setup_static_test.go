@@ -121,6 +121,23 @@ func TestSubscriptionAppOpenerClearsSensitiveFragment(t *testing.T) {
 	}
 }
 
+func TestSubscriptionAppOpenerFillsViewport(t *testing.T) {
+	styles, err := os.ReadFile("static/open-app.css")
+	if err != nil {
+		t.Fatalf("read open-app.css: %v", err)
+	}
+	source := string(styles)
+	for _, expected := range []string{
+		"html {\n  height: 100%;\n  background: var(--bg);",
+		"min-height: 100dvh;",
+		"place-items: center;",
+	} {
+		if !strings.Contains(source, expected) {
+			t.Fatalf("open-app.css does not contain %q", expected)
+		}
+	}
+}
+
 func TestServeAppOpenerInjectsAssetVersion(t *testing.T) {
 	handler := &Handler{
 		staticFS: fstest.MapFS{
