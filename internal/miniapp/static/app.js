@@ -4496,14 +4496,13 @@ function renderSetupInstallLinks(appItem) {
 function renderSetupQRCode() {
   const guide = setupGuideCopy();
   const subscriptionLink = String(state.data?.subscription?.subscriptionLink || "").trim();
-  const logoURL = resolveBrandMarkURL(state.data?.brand?.logoUrl || "");
   let qrCode = "";
   try {
     qrCode = renderQRCodeSVG(subscriptionLink, { border: 4, ecc: "H", pixelSize: 8, rounded: 0.5, moduleScale: 0.96, finderRadius: 1.3, whiteColor: "#fff", blackColor: "#050505" }).replace("<svg ", '<svg data-preserve-color="true" ');
   } catch {
     qrCode = icon("alert");
   }
-  return `<section class="setup-qr-inline" aria-labelledby="setup-qr-title"><div class="setup-qr-copy"><h2 id="setup-qr-title">${escapeHtml(guide.qrTitle)}</h2></div><div class="setup-qr-code" role="img" aria-label="${escapeAttribute(guide.qrTitle)}"><div class="setup-qr-visual">${qrCode}<span class="setup-qr-logo" aria-hidden="true"><img src="${escapeAttribute(logoURL)}" alt="" loading="eager" draggable="false"></span></div></div><button class="setup-copy-action" type="button" data-action="copy-access">${icon("copy")}<span>${escapeHtml(guide.copy)}</span></button></section>`;
+  return `<section class="setup-qr-inline" aria-labelledby="setup-qr-title"><div class="setup-qr-copy"><h2 id="setup-qr-title">${escapeHtml(guide.qrTitle)}</h2></div><div class="setup-qr-code" role="img" aria-label="${escapeAttribute(guide.qrTitle)}"><div class="setup-qr-visual">${qrCode}</div></div><button class="setup-copy-action" type="button" data-action="copy-access">${icon("copy")}<span>${escapeHtml(guide.copy)}</span></button></section>`;
 }
 
 function renderSetupPage() {

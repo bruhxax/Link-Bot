@@ -27,7 +27,6 @@ func TestSubscriptionSetupStaysInsideMiniApp(t *testing.T) {
 		`data-action="open-setup-app"`,
 		`class="setup-qr-inline"`,
 		`class="setup-qr-visual"`,
-		`class="setup-qr-logo"`,
 		`data-action="copy-access"`,
 		`renderQRCodeSVG(subscriptionLink`,
 		`border: 4`,
@@ -44,6 +43,9 @@ func TestSubscriptionSetupStaysInsideMiniApp(t *testing.T) {
 	}
 	if strings.Contains(source, `value === "setup" ? openSubscriptionAccess()`) {
 		t.Fatal("setup navigation still bypasses the in-app page")
+	}
+	if strings.Contains(source, `class="setup-qr-logo"`) {
+		t.Fatal("subscription QR still contains the removed center logo")
 	}
 }
 
@@ -80,13 +82,13 @@ func TestSubscriptionQRCodeMatchesRoundedCardDesign(t *testing.T) {
 		`.setup-qr-visual {`,
 		`border-radius: 18px;`,
 		`background: #fff;`,
-		`.setup-qr-logo {`,
-		`width: 34px;`,
-		`filter: brightness(0) saturate(100%);`,
 	} {
 		if !strings.Contains(source, expected) {
 			t.Fatalf("styles.css does not contain %q", expected)
 		}
+	}
+	if strings.Contains(source, `.setup-qr-logo {`) {
+		t.Fatal("styles.css still contains the removed QR center logo")
 	}
 }
 
