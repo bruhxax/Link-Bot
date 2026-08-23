@@ -26,11 +26,17 @@ func TestSubscriptionSetupStaysInsideMiniApp(t *testing.T) {
 		`data-action="select-setup-app"`,
 		`data-action="open-setup-app"`,
 		`class="setup-qr-inline"`,
+		`class="setup-qr-visual"`,
+		`class="setup-qr-logo"`,
 		`data-action="copy-access"`,
 		`renderQRCodeSVG(subscriptionLink`,
+		`border: 4`,
+		`ecc: "H"`,
 		`rounded: 0.5`,
-		`moduleScale: 0.84`,
-		`finderRadius: 1.25`,
+		`moduleScale: 0.96`,
+		`finderRadius: 1.3`,
+		`whiteColor: "#fff"`,
+		`blackColor: "#050505"`,
 	} {
 		if !strings.Contains(source, expected) {
 			t.Fatalf("app.js does not contain %q", expected)
@@ -59,6 +65,27 @@ func TestSubscriptionQRCodeUsesRoundedDataModulesAndKeepsFinderPatternsSolid(t *
 	} {
 		if !strings.Contains(source, expected) {
 			t.Fatalf("uqr.mjs does not contain %q", expected)
+		}
+	}
+}
+
+func TestSubscriptionQRCodeMatchesRoundedCardDesign(t *testing.T) {
+	styles, err := os.ReadFile("static/styles.css")
+	if err != nil {
+		t.Fatalf("read styles.css: %v", err)
+	}
+
+	source := string(styles)
+	for _, expected := range []string{
+		`.setup-qr-visual {`,
+		`border-radius: 18px;`,
+		`background: #fff;`,
+		`.setup-qr-logo {`,
+		`width: 34px;`,
+		`filter: brightness(0) saturate(100%);`,
+	} {
+		if !strings.Contains(source, expected) {
+			t.Fatalf("styles.css does not contain %q", expected)
 		}
 	}
 }

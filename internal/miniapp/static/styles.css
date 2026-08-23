@@ -1136,14 +1136,51 @@ select:focus-visible {
 }
 .setup-qr-copy h2 { margin: 0; color: var(--text); font-size: 13px; line-height: 1.3; }
 .setup-qr-code {
-	width: min(52vw, 196px);
+	width: min(48vw, 184px);
 	aspect-ratio: 1;
 	display: grid;
 	place-items: center;
-	margin: 11px auto;
-	color: var(--icon-color);
+	margin: 12px auto;
 }
-.setup-qr-code svg { display: block; width: 100%; height: 100%; }
+.setup-qr-visual {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	display: grid;
+	place-items: center;
+	overflow: hidden;
+	isolation: isolate;
+	border-radius: 18px;
+	background: #fff;
+	box-shadow: 0 12px 28px rgba(0, 0, 0, .24);
+}
+.setup-qr-code svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+.setup-qr-logo {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: 34px;
+	height: 34px;
+	padding: 2px;
+	display: grid;
+	place-items: center;
+	transform: translate(-50%, -50%);
+	border-radius: 8px;
+	background: #fff;
+	box-shadow: 0 0 0 3px #fff;
+	pointer-events: none;
+}
+.setup-qr-logo img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+	filter: brightness(0) saturate(100%);
+}
 .setup-copy-action {
 	width: min(100%, 320px);
 	min-height: 40px;
