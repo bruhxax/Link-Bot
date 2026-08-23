@@ -711,11 +711,17 @@ function renderUnicodeCompact(data, options = {}) {
 function escapeAttr(value) {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
+function roundedRectPath(x, y, width, height, radius) {
+  const r = Math.max(0, Math.min(width / 2, height / 2, radius));
+  return `M${x + r},${y}H${x + width - r}A${r},${r} 0 0 1 ${x + width},${y + r}V${y + height - r}A${r},${r} 0 0 1 ${x + width - r},${y + height}H${x + r}A${r},${r} 0 0 1 ${x},${y + height - r}V${y + r}A${r},${r} 0 0 1 ${x + r},${y}Z`;
+}
 function renderSVG(data, options = {}) {
   const result = encode(data, options);
   const {
     pixelSize = 10,
     rounded = 0,
+    moduleScale = 1,
+    finderRadius = 1.2,
     whiteColor = "white",
     blackColor = "black"
   } = options;
@@ -725,6 +731,10 @@ function renderSVG(data, options = {}) {
   const paths = [];
   const roundedModules = [];
   const radius = Math.max(0, Math.min(pixelSize / 2, Number(rounded) * pixelSize));
+  const scale = radius > 0 ? Math.max(0.65, Math.min(1, Number(moduleScale))) : 1;
+  const moduleSize = pixelSize * scale;
+  const moduleOffset = (pixelSize - moduleSize) / 2;
+  const moduleRadius = Math.min(radius, moduleSize / 2);
   for (let row = 0; row < result.size; row++) {
     for (let col = 0; col < result.size; col++) {
       const x = col * pixelSize;
@@ -732,14 +742,37 @@ function renderSVG(data, options = {}) {
       if (!result.data[row][col])
         continue;
       const type = result.types[row][col];
-      if (radius > 0 && type !== QrCodeDataType.Position && type !== QrCodeDataType.Alignment)
-        roundedModules.push(`<rect x="${x}" y="${y}" width="${pixelSize}" height="${pixelSize}" rx="${radius}" ry="${radius}"/>`);
+      if (radius > 0 && type === QrCodeDataType.Position)
+        continue;
+      if (radius > 0)
+        roundedModules.push(`<rect x="${x + moduleOffset}" y="${y + moduleOffset}" width="${moduleSize}" height="${moduleSize}" rx="${moduleRadius}" ry="${moduleRadius}"/>`);
       else
         paths.push(`M${x},${y}h${pixelSize}v${pixelSize}h-${pixelSize}z`);
     }
   }
+  const finderPatterns = [];
+  if (radius > 0) {
+    const border = Math.max(0, Math.floor(Number(options.border ?? 1)));
+    const coreSize = result.size - border * 2;
+    const finderSize = pixelSize * 7;
+    const finderOuterRadius = Math.max(0, Math.min(finderSize / 2, Number(finderRadius) * pixelSize));
+    const finderInnerRadius = Math.min(finderOuterRadius * 0.72, pixelSize * 2.5);
+    const finderCenterRadius = Math.min(finderOuterRadius * 0.52, pixelSize * 1.5);
+    const origins = [
+      [border, border],
+      [border + coreSize - 7, border],
+      [border, border + coreSize - 7]
+    ];
+    for (const [column, row] of origins) {
+      const x = column * pixelSize;
+      const y = row * pixelSize;
+      const outer = roundedRectPath(x, y, finderSize, finderSize, finderOuterRadius);
+      const inner = roundedRectPath(x + pixelSize, y + pixelSize, pixelSize * 5, pixelSize * 5, finderInnerRadius);
+      finderPatterns.push(`<path fill-rule="evenodd" d="${outer}${inner}"/><rect x="${x + pixelSize * 2}" y="${y + pixelSize * 2}" width="${pixelSize * 3}" height="${pixelSize * 3}" rx="${finderCenterRadius}" ry="${finderCenterRadius}"/>`);
+    }
+  }
   svg += `<rect fill="${escapeAttr(whiteColor)}" width="${width}" height="${height}"/>`;
-  svg += `<g fill="${escapeAttr(blackColor)}"><path d="${paths.join("")}"/>${roundedModules.join("")}</g>`;
+  svg += `<g fill="${escapeAttr(blackColor)}"><path d="${paths.join("")}"/>${roundedModules.join("")}${finderPatterns.join("")}</g>`;
   svg += "</svg>";
   return svg;
 }

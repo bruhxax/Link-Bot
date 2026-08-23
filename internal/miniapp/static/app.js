@@ -4498,7 +4498,7 @@ function renderSetupQRCode() {
   const subscriptionLink = String(state.data?.subscription?.subscriptionLink || "").trim();
   let qrCode = "";
   try {
-    qrCode = renderQRCodeSVG(subscriptionLink, { border: 2, ecc: "M", pixelSize: 7, rounded: 0.22, whiteColor: "transparent", blackColor: "currentColor" }).replace("<svg ", '<svg data-preserve-color="true" ');
+    qrCode = renderQRCodeSVG(subscriptionLink, { border: 2, ecc: "M", pixelSize: 7, rounded: 0.5, moduleScale: 0.84, finderRadius: 1.25, whiteColor: "transparent", blackColor: "currentColor" }).replace("<svg ", '<svg data-preserve-color="true" ');
   } catch {
     qrCode = icon("alert");
   }
