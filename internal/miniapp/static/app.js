@@ -1793,6 +1793,7 @@ const state = {
 	adminLayoutSelection: "dashboard:logo",
   selectedFaqIndex: -1,
   selectedPlatform: detectSetupPlatform(navigator.userAgent, tg?.platform),
+  setupPlatformMenuOpen: false,
   selectedSetupAppID: "",
   selectedPlanId: "",
   selectedPlanMonths: null,
@@ -4432,7 +4433,6 @@ function renderAdminDevicePackModal() {
 
 function setupGuideCopy() {
   return {
-    eyebrow: localizedText("ПОДКЛЮЧЕНИЕ", "CONNECTION", "اتصال"),
     title: localizedText("Установка", "Setup", "راه‌اندازی"),
     platform: localizedText("Устройство", "Device", "دستگاه"),
     chooseApp: localizedText("Выберите приложение", "Choose an app", "برنامه را انتخاب کنید"),
@@ -4447,7 +4447,6 @@ function setupGuideCopy() {
     connectHint: localizedText("Откройте приложение, выберите сервер и нажмите кнопку подключения. При необходимости разрешите создание VPN-конфигурации.", "Open the app, choose a server and tap connect. Allow the VPN configuration if prompted.", "برنامه را باز کنید، سرور را انتخاب و اتصال را بزنید. در صورت درخواست، مجوز VPN را تأیید کنید."),
     copy: localizedText("Скопировать ссылку", "Copy link", "کپی لینک"),
     qrTitle: localizedText("QR-код подписки", "Subscription QR code", "کد QR اشتراک"),
-    qrHint: localizedText("Отсканируйте его в VPN-клиенте на другом устройстве.", "Scan it in the VPN client on another device.", "آن را در کلاینت VPN دستگاه دیگری اسکن کنید."),
   };
 }
 
@@ -4468,7 +4467,18 @@ function setupInstallHint(platformID) {
 
 function renderSetupPlatformSelect(platform) {
   const copy = setupGuideCopy();
-  return `<label class="setup-platform-select"><span class="sr-only">${escapeHtml(copy.platform)}</span><span class="setup-platform-select__icon" aria-hidden="true">${icon(platformIcon(platform.id))}</span><select data-input="setup-platform" aria-label="${escapeAttribute(copy.platform)}">${SETUP_PLATFORMS.map((item) => `<option value="${escapeAttribute(item.id)}" ${item.id === platform.id ? "selected" : ""}>${escapeHtml(getLocalizedSetupValue(item.name, state.locale))}</option>`).join("")}</select><span class="setup-platform-select__chevron" aria-hidden="true">${icon("chevron")}</span></label>`;
+  const platformName = getLocalizedSetupValue(platform.name, state.locale);
+  const options = SETUP_PLATFORMS.map((item) => {
+    const selected = item.id === platform.id;
+    return `<button class="setup-platform-option ${selected ? "is-selected" : ""}" type="button" role="option" aria-selected="${selected}" tabindex="${state.setupPlatformMenuOpen ? "0" : "-1"}" data-action="select-setup-platform" data-value="${escapeAttribute(item.id)}"><span class="setup-platform-option__icon" aria-hidden="true">${icon(platformIcon(item.id))}</span><span>${escapeHtml(getLocalizedSetupValue(item.name, state.locale))}</span>${selected ? `<span class="setup-platform-option__check" aria-hidden="true">${icon("check")}</span>` : ""}</button>`;
+  }).join("");
+  return `<div class="setup-platform-picker ${state.setupPlatformMenuOpen ? "is-open" : ""}">
+    <label class="setup-platform-select setup-platform-select--native"><span class="sr-only">${escapeHtml(copy.platform)}</span><span class="setup-platform-select__icon" aria-hidden="true">${icon(platformIcon(platform.id))}</span><select data-input="setup-platform" aria-label="${escapeAttribute(copy.platform)}">${SETUP_PLATFORMS.map((item) => `<option value="${escapeAttribute(item.id)}" ${item.id === platform.id ? "selected" : ""}>${escapeHtml(getLocalizedSetupValue(item.name, state.locale))}</option>`).join("")}</select><span class="setup-platform-select__chevron" aria-hidden="true">${icon("chevron")}</span></label>
+    <div class="setup-platform-custom">
+      <button class="setup-platform-select setup-platform-trigger" type="button" data-action="toggle-setup-platform" aria-label="${escapeAttribute(`${copy.platform}: ${platformName}`)}" aria-haspopup="listbox" aria-expanded="${state.setupPlatformMenuOpen}" aria-controls="setup-platform-menu"><span class="setup-platform-select__icon" aria-hidden="true">${icon(platformIcon(platform.id))}</span><span class="setup-platform-trigger__label">${escapeHtml(platformName)}</span><span class="setup-platform-select__chevron" aria-hidden="true">${icon("chevron")}</span></button>
+      <div class="setup-platform-menu" id="setup-platform-menu" role="listbox" aria-label="${escapeAttribute(copy.platform)}" aria-hidden="${!state.setupPlatformMenuOpen}">${options}</div>
+    </div>
+  </div>`;
 }
 
 function renderSetupAppTabs(platform, selectedApp) {
@@ -4492,7 +4502,7 @@ function renderSetupQRCode() {
   } catch {
     qrCode = icon("alert");
   }
-  return `<section class="setup-qr-inline" aria-labelledby="setup-qr-title"><div class="setup-qr-copy"><h2 id="setup-qr-title">${escapeHtml(guide.qrTitle)}</h2><p>${escapeHtml(guide.qrHint)}</p></div><div class="setup-qr-code" role="img" aria-label="${escapeAttribute(guide.qrTitle)}">${qrCode}</div><button class="setup-copy-action" type="button" data-action="copy-access">${icon("copy")}<span>${escapeHtml(guide.copy)}</span></button></section>`;
+  return `<section class="setup-qr-inline" aria-labelledby="setup-qr-title"><div class="setup-qr-copy"><h2 id="setup-qr-title">${escapeHtml(guide.qrTitle)}</h2></div><div class="setup-qr-code" role="img" aria-label="${escapeAttribute(guide.qrTitle)}">${qrCode}</div><button class="setup-copy-action" type="button" data-action="copy-access">${icon("copy")}<span>${escapeHtml(guide.copy)}</span></button></section>`;
 }
 
 function renderSetupPage() {
@@ -4506,10 +4516,9 @@ function renderSetupPage() {
       ${active ? `
         <div class="setup-guide">
           <div class="setup-guide__header">
-            <div><div class="section-label">${escapeHtml(guide.eyebrow)}</div><h1>${escapeHtml(guide.title)}</h1></div>
+            <div><h1>${escapeHtml(guide.title)}</h1></div>
             ${renderSetupPlatformSelect(platform)}
           </div>
-          <div class="setup-guide__app-label">${escapeHtml(guide.chooseApp)}</div>
           ${renderSetupAppTabs(platform, selectedApp)}
           <ol class="setup-timeline">
             <li class="setup-step">
@@ -5842,12 +5851,21 @@ function bindRootActions() {
   app.addEventListener("click", async (event) => {
     const target = event.target.closest("[data-action]");
     if (!target) {
+		if (state.setupPlatformMenuOpen && !event.target.closest(".setup-platform-picker")) {
+			state.setupPlatformMenuOpen = false;
+			render({ preserveScroll: true });
+		}
 		if (state.subscriptionMenuOpen && !event.target.closest(".subscription-switcher")) requestSubscriptionMenuClose();
 		if ((state.notificationPopoverOpen || state.notificationPopoverClosing) && !event.target.closest(".notification-widget-shell")) requestNotificationPopoverClose();
 		return;
 	}
     const action = target.dataset.action;
     const value = target.dataset.value || "";
+		if (state.setupPlatformMenuOpen && !event.target.closest(".setup-platform-picker")) {
+			state.setupPlatformMenuOpen = false;
+			app.querySelector(".setup-platform-picker")?.classList.remove("is-open");
+			app.querySelector(".setup-platform-trigger")?.setAttribute("aria-expanded", "false");
+		}
 		if ((state.notificationPopoverOpen || state.notificationPopoverClosing) && !event.target.closest(".notification-widget-shell") && action !== "open-notification-widget") {
 			requestNotificationPopoverClose();
 		}
@@ -5982,6 +6000,23 @@ function bindRootActions() {
       if (action === "set-server-filter") { state.serverFilter = ["all", "online", "offline"].includes(value) ? value : "all"; render(); return; }
       if (action === "toggle-faq") { const index = Number(value); state.selectedFaqIndex = state.selectedFaqIndex === index ? -1 : index; render(); return; }
 		if (action === "select-setup-app") { state.selectedSetupAppID = value; haptic("light"); render({ preserveScroll: true }); return; }
+		if (action === "toggle-setup-platform") {
+			const opening = !state.setupPlatformMenuOpen;
+			state.setupPlatformMenuOpen = opening;
+			haptic("light");
+			render({ preserveScroll: true });
+			queueMicrotask(() => app.querySelector(opening ? ".setup-platform-option.is-selected" : ".setup-platform-trigger")?.focus());
+			return;
+		}
+		if (action === "select-setup-platform") {
+			state.selectedPlatform = PLATFORMS.includes(value) ? value : "windows";
+			state.selectedSetupAppID = "";
+			state.setupPlatformMenuOpen = false;
+			haptic("light");
+			render({ preserveScroll: true });
+			queueMicrotask(() => app.querySelector(".setup-platform-trigger")?.focus());
+			return;
+		}
 		if (action === "open-setup-app") return openSelectedSetupApp();
       if (action === "select-plan") {
         const selectedPlan = (state.data?.plans || []).find((plan) => planKey(plan) === value);
@@ -6156,6 +6191,7 @@ function bindRootActions() {
 		if (inputKey === "setup-platform") {
 			state.selectedPlatform = PLATFORMS.includes(target.value) ? target.value : "windows";
 			state.selectedSetupAppID = "";
+			state.setupPlatformMenuOpen = false;
 			haptic("light");
 			render({ preserveScroll: true });
 			return;
@@ -6330,6 +6366,13 @@ function bindRootActions() {
 	app.addEventListener("pointerdown", beginAdminPlanPointer);
 	app.addEventListener("pointerdown", beginAdminLayoutPointer);
 	app.addEventListener("keydown", (event) => {
+		if (state.setupPlatformMenuOpen && event.key === "Escape") {
+			event.preventDefault();
+			state.setupPlatformMenuOpen = false;
+			render({ preserveScroll: true });
+			queueMicrotask(() => app.querySelector(".setup-platform-trigger")?.focus());
+			return;
+		}
 		if (state.adminNotificationWidgetEditorOpen && event.key === "Escape") {
 			event.preventDefault();
 			closeAdminNotificationWidgetEditor();
@@ -9277,6 +9320,11 @@ function getNativeBackTargetPage() {
 }
 
 function handleNativeBackButton() {
+	if (state.setupPlatformMenuOpen) {
+		state.setupPlatformMenuOpen = false;
+		render({ preserveScroll: true });
+		return;
+	}
 	if (state.giftReceiptOpen) return closeGiftReceipt();
 	if (state.adminNotificationWidgetEditorOpen) return closeAdminNotificationWidgetEditor();
 	if (state.adminPromoWidgetEditorOpen) return closeAdminPromoWidgetEditor();

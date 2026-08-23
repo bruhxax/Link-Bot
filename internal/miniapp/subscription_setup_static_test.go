@@ -21,6 +21,8 @@ func TestSubscriptionSetupStaysInsideMiniApp(t *testing.T) {
 		`target.pathname = "/mini-app/open-app";`,
 		`target.hash = fragment.toString();`,
 		`data-input="setup-platform"`,
+		`data-action="toggle-setup-platform"`,
+		`data-action="select-setup-platform"`,
 		`data-action="select-setup-app"`,
 		`data-action="open-setup-app"`,
 		`class="setup-qr-inline"`,
@@ -33,6 +35,41 @@ func TestSubscriptionSetupStaysInsideMiniApp(t *testing.T) {
 	}
 	if strings.Contains(source, `value === "setup" ? openSubscriptionAccess()`) {
 		t.Fatal("setup navigation still bypasses the in-app page")
+	}
+}
+
+func TestSubscriptionSetupUsesCompactThemedTimeline(t *testing.T) {
+	appJS, err := os.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	styles, err := os.ReadFile("static/styles.css")
+	if err != nil {
+		t.Fatalf("read styles.css: %v", err)
+	}
+
+	appSource := string(appJS)
+	for _, unexpected := range []string{
+		`localizedText("ПОДКЛЮЧЕНИЕ"`,
+		`localizedText("Отсканируйте его в VPN-клиенте на другом устройстве."`,
+		`class="setup-guide__app-label"`,
+	} {
+		if strings.Contains(appSource, unexpected) {
+			t.Fatalf("app.js still contains removed setup copy %q", unexpected)
+		}
+	}
+
+	styleSource := string(styles)
+	for _, expected := range []string{
+		`.setup-platform-menu`,
+		`@media (hover: hover) and (pointer: fine)`,
+		`.setup-step::before`,
+		`border-radius: 50%;`,
+		`background: color-mix(in srgb, var(--surface-strong) 84%, var(--accent));`,
+	} {
+		if !strings.Contains(styleSource, expected) {
+			t.Fatalf("styles.css does not contain %q", expected)
+		}
 	}
 }
 
