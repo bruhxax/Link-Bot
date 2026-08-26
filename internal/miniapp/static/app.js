@@ -684,6 +684,7 @@ const PAYMENT_LOGO_URLS = Object.freeze({
   freekassa: "/mini-app/assets/payment-freekassa.png",
   heleket: "/mini-app/assets/payment-heleket.png",
   pally: "/mini-app/assets/payment-pally.png",
+	p2p: "/mini-app/assets/payment-card.png",
 });
 
 const PAGES = ["dashboard", "buy", "gift", "setup", "support", "faq", "reviews", "referrals", "servers", "settings", "media", "login-methods", "payments", "terms", "privacy", "custom-page", "admin"];
@@ -751,7 +752,16 @@ const previewPayload = {
     { id: "gift-3m", months: 3, titleRu: "3 месяца", titleEn: "3 months", titleFa: "3 ماه", priceRub: 450, priceStars: 305, trafficLimitBytes: 0, deviceLimitCount: 3 },
     { id: "gift-6m", months: 6, titleRu: "6 месяцев", titleEn: "6 months", titleFa: "6 ماه", priceRub: 800, priceStars: 545, trafficLimitBytes: 0, deviceLimitCount: 3 },
   ],
-  paymentMethods: [{ id: "sbp" }, { id: "card" }, { id: "stars" }, { id: "crypto" }],
+	paymentMethods: [{ id: "sbp" }, { id: "card" }, { id: "p2p" }, { id: "stars" }, { id: "crypto" }],
+	p2p: {
+		destinations: [
+			{ id: "sber", title: "Сбербанк", details: "+7 999 123-45-67", description: "Перевод по СБП, получатель И. И." },
+			{ id: "usdt", title: "USDT", details: "TExampleWalletAddress", description: "Сеть TRC20" },
+		],
+		footerText: "Как только ваш перевод проверят, подписка автоматически начислится",
+		senderLabel: "ФИО / номер счёта отправителя",
+		senderPlaceholder: "Например: Иван Иванов, карта •••• 1234",
+	},
   links: { support: "https://t.me/your_support_username", channel: "https://t.me/your_channel_username" },
   servers: { items: [
     { name: "Germany", address: "de.example.com", countryCode: "DE", online: true },
@@ -1703,6 +1713,11 @@ const state = {
   currentPage: readSetting(STORAGE_KEYS.page, "dashboard"),
   sidebarOpen: false,
   payModalOpen: false,
+	p2pMenuStep: "",
+	p2pDestinationId: "",
+	p2pSenderReference: "",
+	p2pContext: null,
+	p2pBusy: false,
 	subscriptionMenuOpen: false,
 	subscriptionMenuClosing: false,
 	subscriptionEditorOpen: false,
@@ -2365,9 +2380,18 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
         const runtime = buildPreviewRuntimeSettings();
         state.data.support.isAdmin = true;
         state.data.runtime = runtime;
-        state.data.admin = {
+		state.data.admin = {
 			settings: runtime,
 			events: [],
+			integrations: [{
+				id: "p2p", name: "P2P перевод", description: "Ручная проверка перевода администратором", logo: PAYMENT_LOGO_URLS.p2p, kind: "payment", enabled: true, configured: true, webhookUrl: "",
+				fields: [
+					{ key: "destinations", label: "Реквизиты", required: true, value: JSON.stringify(previewPayload.p2p.destinations) },
+					{ key: "footerText", label: "Текст под реквизитами", value: previewPayload.p2p.footerText },
+					{ key: "senderLabel", label: "Что запросить у отправителя", value: previewPayload.p2p.senderLabel },
+					{ key: "senderPlaceholder", label: "Подсказка в поле", value: previewPayload.p2p.senderPlaceholder },
+				],
+			}],
 			squads: {
 				internal: ["White", "Netherlands", "Netherlands OBHOD", "Germany", "Germany OBHOD", "Sweden", "Sweden 2", "Fin 2"].map((name, index) => ({ uuid: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, name })),
 				external: [{ uuid: "10000000-0000-4000-8000-000000000001", name: "Default external" }],
@@ -2375,9 +2399,15 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 		};
 		state.adminSettingsDraft = deepClone(runtime);
 		seedEditableCopy(state.adminSettingsDraft);
-		state.currentPage = "dashboard";
-        state.adminSection = "layout";
-		state.adminLayoutEditing = true;
+		if (urlParams.get("section") === "integrations") {
+			state.currentPage = "admin";
+			state.adminSection = "integrations";
+			state.adminLayoutEditing = false;
+		} else {
+			state.currentPage = "dashboard";
+			state.adminSection = "layout";
+			state.adminLayoutEditing = true;
+		}
       }
 			syncLocalizationFromSettings(state.data.runtime);
       ensureSelections();
@@ -2644,7 +2674,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-	const modalOpen = state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen;
+	const modalOpen = Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -2699,6 +2729,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
       ${isModalVisible("support-thread", state.supportThreadOpen) ? renderSupportThreadModal() : ""}
       ${isModalVisible("devices", state.devicesModalOpen) ? renderDevicesModal() : ""}
       ${isModalVisible("pay", state.payModalOpen) ? renderPayModal() : ""}
+		${state.p2pMenuStep ? renderP2PMenu() : ""}
 		${isModalVisible("subscription-editor", state.subscriptionEditorOpen) ? renderSubscriptionEditorModal() : ""}
 		${isModalVisible("subscription-delete", state.subscriptionDeleteOpen) ? renderSubscriptionDeleteModal() : ""}
 		${isModalVisible("device-packs", state.devicePackModalOpen) ? renderDevicePackModal() : ""}
@@ -2908,14 +2939,66 @@ function renderAdminMenuGroup(label, items) {
 	return `<section class="admin-menu-group"><h2 class="admin-menu-group__title"><span></span>${escapeHtml(label)}</h2><div class="admin-menu-group__rows">${items.map(([title, , value, iconName]) => renderMenuRow(title, "", "open-admin-section", value, iconName, { showTail: true, compact: true })).join("")}</div></section>`;
 }
 
+function parseP2PDestinationDrafts(raw) {
+	try {
+		const parsed = JSON.parse(String(raw || "[]"));
+		if (Array.isArray(parsed) && parsed.length) {
+			return parsed.slice(0, 12).map((item, index) => ({
+				id: String(item?.id || `destination-${index + 1}`),
+				title: String(item?.title || ""),
+				details: String(item?.details || ""),
+				description: String(item?.description || ""),
+			}));
+		}
+	} catch {}
+	return [{ id: "destination-1", title: "", details: "", description: "" }];
+}
+
+function syncP2PIntegrationDraft(draft) {
+	if (!draft) return;
+	if (!Array.isArray(draft.p2pDestinations) || !draft.p2pDestinations.length) {
+		draft.p2pDestinations = parseP2PDestinationDrafts(draft.fields?.destinations);
+	}
+	draft.fields.destinations = JSON.stringify(draft.p2pDestinations.map((item, index) => ({
+		id: String(item.id || `destination-${index + 1}`),
+		title: String(item.title || ""),
+		details: String(item.details || ""),
+		description: String(item.description || ""),
+	})));
+}
+
 function integrationDraft(item) {
 	if (!state.adminIntegrationDrafts[item.id]) {
-		state.adminIntegrationDrafts[item.id] = {
+		const draft = {
 			enabled: Boolean(item.enabled),
 			fields: Object.fromEntries((item.fields || []).map((field) => [field.key, field.secret ? "" : String(field.value || "")])),
 		};
+		if (item.id === "p2p") {
+			draft.p2pDestinations = parseP2PDestinationDrafts(draft.fields.destinations);
+			syncP2PIntegrationDraft(draft);
+		}
+		state.adminIntegrationDrafts[item.id] = draft;
 	}
 	return state.adminIntegrationDrafts[item.id];
+}
+
+function renderAdminP2PIntegrationFields(draft) {
+	const destinations = Array.isArray(draft.p2pDestinations) ? draft.p2pDestinations : [];
+	return `<div class="admin-p2p-editor">
+		<div class="admin-p2p-editor__heading"><span><strong>Куда пользователь переводит</strong><small>Каждый вариант появится отдельным пунктом в меню оплаты.</small></span><button type="button" data-action="admin-p2p-add-destination" ${destinations.length >= 12 ? "disabled" : ""}>${icon("plus")}<span>Добавить</span></button></div>
+		<div class="admin-p2p-editor__list">${destinations.map((destination, index) => `<section class="admin-p2p-destination">
+			<header><strong>Реквизиты ${index + 1}</strong><button type="button" data-action="admin-p2p-remove-destination" data-value="${index}" ${destinations.length <= 1 ? "disabled" : ""} aria-label="Удалить реквизиты ${index + 1}">${icon("trash")}</button></header>
+			<label class="admin-field"><span>Заголовок *</span><input class="admin-field__control" type="text" maxlength="80" autocomplete="off" data-integration-provider="p2p" data-p2p-index="${index}" data-p2p-field="title" value="${escapeAttribute(destination.title)}" placeholder="Например: Сбербанк или USDT"></label>
+			<label class="admin-field"><span>Карта / телефон / ссылка *</span><textarea class="admin-field__control admin-p2p-destination__details" maxlength="500" rows="2" data-integration-provider="p2p" data-p2p-index="${index}" data-p2p-field="details" placeholder="Номер карты, телефон, кошелёк или ссылка">${escapeHtml(destination.details)}</textarea></label>
+			<label class="admin-field"><span>Описание</span><textarea class="admin-field__control" maxlength="700" rows="2" data-integration-provider="p2p" data-p2p-index="${index}" data-p2p-field="description" placeholder="Банк, монета, сеть и важные условия">${escapeHtml(destination.description)}</textarea></label>
+		</section>`).join("")}</div>
+		<div class="admin-p2p-editor__copy">
+			<label class="admin-field"><span>Текст под реквизитами</span><textarea class="admin-field__control" maxlength="700" rows="3" data-integration-provider="p2p" data-integration-field="footerText" placeholder="Как только ваш перевод проверят...">${escapeHtml(draft.fields.footerText || "")}</textarea></label>
+			<label class="admin-field"><span>Что запросить у отправителя</span><input class="admin-field__control" type="text" maxlength="120" data-integration-provider="p2p" data-integration-field="senderLabel" value="${escapeAttribute(draft.fields.senderLabel || "")}" placeholder="ФИО / номер счёта отправителя"></label>
+			<label class="admin-field"><span>Подсказка в поле</span><input class="admin-field__control" type="text" maxlength="200" data-integration-provider="p2p" data-integration-field="senderPlaceholder" value="${escapeAttribute(draft.fields.senderPlaceholder || "")}" placeholder="Например: Иван Иванов, карта •••• 1234"></label>
+		</div>
+		<p class="admin-p2p-editor__notice">Заявки попадут в настроенный бот уведомлений. Способ оплаты показывается пользователям только когда оба раздела включены.</p>
+	</div>`;
 }
 
 function renderAdminIntegrationsPage() {
@@ -2941,7 +3024,7 @@ function renderAdminIntegrationRow(item) {
 		</button>
 		${open ? `<div class="admin-integration__body">
 			<label class="admin-integration__toggle"><span><strong>Включить интеграцию</strong><small>${item.kind === "payment" ? "Показывать этот способ оплаты" : "Отправлять уведомления об оплатах"}</small></span><input type="checkbox" data-integration-provider="${escapeAttribute(item.id)}" data-integration-enabled ${draft.enabled ? "checked" : ""}></label>
-			<div class="admin-integration__fields">${(item.fields || []).map((field) => `<label class="admin-field"><span>${escapeHtml(field.label)}${field.required ? " *" : ""}</span><input class="admin-field__control" type="${field.secret ? "password" : "text"}" autocomplete="off" spellcheck="false" data-integration-provider="${escapeAttribute(item.id)}" data-integration-field="${escapeAttribute(field.key)}" value="${escapeAttribute(draft.fields[field.key] || "")}" placeholder="${escapeAttribute(field.secret && field.configured ? "Ключ сохранён — оставьте пустым" : (field.placeholder || ""))}">${field.help ? `<small>${escapeHtml(field.help)}</small>` : ""}</label>`).join("")}</div>
+			${item.id === "p2p" ? renderAdminP2PIntegrationFields(draft) : `<div class="admin-integration__fields">${(item.fields || []).map((field) => `<label class="admin-field"><span>${escapeHtml(field.label)}${field.required ? " *" : ""}</span><input class="admin-field__control" type="${field.secret ? "password" : "text"}" autocomplete="off" spellcheck="false" data-integration-provider="${escapeAttribute(item.id)}" data-integration-field="${escapeAttribute(field.key)}" value="${escapeAttribute(draft.fields[field.key] || "")}" placeholder="${escapeAttribute(field.secret && field.configured ? "Ключ сохранён — оставьте пустым" : (field.placeholder || ""))}">${field.help ? `<small>${escapeHtml(field.help)}</small>` : ""}</label>`).join("")}</div>`}
 			${item.webhookUrl ? `<div class="admin-integration__webhook"><span>Webhook URL</span><code>${escapeHtml(item.webhookUrl)}</code><button type="button" data-action="admin-integration-copy-webhook" data-value="${escapeAttribute(item.webhookUrl)}" aria-label="Скопировать webhook">${icon("copy")}</button></div>` : ""}
 			<button class="admin-integration__save" type="button" data-action="admin-integration-save" data-value="${escapeAttribute(item.id)}" ${busy ? "disabled" : ""}>${icon(busy ? "refresh" : "check")}<span>${busy ? "Сохраняем" : "Сохранить"}</span></button>
 		</div>` : ""}
@@ -5579,6 +5662,48 @@ function renderPayModal() {
 	return `<div class="modal open ${modalStateClass("pay")}"><button class="modal__backdrop" type="button" data-action="close-pay-modal"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title">${copy.choosePaymentMethod}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${localizedText("Закрыть способы оплаты", "Close payment methods", "بستن روش‌های پرداخت")}">${icon("close")}</button></div><div class="menu-list">${getAvailableMethods(plan).map((method) => `<button class="pay-row ${state.paymentMethod === method.id ? "selected" : ""}" type="button" data-action="select-pay-method" data-value="${method.id}" aria-pressed="${state.paymentMethod === method.id}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(method.label)}</strong><span>${escapeHtml(method.hint)}</span></span><span class="pay-row__check">${state.paymentMethod === method.id ? icon("check") : ""}</span></button>`).join("") || `<div class="note">${copy.paymentUnavailable}</div>`}</div></div></div>`;
 }
 
+function renderP2PMenu() {
+	const settings = state.data?.p2p || {};
+	const destinations = Array.isArray(settings.destinations) ? settings.destinations : [];
+	const selectedID = state.p2pDestinationId || destinations[0]?.id || "";
+	const context = state.p2pContext || {};
+	const giftMode = context.mode === "gift";
+	const plan = giftMode ? getSelectedGiftPlan() : getSelectedPlan();
+	const pack = giftMode ? null : getSelectedDevicePack();
+	const amount = giftMode
+		? formatGiftPlanPrice(plan)
+		: context.deviceOnly
+			? formatCurrency(devicePackPrice(pack, "p2p"), state.locale)
+			: formatCheckoutPrice(plan, pack, "p2p");
+	const planTitle = giftMode
+		? localizedText(`Подарок: ${getGiftPlanTitle(plan, state.locale)}`, `Gift: ${getGiftPlanTitle(plan, state.locale)}`, `هدیه: ${getGiftPlanTitle(plan, state.locale)}`)
+		: context.deviceOnly
+			? devicePackTitle(pack?.devices || 0)
+			: getPlanDisplayTitle(plan, state.locale);
+	const cancel = localizedText("Отмена", "Cancel", "لغو");
+	const senderLabel = String(settings.senderLabel || localizedText("ФИО / номер счёта отправителя", "Sender name / account number", "نام / شماره حساب فرستنده"));
+	const senderPlaceholder = String(settings.senderPlaceholder || "");
+	const senderStep = state.p2pMenuStep === "sender";
+	return `<div class="p2p-menu-layer" role="dialog" aria-modal="true" aria-labelledby="p2p-menu-title" aria-describedby="p2p-menu-summary">
+		<button class="p2p-menu-layer__backdrop" type="button" data-action="close-p2p-menu" aria-label="${escapeAttribute(cancel)}"></button>
+		<section class="p2p-menu" aria-busy="${state.p2pBusy ? "true" : "false"}">
+			<header class="p2p-menu__header"><span class="p2p-menu__mark" aria-hidden="true">${icon("wallet")}</span><span><small>P2P</small><strong id="p2p-menu-title">${senderStep ? localizedText("Данные отправителя", "Sender details", "اطلاعات فرستنده") : localizedText("Перевод по реквизитам", "Transfer details", "اطلاعات انتقال")}</strong></span><button class="p2p-menu__close" type="button" data-action="close-p2p-menu" ${state.p2pBusy ? "disabled" : ""} aria-label="${escapeAttribute(cancel)}">${icon("close")}</button></header>
+			<div class="p2p-menu__summary" id="p2p-menu-summary"><span>${escapeHtml(planTitle || localizedText("Покупка", "Purchase", "خرید"))}</span><strong>${escapeHtml(amount)}</strong></div>
+			${senderStep ? `<div class="p2p-menu__sender">
+				<label for="p2p-sender-reference">${escapeHtml(senderLabel)}</label>
+				<textarea id="p2p-sender-reference" maxlength="500" rows="4" autocomplete="name" enterkeyhint="done" data-input="p2p-sender-reference" placeholder="${escapeAttribute(senderPlaceholder)}" ${state.p2pBusy ? "disabled" : ""}>${escapeHtml(state.p2pSenderReference)}</textarea>
+				<p>${localizedText("Эти данные увидит только администратор при проверке перевода.", "Only the administrator reviewing the transfer will see this.", "فقط مدیر بررسی‌کننده انتقال این اطلاعات را می‌بیند.")}</p>
+			</div>` : `<div class="p2p-menu__destinations" role="radiogroup" aria-label="${escapeAttribute(localizedText("Реквизиты для перевода", "Transfer destination", "مقصد انتقال"))}">${destinations.map((destination) => {
+				const active = String(destination.id) === String(selectedID);
+				const details = String(destination.details || "");
+				const isLink = /^https?:\/\//i.test(details.trim());
+				return `<article class="p2p-destination ${active ? "is-selected" : ""}"><button class="p2p-destination__select" type="button" role="radio" aria-checked="${active}" data-action="select-p2p-destination" data-value="${escapeAttribute(destination.id)}"><span><strong>${escapeHtml(destination.title || "—")}</strong><code>${escapeHtml(details)}</code>${destination.description ? `<small>${escapeHtml(destination.description)}</small>` : ""}</span><i aria-hidden="true">${active ? icon("check") : ""}</i></button><button class="p2p-destination__action" type="button" data-action="${isLink ? "open-p2p-details" : "copy-p2p-details"}" data-value="${escapeAttribute(details)}" aria-label="${escapeAttribute(isLink ? localizedText("Открыть ссылку на оплату", "Open payment link", "باز کردن لینک پرداخت") : localizedText("Скопировать реквизиты", "Copy details", "کپی اطلاعات"))}">${icon(isLink ? "arrow" : "copy")}<span>${isLink ? localizedText("Открыть", "Open", "باز کردن") : localizedText("Копировать", "Copy", "کپی")}</span></button></article>`;
+			}).join("")}</div>${settings.footerText ? `<p class="p2p-menu__footer-note">${escapeHtml(settings.footerText)}</p>` : ""}`}
+			<footer class="p2p-menu__actions"><button type="button" data-action="close-p2p-menu" ${state.p2pBusy ? "disabled" : ""}>${escapeHtml(cancel)}</button>${senderStep ? `<button class="p2p-menu__primary" type="button" data-action="submit-p2p-payment" ${state.p2pBusy || !state.p2pSenderReference.trim() ? "disabled" : ""}>${icon(state.p2pBusy ? "refresh" : "check")}<span>${state.p2pBusy ? localizedText("Отправляем", "Sending", "در حال ارسال") : localizedText("Отправить на проверку", "Send for review", "ارسال برای بررسی")}</span></button>` : `<button class="p2p-menu__primary" type="button" data-action="confirm-p2p-transfer" ${!selectedID ? "disabled" : ""}>${localizedText("Перевёл", "Transferred", "انتقال دادم")}${icon("arrow")}</button>`}</footer>
+		</section>
+	</div>`;
+}
+
 function renderGiftReceiptModal() {
 	const copy = t();
 	const receipt = state.data?.giftReceipt;
@@ -6047,6 +6172,12 @@ function bindRootActions() {
         writeSetting(STORAGE_KEYS.payMethod, value);
         return requestModalClose("pay", () => { state.payModalOpen = false; });
       }
+		if (action === "close-p2p-menu") return closeP2PMenu();
+		if (action === "select-p2p-destination") { state.p2pDestinationId = value; haptic("light"); render({ preserveScroll: true }); return; }
+		if (action === "copy-p2p-details") return copyToClipboard(value).then(() => showToast(localizedText("Реквизиты скопированы", "Details copied", "اطلاعات کپی شد"), "success"));
+		if (action === "open-p2p-details") return openExternal(value);
+		if (action === "confirm-p2p-transfer") { state.p2pMenuStep = "sender"; haptic("light"); render({ preserveScroll: true }); queueMicrotask(() => app.querySelector("#p2p-sender-reference")?.focus()); return; }
+		if (action === "submit-p2p-payment") return await submitP2PPayment();
       if (action === "apply-promo") return await applyPromoCode();
       if (action === "pay-selected") return await startPayment();
 		if (action === "start-gift-payment") return await startGiftPayment();
@@ -6094,6 +6225,8 @@ function bindRootActions() {
 			if (action === "admin-move-plan") return moveAdminPlan(Number(value), Number(target.dataset.direction || 0));
 			if (action === "admin-resolve-event") return await resolveAdminEvent(Number(value));
 			if (action === "admin-integration-open") { state.adminIntegrationOpen = state.adminIntegrationOpen === value ? "" : value; render({ preserveScroll: true }); return; }
+			if (action === "admin-p2p-add-destination") return addAdminP2PDestination();
+			if (action === "admin-p2p-remove-destination") return removeAdminP2PDestination(Number(value));
 			if (action === "admin-integration-save") return await saveAdminIntegration(value);
 			if (action === "admin-integration-copy-webhook") return copyToClipboard(value).then(() => showToast("Webhook скопирован", "success"));
       if (action === "activate-trial") return await activateTrial();
@@ -6128,8 +6261,21 @@ function bindRootActions() {
 		const integrationProvider = target?.dataset?.integrationProvider;
 		if (integrationProvider && state.adminIntegrationDrafts[integrationProvider]) {
 			const draft = state.adminIntegrationDrafts[integrationProvider];
+			const p2pIndex = Number(target.dataset.p2pIndex);
+			const p2pField = target.dataset.p2pField;
+			if (integrationProvider === "p2p" && Number.isInteger(p2pIndex) && p2pIndex >= 0 && p2pField && draft.p2pDestinations?.[p2pIndex]) {
+				draft.p2pDestinations[p2pIndex][p2pField] = target.value;
+				syncP2PIntegrationDraft(draft);
+				return;
+			}
 			if (target.hasAttribute("data-integration-enabled")) draft.enabled = Boolean(target.checked);
 			if (target.dataset.integrationField) draft.fields[target.dataset.integrationField] = target.value;
+			return;
+		}
+		if (target?.dataset?.input === "p2p-sender-reference") {
+			state.p2pSenderReference = target.value;
+			const submit = app.querySelector('[data-action="submit-p2p-payment"]');
+			if (submit) submit.disabled = state.p2pBusy || !state.p2pSenderReference.trim();
 			return;
 		}
 		const broadcastIndex = Number(target?.dataset?.broadcastIndex);
@@ -6367,6 +6513,16 @@ function bindRootActions() {
 	app.addEventListener("pointerdown", beginAdminPlanPointer);
 	app.addEventListener("pointerdown", beginAdminLayoutPointer);
 	app.addEventListener("keydown", (event) => {
+		if (state.p2pMenuStep && event.key === "Escape") {
+			event.preventDefault();
+			if (state.p2pMenuStep === "sender" && !state.p2pBusy) {
+				state.p2pMenuStep = "details";
+				render({ preserveScroll: true });
+			} else {
+				closeP2PMenu();
+			}
+			return;
+		}
 		if (state.setupPlatformMenuOpen && event.key === "Escape") {
 			event.preventDefault();
 			state.setupPlatformMenuOpen = false;
@@ -8785,12 +8941,93 @@ async function applyPromoCode(options = {}) {
   }
 }
 
+function openP2PMenu(context) {
+	const destinations = Array.isArray(state.data?.p2p?.destinations) ? state.data.p2p.destinations : [];
+	if (!destinations.length) return showToast(localizedText("P2P-переводы временно недоступны", "P2P transfers are unavailable", "انتقال P2P در دسترس نیست"), "danger");
+	state.p2pContext = { mode: context?.mode === "gift" ? "gift" : "purchase", deviceOnly: Boolean(context?.deviceOnly) };
+	state.p2pDestinationId = destinations.some((item) => String(item.id) === String(state.p2pDestinationId)) ? state.p2pDestinationId : String(destinations[0].id || "");
+	state.p2pSenderReference = "";
+	state.p2pBusy = false;
+	state.p2pMenuStep = "details";
+	haptic("light");
+	render({ preserveScroll: true });
+	queueMicrotask(() => app.querySelector(".p2p-menu__close")?.focus());
+}
+
+function resetP2PMenuState() {
+	state.p2pMenuStep = "";
+	state.p2pSenderReference = "";
+	state.p2pContext = null;
+	state.p2pBusy = false;
+}
+
+function closeP2PMenu() {
+	if (!state.p2pMenuStep || state.p2pBusy) return;
+	const layer = app.querySelector(".p2p-menu-layer");
+	if (!layer) {
+		resetP2PMenuState();
+		render({ preserveScroll: true });
+		return;
+	}
+	layer.classList.add("is-closing");
+	window.setTimeout(() => {
+		resetP2PMenuState();
+		render({ preserveScroll: true });
+	}, reducedMotionMedia?.matches ? 1 : 180);
+}
+
+async function submitP2PPayment() {
+	if (state.p2pBusy || state.p2pMenuStep !== "sender" || !state.p2pSenderReference.trim()) return;
+	const context = state.p2pContext || {};
+	const giftMode = context.mode === "gift";
+	const plan = giftMode ? getSelectedGiftPlan() : getSelectedPlan();
+	const devicePack = giftMode ? null : getSelectedDevicePack();
+	if (!plan && !context.deviceOnly) return;
+	state.p2pBusy = true;
+	render({ preserveScroll: true });
+	queueMicrotask(() => app.querySelector("#p2p-sender-reference")?.focus());
+	try {
+		const payload = giftMode ? {
+			username: normalizeGiftUsername(state.giftUsernameDraft),
+			planId: plan?.id || "",
+			months: Number(plan?.months || 0),
+			paymentMethod: "p2p",
+			promoCode: getActivePromo()?.code || "",
+			p2pDestinationId: state.p2pDestinationId,
+			p2pSenderReference: state.p2pSenderReference.trim(),
+		} : {
+			planId: plan?.id || "",
+			months: plan?.months || 0,
+			paymentMethod: "p2p",
+			agreementAccepted: true,
+			promoCode: context.deviceOnly ? "" : (getActivePromo()?.code || ""),
+			devicePackId: devicePack?.id || "",
+			deviceOnly: Boolean(context.deviceOnly),
+			p2pDestinationId: state.p2pDestinationId,
+			p2pSenderReference: state.p2pSenderReference.trim(),
+		};
+		const response = await post(giftMode ? "/api/mini-app/gifts/purchase" : "/api/mini-app/purchase", payload);
+		if (response.data?.action !== "p2p_pending") throw new Error(localizedText("Не удалось отправить платёж на проверку", "Could not submit the payment", "ارسال پرداخت انجام نشد"));
+		state.appliedPromo = null;
+		state.promoCodeDraft = "";
+		resetP2PMenuState();
+		render({ preserveScroll: true });
+		showToast(localizedText("Перевод отправлен на проверку", "Transfer sent for review", "انتقال برای بررسی ارسال شد"), "success");
+	} catch (error) {
+		state.p2pBusy = false;
+		render({ preserveScroll: true });
+		queueMicrotask(() => app.querySelector("#p2p-sender-reference")?.focus());
+		throw error;
+	}
+}
+
 async function startPayment({ deviceOnly = false } = {}) {
   const plan = getSelectedPlan();
   const devicePack = getSelectedDevicePack();
   const method = getSelectedPaymentMethod()?.id || "";
   const freeCheckout = Boolean(!deviceOnly && plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !devicePack);
   if ((!deviceOnly && !plan) || (deviceOnly && !devicePack) || (!freeCheckout && !method)) return showToast(t().paymentUnavailable);
+	if (method === "p2p") return openP2PMenu({ mode: "purchase", deviceOnly });
 
   state.busyMethod = freeCheckout ? "free" : method;
   render();
@@ -8884,6 +9121,7 @@ async function startGiftPayment() {
 		return;
 	}
 	if (!plan || !method) return showToast(copy.paymentUnavailable, "danger");
+	if (method === "p2p") return openP2PMenu({ mode: "gift" });
 
 	state.giftBusy = method;
 	state.giftValidation = "";
@@ -9014,6 +9252,7 @@ async function deleteAdminPromoCode(id) {
 async function saveAdminIntegration(provider) {
 	const draft = state.adminIntegrationDrafts[provider];
 	if (!draft || state.adminIntegrationBusy) return;
+	if (provider === "p2p") syncP2PIntegrationDraft(draft);
 	state.adminIntegrationBusy = provider;
 	render({ preserveScroll: true });
 	try {
@@ -9025,10 +9264,15 @@ async function saveAdminIntegration(provider) {
 		const integrations = state.data?.admin?.integrations || [];
 		const index = integrations.findIndex((item) => item.id === provider);
 		if (index >= 0) integrations[index] = response.data;
-		state.adminIntegrationDrafts[provider] = {
+		const nextDraft = {
 			enabled: Boolean(response.data?.enabled),
 			fields: Object.fromEntries((response.data?.fields || []).map((field) => [field.key, field.secret ? "" : String(field.value || "")])),
 		};
+		if (provider === "p2p") {
+			nextDraft.p2pDestinations = parseP2PDestinationDrafts(nextDraft.fields.destinations);
+			syncP2PIntegrationDraft(nextDraft);
+		}
+		state.adminIntegrationDrafts[provider] = nextDraft;
 		state.adminIntegrationBusy = "";
 		render({ preserveScroll: true });
 		showToast("Интеграция сохранена", "success");
@@ -9037,6 +9281,28 @@ async function saveAdminIntegration(provider) {
 		render({ preserveScroll: true });
 		throw error;
 	}
+}
+
+function addAdminP2PDestination() {
+	const draft = state.adminIntegrationDrafts.p2p;
+	if (!draft) return;
+	if (!Array.isArray(draft.p2pDestinations)) draft.p2pDestinations = [];
+	if (draft.p2pDestinations.length >= 12) return;
+	const seed = typeof globalThis.crypto?.randomUUID === "function" ? globalThis.crypto.randomUUID() : `${Date.now()}-${draft.p2pDestinations.length + 1}`;
+	draft.p2pDestinations.push({ id: `destination-${seed}`, title: "", details: "", description: "" });
+	syncP2PIntegrationDraft(draft);
+	haptic("light");
+	render({ preserveScroll: true });
+	queueMicrotask(() => app.querySelector(`[data-p2p-index="${draft.p2pDestinations.length - 1}"][data-p2p-field="title"]`)?.focus());
+}
+
+function removeAdminP2PDestination(index) {
+	const draft = state.adminIntegrationDrafts.p2p;
+	if (!draft || !Array.isArray(draft.p2pDestinations) || draft.p2pDestinations.length <= 1 || !draft.p2pDestinations[index]) return;
+	draft.p2pDestinations.splice(index, 1);
+	syncP2PIntegrationDraft(draft);
+	haptic("light");
+	render({ preserveScroll: true });
 }
 
 async function findAdminSubscription() {
@@ -9148,6 +9414,7 @@ function moveToDashboard() {
   state.currentPage = "dashboard";
   state.sidebarOpen = false;
   state.payModalOpen = false;
+	resetP2PMenuState();
   state.paymentLaunchModalOpen = false;
   state.paymentLaunchURL = "";
   state.paymentLaunchPurchaseId = 0;
@@ -9197,11 +9464,12 @@ function setPage(page) {
   const samePage = nextPage === state.currentPage;
   rememberCurrentScroll();
 	if (samePage && nextPage === "admin" && state.adminSection !== "home") return closeAdminSection();
-	if (samePage && !state.sidebarOpen && !state.payModalOpen && !state.paymentLaunchModalOpen && !state.devicesModalOpen && !state.reviewComposeOpen && !state.reviewDetailOpen && !state.notificationPopoverOpen && !state.notificationPopoverClosing) return;
+	if (samePage && !state.sidebarOpen && !state.payModalOpen && !state.p2pMenuStep && !state.paymentLaunchModalOpen && !state.devicesModalOpen && !state.reviewComposeOpen && !state.reviewDetailOpen && !state.notificationPopoverOpen && !state.notificationPopoverClosing) return;
   state.animatePageEntry = !samePage;
   state.currentPage = nextPage;
   state.sidebarOpen = false;
   state.payModalOpen = false;
+	resetP2PMenuState();
   state.paymentLaunchModalOpen = false;
   state.paymentLaunchURL = "";
   state.paymentLaunchPurchaseId = 0;
@@ -9300,6 +9568,7 @@ function shouldShowNativeBackButton() {
 	return Boolean(
 		state.adminLayoutEditing || state.adminPlanEditing || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.notificationPopoverOpen || state.notificationPopoverClosing ||
 		state.giftReceiptOpen ||
+		state.p2pMenuStep ||
     state.supportThreadOpen ||
     state.supportComposeOpen ||
     state.devicesModalOpen ||
@@ -9321,6 +9590,14 @@ function getNativeBackTargetPage() {
 }
 
 function handleNativeBackButton() {
+	if (state.p2pMenuStep) {
+		if (state.p2pMenuStep === "sender" && !state.p2pBusy) {
+			state.p2pMenuStep = "details";
+			render({ preserveScroll: true });
+			return;
+		}
+		return closeP2PMenu();
+	}
 	if (state.setupPlatformMenuOpen) {
 		state.setupPlatformMenuOpen = false;
 		render({ preserveScroll: true });
@@ -9353,6 +9630,7 @@ function handleNativeBackButton() {
 }
 
 function getActiveModalName() {
+	if (state.p2pMenuStep) return "p2p";
 	if (state.giftReceiptOpen) return "gift-receipt";
 	if (state.adminNotificationWidgetEditorOpen) return "admin-notification-widget";
 	if (state.adminPromoWidgetEditorOpen) return "admin-promo-widget";
@@ -9746,6 +10024,7 @@ function paymentMethodMeta(id) {
     card: { id: "card", label: copy.payMethodCard, hint: copy.payMethodCardHint, logo: PAYMENT_LOGO_URLS.card },
     stars: { id: "stars", label: copy.payMethodStars, hint: copy.payMethodStarsHint, logo: PAYMENT_LOGO_URLS.stars },
     crypto: { id: "crypto", label: copy.payMethodCrypto, hint: copy.payMethodCryptoHint, logo: PAYMENT_LOGO_URLS.crypto },
+		p2p: { id: "p2p", label: localizedText("P2P перевод", "P2P transfer", "انتقال P2P"), hint: localizedText("Перевод с проверкой администратора", "Transfer reviewed by an administrator", "انتقال با بررسی مدیر"), logo: PAYMENT_LOGO_URLS.p2p },
 		lava: { id: "lava", label: "LAVA", hint: "Оплата через LAVA", logo: PAYMENT_LOGO_URLS.lava },
 		wata: { id: "wata", label: "WATA", hint: "Карты и СБП", logo: PAYMENT_LOGO_URLS.wata },
 		platega: { id: "platega", label: "Platega", hint: "Оплата через Platega", logo: PAYMENT_LOGO_URLS.platega },

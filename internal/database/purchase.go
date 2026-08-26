@@ -26,6 +26,7 @@ const (
 	InvoiceTypeFreeKassa InvoiceType = "freekassa"
 	InvoiceTypeHeleket   InvoiceType = "heleket"
 	InvoiceTypePally     InvoiceType = "pally"
+	InvoiceTypeP2P       InvoiceType = "p2p"
 	InvoiceTypeFree      InvoiceType = "free"
 )
 

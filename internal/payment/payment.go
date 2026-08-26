@@ -73,6 +73,8 @@ type CreatePurchaseOptions struct {
 	GiftRecipientUsername   string
 	GiftRecipientCustomerID *int64
 	GiftToken               *uuid.UUID
+	P2PSenderReference      string
+	P2PDestination          database.P2PDestinationSnapshot
 }
 
 const freePlanRenewalWindow = 7 * 24 * time.Hour
@@ -609,6 +611,8 @@ func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount fl
 		url, purchaseId, err = s.createTelegramInvoice(ctx, amount, months, customer, options)
 	case database.InvoiceTypeTribute:
 		url, purchaseId, err = s.createTributeInvoice(ctx, amount, months, customer)
+	case database.InvoiceTypeP2P:
+		url, purchaseId, err = s.createP2PInvoice(ctx, amount, months, customer, options)
 	case database.InvoiceTypeLava, database.InvoiceTypeWata, database.InvoiceTypePlatega, database.InvoiceTypeFreeKassa, database.InvoiceTypeHeleket, database.InvoiceTypePally:
 		url, purchaseId, err = s.createExternalInvoice(ctx, amount, months, customer, invoiceType, options)
 	default:
@@ -623,6 +627,8 @@ func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount fl
 			category = "CryptoPay"
 		case database.InvoiceTypeTelegram:
 			category = "Telegram Stars"
+		case database.InvoiceTypeP2P:
+			category = "P2P перевод"
 		case database.InvoiceTypeLava, database.InvoiceTypeWata, database.InvoiceTypePlatega, database.InvoiceTypeFreeKassa, database.InvoiceTypeHeleket, database.InvoiceTypePally:
 			category = string(invoiceType)
 		}

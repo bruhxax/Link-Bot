@@ -48,3 +48,13 @@ func TestMapPaymentMethodRoutesPally(t *testing.T) {
 		t.Fatalf("mapPaymentMethod(pally) = %q, want %q", invoiceType, database.InvoiceTypePally)
 	}
 }
+
+func TestMapPaymentMethodRoutesP2P(t *testing.T) {
+	invoiceType, err := mapPaymentMethod("p2p")
+	if err != nil {
+		t.Fatalf("mapPaymentMethod(p2p): %v", err)
+	}
+	if invoiceType != database.InvoiceTypeP2P {
+		t.Fatalf("mapPaymentMethod(p2p) = %q, want %q", invoiceType, database.InvoiceTypeP2P)
+	}
+}

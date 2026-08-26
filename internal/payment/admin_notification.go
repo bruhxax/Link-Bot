@@ -34,7 +34,8 @@ type telegramInlineKeyboardMarkup struct {
 
 type telegramInlineKeyboardButton struct {
 	Text              string `json:"text"`
-	URL               string `json:"url"`
+	URL               string `json:"url,omitempty"`
+	CallbackData      string `json:"callback_data,omitempty"`
 	IconCustomEmojiID string `json:"icon_custom_emoji_id,omitempty"`
 	Style             string `json:"style,omitempty"`
 }
@@ -46,6 +47,9 @@ type telegramAPIResponse struct {
 	Parameters  struct {
 		RetryAfter int `json:"retry_after,omitempty"`
 	} `json:"parameters,omitempty"`
+	Result struct {
+		MessageID int64 `json:"message_id,omitempty"`
+	} `json:"result,omitempty"`
 }
 
 type telegramAPIError struct {
@@ -293,6 +297,8 @@ func (s PaymentService) paymentMethodLabel(purchase *database.Purchase) string {
 		return "Telegram Stars"
 	case database.InvoiceTypeTribute:
 		return "Tribute"
+	case database.InvoiceTypeP2P:
+		return "P2P перевод"
 	default:
 		return string(purchase.InvoiceType)
 	}
@@ -425,6 +431,11 @@ func (s PaymentService) SendPaymentNotificationPreview(ctx context.Context, opti
 }
 
 func sendTelegramNotification(ctx context.Context, token string, chatID int64, text string, keyboard ...*telegramInlineKeyboardMarkup) error {
+	_, err := sendTelegramNotificationMessage(ctx, token, chatID, text, keyboard...)
+	return err
+}
+
+func sendTelegramNotificationMessage(ctx context.Context, token string, chatID int64, text string, keyboard ...*telegramInlineKeyboardMarkup) (int64, error) {
 	request := telegramSendMessageRequest{
 		ChatID:    chatID,
 		Text:      text,
@@ -434,23 +445,29 @@ func sendTelegramNotification(ctx context.Context, token string, chatID int64, t
 		request.ReplyMarkup = keyboard[0]
 	}
 	endpoint := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token)
-	return sendTelegramNotificationRequest(ctx, http.DefaultClient, endpoint, request)
+	return sendTelegramNotificationMessageRequest(ctx, http.DefaultClient, endpoint, request)
 }
 
 func sendTelegramNotificationRequest(ctx context.Context, client *http.Client, endpoint string, request telegramSendMessageRequest) error {
+	_, err := sendTelegramNotificationMessageRequest(ctx, client, endpoint, request)
+	return err
+}
+
+func sendTelegramNotificationMessageRequest(ctx context.Context, client *http.Client, endpoint string, request telegramSendMessageRequest) (int64, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
 	payload, err := json.Marshal(request)
 	if err != nil {
-		return fmt.Errorf("marshal notification payload: %w", err)
+		return 0, fmt.Errorf("marshal notification payload: %w", err)
 	}
 
 	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {
-		lastErr = performTelegramNotificationRequest(ctx, client, endpoint, payload)
+		messageID, requestErr := performTelegramNotificationMessageRequest(ctx, client, endpoint, payload)
+		lastErr = requestErr
 		if lastErr == nil || !isRetryableTelegramNotificationError(lastErr) || attempt == 2 {
-			return lastErr
+			return messageID, lastErr
 		}
 		delay := telegramNotificationRetryDelay(attempt, lastErr)
 		slog.Warn("retrying Telegram payment notification", "attempt", attempt+2, "delay", delay, "error", lastErr)
@@ -458,28 +475,33 @@ func sendTelegramNotificationRequest(ctx context.Context, client *http.Client, e
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return ctx.Err()
+			return 0, ctx.Err()
 		case <-timer.C:
 		}
 	}
-	return lastErr
+	return 0, lastErr
 }
 
 func performTelegramNotificationRequest(ctx context.Context, client *http.Client, endpoint string, payload []byte) error {
+	_, err := performTelegramNotificationMessageRequest(ctx, client, endpoint, payload)
+	return err
+}
+
+func performTelegramNotificationMessageRequest(ctx context.Context, client *http.Client, endpoint string, payload []byte) (int64, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
 	if err != nil {
-		return fmt.Errorf("create notification request: %w", err)
+		return 0, fmt.Errorf("create notification request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("send notification request: %w", err)
+		return 0, fmt.Errorf("send notification request: %w", err)
 	}
 	defer resp.Body.Close()
 	body, readErr := io.ReadAll(io.LimitReader(resp.Body, 32*1024))
 	if readErr != nil {
-		return fmt.Errorf("read notification response: %w", readErr)
+		return 0, fmt.Errorf("read notification response: %w", readErr)
 	}
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
@@ -489,15 +511,23 @@ func performTelegramNotificationRequest(ctx context.Context, client *http.Client
 		if description == "" {
 			description = strings.TrimSpace(string(body))
 		}
-		return &telegramAPIError{
+		return 0, &telegramAPIError{
 			StatusCode:  resp.StatusCode,
 			ErrorCode:   apiResponse.ErrorCode,
 			Description: description,
 			RetryAfter:  time.Duration(apiResponse.Parameters.RetryAfter) * time.Second,
 		}
 	}
-
-	return nil
+	apiResponse := telegramAPIResponse{}
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &apiResponse); err != nil {
+			return 0, fmt.Errorf("decode notification response: %w", err)
+		}
+		if !apiResponse.OK {
+			return 0, &telegramAPIError{StatusCode: resp.StatusCode, ErrorCode: apiResponse.ErrorCode, Description: apiResponse.Description}
+		}
+	}
+	return apiResponse.Result.MessageID, nil
 }
 
 func isTelegramButtonUserInvalid(err error) bool {

@@ -32,7 +32,28 @@ const (
 	ProviderFreeKassa       = "freekassa"
 	ProviderHeleket         = "heleket"
 	ProviderPally           = "pally"
+	ProviderP2P             = "p2p"
 )
+
+const (
+	DefaultP2PFooterText        = "Как только ваш перевод проверят, подписка автоматически начислится"
+	DefaultP2PSenderLabel       = "ФИО / номер счёта отправителя"
+	DefaultP2PSenderPlaceholder = "Например: Иван Иванов, карта •••• 1234"
+)
+
+type P2PDestination struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Details     string `json:"details"`
+	Description string `json:"description,omitempty"`
+}
+
+type P2PConfig struct {
+	Destinations      []P2PDestination `json:"destinations"`
+	FooterText        string           `json:"footerText"`
+	SenderLabel       string           `json:"senderLabel"`
+	SenderPlaceholder string           `json:"senderPlaceholder"`
+}
 
 type FieldDefinition struct {
 	Key         string `json:"key"`
@@ -168,6 +189,15 @@ var definitions = []ProviderDefinition{
 			{Key: "apiUrl", Label: "API URL", Required: true, Placeholder: "https://pal24.pro"},
 		},
 	},
+	{
+		ID: ProviderP2P, Name: "P2P перевод", Description: "Ручная проверка перевода администратором", Logo: "/mini-app/assets/payment-card.png", Kind: "payment",
+		Fields: []FieldDefinition{
+			{Key: "destinations", Label: "Реквизиты", Required: true, Help: "Добавьте хотя бы один способ перевода"},
+			{Key: "footerText", Label: "Текст под реквизитами", Placeholder: DefaultP2PFooterText},
+			{Key: "senderLabel", Label: "Что запросить у отправителя", Placeholder: DefaultP2PSenderLabel},
+			{Key: "senderPlaceholder", Label: "Подсказка в поле", Placeholder: DefaultP2PSenderPlaceholder},
+		},
+	},
 }
 
 func NewService(ctx context.Context, repository *database.PaymentIntegrationRepository) (*Service, error) {
@@ -273,8 +303,11 @@ func (s *Service) ListAdmin() []ProviderView {
 			updatedAt = rec.UpdatedAt.UTC().Format(time.RFC3339)
 		}
 		webhookURL := ""
-		if definition.Kind == "payment" && rec.WebhookToken != "" {
+		if definition.Kind == "payment" && definition.ID != ProviderP2P && rec.WebhookToken != "" {
 			webhookURL = fmt.Sprintf("%s/api/payments/webhook/%s/%s", s.baseURL, definition.ID, rec.WebhookToken)
+		}
+		if definition.ID == ProviderP2P {
+			configured = p2PConfigValid(rec.Config)
 		}
 		views = append(views, ProviderView{ID: definition.ID, Name: definition.Name, Description: definition.Description, Logo: definition.Logo, Kind: definition.Kind, Enabled: rec.Enabled, Configured: configured, WebhookURL: webhookURL, UpdatedAt: updatedAt, Fields: fields})
 	}
@@ -307,6 +340,11 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 	for key := range input.Fields {
 		if _, exists := allowed[key]; !exists {
 			return ProviderView{}, fmt.Errorf("unknown field %q", key)
+		}
+	}
+	if provider == ProviderP2P {
+		if err := normalizeP2PConfig(rec.Config, input.Enabled); err != nil {
+			return ProviderView{}, err
 		}
 	}
 	if input.Enabled {
@@ -387,8 +425,11 @@ func (s *Service) adminViewLocked(definition ProviderDefinition, rec record) Pro
 		fields = append(fields, view)
 	}
 	webhookURL := ""
-	if definition.Kind == "payment" {
+	if definition.Kind == "payment" && definition.ID != ProviderP2P {
 		webhookURL = fmt.Sprintf("%s/api/payments/webhook/%s/%s", s.baseURL, definition.ID, rec.WebhookToken)
+	}
+	if definition.ID == ProviderP2P {
+		complete = p2PConfigValid(rec.Config)
 	}
 	return ProviderView{ID: definition.ID, Name: definition.Name, Description: definition.Description, Logo: definition.Logo, Kind: definition.Kind, Enabled: rec.Enabled, Configured: complete, WebhookURL: webhookURL, UpdatedAt: rec.UpdatedAt.UTC().Format(time.RFC3339), Fields: fields}
 }
@@ -403,7 +444,85 @@ func configured(provider string, cfg map[string]string) bool {
 			return false
 		}
 	}
+	if provider == ProviderP2P {
+		return p2PConfigValid(cfg)
+	}
 	return true
+}
+
+func ParseP2PConfig(cfg map[string]string) (P2PConfig, error) {
+	result := P2PConfig{
+		FooterText:        strings.TrimSpace(cfg["footerText"]),
+		SenderLabel:       strings.TrimSpace(cfg["senderLabel"]),
+		SenderPlaceholder: strings.TrimSpace(cfg["senderPlaceholder"]),
+	}
+	if result.FooterText == "" {
+		result.FooterText = DefaultP2PFooterText
+	}
+	if result.SenderLabel == "" {
+		result.SenderLabel = DefaultP2PSenderLabel
+	}
+	if result.SenderPlaceholder == "" {
+		result.SenderPlaceholder = DefaultP2PSenderPlaceholder
+	}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(cfg["destinations"])), &result.Destinations); err != nil {
+		return P2PConfig{}, errors.New("реквизиты P2P имеют некорректный формат")
+	}
+	if len(result.Destinations) == 0 {
+		return P2PConfig{}, errors.New("добавьте хотя бы один вариант реквизитов")
+	}
+	if len(result.Destinations) > 12 {
+		return P2PConfig{}, errors.New("можно добавить не больше 12 вариантов реквизитов")
+	}
+	seen := make(map[string]struct{}, len(result.Destinations))
+	for index := range result.Destinations {
+		destination := &result.Destinations[index]
+		destination.ID = strings.TrimSpace(destination.ID)
+		destination.Title = strings.TrimSpace(destination.Title)
+		destination.Details = strings.TrimSpace(destination.Details)
+		destination.Description = strings.TrimSpace(destination.Description)
+		if destination.ID == "" {
+			destination.ID = fmt.Sprintf("destination-%d", index+1)
+		}
+		if _, exists := seen[destination.ID]; exists {
+			return P2PConfig{}, errors.New("идентификаторы реквизитов должны быть уникальными")
+		}
+		seen[destination.ID] = struct{}{}
+		if destination.Title == "" || destination.Details == "" {
+			return P2PConfig{}, fmt.Errorf("заполните заголовок и реквизиты в варианте %d", index+1)
+		}
+		if len([]rune(destination.Title)) > 80 || len([]rune(destination.Details)) > 500 || len([]rune(destination.Description)) > 700 {
+			return P2PConfig{}, fmt.Errorf("слишком длинный текст в варианте реквизитов %d", index+1)
+		}
+	}
+	if len([]rune(result.FooterText)) > 700 || len([]rune(result.SenderLabel)) > 120 || len([]rune(result.SenderPlaceholder)) > 200 {
+		return P2PConfig{}, errors.New("текст настроек P2P слишком длинный")
+	}
+	return result, nil
+}
+
+func normalizeP2PConfig(cfg map[string]string, requireComplete bool) error {
+	parsed, err := ParseP2PConfig(cfg)
+	if err != nil {
+		if requireComplete {
+			return err
+		}
+		return nil
+	}
+	raw, err := json.Marshal(parsed.Destinations)
+	if err != nil {
+		return fmt.Errorf("сохранить реквизиты P2P: %w", err)
+	}
+	cfg["destinations"] = string(raw)
+	cfg["footerText"] = parsed.FooterText
+	cfg["senderLabel"] = parsed.SenderLabel
+	cfg["senderPlaceholder"] = parsed.SenderPlaceholder
+	return nil
+}
+
+func p2PConfigValid(cfg map[string]string) bool {
+	_, err := ParseP2PConfig(cfg)
+	return err == nil
 }
 
 func definitionByID(provider string) (*ProviderDefinition, bool) {
@@ -496,6 +615,14 @@ func legacyConfig(provider string) (map[string]string, bool) {
 		return map[string]string{"apiUrl": "https://api.heleket.com"}, false
 	case ProviderPally:
 		return map[string]string{"apiUrl": "https://pal24.pro"}, false
+	case ProviderP2P:
+		destinations, _ := json.Marshal([]P2PDestination{})
+		return map[string]string{
+			"destinations":      string(destinations),
+			"footerText":        DefaultP2PFooterText,
+			"senderLabel":       DefaultP2PSenderLabel,
+			"senderPlaceholder": DefaultP2PSenderPlaceholder,
+		}, false
 	default:
 		return map[string]string{}, false
 	}
@@ -511,7 +638,7 @@ func firstNonEmpty(values ...string) string {
 }
 
 func SortedPaymentProviders() []string {
-	items := []string{ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega, ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally}
+	items := []string{ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega, ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderP2P}
 	sort.Strings(items)
 	return items
 }

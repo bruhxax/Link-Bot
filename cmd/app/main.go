@@ -169,7 +169,7 @@ func main() {
 	}
 
 	config.SetBotURL(fmt.Sprintf("https://t.me/%s", me.Username))
-	startPaymentNotificationBot(ctx, integrationSettings)
+	startPaymentNotificationBot(ctx, integrationSettings, paymentService)
 	notifyAdminAfterUpdate(ctx, b, releaseNotificationRepository)
 
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypePrefix, h.StartCommandHandler, h.SuspiciousUserFilterMiddleware)
@@ -338,7 +338,7 @@ func isAdminMiddleware(next bot.HandlerFunc) bot.HandlerFunc {
 	}
 }
 
-func startPaymentNotificationBot(ctx context.Context, settings *integrations.Service) {
+func startPaymentNotificationBot(ctx context.Context, settings *integrations.Service, paymentService *payment.PaymentService) {
 	if settings == nil {
 		return
 	}
@@ -386,6 +386,9 @@ func startPaymentNotificationBot(ctx context.Context, settings *integrations.Ser
 	}
 	notificationBot.RegisterHandler(bot.HandlerTypeMessageText, "/ping", bot.MatchTypeExact, pingHandler)
 	notificationBot.RegisterHandler(bot.HandlerTypeMessageText, "/ping@", bot.MatchTypePrefix, pingHandler)
+	if paymentService != nil {
+		paymentService.RegisterP2PNotificationHandlers(notificationBot, allowedChatID)
+	}
 
 	go func() {
 		slog.Info("Payment notification bot is starting")

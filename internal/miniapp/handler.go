@@ -109,6 +109,7 @@ type bootstrapResponse struct {
 	Admin          *adminPayload          `json:"admin,omitempty"`
 	Plans          []planPayload          `json:"plans"`
 	PaymentMethods []paymentMethodPayload `json:"paymentMethods"`
+	P2P            *p2pPaymentPayload     `json:"p2p,omitempty"`
 	Links          linksPayload           `json:"links"`
 	Meta           metaPayload            `json:"meta"`
 	Runtime        runtimeconfig.Settings `json:"runtime"`
@@ -310,6 +311,20 @@ type paymentMethodPayload struct {
 	ID string `json:"id"`
 }
 
+type p2pPaymentPayload struct {
+	Destinations      []p2pDestinationPayload `json:"destinations"`
+	FooterText        string                  `json:"footerText"`
+	SenderLabel       string                  `json:"senderLabel"`
+	SenderPlaceholder string                  `json:"senderPlaceholder"`
+}
+
+type p2pDestinationPayload struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Details     string `json:"details"`
+	Description string `json:"description,omitempty"`
+}
+
 type supportPayload struct {
 	IsAdmin        bool                   `json:"isAdmin"`
 	OpenTickets    []supportTicketPayload `json:"openTickets"`
@@ -373,21 +388,25 @@ type metaPayload struct {
 }
 
 type purchaseRequest struct {
-	PlanID            string `json:"planId,omitempty"`
-	DevicePackID      string `json:"devicePackId,omitempty"`
-	DeviceOnly        bool   `json:"deviceOnly,omitempty"`
-	Months            int    `json:"months"`
-	PaymentMethod     string `json:"paymentMethod"`
-	AgreementAccepted bool   `json:"agreementAccepted"`
-	PromoCode         string `json:"promoCode,omitempty"`
+	PlanID             string `json:"planId,omitempty"`
+	DevicePackID       string `json:"devicePackId,omitempty"`
+	DeviceOnly         bool   `json:"deviceOnly,omitempty"`
+	Months             int    `json:"months"`
+	PaymentMethod      string `json:"paymentMethod"`
+	AgreementAccepted  bool   `json:"agreementAccepted"`
+	PromoCode          string `json:"promoCode,omitempty"`
+	P2PDestinationID   string `json:"p2pDestinationId,omitempty"`
+	P2PSenderReference string `json:"p2pSenderReference,omitempty"`
 }
 
 type giftPurchaseRequest struct {
-	Username      string `json:"username"`
-	PlanID        string `json:"planId"`
-	Months        int    `json:"months"`
-	PaymentMethod string `json:"paymentMethod"`
-	PromoCode     string `json:"promoCode,omitempty"`
+	Username           string `json:"username"`
+	PlanID             string `json:"planId"`
+	Months             int    `json:"months"`
+	PaymentMethod      string `json:"paymentMethod"`
+	PromoCode          string `json:"promoCode,omitempty"`
+	P2PDestinationID   string `json:"p2pDestinationId,omitempty"`
+	P2PSenderReference string `json:"p2pSenderReference,omitempty"`
 }
 
 type giftSeenRequest struct {
@@ -1258,6 +1277,14 @@ func (h *Handler) handleCreatePurchase(w http.ResponseWriter, r *http.Request, s
 		h.writeError(w, http.StatusBadRequest, "unsupported_payment_method", "Этот способ оплаты недоступен")
 		return
 	}
+	p2pDestination := database.P2PDestinationSnapshot{}
+	if invoiceType == database.InvoiceTypeP2P {
+		p2pDestination, err = h.p2pDestinationForRequest(req.P2PDestinationID, req.P2PSenderReference)
+		if err != nil {
+			h.writeError(w, http.StatusBadRequest, "invalid_p2p_request", err.Error())
+			return
+		}
+	}
 
 	plan, ok := h.checkoutPlanForRequest(req.PlanID, req.Months)
 	if !ok {
@@ -1279,10 +1306,12 @@ func (h *Handler) handleCreatePurchase(w http.ResponseWriter, r *http.Request, s
 
 	ctxWithProfile := contextWithSessionTelegramProfile(r.Context(), sess)
 	paymentURL, purchaseID, err := h.paymentService.CreatePurchaseWithOptions(ctxWithProfile, float64(price), plan.Months, customer, invoiceType, payment.CreatePurchaseOptions{
-		AgreementAccepted: true,
-		PlanID:            plan.ID,
-		TrafficLimitBytes: &plan.TrafficLimitBytes,
-		DeviceLimitCount:  &plan.DeviceLimitCount,
+		AgreementAccepted:  true,
+		PlanID:             plan.ID,
+		TrafficLimitBytes:  &plan.TrafficLimitBytes,
+		DeviceLimitCount:   &plan.DeviceLimitCount,
+		P2PSenderReference: strings.TrimSpace(req.P2PSenderReference),
+		P2PDestination:     p2pDestination,
 	})
 	if err != nil {
 		slog.Error("mini app: create purchase", "error", err, "method", req.PaymentMethod, "months", req.Months)
@@ -1296,6 +1325,8 @@ func (h *Handler) handleCreatePurchase(w http.ResponseWriter, r *http.Request, s
 		action = "open_invoice"
 	case database.InvoiceTypeYookasa:
 		action = "open_in_app"
+	case database.InvoiceTypeP2P:
+		action = "p2p_pending"
 	}
 
 	h.writeJSON(w, http.StatusOK, map[string]any{
@@ -1332,6 +1363,7 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		isFreePlan     bool
 		freePlanOnce   bool
 		invoiceType    database.InvoiceType
+		p2pDestination database.P2PDestinationSnapshot
 	)
 
 	pack, hasPack := h.devicePackForRequest(req.DevicePackID)
@@ -1397,6 +1429,13 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		if !allowedMethods[req.PaymentMethod] {
 			h.writeError(w, http.StatusBadRequest, "unsupported_payment_method", "Unsupported payment method")
 			return
+		}
+		if invoiceType == database.InvoiceTypeP2P {
+			p2pDestination, err = h.p2pDestinationForRequest(req.P2PDestinationID, req.P2PSenderReference)
+			if err != nil {
+				h.writeError(w, http.StatusBadRequest, "invalid_p2p_request", err.Error())
+				return
+			}
 		}
 		if hasPack {
 			extraDevices = pack.Devices
@@ -1467,6 +1506,8 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		PromoCodeID:          promoCodeIDOrNil(promo),
 		PromoCodeCode:        req.PromoCode,
 		PromoDiscountPercent: promoDiscountPercentOrZero(promo),
+		P2PSenderReference:   strings.TrimSpace(req.P2PSenderReference),
+		P2PDestination:       p2pDestination,
 	})
 	if err != nil {
 		if errors.Is(err, payment.ErrFreePlanAlreadyUsed) {
@@ -1490,6 +1531,8 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		action = "open_invoice"
 	case database.InvoiceTypeYookasa:
 		action = "open_in_app"
+	case database.InvoiceTypeP2P:
+		action = "p2p_pending"
 	}
 
 	h.writeJSON(w, http.StatusOK, map[string]any{
@@ -1539,6 +1582,14 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 	if !allowedMethods[req.PaymentMethod] {
 		h.writeError(w, http.StatusBadRequest, "unsupported_payment_method", "Этот способ оплаты недоступен")
 		return
+	}
+	p2pDestination := database.P2PDestinationSnapshot{}
+	if invoiceType == database.InvoiceTypeP2P {
+		p2pDestination, err = h.p2pDestinationForRequest(req.P2PDestinationID, req.P2PSenderReference)
+		if err != nil {
+			h.writeError(w, http.StatusBadRequest, "invalid_p2p_request", err.Error())
+			return
+		}
 	}
 	price, ok := checkoutAmountForPlan(plan, invoiceType)
 	if !ok || price <= 0 {
@@ -1591,6 +1642,8 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 		GiftRecipientUsername:   username,
 		GiftRecipientCustomerID: recipientID,
 		GiftToken:               &token,
+		P2PSenderReference:      strings.TrimSpace(req.P2PSenderReference),
+		P2PDestination:          p2pDestination,
 	})
 	if err != nil {
 		slog.Error("mini app: create gift purchase", "error", err, "method", req.PaymentMethod, "months", req.Months)
@@ -1602,6 +1655,8 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 		action = "open_invoice"
 	} else if invoiceType == database.InvoiceTypeYookasa {
 		action = "open_in_app"
+	} else if invoiceType == database.InvoiceTypeP2P {
+		action = "p2p_pending"
 	}
 	h.writeJSON(w, http.StatusOK, map[string]any{
 		"ok":   true,
@@ -3415,6 +3470,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		Admin:          adminData,
 		Plans:          h.buildPlans(),
 		PaymentMethods: mapPaymentMethods(allowedMethods),
+		P2P:            h.buildP2PPaymentPayload(allowedMethods["p2p"]),
 		Links: linksPayload{
 			Support: h.runtimeLink("support", config.SupportURL()),
 			Channel: h.runtimeLink("channel", config.ChannelURL()),
@@ -4320,6 +4376,11 @@ func paymentMethodFallbackTitle(invoiceType database.InvoiceType, language strin
 			return "Tribute"
 		}
 		return "Tribute"
+	case database.InvoiceTypeP2P:
+		if isEnglish {
+			return "P2P transfer"
+		}
+		return "P2P перевод"
 	default:
 		if isEnglish {
 			return "Payment"
@@ -5128,6 +5189,7 @@ func (h *Handler) availablePaymentMethods(ctx context.Context, customer *databas
 				methods[provider] = h.integrationSettings.Enabled(provider)
 			}
 		}
+		methods["p2p"] = methods["p2p"] && h.integrationSettings.Enabled(integrations.ProviderNotificationBot)
 	}
 
 	if methods["stars"] && config.RequirePaidPurchaseForStars() {
@@ -5139,6 +5201,60 @@ func (h *Handler) availablePaymentMethods(ctx context.Context, customer *databas
 	}
 
 	return methods, nil
+}
+
+func (h *Handler) p2pDestinationForRequest(destinationID, senderReference string) (database.P2PDestinationSnapshot, error) {
+	if strings.TrimSpace(senderReference) == "" {
+		return database.P2PDestinationSnapshot{}, errors.New("укажите ФИО, номер счёта или другие данные отправителя")
+	}
+	if len([]rune(strings.TrimSpace(senderReference))) > 500 {
+		return database.P2PDestinationSnapshot{}, errors.New("данные отправителя слишком длинные")
+	}
+	if h.integrationSettings == nil {
+		return database.P2PDestinationSnapshot{}, errors.New("P2P-переводы не настроены")
+	}
+	raw, ok := h.integrationSettings.Config(integrations.ProviderP2P)
+	if !ok {
+		return database.P2PDestinationSnapshot{}, errors.New("P2P-переводы временно недоступны")
+	}
+	settings, err := integrations.ParseP2PConfig(raw)
+	if err != nil {
+		return database.P2PDestinationSnapshot{}, errors.New("реквизиты P2P-перевода настроены некорректно")
+	}
+	destinationID = strings.TrimSpace(destinationID)
+	for _, destination := range settings.Destinations {
+		if destination.ID == destinationID {
+			return database.P2PDestinationSnapshot{
+				ID: destination.ID, Title: destination.Title, Details: destination.Details, Description: destination.Description,
+			}, nil
+		}
+	}
+	return database.P2PDestinationSnapshot{}, errors.New("выберите реквизиты для перевода")
+}
+
+func (h *Handler) buildP2PPaymentPayload(enabled bool) *p2pPaymentPayload {
+	if !enabled || h.integrationSettings == nil {
+		return nil
+	}
+	raw, ok := h.integrationSettings.Config(integrations.ProviderP2P)
+	if !ok {
+		return nil
+	}
+	settings, err := integrations.ParseP2PConfig(raw)
+	if err != nil {
+		slog.Warn("mini app: invalid P2P integration config", "error", err)
+		return nil
+	}
+	destinations := make([]p2pDestinationPayload, 0, len(settings.Destinations))
+	for _, destination := range settings.Destinations {
+		destinations = append(destinations, p2pDestinationPayload{
+			ID: destination.ID, Title: destination.Title, Details: destination.Details, Description: destination.Description,
+		})
+	}
+	return &p2pPaymentPayload{
+		Destinations: destinations, FooterText: settings.FooterText,
+		SenderLabel: settings.SenderLabel, SenderPlaceholder: settings.SenderPlaceholder,
+	}
 }
 
 func (h *Handler) buildPlans() []planPayload {
@@ -5245,7 +5361,7 @@ func runtimeFeatureForPath(path string) string {
 }
 
 func mapPaymentMethods(methods map[string]bool) []paymentMethodPayload {
-	order := []string{"sbp", "card", "stars", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally"}
+	order := []string{"sbp", "card", "p2p", "stars", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally"}
 	payload := make([]paymentMethodPayload, 0, len(order))
 	for _, method := range order {
 		if methods[method] {
@@ -5275,6 +5391,8 @@ func mapPaymentMethod(method string) (database.InvoiceType, error) {
 		return database.InvoiceTypeHeleket, nil
 	case "pally":
 		return database.InvoiceTypePally, nil
+	case "p2p":
+		return database.InvoiceTypeP2P, nil
 	default:
 		return "", fmt.Errorf("unknown payment method: %s", method)
 	}
