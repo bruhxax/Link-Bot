@@ -167,7 +167,7 @@ func (s *PaymentService) handleP2PReviewCallback(ctx context.Context, b *bot.Bot
 	case "approve":
 		err = s.approveP2PPayment(decisionCtx, purchaseID, callback.From.ID)
 	case "reject":
-		err = s.rejectP2PPayment(decisionCtx, b, message.Chat.ID, purchaseID, callback.From.ID)
+		err = s.rejectP2PPayment(decisionCtx, purchaseID, callback.From.ID)
 	}
 	if err != nil {
 		text := "Не удалось обработать платёж"
@@ -222,7 +222,7 @@ func (s *PaymentService) approveP2PPayment(ctx context.Context, purchaseID, admi
 	return s.purchaseRepository.MarkP2PApproved(ctx, purchaseID, adminID)
 }
 
-func (s *PaymentService) rejectP2PPayment(ctx context.Context, b *bot.Bot, chatID, purchaseID, adminID int64) error {
+func (s *PaymentService) rejectP2PPayment(ctx context.Context, purchaseID, adminID int64) error {
 	purchase, err := s.purchaseRepository.FindById(ctx, purchaseID)
 	if err != nil {
 		return err
@@ -245,8 +245,15 @@ func (s *PaymentService) rejectP2PPayment(ctx context.Context, b *bot.Bot, chatI
 	if customerErr != nil {
 		slog.Warn("payment: P2P rejected customer lookup failed", "purchase_id", utils.MaskHalfInt64(purchaseID), "error", customerErr)
 	}
-	text := buildP2PRejectedNotificationMessage(purchase, customer, request)
-	params := &bot.SendMessageParams{ChatID: chatID, ParseMode: models.ParseModeHTML, Text: text}
+	if customer == nil {
+		return nil
+	}
+	if s.telegramBot == nil {
+		slog.Warn("payment: cannot send P2P rejection notification without main bot", "purchase_id", utils.MaskHalfInt64(purchaseID))
+		return nil
+	}
+	text := buildP2PRejectedUserMessage(purchase)
+	params := &bot.SendMessageParams{ChatID: customer.TelegramID, ParseMode: models.ParseModeHTML, Text: text}
 	if supportURL := strings.TrimSpace(config.SupportURL()); supportURL != "" {
 		params.ReplyMarkup = models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text: "Перейти в поддержку", URL: supportURL,
@@ -256,22 +263,19 @@ func (s *PaymentService) rejectP2PPayment(ctx context.Context, b *bot.Bot, chatI
 			Text: "Перейти в поддержку", URL: botURL,
 		}}}}
 	}
-	if _, err := b.SendMessage(ctx, params); err != nil {
-		slog.Error("payment: failed to send P2P rejection notification", "purchase_id", utils.MaskHalfInt64(purchaseID), "error", err)
+	if _, err := s.telegramBot.SendMessage(ctx, params); err != nil {
+		slog.Error("payment: failed to send P2P rejection notification to customer", "purchase_id", utils.MaskHalfInt64(purchaseID), "error", err)
 	}
 	return nil
 }
 
-func buildP2PRejectedNotificationMessage(purchase *database.Purchase, customer *database.Customer, request *database.P2PPaymentRequest) string {
-	username := "-"
-	if customer != nil && customer.TelegramUsername != nil && strings.TrimSpace(*customer.TelegramUsername) != "" {
-		username = "@" + strings.TrimPrefix(strings.TrimSpace(*customer.TelegramUsername), "@")
+func buildP2PRejectedUserMessage(purchase *database.Purchase) string {
+	if purchase == nil {
+		return "❌ <b>Платёж отклонён администратором</b>"
 	}
 	return fmt.Sprintf(
-		"❌ <b>P2P-платёж отклонён</b>\n\n💳 <b>Сумма:</b> <b>%s</b>\n✈ <b>Telegram:</b> <b>%s</b>\n👤 <b>Данные отправителя:</b>\n<blockquote>%s</blockquote>\n▣ <b>Заказ:</b> <code>%d</code>",
+		"❌ <b>P2P-платёж отклонён администратором</b>\n\n💳 <b>Сумма:</b> <b>%s</b>\n▣ <b>Заказ:</b> <code>%d</code>\n\nЕсли вы считаете это ошибкой, обратитесь в поддержку.",
 		html.EscapeString(formatPurchaseAmount(purchase)),
-		html.EscapeString(username),
-		html.EscapeString(request.SenderReference),
 		purchase.ID,
 	)
 }

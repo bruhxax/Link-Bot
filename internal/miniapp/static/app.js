@@ -5680,14 +5680,16 @@ function renderP2PMenu() {
 		: context.deviceOnly
 			? devicePackTitle(pack?.devices || 0)
 			: getPlanDisplayTitle(plan, state.locale);
-	const cancel = localizedText("Отмена", "Cancel", "لغو");
+	const closeLabel = localizedText("Закрыть меню", "Close menu", "بستن منو");
 	const senderLabel = String(settings.senderLabel || localizedText("ФИО / номер счёта отправителя", "Sender name / account number", "نام / شماره حساب فرستنده"));
 	const senderPlaceholder = String(settings.senderPlaceholder || "");
 	const senderStep = state.p2pMenuStep === "sender";
-	return `<div class="p2p-menu-layer" role="dialog" aria-modal="true" aria-labelledby="p2p-menu-title" aria-describedby="p2p-menu-summary">
-		<button class="p2p-menu-layer__backdrop" type="button" data-action="close-p2p-menu" aria-label="${escapeAttribute(cancel)}"></button>
+	const menuAnimation = state.p2pMenuAnimation === "open" ? "is-opening" : state.p2pMenuAnimation === "swap" ? "is-updating" : "";
+	return `<div class="p2p-menu-layer ${menuAnimation}" role="dialog" aria-modal="true" aria-labelledby="p2p-menu-title" aria-describedby="p2p-menu-summary">
+		<button class="p2p-menu-layer__backdrop" type="button" data-action="close-p2p-menu" aria-label="${escapeAttribute(closeLabel)}"></button>
 		<section class="p2p-menu" aria-busy="${state.p2pBusy ? "true" : "false"}">
-			<header class="p2p-menu__header"><span class="p2p-menu__mark" aria-hidden="true">${icon("wallet")}</span><span><small>P2P</small><strong id="p2p-menu-title">${senderStep ? localizedText("Данные отправителя", "Sender details", "اطلاعات فرستنده") : localizedText("Перевод по реквизитам", "Transfer details", "اطلاعات انتقال")}</strong></span><button class="p2p-menu__close" type="button" data-action="close-p2p-menu" ${state.p2pBusy ? "disabled" : ""} aria-label="${escapeAttribute(cancel)}">${icon("close")}</button></header>
+			<header class="p2p-menu__header"><span class="p2p-menu__mark" aria-hidden="true">${icon("wallet")}</span><span><small>P2P</small><strong id="p2p-menu-title">${senderStep ? localizedText("Данные отправителя", "Sender details", "اطلاعات فرستنده") : localizedText("Перевод по реквизитам", "Transfer details", "اطلاعات انتقال")}</strong></span><button class="p2p-menu__close" type="button" data-action="close-p2p-menu" ${state.p2pBusy ? "disabled" : ""} aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button></header>
+			<div class="p2p-menu__body">
 			<div class="p2p-menu__summary" id="p2p-menu-summary"><span>${escapeHtml(planTitle || localizedText("Покупка", "Purchase", "خرید"))}</span><strong>${escapeHtml(amount)}</strong></div>
 			${senderStep ? `<div class="p2p-menu__sender">
 				<label for="p2p-sender-reference">${escapeHtml(senderLabel)}</label>
@@ -5699,7 +5701,8 @@ function renderP2PMenu() {
 				const isLink = /^https?:\/\//i.test(details.trim());
 				return `<article class="p2p-destination ${active ? "is-selected" : ""}"><button class="p2p-destination__select" type="button" role="radio" aria-checked="${active}" data-action="select-p2p-destination" data-value="${escapeAttribute(destination.id)}"><span><strong>${escapeHtml(destination.title || "—")}</strong><code>${escapeHtml(details)}</code>${destination.description ? `<small>${escapeHtml(destination.description)}</small>` : ""}</span><i aria-hidden="true">${active ? icon("check") : ""}</i></button><button class="p2p-destination__action" type="button" data-action="${isLink ? "open-p2p-details" : "copy-p2p-details"}" data-value="${escapeAttribute(details)}" aria-label="${escapeAttribute(isLink ? localizedText("Открыть ссылку на оплату", "Open payment link", "باز کردن لینک پرداخت") : localizedText("Скопировать реквизиты", "Copy details", "کپی اطلاعات"))}">${icon(isLink ? "arrow" : "copy")}<span>${isLink ? localizedText("Открыть", "Open", "باز کردن") : localizedText("Копировать", "Copy", "کپی")}</span></button></article>`;
 			}).join("")}</div>${settings.footerText ? `<p class="p2p-menu__footer-note">${escapeHtml(settings.footerText)}</p>` : ""}`}
-			<footer class="p2p-menu__actions"><button type="button" data-action="close-p2p-menu" ${state.p2pBusy ? "disabled" : ""}>${escapeHtml(cancel)}</button>${senderStep ? `<button class="p2p-menu__primary" type="button" data-action="submit-p2p-payment" ${state.p2pBusy || !state.p2pSenderReference.trim() ? "disabled" : ""}>${icon(state.p2pBusy ? "refresh" : "check")}<span>${state.p2pBusy ? localizedText("Отправляем", "Sending", "در حال ارسال") : localizedText("Отправить на проверку", "Send for review", "ارسال برای بررسی")}</span></button>` : `<button class="p2p-menu__primary" type="button" data-action="confirm-p2p-transfer" ${!selectedID ? "disabled" : ""}>${localizedText("Перевёл", "Transferred", "انتقال دادم")}${icon("arrow")}</button>`}</footer>
+			</div>
+			<footer class="p2p-menu__actions">${senderStep ? `<button class="p2p-menu__primary" type="button" data-action="submit-p2p-payment" ${state.p2pBusy || !state.p2pSenderReference.trim() ? "disabled" : ""}>${icon(state.p2pBusy ? "refresh" : "check")}<span>${state.p2pBusy ? localizedText("Отправляем", "Sending", "در حال ارسال") : localizedText("Отправить на проверку", "Send for review", "ارسال برای بررسی")}</span></button>` : `<button class="p2p-menu__primary" type="button" data-action="confirm-p2p-transfer" ${!selectedID ? "disabled" : ""}>${localizedText("Перевёл", "Transferred", "انتقال دادم")}${icon("arrow")}</button>`}</footer>
 		</section>
 	</div>`;
 }
@@ -6173,10 +6176,10 @@ function bindRootActions() {
         return requestModalClose("pay", () => { state.payModalOpen = false; });
       }
 		if (action === "close-p2p-menu") return closeP2PMenu();
-		if (action === "select-p2p-destination") { state.p2pDestinationId = value; haptic("light"); render({ preserveScroll: true }); return; }
+		if (action === "select-p2p-destination") { state.p2pDestinationId = value; state.p2pMenuAnimation = "swap"; haptic("light"); render({ preserveScroll: true }); queueMicrotask(() => { state.p2pMenuAnimation = ""; }); return; }
 		if (action === "copy-p2p-details") return copyToClipboard(value).then(() => showToast(localizedText("Реквизиты скопированы", "Details copied", "اطلاعات کپی شد"), "success"));
 		if (action === "open-p2p-details") return openExternal(value);
-		if (action === "confirm-p2p-transfer") { state.p2pMenuStep = "sender"; haptic("light"); render({ preserveScroll: true }); queueMicrotask(() => app.querySelector("#p2p-sender-reference")?.focus()); return; }
+		if (action === "confirm-p2p-transfer") { state.p2pMenuStep = "sender"; state.p2pMenuAnimation = "swap"; haptic("light"); render({ preserveScroll: true }); queueMicrotask(() => { state.p2pMenuAnimation = ""; app.querySelector("#p2p-sender-reference")?.focus(); }); return; }
 		if (action === "submit-p2p-payment") return await submitP2PPayment();
       if (action === "apply-promo") return await applyPromoCode();
       if (action === "pay-selected") return await startPayment();
@@ -6517,7 +6520,9 @@ function bindRootActions() {
 			event.preventDefault();
 			if (state.p2pMenuStep === "sender" && !state.p2pBusy) {
 				state.p2pMenuStep = "details";
+				state.p2pMenuAnimation = "swap";
 				render({ preserveScroll: true });
+				queueMicrotask(() => { state.p2pMenuAnimation = ""; });
 			} else {
 				closeP2PMenu();
 			}
@@ -8949,9 +8954,13 @@ function openP2PMenu(context) {
 	state.p2pSenderReference = "";
 	state.p2pBusy = false;
 	state.p2pMenuStep = "details";
+	state.p2pMenuAnimation = "open";
 	haptic("light");
 	render({ preserveScroll: true });
-	queueMicrotask(() => app.querySelector(".p2p-menu__close")?.focus());
+	queueMicrotask(() => {
+		state.p2pMenuAnimation = "";
+		app.querySelector(".p2p-menu__close")?.focus();
+	});
 }
 
 function resetP2PMenuState() {
@@ -8959,6 +8968,7 @@ function resetP2PMenuState() {
 	state.p2pSenderReference = "";
 	state.p2pContext = null;
 	state.p2pBusy = false;
+	state.p2pMenuAnimation = "";
 }
 
 function closeP2PMenu() {

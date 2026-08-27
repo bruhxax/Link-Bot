@@ -35,3 +35,12 @@ func TestBuildP2PReviewNotificationEscapesUserInput(t *testing.T) {
 		t.Fatalf("message contains unescaped user input: %s", message)
 	}
 }
+
+func TestBuildP2PRejectedUserMessage(t *testing.T) {
+	message := buildP2PRejectedUserMessage(&database.Purchase{ID: 717, Amount: 89, Currency: "RUB"})
+	for _, expected := range []string{"P2P-платёж отклонён администратором", "89 RUB", "717", "обратитесь в поддержку"} {
+		if !strings.Contains(message, expected) {
+			t.Fatalf("rejection message does not contain %q: %s", expected, message)
+		}
+	}
+}

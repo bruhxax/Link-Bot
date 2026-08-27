@@ -9478,17 +9478,19 @@ body.has-open-modal .admin-save-bar {
 	box-shadow: var(--glass-shadow);
 	backdrop-filter: blur(18px) saturate(1.04);
 	-webkit-backdrop-filter: blur(18px) saturate(1.04);
-	animation: p2pMenuIn .24s cubic-bezier(.22, 1, .36, 1) both;
 }
 
 .p2p-menu::-webkit-scrollbar { display: none; }
+.p2p-menu-layer.is-opening .p2p-menu { animation: p2pMenuIn .28s cubic-bezier(.22, 1, .36, 1) both; }
+.p2p-menu__body { display: grid; gap: 14px; min-width: 0; }
+.p2p-menu-layer.is-updating .p2p-menu__body { animation: p2pContentSwap .26s ease-in-out both; }
 .p2p-menu-layer.is-closing { pointer-events: none; }
 .p2p-menu-layer.is-closing .p2p-menu { animation: p2pMenuOut .18s cubic-bezier(.4, 0, 1, 1) both; }
 .p2p-menu-layer.is-closing .p2p-menu-layer__backdrop { animation: p2pBackdropOut .18s ease-in both; }
 
 .p2p-menu__header {
 	display: grid;
-	grid-template-columns: 38px minmax(0, 1fr) 36px;
+	grid-template-columns: 24px minmax(0, 1fr) 36px;
 	gap: 10px;
 	align-items: center;
 }
@@ -9497,16 +9499,16 @@ body.has-open-modal .admin-save-bar {
 .p2p-menu__close {
 	display: grid;
 	place-items: center;
-	width: 36px;
-	height: 36px;
-	border: 1px solid var(--line-soft);
-	border-radius: 10px;
 	color: var(--icon-color);
-	background: var(--control-bg);
+	background: transparent;
 }
+
+.p2p-menu__mark { width: 24px; height: 24px; }
+.p2p-menu__close { width: 36px; height: 36px; border: 0; border-radius: 0; }
 
 .p2p-menu__mark svg,
 .p2p-menu__close svg { width: 18px; height: 18px; }
+.p2p-menu__close:focus-visible { outline: 0; color: var(--accent); transform: scale(1.08); }
 .p2p-menu__header > span:nth-child(2) { min-width: 0; display: grid; gap: 2px; }
 .p2p-menu__header small { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .08em; }
 .p2p-menu__header strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
@@ -9591,7 +9593,7 @@ body.has-open-modal .admin-save-bar {
 
 .p2p-menu__actions {
 	display: grid;
-	grid-template-columns: minmax(0, .8fr) minmax(0, 1.4fr);
+	grid-template-columns: minmax(0, 1fr);
 	gap: 8px;
 	padding-top: 2px;
 }
@@ -9611,13 +9613,17 @@ body.has-open-modal .admin-save-bar {
 	font-weight: 800;
 }
 
+.p2p-menu__actions > button { width: 100%; }
+
 .p2p-menu__actions > .p2p-menu__primary { border-color: var(--accent); color: var(--text); background: var(--accent); }
 .p2p-menu__actions svg { width: 16px; height: 16px; }
 .p2p-menu :where(button, textarea):focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .p2p-menu :where(button, textarea):disabled { opacity: .5; cursor: default; }
+.p2p-menu__close:focus-visible { outline: 0; color: var(--accent); transform: scale(1.08); }
 
 @keyframes p2pMenuIn { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes p2pMenuOut { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(5px) scale(.985); } }
+@keyframes p2pContentSwap { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes p2pBackdropIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes p2pBackdropOut { from { opacity: 1; } to { opacity: 0; } }
 
