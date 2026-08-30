@@ -31,18 +31,28 @@ const reducedMotionMedia = window.matchMedia?.("(prefers-reduced-motion: reduce)
 document.addEventListener("error", (event) => {
   const image = event.target;
   if (!(image instanceof HTMLImageElement) || !image.matches("[data-brand-logo]")) return;
+  const browserFallback = image.closest(".browser-auth__logo-shell")?.querySelector(".browser-auth__logo-fallback");
   if (image.dataset.brandLogoFallback === "1") {
     image.hidden = true;
+    if (browserFallback instanceof HTMLElement) browserFallback.hidden = false;
     return;
   }
   image.dataset.brandLogoFallback = "1";
   image.hidden = false;
+  if (browserFallback instanceof HTMLElement) browserFallback.hidden = true;
   image.src = BRAND_MARK_URL;
   const status = image.closest(".admin-logo-field")?.querySelector(".admin-logo-field__status");
   if (status) {
     status.classList.add("is-error");
     status.textContent = "Изображение по указанному адресу не загрузилось. Показан стандартный логотип.";
   }
+}, true);
+
+document.addEventListener("load", (event) => {
+  const image = event.target;
+  if (!(image instanceof HTMLImageElement) || !image.matches("[data-brand-logo]")) return;
+  const browserFallback = image.closest(".browser-auth__logo-shell")?.querySelector(".browser-auth__logo-fallback");
+  if (browserFallback instanceof HTMLElement) browserFallback.hidden = true;
 }, true);
 
 configureBackgroundPerformance();
@@ -5334,7 +5344,7 @@ function renderStateScreen(kind, message = "", meta = null) {
       <div class="state-screen state-screen--browser-auth">
         <section class="browser-auth" aria-labelledby="browser-auth-title">
           <div class="browser-auth__logo-shell" aria-hidden="true">
-            <span class="browser-auth__logo-fallback">${escapeHtml(fallbackMark)}</span>
+            <span class="browser-auth__logo-fallback" hidden>${escapeHtml(fallbackMark)}</span>
             <img class="browser-auth__logo" data-browser-brand-logo data-brand-logo src="${escapeAttribute(brand.logoUrl)}" alt="">
           </div>
           <div class="browser-auth__eyebrow">${escapeHtml(brand.name)} Web</div>

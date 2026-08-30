@@ -29,6 +29,9 @@ func TestBrowserAuthUsesRuntimeBrandWithoutRemovedHints(t *testing.T) {
 		"content.brandName",
 		"content.logoUrl",
 		"data-browser-brand-logo",
+		`class="browser-auth__logo-fallback" hidden`,
+		"browserFallback.hidden = false",
+		"browserFallback.hidden = true",
 		"`Войти в ${name}`",
 		"`Sign in to ${name}`",
 	}
