@@ -11,3 +11,5 @@ link-bot-backup*.sql
 Thumbs.db
 tmp/
 dist/
+uploads/*
+!uploads/.gitkeep

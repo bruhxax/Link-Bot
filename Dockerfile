@@ -45,6 +45,7 @@ COPY --from=builder /bin/app /app/app
 COPY --from=builder /app/db /db
 COPY --from=builder /app/translations /translations
 COPY --from=builder /app/assets /assets
+COPY --from=builder --chown=1000:1000 /app/uploads /uploads
 
 USER 1000
 

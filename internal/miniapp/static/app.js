@@ -30,8 +30,18 @@ const reducedMotionMedia = window.matchMedia?.("(prefers-reduced-motion: reduce)
 
 document.addEventListener("error", (event) => {
   const image = event.target;
-  if (image instanceof HTMLImageElement && image.matches("[data-browser-brand-logo]")) {
+  if (!(image instanceof HTMLImageElement) || !image.matches("[data-brand-logo]")) return;
+  if (image.dataset.brandLogoFallback === "1") {
     image.hidden = true;
+    return;
+  }
+  image.dataset.brandLogoFallback = "1";
+  image.hidden = false;
+  image.src = BRAND_MARK_URL;
+  const status = image.closest(".admin-logo-field")?.querySelector(".admin-logo-field__status");
+  if (status) {
+    status.classList.add("is-error");
+    status.textContent = "Изображение по указанному адресу не загрузилось. Показан стандартный логотип.";
   }
 }, true);
 
@@ -58,6 +68,7 @@ let googleAuthMode = "login";
 let googleLoginPendingMode = "";
 let googleLinkRefreshTimer = null;
 let dashboardHydrationTimer = null;
+let adminLogoPreviewTimer = null;
 
 function preventMiniAppZoom() {
   let lastTouchEndAt = 0;
@@ -2534,6 +2545,34 @@ async function post(url, body, extraHeaders = null) {
   }
 }
 
+async function postForm(url, body) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutForURL(url));
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "X-Telegram-Init-Data": tg?.initData || "",
+        ...(tg?.initData ? {} : getBrowserAuthHeaders()),
+      },
+      body,
+      signal: controller.signal,
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload?.ok) {
+      const error = new Error(mapApiErrorMessage(payload?.error?.code, payload?.error?.message || "Request failed"));
+      error.code = payload?.error?.code || "";
+      throw error;
+    }
+    return payload;
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error(t().timeout);
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function getJSON(url) {
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), requestTimeoutForURL(url));
@@ -3237,7 +3276,7 @@ function renderAdminStartContent() {
 	return `<section class="admin-editor__section"><h3>Сервис и сообщение /start</h3>
 		${renderAdminSettingField("Название сервиса", "content.brandName")}
 		${renderAdminSettingField("Контакт администрации", "content.adminContact", { placeholder: "@username" })}
-		${renderAdminSettingField("Логотип mini app", "content.logoUrl", { placeholder: "/mini-app/assets/brand-mark.png или URL" })}
+		${renderAdminLogoField()}
 		${renderAdminBannerField("Баннер главного меню", "content.startImage", "/assets/telegram/menu/banner.png")}
 		${renderAdminSettingField("Текст сообщения", "content.startTextRu", { textarea: true, rows: 7 })}
 	</section>
@@ -3247,6 +3286,37 @@ function renderAdminStartContent() {
 		${renderAdminTelegramButton("Тарифы", "content.startMenu.plansButton")}
 		${renderAdminTelegramButton("Чат с поддержкой", "content.startMenu.supportButton")}
 	</section>`;
+}
+
+function renderAdminLogoField() {
+	const current = String(getDeepValue(state.adminSettingsDraft, "content.logoUrl", BRAND_MARK_PATH) || BRAND_MARK_PATH).trim();
+	const previewURL = resolveBrandMarkURL(current);
+	const busy = state.adminBusy === "upload-logo";
+	const isDefault = current === BRAND_MARK_PATH || current.startsWith(`${BRAND_MARK_PATH}?`);
+	const source = current.startsWith("/mini-app/uploads/")
+		? "Файл загружен в Link-Bot"
+		: isDefault
+			? "Используется стандартный логотип"
+			: "Используется внешняя ссылка";
+	return `<div class="admin-logo-field">
+		<div class="admin-logo-field__main">
+			<div class="admin-logo-field__preview"><img src="${escapeAttribute(previewURL)}" data-brand-logo data-admin-logo-preview alt="Предпросмотр логотипа"></div>
+			<div class="admin-logo-field__body">
+				<strong>Логотип Mini App</strong>
+				<p>Выберите готовое изображение — Link-Bot сам сохранит его и подставит правильный адрес.</p>
+				<div class="admin-logo-field__actions">
+					<label class="admin-logo-field__upload ${busy ? "is-busy" : ""}">
+						<input class="sr-only" type="file" accept="image/png,image/jpeg,image/webp" data-input="admin-logo-file" aria-describedby="admin-logo-help" ${busy ? "disabled" : ""}>
+						${icon(busy ? "refresh" : "image")}<span>${busy ? "Загружаем…" : "Загрузить файл"}</span>
+					</label>
+					<button type="button" data-action="admin-logo-reset" ${busy || isDefault ? "disabled" : ""}>${icon("reset")}<span>Стандартный</span></button>
+				</div>
+			</div>
+		</div>
+		<p class="admin-logo-field__help" id="admin-logo-help">PNG, JPG или WebP до 2 МБ. Лучше использовать квадратное изображение от 256×256 px с прозрачным фоном.</p>
+		<details class="admin-logo-field__advanced"><summary>Указать HTTPS-ссылку вручную</summary>${renderAdminSettingField("Адрес изображения", "content.logoUrl", { type: "url", placeholder: "https://example.com/logo.png", compact: true })}</details>
+		<div class="admin-logo-field__status" role="status" aria-live="polite">${escapeHtml(source)}</div>
+	</div>`;
 }
 
 function renderAdminVerificationContent() {
@@ -3853,8 +3923,11 @@ function renderAdminEditorPage(title, body) {
 }
 
 function renderAdminSaveBar(className = "") {
-	const busy = state.adminBusy === "save-settings";
-	const status = busy
+	const saving = state.adminBusy === "save-settings";
+	const busy = Boolean(state.adminBusy);
+	const status = state.adminBusy === "upload-logo"
+		? localizedText("Загружаем логотип...", "Uploading logo...", "در حال بارگذاری لوگو...")
+		: saving
 		? localizedText("Сохраняем...", "Saving...", "در حال ذخیره...")
 		: state.adminSettingsDirty
 			? localizedText("Есть несохранённые изменения", "Unsaved changes", "تغییرات ذخیره‌نشده")
@@ -3872,7 +3945,7 @@ function renderAdminSaveBar(className = "") {
 		? `<button class="admin-save-bar__notification admin-save-bar__widget" type="button" data-action="admin-add-notification-widget" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(localizedText("Уведомление", "Notification", "اعلان"))}" title="${escapeAttribute(localizedText("Уведомление", "Notification", "اعلان"))}"><span class="admin-save-bar__notification-icon" aria-hidden="true"></span><span>${localizedText("Уведомление", "Notification", "اعلان")}</span></button>`
 		: "";
 	const profileClass = profileAddButton ? "admin-save-bar--profile-layout" : (promoWidgetButton ? "admin-save-bar--promo-layout admin-save-bar--widget-layout" : "");
-	return `<div class="admin-save-bar ${className} ${profileClass}" role="status" aria-live="polite"><span>${escapeHtml(status)}</span><div class="admin-save-bar__actions">${profileAddButton}${promoWidgetButton}${notificationWidgetButton}${resetButton}<button type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""}>${icon(busy ? "refresh" : "check")}<span>${localizedText("Сохранить", "Save", "ذخیره")}</span></button>${state.adminLayoutEditing ? `<button class="admin-save-bar__close" type="button" data-action="admin-layout-exit" aria-label="${state.locale === "en" ? "Exit editor" : "Выйти из редактора"}">${icon("close")}</button>` : ""}</div></div>`;
+	return `<div class="admin-save-bar ${className} ${profileClass}" role="status" aria-live="polite"><span>${escapeHtml(status)}</span><div class="admin-save-bar__actions">${profileAddButton}${promoWidgetButton}${notificationWidgetButton}${resetButton}<button type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""}>${icon(saving ? "refresh" : "check")}<span>${localizedText("Сохранить", "Save", "ذخیره")}</span></button>${state.adminLayoutEditing ? `<button class="admin-save-bar__close" type="button" data-action="admin-layout-exit" aria-label="${state.locale === "en" ? "Exit editor" : "Выйти из редактора"}">${icon("close")}</button>` : ""}</div></div>`;
 }
 
 function renderAdminPlanSaveBar() {
@@ -4231,7 +4304,7 @@ function renderDashboardPage() {
 	const notificationWidgetVisible = notificationWidgetItem?.visible !== false && (Boolean(String(notificationWidgetItem?.notificationText || "").trim()) || state.adminLayoutEditing);
 
 	const blocks = {
-		brand: `<div class="hero-center hero-center--brand">${renderLayoutDetail("dashboard", "logo", `<div class="hero-brand" style="--runtime-logo-width:${Math.max(48, Math.min(220, Number(getRuntimeSettings()?.layout?.logoWidth || 188)))}px"><img src="${escapeAttribute(resolveBrandMarkURL(state.data.brand.logoUrl))}" alt="${escapeAttribute(state.data.brand.name || "Link-Bot")}" loading="eager" draggable="false"></div>`, "runtime-detail-item--logo")}${renderLayoutDetail("dashboard", "username", `<div class="hero-handle">${escapeHtml(avatarLabel)}</div>`, "runtime-detail-item--username")}</div>`,
+		brand: `<div class="hero-center hero-center--brand">${renderLayoutDetail("dashboard", "logo", `<div class="hero-brand" style="--runtime-logo-width:${Math.max(48, Math.min(220, Number(getRuntimeSettings()?.layout?.logoWidth || 188)))}px"><img src="${escapeAttribute(resolveBrandMarkURL(state.data.brand.logoUrl))}" data-brand-logo alt="${escapeAttribute(state.data.brand.name || "Link-Bot")}" loading="eager" draggable="false"></div>`, "runtime-detail-item--logo")}${renderLayoutDetail("dashboard", "username", `<div class="hero-handle">${escapeHtml(avatarLabel)}</div>`, "runtime-detail-item--username")}</div>`,
 		subscription: active ? `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", `<div class="sub-bar__name">${title}</div>`, "runtime-detail-item--status runtime-detail-item--plan")}${renderLayoutDetail("dashboard", "expires", `<div class="sub-bar__date"><span class="sub-bar__date-icon">${icon("calendarDays")}</span><span>${expires}</span></div>`, "runtime-detail-item--status")}</div><div class="sub-bar__row sub-bar__row--pills">${trafficLabel ? renderLayoutDetail("dashboard", "traffic", `<span class="sub-pill"><span class="sub-pill__icon">${icon("chartLine")}</span><span>${escapeHtml(trafficLabel)}</span></span>`, "runtime-detail-item--pill") : ""}${deviceLabel ? renderLayoutDetail("dashboard", "devices", `<button class="sub-pill sub-pill--button" type="button" data-action="open-devices-modal"><span>${escapeHtml(deviceLabel)}</span><span class="sub-pill__edit">${icon("userPen")}</span></button>`, "runtime-detail-item--pill") : ""}</div></div></div></div>` : "",
 		actions: `<div class="dashboard-compact">${actionStack}</div>`,
 		...(promoWidgetVisible ? { promo_widget: renderPromoGiftWidget(promoWidgetItem) } : {}),
@@ -5262,7 +5335,7 @@ function renderStateScreen(kind, message = "", meta = null) {
         <section class="browser-auth" aria-labelledby="browser-auth-title">
           <div class="browser-auth__logo-shell" aria-hidden="true">
             <span class="browser-auth__logo-fallback">${escapeHtml(fallbackMark)}</span>
-            <img class="browser-auth__logo" data-browser-brand-logo src="${escapeAttribute(brand.logoUrl)}" alt="">
+            <img class="browser-auth__logo" data-browser-brand-logo data-brand-logo src="${escapeAttribute(brand.logoUrl)}" alt="">
           </div>
           <div class="browser-auth__eyebrow">${escapeHtml(brand.name)} Web</div>
           <h1 class="browser-auth__title" id="browser-auth-title">${escapeHtml(copy.title)}</h1>
@@ -6219,6 +6292,7 @@ function bindRootActions() {
 			if (action === "admin-gift-remove-button") return removeAdminGiftButton(target.dataset.giftKind, Number(value));
 			if (action === "admin-gift-set-style") return setAdminGiftButtonStyle(target.dataset.giftKind, Number(target.dataset.giftIndex), value);
 			if (action === "admin-appearance-preset") return applyAdminAppearancePreset(value);
+			if (action === "admin-logo-reset") return resetAdminLogo();
 			if (action === "admin-save-settings") return await saveAdminSettings();
 			if (action === "admin-content-section") { state.adminContentSection = value || "start"; render(); return; }
 			if (action === "admin-add-faq") return addAdminFAQItem();
@@ -6246,6 +6320,15 @@ function bindRootActions() {
         showToast(error?.message || t().errorTitle);
     }
   });
+
+	app.addEventListener("change", (event) => {
+		const input = event.target;
+		if (!(input instanceof HTMLInputElement)) return;
+		if (input.dataset.input === "admin-logo-file") {
+			const file = input.files?.[0];
+			if (file) void uploadAdminLogo(file);
+		}
+	});
 
     app.addEventListener("input", (event) => {
       const target = event.target;
@@ -6327,6 +6410,7 @@ function bindRootActions() {
 				const value = type === "boolean" ? Boolean(target.checked) : type === "number" ? Number(target.value || 0) : target.value;
 				setDeepValue(state.adminSettingsDraft, settingPath, value);
 			}
+			if (settingPath === "content.logoUrl") scheduleAdminLogoPreview(target.value);
 			state.adminSettingsDirty = true;
 			const saveButton = app.querySelector('[data-action="admin-save-settings"]');
 			if (saveButton) saveButton.disabled = false;
@@ -6770,6 +6854,10 @@ async function saveAdminSettings() {
 		state.publicSettings = response.data;
 		if (state.data) {
 			state.data.runtime = response.data;
+			if (state.data.brand) {
+				state.data.brand.name = response.data?.content?.brandName || state.data.brand.name;
+				state.data.brand.logoUrl = response.data?.content?.logoUrl || BRAND_MARK_PATH;
+			}
 			if (state.data.admin) state.data.admin.settings = response.data;
 		}
 		state.adminSettingsDraft = deepClone(response.data);
@@ -6798,9 +6886,70 @@ async function saveAdminSettings() {
 	}
 }
 
+function resetAdminLogo() {
+	if (!state.adminSettingsDraft?.content || state.adminBusy) return;
+	state.adminSettingsDraft.content.logoUrl = BRAND_MARK_PATH;
+	state.adminSettingsDirty = true;
+	haptic("light");
+	render({ preserveScroll: true });
+	showToast("Выбран стандартный логотип. Сохраните изменения.", "success");
+}
+
+function scheduleAdminLogoPreview(value) {
+	window.clearTimeout(adminLogoPreviewTimer);
+	adminLogoPreviewTimer = window.setTimeout(() => {
+		const preview = app.querySelector("[data-admin-logo-preview]");
+		const status = app.querySelector(".admin-logo-field__status");
+		if (preview instanceof HTMLImageElement) {
+			delete preview.dataset.brandLogoFallback;
+			preview.hidden = false;
+			preview.src = resolveBrandMarkURL(value);
+		}
+		if (status) {
+			status.classList.remove("is-error");
+			status.textContent = "Проверяем указанный адрес…";
+		}
+	}, 350);
+}
+
+async function uploadAdminLogo(file) {
+	if (!state.adminSettingsDraft?.content || state.adminBusy || !file) return;
+	const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
+	if (!allowedTypes.has(String(file.type || "").toLowerCase()) && !/\.(?:png|jpe?g|webp)$/i.test(String(file.name || ""))) {
+		showToast("Выберите PNG, JPG или WebP", "danger");
+		return;
+	}
+	if (file.size > 2 * 1024 * 1024) {
+		showToast("Логотип должен быть не больше 2 МБ", "danger");
+		return;
+	}
+
+	state.adminBusy = "upload-logo";
+	render({ preserveScroll: true });
+	try {
+		const body = new FormData();
+		body.append("logo", file, file.name || "logo");
+		const response = await postForm("/api/mini-app/admin/logo/upload", body);
+		const logoURL = String(response?.data?.url || "").trim();
+		if (!logoURL) throw new Error("Link-Bot не вернул адрес логотипа");
+		state.adminSettingsDraft.content.logoUrl = logoURL;
+		state.adminSettingsDirty = true;
+		state.adminBusy = "";
+		render({ preserveScroll: true });
+		showToast("Логотип загружен. Нажмите «Сохранить».", "success");
+	} catch (error) {
+		state.adminBusy = "";
+		render({ preserveScroll: true });
+		showToast(error?.message || "Не удалось загрузить логотип", "danger");
+	}
+}
+
 function syncAdminSaveBarDOM() {
-	const busy = state.adminBusy === "save-settings";
-	const status = state.adminSettingsDirty
+	const saving = state.adminBusy === "save-settings";
+	const busy = Boolean(state.adminBusy);
+	const status = state.adminBusy === "upload-logo"
+		? localizedText("Загружаем логотип...", "Uploading logo...", "در حال بارگذاری لوگو...")
+		: state.adminSettingsDirty
 		? localizedText("Есть несохранённые изменения", "Unsaved changes", "تغییرات ذخیره‌نشده")
 		: localizedText("Все изменения сохранены", "All changes saved", "همه تغییرات ذخیره شد");
 	app.querySelectorAll(".admin-save-bar").forEach((bar) => {
@@ -6809,7 +6958,7 @@ function syncAdminSaveBarDOM() {
 		if (label) label.textContent = status;
 		if (!button) return;
 		button.disabled = busy || !state.adminSettingsDirty;
-		button.innerHTML = `${icon(busy ? "refresh" : "check")}<span>${localizedText("Сохранить", "Save", "ذخیره")}</span>`;
+		button.innerHTML = `${icon(saving ? "refresh" : "check")}<span>${localizedText("Сохранить", "Save", "ذخیره")}</span>`;
 	});
 }
 

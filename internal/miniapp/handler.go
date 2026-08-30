@@ -73,6 +73,7 @@ type Handler struct {
 	subscriptionService    *notification.SubscriptionService
 	integrationSettings    *integrations.Service
 	translation            *translation.Manager
+	logoUploadDir          string
 }
 
 func lockPromoPurchase(code string) func() {
@@ -585,6 +586,7 @@ func NewHandler(
 		errorReporter:          errorReporter,
 		integrationSettings:    integrationSettings,
 		translation:            translationManager,
+		logoUploadDir:          config.MediaUploadDir(),
 	}
 }
 
@@ -596,6 +598,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/mini-app/open-app", h.serveAppOpener)
 	mux.HandleFunc("/mini-app/payment-return", h.handlePaymentReturnRedirect)
 	mux.HandleFunc("/mini-app/google/callback", h.serveGoogleLinkCallback)
+	mux.HandleFunc("/mini-app/uploads/", h.serveUploadedLogo)
 	mux.HandleFunc("/mini-app/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/mini-app/" {
 			h.serveIndex(w, r)
@@ -634,6 +637,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/target", h.withSession(h.handleAdminSubscriptionTarget))
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/rebind", h.withSession(h.handleAdminRebindSubscription))
 	mux.HandleFunc("/api/mini-app/admin/settings/update", h.withSession(h.handleAdminSettingsUpdate))
+	mux.HandleFunc("/api/mini-app/admin/logo/upload", h.withSession(h.handleAdminLogoUpload))
 	mux.HandleFunc("/api/mini-app/admin/reminders/test", h.withSession(h.handleAdminReminderTest))
 	mux.HandleFunc("/api/mini-app/admin/success/test", h.withSession(h.handleAdminSuccessTest))
 	mux.HandleFunc("/api/mini-app/admin/payment-notifications/test", h.withSession(h.handleAdminPaymentNotificationTest))

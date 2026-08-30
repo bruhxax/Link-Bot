@@ -58,6 +58,7 @@ type config struct {
 	referralTrafficLimit                                      int
 	miniApp                                                   string
 	publicBaseURL                                             string
+	mediaUploadDir                                            string
 	enableAutoPayment                                         bool
 	paymentMethodDemoEnabled                                  bool
 	paymentMethodDemoTitle                                    string
@@ -143,6 +144,10 @@ func versionedMiniAppURL(rawURL, version string) string {
 
 func PublicBaseURL() string {
 	return conf.publicBaseURL
+}
+
+func MediaUploadDir() string {
+	return conf.mediaUploadDir
 }
 
 func EnableAutoPayment() bool {
@@ -555,6 +560,7 @@ func InitConfig() {
 	if conf.miniApp == "" && conf.publicBaseURL != "" {
 		conf.miniApp = conf.publicBaseURL + "/mini-app/"
 	}
+	conf.mediaUploadDir = strings.TrimSpace(envStringDefault("MEDIA_UPLOAD_DIR", "/uploads"))
 
 	conf.remnawaveTag = envStringDefault("REMNAWAVE_TAG", "")
 

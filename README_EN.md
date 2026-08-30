@@ -184,6 +184,14 @@ The browser dashboard uses the new **Log In With Telegram (OIDC)** flow: Telegra
 
 ---
 
+## 🪪 Mini App logo
+
+Open **Admin → Content → Main menu**, click **Upload file**, select a PNG, JPG, or WebP image up to 2 MB, and save the settings. Link-Bot stores the image in a persistent Docker volume and inserts the correct URL automatically, so there is no need to copy a file to the server manually.
+
+A square image of at least 256×256 px with a transparent background works best. An external HTTPS URL is still available under the advanced option. If that URL stops working, the Mini App shows the default logo instead of an empty space.
+
+---
+
 ## 🖼️ Custom banners
 
 Ready-made banners are not included in the repository. Upload your own files to the required directories:

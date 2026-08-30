@@ -510,6 +510,27 @@ select:focus-visible {
 .admin-banner-field .admin-field { margin-bottom: 5px; }
 .admin-banner-field small { display: block; color: var(--muted); font-size: 9px; line-height: 1.45; }
 .admin-banner-field code { color: var(--text); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+.admin-logo-field { margin: 4px 0 14px; padding: 14px 0; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
+.admin-logo-field__main { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 14px; align-items: center; }
+.admin-logo-field__preview { width: 88px; aspect-ratio: 1; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--control-bg); }
+.admin-logo-field__preview img { width: 100%; height: 100%; padding: 8px; object-fit: contain; }
+.admin-logo-field__body { min-width: 0; }
+.admin-logo-field__body > strong { display: block; color: var(--text); font-size: 12px; }
+.admin-logo-field__body > p { margin: 4px 0 10px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.admin-logo-field__actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.admin-logo-field__actions > :where(label, button) { min-height: 38px; padding: 8px 11px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--line); border-radius: 6px; color: var(--button-text); background: var(--control-bg); font-size: 10px; font-weight: 800; cursor: pointer; }
+.admin-logo-field__actions > :where(label, button):focus-visible,
+.admin-logo-field__upload:focus-within { outline: 2px solid var(--text); outline-offset: 2px; }
+.admin-logo-field__actions > :where(label, button) svg { width: 17px; height: 17px; flex: 0 0 auto; }
+.admin-logo-field__actions > :where(label, button).is-busy,
+.admin-logo-field__actions > button:disabled { opacity: .48; cursor: not-allowed; }
+.admin-logo-field__help { margin: 10px 0 0; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.admin-logo-field__advanced { margin-top: 10px; border-top: 1px solid var(--line-soft); }
+.admin-logo-field__advanced summary { min-height: 36px; padding: 11px 0; color: var(--muted); font-size: 10px; font-weight: 700; cursor: pointer; }
+.admin-logo-field__advanced summary:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.admin-logo-field__advanced[open] { padding-bottom: 2px; }
+.admin-logo-field__status { margin-top: 8px; color: var(--success); font-size: 9px; line-height: 1.4; }
+.admin-logo-field__status.is-error { color: var(--danger); }
 .admin-telegram-button { padding: 13px 0; border-top: 1px solid var(--line-soft); }
 .admin-telegram-button:first-of-type { padding-top: 0; border-top: 0; }
 .admin-telegram-button h4 { margin: 0 0 9px; color: var(--text); font-size: 11px; }
@@ -851,7 +872,10 @@ select:focus-visible {
 .menu-row, .profile-row { color: var(--button-text, var(--text)); }
 
 @media (max-width: 420px) {
-  .admin-editor__grid--three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.admin-logo-field__main { grid-template-columns: 72px minmax(0, 1fr); gap: 11px; align-items: start; }
+	.admin-logo-field__preview { width: 72px; }
+	.admin-logo-field__actions > :where(label, button) { min-height: 42px; }
+	.admin-editor__grid--three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	.admin-telegram-button .admin-editor__grid--two { grid-template-columns: 1fr; }
 	.admin-payment-notification .admin-editor__section-head { align-items: stretch; flex-direction: column; }
 	.admin-payment-notification .admin-reminder-test { width: 100%; }
