@@ -637,7 +637,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/target", h.withSession(h.handleAdminSubscriptionTarget))
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/rebind", h.withSession(h.handleAdminRebindSubscription))
 	mux.HandleFunc("/api/mini-app/admin/settings/update", h.withSession(h.handleAdminSettingsUpdate))
-	mux.HandleFunc("/api/mini-app/admin/logo/upload", h.withSession(h.handleAdminLogoUpload))
+	mux.HandleFunc("/api/mini-app/admin/logo/upload", h.withSession(h.handleAdminLogoUpload, "multipart/form-data"))
 	mux.HandleFunc("/api/mini-app/admin/reminders/test", h.withSession(h.handleAdminReminderTest))
 	mux.HandleFunc("/api/mini-app/admin/success/test", h.withSession(h.handleAdminSuccessTest))
 	mux.HandleFunc("/api/mini-app/admin/payment-notifications/test", h.withSession(h.handleAdminPaymentNotificationTest))
@@ -749,7 +749,15 @@ func staticAssetVersion(staticFS fs.FS) (string, error) {
 	return fmt.Sprintf("%x", hasher.Sum(nil)[:8]), nil
 }
 
-func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *session, *database.Customer)) http.HandlerFunc {
+func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *session, *database.Customer), acceptedContentTypes ...string) http.HandlerFunc {
+	if len(acceptedContentTypes) == 0 {
+		acceptedContentTypes = []string{"application/json"}
+	}
+	contentTypeError := "JSON required"
+	if len(acceptedContentTypes) == 1 && strings.EqualFold(acceptedContentTypes[0], "multipart/form-data") {
+		contentTypeError = "Multipart form data required"
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		setAPIHeaders(w)
 
@@ -757,8 +765,8 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 			h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
 			return
 		}
-		if contentType := strings.TrimSpace(r.Header.Get("Content-Type")); contentType != "" && !strings.HasPrefix(strings.ToLower(contentType), "application/json") {
-			h.writeError(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "JSON required")
+		if contentType := strings.TrimSpace(r.Header.Get("Content-Type")); contentType != "" && !hasAcceptedContentType(contentType, acceptedContentTypes) {
+			h.writeError(w, http.StatusUnsupportedMediaType, "unsupported_media_type", contentTypeError)
 			return
 		}
 
@@ -863,6 +871,16 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 
 		next(w, r, sess, customer)
 	}
+}
+
+func hasAcceptedContentType(contentType string, acceptedContentTypes []string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(contentType))
+	for _, accepted := range acceptedContentTypes {
+		if strings.HasPrefix(normalized, strings.ToLower(strings.TrimSpace(accepted))) {
+			return true
+		}
+	}
+	return false
 }
 
 func extractAuthData(r *http.Request) (string, string, string, string, error) {

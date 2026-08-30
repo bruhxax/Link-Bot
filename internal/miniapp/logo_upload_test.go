@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io/fs"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"link-bot/internal/database"
 )
 
 func testLogoPNG(t *testing.T, width, height int) []byte {
@@ -125,6 +128,59 @@ func TestAdminLogoUploadAndPublicServing(t *testing.T) {
 	}
 	if !bytes.Equal(serveRecorder.Body.Bytes(), data) {
 		t.Fatal("served logo bytes differ from upload")
+	}
+}
+
+func TestAdminLogoUploadSessionAcceptsMultipartRequest(t *testing.T) {
+	initMiniAppTestConfig()
+	staticFS, err := fs.Sub(embeddedStatic, "static")
+	if err != nil {
+		t.Fatalf("open embedded mini app files: %v", err)
+	}
+	handler := &Handler{logoUploadDir: t.TempDir(), staticFS: staticFS}
+	mux := http.NewServeMux()
+	handler.Register(mux)
+
+	var requestBody bytes.Buffer
+	writer := multipart.NewWriter(&requestBody)
+	part, err := writer.CreateFormFile("logo", "brand.png")
+	if err != nil {
+		t.Fatalf("create logo form field: %v", err)
+	}
+	if _, err := part.Write(testLogoPNG(t, 64, 64)); err != nil {
+		t.Fatalf("write logo form field: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/api/mini-app/admin/logo/upload", &requestBody)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	request.Header.Set("X-Telegram-Init-Data", "invalid-test-init-data")
+	recorder := httptest.NewRecorder()
+
+	mux.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("multipart request status = %d, body = %s; want auth validation to run", recorder.Code, recorder.Body.String())
+	}
+	if strings.Contains(recorder.Body.String(), "JSON required") {
+		t.Fatalf("multipart request was rejected as JSON: %s", recorder.Body.String())
+	}
+}
+
+func TestSessionJSONRouteStillRejectsMultipartRequest(t *testing.T) {
+	handler := &Handler{}
+	request := httptest.NewRequest(http.MethodPost, "/api/mini-app/bootstrap", strings.NewReader("body"))
+	request.Header.Set("Content-Type", "multipart/form-data; boundary=test")
+	recorder := httptest.NewRecorder()
+
+	handler.withSession(func(http.ResponseWriter, *http.Request, *session, *database.Customer) {
+		t.Fatal("JSON route handler should not be called")
+	}).ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("multipart request status = %d, want %d", recorder.Code, http.StatusUnsupportedMediaType)
 	}
 }
 
