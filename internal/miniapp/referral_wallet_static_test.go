@@ -39,4 +39,7 @@ func TestReferralWalletUIIncludesSettingsPaymentsAndWithdrawals(t *testing.T) {
 			t.Fatalf("app.js still contains removed reward card marker %q", removed)
 		}
 	}
+	if !strings.Contains(string(styles), ".wallet-withdrawal__fields { display: grid; grid-template-columns: 1fr;") {
+		t.Fatal("withdrawal inputs must use one full-width column")
+	}
 }

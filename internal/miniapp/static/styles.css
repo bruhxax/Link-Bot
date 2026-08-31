@@ -9195,7 +9195,7 @@ body.has-open-modal .admin-save-bar {
 .wallet-withdrawal[open] .wallet-withdrawal__summary-action .is-open { display: inline; }
 .wallet-withdrawal[open] .wallet-withdrawal__summary-action::after { transform: rotate(225deg) translate(-1px, -1px); }
 .wallet-withdrawal__form { padding: 12px 14px 14px; display: grid; gap: 10px; }
-.wallet-withdrawal__fields { display: grid; grid-template-columns: minmax(90px, .55fr) minmax(0, 1.45fr); gap: 8px; }
+.wallet-withdrawal__fields { display: grid; grid-template-columns: 1fr; gap: 9px; }
 .wallet-withdrawal label { min-width: 0; display: grid; align-content: start; gap: 6px; color: var(--muted); font-size: 9px; font-weight: 750; }
 .wallet-withdrawal :where(input, textarea) { width: 100%; min-height: 40px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--control-bg); font: inherit; font-size: 11px; resize: vertical; }
 .wallet-withdrawal textarea { min-height: 58px; }
@@ -9235,7 +9235,6 @@ body.has-open-modal .admin-save-bar {
   .referral-metric strong { font-size: 14px; }
   .referral-metric--balance strong { font-size: 11px; }
   .referral-metric span { font-size: 8px; }
-  .wallet-withdrawal__fields { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
