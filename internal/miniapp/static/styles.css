@@ -9171,62 +9171,36 @@ body.has-open-modal .admin-save-bar {
   }
 }
 
-/* Compact profile subpages. */
-.referral-card {
-  margin-bottom: 8px;
-  padding: 12px 14px;
-  border-radius: 8px;
-}
-
-.referral-card--actions .action-stack {
-  gap: 7px;
-}
-
-.referral-card--actions .btn {
-  min-height: 40px;
-}
-
-.referral-card--stats .info-row {
-  padding-top: 8px;
-}
-
-.referral-card--stats .info-row:first-child {
-  padding-top: 0;
-}
-
-.referral-card--stats .info-row + .info-row {
-  margin-top: 8px;
-  border-top: 1px solid var(--line-soft);
-}
-
-.referral-card--info .empty-state {
-  padding: 18px 10px;
-}
-
-.referral-card--info .empty-state__icon {
-  margin-bottom: 8px;
-}
-
-.referral-balance { margin-bottom: 8px; padding: 18px 2px 14px; display: grid; gap: 4px; border-bottom: 1px solid var(--line); }
-.referral-balance > span { color: var(--muted); font-size: 10px; font-weight: 750; text-transform: uppercase; letter-spacing: .08em; }
-.referral-balance > strong { font-size: clamp(28px, 9vw, 38px); line-height: 1; letter-spacing: -.04em; }
-.referral-balance > small { max-width: 360px; color: var(--muted); font-size: 10px; line-height: 1.45; }
-.referral-reward-list { margin-bottom: 8px; display: grid; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-.referral-reward-rule { min-width: 0; padding: 13px 14px; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: start; }
-.referral-reward-rule + .referral-reward-rule { border-top: 1px solid var(--line-soft); }
-.referral-reward-rule__icon { width: 34px; height: 34px; display: grid; place-items: center; color: var(--icon-color); }
-.referral-reward-rule__icon svg { width: 19px; height: 19px; }
-.referral-reward-rule > div { min-width: 0; display: grid; gap: 3px; }
-.referral-reward-rule strong { font-size: 11px; }
-.referral-reward-rule span { color: var(--text); font-size: 10px; overflow-wrap: anywhere; }
-.referral-reward-rule small { color: var(--muted); font-size: 9px; }
-.wallet-withdrawal { margin-bottom: 8px; padding: 14px; display: grid; gap: 11px; }
-.wallet-withdrawal > div { display: grid; gap: 4px; }
-.wallet-withdrawal > div strong { font-size: 12px; }
-.wallet-withdrawal > div small { color: var(--muted); font-size: 9px; line-height: 1.45; }
-.wallet-withdrawal label { display: grid; gap: 6px; color: var(--muted); font-size: 9px; font-weight: 750; }
-.wallet-withdrawal :where(input, textarea) { width: 100%; min-height: 40px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--control-bg); font: inherit; font-size: 11px; resize: vertical; }
-.wallet-withdrawal :where(input, textarea):focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+/* Compact referral wallet and statistics. */
+.referral-metrics { margin-bottom: 8px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.referral-metric { min-width: 0; min-height: 58px; padding: 10px 5px 9px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; text-align: center; }
+.referral-metric + .referral-metric { border-inline-start: 1px solid var(--line-soft); }
+.referral-metric strong { max-width: 100%; overflow: hidden; color: var(--text); font-size: clamp(15px, 4.8vw, 20px); line-height: 1; letter-spacing: -.03em; text-overflow: ellipsis; white-space: nowrap; }
+.referral-metric--balance strong { font-size: clamp(12px, 3.8vw, 17px); }
+.referral-metric span { max-width: 100%; overflow: hidden; color: var(--muted); font-size: clamp(8px, 2.5vw, 10px); font-weight: 700; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
+.referral-share-actions { margin-bottom: 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.referral-share-actions .btn { min-height: 42px; padding: 9px 12px; border-radius: 8px; }
+.referral-share-actions .btn svg { width: 16px; height: 16px; }
+.wallet-withdrawal { margin-bottom: 8px; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.wallet-withdrawal summary { min-height: 54px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 14px; cursor: pointer; list-style: none; }
+.wallet-withdrawal summary::-webkit-details-marker { display: none; }
+.wallet-withdrawal summary > span:first-child { min-width: 0; display: grid; gap: 3px; }
+.wallet-withdrawal summary strong { font-size: 11px; }
+.wallet-withdrawal summary small { color: var(--muted); font-size: 9px; }
+.wallet-withdrawal__summary-action { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 9px; font-weight: 750; }
+.wallet-withdrawal__summary-action .is-open { display: none; }
+.wallet-withdrawal__summary-action::after { width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; content: ""; transform: rotate(45deg) translateY(-2px); transition: transform 160ms ease; }
+.wallet-withdrawal[open] summary { border-bottom: 1px solid var(--line-soft); }
+.wallet-withdrawal[open] .wallet-withdrawal__summary-action .is-closed { display: none; }
+.wallet-withdrawal[open] .wallet-withdrawal__summary-action .is-open { display: inline; }
+.wallet-withdrawal[open] .wallet-withdrawal__summary-action::after { transform: rotate(225deg) translate(-1px, -1px); }
+.wallet-withdrawal__form { padding: 12px 14px 14px; display: grid; gap: 10px; }
+.wallet-withdrawal__fields { display: grid; grid-template-columns: minmax(90px, .55fr) minmax(0, 1.45fr); gap: 8px; }
+.wallet-withdrawal label { min-width: 0; display: grid; align-content: start; gap: 6px; color: var(--muted); font-size: 9px; font-weight: 750; }
+.wallet-withdrawal :where(input, textarea) { width: 100%; min-height: 40px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--control-bg); font: inherit; font-size: 11px; resize: vertical; }
+.wallet-withdrawal textarea { min-height: 58px; }
+.wallet-withdrawal .btn { min-height: 40px; border-radius: 7px; }
+.wallet-withdrawal summary:focus-visible, .wallet-withdrawal :where(input, textarea):focus-visible { outline: 2px solid var(--text); outline-offset: -3px; }
 .wallet-history { margin-bottom: 8px; padding: 12px 14px; }
 .wallet-history h2 { margin: 0 0 7px; color: var(--muted); font-size: 10px; text-transform: uppercase; }
 .wallet-history__row { padding: 9px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line-soft); }
@@ -9254,6 +9228,18 @@ body.has-open-modal .admin-save-bar {
   .admin-withdrawal { grid-template-columns: 1fr; }
   .admin-withdrawal__actions { display: grid; grid-template-columns: 1fr 1fr; }
   .admin-withdrawal__actions button { justify-content: center; }
+}
+
+@media (max-width: 340px) {
+  .referral-metric { padding-inline: 3px; }
+  .referral-metric strong { font-size: 14px; }
+  .referral-metric--balance strong { font-size: 11px; }
+  .referral-metric span { font-size: 8px; }
+  .wallet-withdrawal__fields { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wallet-withdrawal__summary-action::after { transition: none; }
 }
 
 /* Theme mappings are declared late in this file, so server filter states live here too. */

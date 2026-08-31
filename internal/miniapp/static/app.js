@@ -4869,28 +4869,21 @@ function renderReferralsPage() {
 	const wallet = state.data?.wallet || {};
 	const transactions = Array.isArray(wallet.transactions) ? wallet.transactions.slice(0, 6) : [];
 	const withdrawals = Array.isArray(wallet.withdrawals) ? wallet.withdrawals.slice(0, 4) : [];
+	const keepWithdrawalOpen = Boolean(String(state.walletWithdrawalAmount || "").trim() || String(state.walletPayoutDetails || "").trim());
   return `
     <section class="page ${pageClass("referrals")}" id="page-referrals">
-			<div class="referral-balance" aria-label="${escapeAttribute(localizedText("Баланс наград", "Rewards balance", "موجودی پاداش"))}"><span>${localizedText("Баланс", "Balance", "موجودی")}</span><strong>${escapeHtml(formatMoneyCents(wallet.balanceCents || 0))}</strong><small>${localizedText("Можно оплатить тариф, продление или дополнительные устройства", "Use it for plans, renewals, or extra devices", "برای تعرفه، تمدید یا دستگاه‌های اضافی")}</small></div>
-      <div class="card referral-card referral-card--actions"><div class="action-stack action-stack--compact"><button class="btn" type="button" data-action="share-referral">${icon("share")}${copy.shareTelegram}</button><button class="btn" type="button" data-action="copy-referral">${icon("copy")}${copy.copyReferral}</button></div></div>
-			<div class="card referral-card referral-card--stats"><div class="info-row"><span>${localizedText("Приглашено", "Invited", "دعوت‌شده")}</span><span class="info-row__value">${formatNumber(referral.count || 0, state.locale)}</span></div><div class="info-row"><span>${localizedText("Активировали пробный", "Activated trial", "دوره آزمایشی فعال")}</span><span class="info-row__value">${formatNumber(referral.trialCount || 0, state.locale)}</span></div><div class="info-row"><span>${localizedText("Покупок по приглашению", "Referral purchases", "خرید با دعوت")}</span><span class="info-row__value">${formatNumber(referral.purchaseCount || 0, state.locale)}</span></div></div>
-			<div class="referral-reward-list">
-				${renderReferralRewardRule(localizedText("За пробный период", "For trial activation", "برای دوره آزمایشی"), referral.trialReward)}
-				${renderReferralRewardRule(localizedText("За покупку подписки", "For a subscription purchase", "برای خرید اشتراک"), referral.purchaseReward, referral.rewardEveryPurchase)}
+			<div class="referral-metrics" role="group" aria-label="${escapeAttribute(localizedText("Статистика реферальной программы", "Referral statistics", "آمار دعوت"))}">
+				<div class="referral-metric referral-metric--balance"><strong title="${escapeAttribute(formatMoneyCents(wallet.balanceCents || 0))}">${escapeHtml(formatMoneyCents(wallet.balanceCents || 0))}</strong><span>${localizedText("Баланс", "Balance", "موجودی")}</span></div>
+				<div class="referral-metric"><strong>${formatNumber(referral.count || 0, state.locale)}</strong><span>${localizedText("Приглашено", "Invited", "دعوت‌شده")}</span></div>
+				<div class="referral-metric"><strong>${formatNumber(referral.purchaseCount || 0, state.locale)}</strong><span>${localizedText("Купили", "Purchased", "خرید")}</span></div>
+				<div class="referral-metric"><strong>${formatNumber(referral.trialCount || 0, state.locale)}</strong><span>${localizedText("Пробный", "Trials", "آزمایشی")}</span></div>
 			</div>
-			${wallet.withdrawalsEnabled ? `<div class="card wallet-withdrawal"><div><strong>${localizedText("Вывести средства", "Withdraw funds", "برداشت وجه")}</strong><small>${localizedText(`Минимум ${formatMoneyCents(wallet.minimumWithdrawalCents || 0)}. Заявку обработает администратор.`, `Minimum ${formatMoneyCents(wallet.minimumWithdrawalCents || 0)}. An administrator reviews the request.`, `حداقل ${formatMoneyCents(wallet.minimumWithdrawalCents || 0)}. درخواست توسط مدیر بررسی می‌شود.`)}</small></div><label><span>${localizedText("Сумма, ₽", "Amount, RUB", "مبلغ، روبل")}</span><input type="number" min="${Math.max(0, Number(wallet.minimumWithdrawalCents || 0) / 100)}" step="0.01" inputmode="decimal" data-input="wallet-withdrawal-amount" value="${escapeAttribute(state.walletWithdrawalAmount)}"></label><label><span>${localizedText("Реквизиты", "Payout details", "اطلاعات پرداخت")}</span><textarea rows="3" maxlength="1000" data-input="wallet-payout-details" placeholder="${escapeAttribute(localizedText("Карта, СБП или другой способ связи", "Card, bank transfer, or contact details", "کارت، انتقال بانکی یا راه ارتباطی"))}">${escapeHtml(state.walletPayoutDetails)}</textarea></label><button class="btn" type="button" data-action="wallet-withdraw" ${state.walletBusy ? "disabled" : ""}>${icon(state.walletBusy ? "refresh" : "wallet")} ${localizedText("Создать заявку", "Create request", "ایجاد درخواست")}</button></div>` : ""}
+			<div class="referral-share-actions" aria-label="${escapeAttribute(localizedText("Пригласить пользователя", "Invite a user", "دعوت کاربر"))}"><button class="btn" type="button" data-action="share-referral">${icon("share")}<span>${copy.shareTelegram}</span></button><button class="btn" type="button" data-action="copy-referral">${icon("copy")}<span>${copy.copyReferral}</span></button></div>
+			${wallet.withdrawalsEnabled ? `<details class="wallet-withdrawal" ${keepWithdrawalOpen ? "open" : ""}><summary><span><strong>${localizedText("Вывести средства", "Withdraw funds", "برداشت وجه")}</strong><small>${localizedText(`Минимум ${formatMoneyCents(wallet.minimumWithdrawalCents || 0)}`, `Minimum ${formatMoneyCents(wallet.minimumWithdrawalCents || 0)}`, `حداقل ${formatMoneyCents(wallet.minimumWithdrawalCents || 0)}`)}</small></span><span class="wallet-withdrawal__summary-action"><span class="is-closed">${localizedText("Открыть", "Open", "باز کردن")}</span><span class="is-open">${localizedText("Скрыть", "Close", "بستن")}</span></span></summary><div class="wallet-withdrawal__form"><div class="wallet-withdrawal__fields"><label><span>${localizedText("Сумма, ₽", "Amount, RUB", "مبلغ، روبل")}</span><input type="number" min="${Math.max(0, Number(wallet.minimumWithdrawalCents || 0) / 100)}" step="0.01" inputmode="decimal" data-input="wallet-withdrawal-amount" value="${escapeAttribute(state.walletWithdrawalAmount)}"></label><label><span>${localizedText("Реквизиты", "Payout details", "اطلاعات پرداخت")}</span><textarea rows="2" maxlength="1000" data-input="wallet-payout-details" placeholder="${escapeAttribute(localizedText("Карта, СБП или контакт", "Card, bank transfer, or contact", "کارت، انتقال یا راه ارتباطی"))}">${escapeHtml(state.walletPayoutDetails)}</textarea></label></div><button class="btn" type="button" data-action="wallet-withdraw" ${state.walletBusy ? "disabled" : ""}>${icon(state.walletBusy ? "refresh" : "wallet")}<span>${localizedText("Создать заявку", "Create request", "ایجاد درخواست")}</span></button></div></details>` : ""}
 			${transactions.length ? `<section class="card wallet-history"><h2>${localizedText("История баланса", "Balance history", "تاریخچه موجودی")}</h2>${transactions.map(renderWalletTransaction).join("")}</section>` : ""}
 			${withdrawals.length ? `<section class="card wallet-history"><h2>${localizedText("Заявки на вывод", "Withdrawal requests", "درخواست‌های برداشت")}</h2>${withdrawals.map(renderWalletWithdrawal).join("")}</section>` : ""}
     </section>
   `;
-}
-
-function renderReferralRewardRule(title, reward, everyPurchase = false) {
-	const value = formatReferralRewardSettings(reward, state.locale);
-	const hint = everyPurchase
-		? localizedText("За каждую покупку приглашённого", "For every invited purchase", "برای هر خرید دعوت‌شده")
-		: localizedText("Один раз за пользователя", "Once per invited user", "یک بار برای هر کاربر");
-	return `<article class="referral-reward-rule"><span class="referral-reward-rule__icon">${icon("gift")}</span><div><strong>${escapeHtml(title)}</strong><span>${escapeHtml(value)}</span><small>${escapeHtml(hint)}</small></div></article>`;
 }
 
 function renderWalletTransaction(item) {
@@ -10687,20 +10680,6 @@ function formatReferralRewardLabel(referral, locale) {
   }
 
   return parts.length ? parts.join(" · ") : "—";
-}
-
-function formatReferralRewardSettings(reward, locale) {
-	const value = reward || {};
-	const parts = [];
-	const days = Math.max(0, Number(value.days || 0));
-	const trafficGB = Math.max(0, Number(value.trafficGb || 0));
-	if (days > 0) {
-		parts.push(locale === "en" ? `+${formatNumber(days, locale)} day${days === 1 ? "" : "s"}` : `+${formatNumber(days, locale)} ${pluralizeRu(days, ["день", "дня", "дней"])}`);
-	}
-	if (trafficGB > 0) parts.push(`+${formatNumber(trafficGB, locale)} GB`);
-	if (value.balanceMode === "fixed" && Number(value.balanceRub || 0) > 0) parts.push(`+${formatCurrency(Number(value.balanceRub), locale)}`);
-	if (value.balanceMode === "percent" && Number(value.balancePercent || 0) > 0) parts.push(`+${formatNumber(Number(value.balancePercent), locale)}% ${localizedText("от покупки", "of purchase", "از خرید")}`);
-	return parts.length ? parts.join(" · ") : localizedText("Награда не настроена", "No reward configured", "پاداش تنظیم نشده");
 }
 
 function formatMoneyCents(value) {
