@@ -47,9 +47,10 @@ import (
 var embeddedStatic embed.FS
 
 var (
-	promoPurchaseLocks          sync.Map
-	adminSubscriptionRebindLock sync.Mutex
-	telegramGiftUsernamePattern = regexp.MustCompile(`^[a-z0-9_]{5,32}$`)
+	promoPurchaseLocks            sync.Map
+	adminSubscriptionRebindLock   sync.Mutex
+	telegramGiftUsernamePattern   = regexp.MustCompile(`^[a-z0-9_]{5,32}$`)
+	trialDeviceFingerprintPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{32,128}$`)
 )
 
 type Handler struct {
@@ -813,7 +814,7 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 		var customer *database.Customer
 		if strings.TrimSpace(googleToken) != "" && strings.TrimSpace(initData) == "" && strings.TrimSpace(loginData) == "" && strings.TrimSpace(telegramToken) == "" {
 			if h.runtimeSettings != nil && !h.runtimeSettings.FeatureEnabled("google") {
-				h.writeError(w, http.StatusServiceUnavailable, "feature_disabled", "Gmail login is temporarily unavailable")
+				h.writeError(w, http.StatusServiceUnavailable, "feature_disabled", "Google login is temporarily unavailable")
 				return
 			}
 			sess, customer, err = h.sessionFromGoogleLogin(r.Context(), googleToken)
@@ -846,11 +847,15 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 		if err != nil {
 			slog.Warn("mini app: auth validation failed", "error", err, "path", r.URL.Path)
 			if errors.Is(err, errGoogleAuthNotConfigured) {
-				h.writeError(w, http.StatusServiceUnavailable, "google_not_configured", "Gmail login is not configured")
+				h.writeError(w, http.StatusServiceUnavailable, "google_not_configured", "Google login is not configured")
 				return
 			}
-			if errors.Is(err, errGoogleAuthNotLinked) {
-				h.writeError(w, http.StatusUnauthorized, "google_not_linked", "Link Gmail in the mini app first")
+			if errors.Is(err, errGoogleAlreadyLinked) {
+				h.writeError(w, http.StatusConflict, "google_already_linked", "This Google account is already linked")
+				return
+			}
+			if errors.Is(err, errGoogleCustomerSync) {
+				h.writeError(w, http.StatusInternalServerError, "google_login_failed", "Could not create the Google profile")
 				return
 			}
 			h.writeError(w, http.StatusUnauthorized, "unauthorized", "Authorize with Telegram")
@@ -957,18 +962,12 @@ func (h *Handler) sessionFromGoogleLogin(ctx context.Context, idToken string) (*
 		return nil, nil, err
 	}
 
-	customer, err := h.customerRepository.FindByGoogleSubject(ctx, identity.Subject)
+	customer, err := h.customerRepository.FindOrCreateByGoogleIdentity(ctx, identity.Subject, identity.Email, identity.EmailVerified, h.language())
 	if err != nil {
-		return nil, nil, err
-	}
-	if customer == nil {
-		customer, err = h.customerRepository.FindByGoogleEmail(ctx, identity.Email)
-		if err != nil {
-			return nil, nil, err
+		if errors.Is(err, database.ErrGoogleIdentityConflict) {
+			return nil, nil, errGoogleAlreadyLinked
 		}
-	}
-	if customer == nil {
-		return nil, nil, errGoogleAuthNotLinked
+		return nil, nil, fmt.Errorf("%w: %v", errGoogleCustomerSync, err)
 	}
 
 	return &session{
@@ -1282,11 +1281,45 @@ func (h *Handler) handleActivateTrial(w http.ResponseWriter, r *http.Request, se
 		return
 	}
 
+	browserDeviceHash, err := trialBrowserDeviceHash(r)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "trial_device_required", "Не удалось подтвердить устройство")
+		return
+	}
+	if customer.TelegramIDIsSynthetic && browserDeviceHash == "" {
+		h.writeError(w, http.StatusBadRequest, "trial_device_required", "Для пробного периода требуется подтверждение устройства")
+		return
+	}
+	if err = h.customerRepository.ReserveTrialActivation(r.Context(), customer.ID, sess.GoogleSubject, browserDeviceHash); err != nil {
+		if errors.Is(err, database.ErrTrialIdentityAlreadyClaimed) {
+			h.writeError(w, http.StatusConflict, "trial_identity_used", "Пробный период уже использован этим аккаунтом или устройством")
+			return
+		}
+		slog.Error("mini app: reserve trial activation", "error", err, "customerId", utils.MaskHalfInt64(customer.ID))
+		h.writeError(w, http.StatusInternalServerError, "trial_failed", "Не удалось проверить пробный период")
+		return
+	}
+	trialGranted := false
+	defer func() {
+		if trialGranted {
+			return
+		}
+		releaseCtx, releaseCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer releaseCancel()
+		if releaseErr := h.customerRepository.ReleaseTrialActivation(releaseCtx, customer.ID); releaseErr != nil {
+			slog.Warn("mini app: release trial activation claim", "error", releaseErr, "customerId", utils.MaskHalfInt64(customer.ID))
+		}
+	}()
+
 	ctxWithProfile := contextWithSessionTelegramProfile(r.Context(), sess)
 	if _, err := h.paymentService.ActivateTrial(ctxWithProfile, sess.User.ID); err != nil {
 		slog.Error("mini app: activate trial", "error", err)
 		h.writeError(w, http.StatusInternalServerError, "trial_failed", "Не удалось активировать пробный период")
 		return
+	}
+	trialGranted = true
+	if err := h.customerRepository.MarkTrialActivationGranted(r.Context(), customer.ID); err != nil {
+		slog.Warn("mini app: mark trial activation claim", "error", err, "customerId", utils.MaskHalfInt64(customer.ID))
 	}
 
 	updatedCustomer, err := h.customerRepository.FindByTelegramId(r.Context(), sess.User.ID)
@@ -1306,6 +1339,21 @@ func (h *Handler) handleActivateTrial(w http.ResponseWriter, r *http.Request, se
 		"message": "Пробный период активирован",
 		"data":    payload,
 	})
+}
+
+func trialBrowserDeviceHash(r *http.Request) (string, error) {
+	if r == nil {
+		return "", nil
+	}
+	raw := strings.TrimSpace(r.Header.Get("X-Client-Device-Fingerprint"))
+	if raw == "" {
+		return "", nil
+	}
+	if !trialDeviceFingerprintPattern.MatchString(raw) {
+		return "", fmt.Errorf("invalid browser device fingerprint")
+	}
+	digest := hmacSHA256([]byte(config.TelegramToken()), []byte("mini-app-trial-device\x00"+raw))
+	return fmt.Sprintf("%x", digest), nil
 }
 
 func (h *Handler) handleCreatePurchase(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
@@ -3449,7 +3497,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		}
 	}
 
-	referralEnabled := settings.Features["referrals"] && (referralRewardConfigured(settings.Referrals.Trial) || referralRewardConfigured(settings.Referrals.Purchase))
+	referralEnabled := !customer.TelegramIDIsSynthetic && settings.Features["referrals"] && (referralRewardConfigured(settings.Referrals.Trial) || referralRewardConfigured(settings.Referrals.Purchase))
 	referralCount, referralTrialCount, referralPurchaseCount := 0, 0, 0
 	if referralEnabled {
 		count, err := h.referralRepository.CountByReferrer(ctx, customer.TelegramID)
@@ -3591,7 +3639,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 			AuthProvider:   fallbackText(sess.Provider, sessionProviderTelegram),
 			GoogleEmail:    customerGoogleEmail(customer),
 			GoogleLinked:   customerGoogleSubject(customer) != "",
-			TelegramLinked: customer.TelegramID > 0,
+			TelegramLinked: !customer.TelegramIDIsSynthetic,
 		},
 		Subscription:  subscriptionData,
 		Subscriptions: buildSubscriptionsPayload(activeSubscription, subscriptions),
@@ -5371,6 +5419,9 @@ func (h *Handler) availablePaymentMethods(ctx context.Context, customer *databas
 		"card":   yookassaEnabled,
 		"crypto": cryptoEnabled,
 		"stars":  h.runtimeFeatureEnabled("stars"),
+	}
+	if customer != nil && customer.TelegramIDIsSynthetic {
+		methods["stars"] = false
 	}
 	referralSettings := runtimeconfig.DefaultSettings().Referrals
 	if h.runtimeSettings != nil {

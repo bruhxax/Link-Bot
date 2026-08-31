@@ -33,7 +33,7 @@ func (h *Handler) verifyRequiredChannelSubscription(ctx context.Context, custome
 	if h.requiredChannelSubscriptionURL() == "" || customer == nil {
 		return true, nil
 	}
-	if h.shouldBypassRequiredChannelSubscription(customer.TelegramID) {
+	if h.shouldBypassRequiredChannelSubscription(customer) {
 		return true, nil
 	}
 	if !force && customer.ChannelSubscriptionVerifiedAt != nil && time.Since(*customer.ChannelSubscriptionVerifiedAt) < 30*time.Minute {
@@ -86,8 +86,11 @@ func (h *Handler) verifyRequiredChannelSubscription(ctx context.Context, custome
 	return true, nil
 }
 
-func (h *Handler) shouldBypassRequiredChannelSubscription(telegramID int64) bool {
-	return telegramID == config.GetAdminTelegramId() || config.GetWhitelistedTelegramIds()[telegramID]
+func (h *Handler) shouldBypassRequiredChannelSubscription(customer *database.Customer) bool {
+	if customer == nil || customer.TelegramIDIsSynthetic {
+		return true
+	}
+	return customer.TelegramID == config.GetAdminTelegramId() || config.GetWhitelistedTelegramIds()[customer.TelegramID]
 }
 
 func (h *Handler) isUserSubscribedToRequiredChannel(ctx context.Context, telegramID int64) (bool, error) {

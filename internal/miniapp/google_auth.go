@@ -13,8 +13,8 @@ import (
 
 var (
 	errGoogleAuthNotConfigured = errors.New("google auth is not configured")
-	errGoogleAuthNotLinked     = errors.New("google account is not linked")
 	errGoogleAlreadyLinked     = errors.New("google account is already linked")
+	errGoogleCustomerSync      = errors.New("google customer sync failed")
 )
 
 type googleIdentity struct {
@@ -63,6 +63,10 @@ func validateGoogleIDToken(ctx context.Context, idToken, clientID string) (*goog
 
 	if aud := stringValue(payload["aud"]); aud != clientID {
 		return nil, fmt.Errorf("google token audience mismatch")
+	}
+	issuer := strings.TrimSpace(stringValue(payload["iss"]))
+	if issuer != "accounts.google.com" && issuer != "https://accounts.google.com" {
+		return nil, fmt.Errorf("google token issuer mismatch")
 	}
 
 	exp, ok := int64Value(payload["exp"])

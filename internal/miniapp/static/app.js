@@ -66,6 +66,7 @@ const STORAGE_KEYS = {
   telegramIDToken: "link-bot-telegram-id-token",
   telegramLogin: "link-bot-telegram-login",
   googleLogin: "link-bot-google-login",
+	browserDeviceSeed: "link-bot-browser-device-seed",
 	notificationRead: "link-bot-notification-read",
 };
 
@@ -79,6 +80,7 @@ let googleLoginPendingMode = "";
 let googleLinkRefreshTimer = null;
 let dashboardHydrationTimer = null;
 let adminLogoPreviewTimer = null;
+let browserDeviceFingerprintPromise = null;
 
 function preventMiniAppZoom() {
   let lastTouchEndAt = 0;
@@ -261,11 +263,11 @@ function loginMethodsLabel() {
 }
 
 function loginMethodsHint() {
-	return localizedText("Telegram и Gmail", "Telegram and Gmail", "Telegram و Gmail");
+	return localizedText("Telegram и Google", "Telegram and Google", "Telegram و Google");
 }
 
 function gmailLabel() {
-  return state.locale === "en" ? "Gmail" : "Gmail";
+  return "Google";
 }
 
 function telegramLabel() {
@@ -329,11 +331,11 @@ function telegramLoginButtonLabel() {
 }
 
 function gmailLoginButtonLabel() {
-	return localizedText("Войти через Gmail", "Sign in with Gmail", "ورود با Gmail");
+	return localizedText("Войти через Google", "Sign in with Google", "ورود با Google");
 }
 
 function gmailLinkButtonLabel() {
-	return localizedText("Привязать Gmail", "Link Gmail", "اتصال Gmail");
+	return localizedText("Привязать Google", "Link Google", "اتصال Google");
 }
 
 function loadTelegramLoginScript() {
@@ -446,25 +448,25 @@ function getGoogleClientID() {
 function googleAuthCopy() {
 	if (state.locale === "fa") {
 		return {
-			loginUnavailable: "ورود با Gmail هنوز تنظیم نشده است",
-			loginFailed: "ورود با Gmail انجام نشد",
-			linked: "Gmail متصل شد",
-			linkFailed: "اتصال Gmail انجام نشد",
+			loginUnavailable: "ورود با Google هنوز تنظیم نشده است",
+			loginFailed: "ورود با Google انجام نشد",
+			linked: "Google متصل شد",
+			linkFailed: "اتصال Google انجام نشد",
 		};
 	}
   if (state.locale === "en") {
     return {
-      loginUnavailable: "Gmail login is not configured yet",
-      loginFailed: "Gmail authorization failed",
-      linked: "Gmail linked",
-      linkFailed: "Could not link Gmail",
+      loginUnavailable: "Google login is not configured yet",
+      loginFailed: "Google authorization failed",
+      linked: "Google linked",
+      linkFailed: "Could not link Google",
     };
   }
   return {
-    loginUnavailable: "\u0412\u0445\u043e\u0434 \u0447\u0435\u0440\u0435\u0437 Gmail \u043f\u043e\u043a\u0430 \u043d\u0435 \u043d\u0430\u0441\u0442\u0440\u043e\u0435\u043d",
-    loginFailed: "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0432\u043e\u0439\u0442\u0438 \u0447\u0435\u0440\u0435\u0437 Gmail",
-    linked: "Gmail \u043f\u0440\u0438\u0432\u044f\u0437\u0430\u043d",
-    linkFailed: "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043f\u0440\u0438\u0432\u044f\u0437\u0430\u0442\u044c Gmail",
+    loginUnavailable: "\u0412\u0445\u043e\u0434 \u0447\u0435\u0440\u0435\u0437 Google \u043f\u043e\u043a\u0430 \u043d\u0435 \u043d\u0430\u0441\u0442\u0440\u043e\u0435\u043d",
+    loginFailed: "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0432\u043e\u0439\u0442\u0438 \u0447\u0435\u0440\u0435\u0437 Google",
+    linked: "Google \u043f\u0440\u0438\u0432\u044f\u0437\u0430\u043d",
+    linkFailed: "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043f\u0440\u0438\u0432\u044f\u0437\u0430\u0442\u044c Google",
   };
 }
 
@@ -586,7 +588,7 @@ async function startGoogleLogin(mode = "login", trigger = null) {
   try {
     await ensureGoogleLoginReady();
     mountGoogleLoginWidgets();
-		showToast(localizedText("Нажмите кнопку Gmail ещё раз", "Tap the Gmail button again", "دکمه Gmail را دوباره بزنید"));
+		showToast(localizedText("Нажмите кнопку Google ещё раз", "Tap the Google button again", "دکمه Google را دوباره بزنید"));
   } catch (error) {
     showToast(error?.message || googleAuthCopy().loginUnavailable, "danger");
   } finally {
@@ -2466,14 +2468,12 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
     state.error = "";
     if (initial) scheduleDashboardHydration();
   } catch (error) {
-    if ((error?.code === "unauthorized" || error?.code === "google_not_linked") && !tg?.initData) {
-      const shouldNotifyGoogleLink = error?.code === "google_not_linked" && Boolean(readGoogleAuth());
+    if (error?.code === "unauthorized" && !tg?.initData) {
       clearBrowserTelegramAuth();
       clearGoogleAuth();
       state.data = null;
       state.subscriptionGate = null;
       state.error = "";
-      if (shouldNotifyGoogleLink) showToast(error.message || mapApiErrorMessage(error.code, error.rawMessage), "danger");
       return;
     }
 
@@ -2505,17 +2505,67 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
   }
 }
 
-function getBrowserAuthHeaders() {
+function browserDeviceSeed() {
+	let seed = readSetting(STORAGE_KEYS.browserDeviceSeed, "");
+	if (/^[A-Za-z0-9_-]{32,128}$/.test(seed)) return seed;
+
+	const bytes = new Uint8Array(24);
+	if (globalThis.crypto?.getRandomValues) {
+		globalThis.crypto.getRandomValues(bytes);
+		seed = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+	} else {
+		seed = `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`.padEnd(32, "0");
+	}
+	writeSetting(STORAGE_KEYS.browserDeviceSeed, seed);
+	return seed;
+}
+
+function fallbackDeviceFingerprint(value) {
+	let hash = 2166136261;
+	for (let index = 0; index < value.length; index += 1) {
+		hash ^= value.charCodeAt(index);
+		hash = Math.imul(hash, 16777619);
+	}
+	const part = (hash >>> 0).toString(16).padStart(8, "0");
+	return part.repeat(8);
+}
+
+async function getBrowserDeviceFingerprint() {
+	if (browserDeviceFingerprintPromise) return browserDeviceFingerprintPromise;
+	browserDeviceFingerprintPromise = (async () => {
+		const deviceMaterial = JSON.stringify({
+			seed: browserDeviceSeed(),
+			userAgent: navigator.userAgent || "",
+			platform: navigator.platform || "",
+			languages: Array.from(navigator.languages || []),
+			timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+			screen: [globalThis.screen?.width || 0, globalThis.screen?.height || 0, globalThis.screen?.colorDepth || 0],
+			pixelRatio: globalThis.devicePixelRatio || 1,
+			hardwareConcurrency: navigator.hardwareConcurrency || 0,
+			deviceMemory: navigator.deviceMemory || 0,
+			maxTouchPoints: navigator.maxTouchPoints || 0,
+		});
+		if (!globalThis.crypto?.subtle || typeof TextEncoder !== "function") return fallbackDeviceFingerprint(deviceMaterial);
+		const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(deviceMaterial));
+		return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
+	})().catch(() => "");
+	return browserDeviceFingerprintPromise;
+}
+
+async function getBrowserAuthHeaders() {
+  const headers = {};
   const telegramIDToken = readBrowserTelegramIDToken();
-  if (telegramIDToken) return { "X-Telegram-ID-Token": telegramIDToken };
+  if (telegramIDToken) headers["X-Telegram-ID-Token"] = telegramIDToken;
 
   const telegramLogin = readBrowserTelegramAuth();
-  if (telegramLogin) return { "X-Telegram-Login-Data": telegramLogin };
+  if (!telegramIDToken && telegramLogin) headers["X-Telegram-Login-Data"] = telegramLogin;
 
   const googleToken = readGoogleAuth();
-  if (googleToken) return { "X-Google-ID-Token": googleToken };
+  if (!telegramIDToken && !telegramLogin && googleToken) headers["X-Google-ID-Token"] = googleToken;
 
-  return {};
+  const deviceFingerprint = await getBrowserDeviceFingerprint();
+  if (deviceFingerprint) headers["X-Client-Device-Fingerprint"] = deviceFingerprint;
+  return headers;
 }
 
 function requestTimeoutForURL(url) {
@@ -2534,7 +2584,7 @@ async function post(url, body, extraHeaders = null) {
       headers: {
         "Content-Type": "application/json",
         "X-Telegram-Init-Data": tg?.initData || "",
-        ...(tg?.initData ? {} : getBrowserAuthHeaders()),
+        ...(tg?.initData ? {} : await getBrowserAuthHeaders()),
         ...(extraHeaders || {}),
       },
       body: JSON.stringify(body || {}),
@@ -2570,7 +2620,7 @@ async function postForm(url, body) {
       method: "POST",
       headers: {
         "X-Telegram-Init-Data": tg?.initData || "",
-        ...(tg?.initData ? {} : getBrowserAuthHeaders()),
+        ...(tg?.initData ? {} : await getBrowserAuthHeaders()),
       },
       body,
       signal: controller.signal,
@@ -2637,8 +2687,10 @@ function mapApiErrorMessage(code, fallback) {
 	subscription_target_pending: localizedText("Сначала завершите или отмените оплату выбранной подписки", "Finish or cancel the selected subscription payment first", "ابتدا پرداخت اشتراک انتخاب‌شده را تکمیل یا لغو کنید"),
 	subscription_rebind_failed: localizedText("Не удалось перепривязать подписку", "Could not rebind the subscription", "انتقال اشتراک انجام نشد"),
     google_not_configured: googleAuthCopy().loginUnavailable,
-	google_not_linked: localizedText("Сначала привяжите Gmail в mini app", "Link Gmail in the mini app first", "ابتدا Gmail را در مینی‌اپ متصل کنید"),
-	google_already_linked: localizedText("Эта Gmail-почта уже привязана к другому аккаунту", "This Gmail is already linked to another account", "این Gmail به حساب دیگری متصل است"),
+	google_already_linked: localizedText("Этот Google-аккаунт уже привязан к другому профилю", "This Google account is already linked to another profile", "این حساب Google به نمایه دیگری متصل است"),
+	google_login_failed: localizedText("Не удалось создать профиль Google", "Could not create the Google profile", "نمایه Google ایجاد نشد"),
+	trial_device_required: localizedText("Не удалось подтвердить устройство для пробного периода", "Could not verify this device for the trial", "تأیید دستگاه برای دوره آزمایشی انجام نشد"),
+	trial_identity_used: localizedText("Пробный период уже использован этим аккаунтом или устройством", "The trial was already used by this account or device", "دوره آزمایشی قبلا توسط این حساب یا دستگاه استفاده شده است"),
     google_invalid: googleAuthCopy().loginFailed,
     google_link_failed: googleAuthCopy().linkFailed,
 	too_many_requests: localizedText("Слишком много запросов, попробуйте чуть позже", "Too many requests, please slow down a bit", "درخواست‌ها بیش از حد است؛ کمی بعد دوباره تلاش کنید"),

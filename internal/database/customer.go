@@ -11,6 +11,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
+	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
@@ -18,6 +19,8 @@ import (
 type CustomerRepository struct {
 	pool *pgxpool.Pool
 }
+
+var ErrGoogleIdentityConflict = errors.New("google identity is already linked")
 
 func NewCustomerRepository(poll *pgxpool.Pool) *CustomerRepository {
 	return &CustomerRepository{pool: poll}
@@ -46,6 +49,7 @@ type Customer struct {
 	GoogleEmail                   *string    `db:"google_email"`
 	GoogleEmailVerified           bool       `db:"google_email_verified"`
 	GoogleLinkedAt                *time.Time `db:"google_linked_at"`
+	TelegramIDIsSynthetic         bool       `db:"telegram_id_is_synthetic"`
 }
 
 var customerSelectColumns = []string{
@@ -71,6 +75,7 @@ var customerSelectColumns = []string{
 	"google_email",
 	"google_email_verified",
 	"google_linked_at",
+	"telegram_id_is_synthetic",
 }
 
 func scanCustomer(scanner interface {
@@ -99,6 +104,7 @@ func scanCustomer(scanner interface {
 		&customer.GoogleEmail,
 		&customer.GoogleEmailVerified,
 		&customer.GoogleLinkedAt,
+		&customer.TelegramIDIsSynthetic,
 	)
 }
 
@@ -401,7 +407,7 @@ func (cr *CustomerRepository) FindOrCreate(ctx context.Context, customer *Custom
 			RETURNING id, telegram_id, telegram_username, expire_at, created_at, subscription_link, language, channel_subscription_verified_at, trial_used, autopay_enabled, autopay_plan_months,
 			          yookasa_payment_method_id, yookasa_payment_method_type, yookasa_payment_method_title, yookasa_payment_method_saved_at,
 			          yookasa_last_charge_at, yookasa_last_charge_status, yookasa_last_charge_error,
-			          google_subject, google_email, google_email_verified, google_linked_at
+			          google_subject, google_email, google_email_verified, google_linked_at, telegram_id_is_synthetic
 		`
 
 	row := cr.pool.QueryRow(
@@ -458,6 +464,45 @@ func (cr *CustomerRepository) FindByGoogleSubject(ctx context.Context, subject s
 	return &customer, nil
 }
 
+func (cr *CustomerRepository) FindOrCreateByGoogleIdentity(ctx context.Context, subject, email string, verified bool, language string) (*Customer, error) {
+	subject = strings.TrimSpace(subject)
+	email = strings.ToLower(strings.TrimSpace(email))
+	language = strings.TrimSpace(language)
+	if subject == "" || email == "" || !verified {
+		return nil, fmt.Errorf("invalid google identity")
+	}
+	if language == "" {
+		language = "en"
+	}
+
+	query := `
+		INSERT INTO customer (
+			telegram_id, language, google_subject, google_email, google_email_verified,
+			google_linked_at, telegram_id_is_synthetic
+		)
+		VALUES (nextval('google_customer_telegram_id_seq'), $1, $2, $3, $4, NOW(), TRUE)
+		ON CONFLICT (google_subject) WHERE google_subject IS NOT NULL AND google_subject <> ''
+		DO UPDATE SET
+			google_email = EXCLUDED.google_email,
+			google_email_verified = EXCLUDED.google_email_verified
+		RETURNING id, telegram_id, telegram_username, expire_at, created_at, subscription_link, language, channel_subscription_verified_at, trial_used, autopay_enabled, autopay_plan_months,
+		          yookasa_payment_method_id, yookasa_payment_method_type, yookasa_payment_method_title, yookasa_payment_method_saved_at,
+		          yookasa_last_charge_at, yookasa_last_charge_status, yookasa_last_charge_error,
+		          google_subject, google_email, google_email_verified, google_linked_at, telegram_id_is_synthetic
+	`
+
+	var customer Customer
+	if err := scanCustomer(cr.pool.QueryRow(ctx, query, language, subject, email, verified), &customer); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, ErrGoogleIdentityConflict
+		}
+		return nil, fmt.Errorf("failed to find or create customer by google identity: %w", err)
+	}
+
+	return &customer, nil
+}
+
 func (cr *CustomerRepository) FindByGoogleEmail(ctx context.Context, email string) (*Customer, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	if email == "" {
@@ -502,7 +547,7 @@ func (cr *CustomerRepository) LinkGoogleIdentity(ctx context.Context, customerID
 		RETURNING id, telegram_id, telegram_username, expire_at, created_at, subscription_link, language, channel_subscription_verified_at, trial_used, autopay_enabled, autopay_plan_months,
 		          yookasa_payment_method_id, yookasa_payment_method_type, yookasa_payment_method_title, yookasa_payment_method_saved_at,
 		          yookasa_last_charge_at, yookasa_last_charge_status, yookasa_last_charge_error,
-		          google_subject, google_email, google_email_verified, google_linked_at
+		          google_subject, google_email, google_email_verified, google_linked_at, telegram_id_is_synthetic
 	`
 
 	var result Customer
