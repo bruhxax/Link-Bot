@@ -40,6 +40,7 @@ import (
 	"link-bot/internal/remnawave"
 	"link-bot/internal/runtimeconfig"
 	"link-bot/internal/translation"
+	"link-bot/internal/webauth"
 	"link-bot/utils"
 )
 
@@ -76,6 +77,7 @@ type Handler struct {
 	integrationSettings    *integrations.Service
 	translation            *translation.Manager
 	logoUploadDir          string
+	webLogin               *webauth.Service
 }
 
 func lockPromoPurchase(code string) func() {
@@ -586,6 +588,7 @@ func NewHandler(
 	integrationSettings *integrations.Service,
 	subscriptionRepository *database.SubscriptionRepository,
 	translationManager *translation.Manager,
+	webLogin *webauth.Service,
 ) *Handler {
 	staticFS, err := fs.Sub(embeddedStatic, "static")
 	if err != nil {
@@ -619,6 +622,7 @@ func NewHandler(
 		integrationSettings:    integrationSettings,
 		translation:            translationManager,
 		logoUploadDir:          config.MediaUploadDir(),
+		webLogin:               webLogin,
 	}
 }
 
@@ -643,6 +647,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	})
 
 	mux.HandleFunc("/api/mini-app/public-config", h.handlePublicConfig)
+	mux.HandleFunc("/api/mini-app/auth/telegram/qr/start", h.handleStartTelegramQRLogin)
+	mux.HandleFunc("/api/mini-app/auth/telegram/qr/status", h.handleTelegramQRLoginStatus)
 	mux.HandleFunc("/api/mini-app/bootstrap", h.withSession(h.handleBootstrap))
 	mux.HandleFunc("/api/mini-app/subscriptions/select", h.withSession(h.handleSelectSubscription))
 	mux.HandleFunc("/api/mini-app/subscriptions/create", h.withSession(h.handleCreateSubscription))

@@ -73,6 +73,11 @@ const STORAGE_KEYS = {
 consumeTelegramLoginRedirect();
 
 let telegramLoginScriptPromise = null;
+let telegramQRLogin = null;
+let telegramQRLoginCreatePromise = null;
+let telegramQRLoginPollTimer = null;
+let telegramQRLoginRetryTimer = null;
+let telegramQRLoginPollBusy = false;
 let googleLoginScriptPromise = null;
 let googleLoginInitializedClientID = "";
 let googleAuthMode = "login";
@@ -140,6 +145,7 @@ window.onTelegramAuth = (payload) => {
 
   writeSessionSetting(STORAGE_KEYS.telegramIDToken, idToken);
   writeSessionSetting(STORAGE_KEYS.telegramLogin, "");
+  stopTelegramQRLogin({ reset: true });
   clearGoogleAuth();
   state.loading = true;
   state.error = "";
@@ -338,6 +344,101 @@ function gmailLinkButtonLabel() {
 	return localizedText("Привязать Google", "Link Google", "اتصال Google");
 }
 
+function stopTelegramQRLogin({ reset = false } = {}) {
+	if (telegramQRLoginPollTimer) window.clearTimeout(telegramQRLoginPollTimer);
+	if (telegramQRLoginRetryTimer) window.clearTimeout(telegramQRLoginRetryTimer);
+	telegramQRLoginPollTimer = null;
+	telegramQRLoginRetryTimer = null;
+	telegramQRLoginPollBusy = false;
+	if (reset) telegramQRLogin = null;
+}
+
+function scheduleTelegramQRLoginPoll(delay = 1600) {
+	if (telegramQRLoginPollTimer) window.clearTimeout(telegramQRLoginPollTimer);
+	telegramQRLoginPollTimer = window.setTimeout(pollTelegramQRLogin, delay);
+}
+
+async function pollTelegramQRLogin() {
+	telegramQRLoginPollTimer = null;
+	if (telegramQRLoginPollBusy || hasAuth() || !telegramQRLogin?.id || !telegramQRLogin?.secret) return;
+	if (document.hidden) return scheduleTelegramQRLoginPoll(2200);
+
+	telegramQRLoginPollBusy = true;
+	const challengeID = telegramQRLogin.id;
+	try {
+		const response = await post("/api/mini-app/auth/telegram/qr/status", {
+			id: telegramQRLogin.id,
+			secret: telegramQRLogin.secret,
+		});
+		if (hasAuth() || challengeID !== telegramQRLogin?.id) return;
+		const status = String(response?.data?.status || "pending");
+		if (status !== "authorized") return scheduleTelegramQRLoginPoll();
+
+		const sessionData = String(response?.data?.sessionData || "").trim();
+		if (!sessionData) throw new Error(browserAuthCopy().loginFailed);
+		writeSessionSetting(STORAGE_KEYS.telegramLogin, sessionData);
+		writeSessionSetting(STORAGE_KEYS.telegramIDToken, "");
+		clearGoogleAuth();
+		stopTelegramQRLogin({ reset: true });
+		state.loading = true;
+		state.error = "";
+		state.subscriptionGate = null;
+		render();
+		refreshDashboard({ initial: true }).catch((error) => {
+			clearBrowserTelegramAuth();
+			showToast(error?.message || browserAuthCopy().loginFailed, "danger");
+		});
+	} catch (error) {
+		if (error?.code === "qr_login_expired") {
+			telegramQRLogin = null;
+			render();
+			return;
+		}
+		scheduleTelegramQRLoginPoll(error?.code === "too_many_requests" ? 5000 : 2600);
+	} finally {
+		telegramQRLoginPollBusy = false;
+	}
+}
+
+function mountTelegramQRLogin() {
+	if (hasAuth() || !app.querySelector("[data-telegram-qr-login]")) {
+		stopTelegramQRLogin();
+		return;
+	}
+	if (telegramQRLogin?.url && Date.parse(telegramQRLogin.expiresAt || "") > Date.now()) {
+		scheduleTelegramQRLoginPoll(telegramQRLoginPollTimer ? 1600 : 900);
+		return;
+	}
+	if (telegramQRLoginCreatePromise) return;
+
+	telegramQRLoginCreatePromise = post("/api/mini-app/auth/telegram/qr/start")
+		.then((response) => {
+			if (hasAuth()) return;
+			const data = response?.data || {};
+			if (!data.id || !data.secret || !data.url) throw new Error("invalid QR login response");
+			telegramQRLogin = {
+				id: String(data.id),
+				secret: String(data.secret),
+				url: String(data.url),
+				expiresAt: String(data.expiresAt || ""),
+			};
+			render();
+		})
+		.catch(() => {
+			if (hasAuth()) return;
+			telegramQRLogin = { error: true };
+			render();
+			telegramQRLoginRetryTimer = window.setTimeout(() => {
+				telegramQRLoginRetryTimer = null;
+				telegramQRLogin = null;
+				render();
+			}, 5000);
+		})
+		.finally(() => {
+			telegramQRLoginCreatePromise = null;
+		});
+}
+
 function loadTelegramLoginScript() {
   if (typeof window.Telegram?.Login?.auth === "function") return Promise.resolve();
   if (telegramLoginScriptPromise) return telegramLoginScriptPromise;
@@ -418,6 +519,10 @@ function browserAuthCopy(brandName = browserAuthBrand().name) {
 	if (state.locale === "fa") {
 		return {
 			title: `ورود به ${name}`,
+			qrLabel: "برای ورود با Telegram اسکن کنید",
+			qrLoading: "در حال ساخت کد QR…",
+			qrUnavailable: "کد QR موقتاً در دسترس نیست",
+			qrOpen: "باز کردن این کد در Telegram",
 			openBot: "باز کردن ربات Telegram",
 			loginFailed: "ورود با Telegram انجام نشد",
 			loginUnavailable: "ورود با Telegram موقتاً در دسترس نیست",
@@ -426,6 +531,10 @@ function browserAuthCopy(brandName = browserAuthBrand().name) {
 	if (state.locale === "en") {
     return {
       title: `Sign in to ${name}`,
+		qrLabel: "Scan with Telegram to sign in",
+		qrLoading: "Creating a secure QR code…",
+		qrUnavailable: "QR code is temporarily unavailable",
+		qrOpen: "Open this code in Telegram",
       openBot: "Open Telegram bot",
       loginFailed: "Telegram authorization failed",
       loginUnavailable: "Telegram login is temporarily unavailable",
@@ -434,6 +543,10 @@ function browserAuthCopy(brandName = browserAuthBrand().name) {
 
   return {
     title: `Войти в ${name}`,
+		qrLabel: "Отсканируйте в Telegram для входа",
+		qrLoading: "Создаём безопасный QR-код…",
+		qrUnavailable: "QR-код временно недоступен",
+		qrOpen: "Открыть этот код в Telegram",
     openBot: "Открыть Telegram-бота",
     loginFailed: "Не удалось авторизоваться через Telegram",
     loginUnavailable: "Вход через Telegram временно недоступен",
@@ -633,6 +746,7 @@ function handleGoogleCredential(response) {
   if (googleAuthMode === "link") return void linkGoogleAccount(token);
 
   writeSessionSetting(STORAGE_KEYS.googleLogin, token);
+  stopTelegramQRLogin({ reset: true });
   clearBrowserTelegramAuth();
   state.loading = true;
   state.error = "";
@@ -2809,6 +2923,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   if (!state.data && !hasAuth() && !previewMode) {
     app.innerHTML = renderStateScreen("telegram");
     bindRootActions();
+    mountTelegramQRLogin();
     mountGoogleLoginWidgets();
     return;
   }
@@ -2823,6 +2938,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   if (!state.data) {
     app.innerHTML = renderStateScreen("telegram");
     bindRootActions();
+    mountTelegramQRLogin();
     mountGoogleLoginWidgets();
     return;
   }
@@ -5395,6 +5511,38 @@ function renderThemeSwitch() {
   `;
 }
 
+function renderBrowserAuthQR() {
+	const copy = browserAuthCopy();
+	const url = String(telegramQRLogin?.url || "").trim();
+	let qrCode = "";
+	if (url) {
+		try {
+			qrCode = renderQRCodeSVG(url, {
+				border: 4,
+				ecc: "H",
+				pixelSize: 8,
+				rounded: 0.5,
+				moduleScale: 0.96,
+				finderRadius: 1.45,
+				whiteColor: "#fff",
+				blackColor: "#050505",
+			}).replace("<svg ", '<svg data-preserve-color="true" aria-hidden="true" ');
+		} catch {
+			qrCode = "";
+		}
+	}
+	const unavailable = Boolean(telegramQRLogin?.error || (url && !qrCode));
+	const status = unavailable ? copy.qrUnavailable : (url ? copy.qrLabel : copy.qrLoading);
+	const content = qrCode || `<span class="browser-auth__qr-placeholder ${unavailable ? "is-error" : ""}" aria-hidden="true">${icon(unavailable ? "alert" : "refresh")}</span>`;
+
+	return `<div class="browser-auth__qr" data-telegram-qr-login>
+		<button class="browser-auth__qr-button" type="button" data-action="open-link" data-value="${escapeAttribute(url)}" aria-label="${escapeAttribute(copy.qrOpen)}" aria-describedby="browser-auth-qr-status" ${url ? "" : "disabled"}>
+			<span class="browser-auth__qr-frame">${content}</span>
+		</button>
+		<p class="browser-auth__qr-status" id="browser-auth-qr-status" role="status">${escapeHtml(status)}</p>
+	</div>`;
+}
+
 function renderStateScreen(kind, message = "", meta = null) {
 	if (kind === "maintenance") {
 		const title = meta?.titleRu || localizedText("Технические работы", "Maintenance", "تعمیرات فنی");
@@ -5482,6 +5630,7 @@ function renderStateScreen(kind, message = "", meta = null) {
           </div>
           <div class="browser-auth__eyebrow">${escapeHtml(brand.name)} Web</div>
           <h1 class="browser-auth__title" id="browser-auth-title">${escapeHtml(copy.title)}</h1>
+			${renderBrowserAuthQR()}
           <div class="browser-auth__actions">
             <button class="browser-auth__telegram" type="button" data-action="telegram-browser-login">
               <span class="browser-auth__telegram-icon" aria-hidden="true">${icon("telegram")}</span>

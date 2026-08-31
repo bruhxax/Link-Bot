@@ -29,6 +29,7 @@ import (
 	"link-bot/internal/sync"
 	"link-bot/internal/translation"
 	"link-bot/internal/tribute"
+	"link-bot/internal/webauth"
 	"link-bot/internal/yookasa"
 
 	"github.com/go-telegram/bot"
@@ -129,8 +130,9 @@ func main() {
 	defer subscriptionNotificationCronScheduler.Stop()
 	go runSubscriptionCheck(syncService, subService)
 
-	h := handler.NewHandler(syncService, paymentService, tm, customerRepository, purchaseRepository, cryptoPayClient, yookasaClient, referralRepository, cache, runtimeSettings, errorReporter)
-	miniAppHandler := miniapp.NewHandler(customerRepository, purchaseRepository, promoCodeRepository, referralRepository, walletRepository, supportRepository, reviewRepository, paymentService, remnawaveClient, b, broadcastService, subService, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository, tm)
+	webLogin := webauth.NewService(webauth.DefaultTTL)
+	h := handler.NewHandler(syncService, paymentService, tm, customerRepository, purchaseRepository, cryptoPayClient, yookasaClient, referralRepository, cache, runtimeSettings, errorReporter, webLogin)
+	miniAppHandler := miniapp.NewHandler(customerRepository, purchaseRepository, promoCodeRepository, referralRepository, walletRepository, supportRepository, reviewRepository, paymentService, remnawaveClient, b, broadcastService, subService, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository, tm, webLogin)
 	miniAppHandler.StartSupportAutoCloser(ctx)
 	operations.StartHealthMonitor(ctx, pool, remnawaveClient, errorReporter)
 

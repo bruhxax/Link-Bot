@@ -34,6 +34,12 @@ func TestBrowserAuthUsesRuntimeBrandWithoutRemovedHints(t *testing.T) {
 		"browserFallback.hidden = true",
 		"`Войти в ${name}`",
 		"`Sign in to ${name}`",
+		"function renderBrowserAuthQR()",
+		"data-telegram-qr-login",
+		`renderQRCodeSVG(url, {`,
+		`/api/mini-app/auth/telegram/qr/start`,
+		`/api/mini-app/auth/telegram/qr/status`,
+		`writeSessionSetting(STORAGE_KEYS.telegramLogin, sessionData)`,
 	}
 	for _, value := range required {
 		if !strings.Contains(appJS, value) {

@@ -11,6 +11,7 @@ import (
 	"link-bot/internal/runtimeconfig"
 	"link-bot/internal/sync"
 	"link-bot/internal/translation"
+	"link-bot/internal/webauth"
 	"link-bot/internal/yookasa"
 )
 
@@ -28,6 +29,7 @@ type Handler struct {
 	screenMessageCache *cachepkg.Cache
 	runtimeSettings    *runtimeconfig.Service
 	errorReporter      *operations.Reporter
+	webLogin           *webauth.Service
 }
 
 func NewHandler(
@@ -38,7 +40,7 @@ func NewHandler(
 	purchaseRepository *database.PurchaseRepository,
 	cryptoPayClient *cryptopay.Client,
 	yookasaClient *yookasa.Client, referralRepository *database.ReferralRepository, cache *cachepkg.Cache,
-	runtimeSettings *runtimeconfig.Service, errorReporter *operations.Reporter) *Handler {
+	runtimeSettings *runtimeconfig.Service, errorReporter *operations.Reporter, webLogin *webauth.Service) *Handler {
 	return &Handler{
 		syncService:        syncService,
 		paymentService:     paymentService,
@@ -53,5 +55,6 @@ func NewHandler(
 		screenMessageCache: cachepkg.NewCache(30 * 24 * time.Hour),
 		runtimeSettings:    runtimeSettings,
 		errorReporter:      errorReporter,
+		webLogin:           webLogin,
 	}
 }

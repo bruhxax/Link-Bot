@@ -20,6 +20,14 @@ func (h Handler) StartCommandHandler(ctx context.Context, b *bot.Bot, update *mo
 	ctxWithTime, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	startParam := ""
+	if fields := strings.Fields(update.Message.Text); len(fields) > 1 {
+		startParam = fields[1]
+	}
+	if h.handleWebLoginStart(ctxWithTime, b, update, startParam) {
+		return
+	}
+
 	langCode := update.Message.From.LanguageCode
 	existingCustomer, err := h.customerRepository.FindByTelegramId(ctx, update.Message.Chat.ID)
 	if err != nil {
@@ -76,10 +84,6 @@ func (h Handler) StartCommandHandler(ctx context.Context, b *bot.Bot, update *mo
 	existingCustomer.TelegramUsername = nil
 	if username != "" {
 		existingCustomer.TelegramUsername = &username
-	}
-	startParam := ""
-	if fields := strings.Fields(update.Message.Text); len(fields) > 1 {
-		startParam = fields[1]
 	}
 	claimCtx := contextWithTelegramProfile(ctxWithTime, *update.Message.From)
 	if _, err := h.paymentService.ClaimPendingGifts(claimCtx, existingCustomer, update.Message.From.Username, startParam); err != nil {

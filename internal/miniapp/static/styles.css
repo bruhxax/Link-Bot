@@ -5186,6 +5186,101 @@ button.rating-star {
   letter-spacing: 0;
 }
 
+.browser-auth__qr {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.browser-auth__qr-button {
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.browser-auth__qr-button:disabled {
+  cursor: default;
+}
+
+.browser-auth__qr-button:focus-visible {
+  outline: 2px solid #9bd8ff;
+  outline-offset: 5px;
+}
+
+.browser-auth__qr-frame {
+  position: relative;
+  width: 176px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38);
+}
+
+.browser-auth__qr-frame::before,
+.browser-auth__qr-frame::after {
+  position: absolute;
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+  pointer-events: none;
+  content: "";
+}
+
+.browser-auth__qr-frame::before {
+  inset: -5px auto auto -5px;
+  border-top: 2px solid var(--accent);
+  border-left: 2px solid var(--accent);
+  border-radius: 8px 0 0;
+}
+
+.browser-auth__qr-frame::after {
+  inset: auto -5px -5px auto;
+  border-right: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  border-radius: 0 0 8px;
+}
+
+.browser-auth__qr-frame svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+}
+
+.browser-auth__qr-placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+  color: #111111;
+}
+
+.browser-auth__qr-placeholder svg {
+  width: 28px;
+  height: 28px;
+}
+
+.browser-auth__qr-placeholder.is-error {
+  color: #6b6b6b;
+}
+
+.browser-auth__qr-status {
+  margin: 0;
+  min-height: 14px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
 .browser-auth__actions {
   width: min(100%, 320px);
   display: grid;
@@ -5260,6 +5355,26 @@ button.rating-star {
   width: 18px;
   height: 18px;
   display: block;
+}
+
+@media (max-height: 620px) {
+  .browser-auth {
+    gap: 10px;
+    padding-block: 18px;
+  }
+
+  .browser-auth__logo-shell {
+    width: 52px;
+    height: 52px;
+  }
+
+  .browser-auth__title {
+    font-size: 22px;
+  }
+
+  .browser-auth__qr-frame {
+    width: 148px;
+  }
 }
 
 .google-login-widget {
