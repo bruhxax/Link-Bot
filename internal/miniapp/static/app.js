@@ -733,7 +733,8 @@ const previewPayload = {
   subscription: { status: "active", daysLeft: 26724, planMonths: 12, userId: 1, userUuid: "00000000-0000-0000-0000-000000000001", expiresAt: new Date(Date.now() + 26724 * 86400000).toISOString(), subscriptionLink: "https://example.com/sub/link-bot/secure-link", hasAccessLink: true, trafficUsedBytes: 0, trafficLimitBytes: 0, deviceUsedCount: 1, deviceLimitCount: 0, devices: [{ hwid: "demo-hwid-1", platform: "iOS", osVersion: "18.4", deviceModel: "iPhone 16", userAgent: "Happ/4.6.0/ios", createdAt: new Date(Date.now() - 86400000).toISOString(), updatedAt: new Date().toISOString() }] },
   subscriptions: { activeId: 1, maximum: 3, items: [{ id: 1, name: "Основная", position: 1, isPrimary: true, isActive: true, status: "active", expiresAt: new Date(Date.now() + 26724 * 86400000).toISOString() }] },
   trial: { enabled: true, eligible: false, days: 2 },
-  referral: { enabled: true, count: 4, bonusDays: 7, bonusTrafficBytes: 53687091200, shareUrl: "https://t.me/share/url?url=https%3A%2F%2Ft.me%2Fyour_bot_username%3Fstart%3Dref_777777" },
+  referral: { enabled: true, count: 4, trialCount: 3, purchaseCount: 2, bonusDays: 7, bonusTrafficBytes: 53687091200, trialReward: { days: 1, trafficGb: 5, balanceMode: "fixed", balanceRub: 25, balancePercent: 0 }, purchaseReward: { days: 7, trafficGb: 50, balanceMode: "percent", balanceRub: 0, balancePercent: 10 }, rewardEveryPurchase: false, shareUrl: "https://t.me/share/url?url=https%3A%2F%2Ft.me%2Fyour_bot_username%3Fstart%3Dref_777777" },
+  wallet: { balanceCents: 12450, currency: "RUB", paymentsEnabled: true, withdrawalsEnabled: true, minimumWithdrawalCents: 50000, transactions: [{ id: 1, amountCents: 12450, balanceAfterCents: 12450, kind: "referral_purchase", description: "Реферальная награда за покупку", createdAt: new Date().toISOString() }], withdrawals: [] },
   reviews: {
     count: 5,
     average: 4.6,
@@ -773,7 +774,7 @@ const previewPayload = {
     { id: "gift-3m", months: 3, titleRu: "3 месяца", titleEn: "3 months", titleFa: "3 ماه", priceRub: 450, priceStars: 305, trafficLimitBytes: 0, deviceLimitCount: 3 },
     { id: "gift-6m", months: 6, titleRu: "6 месяцев", titleEn: "6 months", titleFa: "6 ماه", priceRub: 800, priceStars: 545, trafficLimitBytes: 0, deviceLimitCount: 3 },
   ],
-	paymentMethods: [{ id: "sbp" }, { id: "card" }, { id: "p2p" }, { id: "stars" }, { id: "crypto" }],
+	paymentMethods: [{ id: "balance" }, { id: "sbp" }, { id: "card" }, { id: "p2p" }, { id: "stars" }, { id: "crypto" }],
 	p2p: {
 		destinations: [
 			{ id: "sber", title: "Сбербанк", details: "+7 999 123-45-67", description: "Перевод по СБП, получатель И. И." },
@@ -1697,7 +1698,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 function buildPreviewRuntimeSettings() {
 	const features = Object.fromEntries(["mini_app", "stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "payments_history", "gifts", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
-		version: 16,
+		version: 17,
 		localization: { language: "ru", fontFamily: "auto" },
 		maintenance: { enabled: false, titleRu: "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u044b", textRu: "", reasonRu: "" },
 		features,
@@ -1717,6 +1718,7 @@ function buildPreviewRuntimeSettings() {
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, titleFa: `${plan.months} \u0645\u0627\u0647`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
 		devicePacks: [],
 		trial: { enabled: true, days: 3, trafficGb: 10, unlimitedTraffic: false, deviceLimit: 5, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "", trafficResetStrategy: "MONTH", tag: "" },
+		referrals: { trial: deepClone(previewPayload.referral.trialReward), purchase: deepClone(previewPayload.referral.purchaseReward), rewardEveryPurchase: false, balancePaymentsEnabled: true, withdrawalsEnabled: true, minimumWithdrawalRub: 500 },
 		grace: { enabled: false, days: 1, internalSquadUuids: [] },
 		panel: { usernameTemplate: "{{customer_id}}_{{telegram_id}}" },
 	};
@@ -1779,6 +1781,9 @@ const state = {
   reviewDraftRating: 0,
   reviewDraftComment: "",
   reviewBusy: "",
+  walletWithdrawalAmount: "",
+  walletPayoutDetails: "",
+  walletBusy: "",
   adminSection: "home",
 	adminLayoutEditing: false,
 	adminLayoutBaseline: null,
@@ -2404,6 +2409,7 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 		state.data.admin = {
 			settings: runtime,
 			events: [],
+			withdrawals: [{ id: 41, customerId: 12, telegramId: 123456789, username: "alexvpn", amountCents: 75000, payoutDetails: "СБП +7 900 000-00-00", status: "pending", createdAt: new Date().toISOString() }],
 			integrations: [{
 				id: "p2p", name: "P2P перевод", description: "Ручная проверка перевода администратором", logo: PAYMENT_LOGO_URLS.p2p, kind: "payment", enabled: true, configured: true, webhookUrl: "",
 				fields: [
@@ -2420,9 +2426,10 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 		};
 		state.adminSettingsDraft = deepClone(runtime);
 		seedEditableCopy(state.adminSettingsDraft);
-		if (urlParams.get("section") === "integrations") {
+		const previewSection = String(urlParams.get("section") || "");
+		if (["integrations", "referrals"].includes(previewSection)) {
 			state.currentPage = "admin";
-			state.adminSection = "integrations";
+			state.adminSection = previewSection;
 			state.adminLayoutEditing = false;
 		} else {
 			state.currentPage = "dashboard";
@@ -2942,6 +2949,7 @@ function renderAdminPage() {
 	if (state.adminSection === "layout") return renderAdminLayoutPage();
 	if (state.adminSection === "plans") return renderAdminPlansPage();
 	if (state.adminSection === "trial") return renderAdminTrialPage();
+	if (state.adminSection === "referrals") return renderAdminReferralsPage();
 	if (state.adminSection === "grace") return renderAdminGracePage();
 	if (state.adminSection === "broadcast") return renderAdminBroadcastPage();
 	if (state.adminSection === "integrations") return renderAdminIntegrationsPage();
@@ -2964,6 +2972,7 @@ function renderAdminPage() {
 				[localizedText("Тарифы", "Plans", "تعرفه‌ها"), "", "plans", "cartShopping"],
 			])}
 			${renderAdminMenuGroup(localizedText("Операции", "Operations", "عملیات"), [
+				[localizedText("Рефералы и баланс", "Referrals and balance", "دعوت و موجودی"), "", "referrals", "users"],
 				[localizedText("Рассылка", "Broadcast", "ارسال همگانی"), "", "broadcast", "adminBroadcast"],
 				[localizedText("Промокоды", "Promo codes", "کدهای تخفیف"), "", "promocodes", "adminPromocodes"],
 			])}
@@ -3889,6 +3898,27 @@ function renderAdminTrialPage() {
 		<div class="admin-editor__grid">${renderAdminSettingField("Тег в панели", "trial.tag")}${renderAdminTrialResetStrategy()}</div>
 		<section class="admin-squads"><h3>Внутренние сквады</h3>${renderInternalSquadSelector(trial.internalSquadUuids, "admin-trial-internal-squad", !trial.internalSquadsConfigured)}${renderExternalSquadSelector(trial.externalSquadUuid, "admin-trial-external-squad")}</section>
 	</div>`);
+}
+
+function renderAdminReferralsPage() {
+	const settings = state.adminSettingsDraft?.referrals || {};
+	const withdrawals = Array.isArray(state.data?.admin?.withdrawals) ? state.data.admin.withdrawals : [];
+	return renderAdminEditorPage(localizedText("Рефералы и баланс", "Referrals and balance", "دعوت و موجودی"), `
+		<section class="admin-editor__section"><div class="admin-editor__section-head"><div><h3>${localizedText("За активацию пробного периода", "Trial activation reward", "پاداش فعال‌سازی آزمایشی")}</h3><p>${localizedText("Начисляется пригласившему один раз, когда новый пользователь активирует пробный период.", "Granted once when the invited user activates a trial.", "هنگام فعال‌سازی دوره آزمایشی یک بار اعطا می‌شود.")}</p></div></div>${renderAdminReferralRewardFields("referrals.trial", false)}</section>
+		<section class="admin-editor__section"><div class="admin-editor__section-head"><div><h3>${localizedText("За покупку подписки", "Subscription purchase reward", "پاداش خرید اشتراک")}</h3><p>${localizedText("Деньги можно начислять фиксированной суммой или процентом от фактической цены после промокода.", "Credit a fixed amount or a percentage of the actual price after discounts.", "مبلغ ثابت یا درصدی از قیمت نهایی پس از تخفیف.")}</p></div></div>${renderAdminReferralRewardFields("referrals.purchase", true)}<div class="admin-toggle-list">${renderAdminToggle(localizedText("Начислять за каждую следующую покупку", "Reward every later purchase", "پاداش برای هر خرید بعدی"), "referrals.rewardEveryPurchase")}</div></section>
+		<section class="admin-editor__section"><div class="admin-editor__section-head"><div><h3>${localizedText("Баланс", "Balance", "موجودی")}</h3><p>${localizedText("Оплата балансом работает для тарифов, продления и дополнительных устройств. Вывод создаёт заявку на ручную выплату.", "Balance pays for plans, renewals, and extra devices. Withdrawals create manual payout requests.", "موجودی برای تعرفه، تمدید و دستگاه اضافی است؛ برداشت به‌صورت دستی بررسی می‌شود.")}</p></div></div><div class="admin-toggle-list">${renderAdminToggle(localizedText("Разрешить оплату балансом", "Allow balance payments", "اجازه پرداخت از موجودی"), "referrals.balancePaymentsEnabled")}${renderAdminToggle(localizedText("Разрешить заявки на вывод", "Allow withdrawals", "اجازه برداشت"), "referrals.withdrawalsEnabled")}</div><div class="admin-editor__grid">${renderAdminSettingField(localizedText("Минимальный вывод, ₽", "Minimum withdrawal, RUB", "حداقل برداشت، روبل"), "referrals.minimumWithdrawalRub", { type: "number", min: 0, max: 1000000 })}</div></section>
+		<section class="admin-editor__section admin-withdrawals"><div class="admin-editor__section-head"><div><h3>${localizedText("Заявки на вывод", "Withdrawal requests", "درخواست‌های برداشت")}</h3><p>${localizedText("Одобряйте только после фактической выплаты. При отклонении сумма автоматически вернётся на баланс.", "Approve only after payout. Rejection automatically refunds the balance.", "فقط پس از پرداخت تأیید کنید؛ رد کردن موجودی را بازمی‌گرداند.")}</p></div><strong>${withdrawals.length}</strong></div>${withdrawals.length ? withdrawals.map(renderAdminWithdrawal).join("") : `<div class="admin-empty-state">${icon("check")}<strong>${localizedText("Новых заявок нет", "No pending requests", "درخواست جدیدی نیست")}</strong></div>`}</section>
+	`);
+}
+
+function renderAdminReferralRewardFields(path, allowPercent) {
+	const reward = getDeepValue(state.adminSettingsDraft, path, {}) || {};
+	const mode = String(reward.balanceMode || "none");
+	return `<div class="admin-editor__grid admin-editor__grid--three">${renderAdminSettingField(localizedText("Дней", "Days", "روز"), `${path}.days`, { type: "number", min: 0, max: 3650 })}${renderAdminSettingField(localizedText("Трафик, ГБ", "Traffic, GB", "ترافیک، گیگابایت"), `${path}.trafficGb`, { type: "number", min: 0, max: 1000000 })}<label class="admin-field"><span>${localizedText("Деньги", "Money", "پول")}</span><select class="admin-field__control" data-setting-path="${escapeAttribute(path)}.balanceMode" data-setting-type="text"><option value="none" ${mode === "none" ? "selected" : ""}>${localizedText("Не начислять", "None", "بدون پاداش")}</option><option value="fixed" ${mode === "fixed" ? "selected" : ""}>${localizedText("Фиксированная сумма", "Fixed amount", "مبلغ ثابت")}</option>${allowPercent ? `<option value="percent" ${mode === "percent" ? "selected" : ""}>${localizedText("Процент от покупки", "Purchase percentage", "درصد خرید")}</option>` : ""}</select></label></div><div class="admin-editor__grid admin-editor__grid--two"><div class="${mode !== "fixed" ? "is-field-muted" : ""}">${renderAdminSettingField(localizedText("Фиксированно, ₽", "Fixed, RUB", "ثابت، روبل"), `${path}.balanceRub`, { type: "number", min: 0, max: 1000000 })}</div>${allowPercent ? `<div class="${mode !== "percent" ? "is-field-muted" : ""}">${renderAdminSettingField(localizedText("Процент, %", "Percentage, %", "درصد، %"), `${path}.balancePercent`, { type: "number", min: 0, max: 100 })}</div>` : ""}</div>`;
+}
+
+function renderAdminWithdrawal(item) {
+	return `<article class="admin-withdrawal"><div><strong>${escapeHtml(formatMoneyCents(item?.amountCents || 0))}</strong><span>@${escapeHtml(item?.username || String(item?.telegramId || "—"))}</span><small>${escapeHtml(item?.payoutDetails || "—")}</small></div><div class="admin-withdrawal__actions"><button type="button" data-action="admin-resolve-withdrawal" data-value="${escapeAttribute(item?.id)}" data-approve="true" ${state.adminBusy ? "disabled" : ""}>${icon("check")}<span>${localizedText("Выплачено", "Paid", "پرداخت شد")}</span></button><button type="button" data-action="admin-resolve-withdrawal" data-value="${escapeAttribute(item?.id)}" data-approve="false" ${state.adminBusy ? "disabled" : ""}>${icon("close")}<span>${localizedText("Отклонить", "Reject", "رد")}</span></button></div></article>`;
 }
 
 function renderAdminGracePage() {
@@ -4835,14 +4865,42 @@ function renderReviewCard(review) {
 
 function renderReferralsPage() {
   const copy = t();
-  const rewardLabel = formatReferralRewardLabel(state.data?.referral, state.locale);
+	const referral = state.data?.referral || {};
+	const wallet = state.data?.wallet || {};
+	const transactions = Array.isArray(wallet.transactions) ? wallet.transactions.slice(0, 6) : [];
+	const withdrawals = Array.isArray(wallet.withdrawals) ? wallet.withdrawals.slice(0, 4) : [];
   return `
     <section class="page ${pageClass("referrals")}" id="page-referrals">
+			<div class="referral-balance" aria-label="${escapeAttribute(localizedText("Баланс наград", "Rewards balance", "موجودی پاداش"))}"><span>${localizedText("Баланс", "Balance", "موجودی")}</span><strong>${escapeHtml(formatMoneyCents(wallet.balanceCents || 0))}</strong><small>${localizedText("Можно оплатить тариф, продление или дополнительные устройства", "Use it for plans, renewals, or extra devices", "برای تعرفه، تمدید یا دستگاه‌های اضافی")}</small></div>
       <div class="card referral-card referral-card--actions"><div class="action-stack action-stack--compact"><button class="btn" type="button" data-action="share-referral">${icon("share")}${copy.shareTelegram}</button><button class="btn" type="button" data-action="copy-referral">${icon("copy")}${copy.copyReferral}</button></div></div>
-      <div class="card referral-card referral-card--stats"><div class="info-row"><span>${copy.invited}</span><span class="info-row__value">${formatNumber(state.data.referral.count || 0, state.locale)}</span></div><div class="info-row"><span>${copy.bonusDays}</span><span class="info-row__value">${escapeHtml(rewardLabel)}</span></div><div class="info-row"><span>${copy.shareTelegram}</span><span class="info-row__value">${state.data.referral.shareUrl ? escapeHtml(linkHint(state.data.referral.shareUrl)) : "—"}</span></div></div>
-      <div class="card referral-card referral-card--info"><div class="empty-state"><div class="empty-state__icon">${icon("users")}</div><div class="empty-state__title">${copy.referralsTitle}</div><div class="empty-state__desc">${copy.referralsHint}</div></div></div>
+			<div class="card referral-card referral-card--stats"><div class="info-row"><span>${localizedText("Приглашено", "Invited", "دعوت‌شده")}</span><span class="info-row__value">${formatNumber(referral.count || 0, state.locale)}</span></div><div class="info-row"><span>${localizedText("Активировали пробный", "Activated trial", "دوره آزمایشی فعال")}</span><span class="info-row__value">${formatNumber(referral.trialCount || 0, state.locale)}</span></div><div class="info-row"><span>${localizedText("Покупок по приглашению", "Referral purchases", "خرید با دعوت")}</span><span class="info-row__value">${formatNumber(referral.purchaseCount || 0, state.locale)}</span></div></div>
+			<div class="referral-reward-list">
+				${renderReferralRewardRule(localizedText("За пробный период", "For trial activation", "برای دوره آزمایشی"), referral.trialReward)}
+				${renderReferralRewardRule(localizedText("За покупку подписки", "For a subscription purchase", "برای خرید اشتراک"), referral.purchaseReward, referral.rewardEveryPurchase)}
+			</div>
+			${wallet.withdrawalsEnabled ? `<div class="card wallet-withdrawal"><div><strong>${localizedText("Вывести средства", "Withdraw funds", "برداشت وجه")}</strong><small>${localizedText(`Минимум ${formatMoneyCents(wallet.minimumWithdrawalCents || 0)}. Заявку обработает администратор.`, `Minimum ${formatMoneyCents(wallet.minimumWithdrawalCents || 0)}. An administrator reviews the request.`, `حداقل ${formatMoneyCents(wallet.minimumWithdrawalCents || 0)}. درخواست توسط مدیر بررسی می‌شود.`)}</small></div><label><span>${localizedText("Сумма, ₽", "Amount, RUB", "مبلغ، روبل")}</span><input type="number" min="${Math.max(0, Number(wallet.minimumWithdrawalCents || 0) / 100)}" step="0.01" inputmode="decimal" data-input="wallet-withdrawal-amount" value="${escapeAttribute(state.walletWithdrawalAmount)}"></label><label><span>${localizedText("Реквизиты", "Payout details", "اطلاعات پرداخت")}</span><textarea rows="3" maxlength="1000" data-input="wallet-payout-details" placeholder="${escapeAttribute(localizedText("Карта, СБП или другой способ связи", "Card, bank transfer, or contact details", "کارت، انتقال بانکی یا راه ارتباطی"))}">${escapeHtml(state.walletPayoutDetails)}</textarea></label><button class="btn" type="button" data-action="wallet-withdraw" ${state.walletBusy ? "disabled" : ""}>${icon(state.walletBusy ? "refresh" : "wallet")} ${localizedText("Создать заявку", "Create request", "ایجاد درخواست")}</button></div>` : ""}
+			${transactions.length ? `<section class="card wallet-history"><h2>${localizedText("История баланса", "Balance history", "تاریخچه موجودی")}</h2>${transactions.map(renderWalletTransaction).join("")}</section>` : ""}
+			${withdrawals.length ? `<section class="card wallet-history"><h2>${localizedText("Заявки на вывод", "Withdrawal requests", "درخواست‌های برداشت")}</h2>${withdrawals.map(renderWalletWithdrawal).join("")}</section>` : ""}
     </section>
   `;
+}
+
+function renderReferralRewardRule(title, reward, everyPurchase = false) {
+	const value = formatReferralRewardSettings(reward, state.locale);
+	const hint = everyPurchase
+		? localizedText("За каждую покупку приглашённого", "For every invited purchase", "برای هر خرید دعوت‌شده")
+		: localizedText("Один раз за пользователя", "Once per invited user", "یک بار برای هر کاربر");
+	return `<article class="referral-reward-rule"><span class="referral-reward-rule__icon">${icon("gift")}</span><div><strong>${escapeHtml(title)}</strong><span>${escapeHtml(value)}</span><small>${escapeHtml(hint)}</small></div></article>`;
+}
+
+function renderWalletTransaction(item) {
+	const positive = Number(item?.amountCents || 0) >= 0;
+	return `<div class="wallet-history__row"><div><strong>${escapeHtml(item?.description || localizedText("Операция", "Transaction", "تراکنش"))}</strong><small>${escapeHtml(formatPaymentDate(item?.createdAt))}</small></div><span class="${positive ? "is-positive" : "is-negative"}">${positive ? "+" : ""}${escapeHtml(formatMoneyCents(item?.amountCents || 0))}</span></div>`;
+}
+
+function renderWalletWithdrawal(item) {
+	const labels = { pending: localizedText("На проверке", "Pending", "در انتظار"), approved: localizedText("Выплачено", "Paid out", "پرداخت شد"), rejected: localizedText("Отклонено, деньги возвращены", "Rejected and refunded", "رد و بازپرداخت شد") };
+	return `<div class="wallet-history__row"><div><strong>${escapeHtml(formatMoneyCents(item?.amountCents || 0))}</strong><small>${escapeHtml(formatPaymentDate(item?.createdAt))}</small></div><span>${escapeHtml(labels[item?.status] || item?.status || "—")}</span></div>`;
 }
 
 function renderServersPage() {
@@ -5683,6 +5741,7 @@ function paymentHistoryMethodMeta(item, copy) {
   const title = String(item?.paymentMethodTitle || "").trim();
   const normalized = `${invoiceType} ${title}`.toLowerCase();
 	if (invoiceType === "free") return { id: "free", label: title || localizedText("Бесплатная активация", "Free activation", "فعال‌سازی رایگان"), logo: "" };
+	if (invoiceType === "balance") return { id: "balance", label: title || localizedText("Баланс", "Balance", "موجودی"), logo: "" };
   const providers = ["lava", "wata", "platega", "freekassa", "heleket", "pally"];
   const provider = providers.find((name) => normalized.includes(name));
   if (provider) {
@@ -6173,6 +6232,7 @@ function bindRootActions() {
 			if (action === "admin-close-plan-modal") return closeAdminPlanEditorModal();
 			if (action === "admin-apply-plan-edit") return applyAdminPlanEdit();
 			if (action === "admin-select-all-squads") return selectAllAdminSquads(value);
+			if (action === "admin-resolve-withdrawal") return await resolveAdminWithdrawal(Number(value), target.dataset.approve === "true");
 			if (action === "admin-add-profile-button") return openAdminProfileEditor("", { create: true });
 			if (action === "admin-add-promo-widget") return openAdminPromoWidgetEditor();
 			if (action === "admin-close-promo-widget") return closeAdminPromoWidgetEditor();
@@ -6324,6 +6384,7 @@ function bindRootActions() {
       if (action === "copy-access") return state.data?.subscription?.subscriptionLink ? copyToClipboard(state.data.subscription.subscriptionLink).then(() => showToast(t().copied)) : showToast(t().noAccess);
       if (action === "share-referral") return state.data?.referral?.shareUrl ? openExternal(state.data.referral.shareUrl) : undefined;
       if (action === "copy-referral") return state.data?.referral?.shareUrl ? copyToClipboard(state.data.referral.shareUrl).then(() => showToast(t().copied)) : undefined;
+			if (action === "wallet-withdraw") return await submitWalletWithdrawal();
       if (action === "open-link") return openExternal(value);
         if (action === "set-theme") { state.theme = value === "light" ? "light" : "dark"; writeSetting(STORAGE_KEYS.theme, state.theme); applyAppearance(); render(); return; }
       } catch (error) {
@@ -6419,6 +6480,11 @@ function bindRootActions() {
 			} else {
 				const value = type === "boolean" ? Boolean(target.checked) : type === "number" ? Number(target.value || 0) : target.value;
 				setDeepValue(state.adminSettingsDraft, settingPath, value);
+			}
+			if (settingPath.endsWith(".balanceMode")) {
+				state.adminSettingsDirty = true;
+				render({ preserveScroll: true });
+				return;
 			}
 			if (settingPath === "content.logoUrl") scheduleAdminLogoPreview(target.value);
 			state.adminSettingsDirty = true;
@@ -6565,6 +6631,8 @@ function bindRootActions() {
 			}
 			return;
 		}
+		if (inputKey === "wallet-withdrawal-amount") { state.walletWithdrawalAmount = target.value; return; }
+		if (inputKey === "wallet-payout-details") { state.walletPayoutDetails = target.value; return; }
       if (inputKey === "promo-code") {
         state.promoCodeDraft = target.value;
         if (state.appliedPromo && normalizePromoCodeValue(target.value) !== state.appliedPromo.code) {
@@ -8592,6 +8660,48 @@ async function resolveAdminEvent(id) {
 	showToast(state.locale === "en" ? "Event resolved" : "Событие закрыто", "success");
 }
 
+async function submitWalletWithdrawal() {
+	if (state.walletBusy) return;
+	const amountRub = Number(String(state.walletWithdrawalAmount || "").replace(",", "."));
+	const payoutDetails = String(state.walletPayoutDetails || "").trim();
+	const minimumRub = Number(state.data?.wallet?.minimumWithdrawalCents || 0) / 100;
+	if (!Number.isFinite(amountRub) || amountRub <= 0 || amountRub < minimumRub) {
+		return showToast(localizedText(`Минимальная сумма — ${formatMoneyCents((minimumRub || 0) * 100)}`, `Minimum amount is ${formatMoneyCents((minimumRub || 0) * 100)}`, `حداقل مبلغ ${formatMoneyCents((minimumRub || 0) * 100)}`), "danger");
+	}
+	if (!payoutDetails) return showToast(localizedText("Укажите реквизиты для выплаты", "Enter payout details", "اطلاعات پرداخت را وارد کنید"), "danger");
+	state.walletBusy = "withdraw";
+	render({ preserveScroll: true });
+	try {
+		await post("/api/mini-app/wallet/withdraw", { amountRub, payoutDetails });
+		state.walletWithdrawalAmount = "";
+		state.walletPayoutDetails = "";
+		state.walletBusy = "";
+		await safeRefresh();
+		showToast(localizedText("Заявка на вывод создана", "Withdrawal request created", "درخواست برداشت ایجاد شد"), "success");
+	} catch (error) {
+		state.walletBusy = "";
+		render({ preserveScroll: true });
+		throw error;
+	}
+}
+
+async function resolveAdminWithdrawal(id, approve) {
+	if (!id || state.adminBusy) return;
+	state.adminBusy = `withdrawal-${id}`;
+	render({ preserveScroll: true });
+	try {
+		const response = await post("/api/mini-app/admin/wallet/withdrawal/resolve", { id, approve: Boolean(approve) });
+		if (state.data?.admin) state.data.admin = response.data;
+		state.adminBusy = "";
+		render({ preserveScroll: true });
+		showToast(approve ? localizedText("Заявка отмечена выплаченной", "Request marked paid", "درخواست پرداخت‌شده ثبت شد") : localizedText("Заявка отклонена, баланс возвращён", "Request rejected and refunded", "درخواست رد و موجودی بازگردانده شد"), "success");
+	} catch (error) {
+		state.adminBusy = "";
+		render({ preserveScroll: true });
+		throw error;
+	}
+}
+
 async function submitReview() {
   const copy = reviewsText();
   const reviews = state.data?.reviews || {};
@@ -9959,13 +10069,13 @@ function getPageTitle(page, short = false) {
   const copy = t();
 	if (page === "admin" && !short && state.adminSection !== "home") {
 		const labels = state.locale === "fa" ? {
-			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", features: "امکانات", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها",
+			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", features: "امکانات", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها",
 		} : state.locale === "en" ? {
 			localization: "Language and font",
-			maintenance: "Maintenance", diagnostics: "Diagnostics", features: "Functions", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations",
+			maintenance: "Maintenance", diagnostics: "Diagnostics", features: "Functions", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations",
 		} : {
 			localization: "Язык и шрифт",
-			maintenance: "Режим аварии", diagnostics: "Диагностика", features: "Функции", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции",
+			maintenance: "Режим аварии", diagnostics: "Диагностика", features: "Функции", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции",
 		};
 		return labels[state.adminSection] || copy.pageAdmin || "Admin panel";
 	}
@@ -10177,6 +10287,7 @@ function getAvailableMethods(plan = getSelectedPlan()) {
   return (state.data?.paymentMethods || [])
     .map((item) => paymentMethodMeta(item.id))
     .filter(Boolean)
+		.filter((method) => state.currentPage !== "gift" || method.id !== "balance")
     .filter((method) => method.id !== "stars" || Number(plan?.priceStars || 0) + Number(pack?.priceStars || 0) > 0);
 }
 
@@ -10189,6 +10300,7 @@ function getSelectedPaymentMethod() {
 function paymentMethodMeta(id) {
   const copy = t();
   const map = {
+		balance: { id: "balance", label: localizedText("Баланс", "Balance", "موجودی"), hint: localizedText(`Доступно ${formatMoneyCents(state.data?.wallet?.balanceCents || 0)}`, `Available ${formatMoneyCents(state.data?.wallet?.balanceCents || 0)}`, `موجودی ${formatMoneyCents(state.data?.wallet?.balanceCents || 0)}`), logo: "" },
     sbp: { id: "sbp", label: copy.payMethodSbp, hint: copy.payMethodSbpHint, logo: PAYMENT_LOGO_URLS.sbp },
     card: { id: "card", label: copy.payMethodCard, hint: copy.payMethodCardHint, logo: PAYMENT_LOGO_URLS.card },
     stars: { id: "stars", label: copy.payMethodStars, hint: copy.payMethodStarsHint, logo: PAYMENT_LOGO_URLS.stars },
@@ -10480,6 +10592,7 @@ function formatCurrency(value, locale) {
 function formatPaymentAmount(amount, currency, invoiceType) {
   const numeric = Number(amount || 0);
 	if (invoiceType === "free") return localizedText("Бесплатно", "Free", "رایگان");
+	if (invoiceType === "balance") return formatCurrency(amount, state.locale);
   if (invoiceType === "telegram" || currency === "XTR") {
     return `${formatNumber(numeric, state.locale)} Stars`;
   }
@@ -10501,6 +10614,7 @@ function formatPaymentDate(value) {
 
 function paymentMethodTitleForHistory(invoiceType, copy) {
 	if (invoiceType === "free") return localizedText("Бесплатная активация", "Free activation", "فعال‌سازی رایگان");
+	if (invoiceType === "balance") return localizedText("Баланс", "Balance", "موجودی");
   if (invoiceType === "telegram") return copy.payMethodStars || "Telegram Stars";
   if (invoiceType === "crypto") return copy.payMethodCrypto || "Crypto";
   return copy.payMethodCard || "Card";
@@ -10573,6 +10687,25 @@ function formatReferralRewardLabel(referral, locale) {
   }
 
   return parts.length ? parts.join(" · ") : "—";
+}
+
+function formatReferralRewardSettings(reward, locale) {
+	const value = reward || {};
+	const parts = [];
+	const days = Math.max(0, Number(value.days || 0));
+	const trafficGB = Math.max(0, Number(value.trafficGb || 0));
+	if (days > 0) {
+		parts.push(locale === "en" ? `+${formatNumber(days, locale)} day${days === 1 ? "" : "s"}` : `+${formatNumber(days, locale)} ${pluralizeRu(days, ["день", "дня", "дней"])}`);
+	}
+	if (trafficGB > 0) parts.push(`+${formatNumber(trafficGB, locale)} GB`);
+	if (value.balanceMode === "fixed" && Number(value.balanceRub || 0) > 0) parts.push(`+${formatCurrency(Number(value.balanceRub), locale)}`);
+	if (value.balanceMode === "percent" && Number(value.balancePercent || 0) > 0) parts.push(`+${formatNumber(Number(value.balancePercent), locale)}% ${localizedText("от покупки", "of purchase", "از خرید")}`);
+	return parts.length ? parts.join(" · ") : localizedText("Награда не настроена", "No reward configured", "پاداش تنظیم نشده");
+}
+
+function formatMoneyCents(value) {
+	const amount = Number(value || 0) / 100;
+	return new Intl.NumberFormat(intlLocale(), { style: "currency", currency: "RUB", minimumFractionDigits: Number.isInteger(amount) ? 0 : 2, maximumFractionDigits: 2 }).format(amount);
 }
 
 function getSubscriptionDevices() {

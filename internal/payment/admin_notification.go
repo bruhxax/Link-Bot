@@ -289,6 +289,8 @@ func (s PaymentService) paymentMethodLabel(purchase *database.Purchase) string {
 	switch purchase.InvoiceType {
 	case database.InvoiceTypeFree:
 		return "Бесплатная активация"
+	case database.InvoiceTypeBalance:
+		return "Баланс"
 	case database.InvoiceTypeYookasa:
 		return "YooKassa"
 	case database.InvoiceTypeCrypto:

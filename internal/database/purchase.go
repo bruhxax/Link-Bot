@@ -28,6 +28,7 @@ const (
 	InvoiceTypePally     InvoiceType = "pally"
 	InvoiceTypeP2P       InvoiceType = "p2p"
 	InvoiceTypeFree      InvoiceType = "free"
+	InvoiceTypeBalance   InvoiceType = "balance"
 )
 
 type PurchaseStatus string

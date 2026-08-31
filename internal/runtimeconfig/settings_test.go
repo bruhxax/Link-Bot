@@ -52,6 +52,43 @@ func TestDefaultSettingsStartsWithoutPlans(t *testing.T) {
 	}
 }
 
+func TestNormalizeAndValidateReferralRewards(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Referrals.Trial = ReferralRewardSettings{Days: 2, TrafficGB: 10, BalanceMode: "fixed", BalanceRub: 50, BalancePercent: 20}
+	settings.Referrals.Purchase = ReferralRewardSettings{Days: 5, TrafficGB: 25, BalanceMode: "percent", BalanceRub: 100, BalancePercent: 15}
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if settings.Referrals.Trial.BalancePercent != 0 {
+		t.Fatalf("trial inactive percentage was not cleared: %+v", settings.Referrals.Trial)
+	}
+	if settings.Referrals.Purchase.BalanceRub != 0 || settings.Referrals.Purchase.BalancePercent != 15 {
+		t.Fatalf("purchase reward mode was not normalized: %+v", settings.Referrals.Purchase)
+	}
+}
+
+func TestNormalizeAndValidateRejectsTrialPercentageReward(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Referrals.Trial.BalanceMode = "percent"
+	settings.Referrals.Trial.BalancePercent = 10
+	if err := NormalizeAndValidate(&settings); err == nil || !strings.Contains(err.Error(), "only available for purchase") {
+		t.Fatalf("NormalizeAndValidate() error = %v, want trial percentage error", err)
+	}
+}
+
+func TestNormalizeAndValidateMigratesReferralDefaults(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Version = CurrentVersion - 1
+	settings.Referrals = ReferralSettings{}
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if !settings.Referrals.BalancePaymentsEnabled || !settings.Referrals.WithdrawalsEnabled || settings.Referrals.MinimumWithdrawalRub != 500 {
+		t.Fatalf("referral defaults were not migrated: %+v", settings.Referrals)
+	}
+}
+
 func TestNormalizeGiftMessageSettingsPreservesDynamicGiftButton(t *testing.T) {
 	defaults := DefaultSettings().Content.Gift.Sender
 	message := TelegramGiftMessageSettings{

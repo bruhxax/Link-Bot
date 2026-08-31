@@ -83,6 +83,7 @@ func main() {
 	subscriptionRepository := database.NewSubscriptionRepository(pool)
 	promoCodeRepository := database.NewPromoCodeRepository(pool)
 	referralRepository := database.NewReferralRepository(pool)
+	walletRepository := database.NewWalletRepository(pool)
 	supportRepository := database.NewSupportRepository(pool)
 	reviewRepository := database.NewReviewRepository(pool)
 	runtimeSettingsRepository := database.NewRuntimeSettingsRepository(pool)
@@ -112,7 +113,7 @@ func main() {
 		slog.Warn("broadcast recovery failed", "error", err)
 	}
 
-	paymentService := payment.NewPaymentService(tm, purchaseRepository, promoCodeRepository, remnawaveClient, customerRepository, b, cryptoPayClient, yookasaClient, referralRepository, cache, moynalogClient, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository)
+	paymentService := payment.NewPaymentService(tm, purchaseRepository, promoCodeRepository, remnawaveClient, customerRepository, b, cryptoPayClient, yookasaClient, referralRepository, walletRepository, cache, moynalogClient, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository)
 
 	cronScheduler := setupInvoiceChecker(customerRepository, purchaseRepository, paymentService)
 	if cronScheduler != nil {
@@ -129,7 +130,7 @@ func main() {
 	go runSubscriptionCheck(syncService, subService)
 
 	h := handler.NewHandler(syncService, paymentService, tm, customerRepository, purchaseRepository, cryptoPayClient, yookasaClient, referralRepository, cache, runtimeSettings, errorReporter)
-	miniAppHandler := miniapp.NewHandler(customerRepository, purchaseRepository, promoCodeRepository, referralRepository, supportRepository, reviewRepository, paymentService, remnawaveClient, b, broadcastService, subService, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository, tm)
+	miniAppHandler := miniapp.NewHandler(customerRepository, purchaseRepository, promoCodeRepository, referralRepository, walletRepository, supportRepository, reviewRepository, paymentService, remnawaveClient, b, broadcastService, subService, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository, tm)
 	miniAppHandler.StartSupportAutoCloser(ctx)
 	operations.StartHealthMonitor(ctx, pool, remnawaveClient, errorReporter)
 

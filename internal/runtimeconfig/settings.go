@@ -23,7 +23,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 16
+const CurrentVersion = 17
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -67,6 +67,7 @@ type Settings struct {
 	Plans        []PlanSettings       `json:"plans"`
 	DevicePacks  []DevicePackSettings `json:"devicePacks"`
 	Trial        TrialSettings        `json:"trial"`
+	Referrals    ReferralSettings     `json:"referrals"`
 	Grace        GraceSettings        `json:"grace"`
 	Panel        PanelSettings        `json:"panel"`
 }
@@ -280,6 +281,23 @@ type TrialSettings struct {
 	ExternalSquadUUID        string   `json:"externalSquadUuid"`
 	TrafficResetStrategy     string   `json:"trafficResetStrategy"`
 	Tag                      string   `json:"tag"`
+}
+
+type ReferralRewardSettings struct {
+	Days           int    `json:"days"`
+	TrafficGB      int    `json:"trafficGb"`
+	BalanceMode    string `json:"balanceMode"`
+	BalanceRub     int    `json:"balanceRub"`
+	BalancePercent int    `json:"balancePercent"`
+}
+
+type ReferralSettings struct {
+	Trial                  ReferralRewardSettings `json:"trial"`
+	Purchase               ReferralRewardSettings `json:"purchase"`
+	RewardEveryPurchase    bool                   `json:"rewardEveryPurchase"`
+	BalancePaymentsEnabled bool                   `json:"balancePaymentsEnabled"`
+	WithdrawalsEnabled     bool                   `json:"withdrawalsEnabled"`
+	MinimumWithdrawalRub   int                    `json:"minimumWithdrawalRub"`
 }
 
 type GraceSettings struct {
@@ -521,6 +539,17 @@ func DefaultSettings() Settings {
 			ExternalSquadUUID:        uuidString(config.TrialExternalSquadUUID()),
 			TrafficResetStrategy:     config.TrialTrafficLimitResetStrategy(),
 			Tag:                      config.TrialRemnawaveTag(),
+		},
+		Referrals: ReferralSettings{
+			Trial: ReferralRewardSettings{BalanceMode: "none"},
+			Purchase: ReferralRewardSettings{
+				Days:        config.GetReferralDays(),
+				TrafficGB:   int(config.ReferralTrafficBonusBytes() / (1024 * 1024 * 1024)),
+				BalanceMode: "none",
+			},
+			BalancePaymentsEnabled: true,
+			WithdrawalsEnabled:     true,
+			MinimumWithdrawalRub:   500,
 		},
 		Grace: GraceSettings{
 			Days: 1,
@@ -928,6 +957,12 @@ func NormalizeAndValidate(settings *Settings) error {
 		return err
 	}
 	if err := validateTrial(&settings.Trial, defaults.Trial, previousVersion < CurrentVersion); err != nil {
+		return err
+	}
+	if previousVersion < CurrentVersion {
+		settings.Referrals = defaults.Referrals
+	}
+	if err := validateReferrals(&settings.Referrals); err != nil {
 		return err
 	}
 	if err := validateGrace(&settings.Grace); err != nil {
@@ -1746,6 +1781,53 @@ func validateTrial(value *TrialSettings, _ TrialSettings, _ bool) error {
 	value.ExternalSquadUUID, err = normalizeOptionalUUID(value.ExternalSquadUUID)
 	if err != nil {
 		return fmt.Errorf("invalid trial external squad: %w", err)
+	}
+	return nil
+}
+
+func validateReferrals(value *ReferralSettings) error {
+	if value == nil {
+		return errors.New("referral settings are required")
+	}
+	if err := validateReferralReward(&value.Trial, false); err != nil {
+		return fmt.Errorf("invalid trial referral reward: %w", err)
+	}
+	if err := validateReferralReward(&value.Purchase, true); err != nil {
+		return fmt.Errorf("invalid purchase referral reward: %w", err)
+	}
+	if value.MinimumWithdrawalRub < 0 || value.MinimumWithdrawalRub > 1000000 {
+		return errors.New("invalid minimum referral withdrawal")
+	}
+	return nil
+}
+
+func validateReferralReward(value *ReferralRewardSettings, allowPercent bool) error {
+	if value.Days < 0 || value.Days > 3650 {
+		return errors.New("invalid reward duration")
+	}
+	if value.TrafficGB < 0 || value.TrafficGB > 1000000 {
+		return errors.New("invalid reward traffic")
+	}
+	if value.BalanceRub < 0 || value.BalanceRub > 1000000 {
+		return errors.New("invalid fixed balance reward")
+	}
+	if value.BalancePercent < 0 || value.BalancePercent > 100 {
+		return errors.New("invalid percentage balance reward")
+	}
+	value.BalanceMode = strings.ToLower(strings.TrimSpace(value.BalanceMode))
+	switch value.BalanceMode {
+	case "none":
+		value.BalanceRub = 0
+		value.BalancePercent = 0
+	case "fixed":
+		value.BalancePercent = 0
+	case "percent":
+		if !allowPercent {
+			return errors.New("percentage is only available for purchase rewards")
+		}
+		value.BalanceRub = 0
+	default:
+		return errors.New("balance mode must be one of: none, fixed, percent")
 	}
 	return nil
 }

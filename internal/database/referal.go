@@ -18,6 +18,19 @@ type Referral struct {
 	BonusGranted bool      `db:"bonus_granted"`
 }
 
+type ReferralReward struct {
+	ID                 int64      `db:"id"`
+	ReferralID         int64      `db:"referral_id"`
+	EventType          string     `db:"event_type"`
+	PurchaseID         *int64     `db:"purchase_id"`
+	RewardDays         int        `db:"reward_days"`
+	RewardTrafficBytes int64      `db:"reward_traffic_bytes"`
+	RewardBalanceCents int64      `db:"reward_balance_cents"`
+	Status             string     `db:"status"`
+	CreatedAt          time.Time  `db:"created_at"`
+	GrantedAt          *time.Time `db:"granted_at"`
+}
+
 type ReferralRepository struct {
 	pool *pgxpool.Pool
 }
@@ -159,4 +172,70 @@ func (r *ReferralRepository) MarkBonusGranted(ctx context.Context, referralID in
 		return errors.New("no referral record updated")
 	}
 	return nil
+}
+
+func (r *ReferralRepository) ClaimReward(ctx context.Context, referralID int64, eventType string, purchaseID *int64, days int, trafficBytes, balanceCents int64) (*ReferralReward, bool, error) {
+	var reward ReferralReward
+	err := r.pool.QueryRow(ctx, `
+		INSERT INTO referral_reward (
+			referral_id, event_type, purchase_id, reward_days, reward_traffic_bytes, reward_balance_cents
+		)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT DO NOTHING
+		RETURNING id, referral_id, event_type, purchase_id, reward_days, reward_traffic_bytes,
+		          reward_balance_cents, status, created_at, granted_at
+	`, referralID, eventType, purchaseID, days, trafficBytes, balanceCents).Scan(
+		&reward.ID, &reward.ReferralID, &reward.EventType, &reward.PurchaseID, &reward.RewardDays,
+		&reward.RewardTrafficBytes, &reward.RewardBalanceCents, &reward.Status, &reward.CreatedAt, &reward.GrantedAt,
+	)
+	if err == nil {
+		return &reward, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, fmt.Errorf("claim referral reward: %w", err)
+	}
+	return nil, false, nil
+}
+
+func (r *ReferralRepository) MarkRewardGranted(ctx context.Context, rewardID int64) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE referral_reward
+		SET status = 'granted', error_message = NULL, granted_at = NOW()
+		WHERE id = $1
+	`, rewardID)
+	if err != nil {
+		return fmt.Errorf("mark referral reward granted: %w", err)
+	}
+	return nil
+}
+
+func (r *ReferralRepository) MarkRewardFailed(ctx context.Context, rewardID int64, rewardErr error) error {
+	message := ""
+	if rewardErr != nil {
+		message = rewardErr.Error()
+	}
+	if len(message) > 1000 {
+		message = message[:1000]
+	}
+	_, err := r.pool.Exec(ctx, `
+		UPDATE referral_reward SET status = 'failed', error_message = $2 WHERE id = $1
+	`, rewardID, message)
+	if err != nil {
+		return fmt.Errorf("mark referral reward failed: %w", err)
+	}
+	return nil
+}
+
+func (r *ReferralRepository) CountGrantedRewards(ctx context.Context, referrerID int64, eventType string) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM referral_reward rr
+		JOIN referral r ON r.id = rr.referral_id
+		WHERE r.referrer_id = $1 AND rr.event_type = $2 AND rr.status = 'granted'
+	`, referrerID, eventType).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count granted referral rewards: %w", err)
+	}
+	return count, nil
 }

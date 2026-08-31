@@ -58,6 +58,7 @@ type Handler struct {
 	subscriptionRepository *database.SubscriptionRepository
 	promoCodeRepository    *database.PromoCodeRepository
 	referralRepository     *database.ReferralRepository
+	walletRepository       *database.WalletRepository
 	supportRepository      *database.SupportRepository
 	reviewRepository       *database.ReviewRepository
 	paymentService         *payment.PaymentService
@@ -102,6 +103,7 @@ type bootstrapResponse struct {
 	Subscriptions  subscriptionsPayload   `json:"subscriptions"`
 	Trial          trialPayload           `json:"trial"`
 	Referral       referralPayload        `json:"referral"`
+	Wallet         walletPayload          `json:"wallet"`
 	Reviews        reviewsPayload         `json:"reviews"`
 	Servers        serversPayload         `json:"servers"`
 	Support        supportPayload         `json:"support"`
@@ -194,11 +196,26 @@ type trialPayload struct {
 }
 
 type referralPayload struct {
-	Enabled           bool   `json:"enabled"`
-	Count             int    `json:"count"`
-	BonusDays         int    `json:"bonusDays"`
-	BonusTrafficBytes int64  `json:"bonusTrafficBytes"`
-	ShareURL          string `json:"shareUrl,omitempty"`
+	Enabled             bool                                 `json:"enabled"`
+	Count               int                                  `json:"count"`
+	TrialCount          int                                  `json:"trialCount"`
+	PurchaseCount       int                                  `json:"purchaseCount"`
+	BonusDays           int                                  `json:"bonusDays"`
+	BonusTrafficBytes   int64                                `json:"bonusTrafficBytes"`
+	TrialReward         runtimeconfig.ReferralRewardSettings `json:"trialReward"`
+	PurchaseReward      runtimeconfig.ReferralRewardSettings `json:"purchaseReward"`
+	RewardEveryPurchase bool                                 `json:"rewardEveryPurchase"`
+	ShareURL            string                               `json:"shareUrl,omitempty"`
+}
+
+type walletPayload struct {
+	BalanceCents           int64                         `json:"balanceCents"`
+	Currency               string                        `json:"currency"`
+	PaymentsEnabled        bool                          `json:"paymentsEnabled"`
+	WithdrawalsEnabled     bool                          `json:"withdrawalsEnabled"`
+	MinimumWithdrawalCents int64                         `json:"minimumWithdrawalCents"`
+	Transactions           []database.BalanceTransaction `json:"transactions"`
+	Withdrawals            []database.BalanceWithdrawal  `json:"withdrawals"`
 }
 
 type reviewsPayload struct {
@@ -235,11 +252,12 @@ type paymentsPayload struct {
 }
 
 type adminPayload struct {
-	PromoCodes   []promoCodePayload          `json:"promoCodes"`
-	Settings     runtimeconfig.Settings      `json:"settings"`
-	Events       []database.OperationalEvent `json:"events"`
-	Integrations []integrations.ProviderView `json:"integrations"`
-	Squads       remnawave.SquadCatalog      `json:"squads"`
+	PromoCodes   []promoCodePayload           `json:"promoCodes"`
+	Settings     runtimeconfig.Settings       `json:"settings"`
+	Events       []database.OperationalEvent  `json:"events"`
+	Integrations []integrations.ProviderView  `json:"integrations"`
+	Squads       remnawave.SquadCatalog       `json:"squads"`
+	Withdrawals  []database.BalanceWithdrawal `json:"withdrawals"`
 }
 
 type adminSubscriptionPayload struct {
@@ -531,6 +549,16 @@ type googleLinkRequest struct {
 	GoogleIDToken string `json:"googleIdToken"`
 }
 
+type walletWithdrawalRequest struct {
+	AmountRub     float64 `json:"amountRub"`
+	PayoutDetails string  `json:"payoutDetails"`
+}
+
+type adminWithdrawalResolveRequest struct {
+	ID      int64 `json:"id"`
+	Approve bool  `json:"approve"`
+}
+
 const (
 	reviewRewardDays         = 2
 	reviewRewardTrafficBytes = int64(20 * 1024 * 1024 * 1024)
@@ -543,6 +571,7 @@ func NewHandler(
 	purchaseRepository *database.PurchaseRepository,
 	promoCodeRepository *database.PromoCodeRepository,
 	referralRepository *database.ReferralRepository,
+	walletRepository *database.WalletRepository,
 	supportRepository *database.SupportRepository,
 	reviewRepository *database.ReviewRepository,
 	paymentService *payment.PaymentService,
@@ -571,6 +600,7 @@ func NewHandler(
 		subscriptionRepository: subscriptionRepository,
 		promoCodeRepository:    promoCodeRepository,
 		referralRepository:     referralRepository,
+		walletRepository:       walletRepository,
 		supportRepository:      supportRepository,
 		reviewRepository:       reviewRepository,
 		paymentService:         paymentService,
@@ -621,6 +651,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/auth/google/link", h.withSession(h.handleLinkGoogle))
 	mux.HandleFunc("/api/mini-app/trial/activate", h.withSession(h.handleActivateTrial))
 	mux.HandleFunc("/api/mini-app/purchase", h.withSession(h.handleCreatePurchaseV2))
+	mux.HandleFunc("/api/mini-app/wallet/withdraw", h.withSession(h.handleWalletWithdraw))
 	mux.HandleFunc("/api/mini-app/gifts/purchase", h.withSession(h.handleCreateGiftPurchase))
 	mux.HandleFunc("/api/mini-app/gifts/seen", h.withSession(h.handleGiftSeen))
 	mux.HandleFunc("/api/mini-app/purchase/cancel", h.withSession(h.handleCancelPurchase))
@@ -637,6 +668,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/target", h.withSession(h.handleAdminSubscriptionTarget))
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/rebind", h.withSession(h.handleAdminRebindSubscription))
 	mux.HandleFunc("/api/mini-app/admin/settings/update", h.withSession(h.handleAdminSettingsUpdate))
+	mux.HandleFunc("/api/mini-app/admin/wallet/withdrawal/resolve", h.withSession(h.handleAdminWithdrawalResolve))
 	mux.HandleFunc("/api/mini-app/admin/logo/upload", h.withSession(h.handleAdminLogoUpload, "multipart/form-data"))
 	mux.HandleFunc("/api/mini-app/admin/reminders/test", h.withSession(h.handleAdminReminderTest))
 	mux.HandleFunc("/api/mini-app/admin/success/test", h.withSession(h.handleAdminSuccessTest))
@@ -1288,7 +1320,6 @@ func (h *Handler) handleCreatePurchase(w http.ResponseWriter, r *http.Request, s
 		h.writeError(w, http.StatusBadRequest, "unsupported_payment_method", "Этот способ оплаты недоступен")
 		return
 	}
-
 	allowedMethods, err := h.availablePaymentMethods(r.Context(), customer)
 	if err != nil {
 		slog.Error("mini app: resolve payment methods", "error", err)
@@ -1540,6 +1571,10 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 			h.writeError(w, http.StatusConflict, "free_plan_too_early", "Повторное получение доступно за 7 дней до окончания подписки")
 			return
 		}
+		if errors.Is(err, database.ErrInsufficientBalance) {
+			h.writeError(w, http.StatusConflict, "insufficient_balance", "Недостаточно средств на балансе")
+			return
+		}
 		slog.Error("mini app: create purchase", "error", err, "method", req.PaymentMethod, "months", req.Months)
 		h.writeError(w, http.StatusInternalServerError, "purchase_failed", "Failed to create purchase")
 		return
@@ -1547,7 +1582,7 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 
 	action := "open_link"
 	switch invoiceType {
-	case database.InvoiceTypeFree:
+	case database.InvoiceTypeFree, database.InvoiceTypeBalance:
 		action = "completed"
 	case database.InvoiceTypeTelegram:
 		action = "open_invoice"
@@ -1565,6 +1600,77 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 			PurchaseID: purchaseID,
 		},
 	})
+}
+
+func (h *Handler) handleWalletWithdraw(w http.ResponseWriter, r *http.Request, _ *session, customer *database.Customer) {
+	if r.Method != http.MethodPost {
+		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		return
+	}
+	settings := runtimeconfig.DefaultSettings().Referrals
+	if h.runtimeSettings != nil {
+		settings = h.runtimeSettings.Snapshot().Referrals
+	}
+	if !settings.WithdrawalsEnabled || h.walletRepository == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "withdrawals_disabled", "Вывод средств временно недоступен")
+		return
+	}
+	var req walletWithdrawalRequest
+	if err := h.decodeJSONRequest(w, r, 4096, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Некорректный запрос")
+		return
+	}
+	amountCents := int64(math.Round(req.AmountRub * 100))
+	if amountCents <= 0 || amountCents < int64(settings.MinimumWithdrawalRub)*100 {
+		h.writeError(w, http.StatusBadRequest, "withdrawal_too_small", fmt.Sprintf("Минимальная сумма вывода — %d ₽", settings.MinimumWithdrawalRub))
+		return
+	}
+	item, err := h.walletRepository.CreateWithdrawal(r.Context(), customer.ID, amountCents, req.PayoutDetails)
+	if err != nil {
+		if errors.Is(err, database.ErrInsufficientBalance) {
+			h.writeError(w, http.StatusConflict, "insufficient_balance", "Недостаточно средств на балансе")
+			return
+		}
+		slog.Error("mini app: create balance withdrawal", "error", err, "customer_id", utils.MaskHalfInt64(customer.ID))
+		h.writeError(w, http.StatusBadRequest, "withdrawal_failed", "Не удалось создать заявку на вывод")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": item})
+}
+
+func (h *Handler) handleAdminWithdrawalResolve(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
+	if !h.isAdmin(sess.User.ID) {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+		return
+	}
+	if r.Method != http.MethodPost {
+		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		return
+	}
+	if h.walletRepository == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "withdrawal_unavailable", "Заявки на вывод недоступны")
+		return
+	}
+	var req adminWithdrawalResolveRequest
+	if err := h.decodeJSONRequest(w, r, 2048, &req); err != nil || req.ID <= 0 {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Некорректная заявка")
+		return
+	}
+	if err := h.walletRepository.ResolveWithdrawal(r.Context(), req.ID, sess.User.ID, req.Approve); err != nil {
+		if errors.Is(err, database.ErrWithdrawalAlreadyResolved) {
+			h.writeError(w, http.StatusConflict, "withdrawal_resolved", "Заявка уже обработана")
+			return
+		}
+		slog.Error("mini app: resolve withdrawal", "error", err, "withdrawal_id", req.ID)
+		h.writeError(w, http.StatusInternalServerError, "withdrawal_resolve_failed", "Не удалось обработать заявку")
+		return
+	}
+	payload, err := h.buildAdminPayload(r.Context())
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "admin_refresh_failed", "Не удалось обновить админку")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": payload})
 }
 
 func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
@@ -1594,6 +1700,10 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 	invoiceType, err := mapPaymentMethod(req.PaymentMethod)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "unsupported_payment_method", "Этот способ оплаты недоступен")
+		return
+	}
+	if invoiceType == database.InvoiceTypeBalance {
+		h.writeError(w, http.StatusBadRequest, "unsupported_payment_method", "Подарки нельзя оплатить внутренним балансом")
 		return
 	}
 	allowedMethods, err := h.availablePaymentMethods(r.Context(), customer)
@@ -3339,14 +3449,27 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		}
 	}
 
-	referralEnabled := settings.Features["referrals"] && (config.GetReferralDays() > 0 || config.ReferralTrafficBonusBytes() > 0)
-	referralCount := 0
+	referralEnabled := settings.Features["referrals"] && (referralRewardConfigured(settings.Referrals.Trial) || referralRewardConfigured(settings.Referrals.Purchase))
+	referralCount, referralTrialCount, referralPurchaseCount := 0, 0, 0
 	if referralEnabled {
-		count, err := h.referralRepository.CountGrantedByReferrer(ctx, customer.TelegramID)
+		count, err := h.referralRepository.CountByReferrer(ctx, customer.TelegramID)
 		if err != nil {
 			return nil, err
 		}
 		referralCount = count
+		referralTrialCount, err = h.referralRepository.CountGrantedRewards(ctx, customer.TelegramID, "trial")
+		if err != nil {
+			return nil, err
+		}
+		referralPurchaseCount, err = h.referralRepository.CountGrantedRewards(ctx, customer.TelegramID, "purchase")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	walletData, err := h.buildWalletPayload(ctx, customer, settings.Referrals)
+	if err != nil {
+		return nil, err
 	}
 
 	allowedMethods, err := h.availablePaymentMethods(ctx, customer)
@@ -3478,12 +3601,18 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 			Days:     settings.Trial.Days,
 		},
 		Referral: referralPayload{
-			Enabled:           referralEnabled,
-			Count:             referralCount,
-			BonusDays:         config.GetReferralDays(),
-			BonusTrafficBytes: int64(config.ReferralTrafficBonusBytes()),
-			ShareURL:          buildReferralShareURL(customer.TelegramID),
+			Enabled:             referralEnabled,
+			Count:               referralCount,
+			TrialCount:          referralTrialCount,
+			PurchaseCount:       referralPurchaseCount,
+			BonusDays:           settings.Referrals.Purchase.Days,
+			BonusTrafficBytes:   int64(settings.Referrals.Purchase.TrafficGB) * 1024 * 1024 * 1024,
+			TrialReward:         settings.Referrals.Trial,
+			PurchaseReward:      settings.Referrals.Purchase,
+			RewardEveryPurchase: settings.Referrals.RewardEveryPurchase,
+			ShareURL:            buildReferralShareURL(customer.TelegramID, referralEnabled),
 		},
+		Wallet:         walletData,
 		Reviews:        reviewsData,
 		Servers:        serverStatus,
 		Support:        supportData,
@@ -4032,6 +4161,31 @@ func (h *Handler) buildPaymentsPayload(ctx context.Context, customer *database.C
 	return result, nil
 }
 
+func (h *Handler) buildWalletPayload(ctx context.Context, customer *database.Customer, settings runtimeconfig.ReferralSettings) (walletPayload, error) {
+	result := walletPayload{
+		Currency:               "RUB",
+		PaymentsEnabled:        settings.BalancePaymentsEnabled,
+		WithdrawalsEnabled:     settings.WithdrawalsEnabled,
+		MinimumWithdrawalCents: int64(settings.MinimumWithdrawalRub) * 100,
+		Transactions:           []database.BalanceTransaction{},
+		Withdrawals:            []database.BalanceWithdrawal{},
+	}
+	if h.walletRepository == nil || customer == nil {
+		return result, nil
+	}
+	var err error
+	result.BalanceCents, err = h.walletRepository.Balance(ctx, customer.ID)
+	if err != nil {
+		return result, err
+	}
+	result.Transactions, err = h.walletRepository.ListTransactions(ctx, customer.ID, 30)
+	if err != nil {
+		return result, err
+	}
+	result.Withdrawals, err = h.walletRepository.ListWithdrawalsByCustomer(ctx, customer.ID, 20)
+	return result, err
+}
+
 func (h *Handler) buildAdminPayload(ctx context.Context) (*adminPayload, error) {
 	payload := &adminPayload{
 		PromoCodes:   []promoCodePayload{},
@@ -4039,6 +4193,14 @@ func (h *Handler) buildAdminPayload(ctx context.Context) (*adminPayload, error) 
 		Events:       []database.OperationalEvent{},
 		Integrations: []integrations.ProviderView{},
 		Squads:       remnawave.SquadCatalog{Internal: []remnawave.SquadOption{}, External: []remnawave.SquadOption{}},
+		Withdrawals:  []database.BalanceWithdrawal{},
+	}
+	if h.walletRepository != nil {
+		withdrawals, err := h.walletRepository.ListPendingWithdrawals(ctx, 100)
+		if err != nil {
+			return nil, err
+		}
+		payload.Withdrawals = withdrawals
 	}
 	if h.integrationSettings != nil {
 		payload.Integrations = h.integrationSettings.ListAdmin()
@@ -4378,6 +4540,11 @@ func paymentMethodFallbackTitle(invoiceType database.InvoiceType, language strin
 			return "Free activation"
 		}
 		return "Бесплатная активация"
+	case database.InvoiceTypeBalance:
+		if isEnglish {
+			return "Balance"
+		}
+		return "Баланс"
 	case database.InvoiceTypeYookasa:
 		if isEnglish {
 			return "Bank card"
@@ -5205,6 +5372,17 @@ func (h *Handler) availablePaymentMethods(ctx context.Context, customer *databas
 		"crypto": cryptoEnabled,
 		"stars":  h.runtimeFeatureEnabled("stars"),
 	}
+	referralSettings := runtimeconfig.DefaultSettings().Referrals
+	if h.runtimeSettings != nil {
+		referralSettings = h.runtimeSettings.Snapshot().Referrals
+	}
+	if referralSettings.BalancePaymentsEnabled && h.walletRepository != nil && customer != nil {
+		balance, err := h.walletRepository.Balance(ctx, customer.ID)
+		if err != nil {
+			return nil, err
+		}
+		methods["balance"] = balance > 0
+	}
 	if h.integrationSettings != nil {
 		for _, provider := range integrations.SortedPaymentProviders() {
 			if provider != integrations.ProviderYooKassa && provider != integrations.ProviderCryptoPay {
@@ -5383,7 +5561,7 @@ func runtimeFeatureForPath(path string) string {
 }
 
 func mapPaymentMethods(methods map[string]bool) []paymentMethodPayload {
-	order := []string{"sbp", "card", "p2p", "stars", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally"}
+	order := []string{"balance", "sbp", "card", "p2p", "stars", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally"}
 	payload := make([]paymentMethodPayload, 0, len(order))
 	for _, method := range order {
 		if methods[method] {
@@ -5395,6 +5573,8 @@ func mapPaymentMethods(methods map[string]bool) []paymentMethodPayload {
 
 func mapPaymentMethod(method string) (database.InvoiceType, error) {
 	switch method {
+	case "balance":
+		return database.InvoiceTypeBalance, nil
 	case "sbp", "card":
 		return database.InvoiceTypeYookasa, nil
 	case "stars":
@@ -5420,8 +5600,8 @@ func mapPaymentMethod(method string) (database.InvoiceType, error) {
 	}
 }
 
-func buildReferralShareURL(refCode int64) string {
-	if config.GetReferralDays() == 0 || config.BotURL() == "" {
+func buildReferralShareURL(refCode int64, enabled bool) string {
+	if !enabled || config.BotURL() == "" {
 		return ""
 	}
 
@@ -5431,6 +5611,12 @@ func buildReferralShareURL(refCode int64) string {
 		url.QueryEscape(referralTarget),
 		url.QueryEscape("Подключайся к Link-Bot и забирай быстрый доступ без лишних настроек."),
 	)
+}
+
+func referralRewardConfigured(reward runtimeconfig.ReferralRewardSettings) bool {
+	return reward.Days > 0 || reward.TrafficGB > 0 ||
+		(reward.BalanceMode == "fixed" && reward.BalanceRub > 0) ||
+		(reward.BalanceMode == "percent" && reward.BalancePercent > 0)
 }
 
 func buildPaymentReturnTarget(purchaseID int64, status string) string {

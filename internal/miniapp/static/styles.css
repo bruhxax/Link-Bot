@@ -9207,6 +9207,55 @@ body.has-open-modal .admin-save-bar {
   margin-bottom: 8px;
 }
 
+.referral-balance { margin-bottom: 8px; padding: 18px 2px 14px; display: grid; gap: 4px; border-bottom: 1px solid var(--line); }
+.referral-balance > span { color: var(--muted); font-size: 10px; font-weight: 750; text-transform: uppercase; letter-spacing: .08em; }
+.referral-balance > strong { font-size: clamp(28px, 9vw, 38px); line-height: 1; letter-spacing: -.04em; }
+.referral-balance > small { max-width: 360px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.referral-reward-list { margin-bottom: 8px; display: grid; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.referral-reward-rule { min-width: 0; padding: 13px 14px; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: start; }
+.referral-reward-rule + .referral-reward-rule { border-top: 1px solid var(--line-soft); }
+.referral-reward-rule__icon { width: 34px; height: 34px; display: grid; place-items: center; color: var(--icon-color); }
+.referral-reward-rule__icon svg { width: 19px; height: 19px; }
+.referral-reward-rule > div { min-width: 0; display: grid; gap: 3px; }
+.referral-reward-rule strong { font-size: 11px; }
+.referral-reward-rule span { color: var(--text); font-size: 10px; overflow-wrap: anywhere; }
+.referral-reward-rule small { color: var(--muted); font-size: 9px; }
+.wallet-withdrawal { margin-bottom: 8px; padding: 14px; display: grid; gap: 11px; }
+.wallet-withdrawal > div { display: grid; gap: 4px; }
+.wallet-withdrawal > div strong { font-size: 12px; }
+.wallet-withdrawal > div small { color: var(--muted); font-size: 9px; line-height: 1.45; }
+.wallet-withdrawal label { display: grid; gap: 6px; color: var(--muted); font-size: 9px; font-weight: 750; }
+.wallet-withdrawal :where(input, textarea) { width: 100%; min-height: 40px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--control-bg); font: inherit; font-size: 11px; resize: vertical; }
+.wallet-withdrawal :where(input, textarea):focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.wallet-history { margin-bottom: 8px; padding: 12px 14px; }
+.wallet-history h2 { margin: 0 0 7px; color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.wallet-history__row { padding: 9px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line-soft); }
+.wallet-history__row > div { min-width: 0; display: grid; gap: 2px; }
+.wallet-history__row strong { font-size: 10px; overflow-wrap: anywhere; }
+.wallet-history__row small, .wallet-history__row > span { color: var(--muted); font-size: 9px; }
+.wallet-history__row > span { flex: 0 0 auto; text-align: right; }
+.wallet-history__row > span.is-positive { color: var(--success); }
+.wallet-history__row > span.is-negative { color: var(--danger); }
+
+.admin-editor__section-head > div { min-width: 0; }
+.admin-editor__section-head p { margin: 4px 0 0; max-width: 460px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.is-field-muted { opacity: .5; }
+.admin-withdrawal { padding: 12px 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; border-top: 1px solid var(--line-soft); }
+.admin-withdrawal > div:first-child { min-width: 0; display: grid; gap: 3px; }
+.admin-withdrawal strong { font-size: 12px; }
+.admin-withdrawal span, .admin-withdrawal small { color: var(--muted); font-size: 9px; overflow-wrap: anywhere; }
+.admin-withdrawal__actions { display: flex; gap: 6px; }
+.admin-withdrawal__actions button { min-height: 36px; padding: 8px 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 6px; color: var(--button-text); background: var(--control-bg); font-size: 9px; font-weight: 800; }
+.admin-withdrawal__actions button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.admin-withdrawal__actions button:disabled { opacity: .5; }
+.admin-withdrawal__actions svg { width: 14px; height: 14px; }
+
+@media (max-width: 430px) {
+  .admin-withdrawal { grid-template-columns: 1fr; }
+  .admin-withdrawal__actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .admin-withdrawal__actions button { justify-content: center; }
+}
+
 /* Theme mappings are declared late in this file, so server filter states live here too. */
 .server-tabs .tab:not(.active) {
   border-color: transparent !important;

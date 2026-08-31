@@ -47,6 +47,7 @@ type PaymentService struct {
 	cryptoPayClient        *cryptopay.Client
 	yookasaClient          *yookasa.Client
 	referralRepository     *database.ReferralRepository
+	walletRepository       *database.WalletRepository
 	cache                  *cache.Cache
 	moynalogClient         *moynalog.Client
 	errorReporter          *operations.Reporter
@@ -119,6 +120,7 @@ func NewPaymentService(
 	cryptoPayClient *cryptopay.Client,
 	yookasaClient *yookasa.Client,
 	referralRepository *database.ReferralRepository,
+	walletRepository *database.WalletRepository,
 	cache *cache.Cache,
 	moynalogClient *moynalog.Client,
 	runtimeSettings *runtimeconfig.Service,
@@ -141,6 +143,7 @@ func NewPaymentService(
 		cryptoPayClient:        cryptoPayClient,
 		yookasaClient:          yookasaClient,
 		referralRepository:     referralRepository,
+		walletRepository:       walletRepository,
 		cache:                  cache,
 		moynalogClient:         moynalogClient,
 		runtimeSettings:        runtimeSettings,
@@ -364,65 +367,156 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 		}
 	}
 
-	ctxReferee := context.Background()
-	referee, err := s.referralRepository.FindByReferee(ctxReferee, customer.TelegramID)
-	if referee == nil {
-		return nil
+	if rewardErr := s.grantReferralReward(context.Background(), customer, "purchase", purchase); rewardErr != nil {
+		slog.Error("payment: grant referral purchase reward failed", "error", rewardErr, "purchase_id", utils.MaskHalfInt64(purchase.ID))
 	}
-	if config.GetReferralDays() <= 0 && config.ReferralTrafficBonusBytes() <= 0 {
-		return nil
-	}
-	if referee.BonusGranted {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	refereeCustomer, err := s.customerRepository.FindByTelegramId(ctxReferee, referee.ReferrerID)
-	if err != nil {
-		return err
-	}
-	refereeTrafficLimit, err := s.resolveCustomerTrafficLimit(ctxReferee, refereeCustomer)
-	if err != nil {
-		return err
-	}
-	referralTrafficLimit := mergeTrafficLimits(refereeTrafficLimit, config.ReferralTrafficBonusBytes())
-	if referralTrafficLimit == 0 && refereeTrafficLimit > 0 && config.ReferralTrafficBonusBytes() <= 0 {
-		referralTrafficLimit = refereeTrafficLimit
-	}
-	refereeDeviceLimit, err := s.resolveCustomerDeviceLimit(ctxReferee, refereeCustomer)
-	if err != nil {
-		return err
-	}
-	refereeUser, err := s.remnawaveClient.CreateOrUpdateUser(ctxReferee, refereeCustomer.ID, refereeCustomer.TelegramID, referralTrafficLimit, refereeDeviceLimit, config.GetReferralDays(), false)
-	if err != nil {
-		return err
-	}
-	refereeUserFilesToUpdate := map[string]interface{}{
-		"subscription_link": refereeUser.GetSubscriptionUrl(),
-		"expire_at":         refereeUser.GetExpireAt(),
-	}
-	err = s.customerRepository.UpdateFields(ctxReferee, refereeCustomer.ID, refereeUserFilesToUpdate)
-	if err != nil {
-		return err
-	}
-	err = s.referralRepository.MarkBonusGranted(ctxReferee, referee.ID)
-	if err != nil {
-		return err
-	}
-	slog.Info("Granted referral bonus", "customer_id", utils.MaskHalfInt64(refereeCustomer.ID))
-	_, err = s.telegramBot.SendMessage(ctxReferee, &bot.SendMessageParams{
-		ChatID:    refereeCustomer.TelegramID,
-		ParseMode: models.ParseModeHTML,
-		Text:      buildReferralBonusGrantedText(s.language()),
-		ReplyMarkup: models.InlineKeyboardMarkup{
-			InlineKeyboard: s.createConnectKeyboard(refereeCustomer),
-		},
-	})
 
 	slog.Info("purchase processed", "purchase_id", utils.MaskHalfInt64(purchase.ID), "type", purchase.InvoiceType, "customer_id", utils.MaskHalfInt64(customer.ID))
 
 	return nil
+}
+
+func (s PaymentService) grantReferralReward(ctx context.Context, invitedCustomer *database.Customer, eventType string, purchase *database.Purchase) error {
+	if invitedCustomer == nil || s.referralRepository == nil {
+		return nil
+	}
+	settings := runtimeconfig.DefaultSettings().Referrals
+	if s.runtimeSettings != nil {
+		settings = s.runtimeSettings.Snapshot().Referrals
+	}
+	if eventType == "purchase" {
+		if purchase == nil || purchase.Amount <= 0 || purchase.PurchaseKind != database.PurchaseKindSubscription || purchase.IsFreePlan || purchase.InvoiceType == database.InvoiceTypeFree || purchase.InvoiceType == database.InvoiceTypeBalance {
+			return nil
+		}
+	}
+	referral, err := s.referralRepository.FindByReferee(ctx, invitedCustomer.TelegramID)
+	if err != nil || referral == nil {
+		return err
+	}
+	if eventType == "purchase" && !settings.RewardEveryPurchase && referral.BonusGranted {
+		return nil
+	}
+
+	rewardSettings := settings.Trial
+	var purchaseID *int64
+	if eventType == "purchase" {
+		rewardSettings = settings.Purchase
+		purchaseID = &purchase.ID
+	}
+	balanceCents := referralBalanceRewardCents(rewardSettings, s.referralPurchaseAmountRub(purchase))
+	trafficBytes := int64(rewardSettings.TrafficGB) * 1024 * 1024 * 1024
+	if rewardSettings.Days == 0 && trafficBytes == 0 && balanceCents == 0 {
+		return nil
+	}
+	reward, claimed, err := s.referralRepository.ClaimReward(ctx, referral.ID, eventType, purchaseID, rewardSettings.Days, trafficBytes, balanceCents)
+	if err != nil || !claimed {
+		return err
+	}
+
+	referrer, err := s.customerRepository.FindByTelegramId(ctx, referral.ReferrerID)
+	if err == nil && referrer == nil {
+		err = errors.New("referrer customer not found")
+	}
+	if err == nil && (rewardSettings.Days > 0 || trafficBytes > 0) {
+		var currentTraffic, deviceLimit int
+		currentTraffic, err = s.resolveCustomerTrafficLimit(ctx, referrer)
+		if err == nil {
+			deviceLimit, err = s.resolveCustomerDeviceLimit(ctx, referrer)
+		}
+		if err == nil {
+			nextTraffic := mergeTrafficLimits(currentTraffic, int(trafficBytes))
+			var panelUser *remnawave.PanelUser
+			panelUser, err = s.remnawaveClient.CreateOrUpdateUser(ctx, referrer.ID, referrer.TelegramID, nextTraffic, deviceLimit, rewardSettings.Days, false)
+			if err == nil {
+				err = s.customerRepository.UpdateFields(ctx, referrer.ID, map[string]interface{}{
+					"subscription_link": panelUser.GetSubscriptionUrl(),
+					"expire_at":         panelUser.GetExpireAt(),
+				})
+			}
+		}
+	}
+	if err == nil && balanceCents > 0 {
+		if s.walletRepository == nil {
+			err = errors.New("wallet repository is unavailable")
+		} else {
+			_, _, err = s.walletRepository.Apply(ctx, referrer.ID, balanceCents, "referral_"+eventType, fmt.Sprintf("referral-reward:%d", reward.ID), referralRewardDescription(eventType))
+		}
+	}
+	if err != nil {
+		_ = s.referralRepository.MarkRewardFailed(ctx, reward.ID, err)
+		return err
+	}
+	if err := s.referralRepository.MarkRewardGranted(ctx, reward.ID); err != nil {
+		return err
+	}
+	if eventType == "purchase" && !referral.BonusGranted {
+		if err := s.referralRepository.MarkBonusGranted(ctx, referral.ID); err != nil {
+			return err
+		}
+	}
+	if s.telegramBot != nil {
+		_, sendErr := s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: referrer.TelegramID, ParseMode: models.ParseModeHTML,
+			Text:        buildReferralBonusGrantedText(s.language(), eventType, rewardSettings.Days, rewardSettings.TrafficGB, balanceCents),
+			ReplyMarkup: models.InlineKeyboardMarkup{InlineKeyboard: s.createConnectKeyboard(referrer)},
+		})
+		if sendErr != nil {
+			slog.Warn("payment: referral reward notification failed", "error", sendErr, "customer_id", utils.MaskHalfInt64(referrer.ID))
+		}
+	}
+	slog.Info("payment: referral reward granted", "event", eventType, "customer_id", utils.MaskHalfInt64(referrer.ID), "reward_id", reward.ID)
+	return nil
+}
+
+func referralBalanceRewardCents(settings runtimeconfig.ReferralRewardSettings, purchaseAmountRub float64) int64 {
+	switch settings.BalanceMode {
+	case "fixed":
+		return int64(settings.BalanceRub) * 100
+	case "percent":
+		if purchaseAmountRub > 0 {
+			return int64(math.Round(purchaseAmountRub * float64(settings.BalancePercent)))
+		}
+	}
+	return 0
+}
+
+func (s PaymentService) referralPurchaseAmountRub(purchase *database.Purchase) float64 {
+	if purchase == nil || purchase.Amount <= 0 {
+		return 0
+	}
+	if purchase.InvoiceType != database.InvoiceTypeTelegram && !strings.EqualFold(purchase.Currency, "STARS") && !strings.EqualFold(purchase.Currency, "XTR") {
+		return purchase.Amount
+	}
+	if s.runtimeSettings == nil || purchase.PlanID == nil {
+		return 0
+	}
+	plan, ok := s.runtimeSettings.CheckoutPlan(*purchase.PlanID, purchase.Month)
+	if !ok || plan.PriceRub <= 0 {
+		return 0
+	}
+	priceRub := plan.PriceRub
+	if purchase.ExtraDevices > 0 {
+		for _, pack := range s.runtimeSettings.Snapshot().DevicePacks {
+			if pack.Enabled && pack.Devices == purchase.ExtraDevices {
+				priceRub += pack.PriceRub
+				break
+			}
+		}
+	}
+	if purchase.PromoCodeDiscountPercent != nil && *purchase.PromoCodeDiscountPercent > 0 {
+		priceRub = int(math.Round(float64(priceRub) * float64(100-*purchase.PromoCodeDiscountPercent) / 100))
+		if priceRub < 1 {
+			priceRub = 1
+		}
+	}
+	return float64(priceRub)
+}
+
+func referralRewardDescription(eventType string) string {
+	if eventType == "trial" {
+		return "Реферальная награда за активацию пробного периода"
+	}
+	return "Реферальная награда за покупку приглашённого пользователя"
 }
 
 func (s PaymentService) sendSubscriptionActivatedMessage(ctx context.Context, customer *database.Customer) error {
@@ -603,6 +697,8 @@ func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount fl
 	switch invoiceType {
 	case database.InvoiceTypeFree:
 		url, purchaseId, err = s.createFreePlanPurchase(ctx, months, customer, options)
+	case database.InvoiceTypeBalance:
+		url, purchaseId, err = s.createBalancePurchase(ctx, amount, months, customer, options)
 	case database.InvoiceTypeCrypto:
 		url, purchaseId, err = s.createCryptoInvoice(ctx, amount, months, customer, options)
 	case database.InvoiceTypeYookasa:
@@ -629,6 +725,8 @@ func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount fl
 			category = "Telegram Stars"
 		case database.InvoiceTypeP2P:
 			category = "P2P перевод"
+		case database.InvoiceTypeBalance:
+			category = "Баланс"
 		case database.InvoiceTypeLava, database.InvoiceTypeWata, database.InvoiceTypePlatega, database.InvoiceTypeFreeKassa, database.InvoiceTypeHeleket, database.InvoiceTypePally:
 			category = string(invoiceType)
 		}
@@ -697,6 +795,50 @@ func (s PaymentService) createFreePlanPurchase(ctx context.Context, months int, 
 	if err := s.ProcessPurchaseById(ctx, purchaseID); err != nil {
 		if cancelErr := s.purchaseRepository.UpdateFields(ctx, purchaseID, map[string]interface{}{"status": database.PurchaseStatusCancel}); cancelErr != nil {
 			slog.Error("payment: cancel failed free plan purchase", "purchase_id", utils.MaskHalfInt64(purchaseID), "error", cancelErr)
+		}
+		return "", purchaseID, err
+	}
+	return "", purchaseID, nil
+}
+
+func (s PaymentService) createBalancePurchase(ctx context.Context, amount float64, months int, customer *database.Customer, options CreatePurchaseOptions) (string, int64, error) {
+	if s.walletRepository == nil || customer == nil || amount <= 0 {
+		return "", 0, errors.New("balance payments are unavailable")
+	}
+	amountCents := int64(math.Round(amount * 100))
+	purchaseID, err := s.purchaseRepository.Create(ctx, &database.Purchase{
+		InvoiceType:              database.InvoiceTypeBalance,
+		Status:                   database.PurchaseStatusNew,
+		Amount:                   amount,
+		Currency:                 "RUB",
+		CustomerID:               customer.ID,
+		SubscriptionID:           options.SubscriptionID,
+		Month:                    months,
+		PlanID:                   optionalTrimmedStringPointer(options.PlanID),
+		TrafficLimitBytes:        options.TrafficLimitBytes,
+		DeviceLimitCount:         options.DeviceLimitCount,
+		AgreementAccepted:        options.AgreementAccepted,
+		PurchaseKind:             options.PurchaseKind,
+		ExtraDevices:             options.ExtraDevices,
+		IsFreePlan:               options.IsFreePlan,
+		FreePlanOneTime:          options.FreePlanOneTime,
+		PromoCodeID:              options.PromoCodeID,
+		PromoCodeSnapshot:        optionalTrimmedStringPointer(options.PromoCodeCode),
+		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
+	})
+	if err != nil {
+		return "", 0, err
+	}
+	_, _, err = s.walletRepository.Apply(ctx, customer.ID, -amountCents, "purchase", fmt.Sprintf("balance-purchase:%d", purchaseID), "Оплата покупки с баланса")
+	if err != nil {
+		_ = s.purchaseRepository.UpdateFields(ctx, purchaseID, map[string]interface{}{"status": database.PurchaseStatusCancel})
+		return "", purchaseID, err
+	}
+	if err := s.ProcessPurchaseById(ctx, purchaseID); err != nil {
+		current, findErr := s.purchaseRepository.FindById(ctx, purchaseID)
+		if findErr == nil && current != nil && current.Status != database.PurchaseStatusPaid {
+			_, _, _ = s.walletRepository.Apply(ctx, customer.ID, amountCents, "purchase_refund", fmt.Sprintf("balance-purchase-refund:%d", purchaseID), "Возврат за неисполненную покупку")
+			_ = s.purchaseRepository.UpdateFields(ctx, purchaseID, map[string]interface{}{"status": database.PurchaseStatusCancel})
 		}
 		return "", purchaseID, err
 	}
@@ -1159,6 +1301,9 @@ func (s PaymentService) ActivateTrial(ctx context.Context, telegramId int64) (st
 	if err != nil {
 		return "", err
 	}
+	if rewardErr := s.grantReferralReward(context.Background(), customer, "trial", nil); rewardErr != nil {
+		slog.Error("payment: grant referral trial reward failed", "error", rewardErr, "customer_id", utils.MaskHalfInt64(customer.ID))
+	}
 
 	return user.GetSubscriptionUrl(), nil
 
@@ -1499,30 +1644,39 @@ func optionalPositiveIntPointer(value int) *int {
 	return &result
 }
 
-func buildReferralBonusGrantedText(langCode string) string {
-	days := config.GetReferralDays()
-	trafficGb := config.ReferralTrafficBonusBytes() / (1024 * 1024 * 1024)
-
+func buildReferralBonusGrantedText(langCode, eventType string, days, trafficGB int, balanceCents int64) string {
+	eventRU := "покупку подписки приглашённым пользователем"
+	eventEN := "your invited friend's subscription purchase"
+	eventFA := "خرید اشتراک کاربر دعوت‌شده"
+	if eventType == "trial" {
+		eventRU = "активацию пробного периода приглашённым пользователем"
+		eventEN = "your invited friend's trial activation"
+		eventFA = "فعال‌سازی دوره آزمایشی کاربر دعوت‌شده"
+	}
+	rewardRU := referralRewardSummary(days, trafficGB, balanceCents, "дн.", "ГБ", "₽")
+	rewardEN := referralRewardSummary(days, trafficGB, balanceCents, "days", "GB", "RUB")
+	rewardFA := referralRewardSummary(days, trafficGB, balanceCents, "روز", "گیگابایت", "روبل")
 	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(langCode)), "en") {
-		return fmt.Sprintf(
-			"You have received a referral bonus: +%d days and +%d GB.\nThe reward is credited after your invited friend pays for a subscription.",
-			days,
-			trafficGb,
-		)
+		return fmt.Sprintf("You received a referral reward for %s: %s.", eventEN, rewardEN)
 	}
 	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(langCode)), "fa") {
-		return fmt.Sprintf(
-			"پاداش دعوت برای شما ثبت شد: %d روز و %d گیگابایت.\nاین پاداش پس از خرید اشتراک توسط دوست دعوت‌شده فعال می‌شود.",
-			days,
-			trafficGb,
-		)
+		return fmt.Sprintf("پاداش دعوت برای %s ثبت شد: %s.", eventFA, rewardFA)
 	}
+	return fmt.Sprintf("<tg-emoji emoji-id='5258362837411045098'>☺️</tg-emoji> Вам начислена награда за %s: %s.", eventRU, rewardRU)
+}
 
-	return fmt.Sprintf(
-		"<tg-emoji emoji-id='5258362837411045098'>☺️</tg-emoji> Вам начислен реферальный бонус: +%d дней и +%d ГБ.\nБонус выдаётся после покупки тарифа приглашённым пользователем.",
-		days,
-		trafficGb,
-	)
+func referralRewardSummary(days, trafficGB int, balanceCents int64, daysUnit, trafficUnit, moneyUnit string) string {
+	parts := make([]string, 0, 3)
+	if days > 0 {
+		parts = append(parts, fmt.Sprintf("+%d %s", days, daysUnit))
+	}
+	if trafficGB > 0 {
+		parts = append(parts, fmt.Sprintf("+%d %s", trafficGB, trafficUnit))
+	}
+	if balanceCents > 0 {
+		parts = append(parts, fmt.Sprintf("+%.2f %s", float64(balanceCents)/100, moneyUnit))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func (s PaymentService) completePromoRedemption(ctx context.Context, purchase *database.Purchase, customer *database.Customer) {
