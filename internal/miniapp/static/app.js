@@ -735,7 +735,7 @@ const previewPayload = {
   subscription: { status: "active", daysLeft: 26724, planMonths: 12, userId: 1, userUuid: "00000000-0000-0000-0000-000000000001", expiresAt: new Date(Date.now() + 26724 * 86400000).toISOString(), subscriptionLink: "https://example.com/sub/link-bot/secure-link", hasAccessLink: true, trafficUsedBytes: 0, trafficLimitBytes: 0, deviceUsedCount: 1, deviceLimitCount: 0, devices: [{ hwid: "demo-hwid-1", platform: "iOS", osVersion: "18.4", deviceModel: "iPhone 16", userAgent: "Happ/4.6.0/ios", createdAt: new Date(Date.now() - 86400000).toISOString(), updatedAt: new Date().toISOString() }] },
   subscriptions: { activeId: 1, maximum: 3, items: [{ id: 1, name: "Основная", position: 1, isPrimary: true, isActive: true, status: "active", expiresAt: new Date(Date.now() + 26724 * 86400000).toISOString() }] },
   trial: { enabled: true, eligible: false, days: 2 },
-  referral: { enabled: true, count: 4, trialCount: 3, purchaseCount: 2, bonusDays: 7, bonusTrafficBytes: 53687091200, trialReward: { days: 1, trafficGb: 5, balanceMode: "fixed", balanceRub: 25, balancePercent: 0 }, purchaseReward: { days: 7, trafficGb: 50, balanceMode: "percent", balanceRub: 0, balancePercent: 10 }, rewardEveryPurchase: false, shareUrl: "https://t.me/share/url?url=https%3A%2F%2Ft.me%2Fyour_bot_username%3Fstart%3Dref_777777" },
+  referral: { enabled: true, count: 4, trialCount: 3, purchaseCount: 2, bonusDays: 7, bonusTrafficBytes: 53687091200, trialReward: { days: 1, trafficGb: 5, balanceMode: "fixed", balanceRub: 25, balancePercent: 0 }, purchaseReward: { days: 7, trafficGb: 50, balanceMode: "percent", balanceRub: 0, balancePercent: 10 }, rewardEveryPurchase: false, shareUrl: "https://t.me/share/url?url=https%3A%2F%2Ft.me%2Fyour_bot_username%3Fstart%3Dref_777777", inviteUrl: "https://t.me/your_bot_username?start=ref_777777" },
   wallet: { balanceCents: 12450, currency: "RUB", paymentsEnabled: true, withdrawalsEnabled: true, minimumWithdrawalCents: 50000, transactions: [{ id: 1, amountCents: 12450, balanceAfterCents: 12450, kind: "referral_purchase", description: "Реферальная награда за покупку", createdAt: new Date().toISOString() }], withdrawals: [] },
   reviews: {
     count: 5,
@@ -4930,12 +4930,42 @@ function renderReferralsPage() {
 				<div class="referral-metric"><strong>${formatNumber(referral.purchaseCount || 0, state.locale)}</strong><span>${localizedText("Купили", "Purchased", "خرید")}</span></div>
 				<div class="referral-metric"><strong>${formatNumber(referral.trialCount || 0, state.locale)}</strong><span>${localizedText("Пробный", "Trials", "آزمایشی")}</span></div>
 			</div>
-			<div class="referral-share-actions" aria-label="${escapeAttribute(localizedText("Пригласить пользователя", "Invite a user", "دعوت کاربر"))}"><button class="btn" type="button" data-action="share-referral">${icon("share")}<span>${copy.shareTelegram}</span></button><button class="btn" type="button" data-action="copy-referral">${icon("copy")}<span>${copy.copyReferral}</span></button></div>
+			${renderReferralInviteCard(referral, copy)}
 			${wallet.withdrawalsEnabled ? `<details class="wallet-withdrawal" ${keepWithdrawalOpen ? "open" : ""}><summary><span><strong>${localizedText("Вывести средства", "Withdraw funds", "برداشت وجه")}</strong><small>${localizedText(`Минимум ${formatMoneyCents(wallet.minimumWithdrawalCents || 0)}`, `Minimum ${formatMoneyCents(wallet.minimumWithdrawalCents || 0)}`, `حداقل ${formatMoneyCents(wallet.minimumWithdrawalCents || 0)}`)}</small></span><span class="wallet-withdrawal__summary-action"><span class="is-closed">${localizedText("Открыть", "Open", "باز کردن")}</span><span class="is-open">${localizedText("Скрыть", "Close", "بستن")}</span></span></summary><div class="wallet-withdrawal__form"><div class="wallet-withdrawal__fields"><label><span>${localizedText("Сумма, ₽", "Amount, RUB", "مبلغ، روبل")}</span><input type="number" min="${Math.max(0, Number(wallet.minimumWithdrawalCents || 0) / 100)}" step="0.01" inputmode="decimal" data-input="wallet-withdrawal-amount" value="${escapeAttribute(state.walletWithdrawalAmount)}"></label><label><span>${localizedText("Реквизиты", "Payout details", "اطلاعات پرداخت")}</span><textarea rows="2" maxlength="1000" data-input="wallet-payout-details" placeholder="${escapeAttribute(localizedText("Карта, СБП или контакт", "Card, bank transfer, or contact", "کارت، انتقال یا راه ارتباطی"))}">${escapeHtml(state.walletPayoutDetails)}</textarea></label></div><button class="btn" type="button" data-action="wallet-withdraw" ${state.walletBusy ? "disabled" : ""}>${icon(state.walletBusy ? "refresh" : "wallet")}<span>${localizedText("Создать заявку", "Create request", "ایجاد درخواست")}</span></button></div></details>` : ""}
 			${transactions.length ? `<section class="card wallet-history"><h2>${localizedText("История баланса", "Balance history", "تاریخچه موجودی")}</h2>${transactions.map(renderWalletTransaction).join("")}</section>` : ""}
 			${withdrawals.length ? `<section class="card wallet-history"><h2>${localizedText("Заявки на вывод", "Withdrawal requests", "درخواست‌های برداشت")}</h2>${withdrawals.map(renderWalletWithdrawal).join("")}</section>` : ""}
     </section>
   `;
+}
+
+function renderReferralInviteCard(referral, copy) {
+	const inviteURL = String(referral?.inviteUrl || "").trim();
+	const shareURL = String(referral?.shareUrl || "").trim();
+	const title = localizedText("Пригласить по QR-коду", "Invite with a QR code", "دعوت با کد QR");
+	let qrCode = "";
+	try {
+		qrCode = renderQRCodeSVG(inviteURL, {
+			border: 4,
+			ecc: "H",
+			pixelSize: 8,
+			rounded: 0.5,
+			moduleScale: 0.96,
+			finderRadius: 1.45,
+			whiteColor: "#fff",
+			blackColor: "#050505",
+		}).replace("<svg ", '<svg data-preserve-color="true" aria-hidden="true" ');
+	} catch {
+		qrCode = `<span class="referral-invite-card__qr-error" aria-hidden="true">${icon("alert")}</span>`;
+	}
+
+	return `<section class="referral-invite-card" aria-labelledby="referral-invite-title">
+		<h2 class="sr-only" id="referral-invite-title">${escapeHtml(title)}</h2>
+		<div class="referral-invite-card__qr" role="img" aria-label="${escapeAttribute(title)}">${qrCode}</div>
+		<div class="referral-share-actions" aria-label="${escapeAttribute(localizedText("Пригласить пользователя", "Invite a user", "دعوت کاربر"))}">
+			<button class="btn" type="button" data-action="share-referral" ${shareURL ? "" : "disabled"}>${icon("share")}<span>${copy.shareTelegram}</span></button>
+			<button class="btn" type="button" data-action="copy-referral" ${inviteURL ? "" : "disabled"}>${icon("copy")}<span>${copy.copyReferral}</span></button>
+		</div>
+	</section>`;
 }
 
 function renderWalletTransaction(item) {
@@ -6428,7 +6458,7 @@ function bindRootActions() {
       if (action === "set-install-platform") { state.installGuidePlatform = value === "ios" ? "ios" : "android"; haptic("light"); render(); return; }
       if (action === "copy-access") return state.data?.subscription?.subscriptionLink ? copyToClipboard(state.data.subscription.subscriptionLink).then(() => showToast(t().copied)) : showToast(t().noAccess);
       if (action === "share-referral") return state.data?.referral?.shareUrl ? openExternal(state.data.referral.shareUrl) : undefined;
-      if (action === "copy-referral") return state.data?.referral?.shareUrl ? copyToClipboard(state.data.referral.shareUrl).then(() => showToast(t().copied)) : undefined;
+      if (action === "copy-referral") return state.data?.referral?.inviteUrl ? copyToClipboard(state.data.referral.inviteUrl).then(() => showToast(t().copied)) : undefined;
 			if (action === "wallet-withdraw") return await submitWalletWithdrawal();
       if (action === "open-link") return openExternal(value);
         if (action === "set-theme") { state.theme = value === "light" ? "light" : "dark"; writeSetting(STORAGE_KEYS.theme, state.theme); applyAppearance(); render(); return; }

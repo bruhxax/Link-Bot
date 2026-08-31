@@ -207,6 +207,7 @@ type referralPayload struct {
 	PurchaseReward      runtimeconfig.ReferralRewardSettings `json:"purchaseReward"`
 	RewardEveryPurchase bool                                 `json:"rewardEveryPurchase"`
 	ShareURL            string                               `json:"shareUrl,omitempty"`
+	InviteURL           string                               `json:"inviteUrl,omitempty"`
 }
 
 type walletPayload struct {
@@ -3619,6 +3620,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		}
 	}
 
+	referralInviteURL := buildReferralInviteURL(customer.TelegramID, referralEnabled)
 	return &bootstrapResponse{
 		Brand: brandPayload{
 			Name:    settings.Content.BrandName,
@@ -3659,6 +3661,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 			PurchaseReward:      settings.Referrals.Purchase,
 			RewardEveryPurchase: settings.Referrals.RewardEveryPurchase,
 			ShareURL:            buildReferralShareURL(customer.TelegramID, referralEnabled),
+			InviteURL:           referralInviteURL,
 		},
 		Wallet:         walletData,
 		Reviews:        reviewsData,
@@ -5652,16 +5655,24 @@ func mapPaymentMethod(method string) (database.InvoiceType, error) {
 }
 
 func buildReferralShareURL(refCode int64, enabled bool) string {
-	if !enabled || config.BotURL() == "" {
+	referralTarget := buildReferralInviteURL(refCode, enabled)
+	if referralTarget == "" {
 		return ""
 	}
 
-	referralTarget := fmt.Sprintf("%s?start=ref_%d", config.BotURL(), refCode)
 	return fmt.Sprintf(
 		"https://t.me/share/url?url=%s&text=%s",
 		url.QueryEscape(referralTarget),
 		url.QueryEscape("Подключайся к Link-Bot и забирай быстрый доступ без лишних настроек."),
 	)
+}
+
+func buildReferralInviteURL(refCode int64, enabled bool) string {
+	botURL := strings.TrimRight(strings.TrimSpace(config.BotURL()), "/")
+	if !enabled || botURL == "" || refCode <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s?start=ref_%d", botURL, refCode)
 }
 
 func referralRewardConfigured(reward runtimeconfig.ReferralRewardSettings) bool {

@@ -24,12 +24,15 @@ func TestReferralWalletUIIncludesSettingsPaymentsAndWithdrawals(t *testing.T) {
 		`/api/mini-app/wallet/withdraw`,
 		`/api/mini-app/admin/wallet/withdrawal/resolve`,
 		`wallet-withdrawal-amount`,
+		`renderReferralInviteCard(referral, copy)`,
+		`renderQRCodeSVG(inviteURL`,
+		`state.data?.referral?.inviteUrl`,
 	} {
 		if !strings.Contains(string(appJS), expected) {
 			t.Fatalf("app.js does not contain %q", expected)
 		}
 	}
-	for _, expected := range []string{".referral-metrics", ".referral-share-actions", ".wallet-withdrawal", ".admin-withdrawal", ":focus-visible"} {
+	for _, expected := range []string{".referral-metrics", ".referral-invite-card", ".referral-invite-card__qr", ".referral-share-actions", ".wallet-withdrawal", ".admin-withdrawal", ":focus-visible"} {
 		if !strings.Contains(string(styles), expected) {
 			t.Fatalf("styles.css does not contain %q", expected)
 		}
