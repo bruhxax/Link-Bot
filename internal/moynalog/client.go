@@ -7,17 +7,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
 var (
-	ErrAuth      = errors.New("authentication error")
-	ErrRetryable = errors.New("retryable error")
-	ErrClient    = errors.New("client error")
+	ErrAuth   = errors.New("authentication error")
+	ErrClient = errors.New("client error")
+	// ErrUncertain means the request could have reached FNS. It must not be
+	// retried automatically because the income endpoint is not idempotent.
+	ErrUncertain = errors.New("receipt result is uncertain")
+	moscowZone   = time.FixedZone("MSK", 3*60*60)
 )
 
 type Client struct {
@@ -44,8 +47,8 @@ func NewClient(baseURL, username, password string) (*Client, error) {
 				TLSHandshakeTimeout: 10 * time.Second,
 			},
 		},
-		baseURL:  baseURL,
-		username: username,
+		baseURL:  strings.TrimRight(strings.TrimSpace(baseURL), "/"),
+		username: strings.TrimSpace(username),
 		password: password,
 	}
 	c.authCond = sync.NewCond(&c.authMu)
@@ -127,64 +130,25 @@ func (c *Client) authenticateOnce() error {
 }
 
 func (c *Client) CreateIncome(ctx context.Context, amount float64, comment string) (*CreateIncomeResponse, error) {
-	const (
-		maxRetries     = 3
-		baseDelay      = 500 * time.Millisecond
-		maxAuthRetries = 2
-	)
-
-	var (
-		lastErr     error
-		authRetries int
-	)
-
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-		}
-
-		resp, err := c.createIncomeOnce(ctx, amount, comment)
-		if err == nil {
-			return resp, nil
-		}
-
-		if errors.Is(err, ErrAuth) {
-			if authRetries >= maxAuthRetries {
-				return nil, err
-			}
-
-			c.token.Store("")
-
-			if err := c.authenticate(); err != nil {
-				return nil, fmt.Errorf("reauth failed: %w", err)
-			}
-
-			authRetries++
-			attempt--
-			continue
-		}
-
-		if !errors.Is(err, ErrRetryable) {
-			return nil, err
-		}
-
-		lastErr = err
-
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(baseDelay * time.Duration(1<<(attempt-1))):
-		}
+	resp, err := c.createIncomeOnce(ctx, amount, comment)
+	if !errors.Is(err, ErrAuth) {
+		return resp, err
 	}
 
-	return nil, fmt.Errorf("create income failed after retries: %w", lastErr)
+	// A 401/403 response proves that the income was rejected, so one retry
+	// after refreshing the token is safe.
+	c.token.Store("")
+	if authErr := c.authenticate(); authErr != nil {
+		return nil, fmt.Errorf("reauth failed: %w", authErr)
+	}
+	return c.createIncomeOnce(ctx, amount, comment)
 }
 
 func (c *Client) createIncomeOnce(ctx context.Context, amount float64, comment string) (*CreateIncomeResponse, error) {
 	incomeURL := fmt.Sprintf("%s/income", c.baseURL)
-	now := time.Now()
+	// FNS interprets the wall-clock part as Moscow time even when an offset is
+	// present, so always put Moscow clock digits on the wire.
+	now := time.Now().In(moscowZone)
 
 	reqBody, err := json.Marshal(CreateIncomeRequest{
 		OperationTime: now,
@@ -220,11 +184,7 @@ func (c *Client) createIncomeOnce(ctx context.Context, amount float64, comment s
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		var netErr net.Error
-		if errors.As(err, &netErr) {
-			return nil, fmt.Errorf("%w: %v", ErrRetryable, err)
-		}
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrUncertain, err)
 	}
 	defer resp.Body.Close()
 
@@ -234,7 +194,7 @@ func (c *Client) createIncomeOnce(ctx context.Context, amount float64, comment s
 
 	case resp.StatusCode >= 500:
 		b, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("%w: status %d: %s", ErrRetryable, resp.StatusCode, b)
+		return nil, fmt.Errorf("%w: status %d: %s", ErrUncertain, resp.StatusCode, b)
 
 	case resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated:
 		b, _ := io.ReadAll(resp.Body)
@@ -243,7 +203,7 @@ func (c *Client) createIncomeOnce(ctx context.Context, amount float64, comment s
 
 	var incomeResp CreateIncomeResponse
 	if err := json.NewDecoder(resp.Body).Decode(&incomeResp); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: decode successful response: %v", ErrUncertain, err)
 	}
 
 	return &incomeResp, nil

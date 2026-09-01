@@ -549,6 +549,15 @@ type adminIntegrationUpdateRequest struct {
 	Fields   map[string]string `json:"fields"`
 }
 
+type adminMoyNalogRetryRequest struct {
+	PurchaseID int64 `json:"purchaseId"`
+}
+
+type adminMoyNalogPayload struct {
+	Integration *integrations.ProviderView `json:"integration,omitempty"`
+	Receipts    []database.MoyNalogReceipt `json:"receipts"`
+}
+
 type googleLinkRequest struct {
 	GoogleIDToken string `json:"googleIdToken"`
 }
@@ -685,6 +694,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/gifts/test", h.withSession(h.handleAdminGiftTest))
 	mux.HandleFunc("/api/mini-app/admin/events/resolve", h.withSession(h.handleAdminEventResolve))
 	mux.HandleFunc("/api/mini-app/admin/integrations/update", h.withSession(h.handleAdminIntegrationUpdate))
+	mux.HandleFunc("/api/mini-app/admin/moynalog/state", h.withSession(h.handleAdminMoyNalogState))
+	mux.HandleFunc("/api/mini-app/admin/moynalog/test", h.withSession(h.handleAdminMoyNalogTest))
+	mux.HandleFunc("/api/mini-app/admin/moynalog/retry", h.withSession(h.handleAdminMoyNalogRetry))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/state", h.withSession(h.handleAdminBroadcastState))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/capture/start", h.withSession(h.handleAdminBroadcastCaptureStart))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/buttons", h.withSession(h.handleAdminBroadcastButtons))
@@ -2507,6 +2519,83 @@ func (h *Handler) handleAdminIntegrationUpdate(w http.ResponseWriter, r *http.Re
 		return
 	}
 	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "integration_updated", "data": view})
+}
+
+func (h *Handler) handleAdminMoyNalogState(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
+	if !h.isAdmin(sess.User.ID) {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+		return
+	}
+	state, err := h.adminMoyNalogState(r.Context())
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "moynalog_state_failed", "Не удалось загрузить журнал чеков")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": state})
+}
+
+func (h *Handler) handleAdminMoyNalogTest(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
+	if !h.isAdmin(sess.User.ID) {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+		return
+	}
+	if h.paymentService == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "moynalog_unavailable", "Интеграция недоступна")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 35*time.Second)
+	defer cancel()
+	if err := h.paymentService.TestMoyNalogConnection(ctx); err != nil {
+		h.writeError(w, http.StatusBadRequest, "moynalog_connection_failed", "Не удалось войти. Проверьте ИНН и пароль.")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "moynalog_connected"})
+}
+
+func (h *Handler) handleAdminMoyNalogRetry(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
+	if !h.isAdmin(sess.User.ID) {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+		return
+	}
+	var req adminMoyNalogRetryRequest
+	if err := h.decodeJSONRequest(w, r, 8<<10, &req); err != nil || req.PurchaseID <= 0 {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Некорректный номер покупки")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+	defer cancel()
+	if err := h.paymentService.RetryMoyNalogReceipt(ctx, req.PurchaseID); err != nil {
+		h.writeError(w, http.StatusBadRequest, "moynalog_retry_failed", err.Error())
+		return
+	}
+	state, err := h.adminMoyNalogState(r.Context())
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "moynalog_state_failed", "Чек отправлен, но журнал не обновился")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "moynalog_receipt_retried", "data": state})
+}
+
+func (h *Handler) adminMoyNalogState(ctx context.Context) (adminMoyNalogPayload, error) {
+	result := adminMoyNalogPayload{Receipts: []database.MoyNalogReceipt{}}
+	if h.integrationSettings != nil {
+		for _, view := range h.integrationSettings.ListAdmin() {
+			if view.ID == integrations.ProviderMoyNalog {
+				copy := view
+				result.Integration = &copy
+				break
+			}
+		}
+	}
+	if h.paymentService == nil {
+		return result, nil
+	}
+	receipts, err := h.paymentService.MoyNalogReceipts(ctx, 30)
+	if err != nil {
+		return result, err
+	}
+	result.Receipts = receipts
+	return result, nil
 }
 
 func (h *Handler) handlePaymentIntegrationWebhook(w http.ResponseWriter, r *http.Request) {

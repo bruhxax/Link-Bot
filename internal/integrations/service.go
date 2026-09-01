@@ -33,13 +33,30 @@ const (
 	ProviderHeleket         = "heleket"
 	ProviderPally           = "pally"
 	ProviderP2P             = "p2p"
+	ProviderMoyNalog        = "moynalog"
 )
 
 const (
 	DefaultP2PFooterText        = "Как только ваш перевод проверят, подписка автоматически начислится"
 	DefaultP2PSenderLabel       = "ФИО / номер счёта отправителя"
 	DefaultP2PSenderPlaceholder = "Например: Иван Иванов, карта •••• 1234"
+	DefaultMoyNalogAPIURL       = "https://lknpd.nalog.ru/api"
+	DefaultMoyNalogItemName     = "VPN-подписка"
 )
+
+var moyNalogPaymentMethods = []string{
+	ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega,
+	ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally,
+	ProviderP2P, "telegram", "tribute",
+}
+
+type MoyNalogConfig struct {
+	Username       string
+	Password       string
+	APIURL         string
+	ItemName       string
+	PaymentMethods map[string]bool
+}
 
 type P2PDestination struct {
 	ID          string `json:"id"`
@@ -198,6 +215,15 @@ var definitions = []ProviderDefinition{
 			{Key: "senderPlaceholder", Label: "Подсказка в поле", Placeholder: DefaultP2PSenderPlaceholder},
 		},
 	},
+	{
+		ID: ProviderMoyNalog, Name: "Мой налог", Description: "Автоматическая регистрация доходов и журнал чеков", Logo: "/mini-app/assets/payment-card.png", Kind: "tax",
+		Fields: []FieldDefinition{
+			{Key: "username", Label: "ИНН", Required: true, Placeholder: "12 цифр"},
+			{Key: "password", Label: "Пароль кабинета", Required: true, Secret: true, Placeholder: "Пароль от lknpd.nalog.ru"},
+			{Key: "itemName", Label: "Название услуги", Required: true, Placeholder: DefaultMoyNalogItemName},
+			{Key: "paymentMethods", Label: "Способы оплаты", Required: true},
+		},
+	},
 }
 
 func NewService(ctx context.Context, repository *database.PaymentIntegrationRepository) (*Service, error) {
@@ -309,6 +335,10 @@ func (s *Service) ListAdmin() []ProviderView {
 		if definition.ID == ProviderP2P {
 			configured = p2PConfigValid(rec.Config)
 		}
+		if definition.ID == ProviderMoyNalog {
+			_, err := ParseMoyNalogConfig(rec.Config)
+			configured = err == nil
+		}
 		views = append(views, ProviderView{ID: definition.ID, Name: definition.Name, Description: definition.Description, Logo: definition.Logo, Kind: definition.Kind, Enabled: rec.Enabled, Configured: configured, WebhookURL: webhookURL, UpdatedAt: updatedAt, Fields: fields})
 	}
 	return views
@@ -344,6 +374,11 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 	}
 	if provider == ProviderP2P {
 		if err := normalizeP2PConfig(rec.Config, input.Enabled); err != nil {
+			return ProviderView{}, err
+		}
+	}
+	if provider == ProviderMoyNalog {
+		if err := normalizeMoyNalogConfig(rec.Config, input.Enabled); err != nil {
 			return ProviderView{}, err
 		}
 	}
@@ -396,6 +431,23 @@ func (s *Service) Config(provider string) (map[string]string, bool) {
 	return clone, true
 }
 
+// StoredConfig returns a complete encrypted configuration even while its
+// integration is disabled. Admin-only connection tests use it before enabling
+// automatic processing.
+func (s *Service) StoredConfig(provider string) (map[string]string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rec, ok := s.records[provider]
+	if !ok || !configured(provider, rec.Config) {
+		return nil, false
+	}
+	clone := make(map[string]string, len(rec.Config))
+	for key, value := range rec.Config {
+		clone[key] = value
+	}
+	return clone, true
+}
+
 func (s *Service) WebhookToken(provider string) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -431,6 +483,10 @@ func (s *Service) adminViewLocked(definition ProviderDefinition, rec record) Pro
 	if definition.ID == ProviderP2P {
 		complete = p2PConfigValid(rec.Config)
 	}
+	if definition.ID == ProviderMoyNalog {
+		_, err := ParseMoyNalogConfig(rec.Config)
+		complete = err == nil
+	}
 	return ProviderView{ID: definition.ID, Name: definition.Name, Description: definition.Description, Logo: definition.Logo, Kind: definition.Kind, Enabled: rec.Enabled, Configured: complete, WebhookURL: webhookURL, UpdatedAt: rec.UpdatedAt.UTC().Format(time.RFC3339), Fields: fields}
 }
 
@@ -447,7 +503,92 @@ func configured(provider string, cfg map[string]string) bool {
 	if provider == ProviderP2P {
 		return p2PConfigValid(cfg)
 	}
+	if provider == ProviderMoyNalog {
+		_, err := ParseMoyNalogConfig(cfg)
+		return err == nil
+	}
 	return true
+}
+
+func ParseMoyNalogConfig(cfg map[string]string) (MoyNalogConfig, error) {
+	result := MoyNalogConfig{
+		Username:       strings.TrimSpace(cfg["username"]),
+		Password:       strings.TrimSpace(cfg["password"]),
+		APIURL:         DefaultMoyNalogAPIURL,
+		ItemName:       strings.TrimSpace(cfg["itemName"]),
+		PaymentMethods: map[string]bool{},
+	}
+	if len(result.Username) != 12 {
+		return MoyNalogConfig{}, errors.New("ИНН самозанятого должен состоять из 12 цифр")
+	}
+	for _, char := range result.Username {
+		if char < '0' || char > '9' {
+			return MoyNalogConfig{}, errors.New("ИНН самозанятого должен состоять из 12 цифр")
+		}
+	}
+	if result.Password == "" {
+		return MoyNalogConfig{}, errors.New("укажите пароль от кабинета «Мой налог»")
+	}
+	if result.ItemName == "" {
+		result.ItemName = DefaultMoyNalogItemName
+	}
+	if len([]rune(result.ItemName)) > 120 {
+		return MoyNalogConfig{}, errors.New("название услуги должно быть короче 120 символов")
+	}
+
+	rawMethods := strings.TrimSpace(cfg["paymentMethods"])
+	methods := []string{}
+	if rawMethods == "" {
+		methods = []string{ProviderYooKassa}
+	} else if err := json.Unmarshal([]byte(rawMethods), &methods); err != nil {
+		methods = strings.Split(rawMethods, ",")
+	}
+	allowed := make(map[string]struct{}, len(moyNalogPaymentMethods))
+	for _, method := range moyNalogPaymentMethods {
+		allowed[method] = struct{}{}
+	}
+	for _, method := range methods {
+		method = strings.TrimSpace(strings.ToLower(method))
+		if _, ok := allowed[method]; !ok {
+			return MoyNalogConfig{}, fmt.Errorf("неизвестный способ оплаты для чеков: %s", method)
+		}
+		result.PaymentMethods[method] = true
+	}
+	if len(result.PaymentMethods) == 0 {
+		return MoyNalogConfig{}, errors.New("выберите хотя бы один способ оплаты")
+	}
+	return result, nil
+}
+
+func normalizeMoyNalogConfig(cfg map[string]string, requireComplete bool) error {
+	if strings.TrimSpace(cfg["itemName"]) == "" {
+		cfg["itemName"] = DefaultMoyNalogItemName
+	}
+	if strings.TrimSpace(cfg["paymentMethods"]) == "" {
+		raw, _ := json.Marshal([]string{ProviderYooKassa})
+		cfg["paymentMethods"] = string(raw)
+	}
+	parsed, err := ParseMoyNalogConfig(cfg)
+	if err != nil {
+		if requireComplete {
+			return err
+		}
+		return nil
+	}
+	methods := make([]string, 0, len(parsed.PaymentMethods))
+	for method := range parsed.PaymentMethods {
+		methods = append(methods, method)
+	}
+	sort.Strings(methods)
+	raw, err := json.Marshal(methods)
+	if err != nil {
+		return err
+	}
+	cfg["username"] = parsed.Username
+	cfg["itemName"] = parsed.ItemName
+	cfg["paymentMethods"] = string(raw)
+	delete(cfg, "apiUrl")
+	return nil
 }
 
 func ParseP2PConfig(cfg map[string]string) (P2PConfig, error) {
@@ -623,6 +764,14 @@ func legacyConfig(provider string) (map[string]string, bool) {
 			"senderLabel":       DefaultP2PSenderLabel,
 			"senderPlaceholder": DefaultP2PSenderPlaceholder,
 		}, false
+	case ProviderMoyNalog:
+		methods, _ := json.Marshal([]string{ProviderYooKassa})
+		return map[string]string{
+			"username":       config.MoynalogUsername(),
+			"password":       config.MoynalogPassword(),
+			"itemName":       DefaultMoyNalogItemName,
+			"paymentMethods": string(methods),
+		}, config.IsMoynalogEnabled()
 	default:
 		return map[string]string{}, false
 	}

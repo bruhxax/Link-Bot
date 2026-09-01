@@ -51,6 +51,7 @@ func (s PaymentService) processGiftPurchase(ctx context.Context, purchase *datab
 			return err
 		}
 		purchase.Status = database.PurchaseStatusPaid
+		s.queueMoyNalogReceipt(purchase)
 		s.notifyAdminAboutPayment(ctx, purchase, sender)
 		s.sendGiftNotification(ctx, sender, purchase, true)
 		return nil
@@ -62,6 +63,7 @@ func (s PaymentService) processGiftPurchase(ctx context.Context, purchase *datab
 		return err
 	}
 	purchase.Status = database.PurchaseStatusPaid
+	s.queueMoyNalogReceipt(purchase)
 	purchase.GiftRecipientCustomerID = &recipient.ID
 	s.notifyAdminAboutPayment(ctx, purchase, sender)
 	s.sendGiftNotification(ctx, sender, purchase, true)

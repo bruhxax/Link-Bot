@@ -25,7 +25,6 @@ import (
 	"link-bot/internal/cryptopay"
 	"link-bot/internal/database"
 	"link-bot/internal/integrations"
-	"link-bot/internal/moynalog"
 	"link-bot/internal/operations"
 	"link-bot/internal/remnawave"
 	"link-bot/internal/runtimeconfig"
@@ -37,23 +36,23 @@ import (
 var trialActivationLocks sync.Map
 
 type PaymentService struct {
-	purchaseRepository     *database.PurchaseRepository
-	subscriptionRepository *database.SubscriptionRepository
-	promoCodeRepository    *database.PromoCodeRepository
-	remnawaveClient        *remnawave.Client
-	customerRepository     *database.CustomerRepository
-	telegramBot            *bot.Bot
-	translation            *translation.Manager
-	cryptoPayClient        *cryptopay.Client
-	yookasaClient          *yookasa.Client
-	referralRepository     *database.ReferralRepository
-	walletRepository       *database.WalletRepository
-	cache                  *cache.Cache
-	moynalogClient         *moynalog.Client
-	errorReporter          *operations.Reporter
-	runtimeSettings        *runtimeconfig.Service
-	integrationSettings    *integrations.Service
-	integrationGateway     *integrations.Gateway
+	purchaseRepository        *database.PurchaseRepository
+	subscriptionRepository    *database.SubscriptionRepository
+	promoCodeRepository       *database.PromoCodeRepository
+	remnawaveClient           *remnawave.Client
+	customerRepository        *database.CustomerRepository
+	telegramBot               *bot.Bot
+	translation               *translation.Manager
+	cryptoPayClient           *cryptopay.Client
+	yookasaClient             *yookasa.Client
+	referralRepository        *database.ReferralRepository
+	walletRepository          *database.WalletRepository
+	cache                     *cache.Cache
+	moynalogReceiptRepository *database.MoyNalogReceiptRepository
+	errorReporter             *operations.Reporter
+	runtimeSettings           *runtimeconfig.Service
+	integrationSettings       *integrations.Service
+	integrationGateway        *integrations.Gateway
 }
 
 type CreatePurchaseOptions struct {
@@ -122,7 +121,7 @@ func NewPaymentService(
 	referralRepository *database.ReferralRepository,
 	walletRepository *database.WalletRepository,
 	cache *cache.Cache,
-	moynalogClient *moynalog.Client,
+	moynalogReceiptRepository *database.MoyNalogReceiptRepository,
 	runtimeSettings *runtimeconfig.Service,
 	errorReporter *operations.Reporter,
 	integrationSettings *integrations.Service,
@@ -133,23 +132,23 @@ func NewPaymentService(
 		integrationGateway = integrations.NewGateway(integrationSettings)
 	}
 	return &PaymentService{
-		purchaseRepository:     purchaseRepository,
-		subscriptionRepository: subscriptionRepository,
-		promoCodeRepository:    promoCodeRepository,
-		remnawaveClient:        remnawaveClient,
-		customerRepository:     customerRepository,
-		telegramBot:            telegramBot,
-		translation:            translation,
-		cryptoPayClient:        cryptoPayClient,
-		yookasaClient:          yookasaClient,
-		referralRepository:     referralRepository,
-		walletRepository:       walletRepository,
-		cache:                  cache,
-		moynalogClient:         moynalogClient,
-		runtimeSettings:        runtimeSettings,
-		errorReporter:          errorReporter,
-		integrationSettings:    integrationSettings,
-		integrationGateway:     integrationGateway,
+		purchaseRepository:        purchaseRepository,
+		subscriptionRepository:    subscriptionRepository,
+		promoCodeRepository:       promoCodeRepository,
+		remnawaveClient:           remnawaveClient,
+		customerRepository:        customerRepository,
+		telegramBot:               telegramBot,
+		translation:               translation,
+		cryptoPayClient:           cryptoPayClient,
+		yookasaClient:             yookasaClient,
+		referralRepository:        referralRepository,
+		walletRepository:          walletRepository,
+		cache:                     cache,
+		moynalogReceiptRepository: moynalogReceiptRepository,
+		runtimeSettings:           runtimeSettings,
+		errorReporter:             errorReporter,
+		integrationSettings:       integrationSettings,
+		integrationGateway:        integrationGateway,
 	}
 }
 
@@ -252,6 +251,8 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 		if err := s.purchaseRepository.MarkAsPaid(ctx, purchase.ID); err != nil {
 			return err
 		}
+		purchase.Status = database.PurchaseStatusPaid
+		s.queueMoyNalogReceipt(purchase)
 		if err := s.persistSubscriptionPanelState(ctx, customer, subscription, user); err != nil {
 			return err
 		}
@@ -311,6 +312,8 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	if err != nil {
 		return err
 	}
+	purchase.Status = database.PurchaseStatusPaid
+	s.queueMoyNalogReceipt(purchase)
 
 	if err = s.persistSubscriptionPanelState(ctx, customer, subscription, user); err != nil {
 		return err
@@ -337,34 +340,6 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 			"invoice_type", purchase.InvoiceType,
 			"telegram_id", utils.MaskHalfInt64(customer.TelegramID),
 		)
-	}
-
-	slog.Info("checking conditions for Moynalog receipt", "invoice_type", purchase.InvoiceType, "moynalog_client", s.moynalogClient != nil)
-	if purchase.InvoiceType == database.InvoiceTypeYookasa && s.moynalogClient != nil {
-		slog.Info("attempting to send receipt to Moynalog", "purchase_id", utils.MaskHalfInt64(purchase.ID), "amount", purchase.Amount, "month", purchase.Month)
-		go func() {
-			moynalogCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-			defer cancel()
-			err := s.sendReceiptToMoynalog(moynalogCtx, purchase)
-			if err != nil {
-				slog.Error("error sending receipt to Moynalog", "error", err, "purchase_id", utils.MaskHalfInt64(purchase.ID))
-				_, err = s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
-					ChatID: config.GetAdminTelegramId(),
-					Text:   "Ошибка при отправке чека в Мой налог. Проверьте логи.",
-				})
-				if err != nil {
-					slog.Error("error while sending moy nalog error message", "error", err, "purchase_id", utils.MaskHalfInt64(purchase.ID))
-				}
-			} else {
-				slog.Info("successfully sent receipt to Moynalog", "purchase_id", utils.MaskHalfInt64(purchase.ID))
-			}
-		}()
-	} else {
-		if purchase.InvoiceType != database.InvoiceTypeYookasa {
-			slog.Info("not sending receipt to Moynalog - not a Yookasa invoice", "invoice_type", purchase.InvoiceType, "purchase_id", utils.MaskHalfInt64(purchase.ID))
-		} else if s.moynalogClient == nil {
-			slog.Error("not sending receipt to Moynalog - client is nil", "purchase_id", utils.MaskHalfInt64(purchase.ID))
-		}
 	}
 
 	if rewardErr := s.grantReferralReward(context.Background(), customer, "purchase", purchase); rewardErr != nil {
@@ -2073,30 +2048,4 @@ func (s PaymentService) notifyAutoPaymentFailure(ctx context.Context, customer *
 	if err != nil {
 		slog.Warn("payment: failed to notify autopay failure", "error", err, "customerId", utils.MaskHalfInt64(customer.ID))
 	}
-}
-
-func (s PaymentService) sendReceiptToMoynalog(ctx context.Context, purchase *database.Purchase) error {
-	if s.moynalogClient == nil {
-		return fmt.Errorf("moynalog client not initialized")
-	}
-
-	var monthString string
-	switch purchase.Month {
-	case 1:
-		monthString = "месяц"
-	case 3, 4:
-		monthString = "месяца"
-	default:
-		monthString = "месяцев"
-	}
-	comment := fmt.Sprintf("Подписка на %d %s", purchase.Month, monthString)
-	amount := purchase.Amount
-
-	_, err := s.moynalogClient.CreateIncome(ctx, amount, comment)
-	if err != nil {
-		return fmt.Errorf("failed to create income in Moynalog: %w", err)
-	}
-
-	slog.Info("Receipt sent to Moynalog", "purchase_id", utils.MaskHalfInt64(purchase.ID), "amount", amount, "comment", comment)
-	return nil
 }

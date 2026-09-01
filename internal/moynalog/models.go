@@ -57,12 +57,20 @@ type IncomeClient struct {
 
 // CreateIncomeResponse - ответ на запрос создания дохода
 type CreateIncomeResponse struct {
-	ID            string       `json:"id"`
-	OperationTime time.Time    `json:"operationTime"`
-	RequestTime   time.Time    `json:"requestTime"`
-	Services      []Service    `json:"services"`
-	TotalAmount   string       `json:"totalAmount"`
-	Client        IncomeClient `json:"client"`
-	PaymentType   string       `json:"paymentType"`
-	Status        string       `json:"status"`
+	ID                  string       `json:"id"`
+	ApprovedReceiptUUID string       `json:"approvedReceiptUuid"`
+	OperationTime       time.Time    `json:"operationTime"`
+	RequestTime         time.Time    `json:"requestTime"`
+	Services            []Service    `json:"services"`
+	TotalAmount         string       `json:"totalAmount"`
+	Client              IncomeClient `json:"client"`
+	PaymentType         string       `json:"paymentType"`
+	Status              string       `json:"status"`
+}
+
+func (r CreateIncomeResponse) ReceiptUUID() string {
+	if r.ApprovedReceiptUUID != "" {
+		return r.ApprovedReceiptUUID
+	}
+	return r.ID
 }

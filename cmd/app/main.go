@@ -20,7 +20,6 @@ import (
 	"link-bot/internal/handler"
 	"link-bot/internal/integrations"
 	"link-bot/internal/miniapp"
-	"link-bot/internal/moynalog"
 	"link-bot/internal/notification"
 	"link-bot/internal/operations"
 	"link-bot/internal/payment"
@@ -51,18 +50,6 @@ func main() {
 	config.InitConfig()
 	slog.Info("Application starting", "version", Version, "commit", Commit, "buildDate", BuildDate)
 
-	// Check if Moynalog is enabled
-	var moynalogClient *moynalog.Client
-	if config.IsMoynalogEnabled() {
-		var err error
-		moynalogClient, err = moynalog.NewClient(config.MoynalogUrl(), config.MoynalogUsername(), config.MoynalogPassword())
-		if err != nil {
-			log.Fatalf("Moynalog initialization error: %v", err)
-		}
-
-		slog.Info("Moynalog authentication successful")
-	}
-
 	tm := translation.GetInstance()
 	err := tm.InitTranslations("./translations", config.DefaultLanguage())
 	if err != nil {
@@ -91,6 +78,10 @@ func main() {
 	releaseNotificationRepository := database.NewReleaseNotificationRepository(pool)
 	broadcastRepository := database.NewBroadcastRepository(pool)
 	paymentIntegrationRepository := database.NewPaymentIntegrationRepository(pool)
+	moynalogReceiptRepository := database.NewMoyNalogReceiptRepository(pool)
+	if err := moynalogReceiptRepository.RecoverInterrupted(ctx); err != nil {
+		slog.Warn("moynalog receipt recovery failed", "error", err)
+	}
 	runtimeSettings, err := runtimeconfig.NewService(ctx, runtimeSettingsRepository)
 	if err != nil {
 		panic(err)
@@ -114,7 +105,7 @@ func main() {
 		slog.Warn("broadcast recovery failed", "error", err)
 	}
 
-	paymentService := payment.NewPaymentService(tm, purchaseRepository, promoCodeRepository, remnawaveClient, customerRepository, b, cryptoPayClient, yookasaClient, referralRepository, walletRepository, cache, moynalogClient, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository)
+	paymentService := payment.NewPaymentService(tm, purchaseRepository, promoCodeRepository, remnawaveClient, customerRepository, b, cryptoPayClient, yookasaClient, referralRepository, walletRepository, cache, moynalogReceiptRepository, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository)
 
 	cronScheduler := setupInvoiceChecker(customerRepository, purchaseRepository, paymentService)
 	if cronScheduler != nil {

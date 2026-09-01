@@ -1943,6 +1943,8 @@ const state = {
 	adminIntegrationOpen: "",
 	adminIntegrationDrafts: {},
 	adminIntegrationBusy: "",
+	adminMoyNalog: null,
+	adminMoyNalogBusy: "",
 	adminSettingsDraft: null,
 	adminSettingsDirty: false,
 	adminJSONDrafts: {},
@@ -2541,6 +2543,14 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 					{ key: "senderLabel", label: "Что запросить у отправителя", value: previewPayload.p2p.senderLabel },
 					{ key: "senderPlaceholder", label: "Подсказка в поле", value: previewPayload.p2p.senderPlaceholder },
 				],
+			}, {
+				id: "moynalog", name: "Мой налог", description: "Автоматическая регистрация доходов и журнал чеков", logo: PAYMENT_LOGO_URLS.yookassa, kind: "tax", enabled: true, configured: true,
+				fields: [
+					{ key: "username", label: "ИНН", required: true, value: "123456789012" },
+					{ key: "password", label: "Пароль кабинета", required: true, secret: true, configured: true },
+					{ key: "itemName", label: "Название услуги", required: true, value: "VPN-подписка" },
+					{ key: "paymentMethods", label: "Способы оплаты", required: true, value: '["yookassa","p2p"]' },
+				],
 			}],
 			squads: {
 				internal: ["White", "Netherlands", "Netherlands OBHOD", "Germany", "Germany OBHOD", "Sweden", "Sweden 2", "Fin 2"].map((name, index) => ({ uuid: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, name })),
@@ -2549,8 +2559,16 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 		};
 		state.adminSettingsDraft = deepClone(runtime);
 		seedEditableCopy(state.adminSettingsDraft);
+		state.adminMoyNalog = {
+			integration: state.data.admin.integrations.find((item) => item.id === "moynalog"),
+			receipts: [
+				{ purchaseId: 1284, status: "succeeded", receiptUuid: "a1b2c3d4", itemName: "VPN-подписка на 1 мес.", amount: 299, invoiceType: "yookassa", createdAt: new Date(Date.now() - 3600000).toISOString(), updatedAt: new Date(Date.now() - 3600000).toISOString() },
+				{ purchaseId: 1283, status: "failed", itemName: "VPN-подписка — дополнительные устройства (2)", amount: 149, invoiceType: "p2p", error: "ФНС отклонила чек: проверьте данные", createdAt: new Date(Date.now() - 7200000).toISOString(), updatedAt: new Date(Date.now() - 7200000).toISOString() },
+				{ purchaseId: 1282, status: "uncertain", itemName: "VPN-подписка на 3 мес.", amount: 799, invoiceType: "yookassa", error: "Ответ ФНС не получен. Проверьте кабинет вручную.", createdAt: new Date(Date.now() - 10800000).toISOString(), updatedAt: new Date(Date.now() - 10800000).toISOString() },
+			],
+		};
 		const previewSection = String(urlParams.get("section") || "");
-		if (["integrations", "referrals"].includes(previewSection)) {
+		if (["integrations", "referrals", "moynalog"].includes(previewSection)) {
 			state.currentPage = "admin";
 			state.adminSection = previewSection;
 			state.adminLayoutEditing = false;
@@ -3140,6 +3158,7 @@ function renderAdminPage() {
 	if (state.adminSection === "grace") return renderAdminGracePage();
 	if (state.adminSection === "broadcast") return renderAdminBroadcastPage();
 	if (state.adminSection === "integrations") return renderAdminIntegrationsPage();
+	if (state.adminSection === "moynalog") return renderAdminMoyNalogPage();
 	return `
 		<section class="page admin-page ${pageClass("admin")}" id="page-admin">
 			${renderAdminMenuGroup(localizedText("Система", "System", "سیستم"), [
@@ -3151,6 +3170,7 @@ function renderAdminPage() {
 				[localizedText("Доступ после окончания", "Access after expiry", "دسترسی پس از انقضا"), "", "grace", "adminTrial"],
 				[localizedText("Привязка подписок", "Subscription binding", "اتصال اشتراک‌ها"), "", "subscriptions", "adminSubscriptions"],
 				[localizedText("Интеграции", "Integrations", "یکپارچه‌سازی‌ها"), "", "integrations", "adminIntegrations"],
+				[localizedText("Мой налог", "My Tax", "مالیات من"), "", "moynalog", "adminIntegrations"],
 			])}
 			${renderAdminMenuGroup(localizedText("Интерфейс", "Interface", "رابط کاربری"), [
 				[localizedText("Редактор контента", "Content", "ویرایشگر محتوا"), "", "content", "adminContent"],
@@ -3247,7 +3267,7 @@ function renderAdminP2PIntegrationFields(draft) {
 }
 
 function renderAdminIntegrationsPage() {
-	const items = Array.isArray(state.data?.admin?.integrations) ? state.data.admin.integrations : [];
+	const items = Array.isArray(state.data?.admin?.integrations) ? state.data.admin.integrations.filter((item) => item.id !== "moynalog") : [];
 	const groups = [
 		["Платёжные системы", items.filter((item) => item.kind === "payment")],
 		["Служебные интеграции", items.filter((item) => item.kind !== "payment")],
@@ -3256,6 +3276,61 @@ function renderAdminIntegrationsPage() {
 		<header class="admin-integrations__header"><span>ИНТЕГРАЦИИ</span><h2>Платежи и уведомления</h2></header>
 		${groups.map(([label, providers]) => providers.length ? `<section class="admin-integrations__group"><h3>${escapeHtml(label)}</h3><div class="admin-integrations__list">${providers.map(renderAdminIntegrationRow).join("")}</div></section>` : "").join("")}
 	</div></section>`;
+}
+
+const MOYNALOG_PAYMENT_METHODS = [
+	["yookassa", "YooKassa"], ["lava", "LAVA"], ["wata", "WATA"],
+	["platega", "Platega"], ["freekassa", "FreeKassa"], ["cryptopay", "Crypto Pay"],
+	["heleket", "Heleket"], ["pally", "Pally"], ["p2p", "P2P"],
+	["telegram", "Telegram Stars"], ["tribute", "Tribute"],
+];
+
+function moyNalogSelectedMethods(draft) {
+	try {
+		const parsed = JSON.parse(String(draft?.fields?.paymentMethods || "[]"));
+		return new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+	} catch {
+		return new Set(["yookassa"]);
+	}
+}
+
+function adminMoyNalogIntegration() {
+	return state.adminMoyNalog?.integration || (state.data?.admin?.integrations || []).find((item) => item.id === "moynalog") || null;
+}
+
+function renderAdminMoyNalogPage() {
+	const item = adminMoyNalogIntegration();
+	if (!item) return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-moynalog"><p class="admin-moynalog__empty">Настройки пока недоступны.</p></div></section>`;
+	const draft = integrationDraft(item);
+	const methods = moyNalogSelectedMethods(draft);
+	const receipts = Array.isArray(state.adminMoyNalog?.receipts) ? state.adminMoyNalog.receipts : [];
+	const succeeded = receipts.filter((receipt) => receipt.status === "succeeded").length;
+	const attention = receipts.filter((receipt) => ["failed", "uncertain"].includes(receipt.status)).length;
+	const busy = Boolean(state.adminIntegrationBusy === "moynalog" || state.adminMoyNalogBusy);
+	const passwordField = (item.fields || []).find((field) => field.key === "password");
+	const status = item.enabled && item.configured ? "Работает" : item.configured ? "Выключено" : "Не настроено";
+	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-moynalog">
+		<header class="admin-moynalog__header"><div><span>ЧЕКИ ФНС</span><h2>Мой налог</h2><p>Доход регистрируется автоматически после подтверждённой оплаты.</p></div><i class="admin-moynalog__status ${item.enabled && item.configured ? "is-active" : ""}">${escapeHtml(status)}</i></header>
+		<div class="admin-moynalog__metrics" aria-label="Состояние чеков"><div><strong>${receipts.length}</strong><span>В журнале</span></div><div><strong>${succeeded}</strong><span>Создано</span></div><div class="${attention ? "has-attention" : ""}"><strong>${attention}</strong><span>Требуют внимания</span></div></div>
+		<section class="admin-moynalog__settings" aria-labelledby="moynalog-settings-title">
+			<div class="admin-moynalog__section-head"><div><h3 id="moynalog-settings-title">Автоматические чеки</h3><p>Включите после проверки доступа к кабинету.</p></div><label class="admin-moynalog__switch"><span class="sr-only">Включить автоматические чеки</span><input type="checkbox" data-integration-provider="moynalog" data-integration-enabled ${draft.enabled ? "checked" : ""}></label></div>
+			<div class="admin-moynalog__credentials">
+				<label class="admin-field"><span>ИНН</span><input class="admin-field__control" type="text" inputmode="numeric" maxlength="12" autocomplete="username" data-integration-provider="moynalog" data-integration-field="username" value="${escapeAttribute(draft.fields.username || "")}" placeholder="12 цифр"></label>
+				<label class="admin-field"><span>Пароль кабинета</span><input class="admin-field__control" type="password" autocomplete="current-password" data-integration-provider="moynalog" data-integration-field="password" value="" placeholder="${escapeAttribute(passwordField?.configured ? "Пароль сохранён — оставьте пустым" : "Пароль от lknpd.nalog.ru")}"></label>
+			</div>
+			<label class="admin-field admin-moynalog__item"><span>Название услуги в чеке</span><input class="admin-field__control" type="text" maxlength="120" data-integration-provider="moynalog" data-integration-field="itemName" value="${escapeAttribute(draft.fields.itemName || "VPN-подписка")}" placeholder="VPN-подписка"></label>
+			<fieldset class="admin-moynalog__methods"><legend>Создавать чек после оплаты через</legend><div>${MOYNALOG_PAYMENT_METHODS.map(([id, label]) => `<label><input type="checkbox" data-integration-provider="moynalog" data-moynalog-method="${id}" ${methods.has(id) ? "checked" : ""}><span>${escapeHtml(label)}</span></label>`).join("")}</div></fieldset>
+			<div class="admin-moynalog__actions"><button type="button" data-action="admin-integration-save" data-value="moynalog" ${busy ? "disabled" : ""}>${icon(state.adminIntegrationBusy ? "refresh" : "check")}<span>${state.adminIntegrationBusy ? "Сохраняем" : "Сохранить"}</span></button><button type="button" data-action="admin-moynalog-test" ${busy || !item.configured ? "disabled" : ""}>${icon(state.adminMoyNalogBusy === "test" ? "refresh" : "shield")}<span>${state.adminMoyNalogBusy === "test" ? "Проверяем" : "Проверить вход"}</span></button></div>
+			<p class="admin-moynalog__notice">Пароль хранится в зашифрованном виде. Используется неофициальный API личного кабинета — при изменениях на стороне ФНС интеграция может потребовать обновления.</p>
+		</section>
+		<section class="admin-moynalog__journal" aria-labelledby="moynalog-journal-title"><div class="admin-moynalog__section-head"><div><h3 id="moynalog-journal-title">Последние чеки</h3><p>Повтор разрешён только после подтверждённой ошибки.</p></div><button type="button" data-action="admin-moynalog-refresh" ${busy ? "disabled" : ""} aria-label="Обновить журнал">${icon("refresh")}</button></div>${receipts.length ? `<div class="admin-moynalog__receipt-list">${receipts.map(renderAdminMoyNalogReceipt).join("")}</div>` : `<p class="admin-moynalog__empty">Чеков пока нет.</p>`}</section>
+	</div></section>`;
+}
+
+function renderAdminMoyNalogReceipt(receipt) {
+	const labels = { succeeded: "Создан", processing: "Отправляется", failed: "Ошибка", uncertain: "Проверьте вручную" };
+	const canRetry = receipt.status === "failed";
+	return `<article class="admin-moynalog-receipt admin-moynalog-receipt--${escapeAttribute(receipt.status || "processing")}"><div class="admin-moynalog-receipt__main"><span><strong>${escapeHtml(receipt.itemName || "Чек")}</strong><small>#${Number(receipt.purchaseId || 0)} · ${escapeHtml(formatPaymentDate(receipt.updatedAt || receipt.createdAt))}</small></span><b>${Number(receipt.amount || 0).toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽</b></div><div class="admin-moynalog-receipt__state"><i>${escapeHtml(labels[receipt.status] || receipt.status || "—")}</i><span>${receipt.receiptUuid ? `UUID: ${escapeHtml(receipt.receiptUuid)}` : escapeHtml(receipt.error || "Ожидаем ответ ФНС")}</span>${canRetry ? `<button type="button" data-action="admin-moynalog-retry" data-value="${Number(receipt.purchaseId || 0)}" ${state.adminMoyNalogBusy ? "disabled" : ""}>Повторить</button>` : ""}</div></article>`;
 }
 
 function renderAdminIntegrationRow(item) {
@@ -6498,6 +6573,7 @@ function bindRootActions() {
 		haptic("light");
 		renderAdminTransition();
 		if (value === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
+		if (value === "moynalog") void refreshAdminMoyNalog();
 		return;
 	  }
 	  if (action === "close-admin-section") return closeAdminSection();
@@ -6688,6 +6764,9 @@ function bindRootActions() {
 			if (action === "admin-p2p-add-destination") return addAdminP2PDestination();
 			if (action === "admin-p2p-remove-destination") return removeAdminP2PDestination(Number(value));
 			if (action === "admin-integration-save") return await saveAdminIntegration(value);
+			if (action === "admin-moynalog-test") return await testAdminMoyNalog();
+			if (action === "admin-moynalog-refresh") return await refreshAdminMoyNalog();
+			if (action === "admin-moynalog-retry") return await retryAdminMoyNalogReceipt(Number(value));
 			if (action === "admin-integration-copy-webhook") return copyToClipboard(value).then(() => showToast("Webhook скопирован", "success"));
       if (action === "activate-trial") return await activateTrial();
       if (action === "open-web-version") return openWebVersion();
@@ -6735,6 +6814,13 @@ function bindRootActions() {
 		const integrationProvider = target?.dataset?.integrationProvider;
 		if (integrationProvider && state.adminIntegrationDrafts[integrationProvider]) {
 			const draft = state.adminIntegrationDrafts[integrationProvider];
+			if (integrationProvider === "moynalog" && target.dataset.moynalogMethod) {
+				const selected = moyNalogSelectedMethods(draft);
+				if (target.checked) selected.add(target.dataset.moynalogMethod);
+				else selected.delete(target.dataset.moynalogMethod);
+				draft.fields.paymentMethods = JSON.stringify([...selected].sort());
+				return;
+			}
 			const p2pIndex = Number(target.dataset.p2pIndex);
 			const p2pField = target.dataset.p2pField;
 			if (integrationProvider === "p2p" && Number.isInteger(p2pIndex) && p2pIndex >= 0 && p2pField && draft.p2pDestinations?.[p2pIndex]) {
@@ -9930,11 +10016,70 @@ async function saveAdminIntegration(provider) {
 			syncP2PIntegrationDraft(nextDraft);
 		}
 		state.adminIntegrationDrafts[provider] = nextDraft;
+		if (provider === "moynalog") {
+			state.adminMoyNalog = { ...(state.adminMoyNalog || {}), integration: response.data };
+		}
 		state.adminIntegrationBusy = "";
 		render({ preserveScroll: true });
 		showToast("Интеграция сохранена", "success");
 	} catch (error) {
 		state.adminIntegrationBusy = "";
+		render({ preserveScroll: true });
+		throw error;
+	}
+}
+
+async function refreshAdminMoyNalog({ silent = false } = {}) {
+	if (state.adminMoyNalogBusy && !silent) return;
+	if (!silent) {
+		state.adminMoyNalogBusy = "state";
+		render({ preserveScroll: true });
+	}
+	try {
+		const response = await post("/api/mini-app/admin/moynalog/state", {});
+		state.adminMoyNalog = response.data || null;
+		if (response.data?.integration) {
+			const integrations = state.data?.admin?.integrations || [];
+			const index = integrations.findIndex((item) => item.id === "moynalog");
+			if (index >= 0) integrations[index] = response.data.integration;
+		}
+		state.adminMoyNalogBusy = "";
+		if (state.adminSection === "moynalog") render({ preserveScroll: true });
+	} catch (error) {
+		state.adminMoyNalogBusy = "";
+		if (state.adminSection === "moynalog") render({ preserveScroll: true });
+		if (!silent) throw error;
+	}
+}
+
+async function testAdminMoyNalog() {
+	if (state.adminMoyNalogBusy) return;
+	state.adminMoyNalogBusy = "test";
+	render({ preserveScroll: true });
+	try {
+		await post("/api/mini-app/admin/moynalog/test", {});
+		state.adminMoyNalogBusy = "";
+		render({ preserveScroll: true });
+		showToast("Вход выполнен успешно", "success");
+	} catch (error) {
+		state.adminMoyNalogBusy = "";
+		render({ preserveScroll: true });
+		throw error;
+	}
+}
+
+async function retryAdminMoyNalogReceipt(purchaseId) {
+	if (!Number.isSafeInteger(purchaseId) || purchaseId <= 0 || state.adminMoyNalogBusy) return;
+	state.adminMoyNalogBusy = `retry-${purchaseId}`;
+	render({ preserveScroll: true });
+	try {
+		const response = await post("/api/mini-app/admin/moynalog/retry", { purchaseId });
+		state.adminMoyNalog = response.data || state.adminMoyNalog;
+		state.adminMoyNalogBusy = "";
+		render({ preserveScroll: true });
+		showToast("Чек создан", "success");
+	} catch (error) {
+		state.adminMoyNalogBusy = "";
 		render({ preserveScroll: true });
 		throw error;
 	}
@@ -10465,13 +10610,13 @@ function getPageTitle(page, short = false) {
   const copy = t();
 	if (page === "admin" && !short && state.adminSection !== "home") {
 		const labels = state.locale === "fa" ? {
-			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", features: "امکانات", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها",
+			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", features: "امکانات", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من",
 		} : state.locale === "en" ? {
 			localization: "Language and font",
-			maintenance: "Maintenance", diagnostics: "Diagnostics", features: "Functions", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations",
+			maintenance: "Maintenance", diagnostics: "Diagnostics", features: "Functions", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax",
 		} : {
 			localization: "Язык и шрифт",
-			maintenance: "Режим аварии", diagnostics: "Диагностика", features: "Функции", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции",
+			maintenance: "Режим аварии", diagnostics: "Диагностика", features: "Функции", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог",
 		};
 		return labels[state.adminSection] || copy.pageAdmin || "Admin panel";
 	}
