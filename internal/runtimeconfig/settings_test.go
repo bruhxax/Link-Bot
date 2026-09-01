@@ -1040,3 +1040,25 @@ func TestNormalizeAndValidateTelegramButtonCodeAndColor(t *testing.T) {
 		t.Fatalf("Telegram button was not normalized: %+v", button)
 	}
 }
+
+func TestWebPageSettingsHaveSafeDefaultsAndValidation(t *testing.T) {
+	settings := DefaultSettings()
+	if settings.Content.WebPage.Title != "Link-Bot" || settings.Content.WebPage.FaviconURL != "/mini-app/assets/brand-mark.png" {
+		t.Fatalf("unexpected web page defaults: %+v", settings.Content.WebPage)
+	}
+
+	settings.Content.WebPage.Title = "  Мой VPN  "
+	settings.Content.WebPage.Description = "  Быстрый и безопасный доступ  "
+	settings.Content.WebPage.FaviconURL = "https://cdn.example.com/favicon.png"
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if settings.Content.WebPage.Title != "Мой VPN" || settings.Content.WebPage.Description != "Быстрый и безопасный доступ" {
+		t.Fatalf("web metadata was not normalized: %+v", settings.Content.WebPage)
+	}
+
+	settings.Content.WebPage.FaviconURL = "javascript:alert(1)"
+	if err := NormalizeAndValidate(&settings); err == nil {
+		t.Fatal("unsafe favicon URL was accepted")
+	}
+}

@@ -499,12 +499,19 @@ select:focus-visible {
 .admin-editor__grid { display: grid; gap: 10px; }
 .admin-editor__grid--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .admin-editor__grid--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.admin-content-switcher { margin: -2px 0 2px; padding-bottom: 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; border-bottom: 1px solid var(--line); }
-.admin-content-switcher label { min-width: 0; display: grid; gap: 5px; }
-.admin-content-switcher label > span { color: var(--muted); font-size: 9px; font-weight: 750; text-transform: uppercase; }
-.admin-content-switcher select { width: 100%; min-height: 44px; padding: 0 36px 0 11px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--control-bg); font-size: 12px; font-weight: 750; cursor: pointer; }
-.admin-content-switcher select:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
-.admin-content-switcher > span { min-width: 38px; padding-bottom: 14px; color: var(--muted); font-size: 9px; font-weight: 750; text-align: right; }
+.admin-content-nav { width: 100%; min-width: 0; max-width: 100%; margin: -2px 0 2px; overflow: hidden; border-bottom: 1px solid var(--line); }
+.admin-content-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--line-soft); }
+.admin-content-groups button { min-height: 40px; padding: 0 12px; position: relative; color: var(--muted); font-size: 11px; font-weight: 800; text-align: center; }
+.admin-content-groups button::after { position: absolute; right: 12px; bottom: -1px; left: 12px; height: 2px; background: transparent; content: ""; }
+.admin-content-groups button.is-active { color: var(--text); }
+.admin-content-groups button.is-active::after { background: var(--text); }
+.admin-content-groups button:focus-visible { outline: 2px solid var(--text); outline-offset: -3px; }
+.admin-content-tabs { width: 100%; min-width: 0; max-width: 100%; padding: 8px 0 10px; display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; cursor: grab; user-select: none; overscroll-behavior-x: contain; scroll-snap-type: x proximity; }
+.admin-content-tabs.is-dragging { cursor: grabbing; }
+.admin-content-tabs::-webkit-scrollbar { display: none; }
+.admin-content-tabs button { min-height: 36px; padding: 0 10px; flex: 0 0 auto; scroll-snap-align: start; border: 1px solid transparent; border-radius: 5px; color: var(--muted); font-size: 10px; font-weight: 750; white-space: nowrap; }
+.admin-content-tabs button.is-active { border-color: var(--line); color: var(--text); background: var(--surface-soft); }
+.admin-content-tabs button:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
 .admin-content-panel { min-width: 0; display: grid; }
 .admin-content-panel .admin-editor__section { padding-top: 18px; display: grid; gap: 10px; }
 .admin-content-panel .admin-editor__section h3 { margin: 0 0 2px; color: var(--text); font-size: 12px; line-height: 1.25; text-transform: none; }
@@ -764,10 +771,17 @@ select:focus-visible {
 .admin-empty-line { padding: 15px 0; color: var(--muted); font-size: 11px; }
 .admin-editor__subsection { padding-top: 13px; border-top: 1px solid var(--line-soft); }
 .admin-editor__subsection h4 { margin: 0 0 10px; color: var(--text); font-size: 11px; }
-.admin-reminder-template { padding: 13px 0; border-top: 1px solid var(--line-soft); }
-.admin-reminder-template:first-of-type { padding-top: 0; border-top: 0; }
-.admin-reminder-template__head { margin-bottom: 9px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.admin-reminder-template__head h4 { min-width: 0; margin: 0; color: var(--text); font-size: 11px; }
+.admin-reminder-template { border-top: 1px solid var(--line-soft); }
+.admin-reminder-template:first-of-type { border-top: 0; }
+.admin-reminder-template summary { min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text); cursor: pointer; list-style: none; }
+.admin-reminder-template summary::-webkit-details-marker { display: none; }
+.admin-reminder-template summary strong { min-width: 0; font-size: 11px; line-height: 1.3; }
+.admin-reminder-template summary span { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 9px; font-weight: 700; }
+.admin-reminder-template summary span::after { width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; content: ""; transform: rotate(45deg) translateY(-2px); }
+.admin-reminder-template[open] summary span::after { transform: rotate(225deg) translate(-1px, -1px); }
+.admin-reminder-template summary:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.admin-reminder-template__body { padding: 0 0 13px; }
+.admin-reminder-template__actions { margin-bottom: 9px; display: flex; justify-content: flex-end; }
 .admin-reminder-test { min-height: 36px; padding: 0 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); font-size: 10px; font-weight: 800; }
 .admin-reminder-test:disabled { opacity: .42; cursor: default; }
 .admin-reminder-test:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }

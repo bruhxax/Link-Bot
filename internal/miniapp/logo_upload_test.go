@@ -62,6 +62,23 @@ func TestStoreUploadedLogoPersistsContentAddressedFile(t *testing.T) {
 	}
 }
 
+func TestStoreUploadedFaviconUsesSeparateContentAddressedFile(t *testing.T) {
+	uploadDir := t.TempDir()
+	faviconURL, err := storeUploadedImage(uploadDir, testLogoPNG(t, 128, 128), "favicon")
+	if err != nil {
+		t.Fatalf("store favicon: %v", err)
+	}
+	if !strings.HasPrefix(faviconURL, "/mini-app/uploads/favicon-") || !strings.HasSuffix(faviconURL, ".png") {
+		t.Fatalf("unexpected favicon URL: %q", faviconURL)
+	}
+	request := httptest.NewRequest(http.MethodGet, faviconURL, nil)
+	response := httptest.NewRecorder()
+	(&Handler{logoUploadDir: uploadDir}).serveUploadedLogo(response, request)
+	if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("favicon response = %d %q", response.Code, response.Header().Get("Content-Type"))
+	}
+}
+
 func TestStoreUploadedLogoRejectsUnsafeOrOversizedFiles(t *testing.T) {
 	uploadDir := t.TempDir()
 	if _, err := storeUploadedLogo(uploadDir, []byte(`<svg xmlns="http://www.w3.org/2000/svg"></svg>`)); err != errLogoUnsupported {

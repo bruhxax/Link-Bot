@@ -678,6 +678,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/settings/update", h.withSession(h.handleAdminSettingsUpdate))
 	mux.HandleFunc("/api/mini-app/admin/wallet/withdrawal/resolve", h.withSession(h.handleAdminWithdrawalResolve))
 	mux.HandleFunc("/api/mini-app/admin/logo/upload", h.withSession(h.handleAdminLogoUpload, "multipart/form-data"))
+	mux.HandleFunc("/api/mini-app/admin/favicon/upload", h.withSession(h.handleAdminFaviconUpload, "multipart/form-data"))
 	mux.HandleFunc("/api/mini-app/admin/reminders/test", h.withSession(h.handleAdminReminderTest))
 	mux.HandleFunc("/api/mini-app/admin/success/test", h.withSession(h.handleAdminSuccessTest))
 	mux.HandleFunc("/api/mini-app/admin/payment-notifications/test", h.withSession(h.handleAdminPaymentNotificationTest))
@@ -731,9 +732,21 @@ func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
 	setHTMLSecurityHeaders(w)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
+	settings := runtimeconfig.DefaultSettings()
+	if h.runtimeSettings != nil {
+		settings = h.runtimeSettings.Snapshot()
+	}
+	page := settings.Content.WebPage
+	faviconURL := page.FaviconURL
+	if faviconURL == "/mini-app/assets/brand-mark.png" {
+		faviconURL += "?v=" + h.assetVersion
+	}
 	data = bytes.ReplaceAll(data, []byte("__TELEGRAM_BOT_USERNAME__"), []byte(html.EscapeString(telegramBotUsername())))
 	data = bytes.ReplaceAll(data, []byte("__TELEGRAM_BOT_ID__"), []byte(html.EscapeString(telegramBotID())))
 	data = bytes.ReplaceAll(data, []byte("__GOOGLE_CLIENT_ID__"), []byte(html.EscapeString(config.GoogleClientID())))
+	data = bytes.ReplaceAll(data, []byte("__PAGE_TITLE__"), []byte(html.EscapeString(page.Title)))
+	data = bytes.ReplaceAll(data, []byte("__PAGE_DESCRIPTION__"), []byte(html.EscapeString(page.Description)))
+	data = bytes.ReplaceAll(data, []byte("__FAVICON_URL__"), []byte(html.EscapeString(faviconURL)))
 	data = bytes.ReplaceAll(data, []byte("__ASSET_VERSION__"), []byte(h.assetVersion))
 	_, _ = w.Write(data)
 }

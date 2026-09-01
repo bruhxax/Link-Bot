@@ -29,10 +29,18 @@ var (
 	errLogoTooLarge        = errors.New("logo is too large")
 	errLogoUnsupported     = errors.New("unsupported logo format")
 	errLogoDimensions      = errors.New("invalid logo dimensions")
-	uploadedLogoNameRegexp = regexp.MustCompile(`^logo-[0-9a-f]{16}\.(?:png|jpg|webp)$`)
+	uploadedLogoNameRegexp = regexp.MustCompile(`^(?:logo|favicon)-[0-9a-f]{16}\.(?:png|jpg|webp)$`)
 )
 
 func (h *Handler) handleAdminLogoUpload(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
+	h.handleAdminImageUpload(w, r, sess, "logo", "Logo")
+}
+
+func (h *Handler) handleAdminFaviconUpload(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
+	h.handleAdminImageUpload(w, r, sess, "favicon", "Favicon")
+}
+
+func (h *Handler) handleAdminImageUpload(w http.ResponseWriter, r *http.Request, sess *session, field, label string) {
 	if !h.isAdmin(sess.User.ID) {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
@@ -42,47 +50,47 @@ func (h *Handler) handleAdminLogoUpload(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	if strings.TrimSpace(h.logoUploadDir) == "" {
-		h.writeError(w, http.StatusServiceUnavailable, "logo_storage_unavailable", "Logo storage is unavailable")
+		h.writeError(w, http.StatusServiceUnavailable, field+"_storage_unavailable", label+" storage is unavailable")
 		return
 	}
 	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Type"))), "multipart/form-data") {
-		h.writeError(w, http.StatusUnsupportedMediaType, "logo_upload_invalid", "Multipart form data required")
+		h.writeError(w, http.StatusUnsupportedMediaType, field+"_upload_invalid", "Multipart form data required")
 		return
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxLogoRequestSize)
 	if err := r.ParseMultipartForm(maxLogoUploadSize); err != nil {
-		h.writeError(w, http.StatusBadRequest, "logo_upload_invalid", "Could not read the logo file")
+		h.writeError(w, http.StatusBadRequest, field+"_upload_invalid", "Could not read the image file")
 		return
 	}
 	if r.MultipartForm != nil {
 		defer r.MultipartForm.RemoveAll()
 	}
 
-	file, _, err := r.FormFile("logo")
+	file, _, err := r.FormFile(field)
 	if err != nil {
-		h.writeError(w, http.StatusBadRequest, "logo_upload_missing", "Select a logo file")
+		h.writeError(w, http.StatusBadRequest, field+"_upload_missing", "Select an image file")
 		return
 	}
 	defer file.Close()
 
 	data, err := io.ReadAll(io.LimitReader(file, maxLogoUploadSize+1))
 	if err != nil {
-		h.writeError(w, http.StatusBadRequest, "logo_upload_invalid", "Could not read the logo file")
+		h.writeError(w, http.StatusBadRequest, field+"_upload_invalid", "Could not read the image file")
 		return
 	}
-	logoURL, err := storeUploadedLogo(h.logoUploadDir, data)
+	imageURL, err := storeUploadedImage(h.logoUploadDir, data, field)
 	if err != nil {
 		switch {
 		case errors.Is(err, errLogoTooLarge):
-			h.writeError(w, http.StatusRequestEntityTooLarge, "logo_too_large", "Logo must be no larger than 2 MB")
+			h.writeError(w, http.StatusRequestEntityTooLarge, field+"_too_large", label+" must be no larger than 2 MB")
 		case errors.Is(err, errLogoUnsupported):
-			h.writeError(w, http.StatusUnsupportedMediaType, "logo_format_invalid", "Use PNG, JPG or WebP")
+			h.writeError(w, http.StatusUnsupportedMediaType, field+"_format_invalid", "Use PNG, JPG or WebP")
 		case errors.Is(err, errLogoDimensions):
-			h.writeError(w, http.StatusBadRequest, "logo_dimensions_invalid", "Logo dimensions must not exceed 4096×4096")
+			h.writeError(w, http.StatusBadRequest, field+"_dimensions_invalid", label+" dimensions must not exceed 4096×4096")
 		default:
-			slog.Error("mini app: save uploaded logo failed", "error", err, "telegramId", utils.MaskHalfInt64(sess.User.ID))
-			h.writeError(w, http.StatusInternalServerError, "logo_upload_failed", "Could not save the logo")
+			slog.Error("mini app: save uploaded image failed", "kind", field, "error", err, "telegramId", utils.MaskHalfInt64(sess.User.ID))
+			h.writeError(w, http.StatusInternalServerError, field+"_upload_failed", "Could not save the image")
 		}
 		return
 	}
@@ -90,12 +98,16 @@ func (h *Handler) handleAdminLogoUpload(w http.ResponseWriter, r *http.Request, 
 	h.writeJSON(w, http.StatusOK, map[string]any{
 		"ok": true,
 		"data": map[string]string{
-			"url": logoURL,
+			"url": imageURL,
 		},
 	})
 }
 
 func storeUploadedLogo(uploadDir string, data []byte) (string, error) {
+	return storeUploadedImage(uploadDir, data, "logo")
+}
+
+func storeUploadedImage(uploadDir string, data []byte, prefix string) (string, error) {
 	if len(data) == 0 {
 		return "", errLogoUnsupported
 	}
@@ -134,14 +146,17 @@ func storeUploadedLogo(uploadDir string, data []byte) (string, error) {
 		return "", err
 	}
 
+	if prefix != "logo" && prefix != "favicon" {
+		return "", errors.New("unsupported image prefix")
+	}
 	hash := sha256.Sum256(data)
-	fileName := "logo-" + hex.EncodeToString(hash[:8]) + extension
+	fileName := prefix + "-" + hex.EncodeToString(hash[:8]) + extension
 	finalPath := filepath.Join(uploadDir, fileName)
 	if info, err := os.Stat(finalPath); err == nil && info.Mode().IsRegular() {
 		return "/mini-app/uploads/" + fileName, nil
 	}
 
-	temporary, err := os.CreateTemp(uploadDir, ".logo-upload-*")
+	temporary, err := os.CreateTemp(uploadDir, "."+prefix+"-upload-*")
 	if err != nil {
 		return "", err
 	}

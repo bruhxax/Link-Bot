@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"regexp"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"golang.org/x/net/html"
 
 	"link-bot/internal/config"
 	"link-bot/internal/database"
@@ -31,9 +33,11 @@ var (
 	ErrRunning       = errors.New("broadcast is already running")
 	ErrNoMessage     = errors.New("broadcast message is not selected")
 	ErrInvalidButton = errors.New("invalid broadcast button")
+	ErrInvalidHTML   = errors.New("invalid broadcast HTML")
 
 	customEmojiTagPattern = regexp.MustCompile(`(?is)<tg-emoji\s+emoji-id\s*=\s*["']([0-9]{5,32})["'][^>]*>.*?</tg-emoji>`)
 	customEmojiIDPattern  = regexp.MustCompile(`^[0-9]{5,32}$`)
+	broadcastHTMLPattern  = regexp.MustCompile(`(?i)<\s*/?\s*(?:b|strong|i|em|u|ins|s|strike|del|a|code|pre|blockquote|tg-spoiler|tg-emoji|span)(?:\s|/?>)`)
 )
 
 type Service struct {
@@ -73,7 +77,7 @@ func (s *Service) StartCapture(ctx context.Context, adminID int64) (*database.Br
 	if s.telegramBot != nil {
 		_, sendErr := s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:    adminID,
-			Text:      "<b>Новое сообщение для рассылки</b>\n\nОтправьте следующим сообщением текст, фото, видео или файл. Форматирование, ссылки и premium emoji сохранятся.",
+			Text:      "<b>Новое сообщение для рассылки</b>\n\nОтправьте текст, фото, видео, аудио или файл. Можно вставить сырой Telegram HTML — например, <code>&lt;b&gt;текст&lt;/b&gt;</code>. Форматирование, ссылки и premium emoji сохранятся.",
 			ParseMode: models.ParseModeHTML,
 			ReplyMarkup: &models.ForceReply{
 				ForceReply:            true,
@@ -106,15 +110,28 @@ func (s *Service) CaptureMessage(ctx context.Context, message *models.Message) (
 	}
 
 	kind := messageKind(message)
+	sourceHTML := ""
+	if kind == "text" && looksLikeBroadcastHTML(message.Text) {
+		if err := ValidateHTML(message.Text); err != nil {
+			details := strings.TrimSpace(strings.TrimPrefix(err.Error(), ErrInvalidHTML.Error()+":"))
+			_, _ = s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: message.Chat.ID,
+				Text:   "HTML не сохранён: " + details + ". Исправьте разметку и отправьте сообщение ещё раз.",
+			})
+			return true, nil
+		}
+		kind = "html"
+		sourceHTML = strings.TrimSpace(message.Text)
+	}
 	if kind == "" {
 		_, _ = s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: message.Chat.ID,
-			Text:   "Этот тип сообщения нельзя использовать в рассылке. Отправьте текст, фото, видео, аудио или файл.",
+			Text:   "Этот тип сообщения нельзя использовать в рассылке. Отправьте текст, HTML-текст, фото, видео, аудио или файл.",
 		})
 		return true, nil
 	}
 	preview := messagePreview(message, kind)
-	draft, err = s.repository.SaveSource(ctx, message.Chat.ID, message.ID, kind, preview, message.From.ID)
+	draft, err = s.repository.SaveSource(ctx, message.Chat.ID, message.ID, kind, preview, sourceHTML, message.From.ID)
 	if err != nil {
 		return true, err
 	}
@@ -183,6 +200,14 @@ func (s *Service) Preview(ctx context.Context, adminID int64) (*database.Broadca
 	}
 	if draft == nil || !draft.HasSource() {
 		return nil, ErrNoMessage
+	}
+	if draft.SourceKind == "html" {
+		if _, err := s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: adminID, Text: draft.SourceHTML, ParseMode: models.ParseModeHTML, ReplyMarkup: buildKeyboard(draft.Buttons),
+		}); err != nil {
+			return nil, fmt.Errorf("send HTML preview: %w", err)
+		}
+		return draft, nil
 	}
 	if _, err := s.telegramBot.CopyMessage(ctx, &bot.CopyMessageParams{
 		ChatID:      adminID,
@@ -325,6 +350,12 @@ sendLoop:
 }
 
 func (s *Service) copyTo(ctx context.Context, draft database.BroadcastDraft, chatID int64, keyboard models.ReplyMarkup) error {
+	if draft.SourceKind == "html" {
+		_, err := s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: chatID, Text: draft.SourceHTML, ParseMode: models.ParseModeHTML, ReplyMarkup: keyboard,
+		})
+		return err
+	}
 	_, err := s.telegramBot.CopyMessage(ctx, &bot.CopyMessageParams{
 		ChatID:      chatID,
 		FromChatID:  *draft.SourceChatID,
@@ -493,6 +524,160 @@ func adminBroadcastURL() string {
 	return parsed.String()
 }
 
+func looksLikeBroadcastHTML(value string) bool {
+	return broadcastHTMLPattern.MatchString(value)
+}
+
+// ValidateHTML checks the Telegram HTML subset before a draft is stored. The
+// Telegram API performs the final validation again when the admin previews it.
+func ValidateHTML(value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fmt.Errorf("%w: текст пуст", ErrInvalidHTML)
+	}
+	if len([]rune(value)) > 16000 {
+		return fmt.Errorf("%w: исходный текст слишком длинный", ErrInvalidHTML)
+	}
+
+	allowed := map[string]bool{
+		"b": true, "strong": true, "i": true, "em": true, "u": true, "ins": true,
+		"s": true, "strike": true, "del": true, "a": true, "code": true, "pre": true,
+		"blockquote": true, "tg-spoiler": true, "tg-emoji": true, "span": true,
+	}
+	tokenizer := html.NewTokenizer(strings.NewReader(value))
+	stack := make([]string, 0, 8)
+	var visible strings.Builder
+	hasTag := false
+	for {
+		switch tokenizer.Next() {
+		case html.ErrorToken:
+			if err := tokenizer.Err(); err != nil && !errors.Is(err, io.EOF) {
+				return fmt.Errorf("%w: разметку не удалось прочитать", ErrInvalidHTML)
+			}
+			if len(stack) != 0 {
+				return fmt.Errorf("%w: тег <%s> не закрыт", ErrInvalidHTML, stack[len(stack)-1])
+			}
+			if !hasTag {
+				return fmt.Errorf("%w: поддерживаемые HTML-теги не найдены", ErrInvalidHTML)
+			}
+			if strings.TrimSpace(visible.String()) == "" {
+				return fmt.Errorf("%w: после обработки тегов текст пуст", ErrInvalidHTML)
+			}
+			if len([]rune(visible.String())) > 4096 {
+				return fmt.Errorf("%w: текст длиннее лимита Telegram в 4096 символов", ErrInvalidHTML)
+			}
+			return nil
+		case html.TextToken:
+			visible.WriteString(tokenizer.Token().Data)
+		case html.StartTagToken:
+			token := tokenizer.Token()
+			name := strings.ToLower(token.Data)
+			if !allowed[name] {
+				return fmt.Errorf("%w: тег <%s> не поддерживается Telegram", ErrInvalidHTML, name)
+			}
+			if err := validateHTMLAttributes(name, token.Attr); err != nil {
+				return err
+			}
+			hasTag = true
+			stack = append(stack, name)
+		case html.SelfClosingTagToken:
+			token := tokenizer.Token()
+			return fmt.Errorf("%w: тег <%s> должен иметь закрывающий тег", ErrInvalidHTML, strings.ToLower(token.Data))
+		case html.EndTagToken:
+			name := strings.ToLower(tokenizer.Token().Data)
+			if !allowed[name] {
+				return fmt.Errorf("%w: тег </%s> не поддерживается Telegram", ErrInvalidHTML, name)
+			}
+			if len(stack) == 0 || stack[len(stack)-1] != name {
+				return fmt.Errorf("%w: неверный порядок закрытия тега </%s>", ErrInvalidHTML, name)
+			}
+			stack = stack[:len(stack)-1]
+		default:
+			return fmt.Errorf("%w: служебные HTML-конструкции не поддерживаются", ErrInvalidHTML)
+		}
+	}
+}
+
+func validateHTMLAttributes(name string, attributes []html.Attribute) error {
+	values := make(map[string]string, len(attributes))
+	for _, attribute := range attributes {
+		key := strings.ToLower(strings.TrimSpace(attribute.Key))
+		if key == "" || attribute.Namespace != "" {
+			return fmt.Errorf("%w: некорректный атрибут тега <%s>", ErrInvalidHTML, name)
+		}
+		if _, exists := values[key]; exists {
+			return fmt.Errorf("%w: атрибут %s повторяется", ErrInvalidHTML, key)
+		}
+		values[key] = strings.TrimSpace(attribute.Val)
+	}
+	allowedOnly := func(keys ...string) error {
+		allowed := make(map[string]bool, len(keys))
+		for _, key := range keys {
+			allowed[key] = true
+		}
+		for key := range values {
+			if !allowed[key] {
+				return fmt.Errorf("%w: атрибут %s нельзя использовать в <%s>", ErrInvalidHTML, key, name)
+			}
+		}
+		return nil
+	}
+
+	switch name {
+	case "a":
+		if err := allowedOnly("href"); err != nil {
+			return err
+		}
+		target, err := url.Parse(values["href"])
+		if err != nil || !map[string]bool{"http": true, "https": true, "tg": true, "mailto": true}[strings.ToLower(target.Scheme)] {
+			return fmt.Errorf("%w: ссылка в <a> должна использовать HTTP, HTTPS, tg:// или mailto:", ErrInvalidHTML)
+		}
+	case "code":
+		if err := allowedOnly("class"); err != nil {
+			return err
+		}
+		if class := values["class"]; class != "" && !strings.HasPrefix(class, "language-") {
+			return fmt.Errorf("%w: class тега <code> должен начинаться с language-", ErrInvalidHTML)
+		}
+	case "blockquote":
+		if err := allowedOnly("expandable"); err != nil {
+			return err
+		}
+	case "span":
+		if err := allowedOnly("class"); err != nil {
+			return err
+		}
+		if values["class"] != "tg-spoiler" {
+			return fmt.Errorf("%w: для <span> поддерживается только class=\"tg-spoiler\"", ErrInvalidHTML)
+		}
+	case "tg-emoji":
+		if err := allowedOnly("emoji-id"); err != nil {
+			return err
+		}
+		if !customEmojiIDPattern.MatchString(values["emoji-id"]) {
+			return fmt.Errorf("%w: в <tg-emoji> нужен корректный emoji-id", ErrInvalidHTML)
+		}
+	default:
+		if err := allowedOnly(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func broadcastHTMLText(value string) string {
+	tokenizer := html.NewTokenizer(strings.NewReader(value))
+	var result strings.Builder
+	for {
+		switch tokenizer.Next() {
+		case html.ErrorToken:
+			return result.String()
+		case html.TextToken:
+			result.WriteString(tokenizer.Token().Data)
+		}
+	}
+}
+
 func messageKind(message *models.Message) string {
 	switch {
 	case strings.TrimSpace(message.Text) != "":
@@ -513,6 +698,8 @@ func messageKind(message *models.Message) string {
 		return "video_note"
 	case message.Sticker != nil:
 		return "sticker"
+	case strings.TrimSpace(message.Caption) != "":
+		return "text"
 	default:
 		return ""
 	}
@@ -522,6 +709,9 @@ func messagePreview(message *models.Message, kind string) string {
 	text := strings.TrimSpace(message.Text)
 	if text == "" {
 		text = strings.TrimSpace(message.Caption)
+	}
+	if kind == "html" {
+		text = broadcastHTMLText(text)
 	}
 	text = strings.Join(strings.Fields(text), " ")
 	if text == "" {

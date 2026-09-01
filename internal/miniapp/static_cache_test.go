@@ -50,7 +50,7 @@ func TestTelegramOIDCLoginKeepsRedirectCompatibility(t *testing.T) {
 func TestServeIndexInjectsAssetVersion(t *testing.T) {
 	handler := &Handler{
 		staticFS: fstest.MapFS{
-			"index.html": &fstest.MapFile{Data: []byte(`<script src="/mini-app/app.js?v=__ASSET_VERSION__"></script>`)},
+			"index.html": &fstest.MapFile{Data: []byte(`<title>__PAGE_TITLE__</title><meta name="description" content="__PAGE_DESCRIPTION__"><link rel="icon" href="__FAVICON_URL__"><script src="/mini-app/app.js?v=__ASSET_VERSION__"></script>`)},
 		},
 		assetVersion: "abc123",
 	}
@@ -62,7 +62,7 @@ func TestServeIndexInjectsAssetVersion(t *testing.T) {
 	if response.Code != 200 {
 		t.Fatalf("status = %d, want 200", response.Code)
 	}
-	if body := response.Body.String(); !strings.Contains(body, "app.js?v=abc123") || strings.Contains(body, "__ASSET_VERSION__") {
+	if body := response.Body.String(); !strings.Contains(body, "app.js?v=abc123") || !strings.Contains(body, "<title>Link-Bot</title>") || !strings.Contains(body, "brand-mark.png?v=abc123") || strings.Contains(body, "__ASSET_VERSION__") || strings.Contains(body, "__PAGE_TITLE__") {
 		t.Fatalf("index body has stale asset version: %q", body)
 	}
 	if cacheControl := response.Header().Get("Cache-Control"); cacheControl != "no-store" {

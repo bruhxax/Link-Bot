@@ -6,8 +6,49 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-telegram/bot/models"
+
 	"link-bot/internal/database"
 )
+
+func TestValidateHTMLAcceptsTelegramMarkup(t *testing.T) {
+	t.Parallel()
+
+	message := `<b>Летнее предложение</b>\n<a href="https://example.com/deal">Открыть</a>\n<blockquote expandable>Условия</blockquote>\n<tg-emoji emoji-id="52764212364458059956">😊</tg-emoji>`
+	if err := ValidateHTML(message); err != nil {
+		t.Fatalf("ValidateHTML() error = %v", err)
+	}
+	if !looksLikeBroadcastHTML(message) {
+		t.Fatal("Telegram HTML was not detected")
+	}
+	if preview := broadcastHTMLText(message); strings.Contains(preview, "<b>") || !strings.Contains(preview, "Летнее предложение") {
+		t.Fatalf("HTML preview = %q", preview)
+	}
+}
+
+func TestValidateHTMLRejectsBrokenOrUnsafeMarkup(t *testing.T) {
+	t.Parallel()
+
+	for name, message := range map[string]string{
+		"unclosed":    `<b>Текст`,
+		"unsafe tag":  `<script>alert(1)</script>`,
+		"unsafe link": `<a href="javascript:alert(1)">Открыть</a>`,
+		"bad nesting": `<b><i>Текст</b></i>`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := ValidateHTML(message); !errors.Is(err, ErrInvalidHTML) {
+				t.Fatalf("ValidateHTML(%q) error = %v, want ErrInvalidHTML", message, err)
+			}
+		})
+	}
+}
+
+func TestMessageKindAcceptsCaptionedUnknownTelegramMessage(t *testing.T) {
+	t.Parallel()
+	if kind := messageKind(&models.Message{Caption: "Подпись нового типа сообщения"}); kind != "text" {
+		t.Fatalf("messageKind() = %q, want text", kind)
+	}
+}
 
 func TestValidateButtons(t *testing.T) {
 	t.Parallel()

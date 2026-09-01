@@ -85,6 +85,7 @@ let googleLoginPendingMode = "";
 let googleLinkRefreshTimer = null;
 let dashboardHydrationTimer = null;
 let adminLogoPreviewTimer = null;
+let adminFaviconPreviewTimer = null;
 let browserDeviceFingerprintPromise = null;
 
 function preventMiniAppZoom() {
@@ -1814,12 +1815,13 @@ const ADMIN_APPEARANCE_PRESETS = [
 function buildPreviewRuntimeSettings() {
 	const features = Object.fromEntries(["mini_app", "stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "payments_history", "gifts", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
-		version: 17,
+		version: 18,
 		localization: { language: "ru", fontFamily: "auto" },
 		maintenance: { enabled: false, titleRu: "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u044b", textRu: "", reasonRu: "" },
 		features,
 		content: {
 			brandName: "Link-Bot", adminContact: "", logoUrl: previewPayload.brand.logoUrl, startTextRu: "", startImage: "", copy: { ru: {} }, faq: { ru: [] }, links: deepClone(previewPayload.links), customLinks: [], profileButtons: {}, legalDocuments: {},
+			webPage: { title: "Link-Bot", description: "Link-Bot Mini App", faviconUrl: BRAND_MARK_PATH },
 			verification: { text: "", banner: "", channelButton: { text: "Link-Bot", iconCustomEmojiId: "", style: "" }, confirmButton: { text: "Я подписался", iconCustomEmojiId: "", style: "" }, checkFailedText: "", notSubscribedText: "", verifiedText: "" },
 			startMenu: { trialButton: { text: "Попробовать бесплатно", iconCustomEmojiId: "5276422526350681413", style: "" }, dashboardButton: { text: "Вход", iconCustomEmojiId: "5278413853577734640", style: "" }, plansButton: { text: "Тарифы", iconCustomEmojiId: "5206626000665868017", style: "" }, supportButton: { text: "Чат с поддержкой", iconCustomEmojiId: "5206222720416643915", style: "" } },
 			commerce: { banner: "", tariffsText: "", paymentMethodsText: "", paymentReadyText: "", yookassaButton: { text: "СБП | Карта", iconCustomEmojiId: "5192678313415434135", style: "" }, cryptoButton: { text: "CryptoPay", iconCustomEmojiId: "5195058841988914267", style: "" }, starsButton: { text: "Telegram Stars", iconCustomEmojiId: "5242644275014951846", style: "" }, payButton: { text: "Оплатить", iconCustomEmojiId: "5206401524200145033", style: "" }, backButton: { text: "Назад", iconCustomEmojiId: "5877629862306385808", style: "" }, successText: "", successBanner: "", successButton: { text: "Личный кабинет", iconCustomEmojiId: "5278413853577734640", style: "" } },
@@ -1945,6 +1947,7 @@ const state = {
 	adminSettingsDirty: false,
 	adminJSONDrafts: {},
 	adminContentSection: "start",
+	adminContentLastSections: { Telegram: "start", "Mini App": "support" },
 	adminContentTabsScrollLeft: 0,
 	adminLayoutCategory: "dashboard",
 	adminLayoutSelection: "dashboard:logo",
@@ -2163,6 +2166,10 @@ function syncAdminSettingsDraft(force = false) {
 
 function seedEditableCopy(settings) {
 	if (!settings?.content) return;
+	if (!settings.content.webPage) {
+		const title = String(settings.content.brandName || "Link-Bot").trim() || "Link-Bot";
+		settings.content.webPage = { title, description: `${title} Mini App`, faviconUrl: BRAND_MARK_PATH };
+	}
 	const existing = settings.content.copy?.ru || {};
 	const defaults = Object.fromEntries(Object.entries(copybook.ru || {}).filter(([, value]) => typeof value === "string"));
 	settings.content.copy = { ru: { ...defaults, ...existing } };
@@ -3034,6 +3041,18 @@ function mountAdminContentTabs() {
 		event.stopPropagation();
 		tabs.dataset.dragMoved = "false";
 	}, true);
+	tabs.addEventListener("keydown", (event) => {
+		if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+		const buttons = [...tabs.querySelectorAll('[role="tab"]')];
+		const current = buttons.indexOf(document.activeElement);
+		if (current < 0 || !buttons.length) return;
+		let next = current;
+		if (event.key === "Home") next = 0;
+		else if (event.key === "End") next = buttons.length - 1;
+		else next = (current + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+		event.preventDefault();
+		buttons[next].focus();
+	});
 }
 
 function renderSidebar() {
@@ -3353,8 +3372,8 @@ function broadcastStatusLabel(status, english) {
 
 function broadcastKindLabel(kind, english) {
 	const labels = english
-		? { text: "Text", photo: "Photo", video: "Video", animation: "Animation", document: "File", audio: "Audio", voice: "Voice", video_note: "Video message", sticker: "Sticker" }
-		: { text: "Текст", photo: "Фото", video: "Видео", animation: "Анимация", document: "Файл", audio: "Аудио", voice: "Голосовое", video_note: "Видеосообщение", sticker: "Стикер" };
+		? { text: "Text", html: "HTML text", photo: "Photo", video: "Video", animation: "Animation", document: "File", audio: "Audio", voice: "Voice", video_note: "Video message", sticker: "Sticker" }
+		: { text: "Текст", html: "HTML-текст", photo: "Фото", video: "Видео", animation: "Анимация", document: "Файл", audio: "Аудио", voice: "Голосовое", video_note: "Видеосообщение", sticker: "Стикер" };
 	return labels[kind] || (english ? "Message" : "Сообщение");
 }
 
@@ -3430,6 +3449,7 @@ function renderAdminContentPage() {
 		["gift", "Подарок", "Telegram"],
 		["payment-notifications", "Уведомления оплат", "Telegram"],
 		["support", "Поддержка", "Mini App"],
+		["web", "Веб-страница", "Mini App"],
 		["notifications", "Уведомления", "Mini App"],
 		["panel", "Панель", "Mini App"],
 		["faq", "FAQ", "Mini App"],
@@ -3438,13 +3458,15 @@ function renderAdminContentPage() {
 	const active = sections.some(([id]) => id === state.adminContentSection) ? state.adminContentSection : "start";
 	state.adminContentSection = active;
 	const groups = ["Telegram", "Mini App"];
-	const activeIndex = sections.findIndex(([id]) => id === active);
+	const activeGroup = sections.find(([id]) => id === active)?.[2] || groups[0];
+	const visibleSections = sections.filter(([, , group]) => group === activeGroup);
+	state.adminContentLastSections = { Telegram: "start", "Mini App": "support", ...(state.adminContentLastSections || {}), [activeGroup]: active };
 	return renderAdminEditorPage("Контент", `
-		<div class="admin-content-switcher">
-			<label for="admin-content-section-select"><span>Раздел</span><select id="admin-content-section-select" data-input="admin-content-section" aria-label="Раздел контента">${groups.map((group) => `<optgroup label="${escapeAttribute(group)}">${sections.filter(([, , itemGroup]) => itemGroup === group).map(([id, label]) => `<option value="${escapeAttribute(id)}" ${id === active ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</optgroup>`).join("")}</select></label>
-			<span aria-hidden="true">${activeIndex + 1} / ${sections.length}</span>
-		</div>
-		<div class="admin-content-panel" data-content-section="${escapeAttribute(active)}">${renderAdminContentSection(active)}</div>
+		<nav class="admin-content-nav" aria-label="Разделы редактора контента">
+			<div class="admin-content-groups" aria-label="Тип контента">${groups.map((group) => `<button type="button" class="${group === activeGroup ? "is-active" : ""}" data-action="admin-content-group" data-value="${escapeAttribute(group)}" aria-pressed="${group === activeGroup}">${escapeHtml(group)}</button>`).join("")}</div>
+			<div class="admin-content-tabs" role="tablist" aria-label="Разделы ${escapeAttribute(activeGroup)}">${visibleSections.map(([id, label]) => `<button id="admin-content-tab-${escapeAttribute(id)}" type="button" role="tab" class="${id === active ? "is-active" : ""}" data-action="admin-content-section" data-content-group="${escapeAttribute(activeGroup)}" data-value="${escapeAttribute(id)}" aria-selected="${id === active}" aria-controls="admin-content-panel" tabindex="${id === active ? "0" : "-1"}">${escapeHtml(label)}</button>`).join("")}</div>
+		</nav>
+		<div id="admin-content-panel" class="admin-content-panel" role="tabpanel" aria-labelledby="admin-content-tab-${escapeAttribute(active)}" data-content-section="${escapeAttribute(active)}">${renderAdminContentSection(active)}</div>
 	`);
 }
 
@@ -3456,6 +3478,7 @@ function renderAdminContentSection(section) {
 		case "gift": return renderAdminGiftContent();
 		case "payment-notifications": return renderAdminPaymentNotificationContent();
 		case "support": return renderAdminSupportContent();
+		case "web": return renderAdminWebPageContent();
 		case "notifications": return renderAdminNotificationContent();
 		case "panel": return renderAdminPanelContent();
 		case "faq": return renderAdminFAQContent();
@@ -3477,6 +3500,43 @@ function renderAdminStartContent() {
 		${renderAdminTelegramButton("Тарифы", "content.startMenu.plansButton")}
 		${renderAdminTelegramButton("Чат с поддержкой", "content.startMenu.supportButton")}
 	</section>`;
+}
+
+function renderAdminWebPageContent() {
+	return `<section class="admin-editor__section"><h3>Вкладка браузера</h3>
+		${renderAdminSettingField("Название страницы", "content.webPage.title", { placeholder: "Link-Bot" })}
+		${renderAdminSettingField("Описание страницы", "content.webPage.description", { textarea: true, rows: 3, placeholder: "Краткое описание сервиса" })}
+	</section>
+	<section class="admin-editor__section"><h3>Иконка сайта</h3>${renderAdminFaviconField()}</section>`;
+}
+
+function renderAdminFaviconField() {
+	const current = String(getDeepValue(state.adminSettingsDraft, "content.webPage.faviconUrl", BRAND_MARK_PATH) || BRAND_MARK_PATH).trim();
+	const previewURL = resolveBrandMarkURL(current);
+	const busy = state.adminBusy === "upload-favicon";
+	const isDefault = current === BRAND_MARK_PATH || current.startsWith(`${BRAND_MARK_PATH}?`);
+	const source = current.startsWith("/mini-app/uploads/")
+		? "Файл загружен в Link-Bot"
+		: isDefault ? "Используется стандартная иконка" : "Используется внешняя ссылка";
+	return `<div class="admin-logo-field admin-favicon-field">
+		<div class="admin-logo-field__main">
+			<div class="admin-logo-field__preview"><img src="${escapeAttribute(previewURL)}" data-brand-logo data-admin-favicon-preview alt="Предпросмотр favicon"></div>
+			<div class="admin-logo-field__body">
+				<strong>Favicon веб-версии</strong>
+				<p>PNG, JPG или WebP · до 2 МБ</p>
+				<div class="admin-logo-field__actions">
+					<label class="admin-logo-field__upload ${busy ? "is-busy" : ""}">
+						<input class="sr-only" type="file" accept="image/png,image/jpeg,image/webp" data-input="admin-favicon-file" aria-describedby="admin-favicon-help" ${busy ? "disabled" : ""}>
+						${icon(busy ? "refresh" : "image")}<span>${busy ? "Загружаем…" : "Загрузить файл"}</span>
+					</label>
+					<button type="button" data-action="admin-favicon-reset" ${busy || isDefault ? "disabled" : ""}>${icon("reset")}<span>Стандартная</span></button>
+				</div>
+			</div>
+		</div>
+		<p class="admin-logo-field__help" id="admin-favicon-help">Лучше квадратная иконка от 128 px.</p>
+		<details class="admin-logo-field__advanced"><summary>Внешняя ссылка</summary>${renderAdminSettingField("HTTPS-адрес", "content.webPage.faviconUrl", { type: "url", placeholder: "https://example.com/favicon.png", compact: true })}</details>
+		<div class="admin-logo-field__status" role="status" aria-live="polite">${escapeHtml(source)}</div>
+	</div>`;
 }
 
 function renderAdminLogoField() {
@@ -3756,10 +3816,13 @@ function renderAdminTelegramButton(title, path) {
 
 function renderAdminReminderTemplate(kind, label, path) {
 	const busy = state.adminBusy === `test-reminder-${kind}`;
-	return `<div class="admin-reminder-template">
-		<div class="admin-reminder-template__head"><h4>${escapeHtml(label)}</h4><button class="admin-reminder-test" type="button" data-action="admin-test-reminder" data-value="${escapeAttribute(kind)}" ${state.adminBusy ? "disabled" : ""}><span>${busy ? "Отправляем" : "Отправить тест"}</span></button></div>
-		${renderAdminSettingField("Текст уведомления", path, { textarea: true, rows: 7 })}
-	</div>`;
+	return `<details class="admin-reminder-template">
+		<summary><strong>${escapeHtml(label)}</strong><span>Изменить</span></summary>
+		<div class="admin-reminder-template__body">
+			<div class="admin-reminder-template__actions"><button class="admin-reminder-test" type="button" data-action="admin-test-reminder" data-value="${escapeAttribute(kind)}" ${state.adminBusy ? "disabled" : ""}><span>${busy ? "Отправляем" : "Отправить тест"}</span></button></div>
+			${renderAdminSettingField("Текст уведомления", path, { textarea: true, rows: 7 })}
+		</div>
+	</details>`;
 }
 
 function renderAdminTelegramButtonStyle(path) {
@@ -6597,8 +6660,24 @@ function bindRootActions() {
 			if (action === "admin-gift-set-style") return setAdminGiftButtonStyle(target.dataset.giftKind, Number(target.dataset.giftIndex), value);
 			if (action === "admin-appearance-preset") return applyAdminAppearancePreset(value);
 			if (action === "admin-logo-reset") return resetAdminLogo();
+			if (action === "admin-favicon-reset") return resetAdminFavicon();
 			if (action === "admin-save-settings") return await saveAdminSettings();
-			if (action === "admin-content-section") { state.adminContentSection = value || "start"; render(); return; }
+			if (action === "admin-content-group") {
+				const group = value === "Mini App" ? "Mini App" : "Telegram";
+				state.adminContentSection = state.adminContentLastSections?.[group] || (group === "Mini App" ? "support" : "start");
+				state.adminContentTabsScrollLeft = 0;
+				haptic("light");
+				render({ preserveScroll: true });
+				return;
+			}
+			if (action === "admin-content-section") {
+				state.adminContentSection = value || "start";
+				const group = target.dataset.contentGroup;
+				if (group === "Telegram" || group === "Mini App") state.adminContentLastSections[group] = state.adminContentSection;
+				haptic("light");
+				render({ preserveScroll: true });
+				return;
+			}
 			if (action === "admin-add-faq") return addAdminFAQItem();
 			if (action === "admin-remove-faq") return removeAdminFAQItem(Number(value));
 			if (action === "admin-move-faq") return moveAdminFAQItem(Number(value), Number(target.dataset.direction || 0));
@@ -6628,16 +6707,14 @@ function bindRootActions() {
 
 	app.addEventListener("change", (event) => {
 		const input = event.target;
-		if (input instanceof HTMLSelectElement && input.dataset.input === "admin-content-section") {
-			state.adminContentSection = String(input.value || "start");
-			haptic("light");
-			render({ preserveScroll: true });
-			return;
-		}
 		if (!(input instanceof HTMLInputElement)) return;
 		if (input.dataset.input === "admin-logo-file") {
 			const file = input.files?.[0];
 			if (file) void uploadAdminLogo(file);
+		}
+		if (input.dataset.input === "admin-favicon-file") {
+			const file = input.files?.[0];
+			if (file) void uploadAdminFavicon(file);
 		}
 	});
 
@@ -6727,6 +6804,7 @@ function bindRootActions() {
 				return;
 			}
 			if (settingPath === "content.logoUrl") scheduleAdminLogoPreview(target.value);
+			if (settingPath === "content.webPage.faviconUrl") scheduleAdminFaviconPreview(target.value);
 			state.adminSettingsDirty = true;
 			const saveButton = app.querySelector('[data-action="admin-save-settings"]');
 			if (saveButton) saveButton.disabled = false;
@@ -7213,11 +7291,37 @@ function resetAdminLogo() {
 	showToast("Выбран стандартный логотип. Сохраните изменения.", "success");
 }
 
+function resetAdminFavicon() {
+	if (!state.adminSettingsDraft?.content?.webPage || state.adminBusy) return;
+	state.adminSettingsDraft.content.webPage.faviconUrl = BRAND_MARK_PATH;
+	state.adminSettingsDirty = true;
+	haptic("light");
+	render({ preserveScroll: true });
+	showToast("Выбрана стандартная иконка. Сохраните изменения.", "success");
+}
+
 function scheduleAdminLogoPreview(value) {
 	window.clearTimeout(adminLogoPreviewTimer);
 	adminLogoPreviewTimer = window.setTimeout(() => {
 		const preview = app.querySelector("[data-admin-logo-preview]");
 		const status = app.querySelector(".admin-logo-field__status");
+		if (preview instanceof HTMLImageElement) {
+			delete preview.dataset.brandLogoFallback;
+			preview.hidden = false;
+			preview.src = resolveBrandMarkURL(value);
+		}
+		if (status) {
+			status.classList.remove("is-error");
+			status.textContent = "Проверяем указанный адрес…";
+		}
+	}, 350);
+}
+
+function scheduleAdminFaviconPreview(value) {
+	window.clearTimeout(adminFaviconPreviewTimer);
+	adminFaviconPreviewTimer = window.setTimeout(() => {
+		const preview = app.querySelector("[data-admin-favicon-preview]");
+		const status = preview?.closest(".admin-logo-field")?.querySelector(".admin-logo-field__status");
 		if (preview instanceof HTMLImageElement) {
 			delete preview.dataset.brandLogoFallback;
 			preview.hidden = false;
@@ -7262,11 +7366,45 @@ async function uploadAdminLogo(file) {
 	}
 }
 
+async function uploadAdminFavicon(file) {
+	if (!state.adminSettingsDraft?.content?.webPage || state.adminBusy || !file) return;
+	const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
+	if (!allowedTypes.has(String(file.type || "").toLowerCase()) && !/\.(?:png|jpe?g|webp)$/i.test(String(file.name || ""))) {
+		showToast("Выберите PNG, JPG или WebP", "danger");
+		return;
+	}
+	if (file.size > 2 * 1024 * 1024) {
+		showToast("Favicon должен быть не больше 2 МБ", "danger");
+		return;
+	}
+
+	state.adminBusy = "upload-favicon";
+	render({ preserveScroll: true });
+	try {
+		const body = new FormData();
+		body.append("favicon", file, file.name || "favicon");
+		const response = await postForm("/api/mini-app/admin/favicon/upload", body);
+		const faviconURL = String(response?.data?.url || "").trim();
+		if (!faviconURL) throw new Error("Link-Bot не вернул адрес favicon");
+		state.adminSettingsDraft.content.webPage.faviconUrl = faviconURL;
+		state.adminSettingsDirty = true;
+		state.adminBusy = "";
+		render({ preserveScroll: true });
+		showToast("Favicon загружен. Нажмите «Сохранить».", "success");
+	} catch (error) {
+		state.adminBusy = "";
+		render({ preserveScroll: true });
+		showToast(error?.message || "Не удалось загрузить favicon", "danger");
+	}
+}
+
 function syncAdminSaveBarDOM() {
 	const saving = state.adminBusy === "save-settings";
 	const busy = Boolean(state.adminBusy);
 	const status = state.adminBusy === "upload-logo"
 		? localizedText("Загружаем логотип...", "Uploading logo...", "در حال بارگذاری لوگو...")
+		: state.adminBusy === "upload-favicon"
+		? localizedText("Загружаем favicon...", "Uploading favicon...", "در حال بارگذاری favicon...")
 		: state.adminSettingsDirty
 		? localizedText("Есть несохранённые изменения", "Unsaved changes", "تغییرات ذخیره‌نشده")
 		: localizedText("Все изменения сохранены", "All changes saved", "همه تغییرات ذخیره شد");
@@ -10193,6 +10331,7 @@ function requestModalClose(name, onClosed) {
 
 function applyAppearance() {
 	syncLocalizationFromSettings();
+	applyWebPageMetadata();
 	const appearance = getRuntimeSettings()?.appearance || {};
 	const colors = appearance.colors || {};
 	const accentColor = colors.accent || PALETTE.accent.accent;
@@ -10257,6 +10396,23 @@ function applyAppearance() {
     if (typeof tg.setBackgroundColor === "function") tg.setBackgroundColor(color);
   }
 	syncBackgroundEngines();
+}
+
+function applyWebPageMetadata() {
+	const content = getRuntimeSettings()?.content || {};
+	const page = content.webPage || {};
+	const title = String(page.title || content.brandName || "Link-Bot").trim() || "Link-Bot";
+	const description = String(page.description || `${title} Mini App`).trim();
+	const faviconURL = resolveBrandMarkURL(page.faviconUrl || BRAND_MARK_PATH);
+	document.title = title;
+	for (const name of ["application-name", "apple-mobile-web-app-title"]) {
+		const meta = document.querySelector(`meta[name="${name}"]`);
+		if (meta) meta.setAttribute("content", title);
+	}
+	const descriptionMeta = document.querySelector('meta[name="description"]');
+	if (descriptionMeta) descriptionMeta.setAttribute("content", description);
+	const favicon = document.querySelector('link[rel="icon"]');
+	if (favicon) favicon.setAttribute("href", faviconURL);
 }
 
 function syncBackgroundEngines() {

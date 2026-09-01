@@ -23,7 +23,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 17
+const CurrentVersion = 18
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -183,10 +183,17 @@ type TelegramGiftSettings struct {
 	Recipient TelegramGiftMessageSettings `json:"recipient"`
 }
 
+type WebPageSettings struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	FaviconURL  string `json:"faviconUrl"`
+}
+
 type ContentSettings struct {
 	BrandName                  string                              `json:"brandName"`
 	AdminContact               string                              `json:"adminContact"`
 	LogoURL                    string                              `json:"logoUrl"`
+	WebPage                    WebPageSettings                     `json:"webPage"`
 	StartTextRU                string                              `json:"startTextRu"`
 	StartImage                 string                              `json:"startImage"`
 	Copy                       map[string]map[string]string        `json:"copy"`
@@ -376,7 +383,12 @@ func DefaultSettings() Settings {
 			BrandName:    "Link-Bot",
 			AdminContact: "",
 			LogoURL:      "/mini-app/assets/brand-mark.png",
-			StartImage:   "",
+			WebPage: WebPageSettings{
+				Title:       "Link-Bot",
+				Description: "Link-Bot Mini App",
+				FaviconURL:  "/mini-app/assets/brand-mark.png",
+			},
+			StartImage: "",
 			Copy: map[string]map[string]string{"ru": {
 				"deviceAddedTemplate":        "<b>Новое устройство подключено</b>\n\nДобавлено: <b>{added}</b>\nУстройств: <b>{count}/{limit}</b>",
 				"deviceLimitReachedTemplate": "<b>Достигнут лимит устройств</b>\n\nПодключено <b>{count}</b> из <b>{limit}</b>. Удалите старое устройство или докупите дополнительные.",
@@ -1075,6 +1087,23 @@ func validateContent(value *ContentSettings, defaults ContentSettings, legacy bo
 	}
 	if !isSafeAssetURL(value.LogoURL) {
 		return errors.New("logo must be an HTTPS URL or local /mini-app path")
+	}
+	value.WebPage.Title = strings.TrimSpace(value.WebPage.Title)
+	if value.WebPage.Title == "" {
+		value.WebPage.Title = defaults.WebPage.Title
+	}
+	value.WebPage.Title = limit(value.WebPage.Title, 120)
+	value.WebPage.Description = strings.TrimSpace(value.WebPage.Description)
+	if value.WebPage.Description == "" {
+		value.WebPage.Description = defaults.WebPage.Description
+	}
+	value.WebPage.Description = limit(value.WebPage.Description, 240)
+	value.WebPage.FaviconURL = strings.TrimSpace(value.WebPage.FaviconURL)
+	if value.WebPage.FaviconURL == "" {
+		value.WebPage.FaviconURL = defaults.WebPage.FaviconURL
+	}
+	if !isSafeAssetURL(value.WebPage.FaviconURL) {
+		return errors.New("favicon must be an HTTPS URL or local /mini-app path")
 	}
 	value.StartTextRU = limit(strings.TrimSpace(value.StartTextRU), 3500)
 	value.StartImage = strings.TrimSpace(value.StartImage)

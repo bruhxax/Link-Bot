@@ -14,8 +14,12 @@ func TestContentEditorKeepsAllSectionsInCompactNavigation(t *testing.T) {
 
 	required := []string{
 		`renderAdminEditorPage("Контент"`,
-		`data-input="admin-content-section"`,
-		`<optgroup label=`,
+		`class="admin-content-groups"`,
+		`class="admin-content-tabs"`,
+		`data-action="admin-content-group"`,
+		`role="tablist"`,
+		`tabindex="${id === active ? "0" : "-1"}"`,
+		`["ArrowLeft", "ArrowRight", "Home", "End"]`,
 		`class="admin-content-panel"`,
 		`class="admin-telegram-button"`,
 		`class="admin-content-disclosure"`,
@@ -26,6 +30,7 @@ func TestContentEditorKeepsAllSectionsInCompactNavigation(t *testing.T) {
 		`["gift", "Подарок", "Telegram"]`,
 		`["payment-notifications", "Уведомления оплат", "Telegram"]`,
 		`["support", "Поддержка", "Mini App"]`,
+		`["web", "Веб-страница", "Mini App"]`,
 		`["notifications", "Уведомления", "Mini App"]`,
 		`["panel", "Панель", "Mini App"]`,
 		`["faq", "FAQ", "Mini App"]`,
@@ -39,6 +44,9 @@ func TestContentEditorKeepsAllSectionsInCompactNavigation(t *testing.T) {
 
 	paths := []string{
 		"content.brandName",
+		"content.webPage.title",
+		"content.webPage.description",
+		"content.webPage.faviconUrl",
 		"content.startMenu.trialButton",
 		"content.verification.channelButton",
 		"content.commerce.yookassaButton",
@@ -57,8 +65,27 @@ func TestContentEditorKeepsAllSectionsInCompactNavigation(t *testing.T) {
 		}
 	}
 
-	if strings.Contains(app, `class="admin-content-tabs"`) {
-		t.Fatal("old horizontal content tabs are still rendered")
+	if strings.Contains(app, `data-input="admin-content-section"`) {
+		t.Fatal("native content section select is still rendered")
+	}
+}
+
+func TestContentEditorSupportsWebMetadataAndFaviconUpload(t *testing.T) {
+	raw, err := embeddedStatic.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	app := string(raw)
+	for _, fragment := range []string{
+		`function renderAdminWebPageContent()`,
+		`data-input="admin-favicon-file"`,
+		`/api/mini-app/admin/favicon/upload`,
+		`function applyWebPageMetadata()`,
+		`document.title = title`,
+	} {
+		if !strings.Contains(app, fragment) {
+			t.Fatalf("web page editor fragment is missing: %q", fragment)
+		}
 	}
 }
 
@@ -69,9 +96,11 @@ func TestContentEditorHasCompactAccessibleStyles(t *testing.T) {
 	}
 	styles := string(raw)
 	for _, fragment := range []string{
-		`.admin-content-switcher select:focus-visible`,
+		`.admin-content-groups button:focus-visible`,
+		`.admin-content-tabs button:focus-visible`,
 		`.admin-content-panel .admin-editor__section`,
 		`.admin-content-disclosure summary:focus-visible`,
+		`.admin-reminder-template summary:focus-visible`,
 		`.admin-telegram-button summary:focus-visible`,
 		`.admin-content-panel .admin-editor__grid--two { grid-template-columns: 1fr; }`,
 	} {
