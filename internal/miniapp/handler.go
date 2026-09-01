@@ -697,6 +697,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/moynalog/state", h.withSession(h.handleAdminMoyNalogState))
 	mux.HandleFunc("/api/mini-app/admin/moynalog/test", h.withSession(h.handleAdminMoyNalogTest))
 	mux.HandleFunc("/api/mini-app/admin/moynalog/retry", h.withSession(h.handleAdminMoyNalogRetry))
+	mux.HandleFunc("/api/mini-app/admin/users/search", h.withSession(h.handleAdminUsersSearch))
+	mux.HandleFunc("/api/mini-app/admin/users/detail", h.withSession(h.handleAdminUserDetail))
+	mux.HandleFunc("/api/mini-app/admin/users/balance", h.withSession(h.handleAdminUserBalance))
+	mux.HandleFunc("/api/mini-app/admin/users/subscription", h.withSession(h.handleAdminUserSubscription))
+	mux.HandleFunc("/api/mini-app/admin/users/block", h.withSession(h.handleAdminUserBlock))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/state", h.withSession(h.handleAdminBroadcastState))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/capture/start", h.withSession(h.handleAdminBroadcastCaptureStart))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/buttons", h.withSession(h.handleAdminBroadcastButtons))
@@ -925,6 +930,10 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 				h.writeError(w, http.StatusInternalServerError, "customer_sync_failed", "Не удалось обновить профиль")
 				return
 			}
+		}
+		if customer.IsBlocked && !h.isAdmin(sess.User.ID) {
+			h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+			return
 		}
 		forceChannelCheck := strings.TrimSpace(r.Header.Get("X-Force-Channel-Check")) == "1"
 		verified, err := h.verifyRequiredChannelSubscription(r.Context(), customer, forceChannelCheck)

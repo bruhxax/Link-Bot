@@ -50,6 +50,8 @@ type Customer struct {
 	GoogleEmailVerified           bool       `db:"google_email_verified"`
 	GoogleLinkedAt                *time.Time `db:"google_linked_at"`
 	TelegramIDIsSynthetic         bool       `db:"telegram_id_is_synthetic"`
+	IsBlocked                     bool       `db:"is_blocked"`
+	BlockedAt                     *time.Time `db:"blocked_at"`
 }
 
 var customerSelectColumns = []string{
@@ -76,6 +78,8 @@ var customerSelectColumns = []string{
 	"google_email_verified",
 	"google_linked_at",
 	"telegram_id_is_synthetic",
+	"is_blocked",
+	"blocked_at",
 }
 
 func scanCustomer(scanner interface {
@@ -105,6 +109,8 @@ func scanCustomer(scanner interface {
 		&customer.GoogleEmailVerified,
 		&customer.GoogleLinkedAt,
 		&customer.TelegramIDIsSynthetic,
+		&customer.IsBlocked,
+		&customer.BlockedAt,
 	)
 }
 
@@ -242,6 +248,7 @@ func (cr *CustomerRepository) FindAutoPaymentEligible(ctx context.Context, dueBe
 	buildSelect := sq.Select(customerSelectColumns...).
 		From("customer").
 		Where(sq.And{
+			sq.Eq{"is_blocked": false},
 			sq.Eq{"autopay_enabled": true},
 			sq.NotEq{"yookasa_payment_method_id": nil},
 			sq.NotEq{"autopay_plan_months": nil},

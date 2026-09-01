@@ -30,6 +30,10 @@ const reducedMotionMedia = window.matchMedia?.("(prefers-reduced-motion: reduce)
 
 document.addEventListener("error", (event) => {
   const image = event.target;
+	if (image instanceof HTMLImageElement && image.matches("[data-admin-user-avatar]")) {
+		image.hidden = true;
+		return;
+	}
   if (!(image instanceof HTMLImageElement) || !image.matches("[data-brand-logo]")) return;
   const browserFallback = image.closest(".browser-auth__logo-shell")?.querySelector(".browser-auth__logo-fallback");
   if (image.dataset.brandLogoFallback === "1") {
@@ -86,6 +90,7 @@ let googleLinkRefreshTimer = null;
 let dashboardHydrationTimer = null;
 let adminLogoPreviewTimer = null;
 let adminFaviconPreviewTimer = null;
+let adminUsersSearchTimer = null;
 let browserDeviceFingerprintPromise = null;
 
 function preventMiniAppZoom() {
@@ -1945,6 +1950,15 @@ const state = {
 	adminIntegrationBusy: "",
 	adminMoyNalog: null,
 	adminMoyNalogBusy: "",
+	adminUsers: { items: [], total: 0, limit: 30, offset: 0 },
+	adminUsersQuery: "",
+	adminUsersBusy: "",
+	adminUserDetail: null,
+	adminUserPreviewDetail: null,
+	adminUserSelectedSubscriptionID: "",
+	adminUserBalanceDraft: "",
+	adminUserDaysDraft: "",
+	adminUserTrafficDraft: "",
 	adminSettingsDraft: null,
 	adminSettingsDirty: false,
 	adminJSONDrafts: {},
@@ -2567,8 +2581,35 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 				{ purchaseId: 1282, status: "uncertain", itemName: "VPN-подписка на 3 мес.", amount: 799, invoiceType: "yookassa", error: "Ответ ФНС не получен. Проверьте кабинет вручную.", createdAt: new Date(Date.now() - 10800000).toISOString(), updatedAt: new Date(Date.now() - 10800000).toISOString() },
 			],
 		};
+		state.adminUsers = {
+			items: [
+				{ customerId: 12, telegramId: 6402520205, username: "alexvpn", avatarUrl: "", subscriptionName: "Основная", subscriptionStatus: "active", createdAt: new Date(Date.now() - 78 * 86400000).toISOString(), isBlocked: false },
+				{ customerId: 13, telegramId: 7123456789, username: "maria_net", avatarUrl: "", subscriptionName: "Работа", subscriptionStatus: "active", createdAt: new Date(Date.now() - 32 * 86400000).toISOString(), isBlocked: false },
+				{ customerId: 14, telegramId: 7987654321, username: "ivan_test", avatarUrl: "", subscriptionName: "Основная", subscriptionStatus: "expired", createdAt: new Date(Date.now() - 12 * 86400000).toISOString(), isBlocked: true },
+			],
+			total: 3251,
+			limit: 30,
+			offset: 0,
+		};
+		state.adminUserDetail = {
+			customerId: 12,
+			telegramId: 6402520205,
+			username: "alexvpn",
+			avatarUrl: "",
+			createdAt: new Date(Date.now() - 78 * 86400000).toISOString(),
+			isBlocked: false,
+			trialUsed: true,
+			referrals: { balanceCents: 125000, invited: 47, purchased: 12, trial: 29 },
+			subscriptions: [
+				{ id: 31, name: "Основная", isPrimary: true, isSelected: true, status: "active", expiresAt: new Date(Date.now() + 46 * 86400000).toISOString(), trafficLimitBytes: 107374182400, usedTrafficBytes: 34896609280, deviceLimit: 3, usedDevices: 2 },
+				{ id: 32, name: "Работа", isPrimary: false, isSelected: false, status: "expired", expiresAt: new Date(Date.now() - 8 * 86400000).toISOString(), trafficLimitBytes: 53687091200, usedTrafficBytes: 42949672960, deviceLimit: 2, usedDevices: 1 },
+			],
+		};
+		state.adminUserSelectedSubscriptionID = "31";
+		state.adminUserPreviewDetail = deepClone(state.adminUserDetail);
+		if (urlParams.get("detail") !== "1") state.adminUserDetail = null;
 		const previewSection = String(urlParams.get("section") || "");
-		if (["integrations", "referrals", "moynalog"].includes(previewSection)) {
+		if (["integrations", "referrals", "moynalog", "users"].includes(previewSection)) {
 			state.currentPage = "admin";
 			state.adminSection = previewSection;
 			state.adminLayoutEditing = false;
@@ -3159,6 +3200,7 @@ function renderAdminPage() {
 	if (state.adminSection === "broadcast") return renderAdminBroadcastPage();
 	if (state.adminSection === "integrations") return renderAdminIntegrationsPage();
 	if (state.adminSection === "moynalog") return renderAdminMoyNalogPage();
+	if (state.adminSection === "users") return renderAdminUsersPage();
 	return `
 		<section class="page admin-page ${pageClass("admin")}" id="page-admin">
 			${renderAdminMenuGroup(localizedText("Система", "System", "سیستم"), [
@@ -3179,12 +3221,202 @@ function renderAdminPage() {
 				[localizedText("Тарифы", "Plans", "تعرفه‌ها"), "", "plans", "cartShopping"],
 			])}
 			${renderAdminMenuGroup(localizedText("Операции", "Operations", "عملیات"), [
+				[localizedText("Пользователи", "Users", "کاربران"), "", "users", "users"],
 				[localizedText("Рефералы и баланс", "Referrals and balance", "دعوت و موجودی"), "", "referrals", "users"],
 				[localizedText("Рассылка", "Broadcast", "ارسال همگانی"), "", "broadcast", "adminBroadcast"],
 				[localizedText("Промокоды", "Promo codes", "کدهای تخفیف"), "", "promocodes", "adminPromocodes"],
 			])}
 		</section>
 	`;
+}
+
+function adminUserDisplayName(user) {
+	const username = String(user?.username || "").trim().replace(/^@+/, "");
+	return username ? `@${username}` : localizedText("Без username", "No username", "بدون نام کاربری");
+}
+
+function adminUserAvatar(user, size = "normal") {
+	const username = String(user?.username || "").trim().replace(/^@+/, "");
+	const fallback = (username[0] || "U").toUpperCase();
+	const url = String(user?.avatarUrl || "").trim();
+	return `<span class="admin-user-avatar admin-user-avatar--${escapeAttribute(size)}" aria-hidden="true"><span>${escapeHtml(fallback)}</span>${url ? `<img src="${escapeAttribute(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-admin-user-avatar>` : ""}</span>`;
+}
+
+function adminUserStatusCopy(status) {
+	return ({ active: "Активна", expired: "Истекла", blocked: "Заблокирован", unavailable: "Нет связи", none: "Нет подписки" })[status] || "Нет подписки";
+}
+
+function renderAdminUsersPage() {
+	if (state.adminUserDetail) return renderAdminUserDetailPage(state.adminUserDetail);
+	const data = state.adminUsers || { items: [], total: 0, limit: 30, offset: 0 };
+	const items = Array.isArray(data.items) ? data.items : [];
+	const busy = state.adminUsersBusy === "search";
+	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-users">
+		<header class="admin-users__header"><div><span>УПРАВЛЕНИЕ</span><h2>Пользователи</h2></div><strong>${Number(data.total || 0).toLocaleString("ru-RU")}</strong></header>
+		<label class="admin-users__search"><span class="sr-only">Найти пользователя</span>${icon("search")}<input type="search" value="${escapeAttribute(state.adminUsersQuery)}" data-input="admin-users-search" placeholder="@username, Telegram ID или подписка" autocomplete="off" enterkeyhint="search"><i class="${busy ? "is-visible" : ""}" aria-hidden="true"></i></label>
+		<div class="admin-users__result" aria-live="polite">${busy && !items.length ? renderAdminUsersLoading() : items.length ? `<div class="admin-users__list">${items.map(renderAdminUserRow).join("")}</div>` : `<div class="admin-users__empty">${icon("users")}<strong>Никого не нашли</strong><span>Проверьте username, ID или название подписки</span></div>`}</div>
+		${items.length < Number(data.total || 0) ? `<button class="admin-users__more" type="button" data-action="admin-users-more" ${state.adminUsersBusy ? "disabled" : ""}>${state.adminUsersBusy === "more" ? icon("refresh") : icon("arrowDown")}<span>Показать ещё</span></button>` : ""}
+	</div></section>`;
+}
+
+function renderAdminUsersLoading() {
+	return `<div class="admin-users__list is-loading" aria-label="Загрузка пользователей">${Array.from({ length: 6 }, () => `<div class="admin-user-row admin-user-row--skeleton"><i></i><span><b></b><small></small></span></div>`).join("")}</div>`;
+}
+
+function renderAdminUserRow(user, index) {
+	const status = user.isBlocked ? "blocked" : String(user.subscriptionStatus || "none");
+	const subscription = String(user.subscriptionName || "").trim() || "Без подписки";
+	return `<button class="admin-user-row" type="button" data-action="admin-user-open" data-value="${Number(user.customerId || 0)}" style="--admin-user-index:${Math.min(index, 10)}" aria-label="Открыть ${escapeAttribute(adminUserDisplayName(user))}">
+		${adminUserAvatar(user)}
+		<span class="admin-user-row__identity"><strong>${escapeHtml(adminUserDisplayName(user))}</strong><small>Telegram ID: ${escapeHtml(String(user.telegramId || "—"))}</small></span>
+		<span class="admin-user-row__subscription"><strong>${escapeHtml(subscription)}</strong><small class="is-${escapeAttribute(status)}">${escapeHtml(adminUserStatusCopy(status))}</small></span>
+		${icon("chevronRight")}
+	</button>`;
+}
+
+function renderAdminUserDetailPage(user) {
+	const subscriptions = Array.isArray(user.subscriptions) ? user.subscriptions : [];
+	const selected = subscriptions.find((item) => String(item.id) === String(state.adminUserSelectedSubscriptionID)) || subscriptions.find((item) => item.isSelected) || subscriptions[0] || null;
+	const referrals = user.referrals || {};
+	const busy = Boolean(state.adminUsersBusy);
+	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-user-detail">
+		<header class="admin-user-detail__header"><button type="button" data-action="admin-user-back" aria-label="Назад к списку">${icon("back")}</button>${adminUserAvatar(user, "large")}<div><h2>${escapeHtml(adminUserDisplayName(user))}</h2><span>Telegram ID: ${escapeHtml(String(user.telegramId || "—"))}</span><small>В боте с ${escapeHtml(formatDateLabel(user.createdAt, state.locale))}</small></div><i class="${user.isBlocked ? "is-blocked" : "is-active"}">${user.isBlocked ? "Заблокирован" : "Активен"}</i></header>
+		<section class="admin-user-metrics" aria-label="Статистика реферальной системы">
+			<div><strong>${escapeHtml(formatMoneyCents(referrals.balanceCents || 0))}</strong><span>Баланс</span></div>
+			<div><strong>${Number(referrals.invited || 0).toLocaleString("ru-RU")}</strong><span>Приглашено</span></div>
+			<div><strong>${Number(referrals.purchased || 0).toLocaleString("ru-RU")}</strong><span>Купили</span></div>
+			<div><strong>${Number(referrals.trial || 0).toLocaleString("ru-RU")}</strong><span>Пробный</span></div>
+		</section>
+		<section class="admin-user-subscriptions"><div class="admin-user-section-head"><div><span>ПОДПИСКИ</span><h3>Доступ пользователя</h3></div><strong>${subscriptions.length}</strong></div>${subscriptions.length ? `<div class="admin-user-subscriptions__list">${subscriptions.map(renderAdminUserSubscription).join("")}</div>` : `<div class="admin-users__empty admin-users__empty--compact"><strong>Подписок пока нет</strong></div>`}</section>
+		<section class="admin-user-controls" aria-labelledby="admin-user-controls-title"><div class="admin-user-section-head"><div><span>НАСТРОЙКИ</span><h3 id="admin-user-controls-title">Управление</h3></div></div>
+			${subscriptions.length > 1 ? `<label class="admin-user-control admin-user-control--select"><span>Подписка для изменения</span><select data-input="admin-user-subscription">${subscriptions.map((item) => `<option value="${Number(item.id || 0)}" ${selected && item.id === selected.id ? "selected" : ""}>${escapeHtml(item.name || "Подписка")}${item.isPrimary ? " · основная" : ""}</option>`).join("")}</select></label>` : ""}
+			<div class="admin-user-controls__group"><div><strong>Пополнить баланс</strong><span>Деньги сразу появятся в Mini App</span></div><div class="admin-user-control-row"><label><span>Сумма, ₽</span><input type="number" min="1" max="1000000" inputmode="numeric" value="${escapeAttribute(state.adminUserBalanceDraft)}" data-input="admin-user-balance" placeholder="500"></label><button type="button" data-action="admin-user-credit" ${busy ? "disabled" : ""}>Пополнить</button></div></div>
+			<div class="admin-user-controls__group ${user.isBlocked || !selected ? "is-disabled" : ""}"><div><strong>Изменить подписку</strong><span>${selected ? escapeHtml(selected.name || "Выбранная подписка") : "Нет доступной подписки"}</span></div><div class="admin-user-control-grid"><div class="admin-user-control-row"><label><span>Продлить, дней</span><input type="number" min="1" max="3650" inputmode="numeric" value="${escapeAttribute(state.adminUserDaysDraft)}" data-input="admin-user-days" placeholder="30" ${user.isBlocked || !selected ? "disabled" : ""}></label><button type="button" data-action="admin-user-extend" ${busy || user.isBlocked || !selected ? "disabled" : ""}>Продлить</button></div><div class="admin-user-control-row"><label><span>Добавить, ГБ</span><input type="number" min="1" max="1000000" inputmode="numeric" value="${escapeAttribute(state.adminUserTrafficDraft)}" data-input="admin-user-traffic" placeholder="50" ${user.isBlocked || !selected ? "disabled" : ""}></label><button type="button" data-action="admin-user-traffic" ${busy || user.isBlocked || !selected ? "disabled" : ""}>Добавить</button></div></div></div>
+			<div class="admin-user-controls__danger"><div><strong>${user.isBlocked ? "Разблокировать пользователя" : "Заблокировать пользователя"}</strong><span>${user.isBlocked ? "Активные подписки с неистёкшим сроком снова включатся" : "Бот закроет доступ и отключит все подписки в панели"}</span></div><button type="button" class="${user.isBlocked ? "is-unblock" : "is-block"}" data-action="admin-user-block" data-blocked="${user.isBlocked ? "false" : "true"}" ${busy ? "disabled" : ""}>${user.isBlocked ? "Разблокировать" : "Заблокировать"}</button></div>
+		</section>
+	</div></section>`;
+}
+
+function renderAdminUserSubscription(item) {
+	const status = String(item.status || "none");
+	const unlimited = Number(item.trafficLimitBytes || 0) <= 0;
+	const traffic = unlimited ? "Безлимитный трафик" : formatTrafficBadgeLabel(item.usedTrafficBytes || 0, item.trafficLimitBytes || 0, state.locale);
+	const devices = Number(item.deviceLimit) < 0 ? `${Number(item.usedDevices || 0)} устройств` : `${Number(item.usedDevices || 0)} из ${Number(item.deviceLimit || 0)} устройств`;
+	return `<article class="admin-user-subscription ${item.isSelected ? "is-selected" : ""}"><div class="admin-user-subscription__top"><div><strong>${escapeHtml(item.name || "Подписка")}</strong><span>${item.isPrimary ? "Основная" : "Дополнительная"}</span></div><i class="is-${escapeAttribute(status)}">${escapeHtml(adminUserStatusCopy(status))}</i></div><div class="admin-user-subscription__facts"><span>${icon("calendar")}<b>${item.expiresAt ? escapeHtml(formatDateLabel(item.expiresAt, state.locale)) : "Срок не задан"}</b></span><span>${icon("traffic")}<b>${escapeHtml(traffic)}</b></span><span>${icon("device")}<b>${escapeHtml(devices)}</b></span></div></article>`;
+}
+
+async function refreshAdminUsers({ append = false, silent = false } = {}) {
+	if (previewMode || (state.adminUsersBusy && !silent)) return;
+	const offset = append ? Number(state.adminUsers?.items?.length || 0) : 0;
+	state.adminUsersBusy = append ? "more" : "search";
+	if (!silent) render({ preserveScroll: true });
+	try {
+		const response = await post("/api/mini-app/admin/users/search", { query: state.adminUsersQuery, limit: 30, offset });
+		const next = response.data || { items: [], total: 0, limit: 30, offset };
+		state.adminUsers = {
+			...next,
+			items: append ? [...(state.adminUsers?.items || []), ...(next.items || [])] : (next.items || []),
+		};
+		state.adminUsersBusy = "";
+		render({ preserveScroll: append });
+	} catch (error) {
+		state.adminUsersBusy = "";
+		render({ preserveScroll: true });
+		throw error;
+	}
+}
+
+async function openAdminUser(customerID) {
+	if (!customerID || state.adminUsersBusy) return;
+	if (previewMode && state.adminUserPreviewDetail) {
+		state.adminUserDetail = deepClone(state.adminUserPreviewDetail);
+		state.adminUserSelectedSubscriptionID = String(state.adminUserDetail.subscriptions?.find((item) => item.isSelected)?.id || state.adminUserDetail.subscriptions?.[0]?.id || "");
+		renderAdminTransition();
+		return;
+	}
+	state.adminUsersBusy = "detail";
+	render({ preserveScroll: true });
+	try {
+		const response = await post("/api/mini-app/admin/users/detail", { customerId: customerID });
+		state.adminUserDetail = response.data || null;
+		const subscriptions = state.adminUserDetail?.subscriptions || [];
+		state.adminUserSelectedSubscriptionID = String(subscriptions.find((item) => item.isSelected)?.id || subscriptions[0]?.id || "");
+		state.adminUserBalanceDraft = "";
+		state.adminUserDaysDraft = "";
+		state.adminUserTrafficDraft = "";
+		state.adminUsersBusy = "";
+		haptic("light");
+		renderAdminTransition();
+	} catch (error) {
+		state.adminUsersBusy = "";
+		render({ preserveScroll: true });
+		throw error;
+	}
+}
+
+function closeAdminUserDetail() {
+	state.adminUserDetail = null;
+	state.adminUserSelectedSubscriptionID = "";
+	state.adminUserBalanceDraft = "";
+	state.adminUserDaysDraft = "";
+	state.adminUserTrafficDraft = "";
+	haptic("light");
+	renderAdminTransition();
+}
+
+function adminUserSelectedSubscriptionID() {
+	const subscriptions = state.adminUserDetail?.subscriptions || [];
+	return Number(state.adminUserSelectedSubscriptionID || subscriptions.find((item) => item.isSelected)?.id || subscriptions[0]?.id || 0);
+}
+
+async function runAdminUserAction(path, body, busyKey) {
+	if (!state.adminUserDetail || state.adminUsersBusy) return;
+	state.adminUsersBusy = busyKey;
+	render({ preserveScroll: true });
+	try {
+		const response = await post(path, { customerId: Number(state.adminUserDetail.customerId || 0), ...body });
+		state.adminUserDetail = response.data || state.adminUserDetail;
+		state.adminUsersBusy = "";
+		state.adminUserBalanceDraft = "";
+		state.adminUserDaysDraft = "";
+		state.adminUserTrafficDraft = "";
+		render({ preserveScroll: true });
+		haptic("success");
+		showToast(response.message || "Изменение сохранено", "success");
+		void refreshAdminUsers({ silent: true });
+	} catch (error) {
+		state.adminUsersBusy = "";
+		render({ preserveScroll: true });
+		throw error;
+	}
+}
+
+async function creditAdminUserBalance() {
+	const amountRub = Math.trunc(Number(state.adminUserBalanceDraft || 0));
+	if (amountRub < 1 || amountRub > 1000000) return showToast("Укажите сумму от 1 до 1 000 000 ₽", "danger");
+	return runAdminUserAction("/api/mini-app/admin/users/balance", { amountRub }, "balance");
+}
+
+async function extendAdminUserSubscription() {
+	const days = Math.trunc(Number(state.adminUserDaysDraft || 0));
+	const subscriptionId = adminUserSelectedSubscriptionID();
+	if (!subscriptionId) return showToast("Выберите подписку", "danger");
+	if (days < 1 || days > 3650) return showToast("Укажите срок от 1 до 3650 дней", "danger");
+	return runAdminUserAction("/api/mini-app/admin/users/subscription", { subscriptionId, days }, "subscription");
+}
+
+async function addAdminUserTraffic() {
+	const trafficGb = Math.trunc(Number(state.adminUserTrafficDraft || 0));
+	const subscriptionId = adminUserSelectedSubscriptionID();
+	if (!subscriptionId) return showToast("Выберите подписку", "danger");
+	if (trafficGb < 1 || trafficGb > 1000000) return showToast("Укажите трафик от 1 до 1 000 000 ГБ", "danger");
+	return runAdminUserAction("/api/mini-app/admin/users/subscription", { subscriptionId, trafficGb }, "subscription");
+}
+
+async function setAdminUserBlocked(blocked) {
+	const question = blocked ? "Заблокировать пользователя и отключить все его подписки?" : "Разблокировать пользователя?";
+	if (!window.confirm(question)) return;
+	return runAdminUserAction("/api/mini-app/admin/users/block", { blocked: Boolean(blocked) }, "block");
 }
 
 function renderAdminLocalizationPage() {
@@ -6574,9 +6806,17 @@ function bindRootActions() {
 		renderAdminTransition();
 		if (value === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 		if (value === "moynalog") void refreshAdminMoyNalog();
+		if (value === "users") void refreshAdminUsers();
 		return;
 	  }
 	  if (action === "close-admin-section") return closeAdminSection();
+			if (action === "admin-user-open") return await openAdminUser(Number(value));
+			if (action === "admin-user-back") return closeAdminUserDetail();
+			if (action === "admin-users-more") return await refreshAdminUsers({ append: true });
+			if (action === "admin-user-credit") return await creditAdminUserBalance();
+			if (action === "admin-user-extend") return await extendAdminUserSubscription();
+			if (action === "admin-user-traffic") return await addAdminUserTraffic();
+			if (action === "admin-user-block") return await setAdminUserBlocked(target.dataset.blocked === "true");
 			if (action === "admin-layout-exit") return exitAdminLayoutEditor();
 			if (action === "admin-plan-exit") return exitAdminPlanEditor();
 			if (action === "open-device-packs") { state.devicePackModalOpen = true; render({ preserveScroll: true }); return; }
@@ -6902,6 +7142,16 @@ function bindRootActions() {
 		}
 		const inputKey = target?.dataset?.input;
 		if (!inputKey) return;
+		if (inputKey === "admin-users-search") {
+			state.adminUsersQuery = String(target.value || "").slice(0, 100);
+			window.clearTimeout(adminUsersSearchTimer);
+			adminUsersSearchTimer = window.setTimeout(() => { void refreshAdminUsers().catch((error) => showToast(error?.message || "Не удалось найти пользователя", "danger")); }, 320);
+			return;
+		}
+		if (inputKey === "admin-user-subscription") { state.adminUserSelectedSubscriptionID = String(target.value || ""); render({ preserveScroll: true }); return; }
+		if (inputKey === "admin-user-balance") { state.adminUserBalanceDraft = target.value; return; }
+		if (inputKey === "admin-user-days") { state.adminUserDaysDraft = target.value; return; }
+		if (inputKey === "admin-user-traffic") { state.adminUserTrafficDraft = target.value; return; }
 		if (inputKey === "setup-platform") {
 			state.selectedPlatform = PLATFORMS.includes(target.value) ? target.value : "windows";
 			state.selectedSetupAppID = "";
@@ -10238,7 +10488,10 @@ function renderAdminTransition({ preserveScroll = false, scrollTop = 0 } = {}) {
 
 function closeAdminSection() {
 	if (state.adminSection === "home") return;
+	window.clearTimeout(adminUsersSearchTimer);
 	state.adminSection = "home";
+	state.adminUserDetail = null;
+	state.adminUsersBusy = "";
 	state.adminBroadcastConfirmOpen = false;
 	haptic("light");
 	renderAdminTransition();
@@ -11556,6 +11809,7 @@ function icon(name) {
 		return `<span class="app-svg-icon app-svg-icon--${ADMIN_ICON_CLASSES[name]}" aria-hidden="true"></span>`;
 	}
   const icons = {
+		search: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="m16.2 16.2 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
 		gift: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M19.97 10H3.96997V18C3.96997 21 4.96997 22 7.96997 22H15.97C18.97 22 19.97 21 19.97 18V10Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M21.5 7V8C21.5 9.1 20.97 10 19.5 10H4.5C2.97 10 2.5 9.1 2.5 8V7C2.5 5.9 2.97 5 4.5 5H19.5C20.97 5 21.5 5.9 21.5 7Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.64 4.99994H6.12003C5.78003 4.62994 5.79003 4.05994 6.15003 3.69994L7.57003 2.27994C7.94003 1.90994 8.55003 1.90994 8.92003 2.27994L11.64 4.99994Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M17.87 4.99994H12.35L15.07 2.27994C15.44 1.90994 16.05 1.90994 16.42 2.27994L17.84 3.69994C18.2 4.05994 18.21 4.62994 17.87 4.99994Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.93994 10V15.14C8.93994 15.94 9.81994 16.41 10.4899 15.98L11.4299 15.36C11.7699 15.14 12.1999 15.14 12.5299 15.36L13.4199 15.96C14.0799 16.4 14.9699 15.93 14.9699 15.13V10H8.93994Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 		shop: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3.00999 11.22V15.71C3.00999 20.2 4.80999 22 9.29999 22H14.69C19.18 22 20.98 20.2 20.98 15.71V11.22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12C13.83 12 15.18 10.51 15 8.68L14.34 2H9.67L9 8.68C8.82 10.51 10.17 12 12 12Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.31 12C20.33 12 21.81 10.36 21.61 8.35L21.33 5.6C20.97 3 19.97 2 17.35 2H14.3L15 9.01C15.17 10.66 16.66 12 18.31 12Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.64 12C7.29 12 8.78 10.66 8.94 9.01L9.16 6.8L9.64001 2H6.59C3.97001 2 2.97 3 2.61 5.6L2.34 8.35C2.14 10.36 3.62 12 5.64 12Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 17C10.33 17 9.5 17.83 9.5 19.5V22H14.5V19.5C14.5 17.83 13.67 17 12 17Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 		sms: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M17 20.5H7C4 20.5 2 19 2 15.5V8.5C2 5 4 3.5 7 3.5H17C20 3.5 22 5 22 8.5V15.5C22 19 20 20.5 17 20.5Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 9L13.87 11.5C12.84 12.32 11.15 12.32 10.12 11.5L7 9" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/></svg>`,

@@ -107,7 +107,16 @@ func (h Handler) SuspiciousUserFilterMiddleware(next bot.HandlerFunc) bot.Handle
 			return
 		}
 
-		if config.GetBlockedTelegramIds()[userID] {
+		blocked := config.GetBlockedTelegramIds()[userID]
+		if !blocked {
+			customer, findErr := h.customerRepository.FindByTelegramId(ctx, userID)
+			if findErr != nil {
+				slog.Error("error checking dynamic user block", "error", findErr, "userId", utils.MaskHalfInt64(userID))
+				return
+			}
+			blocked = customer != nil && customer.IsBlocked
+		}
+		if blocked {
 			slog.Warn("blocked user by telegram id", "userId", utils.MaskHalfInt64(userID))
 			_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    chatID,
