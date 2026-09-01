@@ -9962,6 +9962,8 @@ body.has-open-modal .admin-save-bar {
 .admin-users__search:focus-within { border-color: var(--text); background: var(--surface-strong); }
 .admin-users__search > svg { width: 18px; height: 18px; color: var(--muted); }
 .admin-users__search input { width: 100%; min-width: 0; height: 46px; padding: 0; border: 0; outline: 0; color: var(--text); background: transparent; font: inherit; font-size: 12px; }
+.admin-users__search input:focus,
+.admin-users__search input:focus-visible { outline: 0 !important; box-shadow: none; }
 .admin-users__search input::placeholder { color: var(--muted); opacity: .82; }
 .admin-users__search > i { width: 15px; height: 15px; border: 2px solid var(--line); border-top-color: var(--text); border-radius: 50%; opacity: 0; animation: adminUsersSpin .8s linear infinite; }
 .admin-users__search > i.is-visible { opacity: 1; }
@@ -10006,6 +10008,8 @@ body.has-open-modal .admin-save-bar {
 .admin-users__more svg { width: 16px; height: 16px; }
 
 .admin-user-detail { animation: adminUserDetailIn 440ms cubic-bezier(.2,.75,.25,1) both; }
+.admin-user-detail--settled { animation: none; }
+.admin-user-detail--pending .admin-user-detail__header > i { color: var(--muted); }
 .admin-user-detail__header { min-height: 75px; padding: 0 0 17px; display: grid; grid-template-columns: 36px 54px minmax(0, 1fr) auto; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); }
 .admin-user-detail__header > button { width: 36px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 6px; color: var(--text); background: transparent; transition: background-color 220ms ease, transform 220ms ease; }
 .admin-user-detail__header > button:hover { background: var(--control-bg); }
@@ -10022,6 +10026,12 @@ body.has-open-modal .admin-save-bar {
 .admin-user-metrics > div + div { border-inline-start: 1px solid var(--line-soft); }
 .admin-user-metrics strong { overflow: hidden; font-size: 13px; line-height: 1; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
 .admin-user-metrics span { overflow: hidden; color: var(--muted); font-size: 7px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.admin-user-metrics--loading strong,
+.admin-user-metrics--loading span { display: block; justify-self: center; border-radius: 2px; background: var(--control-bg); animation: adminUserSkeleton 1.3s ease-in-out infinite alternate; }
+.admin-user-metrics--loading strong { width: 34px; height: 12px; }
+.admin-user-metrics--loading span { width: 45px; height: 6px; }
+.admin-user-detail__loading { min-height: 176px; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); font-size: 9px; }
+.admin-user-detail__loading > i { width: 18px; height: 18px; border: 2px solid var(--line); border-top-color: var(--text); border-radius: 50%; animation: adminUsersSpin .8s linear infinite; }
 .admin-user-subscriptions,
 .admin-user-controls { display: grid; gap: 12px; }
 .admin-user-controls { padding-top: 17px; border-top: 1px solid var(--line); }
@@ -10094,7 +10104,10 @@ body.has-open-modal .admin-save-bar {
 	.admin-user-row,
 	.admin-user-detail,
 	.admin-user-row--skeleton b,
-	.admin-user-row--skeleton small { animation: none !important; }
+	.admin-user-row--skeleton small,
+	.admin-user-metrics--loading strong,
+	.admin-user-metrics--loading span,
+	.admin-user-detail__loading > i { animation: none !important; }
 	.admin-user-row,
 	.admin-users__search,
 	.admin-user-detail button,

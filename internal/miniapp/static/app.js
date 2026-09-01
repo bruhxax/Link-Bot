@@ -91,6 +91,8 @@ let dashboardHydrationTimer = null;
 let adminLogoPreviewTimer = null;
 let adminFaviconPreviewTimer = null;
 let adminUsersSearchTimer = null;
+let adminUsersSearchRequestID = 0;
+let adminUserDetailRequestID = 0;
 let browserDeviceFingerprintPromise = null;
 
 function preventMiniAppZoom() {
@@ -1954,6 +1956,8 @@ const state = {
 	adminUsersQuery: "",
 	adminUsersBusy: "",
 	adminUserDetail: null,
+	adminUserPending: null,
+	adminUserDetailSettled: false,
 	adminUserPreviewDetail: null,
 	adminUserSelectedSubscriptionID: "",
 	adminUserBalanceDraft: "",
@@ -3248,6 +3252,7 @@ function adminUserStatusCopy(status) {
 
 function renderAdminUsersPage() {
 	if (state.adminUserDetail) return renderAdminUserDetailPage(state.adminUserDetail);
+	if (state.adminUserPending) return renderAdminUserDetailLoading(state.adminUserPending);
 	const data = state.adminUsers || { items: [], total: 0, limit: 30, offset: 0 };
 	const items = Array.isArray(data.items) ? data.items : [];
 	const busy = state.adminUsersBusy === "search";
@@ -3274,12 +3279,20 @@ function renderAdminUserRow(user, index) {
 	</button>`;
 }
 
+function renderAdminUserDetailLoading(user) {
+	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-user-detail admin-user-detail--pending" aria-busy="true">
+		<header class="admin-user-detail__header"><button type="button" data-action="admin-user-back" aria-label="Назад к списку">${icon("back")}</button>${adminUserAvatar(user, "large")}<div><h2>${escapeHtml(adminUserDisplayName(user))}</h2><span>Telegram ID: ${escapeHtml(String(user.telegramId || "—"))}</span><small>Загружаем данные пользователя</small></div><i>Загрузка</i></header>
+		<section class="admin-user-metrics admin-user-metrics--loading" aria-label="Загрузка статистики">${Array.from({ length: 4 }, () => `<div><strong></strong><span></span></div>`).join("")}</section>
+		<section class="admin-user-detail__loading" role="status"><i aria-hidden="true"></i><span>Открываем профиль</span></section>
+	</div></section>`;
+}
+
 function renderAdminUserDetailPage(user) {
 	const subscriptions = Array.isArray(user.subscriptions) ? user.subscriptions : [];
 	const selected = subscriptions.find((item) => String(item.id) === String(state.adminUserSelectedSubscriptionID)) || subscriptions.find((item) => item.isSelected) || subscriptions[0] || null;
 	const referrals = user.referrals || {};
 	const busy = Boolean(state.adminUsersBusy);
-	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-user-detail">
+	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-user-detail ${state.adminUserDetailSettled ? "admin-user-detail--settled" : ""}">
 		<header class="admin-user-detail__header"><button type="button" data-action="admin-user-back" aria-label="Назад к списку">${icon("back")}</button>${adminUserAvatar(user, "large")}<div><h2>${escapeHtml(adminUserDisplayName(user))}</h2><span>Telegram ID: ${escapeHtml(String(user.telegramId || "—"))}</span><small>В боте с ${escapeHtml(formatDateLabel(user.createdAt, state.locale))}</small></div><i class="${user.isBlocked ? "is-blocked" : "is-active"}">${user.isBlocked ? "Заблокирован" : "Активен"}</i></header>
 		<section class="admin-user-metrics" aria-label="Статистика реферальной системы">
 			<div><strong>${escapeHtml(formatMoneyCents(referrals.balanceCents || 0))}</strong><span>Баланс</span></div>
@@ -3306,56 +3319,115 @@ function renderAdminUserSubscription(item) {
 }
 
 async function refreshAdminUsers({ append = false, silent = false } = {}) {
-	if (previewMode || (state.adminUsersBusy && !silent)) return;
+	if (previewMode || (append && state.adminUsersBusy) || (!silent && state.adminUsersBusy && state.adminUsersBusy !== "search")) return;
 	const offset = append ? Number(state.adminUsers?.items?.length || 0) : 0;
+	const query = String(state.adminUsersQuery || "");
+	const requestID = ++adminUsersSearchRequestID;
 	state.adminUsersBusy = append ? "more" : "search";
-	if (!silent) render({ preserveScroll: true });
+	if (!silent) syncAdminUsersBusyDOM();
 	try {
-		const response = await post("/api/mini-app/admin/users/search", { query: state.adminUsersQuery, limit: 30, offset });
+		const response = await post("/api/mini-app/admin/users/search", { query, limit: 30, offset });
+		if (requestID !== adminUsersSearchRequestID || (!append && query !== state.adminUsersQuery) || state.adminSection !== "users" || state.adminUserPending) return;
 		const next = response.data || { items: [], total: 0, limit: 30, offset };
 		state.adminUsers = {
 			...next,
 			items: append ? [...(state.adminUsers?.items || []), ...(next.items || [])] : (next.items || []),
 		};
 		state.adminUsersBusy = "";
+		const searchFocus = captureAdminUsersSearchFocus();
 		render({ preserveScroll: append });
+		restoreAdminUsersSearchFocus(searchFocus);
 	} catch (error) {
+		if (requestID !== adminUsersSearchRequestID) return;
 		state.adminUsersBusy = "";
+		const searchFocus = captureAdminUsersSearchFocus();
 		render({ preserveScroll: true });
+		restoreAdminUsersSearchFocus(searchFocus);
 		throw error;
 	}
 }
 
+function captureAdminUsersSearchFocus() {
+	const input = app.querySelector('[data-input="admin-users-search"]');
+	if (!(input instanceof HTMLInputElement) || document.activeElement !== input) return null;
+	return { start: input.selectionStart, end: input.selectionEnd, direction: input.selectionDirection };
+}
+
+function restoreAdminUsersSearchFocus(snapshot) {
+	if (!snapshot) return;
+	const input = app.querySelector('[data-input="admin-users-search"]');
+	if (!(input instanceof HTMLInputElement)) return;
+	input.focus({ preventScroll: true });
+	try {
+		const end = input.value.length;
+		input.setSelectionRange(Math.min(snapshot.start ?? end, end), Math.min(snapshot.end ?? end, end), snapshot.direction || "none");
+	} catch (_) {}
+}
+
+function syncAdminUsersBusyDOM() {
+	const busy = state.adminUsersBusy === "search";
+	const input = app.querySelector('[data-input="admin-users-search"]');
+	const spinner = app.querySelector(".admin-users__search > i");
+	const result = app.querySelector(".admin-users__result");
+	const more = app.querySelector('[data-action="admin-users-more"]');
+	if (input) input.setAttribute("aria-busy", String(busy));
+	if (spinner) spinner.classList.toggle("is-visible", busy);
+	if (result) {
+		result.setAttribute("aria-busy", String(Boolean(state.adminUsersBusy)));
+		if (busy && !(state.adminUsers?.items || []).length) result.innerHTML = renderAdminUsersLoading();
+	}
+	if (more instanceof HTMLButtonElement) more.disabled = Boolean(state.adminUsersBusy);
+}
+
 async function openAdminUser(customerID) {
-	if (!customerID || state.adminUsersBusy) return;
+	if (!customerID || state.adminUsersBusy === "detail") return;
+	window.clearTimeout(adminUsersSearchTimer);
+	adminUsersSearchRequestID += 1;
+	const detailRequestID = ++adminUserDetailRequestID;
 	if (previewMode && state.adminUserPreviewDetail) {
 		state.adminUserDetail = deepClone(state.adminUserPreviewDetail);
+		state.adminUserPending = null;
+		state.adminUserDetailSettled = false;
+		state.adminUsersBusy = "";
 		state.adminUserSelectedSubscriptionID = String(state.adminUserDetail.subscriptions?.find((item) => item.isSelected)?.id || state.adminUserDetail.subscriptions?.[0]?.id || "");
 		renderAdminTransition();
 		return;
 	}
+	const summary = (state.adminUsers?.items || []).find((item) => Number(item.customerId) === Number(customerID)) || { customerId: customerID, telegramId: "", username: "", avatarUrl: "" };
+	state.adminUserDetail = null;
+	state.adminUserPending = summary;
+	state.adminUserDetailSettled = false;
 	state.adminUsersBusy = "detail";
-	render({ preserveScroll: true });
+	haptic("light");
+	render({ preserveScroll: false, scrollTop: 0 });
 	try {
 		const response = await post("/api/mini-app/admin/users/detail", { customerId: customerID });
+		if (detailRequestID !== adminUserDetailRequestID || state.adminSection !== "users") return;
 		state.adminUserDetail = response.data || null;
+		state.adminUserPending = null;
+		state.adminUserDetailSettled = true;
 		const subscriptions = state.adminUserDetail?.subscriptions || [];
 		state.adminUserSelectedSubscriptionID = String(subscriptions.find((item) => item.isSelected)?.id || subscriptions[0]?.id || "");
 		state.adminUserBalanceDraft = "";
 		state.adminUserDaysDraft = "";
 		state.adminUserTrafficDraft = "";
 		state.adminUsersBusy = "";
-		haptic("light");
-		renderAdminTransition();
+		render({ preserveScroll: false, scrollTop: 0 });
 	} catch (error) {
+		if (detailRequestID !== adminUserDetailRequestID) return;
+		state.adminUserPending = null;
+		state.adminUserDetailSettled = false;
 		state.adminUsersBusy = "";
-		render({ preserveScroll: true });
+		renderAdminTransition({ preserveScroll: true });
 		throw error;
 	}
 }
 
 function closeAdminUserDetail() {
+	adminUserDetailRequestID += 1;
 	state.adminUserDetail = null;
+	state.adminUserPending = null;
+	state.adminUserDetailSettled = false;
 	state.adminUserSelectedSubscriptionID = "";
 	state.adminUserBalanceDraft = "";
 	state.adminUserDaysDraft = "";
@@ -7145,6 +7217,7 @@ function bindRootActions() {
 		if (inputKey === "admin-users-search") {
 			state.adminUsersQuery = String(target.value || "").slice(0, 100);
 			window.clearTimeout(adminUsersSearchTimer);
+			adminUsersSearchRequestID += 1;
 			adminUsersSearchTimer = window.setTimeout(() => { void refreshAdminUsers().catch((error) => showToast(error?.message || "Не удалось найти пользователя", "danger")); }, 320);
 			return;
 		}
@@ -10489,8 +10562,12 @@ function renderAdminTransition({ preserveScroll = false, scrollTop = 0 } = {}) {
 function closeAdminSection() {
 	if (state.adminSection === "home") return;
 	window.clearTimeout(adminUsersSearchTimer);
+	adminUsersSearchRequestID += 1;
+	adminUserDetailRequestID += 1;
 	state.adminSection = "home";
 	state.adminUserDetail = null;
+	state.adminUserPending = null;
+	state.adminUserDetailSettled = false;
 	state.adminUsersBusy = "";
 	state.adminBroadcastConfirmOpen = false;
 	haptic("light");
