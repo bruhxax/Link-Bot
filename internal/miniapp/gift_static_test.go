@@ -26,7 +26,7 @@ func TestGiftMiniAppWiresProfileCheckoutReceiptAndEditor(t *testing.T) {
 		`/api/mini-app/gifts/purchase`,
 		`/api/mini-app/gifts/seen`,
 		`data-action="copy-gift-link"`,
-		`["gift", "Подарок"]`,
+		`["gift", "Подарок", "Telegram"]`,
 		`content.gift.${kind}.text`,
 		`admin-test-gift`,
 		`/api/mini-app/admin/gifts/test`,

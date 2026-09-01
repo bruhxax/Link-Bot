@@ -3423,23 +3423,28 @@ function renderAdminFeaturesPage() {
 
 function renderAdminContentPage() {
 	const sections = [
-		["start", "Главное меню"],
-		["verification", "Верификация"],
-		["commerce", "Тарифы и оплата"],
-		["success", "После покупки"],
-		["gift", "Подарок"],
-		["payment-notifications", "Уведомления оплат"],
-		["support", "Поддержка"],
-		["notifications", "Уведомления"],
-		["panel", "Панель"],
-		["faq", "FAQ"],
-		["advanced", "Тексты RU"],
+		["start", "Главное меню", "Telegram"],
+		["verification", "Проверка подписки", "Telegram"],
+		["commerce", "Покупка", "Telegram"],
+		["success", "После оплаты", "Telegram"],
+		["gift", "Подарок", "Telegram"],
+		["payment-notifications", "Уведомления оплат", "Telegram"],
+		["support", "Поддержка", "Mini App"],
+		["notifications", "Уведомления", "Mini App"],
+		["panel", "Панель", "Mini App"],
+		["faq", "FAQ", "Mini App"],
+		["advanced", "Служебные тексты", "Mini App"],
 	];
 	const active = sections.some(([id]) => id === state.adminContentSection) ? state.adminContentSection : "start";
 	state.adminContentSection = active;
-	return renderAdminEditorPage("Редактор контента", `
-		<nav class="admin-content-tabs" aria-label="Разделы контента">${sections.map(([id, label]) => `<button type="button" class="${id === active ? "is-active" : ""}" data-action="admin-content-section" data-value="${id}" aria-current="${id === active ? "page" : "false"}">${escapeHtml(label)}</button>`).join("")}</nav>
-		<div class="admin-content-panel">${renderAdminContentSection(active)}</div>
+	const groups = ["Telegram", "Mini App"];
+	const activeIndex = sections.findIndex(([id]) => id === active);
+	return renderAdminEditorPage("Контент", `
+		<div class="admin-content-switcher">
+			<label for="admin-content-section-select"><span>Раздел</span><select id="admin-content-section-select" data-input="admin-content-section" aria-label="Раздел контента">${groups.map((group) => `<optgroup label="${escapeAttribute(group)}">${sections.filter(([, , itemGroup]) => itemGroup === group).map(([id, label]) => `<option value="${escapeAttribute(id)}" ${id === active ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</optgroup>`).join("")}</select></label>
+			<span aria-hidden="true">${activeIndex + 1} / ${sections.length}</span>
+		</div>
+		<div class="admin-content-panel" data-content-section="${escapeAttribute(active)}">${renderAdminContentSection(active)}</div>
 	`);
 }
 
@@ -3454,15 +3459,14 @@ function renderAdminContentSection(section) {
 		case "notifications": return renderAdminNotificationContent();
 		case "panel": return renderAdminPanelContent();
 		case "faq": return renderAdminFAQContent();
-		case "advanced": return `<section class="admin-editor__section"><h3>Тексты RU</h3>${renderAdminJSONField("JSON подписей mini app", "content.copy.ru", 16)}</section>`;
+		case "advanced": return `<section class="admin-editor__section"><h3>Служебные тексты</h3>${renderAdminJSONField("JSON интерфейса Mini App", "content.copy.ru", 16)}</section>`;
 		default: return renderAdminStartContent();
 	}
 }
 
 function renderAdminStartContent() {
 	return `<section class="admin-editor__section"><h3>Сервис и сообщение /start</h3>
-		${renderAdminSettingField("Название сервиса", "content.brandName")}
-		${renderAdminSettingField("Контакт администрации", "content.adminContact", { placeholder: "@username" })}
+		<div class="admin-editor__grid admin-editor__grid--two">${renderAdminSettingField("Название сервиса", "content.brandName")}${renderAdminSettingField("Контакт", "content.adminContact", { placeholder: "@username" })}</div>
 		${renderAdminLogoField()}
 		${renderAdminBannerField("Баннер главного меню", "content.startImage", "/assets/telegram/menu/banner.png")}
 		${renderAdminSettingField("Текст сообщения", "content.startTextRu", { textarea: true, rows: 7 })}
@@ -3490,7 +3494,7 @@ function renderAdminLogoField() {
 			<div class="admin-logo-field__preview"><img src="${escapeAttribute(previewURL)}" data-brand-logo data-admin-logo-preview alt="Предпросмотр логотипа"></div>
 			<div class="admin-logo-field__body">
 				<strong>Логотип Mini App</strong>
-				<p>Выберите готовое изображение — Link-Bot сам сохранит его и подставит правильный адрес.</p>
+				<p>PNG, JPG или WebP · до 2 МБ</p>
 				<div class="admin-logo-field__actions">
 					<label class="admin-logo-field__upload ${busy ? "is-busy" : ""}">
 						<input class="sr-only" type="file" accept="image/png,image/jpeg,image/webp" data-input="admin-logo-file" aria-describedby="admin-logo-help" ${busy ? "disabled" : ""}>
@@ -3500,8 +3504,8 @@ function renderAdminLogoField() {
 				</div>
 			</div>
 		</div>
-		<p class="admin-logo-field__help" id="admin-logo-help">PNG, JPG или WebP до 2 МБ. Лучше использовать квадратное изображение от 256×256 px с прозрачным фоном.</p>
-		<details class="admin-logo-field__advanced"><summary>Указать HTTPS-ссылку вручную</summary>${renderAdminSettingField("Адрес изображения", "content.logoUrl", { type: "url", placeholder: "https://example.com/logo.png", compact: true })}</details>
+		<p class="admin-logo-field__help" id="admin-logo-help">Лучше квадрат от 256 px с прозрачным фоном.</p>
+		<details class="admin-logo-field__advanced"><summary>Внешняя ссылка</summary>${renderAdminSettingField("HTTPS-адрес", "content.logoUrl", { type: "url", placeholder: "https://example.com/logo.png", compact: true })}</details>
 		<div class="admin-logo-field__status" role="status" aria-live="polite">${escapeHtml(source)}</div>
 	</div>`;
 }
@@ -3510,7 +3514,7 @@ function renderAdminVerificationContent() {
 	return `<section class="admin-editor__section"><h3>Канал для проверки</h3>
 		${renderAdminSettingField("Ссылка на канал", "content.links.channel", { type: "url", placeholder: "https://t.me/channel; пусто — проверка отключена" })}
 		${renderAdminSettingField("ID приватного канала", "content.verification.channelChatId", { placeholder: "-1001234567890; для публичного канала не нужен" })}
-		<div class="admin-empty-line">Бот должен быть администратором канала. Для публичного канала достаточно ссылки. Очистите ссылку, чтобы отключить верификацию.</div>
+		<div class="admin-empty-line">Бот — администратор канала. Пустая ссылка отключает проверку.</div>
 	</section>
 	<section class="admin-editor__section"><h3>Сообщение верификации</h3>
 		${renderAdminBannerField("Баннер верификации", "content.verification.banner", "/assets/telegram/verification/banner.png")}
@@ -3563,19 +3567,16 @@ function renderAdminGiftContent() {
 		["{plan}", "название тарифа"],
 		["{gift_url}", "персональная ссылка /start"],
 	];
-	return `<section class="admin-editor__section admin-gift-editor">
-		<div class="admin-editor__section-head"><div><h3>Сообщения о подарке</h3><p>Тексты поддерживают Telegram HTML. Переменные заменяются перед отправкой.</p></div></div>
-		<div class="admin-payment-variables" aria-label="Переменные подарка">${variables.map(([name, hint]) => `<div><code>${escapeHtml(name)}</code><span>${escapeHtml(hint)}</span></div>`).join("")}</div>
-	</section>
-	${renderAdminGiftMessageEditor("sender", "Отправителю", "Показывает результат и ссылку, которой можно поделиться.", gift.sender)}
-	${renderAdminGiftMessageEditor("recipient", "Получателю", "Приходит после автоматической выдачи подарка или команды /start.", gift.recipient)}`;
+	return `${renderAdminVariableReference("Переменные подарка", variables, "Telegram HTML поддерживается")}
+	${renderAdminGiftMessageEditor("sender", "Отправителю", gift.sender)}
+	${renderAdminGiftMessageEditor("recipient", "Получателю", gift.recipient)}`;
 }
 
-function renderAdminGiftMessageEditor(kind, title, hint, message) {
+function renderAdminGiftMessageEditor(kind, title, message) {
 	const buttons = Array.isArray(message?.buttons) ? message.buttons : [];
 	const busy = state.adminBusy === `test-gift-${kind}`;
 	return `<section class="admin-editor__section admin-gift-message">
-		<div class="admin-editor__section-head"><div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(hint)}</p></div><button class="admin-reminder-test" type="button" data-action="admin-test-gift" data-value="${kind}" ${state.adminBusy ? "disabled" : ""}>${icon(busy ? "refresh" : "send")}<span>${busy ? "Отправляем" : "Отправить тест"}</span></button></div>
+		<div class="admin-editor__section-head"><h3>${escapeHtml(title)}</h3><button class="admin-reminder-test" type="button" data-action="admin-test-gift" data-value="${kind}" ${state.adminBusy ? "disabled" : ""}>${icon(busy ? "refresh" : "send")}<span>${busy ? "Отправляем" : "Тест"}</span></button></div>
 		${renderAdminSettingField("Текст сообщения", `content.gift.${kind}.text`, { textarea: true, rows: 9 })}
 		<div class="admin-gift-buttons__head"><div><strong>Кнопки</strong><span>До 8 кнопок, как в рассылке</span></div><button class="admin-icon-button" type="button" data-action="admin-gift-add-button" data-value="${kind}" ${buttons.length >= 8 ? "disabled" : ""} aria-label="Добавить кнопку">${icon("plus")}</button></div>
 		<div class="admin-broadcast__buttons">${buttons.length ? buttons.map((button, index) => renderAdminGiftButton(kind, button, index)).join("") : `<p class="admin-broadcast__empty">Сообщение будет отправлено без кнопок.</p>`}</div>
@@ -3616,14 +3617,13 @@ function renderAdminPaymentNotificationContent() {
 		["{{device}}", "Количество докупленных устройств"],
 	];
 	return `<section class="admin-editor__section admin-payment-notification">
-		<div class="admin-editor__section-head"><div><h3>Уведомление об оплате</h3><p>Сообщение приходит в чат, указанный в интеграции бота уведомлений.</p></div><button class="admin-reminder-test" type="button" data-action="admin-test-payment-notification" ${state.adminBusy ? "disabled" : ""}>${icon("send")}<span>${busy ? "Отправляем" : "Отправить тест"}</span></button></div>
-		<div class="admin-payment-variables" aria-label="Переменные шаблона">${variables.map(([name, description]) => `<div><code>${escapeHtml(name)}</code><span>${escapeHtml(description)}</span></div>`).join("")}</div>
-		<p class="admin-payment-note">Строки с пустыми <code>{{promo}}</code>, <code>{{sub}}</code> или <code>{{device}}</code> скрываются автоматически.</p>
+		<div class="admin-editor__section-head"><div><h3>Уведомление об оплате</h3><p>Чат задаётся в интеграции.</p></div><button class="admin-reminder-test" type="button" data-action="admin-test-payment-notification" ${state.adminBusy ? "disabled" : ""}>${icon("send")}<span>${busy ? "Отправляем" : "Тест"}</span></button></div>
+		${renderAdminVariableReference("Переменные шаблона", variables, "Пустые promo, sub и device скрываются")}
 		${renderAdminSettingField("Текст уведомления", "content.paymentNotification.text", { textarea: true, rows: 12 })}
 	</section>
 	<section class="admin-editor__section"><h3>Кнопки уведомления</h3>
-		${renderAdminPaymentNotificationButton("Открыть пользователя в панели", "Открывает настройки купившего пользователя в Remnawave.", "content.paymentNotification.openUserButton")}
-		${renderAdminPaymentNotificationButton("Профиль", "Открывает Telegram-профиль купившего пользователя.", "content.paymentNotification.profileButton")}
+		${renderAdminPaymentNotificationButton("Открыть пользователя в панели", "Remnawave", "content.paymentNotification.openUserButton")}
+		${renderAdminPaymentNotificationButton("Профиль", "Telegram", "content.paymentNotification.profileButton")}
 	</section>`;
 }
 
@@ -3678,7 +3678,7 @@ function renderAdminSupportContent() {
 		<div class="admin-editor__grid admin-editor__grid--two">${resultFields.map(([label, path]) => renderAdminSettingField(label, path)).join("")}</div>
 	</section>
 	<section class="admin-editor__section"><h3>Telegram-уведомления</h3>
-		<div class="admin-empty-line">Доступны переменные: {ticket_id}, {subject}, {name}, {username}, {subscription}, {message}. Сообщение пользователя или поддержки всегда отправляется цитатой.</div>
+		${renderAdminContentDisclosure("Доступные переменные", `<p>{ticket_id}, {subject}, {name}, {username}, {subscription}, {message}</p><p>Сообщение всегда отправляется цитатой.</p>`, "6")}
 		${renderAdminSettingField("Новое обращение — админу", "content.support.newTicketText", { textarea: true, rows: 9 })}
 		${renderAdminSettingField("Ответ пользователя — админу", "content.support.customerReplyText", { textarea: true, rows: 9 })}
 		${renderAdminSettingField("Ответ поддержки — пользователю", "content.support.adminReplyText", { textarea: true, rows: 7 })}
@@ -3696,17 +3696,15 @@ function renderAdminNotificationContent() {
 			${renderAdminSettingField("Premium emoji ID или код", "content.subscriptionReminderButton.iconCustomEmojiId", { placeholder: "5206222720416643915 или <tg-emoji ...>" })}
 			${renderAdminTelegramButtonStyle("content.subscriptionReminderButton.style")}
 		</div>
-		<div class="admin-empty-line">Переменная {date} подставляет дату окончания. Поддерживается HTML Telegram.</div>
+		${renderAdminContentDisclosure("Формат текста", "<p>{date} — дата окончания · поддерживается Telegram HTML</p>")}
 	</section>
 	<section class="admin-editor__section"><h3>Устройства и отзывы</h3>
-		<div class="admin-empty-line">Переменные устройств: {added}, {count}, {limit}. Переменные отзыва: {name}, {username}, {rating}, {comment}.</div>
+		${renderAdminContentDisclosure("Доступные переменные", "<p>Устройства: {added}, {count}, {limit}</p><p>Отзывы: {name}, {username}, {rating}, {comment}</p>")}
 		${renderAdminSettingField("Новое устройство", "content.copy.ru.deviceAddedTemplate", { textarea: true, rows: 5 })}
 		${renderAdminSettingField("Лимит устройств достигнут", "content.copy.ru.deviceLimitReachedTemplate", { textarea: true, rows: 5 })}
 		${renderAdminSettingField("Новый отзыв — админу", "content.copy.ru.reviewCreatedTemplate", { textarea: true, rows: 7 })}
 	</section>
-	<section class="admin-editor__section"><h3>Системные уведомления mini app</h3>
-		${[["trialActivated", "Триал активирован"], ["devicePurchaseSuccess", "Устройства добавлены"], ["paymentOpened", "Оплата открыта"], ["paymentUnavailable", "Оплата недоступна"], ["paymentSuccess", "Оплата завершена"], ["paymentPending", "Оплата ожидается"], ["paymentCancelled", "Оплата отменена"], ["promoApplied", "Промокод применён"], ["promoCodeRequired", "Промокод не введён"], ["copied", "Ссылка скопирована"], ["deleteSuccess", "Устройство удалено"], ["noAccess", "Нет активной подписки"], ["timeout", "Сервер не ответил"]].map(([key, label]) => renderAdminSettingField(label, `content.copy.ru.${key}`)).join("")}
-	</section>`;
+	${renderAdminContentDisclosure("Системные уведомления Mini App", `<div class="admin-content-disclosure__fields">${[["trialActivated", "Триал активирован"], ["devicePurchaseSuccess", "Устройства добавлены"], ["paymentOpened", "Оплата открыта"], ["paymentUnavailable", "Оплата недоступна"], ["paymentSuccess", "Оплата завершена"], ["paymentPending", "Оплата ожидается"], ["paymentCancelled", "Оплата отменена"], ["promoApplied", "Промокод применён"], ["promoCodeRequired", "Промокод не введён"], ["copied", "Ссылка скопирована"], ["deleteSuccess", "Устройство удалено"], ["noAccess", "Нет активной подписки"], ["timeout", "Сервер не ответил"]].map(([key, label]) => renderAdminSettingField(label, `content.copy.ru.${key}`)).join("")}</div>`, "13")}`;
 }
 
 function renderAdminPanelContent() {
@@ -3733,15 +3731,27 @@ function renderAdminFAQItem(item, index, total) {
 	${renderAdminSettingField("Ответ", `content.faq.ru.${index}.answer`, { textarea: true, rows: 5 })}</article>`;
 }
 
+function renderAdminContentDisclosure(title, body, meta = "") {
+	return `<details class="admin-content-disclosure"><summary><strong>${escapeHtml(title)}</strong><span>${escapeHtml(meta)}</span></summary><div class="admin-content-disclosure__body">${body}</div></details>`;
+}
+
+function renderAdminVariableReference(title, variables, note = "") {
+	const rows = variables.map(([name, description]) => `<div><code>${escapeHtml(name)}</code><span>${escapeHtml(description)}</span></div>`).join("");
+	const body = `<div class="admin-payment-variables" aria-label="${escapeAttribute(title)}">${rows}</div>${note ? `<p class="admin-payment-note">${escapeHtml(note)}</p>` : ""}`;
+	return renderAdminContentDisclosure(title, body, String(variables.length));
+}
+
 function renderAdminBannerField(label, path, example) {
-	return `<div class="admin-banner-field">${renderAdminSettingField(label, path, { placeholder: `${example} или HTTPS URL` })}<small>Папка: <code>${escapeHtml(example.substring(0, example.lastIndexOf("/") + 1))}</code>. Оставьте поле пустым, чтобы отправлять без баннера.</small></div>`;
+	return `<div class="admin-banner-field">${renderAdminSettingField(label, path, { placeholder: `${example} или HTTPS URL` })}<small>Локальный путь или HTTPS · пусто — без баннера</small></div>`;
 }
 
 function renderAdminTelegramButton(title, path) {
-	return `<div class="admin-telegram-button"><h4>${escapeHtml(title)}</h4>
-		<div class="admin-editor__grid admin-editor__grid--two">${renderAdminSettingField("Текст", `${path}.text`)}${renderAdminSettingField("Premium emoji ID или код", `${path}.iconCustomEmojiId`, { placeholder: "5206222720416643915 или <tg-emoji ...>" })}</div>
-		${renderAdminTelegramButtonStyle(`${path}.style`)}
-	</div>`;
+	return `<details class="admin-telegram-button"><summary><strong>${escapeHtml(title)}</strong><span>Настроить</span></summary>
+		<div class="admin-telegram-button__body">
+			<div class="admin-editor__grid admin-editor__grid--two">${renderAdminSettingField("Текст", `${path}.text`)}${renderAdminSettingField("Premium emoji", `${path}.iconCustomEmojiId`, { placeholder: "ID или код <tg-emoji>" })}</div>
+			${renderAdminTelegramButtonStyle(`${path}.style`)}
+		</div>
+	</details>`;
 }
 
 function renderAdminReminderTemplate(kind, label, path) {
@@ -6618,6 +6628,12 @@ function bindRootActions() {
 
 	app.addEventListener("change", (event) => {
 		const input = event.target;
+		if (input instanceof HTMLSelectElement && input.dataset.input === "admin-content-section") {
+			state.adminContentSection = String(input.value || "start");
+			haptic("light");
+			render({ preserveScroll: true });
+			return;
+		}
 		if (!(input instanceof HTMLInputElement)) return;
 		if (input.dataset.input === "admin-logo-file") {
 			const file = input.files?.[0];

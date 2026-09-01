@@ -23,7 +23,8 @@ func TestAdminLogoEditorUploadsPreviewsAndFallsBack(t *testing.T) {
 		`function uploadAdminLogo(file)`,
 		`data-brand-logo`,
 		`image.src = BRAND_MARK_URL`,
-		`Link-Bot сам сохранит его и подставит правильный адрес`,
+		`PNG, JPG или WebP · до 2 МБ`,
+		`<summary>Внешняя ссылка</summary>`,
 	} {
 		if !strings.Contains(app, expected) {
 			t.Fatalf("logo editor fragment is missing: %q", expected)
