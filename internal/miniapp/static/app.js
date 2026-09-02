@@ -1959,6 +1959,8 @@ const state = {
 	adminFinancePeriod: "7d",
 	adminFinanceFrom: "",
 	adminFinanceTo: "",
+	adminFinancePeriodMenuOpen: false,
+	adminFinanceAnimate: false,
 	adminUsers: { items: [], total: 0, limit: 30, offset: 0 },
 	adminUsersQuery: "",
 	adminUsersBusy: "",
@@ -3379,7 +3381,29 @@ function renderAdminFinanceHistory(items) {
 }
 
 function renderAdminFinanceLoading() {
-	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-finance is-loading" aria-busy="true"><header class="admin-finance__header"><span><b></b><i></i></span></header><div class="admin-finance__metrics">${Array.from({ length: 3 }, () => `<div><b></b><i></i></div>`).join("")}</div><div class="admin-finance__chart-skeleton"></div><div class="admin-finance__history-skeleton">${Array.from({ length: 5 }, () => `<i></i>`).join("")}</div></div></section>`;
+	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-finance is-loading" aria-busy="true"><header class="admin-finance__header"><span><b></b><i></i></span></header><section class="admin-finance-card"><div class="admin-finance__metrics">${Array.from({ length: 3 }, () => `<div><b></b><i></i></div>`).join("")}</div><div class="admin-finance__chart-skeleton"></div></section><div class="admin-finance__history-skeleton">${Array.from({ length: 5 }, () => `<i></i>`).join("")}</div></div></section>`;
+}
+
+const ADMIN_FINANCE_PERIODS = [
+	["month", "Текущий месяц"],
+	["7d", "Последние 7 дней"],
+	["30d", "Последние 30 дней"],
+	["90d", "Последние 90 дней"],
+	["365d", "Последние 365 дней"],
+	["custom", "Другой период"],
+];
+
+function adminFinancePeriodLabel(period = state.adminFinancePeriod) {
+	return ADMIN_FINANCE_PERIODS.find(([value]) => value === period)?.[1] || "Последние 7 дней";
+}
+
+function renderAdminFinancePeriodPicker() {
+	const open = Boolean(state.adminFinancePeriodMenuOpen);
+	const options = ADMIN_FINANCE_PERIODS.map(([value, label]) => {
+		const selected = value === state.adminFinancePeriod;
+		return `<button class="admin-finance-period-option ${selected ? "is-selected" : ""}" type="button" role="option" aria-selected="${selected}" tabindex="${open ? "0" : "-1"}" data-action="admin-finance-period-select" data-value="${escapeAttribute(value)}"><span>${escapeHtml(label)}</span><i aria-hidden="true">${selected ? icon("check") : ""}</i></button>`;
+	}).join("");
+	return `<div class="admin-finance-period ${open ? "is-open" : ""}"><button class="admin-finance-period__trigger" type="button" data-action="admin-finance-period-toggle" aria-haspopup="listbox" aria-expanded="${open}" aria-controls="admin-finance-period-menu" ${state.adminFinanceBusy === "refresh" ? "disabled" : ""}><span aria-hidden="true">${icon("calendarDays")}</span><strong>${escapeHtml(adminFinancePeriodLabel())}</strong><i aria-hidden="true">${icon("chevron")}</i></button><div class="admin-finance-period__menu" id="admin-finance-period-menu" role="listbox" aria-label="Период аналитики" aria-hidden="${!open}">${options}</div></div>`;
 }
 
 function renderAdminFinancePage() {
@@ -3389,13 +3413,16 @@ function renderAdminFinancePage() {
 	const payments = Array.isArray(data.payments) ? data.payments : [];
 	const hasMore = payments.length < Number(data.paymentTotal || 0);
 	const custom = state.adminFinancePeriod === "custom";
+	const changing = state.adminFinanceBusy === "refresh";
 	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-finance">
-		<header class="admin-finance__header"><div><span>АНАЛИТИКА</span><h2>Финансы</h2></div><button type="button" data-action="admin-finance-refresh" aria-label="Обновить статистику" ${state.adminFinanceBusy ? "disabled" : ""}>${icon("refresh")}</button></header>
-		<section class="admin-finance__metrics" aria-label="Финансовые показатели"><div class="is-revenue"><span>Выручка</span><strong>${escapeHtml(formatFinanceRub(summary.revenueRub))}</strong>${Number(summary.revenueStars || 0) ? `<small>+ ${escapeHtml(formatFinanceAmount(summary.revenueStars, "STARS"))}</small>` : ""}</div><div><span>Возвраты</span><strong>${escapeHtml(formatFinanceRub(summary.refundsRub))}</strong>${Number(summary.refundsStars || 0) ? `<small>+ ${escapeHtml(formatFinanceAmount(summary.refundsStars, "STARS"))}</small>` : ""}</div><div><span>Платежи</span><strong>${Number(summary.paymentCount || 0).toLocaleString("ru-RU")}</strong><small>${escapeHtml(financeDate(data.from, { day: "numeric", month: "short" }))} — ${escapeHtml(financeDate(data.to, { day: "numeric", month: "short" }))}</small></div></section>
-		<section class="admin-finance__analytics" aria-labelledby="admin-finance-chart-title"><div class="admin-finance__section-head"><div><span>ДИНАМИКА</span><h3 id="admin-finance-chart-title">Выручка по дням</h3></div><label><span class="sr-only">Период аналитики</span><select data-input="admin-finance-period"><option value="7d" ${state.adminFinancePeriod === "7d" ? "selected" : ""}>Последние 7 дней</option><option value="month" ${state.adminFinancePeriod === "month" ? "selected" : ""}>Текущий месяц</option><option value="30d" ${state.adminFinancePeriod === "30d" ? "selected" : ""}>Последние 30 дней</option><option value="90d" ${state.adminFinancePeriod === "90d" ? "selected" : ""}>Последние 90 дней</option><option value="365d" ${state.adminFinancePeriod === "365d" ? "selected" : ""}>Последние 365 дней</option><option value="custom" ${custom ? "selected" : ""}>Другой период</option></select></label></div>
-		${custom ? `<div class="admin-finance__custom"><label><span>С</span><input type="date" data-input="admin-finance-from" value="${escapeAttribute(state.adminFinanceFrom || data.from)}" max="${escapeAttribute(financeTodayISO())}"></label><i aria-hidden="true">—</i><label><span>По</span><input type="date" data-input="admin-finance-to" value="${escapeAttribute(state.adminFinanceTo || data.to)}" max="${escapeAttribute(financeTodayISO())}"></label><button type="button" data-action="admin-finance-apply" ${state.adminFinanceBusy ? "disabled" : ""}>Показать</button></div>` : ""}
-		<div class="admin-finance__chart-wrap" aria-live="polite">${renderAdminFinanceChart(data.daily)}</div><div class="admin-finance__legend"><i aria-hidden="true"></i><span>Выручка в рублях</span>${Number(summary.revenueStars || 0) ? `<small>Stars учитываются отдельно</small>` : ""}</div></section>
-		<section class="admin-finance__history" aria-labelledby="admin-finance-history-title"><div class="admin-finance__section-head"><div><span>ОПЕРАЦИИ</span><h3 id="admin-finance-history-title">История платежей</h3></div><strong>${Number(data.paymentTotal || 0).toLocaleString("ru-RU")}</strong></div><div class="admin-finance-history__list">${renderAdminFinanceHistory(payments)}</div>${hasMore ? `<button class="admin-finance__more" type="button" data-action="admin-finance-more" ${state.adminFinanceBusy ? "disabled" : ""}>${state.adminFinanceBusy === "more" ? icon("refresh") : icon("arrowDown")}<span>Показать ещё</span></button>` : ""}</section>
+		<header class="admin-finance__header"><div><span>АНАЛИТИКА</span><h2>Финансы</h2></div></header>
+		<section class="admin-finance-card ${changing ? "is-updating" : ""} ${state.adminFinanceAnimate ? "is-entering" : ""}" aria-busy="${changing}">
+			<div class="admin-finance__metrics" aria-label="Финансовые показатели"><div class="is-revenue"><span>Выручка</span><strong>${escapeHtml(formatFinanceRub(summary.revenueRub))}</strong>${Number(summary.revenueStars || 0) ? `<small>+ ${escapeHtml(formatFinanceAmount(summary.revenueStars, "STARS"))}</small>` : ""}</div><div><span>Возвраты</span><strong>${escapeHtml(formatFinanceRub(summary.refundsRub))}</strong>${Number(summary.refundsStars || 0) ? `<small>+ ${escapeHtml(formatFinanceAmount(summary.refundsStars, "STARS"))}</small>` : ""}</div><div><span>Платежи</span><strong>${Number(summary.paymentCount || 0).toLocaleString("ru-RU")}</strong><small>${escapeHtml(financeDate(data.from, { day: "numeric", month: "short" }))} — ${escapeHtml(financeDate(data.to, { day: "numeric", month: "short" }))}</small></div></div>
+			<div class="admin-finance-card__body"><div class="admin-finance__toolbar"><h3 id="admin-finance-chart-title">Выручка по дням</h3>${renderAdminFinancePeriodPicker()}</div>
+			${custom ? `<div class="admin-finance__custom"><label><span>С</span><input type="date" data-input="admin-finance-from" value="${escapeAttribute(state.adminFinanceFrom || data.from)}" max="${escapeAttribute(financeTodayISO())}"></label><i aria-hidden="true">—</i><label><span>По</span><input type="date" data-input="admin-finance-to" value="${escapeAttribute(state.adminFinanceTo || data.to)}" max="${escapeAttribute(financeTodayISO())}"></label><button type="button" data-action="admin-finance-apply" ${state.adminFinanceBusy ? "disabled" : ""}>Показать</button></div>` : ""}
+			<div class="admin-finance__chart-wrap" aria-live="polite" aria-labelledby="admin-finance-chart-title">${renderAdminFinanceChart(data.daily)}</div><div class="admin-finance__legend"><i aria-hidden="true"></i><span>Выручка в рублях</span>${Number(summary.revenueStars || 0) ? `<small>Stars учитываются отдельно</small>` : ""}</div></div>
+		</section>
+		<section class="admin-finance__history" aria-labelledby="admin-finance-history-title"><div class="admin-finance__section-head"><div><span>ОПЕРАЦИИ</span><h3 id="admin-finance-history-title">История платежей</h3></div><strong>${Number(data.paymentTotal || 0).toLocaleString("ru-RU")}</strong></div><div class="admin-finance-history__surface"><div class="admin-finance-history__list">${renderAdminFinanceHistory(payments)}</div>${hasMore ? `<button class="admin-finance__more" type="button" data-action="admin-finance-more" ${state.adminFinanceBusy ? "disabled" : ""}>${state.adminFinanceBusy === "more" ? icon("refresh") : icon("arrowDown")}<span>Показать ещё</span></button>` : ""}</div></section>
 	</div></section>`;
 }
 
@@ -3404,7 +3431,9 @@ async function refreshAdminFinance({ append = false } = {}) {
 	const offset = append ? Number(state.adminFinance?.payments?.length || 0) : 0;
 	const requestID = ++adminFinanceRequestID;
 	state.adminFinanceBusy = append ? "more" : "refresh";
-	if (!append && !state.adminFinance) render({ preserveScroll: true });
+	state.adminFinancePeriodMenuOpen = false;
+	state.adminFinanceAnimate = false;
+	if (!append) render({ preserveScroll: true });
 	try {
 		const response = await post("/api/mini-app/admin/finance", { period: state.adminFinancePeriod, from: state.adminFinanceFrom, to: state.adminFinanceTo, limit: 30, offset });
 		if (requestID !== adminFinanceRequestID || state.adminSection !== "finance") return;
@@ -3414,7 +3443,12 @@ async function refreshAdminFinance({ append = false } = {}) {
 		state.adminFinanceFrom = String(next.from || state.adminFinanceFrom || "");
 		state.adminFinanceTo = String(next.to || state.adminFinanceTo || "");
 		state.adminFinanceBusy = "";
+		state.adminFinanceAnimate = !append;
 		render({ preserveScroll: append });
+		if (!append) {
+			requestAnimationFrame(() => app.querySelector(".admin-finance-card")?.addEventListener("animationend", () => { state.adminFinanceAnimate = false; }, { once: true }));
+			window.setTimeout(() => { state.adminFinanceAnimate = false; }, 420);
+		}
 	} catch (error) {
 		if (requestID !== adminFinanceRequestID) return;
 		state.adminFinanceBusy = "";
@@ -6987,6 +7021,10 @@ function bindRootActions() {
   app.addEventListener("click", async (event) => {
     const target = event.target.closest("[data-action]");
     if (!target) {
+		if (state.adminFinancePeriodMenuOpen && !event.target.closest(".admin-finance-period")) {
+			state.adminFinancePeriodMenuOpen = false;
+			render({ preserveScroll: true });
+		}
 		if (state.setupPlatformMenuOpen && !event.target.closest(".setup-platform-picker")) {
 			state.setupPlatformMenuOpen = false;
 			render({ preserveScroll: true });
@@ -6997,6 +7035,11 @@ function bindRootActions() {
 	}
     const action = target.dataset.action;
     const value = target.dataset.value || "";
+		if (state.adminFinancePeriodMenuOpen && !event.target.closest(".admin-finance-period")) {
+			state.adminFinancePeriodMenuOpen = false;
+			app.querySelector(".admin-finance-period")?.classList.remove("is-open");
+			app.querySelector(".admin-finance-period__trigger")?.setAttribute("aria-expanded", "false");
+		}
 		if (state.setupPlatformMenuOpen && !event.target.closest(".setup-platform-picker")) {
 			state.setupPlatformMenuOpen = false;
 			app.querySelector(".setup-platform-picker")?.classList.remove("is-open");
@@ -7072,7 +7115,33 @@ function bindRootActions() {
 		return;
 	  }
 	  if (action === "close-admin-section") return closeAdminSection();
-			if (action === "admin-finance-refresh") return await refreshAdminFinance();
+			if (action === "admin-finance-period-toggle") {
+				state.adminFinancePeriodMenuOpen = !state.adminFinancePeriodMenuOpen;
+				haptic("light");
+				render({ preserveScroll: true });
+				if (state.adminFinancePeriodMenuOpen) queueMicrotask(() => app.querySelector(".admin-finance-period-option.is-selected")?.focus());
+				return;
+			}
+			if (action === "admin-finance-period-select") {
+				if (!ADMIN_FINANCE_PERIODS.some(([period]) => period === value)) return;
+				state.adminFinancePeriodMenuOpen = false;
+				state.adminFinancePeriod = value;
+				haptic("light");
+				if (value === "custom") {
+					state.adminFinanceFrom = state.adminFinance?.from || financeTodayISO(-6);
+					state.adminFinanceTo = state.adminFinance?.to || financeTodayISO();
+					render({ preserveScroll: true });
+					queueMicrotask(() => app.querySelector('[data-input="admin-finance-from"]')?.focus());
+					return;
+				}
+				if (previewMode) {
+					state.adminFinanceAnimate = true;
+					render({ preserveScroll: true });
+					window.setTimeout(() => { state.adminFinanceAnimate = false; }, 420);
+					return;
+				}
+				return await refreshAdminFinance();
+			}
 			if (action === "admin-finance-more") return await refreshAdminFinance({ append: true });
 			if (action === "admin-finance-apply") {
 				if (!state.adminFinanceFrom || !state.adminFinanceTo) return showToast("Выберите обе даты", "danger");
@@ -7294,17 +7363,6 @@ function bindRootActions() {
 
 	app.addEventListener("change", (event) => {
 		const input = event.target;
-		if (input instanceof HTMLSelectElement && input.dataset.input === "admin-finance-period") {
-			state.adminFinancePeriod = input.value;
-			if (input.value === "custom") {
-				state.adminFinanceFrom = state.adminFinance?.from || financeTodayISO(-6);
-				state.adminFinanceTo = state.adminFinance?.to || financeTodayISO();
-				render({ preserveScroll: true });
-			} else {
-				void refreshAdminFinance().catch((error) => showToast(error?.message || "Не удалось загрузить финансы", "danger"));
-			}
-			return;
-		}
 		if (!(input instanceof HTMLInputElement)) return;
 		if (input.dataset.input === "admin-logo-file") {
 			const file = input.files?.[0];
@@ -7614,6 +7672,21 @@ function bindRootActions() {
 	app.addEventListener("pointerdown", beginAdminPlanPointer);
 	app.addEventListener("pointerdown", beginAdminLayoutPointer);
 	app.addEventListener("keydown", (event) => {
+		if (state.adminFinancePeriodMenuOpen && event.target.closest?.(".admin-finance-period-option") && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+			event.preventDefault();
+			const options = [...app.querySelectorAll(".admin-finance-period-option")];
+			const current = options.indexOf(event.target.closest(".admin-finance-period-option"));
+			const next = event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 : (current + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+			options[next]?.focus();
+			return;
+		}
+		if (state.adminFinancePeriodMenuOpen && event.key === "Escape") {
+			event.preventDefault();
+			state.adminFinancePeriodMenuOpen = false;
+			render({ preserveScroll: true });
+			queueMicrotask(() => app.querySelector(".admin-finance-period__trigger")?.focus());
+			return;
+		}
 		if (state.p2pMenuStep && event.key === "Escape") {
 			event.preventDefault();
 			if (state.p2pMenuStep === "sender" && !state.p2pBusy) {
@@ -10779,6 +10852,8 @@ function closeAdminSection() {
 	adminUserDetailRequestID += 1;
 	adminFinanceRequestID += 1;
 	state.adminSection = "home";
+	state.adminFinancePeriodMenuOpen = false;
+	state.adminFinanceAnimate = false;
 	state.adminUserDetail = null;
 	state.adminUserPending = null;
 	state.adminUserDetailSettled = false;
@@ -10936,6 +11011,11 @@ function getNativeBackTargetPage() {
 }
 
 function handleNativeBackButton() {
+	if (state.adminFinancePeriodMenuOpen) {
+		state.adminFinancePeriodMenuOpen = false;
+		render({ preserveScroll: true });
+		return;
+	}
 	if (state.p2pMenuStep) {
 		if (state.p2pMenuStep === "sender" && !state.p2pBusy) {
 			state.p2pMenuStep = "details";

@@ -100,7 +100,10 @@ func TestAdminFinanceStaticSurface(t *testing.T) {
 		`"Финансы"`,
 		`renderAdminFinancePage`,
 		`/api/mini-app/admin/finance`,
-		`data-input="admin-finance-period"`,
+		`renderAdminFinancePeriodPicker`,
+		`data-action="admin-finance-period-toggle"`,
+		`data-action="admin-finance-period-select"`,
+		`role="listbox"`,
 		`admin-finance-chart__tooltip`,
 		`История платежей`,
 		`financePaymentIdentity`,
@@ -112,6 +115,9 @@ func TestAdminFinanceStaticSurface(t *testing.T) {
 	styles := string(stylesRaw)
 	for _, fragment := range []string{
 		`.admin-finance__metrics`,
+		`.admin-finance-card`,
+		`.admin-finance-period__menu`,
+		`.admin-finance-card.is-updating`,
 		`.admin-finance-chart__point:focus`,
 		`.admin-finance-payment`,
 		`@media (prefers-reduced-motion: reduce)`,
@@ -119,5 +125,11 @@ func TestAdminFinanceStaticSurface(t *testing.T) {
 		if !strings.Contains(styles, fragment) {
 			t.Fatalf("styles.css does not contain %q", fragment)
 		}
+	}
+	if strings.Contains(app, `data-action="admin-finance-refresh"`) {
+		t.Fatal("finance page still contains the removed refresh button")
+	}
+	if strings.Contains(app, `data-input="admin-finance-period"`) {
+		t.Fatal("finance page still uses the operating-system select menu")
 	}
 }
