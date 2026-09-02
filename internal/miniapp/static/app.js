@@ -94,6 +94,7 @@ let adminFaviconPreviewTimer = null;
 let adminUsersSearchTimer = null;
 let adminUsersSearchRequestID = 0;
 let adminUserDetailRequestID = 0;
+let adminFinanceRequestID = 0;
 let browserDeviceFingerprintPromise = null;
 
 function preventMiniAppZoom() {
@@ -1953,6 +1954,11 @@ const state = {
 	adminIntegrationBusy: "",
 	adminMoyNalog: null,
 	adminMoyNalogBusy: "",
+	adminFinance: null,
+	adminFinanceBusy: "",
+	adminFinancePeriod: "7d",
+	adminFinanceFrom: "",
+	adminFinanceTo: "",
 	adminUsers: { items: [], total: 0, limit: 30, offset: 0 },
 	adminUsersQuery: "",
 	adminUsersBusy: "",
@@ -2586,6 +2592,25 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 				{ purchaseId: 1282, status: "uncertain", itemName: "VPN-подписка на 3 мес.", amount: 799, invoiceType: "yookassa", error: "Ответ ФНС не получен. Проверьте кабинет вручную.", createdAt: new Date(Date.now() - 10800000).toISOString(), updatedAt: new Date(Date.now() - 10800000).toISOString() },
 			],
 		};
+		const financeDates = Array.from({ length: 7 }, (_, index) => {
+			const date = new Date(Date.now() - (6 - index) * 86400000);
+			return { date: date.toISOString().slice(0, 10), revenueRub: [950, 350, 610, 430, 810, 480, 180][index], refundsRub: 0, revenueStars: 0, refundsStars: 0, paymentCount: [5, 3, 4, 3, 5, 4, 2][index] };
+		});
+		state.adminFinance = {
+			period: "7d",
+			from: financeDates[0].date,
+			to: financeDates[6].date,
+			summary: { revenueRub: 3810, refundsRub: 0, revenueStars: 150, refundsStars: 0, paymentCount: 26 },
+			daily: financeDates,
+			payments: [
+				{ id: 1284, amount: 350, currency: "RUB", status: "paid", provider: "СБП", plan: "Подписка на 1 месяц", username: "alexvpn", telegramId: 6402520205, occurredAt: new Date(Date.now() - 3600000).toISOString() },
+				{ id: 1283, amount: 239, currency: "RUB", status: "paid", provider: "Банковская карта", plan: "Подписка на 3 месяца", username: "maria_net", telegramId: 7123456789, occurredAt: new Date(Date.now() - 7200000).toISOString() },
+				{ id: 1282, amount: 150, currency: "STARS", status: "paid", provider: "Telegram Stars", plan: "Дополнительные устройства · 2", username: "ivan_test", telegramId: 7987654321, occurredAt: new Date(Date.now() - 26 * 3600000).toISOString() },
+			],
+			paymentTotal: 26,
+			limit: 30,
+			offset: 0,
+		};
 		state.adminUsers = {
 			items: [
 				{ customerId: 12, telegramId: 6402520205, username: "alexvpn", avatarUrl: "", subscriptionName: "Основная", subscriptionStatus: "active", createdAt: new Date(Date.now() - 78 * 86400000).toISOString(), isBlocked: false },
@@ -2614,7 +2639,7 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 		state.adminUserPreviewDetail = deepClone(state.adminUserDetail);
 		if (urlParams.get("detail") !== "1") state.adminUserDetail = null;
 		const previewSection = String(urlParams.get("section") || "");
-		if (["integrations", "referrals", "moynalog", "users"].includes(previewSection)) {
+		if (["integrations", "referrals", "moynalog", "finance", "users"].includes(previewSection)) {
 			state.currentPage = "admin";
 			state.adminSection = previewSection;
 			state.adminLayoutEditing = false;
@@ -3205,6 +3230,7 @@ function renderAdminPage() {
 	if (state.adminSection === "broadcast") return renderAdminBroadcastPage();
 	if (state.adminSection === "integrations") return renderAdminIntegrationsPage();
 	if (state.adminSection === "moynalog") return renderAdminMoyNalogPage();
+	if (state.adminSection === "finance") return renderAdminFinancePage();
 	if (state.adminSection === "users") return renderAdminUsersPage();
 	return `
 		<section class="page admin-page ${pageClass("admin")}" id="page-admin">
@@ -3227,12 +3253,174 @@ function renderAdminPage() {
 			])}
 			${renderAdminMenuGroup(localizedText("Операции", "Operations", "عملیات"), [
 				[localizedText("Пользователи", "Users", "کاربران"), "", "users", "users"],
+				[localizedText("Финансы", "Finance", "امور مالی"), "", "finance", "chartLine"],
 				[localizedText("Рефералы и баланс", "Referrals and balance", "دعوت و موجودی"), "", "referrals", "users"],
 				[localizedText("Рассылка", "Broadcast", "ارسال همگانی"), "", "broadcast", "adminBroadcast"],
 				[localizedText("Промокоды", "Promo codes", "کدهای تخفیف"), "", "promocodes", "adminPromocodes"],
 			])}
 		</section>
 	`;
+}
+
+function formatFinanceRub(value) {
+	return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value || 0));
+}
+
+function formatFinanceAmount(value, currency) {
+	return String(currency || "RUB").toUpperCase() === "STARS"
+		? `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(Number(value || 0))} ⭐`
+		: formatFinanceRub(value);
+}
+
+function financeDate(value, options = {}) {
+	const date = new Date(`${String(value || "").slice(0, 10)}T00:00:00+03:00`);
+	if (Number.isNaN(date.getTime())) return "—";
+	return new Intl.DateTimeFormat("ru-RU", options).format(date);
+}
+
+function financeTodayISO(offsetDays = 0) {
+	return new Date(Date.now() + (3 * 3600000) + offsetDays * 86400000).toISOString().slice(0, 10);
+}
+
+function financeSmoothPath(points) {
+	if (!points.length) return "";
+	if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+	let path = `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
+	for (let index = 0; index < points.length - 1; index += 1) {
+		const previous = points[Math.max(0, index - 1)];
+		const current = points[index];
+		const next = points[index + 1];
+		const after = points[Math.min(points.length - 1, index + 2)];
+		const controlOneX = current.x + (next.x - previous.x) / 6;
+		const controlOneY = current.y + (next.y - previous.y) / 6;
+		const controlTwoX = next.x - (after.x - current.x) / 6;
+		const controlTwoY = next.y - (after.y - current.y) / 6;
+		path += ` C ${controlOneX.toFixed(2)} ${controlOneY.toFixed(2)}, ${controlTwoX.toFixed(2)} ${controlTwoY.toFixed(2)}, ${next.x.toFixed(2)} ${next.y.toFixed(2)}`;
+	}
+	return path;
+}
+
+function renderAdminFinanceChart(items) {
+	const daily = Array.isArray(items) ? items : [];
+	if (!daily.length) return `<div class="admin-finance-chart__empty">${icon("chartLine")}<strong>Нет данных за этот период</strong><span>Платежи появятся здесь после оплаты</span></div>`;
+	const width = 360;
+	const height = 205;
+	const plot = { left: 37, right: 10, top: 14, bottom: 34 };
+	const plotWidth = width - plot.left - plot.right;
+	const plotHeight = height - plot.top - plot.bottom;
+	const maximum = Math.max(1, ...daily.map((item) => Number(item.revenueRub || 0)));
+	const roundedMaximum = maximum <= 100 ? Math.ceil(maximum / 10) * 10 || 10 : Math.ceil(maximum / 100) * 100;
+	const points = daily.map((item, index) => ({
+		...item,
+		x: plot.left + (daily.length === 1 ? plotWidth / 2 : index * plotWidth / (daily.length - 1)),
+		y: plot.top + plotHeight - (Number(item.revenueRub || 0) / roundedMaximum) * plotHeight,
+	}));
+	const line = financeSmoothPath(points);
+	const area = `${line} L ${points[points.length - 1].x.toFixed(2)} ${(plot.top + plotHeight).toFixed(2)} L ${points[0].x.toFixed(2)} ${(plot.top + plotHeight).toFixed(2)} Z`;
+	const grid = [0, .25, .5, .75, 1].map((ratio) => {
+		const y = plot.top + plotHeight - plotHeight * ratio;
+		const label = new Intl.NumberFormat("ru-RU", { notation: "compact", maximumFractionDigits: 1 }).format(roundedMaximum * ratio);
+		return `<g><line x1="${plot.left}" y1="${y.toFixed(2)}" x2="${width - plot.right}" y2="${y.toFixed(2)}"></line><text x="${plot.left - 6}" y="${(y + 3).toFixed(2)}" text-anchor="end">${escapeHtml(label)}</text></g>`;
+	}).join("");
+	const labelStep = Math.max(1, Math.ceil((daily.length - 1) / 4));
+	const labels = points.filter((_, index) => index % labelStep === 0 || index === points.length - 1).map((point) => `<text x="${point.x.toFixed(2)}" y="${height - 8}" text-anchor="middle">${escapeHtml(financeDate(point.date, { day: "2-digit", month: "short" }))}</text>`).join("");
+	const pointStep = Math.max(1, Math.ceil(daily.length / 45));
+	const markers = points.filter((_, index) => index % pointStep === 0 || index === points.length - 1).map((point) => {
+		const tooltipX = Math.max(49, Math.min(width - 49, point.x));
+		const amount = formatFinanceRub(point.revenueRub || 0);
+		const starAmount = Number(point.revenueStars || 0) > 0 ? formatFinanceAmount(point.revenueStars, "STARS") : "";
+		const stars = starAmount ? ` · ${starAmount}` : "";
+		const tooltipHeight = starAmount ? 51 : 40;
+		const tooltipY = point.y < tooltipHeight + 18 ? point.y + 11 : point.y - tooltipHeight - 11;
+		const aria = `${financeDate(point.date, { day: "numeric", month: "long", year: "numeric" })}: ${amount}${stars}, платежей ${Number(point.paymentCount || 0)}`;
+		return `<g class="admin-finance-chart__point" tabindex="0" role="img" aria-label="${escapeAttribute(aria)}"><line class="admin-finance-chart__cursor" x1="${point.x.toFixed(2)}" y1="${plot.top}" x2="${point.x.toFixed(2)}" y2="${plot.top + plotHeight}"></line><circle cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="8" class="admin-finance-chart__hit"></circle><circle cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="3.2" class="admin-finance-chart__dot"></circle><g class="admin-finance-chart__tooltip" transform="translate(${tooltipX.toFixed(2)} ${tooltipY.toFixed(2)})"><rect x="-48" y="0" width="96" height="${tooltipHeight}" rx="5"></rect><text x="0" y="15" text-anchor="middle" class="is-value">${escapeHtml(amount)}</text>${starAmount ? `<text x="0" y="29" text-anchor="middle" class="is-stars">${escapeHtml(starAmount)}</text>` : ""}<text x="0" y="${starAmount ? 42 : 29}" text-anchor="middle">${escapeHtml(financeDate(point.date, { day: "numeric", month: "short", year: "numeric" }))}</text></g></g>`;
+	}).join("");
+	return `<svg class="admin-finance-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="График выручки по дням"><g class="admin-finance-chart__grid">${grid}</g><g class="admin-finance-chart__labels">${labels}</g><path class="admin-finance-chart__area" d="${area}"></path><path class="admin-finance-chart__line" d="${line}"></path>${markers}</svg>`;
+}
+
+function financePaymentStatus(status) {
+	return ({ paid: "Оплачен", refunded: "Возврат", pending: "Ожидает оплаты", new: "Создан", cancel: "Отменён" })[String(status || "")] || "Операция";
+}
+
+function financePaymentIdentity(item) {
+	const username = String(item?.username || "").trim().replace(/^@+/, "");
+	return username ? `@${username}` : `Telegram ID ${String(item?.telegramId || "—")}`;
+}
+
+function financeHistoryGroup(value) {
+	const source = new Date(value);
+	if (Number.isNaN(source.getTime())) return "Ранее";
+	const now = new Date();
+	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+	const date = new Date(source.getFullYear(), source.getMonth(), source.getDate());
+	const days = Math.round((today - date) / 86400000);
+	if (days === 0) return "Сегодня";
+	if (days === 1) return "Вчера";
+	return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: date.getFullYear() === today.getFullYear() ? undefined : "numeric" }).format(date);
+}
+
+function renderAdminFinancePayment(item) {
+	const status = String(item?.status || "new");
+	const date = new Date(item?.occurredAt || "");
+	const time = Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(date);
+	return `<article class="admin-finance-payment"><div class="admin-finance-payment__status is-${escapeAttribute(status)}"><i aria-hidden="true"></i><span><strong>${escapeHtml(financePaymentStatus(status))}</strong><small>${escapeHtml(time)}</small></span></div><div class="admin-finance-payment__identity"><strong>${escapeHtml(financePaymentIdentity(item))}</strong><small>${escapeHtml(item?.plan || "Покупка")}</small></div><div class="admin-finance-payment__method">${icon("wallet")}<span>${escapeHtml(item?.provider || "Не указан")}</span></div><strong class="admin-finance-payment__amount">${escapeHtml(formatFinanceAmount(item?.amount, item?.currency))}</strong></article>`;
+}
+
+function renderAdminFinanceHistory(items) {
+	const payments = Array.isArray(items) ? items : [];
+	if (!payments.length) return `<div class="admin-finance-history__empty">${icon("wallet")}<strong>Платежей пока нет</strong><span>История появится после первой операции</span></div>`;
+	let group = "";
+	return payments.map((item) => {
+		const nextGroup = financeHistoryGroup(item?.occurredAt);
+		const heading = nextGroup !== group ? `<h4>${escapeHtml(nextGroup)}</h4>` : "";
+		group = nextGroup;
+		return `${heading}${renderAdminFinancePayment(item)}`;
+	}).join("");
+}
+
+function renderAdminFinanceLoading() {
+	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-finance is-loading" aria-busy="true"><header class="admin-finance__header"><span><b></b><i></i></span></header><div class="admin-finance__metrics">${Array.from({ length: 3 }, () => `<div><b></b><i></i></div>`).join("")}</div><div class="admin-finance__chart-skeleton"></div><div class="admin-finance__history-skeleton">${Array.from({ length: 5 }, () => `<i></i>`).join("")}</div></div></section>`;
+}
+
+function renderAdminFinancePage() {
+	const data = state.adminFinance;
+	if (!data) return renderAdminFinanceLoading();
+	const summary = data.summary || {};
+	const payments = Array.isArray(data.payments) ? data.payments : [];
+	const hasMore = payments.length < Number(data.paymentTotal || 0);
+	const custom = state.adminFinancePeriod === "custom";
+	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-finance">
+		<header class="admin-finance__header"><div><span>АНАЛИТИКА</span><h2>Финансы</h2></div><button type="button" data-action="admin-finance-refresh" aria-label="Обновить статистику" ${state.adminFinanceBusy ? "disabled" : ""}>${icon("refresh")}</button></header>
+		<section class="admin-finance__metrics" aria-label="Финансовые показатели"><div class="is-revenue"><span>Выручка</span><strong>${escapeHtml(formatFinanceRub(summary.revenueRub))}</strong>${Number(summary.revenueStars || 0) ? `<small>+ ${escapeHtml(formatFinanceAmount(summary.revenueStars, "STARS"))}</small>` : ""}</div><div><span>Возвраты</span><strong>${escapeHtml(formatFinanceRub(summary.refundsRub))}</strong>${Number(summary.refundsStars || 0) ? `<small>+ ${escapeHtml(formatFinanceAmount(summary.refundsStars, "STARS"))}</small>` : ""}</div><div><span>Платежи</span><strong>${Number(summary.paymentCount || 0).toLocaleString("ru-RU")}</strong><small>${escapeHtml(financeDate(data.from, { day: "numeric", month: "short" }))} — ${escapeHtml(financeDate(data.to, { day: "numeric", month: "short" }))}</small></div></section>
+		<section class="admin-finance__analytics" aria-labelledby="admin-finance-chart-title"><div class="admin-finance__section-head"><div><span>ДИНАМИКА</span><h3 id="admin-finance-chart-title">Выручка по дням</h3></div><label><span class="sr-only">Период аналитики</span><select data-input="admin-finance-period"><option value="7d" ${state.adminFinancePeriod === "7d" ? "selected" : ""}>Последние 7 дней</option><option value="month" ${state.adminFinancePeriod === "month" ? "selected" : ""}>Текущий месяц</option><option value="30d" ${state.adminFinancePeriod === "30d" ? "selected" : ""}>Последние 30 дней</option><option value="90d" ${state.adminFinancePeriod === "90d" ? "selected" : ""}>Последние 90 дней</option><option value="365d" ${state.adminFinancePeriod === "365d" ? "selected" : ""}>Последние 365 дней</option><option value="custom" ${custom ? "selected" : ""}>Другой период</option></select></label></div>
+		${custom ? `<div class="admin-finance__custom"><label><span>С</span><input type="date" data-input="admin-finance-from" value="${escapeAttribute(state.adminFinanceFrom || data.from)}" max="${escapeAttribute(financeTodayISO())}"></label><i aria-hidden="true">—</i><label><span>По</span><input type="date" data-input="admin-finance-to" value="${escapeAttribute(state.adminFinanceTo || data.to)}" max="${escapeAttribute(financeTodayISO())}"></label><button type="button" data-action="admin-finance-apply" ${state.adminFinanceBusy ? "disabled" : ""}>Показать</button></div>` : ""}
+		<div class="admin-finance__chart-wrap" aria-live="polite">${renderAdminFinanceChart(data.daily)}</div><div class="admin-finance__legend"><i aria-hidden="true"></i><span>Выручка в рублях</span>${Number(summary.revenueStars || 0) ? `<small>Stars учитываются отдельно</small>` : ""}</div></section>
+		<section class="admin-finance__history" aria-labelledby="admin-finance-history-title"><div class="admin-finance__section-head"><div><span>ОПЕРАЦИИ</span><h3 id="admin-finance-history-title">История платежей</h3></div><strong>${Number(data.paymentTotal || 0).toLocaleString("ru-RU")}</strong></div><div class="admin-finance-history__list">${renderAdminFinanceHistory(payments)}</div>${hasMore ? `<button class="admin-finance__more" type="button" data-action="admin-finance-more" ${state.adminFinanceBusy ? "disabled" : ""}>${state.adminFinanceBusy === "more" ? icon("refresh") : icon("arrowDown")}<span>Показать ещё</span></button>` : ""}</section>
+	</div></section>`;
+}
+
+async function refreshAdminFinance({ append = false } = {}) {
+	if ((previewMode && state.adminFinance) || state.adminFinanceBusy) return;
+	const offset = append ? Number(state.adminFinance?.payments?.length || 0) : 0;
+	const requestID = ++adminFinanceRequestID;
+	state.adminFinanceBusy = append ? "more" : "refresh";
+	if (!append && !state.adminFinance) render({ preserveScroll: true });
+	try {
+		const response = await post("/api/mini-app/admin/finance", { period: state.adminFinancePeriod, from: state.adminFinanceFrom, to: state.adminFinanceTo, limit: 30, offset });
+		if (requestID !== adminFinanceRequestID || state.adminSection !== "finance") return;
+		const next = response.data || {};
+		state.adminFinance = { ...next, payments: append ? [...(state.adminFinance?.payments || []), ...(next.payments || [])] : (next.payments || []) };
+		state.adminFinancePeriod = String(next.period || state.adminFinancePeriod || "7d");
+		state.adminFinanceFrom = String(next.from || state.adminFinanceFrom || "");
+		state.adminFinanceTo = String(next.to || state.adminFinanceTo || "");
+		state.adminFinanceBusy = "";
+		render({ preserveScroll: append });
+	} catch (error) {
+		if (requestID !== adminFinanceRequestID) return;
+		state.adminFinanceBusy = "";
+		render({ preserveScroll: true });
+		throw error;
+	}
 }
 
 function adminUserDisplayName(user) {
@@ -6879,10 +7067,17 @@ function bindRootActions() {
 		renderAdminTransition();
 		if (value === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 		if (value === "moynalog") void refreshAdminMoyNalog();
+		if (value === "finance") void refreshAdminFinance();
 		if (value === "users") void refreshAdminUsers();
 		return;
 	  }
 	  if (action === "close-admin-section") return closeAdminSection();
+			if (action === "admin-finance-refresh") return await refreshAdminFinance();
+			if (action === "admin-finance-more") return await refreshAdminFinance({ append: true });
+			if (action === "admin-finance-apply") {
+				if (!state.adminFinanceFrom || !state.adminFinanceTo) return showToast("Выберите обе даты", "danger");
+				return await refreshAdminFinance();
+			}
 			if (action === "admin-user-open") return await openAdminUser(Number(value));
 			if (action === "admin-user-back") return closeAdminUserDetail();
 			if (action === "admin-users-more") return await refreshAdminUsers({ append: true });
@@ -7099,6 +7294,17 @@ function bindRootActions() {
 
 	app.addEventListener("change", (event) => {
 		const input = event.target;
+		if (input instanceof HTMLSelectElement && input.dataset.input === "admin-finance-period") {
+			state.adminFinancePeriod = input.value;
+			if (input.value === "custom") {
+				state.adminFinanceFrom = state.adminFinance?.from || financeTodayISO(-6);
+				state.adminFinanceTo = state.adminFinance?.to || financeTodayISO();
+				render({ preserveScroll: true });
+			} else {
+				void refreshAdminFinance().catch((error) => showToast(error?.message || "Не удалось загрузить финансы", "danger"));
+			}
+			return;
+		}
 		if (!(input instanceof HTMLInputElement)) return;
 		if (input.dataset.input === "admin-logo-file") {
 			const file = input.files?.[0];
@@ -7222,6 +7428,8 @@ function bindRootActions() {
 			adminUsersSearchTimer = window.setTimeout(() => { void refreshAdminUsers().catch((error) => showToast(error?.message || "Не удалось найти пользователя", "danger")); }, 320);
 			return;
 		}
+		if (inputKey === "admin-finance-from") { state.adminFinanceFrom = String(target.value || ""); return; }
+		if (inputKey === "admin-finance-to") { state.adminFinanceTo = String(target.value || ""); return; }
 		if (inputKey === "admin-user-subscription") { state.adminUserSelectedSubscriptionID = String(target.value || ""); render({ preserveScroll: true }); return; }
 		if (inputKey === "admin-user-balance") { state.adminUserBalanceDraft = target.value; return; }
 		if (inputKey === "admin-user-days") { state.adminUserDaysDraft = target.value; return; }
@@ -10569,6 +10777,7 @@ function closeAdminSection() {
 	window.clearTimeout(adminUsersSearchTimer);
 	adminUsersSearchRequestID += 1;
 	adminUserDetailRequestID += 1;
+	adminFinanceRequestID += 1;
 	state.adminSection = "home";
 	state.adminUserDetail = null;
 	state.adminUserPending = null;
@@ -10945,13 +11154,13 @@ function getPageTitle(page, short = false) {
   const copy = t();
 	if (page === "admin" && !short && state.adminSection !== "home") {
 		const labels = state.locale === "fa" ? {
-			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", features: "امکانات", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من",
+			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", features: "امکانات", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", users: "کاربران",
 		} : state.locale === "en" ? {
 			localization: "Language and font",
-			maintenance: "Maintenance", diagnostics: "Diagnostics", features: "Functions", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax",
+			maintenance: "Maintenance", diagnostics: "Diagnostics", features: "Functions", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", users: "Users",
 		} : {
 			localization: "Язык и шрифт",
-			maintenance: "Режим аварии", diagnostics: "Диагностика", features: "Функции", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог",
+			maintenance: "Режим аварии", diagnostics: "Диагностика", features: "Функции", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", users: "Пользователи",
 		};
 		return labels[state.adminSection] || copy.pageAdmin || "Admin panel";
 	}
