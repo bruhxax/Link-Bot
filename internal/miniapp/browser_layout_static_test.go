@@ -20,7 +20,9 @@ func TestBrowserLayoutIsCenteredWithoutChangingTelegramMiniApp(t *testing.T) {
 	for _, fragment := range []string{
 		`const clientSurface = String(tg?.initData || "").trim() ? "telegram" : "browser";`,
 		`const paymentReturnTarget = clientSurface === "telegram" ? "telegram" : "web";`,
+		`const standaloneWebApp = clientSurface === "browser"`,
 		`document.documentElement.dataset.client = clientSurface;`,
+		`document.documentElement.dataset.displayMode = standaloneWebApp ? "standalone" : "browser";`,
 		`returnTarget: paymentReturnTarget,`,
 	} {
 		if !strings.Contains(appJS, fragment) {
@@ -31,6 +33,9 @@ func TestBrowserLayoutIsCenteredWithoutChangingTelegramMiniApp(t *testing.T) {
 	for _, fragment := range []string{
 		`:root[data-client="browser"] #app`,
 		`width: min(100%, 430px);`,
+		`:root[data-client="browser"][data-display-mode="standalone"] .page-scroll`,
+		`padding-top: calc(12px + var(--safe-top));`,
+		`height: 100vh;`,
 		`:root[data-client="browser"] .modal`,
 		`align-items: center;`,
 		`justify-content: center;`,

@@ -225,6 +225,9 @@
   --radius-lg: 22px;
   --radius-pill: 999px;
   --shadow: var(--glass-shadow);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   color-scheme: dark;
 }
@@ -9555,6 +9558,24 @@ body.has-open-modal .admin-save-bar {
 :root[data-client="browser"] #app {
   width: min(100%, 430px);
   max-width: 430px;
+}
+
+/* Installed iOS web apps need the layout viewport rather than innerHeight:
+   it includes both safe areas and lets the background reach the home indicator. */
+:root[data-client="browser"][data-display-mode="standalone"],
+:root[data-client="browser"][data-display-mode="standalone"] body,
+:root[data-client="browser"][data-display-mode="standalone"] #app,
+:root[data-client="browser"][data-display-mode="standalone"] .app-shell,
+:root[data-client="browser"][data-display-mode="standalone"] .bg-media {
+  height: 100vh;
+  min-height: 100vh;
+}
+
+:root[data-client="browser"][data-display-mode="standalone"] .page-scroll {
+  padding-top: calc(12px + var(--safe-top));
+  padding-right: max(12px, var(--safe-right));
+  padding-bottom: calc(96px + var(--safe-bottom));
+  padding-left: max(12px, var(--safe-left));
 }
 
 @media (min-width: 700px) {

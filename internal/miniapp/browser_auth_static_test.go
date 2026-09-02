@@ -40,6 +40,10 @@ func TestBrowserAuthUsesRuntimeBrandWithoutRemovedHints(t *testing.T) {
 		`/api/mini-app/auth/telegram/qr/start`,
 		`/api/mini-app/auth/telegram/qr/status`,
 		`writeSessionSetting(STORAGE_KEYS.telegramLogin, sessionData)`,
+		`window.localStorage.getItem(key)`,
+		`window.localStorage.setItem(key, value)`,
+		`window.sessionStorage.getItem(key)`,
+		`persistBrowserSessionFromResponse(response)`,
 	}
 	for _, value := range required {
 		if !strings.Contains(appJS, value) {

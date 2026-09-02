@@ -858,6 +858,16 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 				return
 			}
 			sess, customer, err = h.sessionFromGoogleLogin(r.Context(), googleToken)
+			if err == nil && sess != nil {
+				if customer != nil && customer.TelegramUsername != nil {
+					sess.User.Username = strings.TrimSpace(*customer.TelegramUsername)
+				}
+				if sessionData, sessionErr := createBrowserSessionData(sess, config.TelegramToken(), currentMiniAppTime()); sessionErr == nil {
+					w.Header().Set("X-Telegram-Session-Data", sessionData)
+				} else {
+					slog.Warn("mini app: failed to create persistent Google browser session", "error", sessionErr)
+				}
+			}
 		} else {
 			if strings.TrimSpace(initData) != "" {
 				sess, err = parseAndValidateInitData(initData, config.TelegramToken())
@@ -882,6 +892,13 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 				}
 			} else {
 				sess, err = parseAndValidateLoginData(loginData, config.TelegramToken())
+				if err == nil {
+					if sessionData, sessionErr := createBrowserSessionData(sess, config.TelegramToken(), currentMiniAppTime()); sessionErr == nil {
+						w.Header().Set("X-Telegram-Session-Data", sessionData)
+					} else {
+						slog.Warn("mini app: failed to refresh browser session", "error", sessionErr)
+					}
+				}
 			}
 		}
 		if err != nil {

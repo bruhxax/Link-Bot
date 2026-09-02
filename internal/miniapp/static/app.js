@@ -13,7 +13,11 @@ const toast = document.getElementById("toast");
 const tg = window.Telegram?.WebApp;
 const clientSurface = String(tg?.initData || "").trim() ? "telegram" : "browser";
 const paymentReturnTarget = clientSurface === "telegram" ? "telegram" : "web";
+const standaloneWebApp = clientSurface === "browser" && Boolean(
+  window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true
+);
 document.documentElement.dataset.client = clientSurface;
+document.documentElement.dataset.displayMode = standaloneWebApp ? "standalone" : "browser";
 const telegramBotUsername = document.querySelector('meta[name="telegram-bot-username"]')?.content?.trim() || "";
 const telegramBotID = document.querySelector('meta[name="telegram-bot-id"]')?.content?.trim() || "";
 const googleMetaClientID = document.querySelector('meta[name="google-client-id"]')?.content?.trim() || "";
@@ -2802,11 +2806,7 @@ async function post(url, body, extraHeaders = null) {
       body: JSON.stringify(body || {}),
       signal: controller.signal,
     });
-    const telegramSessionData = String(response.headers.get("X-Telegram-Session-Data") || "").trim();
-    if (telegramSessionData) {
-      writeSessionSetting(STORAGE_KEYS.telegramLogin, telegramSessionData);
-      writeSessionSetting(STORAGE_KEYS.telegramIDToken, "");
-    }
+    persistBrowserSessionFromResponse(response);
     const payload = await response.json().catch(() => null);
     if (!response.ok || !payload?.ok) {
       const err = new Error(mapApiErrorMessage(payload?.error?.code, payload?.error?.message || "Request failed"));
@@ -2837,6 +2837,7 @@ async function postForm(url, body) {
       body,
       signal: controller.signal,
     });
+    persistBrowserSessionFromResponse(response);
     const payload = await response.json().catch(() => null);
     if (!response.ok || !payload?.ok) {
       const error = new Error(mapApiErrorMessage(payload?.error?.code, payload?.error?.message || "Request failed"));
@@ -11962,16 +11963,38 @@ function writeSetting(key, value) {
 }
 
 function readSessionSetting(key, fallback) {
-  try { return window.sessionStorage.getItem(key) || fallback; } catch { return fallback; }
+  try {
+    const persistent = window.localStorage.getItem(key);
+    if (persistent) return persistent;
+    const legacy = window.sessionStorage.getItem(key);
+    if (!legacy) return fallback;
+    window.localStorage.setItem(key, legacy);
+    window.sessionStorage.removeItem(key);
+    return legacy;
+  } catch {
+    try { return window.sessionStorage.getItem(key) || fallback; } catch { return fallback; }
+  }
 }
 
 function writeSessionSetting(key, value) {
   try {
-    if (value) window.sessionStorage.setItem(key, value);
-    else window.sessionStorage.removeItem(key);
+    if (value) window.localStorage.setItem(key, value);
+    else window.localStorage.removeItem(key);
+    window.sessionStorage.removeItem(key);
   } catch {
-    return;
+    try {
+      if (value) window.sessionStorage.setItem(key, value);
+      else window.sessionStorage.removeItem(key);
+    } catch { return; }
   }
+}
+
+function persistBrowserSessionFromResponse(response) {
+  const sessionData = String(response?.headers?.get?.("X-Telegram-Session-Data") || "").trim();
+  if (!sessionData) return;
+  writeSessionSetting(STORAGE_KEYS.telegramLogin, sessionData);
+  writeSessionSetting(STORAGE_KEYS.telegramIDToken, "");
+  clearGoogleAuth();
 }
 
 function normalizePage(value) {

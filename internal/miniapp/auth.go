@@ -158,6 +158,25 @@ func parseAndValidateLoginData(loginData, botToken string) (*session, error) {
 		return nil, fmt.Errorf("login data expired")
 	}
 
+	provider := strings.TrimSpace(values.Get("provider"))
+	if provider == "" {
+		provider = sessionProviderTelegram
+	}
+	if provider != sessionProviderTelegram && provider != sessionProviderGoogle {
+		return nil, fmt.Errorf("invalid session provider")
+	}
+	googleSubject := ""
+	googleEmail := ""
+	googleEmailVerified := false
+	if provider == sessionProviderGoogle {
+		googleSubject = strings.TrimSpace(values.Get("google_subject"))
+		googleEmail = strings.ToLower(strings.TrimSpace(values.Get("google_email")))
+		googleEmailVerified = values.Get("google_email_verified") == "1"
+		if googleSubject == "" || googleEmail == "" || !googleEmailVerified {
+			return nil, fmt.Errorf("invalid google browser session")
+		}
+	}
+
 	return &session{
 		AuthDate: authDate,
 		User: telegramUser{
@@ -168,32 +187,55 @@ func parseAndValidateLoginData(loginData, botToken string) (*session, error) {
 			PhotoURL:     values.Get("photo_url"),
 			LanguageCode: values.Get("language_code"),
 		},
-		Provider: sessionProviderTelegram,
+		Provider:            provider,
+		GoogleSubject:       googleSubject,
+		GoogleEmail:         googleEmail,
+		GoogleEmailVerified: googleEmailVerified,
 	}, nil
 }
 
 func createTelegramBrowserSessionData(user telegramUser, botToken string, now time.Time) (string, error) {
-	if user.ID <= 0 {
+	return createBrowserSessionData(&session{User: user, Provider: sessionProviderTelegram}, botToken, now)
+}
+
+func createBrowserSessionData(sess *session, botToken string, now time.Time) (string, error) {
+	if sess == nil || sess.User.ID <= 0 {
 		return "", fmt.Errorf("invalid user id")
 	}
 	if strings.TrimSpace(botToken) == "" {
 		return "", fmt.Errorf("missing bot token")
 	}
+	provider := strings.TrimSpace(sess.Provider)
+	if provider == "" {
+		provider = sessionProviderTelegram
+	}
+	if provider != sessionProviderTelegram && provider != sessionProviderGoogle {
+		return "", fmt.Errorf("invalid session provider")
+	}
+	if provider == sessionProviderGoogle && (strings.TrimSpace(sess.GoogleSubject) == "" || strings.TrimSpace(sess.GoogleEmail) == "" || !sess.GoogleEmailVerified) {
+		return "", fmt.Errorf("invalid google browser session")
+	}
 
 	values := url.Values{}
-	values.Set("id", strconv.FormatInt(user.ID, 10))
+	values.Set("id", strconv.FormatInt(sess.User.ID, 10))
 	values.Set("auth_date", strconv.FormatInt(now.UTC().Unix(), 10))
 	optional := map[string]string{
-		"first_name":    user.FirstName,
-		"last_name":     user.LastName,
-		"username":      user.Username,
-		"photo_url":     user.PhotoURL,
-		"language_code": user.LanguageCode,
+		"first_name":    sess.User.FirstName,
+		"last_name":     sess.User.LastName,
+		"username":      sess.User.Username,
+		"photo_url":     sess.User.PhotoURL,
+		"language_code": sess.User.LanguageCode,
 	}
 	for key, value := range optional {
 		if value = strings.TrimSpace(value); value != "" {
 			values.Set(key, value)
 		}
+	}
+	if provider == sessionProviderGoogle {
+		values.Set("provider", sessionProviderGoogle)
+		values.Set("google_subject", strings.TrimSpace(sess.GoogleSubject))
+		values.Set("google_email", strings.ToLower(strings.TrimSpace(sess.GoogleEmail)))
+		values.Set("google_email_verified", "1")
 	}
 
 	var pairs []string
