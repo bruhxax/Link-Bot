@@ -12,6 +12,7 @@ const app = document.getElementById("app");
 const toast = document.getElementById("toast");
 const tg = window.Telegram?.WebApp;
 const clientSurface = String(tg?.initData || "").trim() ? "telegram" : "browser";
+const paymentReturnTarget = clientSurface === "telegram" ? "telegram" : "web";
 document.documentElement.dataset.client = clientSurface;
 const telegramBotUsername = document.querySelector('meta[name="telegram-bot-username"]')?.content?.trim() || "";
 const telegramBotID = document.querySelector('meta[name="telegram-bot-id"]')?.content?.trim() || "";
@@ -10061,7 +10062,7 @@ async function submitP2PPayment() {
 			promoCode: getActivePromo()?.code || "",
 			p2pDestinationId: state.p2pDestinationId,
 			p2pSenderReference: state.p2pSenderReference.trim(),
-			returnTarget: clientSurface,
+			returnTarget: paymentReturnTarget,
 		} : {
 			planId: plan?.id || "",
 			months: plan?.months || 0,
@@ -10072,7 +10073,7 @@ async function submitP2PPayment() {
 			deviceOnly: Boolean(context.deviceOnly),
 			p2pDestinationId: state.p2pDestinationId,
 			p2pSenderReference: state.p2pSenderReference.trim(),
-			returnTarget: clientSurface,
+			returnTarget: paymentReturnTarget,
 		};
 		const response = await post(giftMode ? "/api/mini-app/gifts/purchase" : "/api/mini-app/purchase", payload);
 		if (response.data?.action !== "p2p_pending") throw new Error(localizedText("Не удалось отправить платёж на проверку", "Could not submit the payment", "ارسال پرداخت انجام نشد"));
@@ -10109,7 +10110,7 @@ async function startPayment({ deviceOnly = false } = {}) {
       promoCode: deviceOnly ? "" : (getActivePromo()?.code || ""),
 	  devicePackId: devicePack?.id || "",
 	  deviceOnly,
-	  returnTarget: clientSurface,
+	  returnTarget: paymentReturnTarget,
     });
     const { action, url, purchaseId } = response.data;
     if (action === "completed") {
@@ -10203,7 +10204,7 @@ async function startGiftPayment() {
 			months: Number(plan.months || 0),
 			paymentMethod: method,
 			promoCode: getActivePromo()?.code || "",
-			returnTarget: clientSurface,
+			returnTarget: paymentReturnTarget,
 		});
 		const { action, url, purchaseId } = response.data || {};
 		if (action === "open_invoice") {

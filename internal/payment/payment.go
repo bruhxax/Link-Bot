@@ -1983,7 +1983,8 @@ func (s PaymentService) buildYookassaReturnURL(purchaseID int64, returnTarget st
 }
 
 func normalizePaymentReturnTarget(value string) string {
-	if strings.EqualFold(strings.TrimSpace(value), "web") {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "web", "browser":
 		return "web"
 	}
 	return "telegram"

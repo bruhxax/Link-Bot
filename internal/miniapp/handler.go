@@ -5808,7 +5808,8 @@ func buildPaymentReturnTarget(purchaseID int64, status, returnTarget string) str
 }
 
 func buildPaymentReturnTargetForSurface(username string, purchaseID int64, status, returnTarget string) string {
-	if strings.EqualFold(strings.TrimSpace(returnTarget), "web") {
+	switch strings.ToLower(strings.TrimSpace(returnTarget)) {
+	case "web", "browser":
 		return buildPaymentReturnWebTarget(purchaseID, normalizePaymentReturnStatus(status))
 	}
 	return buildPaymentReturnTargetForBot(username, purchaseID, status)

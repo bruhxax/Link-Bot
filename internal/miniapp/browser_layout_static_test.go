@@ -19,7 +19,9 @@ func TestBrowserLayoutIsCenteredWithoutChangingTelegramMiniApp(t *testing.T) {
 	styles := string(stylesRaw)
 	for _, fragment := range []string{
 		`const clientSurface = String(tg?.initData || "").trim() ? "telegram" : "browser";`,
+		`const paymentReturnTarget = clientSurface === "telegram" ? "telegram" : "web";`,
 		`document.documentElement.dataset.client = clientSurface;`,
+		`returnTarget: paymentReturnTarget,`,
 	} {
 		if !strings.Contains(appJS, fragment) {
 			t.Fatalf("browser surface detection fragment is missing: %q", fragment)

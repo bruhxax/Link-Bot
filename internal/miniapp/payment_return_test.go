@@ -26,7 +26,7 @@ func TestBuildPaymentReturnTargetFallsBackToWebWithoutBotURL(t *testing.T) {
 }
 
 func TestBuildPaymentReturnTargetKeepsWebCheckoutInWeb(t *testing.T) {
-	target := buildPaymentReturnTargetForSurface("BruhvpnBot", 789, "paid", "web")
+	target := buildPaymentReturnTargetForSurface("BruhvpnBot", 789, "paid", "browser")
 	if target != "/mini-app/?paymentReturn=1&paymentStatus=paid&provider=yookasa&purchaseId=789" {
 		t.Fatalf("unexpected web return target: %s", target)
 	}
