@@ -1420,13 +1420,13 @@ select:focus-visible {
 	background: var(--surface);
 	box-shadow: 0 12px 30px rgba(0, 0, 0, .18);
 }
-.admin-finance-card__body { position: relative; padding: 14px 13px 12px; }
+.admin-finance-card__body { position: relative; padding: 11px 13px 9px; }
 .admin-finance-card .admin-finance__metrics { border: 0; border-bottom: 1px solid var(--line-soft); }
-.admin-finance-card .admin-finance__metrics > div { min-height: 70px; padding: 11px 12px; }
+.admin-finance-card .admin-finance__metrics > div { min-height: 64px; padding: 9px 12px; }
 .admin-finance-card .admin-finance__metrics .is-revenue { position: relative; }
 .admin-finance-card .admin-finance__metrics .is-revenue::after { content: ""; position: absolute; inset-inline: 12px; bottom: -1px; height: 2px; background: var(--accent); }
 
-.admin-finance__toolbar { min-height: 42px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.admin-finance__toolbar { min-height: 40px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
 .admin-finance__toolbar h3 { margin: 0; font-size: 12px; line-height: 1.25; }
 .admin-finance-period { position: relative; z-index: 12; min-width: 172px; }
 .admin-finance-period__trigger {
@@ -1503,8 +1503,9 @@ select:focus-visible {
 .admin-finance-period-option:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
 
 .admin-finance-card .admin-finance__custom { margin-top: 10px; padding-bottom: 2px; animation: adminFinanceCustomIn 220ms ease both; }
-.admin-finance-card .admin-finance__chart-wrap { min-height: 210px; margin-top: 8px; overflow: hidden; border: 0; }
-.admin-finance-card .admin-finance__legend { padding-top: 3px; }
+.admin-finance-card .admin-finance__chart-wrap { min-height: 0; margin: 5px -13px 0; overflow: hidden; border: 0; }
+.admin-finance-card .admin-finance-chart__empty { min-height: 150px; }
+.admin-finance-card .admin-finance__legend { min-height: 17px; padding-top: 0; }
 
 .admin-finance-card.is-updating::after {
 	content: "";
@@ -1530,7 +1531,7 @@ select:focus-visible {
 .admin-finance-history__surface .admin-finance__more:hover { background: var(--control-bg); }
 
 .admin-finance.is-loading .admin-finance-card { overflow: hidden; }
-.admin-finance.is-loading .admin-finance__chart-skeleton { min-height: 230px; margin: 12px; }
+.admin-finance.is-loading .admin-finance__chart-skeleton { min-height: 175px; margin: 10px 12px; }
 
 @keyframes adminFinanceCustomIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes adminFinancePeriodOut { from { opacity: 1; transform: translateY(0); } to { opacity: .42; transform: translateY(2px); } }
@@ -1540,6 +1541,7 @@ select:focus-visible {
 @media (max-width: 390px) {
 	.admin-finance-card__body { padding-inline: 10px; }
 	.admin-finance-card .admin-finance__metrics > div { padding-inline: 9px; }
+	.admin-finance-card .admin-finance__chart-wrap { margin-inline: -10px; }
 	.admin-finance__toolbar { grid-template-columns: minmax(0, 1fr) 168px; gap: 8px; }
 	.admin-finance-period { min-width: 0; }
 	.admin-finance-period__trigger strong { font-size: 8px; }

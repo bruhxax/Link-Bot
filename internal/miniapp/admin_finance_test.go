@@ -105,6 +105,8 @@ func TestAdminFinanceStaticSurface(t *testing.T) {
 		`data-action="admin-finance-period-select"`,
 		`role="listbox"`,
 		`admin-finance-chart__tooltip`,
+		`const width = 420;`,
+		`const height = 170;`,
 		`История платежей`,
 		`financePaymentIdentity`,
 	} {
@@ -118,6 +120,7 @@ func TestAdminFinanceStaticSurface(t *testing.T) {
 		`.admin-finance-card`,
 		`.admin-finance-period__menu`,
 		`.admin-finance-card.is-updating`,
+		`margin: 5px -13px 0`,
 		`.admin-finance-chart__point:focus`,
 		`.admin-finance-payment`,
 		`@media (prefers-reduced-motion: reduce)`,

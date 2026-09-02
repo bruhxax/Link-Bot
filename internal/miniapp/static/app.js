@@ -3305,9 +3305,9 @@ function financeSmoothPath(points) {
 function renderAdminFinanceChart(items) {
 	const daily = Array.isArray(items) ? items : [];
 	if (!daily.length) return `<div class="admin-finance-chart__empty">${icon("chartLine")}<strong>Нет данных за этот период</strong><span>Платежи появятся здесь после оплаты</span></div>`;
-	const width = 360;
-	const height = 205;
-	const plot = { left: 37, right: 10, top: 14, bottom: 34 };
+	const width = 420;
+	const height = 170;
+	const plot = { left: 34, right: 7, top: 12, bottom: 27 };
 	const plotWidth = width - plot.left - plot.right;
 	const plotHeight = height - plot.top - plot.bottom;
 	const maximum = Math.max(1, ...daily.map((item) => Number(item.revenueRub || 0)));
