@@ -420,6 +420,7 @@ type purchaseRequest struct {
 	PromoCode          string `json:"promoCode,omitempty"`
 	P2PDestinationID   string `json:"p2pDestinationId,omitempty"`
 	P2PSenderReference string `json:"p2pSenderReference,omitempty"`
+	ReturnTarget       string `json:"returnTarget,omitempty"`
 }
 
 type giftPurchaseRequest struct {
@@ -430,6 +431,7 @@ type giftPurchaseRequest struct {
 	PromoCode          string `json:"promoCode,omitempty"`
 	P2PDestinationID   string `json:"p2pDestinationId,omitempty"`
 	P2PSenderReference string `json:"p2pSenderReference,omitempty"`
+	ReturnTarget       string `json:"returnTarget,omitempty"`
 }
 
 type giftSeenRequest struct {
@@ -1454,6 +1456,7 @@ func (h *Handler) handleCreatePurchase(w http.ResponseWriter, r *http.Request, s
 		DeviceLimitCount:   &plan.DeviceLimitCount,
 		P2PSenderReference: strings.TrimSpace(req.P2PSenderReference),
 		P2PDestination:     p2pDestination,
+		ReturnTarget:       req.ReturnTarget,
 	})
 	if err != nil {
 		slog.Error("mini app: create purchase", "error", err, "method", req.PaymentMethod, "months", req.Months)
@@ -1650,6 +1653,7 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		PromoDiscountPercent: promoDiscountPercentOrZero(promo),
 		P2PSenderReference:   strings.TrimSpace(req.P2PSenderReference),
 		P2PDestination:       p2pDestination,
+		ReturnTarget:         req.ReturnTarget,
 	})
 	if err != nil {
 		if errors.Is(err, payment.ErrFreePlanAlreadyUsed) {
@@ -1865,6 +1869,7 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 		GiftToken:               &token,
 		P2PSenderReference:      strings.TrimSpace(req.P2PSenderReference),
 		P2PDestination:          p2pDestination,
+		ReturnTarget:            req.ReturnTarget,
 	})
 	if err != nil {
 		slog.Error("mini app: create gift purchase", "error", err, "method", req.PaymentMethod, "months", req.Months)
@@ -2555,7 +2560,7 @@ func (h *Handler) handleAdminMoyNalogTest(w http.ResponseWriter, r *http.Request
 	ctx, cancel := context.WithTimeout(r.Context(), 35*time.Second)
 	defer cancel()
 	if err := h.paymentService.TestMoyNalogConnection(ctx); err != nil {
-		h.writeError(w, http.StatusBadRequest, "moynalog_connection_failed", "Не удалось войти. Проверьте ИНН и пароль.")
+		h.writeError(w, http.StatusBadRequest, "moynalog_connection_failed", err.Error())
 		return
 	}
 	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "moynalog_connected"})
@@ -3413,7 +3418,7 @@ func (h *Handler) handlePaymentReturnRedirect(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	target := buildPaymentReturnTarget(purchaseID, status)
+	target := buildPaymentReturnTarget(purchaseID, status, r.URL.Query().Get("returnTarget"))
 	http.Redirect(w, r, target, http.StatusFound)
 }
 
@@ -5798,8 +5803,15 @@ func referralRewardConfigured(reward runtimeconfig.ReferralRewardSettings) bool 
 		(reward.BalanceMode == "percent" && reward.BalancePercent > 0)
 }
 
-func buildPaymentReturnTarget(purchaseID int64, status string) string {
-	return buildPaymentReturnTargetForBot(telegramBotUsername(), purchaseID, status)
+func buildPaymentReturnTarget(purchaseID int64, status, returnTarget string) string {
+	return buildPaymentReturnTargetForSurface(telegramBotUsername(), purchaseID, status, returnTarget)
+}
+
+func buildPaymentReturnTargetForSurface(username string, purchaseID int64, status, returnTarget string) string {
+	if strings.EqualFold(strings.TrimSpace(returnTarget), "web") {
+		return buildPaymentReturnWebTarget(purchaseID, normalizePaymentReturnStatus(status))
+	}
+	return buildPaymentReturnTargetForBot(username, purchaseID, status)
 }
 
 func buildPaymentReturnTargetForBot(username string, purchaseID int64, status string) string {

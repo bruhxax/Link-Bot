@@ -24,3 +24,20 @@ func TestBuildPaymentReturnTargetFallsBackToWebWithoutBotURL(t *testing.T) {
 		t.Fatalf("unexpected fallback target: %s", target)
 	}
 }
+
+func TestBuildPaymentReturnTargetKeepsWebCheckoutInWeb(t *testing.T) {
+	target := buildPaymentReturnTargetForSurface("BruhvpnBot", 789, "paid", "web")
+	if target != "/mini-app/?paymentReturn=1&paymentStatus=paid&provider=yookasa&purchaseId=789" {
+		t.Fatalf("unexpected web return target: %s", target)
+	}
+}
+
+func TestBuildPaymentReturnTargetDefaultsUnknownSurfaceToTelegram(t *testing.T) {
+	target, err := url.Parse(buildPaymentReturnTargetForSurface("BruhvpnBot", 321, "paid", "unexpected"))
+	if err != nil {
+		t.Fatalf("parse payment return target: %v", err)
+	}
+	if target.Host != "t.me" || target.Query().Get("startapp") != "payment_return_321_paid" {
+		t.Fatalf("unexpected Telegram fallback target: %s", target.String())
+	}
+}

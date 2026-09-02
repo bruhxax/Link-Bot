@@ -3,6 +3,7 @@ package moynalog
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -16,6 +17,16 @@ func TestCreateIncomeReturnsReceiptUUID(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/auth/lkfl":
+			var auth AuthRequest
+			if err := json.NewDecoder(r.Body).Decode(&auth); err != nil {
+				t.Fatalf("decode auth request: %v", err)
+			}
+			if got := auth.DeviceInfo.SourceDeviceId; len(got) != 21 || got == "*" {
+				t.Fatalf("unexpected source device ID: %q", got)
+			}
+			if auth.DeviceInfo.MetaDetails.UserAgent == "" || r.Header.Get("User-Agent") == "" {
+				t.Fatal("auth request must include browser device details")
+			}
 			_, _ = w.Write([]byte(`{"token":"test-token"}`))
 		case "/income":
 			if got := r.Header.Get("Authorization"); got != "Bearer test-token" {
@@ -43,6 +54,22 @@ func TestCreateIncomeReturnsReceiptUUID(t *testing.T) {
 	}
 	if receipt.ReceiptUUID() != "receipt-123" {
 		t.Fatalf("unexpected receipt UUID: %q", receipt.ReceiptUUID())
+	}
+}
+
+func TestNormalizeBaseURLUpgradesLegacyFNSAPIAddress(t *testing.T) {
+	got := normalizeBaseURL("https://lknpd.nalog.ru/api/")
+	if got != "https://lknpd.nalog.ru/api/v1" {
+		t.Fatalf("normalizeBaseURL = %q", got)
+	}
+}
+
+func TestStableDeviceIDIsDeterministicPerTaxpayer(t *testing.T) {
+	first := stableDeviceID("123456789012")
+	second := stableDeviceID("123456789012")
+	other := stableDeviceID("987654321098")
+	if len(first) != 21 || first != second || first == other {
+		t.Fatalf("unexpected stable device IDs: %q %q %q", first, second, other)
 	}
 }
 

@@ -129,17 +129,19 @@ func readableMoyNalogError(err error) string {
 	if err == nil {
 		return ""
 	}
-	message := strings.TrimSpace(err.Error())
 	if errors.Is(err, moynalog.ErrAuth) {
-		return "Не удалось войти: проверьте ИНН и пароль."
+		return "ФНС отклонила ИНН или пароль. Проверьте данные входа в «Мой налог»."
+	}
+	if errors.Is(err, moynalog.ErrDeviceBlocked) {
+		return "ФНС отклонила устройство авторизации. Войдите в веб-кабинет «Мой налог» и повторите проверку."
 	}
 	if errors.Is(err, moynalog.ErrUncertain) {
 		return "Ответ ФНС не получен. Проверьте кабинет вручную — повторная отправка заблокирована, чтобы не создать дубликат."
 	}
 	if errors.Is(err, moynalog.ErrClient) {
-		return "ФНС отклонила чек: " + message
+		return "Сервис «Мой налог» отклонил запрос. Повторите попытку позже."
 	}
-	return message
+	return "Не удалось подключиться к сервису «Мой налог». Повторите попытку позже."
 }
 
 func (s *PaymentService) TestMoyNalogConnection(ctx context.Context) error {
@@ -155,7 +157,10 @@ func (s *PaymentService) TestMoyNalogConnection(ctx context.Context) error {
 		return err
 	}
 	_, err = moynalog.NewClient(cfg.APIURL, cfg.Username, cfg.Password)
-	return err
+	if err != nil {
+		return errors.New(readableMoyNalogError(err))
+	}
+	return nil
 }
 
 func (s *PaymentService) MoyNalogReceipts(ctx context.Context, limit int) ([]database.MoyNalogReceipt, error) {

@@ -3,6 +3,7 @@ package moynalog
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,13 +16,16 @@ import (
 )
 
 var (
-	ErrAuth   = errors.New("authentication error")
-	ErrClient = errors.New("client error")
+	ErrAuth          = errors.New("authentication error")
+	ErrDeviceBlocked = errors.New("authentication device rejected")
+	ErrClient        = errors.New("client error")
 	// ErrUncertain means the request could have reached FNS. It must not be
 	// retried automatically because the income endpoint is not idempotent.
 	ErrUncertain = errors.New("receipt result is uncertain")
 	moscowZone   = time.FixedZone("MSK", 3*60*60)
 )
+
+const moyNalogUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
 type Client struct {
 	httpClient *http.Client
@@ -47,7 +51,7 @@ func NewClient(baseURL, username, password string) (*Client, error) {
 				TLSHandshakeTimeout: 10 * time.Second,
 			},
 		},
-		baseURL:  strings.TrimRight(strings.TrimSpace(baseURL), "/"),
+		baseURL:  normalizeBaseURL(baseURL),
 		username: strings.TrimSpace(username),
 		password: password,
 	}
@@ -93,9 +97,12 @@ func (c *Client) authenticateOnce() error {
 		Username: c.username,
 		Password: c.password,
 		DeviceInfo: DeviceInfo{
-			SourceDeviceId: "*",
+			SourceDeviceId: stableDeviceID(c.username),
 			SourceType:     "WEB",
 			AppVersion:     "1.0.0",
+			MetaDetails: MetaDetails{
+				UserAgent: moyNalogUserAgent,
+			},
 		},
 	})
 	if err != nil {
@@ -107,26 +114,56 @@ func (c *Client) authenticateOnce() error {
 		return err
 	}
 
-	req.Header.Set("Content-Type", "application/json")
+	setMoyNalogHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: auth request: %v", ErrClient, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("%w: status %d: %s", ErrAuth, resp.StatusCode, b)
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		kind := ErrClient
+		if resp.StatusCode == http.StatusUnauthorized {
+			kind = ErrAuth
+		} else if resp.StatusCode == http.StatusForbidden {
+			kind = ErrDeviceBlocked
+		}
+		return fmt.Errorf("%w: status %d: %s", kind, resp.StatusCode, strings.TrimSpace(string(b)))
 	}
 
 	var authResp AuthResponse
 	if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
-		return err
+		return fmt.Errorf("%w: decode auth response: %v", ErrClient, err)
+	}
+	if strings.TrimSpace(authResp.Token) == "" {
+		return fmt.Errorf("%w: auth response does not contain a token", ErrClient)
 	}
 
 	c.token.Store(authResp.Token)
 	return nil
+}
+
+func normalizeBaseURL(value string) string {
+	baseURL := strings.TrimRight(strings.TrimSpace(value), "/")
+	if strings.HasSuffix(strings.ToLower(baseURL), "/api") {
+		return baseURL + "/v1"
+	}
+	return baseURL
+}
+
+func stableDeviceID(username string) string {
+	sum := sha256.Sum256([]byte("link-bot-moynalog:" + strings.TrimSpace(username)))
+	return fmt.Sprintf("%x", sum)[:21]
+}
+
+func setMoyNalogHeaders(req *http.Request) {
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7")
+	req.Header.Set("Referer", "https://lknpd.nalog.ru/auth/login")
+	req.Header.Set("User-Agent", moyNalogUserAgent)
 }
 
 func (c *Client) CreateIncome(ctx context.Context, amount float64, comment string) (*CreateIncomeResponse, error) {
@@ -178,8 +215,7 @@ func (c *Client) createIncomeOnce(ctx context.Context, amount float64, comment s
 
 	token := c.token.Load().(string)
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json, text/plain, */*")
+	setMoyNalogHeaders(req)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	resp, err := c.httpClient.Do(req)

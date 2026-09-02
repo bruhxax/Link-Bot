@@ -10061,6 +10061,7 @@ async function submitP2PPayment() {
 			promoCode: getActivePromo()?.code || "",
 			p2pDestinationId: state.p2pDestinationId,
 			p2pSenderReference: state.p2pSenderReference.trim(),
+			returnTarget: clientSurface,
 		} : {
 			planId: plan?.id || "",
 			months: plan?.months || 0,
@@ -10071,6 +10072,7 @@ async function submitP2PPayment() {
 			deviceOnly: Boolean(context.deviceOnly),
 			p2pDestinationId: state.p2pDestinationId,
 			p2pSenderReference: state.p2pSenderReference.trim(),
+			returnTarget: clientSurface,
 		};
 		const response = await post(giftMode ? "/api/mini-app/gifts/purchase" : "/api/mini-app/purchase", payload);
 		if (response.data?.action !== "p2p_pending") throw new Error(localizedText("Не удалось отправить платёж на проверку", "Could not submit the payment", "ارسال پرداخت انجام نشد"));
@@ -10107,6 +10109,7 @@ async function startPayment({ deviceOnly = false } = {}) {
       promoCode: deviceOnly ? "" : (getActivePromo()?.code || ""),
 	  devicePackId: devicePack?.id || "",
 	  deviceOnly,
+	  returnTarget: clientSurface,
     });
     const { action, url, purchaseId } = response.data;
     if (action === "completed") {
@@ -10200,6 +10203,7 @@ async function startGiftPayment() {
 			months: Number(plan.months || 0),
 			paymentMethod: method,
 			promoCode: getActivePromo()?.code || "",
+			returnTarget: clientSurface,
 		});
 		const { action, url, purchaseId } = response.data || {};
 		if (action === "open_invoice") {

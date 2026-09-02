@@ -75,6 +75,7 @@ type CreatePurchaseOptions struct {
 	GiftToken               *uuid.UUID
 	P2PSenderReference      string
 	P2PDestination          database.P2PDestinationSnapshot
+	ReturnTarget            string
 }
 
 const freePlanRenewalWindow = 7 * 24 * time.Hour
@@ -974,7 +975,7 @@ func (s PaymentService) createYookasaInvoice(ctx context.Context, amount float64
 	if yookasaClient == nil {
 		return "", 0, errors.New("YooKassa не настроена")
 	}
-	invoice, err := yookasaClient.CreateInvoice(ctx, int(amount), months, customer.ID, purchaseId, s.buildYookassaReturnURL(purchaseId))
+	invoice, err := yookasaClient.CreateInvoice(ctx, int(amount), months, customer.ID, purchaseId, s.buildYookassaReturnURL(purchaseId, options.ReturnTarget))
 	if err != nil {
 		slog.Error("Error creating invoice", "error", err)
 		return "", 0, err
@@ -1026,7 +1027,7 @@ func (s PaymentService) createExternalInvoice(ctx context.Context, amount float6
 	created, err := s.integrationGateway.Create(ctx, integrations.CreatePaymentRequest{
 		Provider: provider, PurchaseID: purchaseID, Amount: amount, Currency: "RUB",
 		Description: fmt.Sprintf("Link-Bot: подписка на %d мес.", months), CustomerID: customer.ID,
-		Username: strings.TrimSpace(username), ReturnURL: s.buildYookassaReturnURL(purchaseID),
+		Username: strings.TrimSpace(username), ReturnURL: s.buildYookassaReturnURL(purchaseID, options.ReturnTarget),
 	})
 	if err != nil {
 		return "", 0, err
@@ -1951,7 +1952,7 @@ func (s PaymentService) SyncYookassaPurchaseStatus(ctx context.Context, purchase
 	return database.PurchaseStatusPaid, nil
 }
 
-func (s PaymentService) buildYookassaReturnURL(purchaseID int64) string {
+func (s PaymentService) buildYookassaReturnURL(purchaseID int64, returnTarget string) string {
 	base := config.GetMiniAppURL()
 	if base == "" {
 		base = config.BotURL()
@@ -1975,9 +1976,17 @@ func (s PaymentService) buildYookassaReturnURL(purchaseID int64) string {
 
 	query := parsed.Query()
 	query.Set("purchaseId", fmt.Sprintf("%d", purchaseID))
+	query.Set("returnTarget", normalizePaymentReturnTarget(returnTarget))
 	parsed.RawQuery = query.Encode()
 
 	return parsed.String()
+}
+
+func normalizePaymentReturnTarget(value string) string {
+	if strings.EqualFold(strings.TrimSpace(value), "web") {
+		return "web"
+	}
+	return "telegram"
 }
 
 func trimAutoPaymentError(message string) string {

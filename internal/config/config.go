@@ -775,7 +775,7 @@ func InitConfig() {
 
 	conf.isMoynalogEnabled = envBool("MOYNALOG_ENABLED")
 	if conf.isMoynalogEnabled {
-		conf.moynalogURL = envStringDefault("MOYNALOG_URL", "https://lknpd.nalog.ru/api")
+		conf.moynalogURL = envStringDefault("MOYNALOG_URL", "https://lknpd.nalog.ru/api/v1")
 		conf.moynalogUsername = mustEnv("MOYNALOG_USERNAME")
 		conf.moynalogPassword = mustEnv("MOYNALOG_PASSWORD")
 	}

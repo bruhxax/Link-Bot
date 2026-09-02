@@ -40,7 +40,7 @@ const (
 	DefaultP2PFooterText        = "Как только ваш перевод проверят, подписка автоматически начислится"
 	DefaultP2PSenderLabel       = "ФИО / номер счёта отправителя"
 	DefaultP2PSenderPlaceholder = "Например: Иван Иванов, карта •••• 1234"
-	DefaultMoyNalogAPIURL       = "https://lknpd.nalog.ru/api"
+	DefaultMoyNalogAPIURL       = "https://lknpd.nalog.ru/api/v1"
 	DefaultMoyNalogItemName     = "VPN-подписка"
 )
 
