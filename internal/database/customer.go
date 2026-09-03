@@ -85,7 +85,11 @@ var customerSelectColumns = []string{
 func scanCustomer(scanner interface {
 	Scan(dest ...interface{}) error
 }, customer *Customer) error {
-	return scanner.Scan(
+	return scanner.Scan(customerScanDestinations(customer)...)
+}
+
+func customerScanDestinations(customer *Customer) []interface{} {
+	return []interface{}{
 		&customer.ID,
 		&customer.TelegramID,
 		&customer.TelegramUsername,
@@ -111,7 +115,11 @@ func scanCustomer(scanner interface {
 		&customer.TelegramIDIsSynthetic,
 		&customer.IsBlocked,
 		&customer.BlockedAt,
-	)
+	}
+}
+
+func customerReturningClause() string {
+	return "RETURNING " + strings.Join(customerSelectColumns, ", ")
 }
 
 func (cr *CustomerRepository) FindByExpirationRange(ctx context.Context, startDate, endDate time.Time) (*[]Customer, error) {
@@ -411,11 +419,7 @@ func (cr *CustomerRepository) FindOrCreate(ctx context.Context, customer *Custom
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		ON CONFLICT (telegram_id) DO UPDATE SET telegram_id = customer.telegram_id
-			RETURNING id, telegram_id, telegram_username, expire_at, created_at, subscription_link, language, channel_subscription_verified_at, trial_used, autopay_enabled, autopay_plan_months,
-			          yookasa_payment_method_id, yookasa_payment_method_type, yookasa_payment_method_title, yookasa_payment_method_saved_at,
-			          yookasa_last_charge_at, yookasa_last_charge_status, yookasa_last_charge_error,
-			          google_subject, google_email, google_email_verified, google_linked_at, telegram_id_is_synthetic
-		`
+		` + customerReturningClause()
 
 	row := cr.pool.QueryRow(
 		ctx,
@@ -492,11 +496,7 @@ func (cr *CustomerRepository) FindOrCreateByGoogleIdentity(ctx context.Context, 
 		DO UPDATE SET
 			google_email = EXCLUDED.google_email,
 			google_email_verified = EXCLUDED.google_email_verified
-		RETURNING id, telegram_id, telegram_username, expire_at, created_at, subscription_link, language, channel_subscription_verified_at, trial_used, autopay_enabled, autopay_plan_months,
-		          yookasa_payment_method_id, yookasa_payment_method_type, yookasa_payment_method_title, yookasa_payment_method_saved_at,
-		          yookasa_last_charge_at, yookasa_last_charge_status, yookasa_last_charge_error,
-		          google_subject, google_email, google_email_verified, google_linked_at, telegram_id_is_synthetic
-	`
+	` + customerReturningClause()
 
 	var customer Customer
 	if err := scanCustomer(cr.pool.QueryRow(ctx, query, language, subject, email, verified), &customer); err != nil {
@@ -551,11 +551,7 @@ func (cr *CustomerRepository) LinkGoogleIdentity(ctx context.Context, customerID
 		    google_email_verified = $4,
 		    google_linked_at = COALESCE(google_linked_at, NOW())
 		WHERE id = $1
-		RETURNING id, telegram_id, telegram_username, expire_at, created_at, subscription_link, language, channel_subscription_verified_at, trial_used, autopay_enabled, autopay_plan_months,
-		          yookasa_payment_method_id, yookasa_payment_method_type, yookasa_payment_method_title, yookasa_payment_method_saved_at,
-		          yookasa_last_charge_at, yookasa_last_charge_status, yookasa_last_charge_error,
-		          google_subject, google_email, google_email_verified, google_linked_at, telegram_id_is_synthetic
-	`
+	` + customerReturningClause()
 
 	var result Customer
 	if err := scanCustomer(cr.pool.QueryRow(ctx, query, customerID, subject, email, verified), &result); err != nil {
