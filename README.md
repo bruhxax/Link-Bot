@@ -4,7 +4,7 @@
   <b>Русский</b> · <a href="README_EN.md">English</a>
 </p>
 
-<img src="docs/link-bot-overview.png" width="100%" alt="Интерфейс Link-Bot">
+<img src="docs/link-Bot.png" width="100%" alt="Интерфейс Link-Bot">
 
 # Link-Bot
 
