@@ -9,7 +9,15 @@ readonly GREEN='\033[32m'
 readonly CYAN='\033[36m'
 readonly WHITE='\033[97m'
 
-repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -n "${1:-}" ]]; then
+	repo_source="$1"
+else
+	repo_source="$(dirname -- "${BASH_SOURCE[0]}")"
+fi
+if ! repo_dir="$(cd -- "$repo_source" 2>/dev/null && pwd)"; then
+	printf "${RED}✕ Каталог Link-Bot не найден: %s${RESET}\n" "$repo_source" >&2
+	exit 1
+fi
 cd "$repo_dir"
 
 temporary_dir="$(mktemp -d)"
