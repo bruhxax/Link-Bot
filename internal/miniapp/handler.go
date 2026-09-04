@@ -81,6 +81,7 @@ type Handler struct {
 	logoUploadDir          string
 	webLogin               *webauth.Service
 	webPush                *webpush.Service
+	webPushNotifier        adminnotify.Notifier
 }
 
 func lockPromoPurchase(code string) func() {
@@ -136,6 +137,27 @@ type giftReceiptPayload struct {
 type brandPayload struct {
 	Name    string `json:"name"`
 	LogoURL string `json:"logoUrl"`
+}
+
+type pwaManifest struct {
+	Name            string            `json:"name"`
+	ShortName       string            `json:"short_name"`
+	Description     string            `json:"description"`
+	ID              string            `json:"id"`
+	StartURL        string            `json:"start_url"`
+	Scope           string            `json:"scope"`
+	Display         string            `json:"display"`
+	BackgroundColor string            `json:"background_color"`
+	ThemeColor      string            `json:"theme_color"`
+	Orientation     string            `json:"orientation"`
+	Icons           []pwaManifestIcon `json:"icons"`
+}
+
+type pwaManifestIcon struct {
+	Source  string `json:"src"`
+	Sizes   string `json:"sizes"`
+	Type    string `json:"type,omitempty"`
+	Purpose string `json:"purpose"`
 }
 
 type userPayload struct {
@@ -590,10 +612,11 @@ type adminWebPushUnsubscribeRequest struct {
 }
 
 const (
-	reviewRewardDays         = 2
-	reviewRewardTrafficBytes = int64(20 * 1024 * 1024 * 1024)
-	reviewListLimit          = 100
-	adminRebindPendingWindow = 24 * time.Hour
+	reviewRewardDays           = 2
+	reviewRewardTrafficBytes   = int64(20 * 1024 * 1024 * 1024)
+	reviewListLimit            = 100
+	adminRebindPendingWindow   = 24 * time.Hour
+	supportNotificationTimeout = 20 * time.Second
 )
 
 func NewHandler(
@@ -655,6 +678,7 @@ func NewHandler(
 func (h *Handler) SetWebPushService(service *webpush.Service) {
 	if h != nil {
 		h.webPush = service
+		h.webPushNotifier = service
 	}
 }
 
@@ -666,6 +690,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/mini-app/open-app", h.serveAppOpener)
 	mux.HandleFunc("/mini-app/payment-return", h.handlePaymentReturnRedirect)
 	mux.HandleFunc("/mini-app/google/callback", h.serveGoogleLinkCallback)
+	mux.HandleFunc("/mini-app/manifest.webmanifest", h.serveManifest)
 	mux.HandleFunc("/mini-app/uploads/", h.serveUploadedLogo)
 	mux.HandleFunc("/mini-app/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/mini-app/" {
@@ -782,6 +807,10 @@ func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
 		settings = h.runtimeSettings.Snapshot()
 	}
 	page := settings.Content.WebPage
+	manifest := buildPWAManifest(settings, h.assetVersion)
+	manifestData, _ := json.Marshal(manifest)
+	manifestHash := sha256.Sum256(manifestData)
+	manifestVersion := fmt.Sprintf("%x", manifestHash[:8])
 	faviconURL := page.FaviconURL
 	if faviconURL == "/mini-app/assets/brand-mark.png" {
 		faviconURL += "?v=" + h.assetVersion
@@ -792,8 +821,99 @@ func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
 	data = bytes.ReplaceAll(data, []byte("__PAGE_TITLE__"), []byte(html.EscapeString(page.Title)))
 	data = bytes.ReplaceAll(data, []byte("__PAGE_DESCRIPTION__"), []byte(html.EscapeString(page.Description)))
 	data = bytes.ReplaceAll(data, []byte("__FAVICON_URL__"), []byte(html.EscapeString(faviconURL)))
+	data = bytes.ReplaceAll(data, []byte("__PWA_NAME__"), []byte(html.EscapeString(manifest.Name)))
+	data = bytes.ReplaceAll(data, []byte("__PWA_BRAND_VERSION__"), []byte(manifestVersion))
 	data = bytes.ReplaceAll(data, []byte("__ASSET_VERSION__"), []byte(h.assetVersion))
 	_, _ = w.Write(data)
+}
+
+func (h *Handler) serveManifest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	settings := runtimeconfig.DefaultSettings()
+	if h.runtimeSettings != nil {
+		settings = h.runtimeSettings.Snapshot()
+	}
+	payload, err := json.Marshal(buildPWAManifest(settings, h.assetVersion))
+	if err != nil {
+		http.Error(w, "manifest is unavailable", http.StatusInternalServerError)
+		return
+	}
+
+	setCommonSecurityHeaders(w)
+	w.Header().Set("Content-Type", "application/manifest+json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if r.Method == http.MethodHead {
+		return
+	}
+	_, _ = w.Write(payload)
+}
+
+func buildPWAManifest(settings runtimeconfig.Settings, assetVersion string) pwaManifest {
+	defaults := runtimeconfig.DefaultSettings()
+	name := fallbackText(settings.Content.BrandName, fallbackText(settings.Content.WebPage.Title, defaults.Content.BrandName))
+	description := fallbackText(settings.Content.WebPage.Description, name+" Mini App")
+	background := fallbackText(settings.Appearance.Colors["background"], "#000000")
+	logoURL := strings.TrimSpace(settings.Content.LogoURL)
+	icons := []pwaManifestIcon{
+		{Source: versionedPWAAsset("/mini-app/assets/pwa-192.png", assetVersion), Sizes: "192x192", Type: "image/png", Purpose: "any maskable"},
+		{Source: versionedPWAAsset("/mini-app/assets/pwa-512.png", assetVersion), Sizes: "512x512", Type: "image/png", Purpose: "any maskable"},
+	}
+	if logoURL != "" && logoURL != defaults.Content.LogoURL {
+		iconType := pwaIconContentType(logoURL)
+		icons = []pwaManifestIcon{
+			{Source: logoURL, Sizes: "192x192", Type: iconType, Purpose: "any"},
+			{Source: logoURL, Sizes: "512x512", Type: iconType, Purpose: "any"},
+		}
+	}
+	return pwaManifest{
+		Name:            name,
+		ShortName:       truncatePWAName(name, 30),
+		Description:     description,
+		ID:              "/mini-app/",
+		StartURL:        "/mini-app/",
+		Scope:           "/mini-app/",
+		Display:         "standalone",
+		BackgroundColor: background,
+		ThemeColor:      background,
+		Orientation:     "portrait",
+		Icons:           icons,
+	}
+}
+
+func versionedPWAAsset(assetURL, assetVersion string) string {
+	if strings.TrimSpace(assetVersion) == "" {
+		return assetURL
+	}
+	return assetURL + "?v=" + url.QueryEscape(assetVersion)
+}
+
+func pwaIconContentType(iconURL string) string {
+	parsed, err := url.Parse(iconURL)
+	if err != nil {
+		return ""
+	}
+	switch strings.ToLower(path.Ext(parsed.Path)) {
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".webp":
+		return "image/webp"
+	default:
+		return ""
+	}
+}
+
+func truncatePWAName(value string, limit int) string {
+	runes := []rune(strings.TrimSpace(value))
+	if limit <= 0 || len(runes) <= limit {
+		return string(runes)
+	}
+	return string(runes[:limit])
 }
 
 func (h *Handler) serveAppOpener(w http.ResponseWriter, r *http.Request) {
@@ -5390,7 +5510,7 @@ func (h *Handler) notifySupportAsync(fn func(context.Context)) {
 		return
 	}
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), supportNotificationTimeout)
 		defer cancel()
 		fn(ctx)
 	}()
@@ -5410,7 +5530,7 @@ func (h *Handler) notifyAdminAboutSupportReply(ctx context.Context, ticket *data
 }
 
 func (h *Handler) notifyAdminAboutSupportByPush(ctx context.Context, title string, ticket *database.SupportTicket, tagPrefix string) {
-	if h.webPush == nil || ticket == nil {
+	if h.webPushNotifier == nil || ticket == nil {
 		return
 	}
 	identity := formatUsername(ticket.CustomerUsername)
@@ -5418,7 +5538,7 @@ func (h *Handler) notifyAdminAboutSupportByPush(ctx context.Context, title strin
 		identity = fallbackText(ticket.CustomerName, "Пользователь")
 	}
 	body := strings.Join([]string{identity, fallbackText(ticket.Subject, "Без темы")}, " · ")
-	if err := h.webPush.Notify(ctx, adminnotify.Event{
+	if err := h.webPushNotifier.Notify(ctx, adminnotify.Event{
 		Title: title,
 		Body:  body,
 		URL:   "/mini-app/?page=support",

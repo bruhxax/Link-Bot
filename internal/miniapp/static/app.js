@@ -11437,12 +11437,13 @@ function applyWebPageMetadata() {
 	const content = getRuntimeSettings()?.content || {};
 	const page = content.webPage || {};
 	const title = String(page.title || content.brandName || "Link-Bot").trim() || "Link-Bot";
+	const appName = String(content.brandName || title).trim() || title;
 	const description = String(page.description || `${title} Mini App`).trim();
 	const faviconURL = resolveBrandMarkURL(page.faviconUrl || BRAND_MARK_PATH);
 	document.title = title;
 	for (const name of ["application-name", "apple-mobile-web-app-title"]) {
 		const meta = document.querySelector(`meta[name="${name}"]`);
-		if (meta) meta.setAttribute("content", title);
+		if (meta) meta.setAttribute("content", appName);
 	}
 	const descriptionMeta = document.querySelector('meta[name="description"]');
 	if (descriptionMeta) descriptionMeta.setAttribute("content", description);

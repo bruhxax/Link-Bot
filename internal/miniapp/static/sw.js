@@ -15,10 +15,11 @@ self.addEventListener("push", (event) => {
   }
 
   const title = String(data.title || "Новое событие");
+  const icon = String(data.icon || "/mini-app/assets/pwa-192.png?v=20260720-brand2");
   const options = {
     body: String(data.body || "Откройте Link-Bot, чтобы посмотреть подробности"),
-    icon: "/mini-app/assets/pwa-192.png?v=20260720-brand2",
-    badge: "/mini-app/assets/pwa-192.png?v=20260720-brand2",
+    icon,
+    badge: icon,
     tag: String(data.tag || "admin-event"),
     renotify: false,
     data: {

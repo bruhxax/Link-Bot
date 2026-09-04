@@ -97,6 +97,11 @@ func main() {
 	if err != nil {
 		slog.Error("admin web push disabled", "error", err)
 		webPushService = nil
+	} else {
+		webPushService.SetBrandingProvider(func() webpush.Branding {
+			settings := runtimeSettings.Snapshot()
+			return webpush.Branding{IconURL: settings.Content.LogoURL}
+		})
 	}
 
 	cryptoPayClient := cryptopay.NewCryptoPayClient(config.CryptoPayUrl(), config.CryptoPayToken())

@@ -3,6 +3,8 @@ package miniapp
 import (
 	"strings"
 	"testing"
+
+	"link-bot/internal/runtimeconfig"
 )
 
 func TestAdminWebPushUIRequiresDirectPermissionGestureAndHomeScreen(t *testing.T) {
@@ -44,6 +46,7 @@ func TestServiceWorkerAlwaysShowsPushAndOpensTarget(t *testing.T) {
 		`self.addEventListener("notificationclick"`,
 		`self.clients.openWindow(target)`,
 		`self.navigator.setAppBadge`,
+		`data.icon`,
 	} {
 		if !strings.Contains(source, required) {
 			t.Fatalf("sw.js is missing Web Push fragment %q", required)
@@ -52,12 +55,17 @@ func TestServiceWorkerAlwaysShowsPushAndOpensTarget(t *testing.T) {
 }
 
 func TestManifestIsInstallableHomeScreenApp(t *testing.T) {
-	manifest, err := embeddedStatic.ReadFile("static/manifest.webmanifest")
-	if err != nil {
-		t.Fatalf("read manifest: %v", err)
+	settings := runtimeconfig.DefaultSettings()
+	settings.Content.BrandName = "Bruh VPN"
+	settings.Content.LogoURL = "/mini-app/uploads/logo-0123456789abcdef.png"
+	manifest := buildPWAManifest(settings, "test-version")
+	if manifest.ID != "/mini-app/" || manifest.Display != "standalone" {
+		t.Fatalf("manifest is missing installable app identity: %+v", manifest)
 	}
-	source := string(manifest)
-	if !strings.Contains(source, `"id": "/mini-app/"`) || !strings.Contains(source, `"display": "standalone"`) {
-		t.Fatalf("manifest is missing installable app identity: %s", source)
+	if manifest.Name != "Bruh VPN" || manifest.ShortName != "Bruh VPN" {
+		t.Fatalf("manifest brand = %q / %q", manifest.Name, manifest.ShortName)
+	}
+	if len(manifest.Icons) != 2 || manifest.Icons[0].Source != settings.Content.LogoURL || manifest.Icons[1].Source != settings.Content.LogoURL {
+		t.Fatalf("manifest icons do not use the uploaded logo: %+v", manifest.Icons)
 	}
 }
