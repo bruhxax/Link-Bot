@@ -135,11 +135,38 @@ function registerPWAServiceWorker() {
 	if ("clearAppBadge" in navigator) navigator.clearAppBadge().catch(() => {});
 }
 
+const WEB_PUSH_WORKER_TIMEOUT_MS = 12000;
+const WEB_PUSH_SUBSCRIPTION_TIMEOUT_MS = 20000;
+
+function withWebPushTimeout(promise, timeoutMs, message, code) {
+	let timeoutID = 0;
+	const timeoutPromise = new Promise((_, reject) => {
+		timeoutID = window.setTimeout(() => {
+			const error = new Error(message);
+			error.code = code;
+			reject(error);
+		}, timeoutMs);
+	});
+	return Promise.race([Promise.resolve(promise), timeoutPromise]).finally(() => window.clearTimeout(timeoutID));
+}
+
 async function getPWAServiceWorkerRegistration() {
 	if (!("serviceWorker" in navigator) || window.location.protocol !== "https:") return null;
-	const current = await navigator.serviceWorker.getRegistration("/mini-app/");
-	if (current) return current;
-	return navigator.serviceWorker.register("/mini-app/sw.js", { scope: "/mini-app/" });
+	const registration = await withWebPushTimeout(
+		navigator.serviceWorker.register("/mini-app/sw.js", { scope: "/mini-app/" }),
+		WEB_PUSH_WORKER_TIMEOUT_MS,
+		"iPhone не завершил подготовку уведомлений. Полностью закройте Link-Bot, откройте снова и повторите.",
+		"push_worker_timeout",
+	);
+	if (registration.active?.state === "activated") return registration;
+	const ready = await withWebPushTimeout(
+		navigator.serviceWorker.ready,
+		WEB_PUSH_WORKER_TIMEOUT_MS,
+		"iPhone не активировал уведомления. Полностью закройте Link-Bot, откройте снова и повторите.",
+		"push_worker_timeout",
+	);
+	if (!ready?.active) throw new Error("Не удалось активировать системные уведомления");
+	return ready;
 }
 
 function configureBackgroundPerformance() {
@@ -1977,6 +2004,7 @@ const state = {
 	adminFinanceAnimate: false,
 	adminPush: null,
 	adminPushBusy: "",
+	adminPushError: "",
 	adminUsers: { items: [], total: 0, limit: 30, offset: 0 },
 	adminUsersQuery: "",
 	adminUsersBusy: "",
@@ -3503,6 +3531,7 @@ function adminPushStatusCopy() {
 	if (!environment.supported) return ["Уведомления не поддерживаются", "Откройте сайт в актуальной версии Safari или другом браузере с поддержкой Web Push."];
 	if (!push.available) return ["Сервис временно недоступен", "Перезапустите Link-Bot после применения миграций и попробуйте снова."];
 	if (push.permission === "denied") return ["Уведомления заблокированы", "Разрешите уведомления для Link-Bot в настройках iPhone, затем вернитесь сюда."];
+	if (state.adminPushError) return ["Не удалось включить уведомления", state.adminPushError];
 	if (push.subscribed) return ["Уведомления включены", "Сайт можно закрыть — важные события всё равно появятся на экране блокировки."];
 	return ["Уведомления выключены", "Включите их один раз на этом устройстве. Telegram для доставки не используется."];
 }
@@ -3518,9 +3547,9 @@ function renderAdminPushPage() {
 	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-push ${loading ? "is-loading" : ""}">
 		<header class="admin-push__header"><span>СИСТЕМА</span><h2>Push-уведомления</h2><p>Системные уведомления для администратора без отдельного приложения.</p></header>
 		<section class="admin-push__surface" aria-labelledby="admin-push-status-title" aria-busy="${Boolean(state.adminPushBusy)}">
-			<div class="admin-push__status ${enabled ? "is-enabled" : ""}" aria-live="polite"><span class="admin-push__status-icon" aria-hidden="true">${icon("adminPush")}<i></i></span><div><h3 id="admin-push-status-title">${escapeHtml(statusTitle)}</h3><p>${escapeHtml(statusText)}</p></div></div>
+			<div class="admin-push__status ${enabled ? "is-enabled" : ""}" aria-live="polite" ${state.adminPushError ? `role="alert"` : ""}><span class="admin-push__status-icon" aria-hidden="true">${icon("adminPush")}<i></i></span><div><h3 id="admin-push-status-title">${escapeHtml(statusTitle)}</h3><p>${escapeHtml(statusText)}</p></div></div>
 			<div class="admin-push__events" aria-label="События для уведомлений"><div><span aria-hidden="true">${icon("wallet")}</span><p><strong>Оплаты</strong><small>Сумма, тариф, способ оплаты и @username</small></p></div><div><span aria-hidden="true">${icon("sms")}</span><p><strong>Обращения</strong><small>Новые тикеты и ответы пользователей</small></p></div><div><span aria-hidden="true">${icon("alert")}</span><p><strong>Диагностика</strong><small>Ошибки и важные сбои сервисов</small></p></div></div>
-			<div class="admin-push__footer"><p>${count > 0 ? `Подключено устройств: <strong>${count.toLocaleString("ru-RU")}</strong>` : "Подключённых устройств пока нет"}</p><div class="admin-push__actions">${push.subscribed ? `${enabled ? `<button type="button" class="is-primary" data-action="admin-push-test" ${state.adminPushBusy ? "disabled" : ""}>${icon(state.adminPushBusy === "test" ? "refresh" : "send")}<span>Проверить</span></button>` : ""}<button type="button" data-action="admin-push-disable" ${state.adminPushBusy ? "disabled" : ""}>Отключить на этом устройстве</button>` : `<button type="button" class="is-primary" data-action="admin-push-enable" ${canEnable ? "" : "disabled"}>${icon(state.adminPushBusy === "enable" ? "refresh" : "adminPush")}<span>Включить уведомления</span></button>`}</div></div>
+			<div class="admin-push__footer"><p>${count > 0 ? `Подключено устройств: <strong>${count.toLocaleString("ru-RU")}</strong>` : "Подключённых устройств пока нет"}</p><div class="admin-push__actions">${push.subscribed ? `${enabled ? `<button type="button" class="is-primary" data-action="admin-push-test" ${state.adminPushBusy ? "disabled" : ""}>${icon(state.adminPushBusy === "test" ? "refresh" : "send")}<span>Проверить</span></button>` : ""}<button type="button" data-action="admin-push-disable" ${state.adminPushBusy ? "disabled" : ""}>Отключить на этом устройстве</button>` : `<button type="button" class="is-primary" data-action="admin-push-enable" ${canEnable ? "" : "disabled"}>${icon(state.adminPushBusy === "enable" ? "refresh" : "adminPush")}<span>${state.adminPushError ? "Повторить" : "Включить уведомления"}</span></button>`}</div></div>
 		</section>
 		<p class="admin-push__privacy">Текст уведомления может быть виден на экране блокировки. Секреты, токены и содержимое обращения в push не отправляются.</p>
 	</div></section>`;
@@ -3528,8 +3557,26 @@ function renderAdminPushPage() {
 
 async function currentAdminPushSubscription() {
 	const registration = await getPWAServiceWorkerRegistration();
-	if (!registration) return null;
-	return registration.pushManager.getSubscription();
+	if (!registration?.pushManager) return null;
+	return withWebPushTimeout(
+		registration.pushManager.getSubscription(),
+		WEB_PUSH_WORKER_TIMEOUT_MS,
+		"iPhone не ответил на запрос уведомлений. Полностью закройте Link-Bot, откройте снова и повторите.",
+		"push_subscription_state_timeout",
+	);
+}
+
+async function syncAdminPushSubscription(subscription) {
+	if (!subscription || typeof subscription.toJSON !== "function") throw new Error("iPhone не создал подписку на уведомления");
+	const response = await post("/api/mini-app/admin/push/subscribe", subscription.toJSON());
+	return response.data || {};
+}
+
+function adminPushErrorMessage(error) {
+	if (error?.code === "push_subscribe_timeout") return "iPhone не завершил подписку. Нажмите «Повторить»; если не поможет, полностью закройте Link-Bot и откройте снова.";
+	if (error?.name === "InvalidStateError") return "iPhone ещё не активировал сайт. Полностью закройте Link-Bot, откройте снова и нажмите «Повторить».";
+	if (error?.name === "NotAllowedError") return "Разрешите уведомления для Link-Bot в настройках iPhone и повторите.";
+	return error?.message || "Не удалось подключить уведомления. Нажмите «Повторить».";
 }
 
 async function refreshAdminPush() {
@@ -3540,19 +3587,25 @@ async function refreshAdminPush() {
 		return;
 	}
 	state.adminPushBusy = "state";
+	state.adminPushError = "";
 	render({ preserveScroll: true });
 	try {
 		const response = await post("/api/mini-app/admin/push/state", {});
+		let remoteState = response.data || {};
 		const environment = adminPushEnvironment();
 		let subscription = null;
 		if (environment.supported && !environment.insideTelegram && !environment.installRequired) {
 			subscription = await currentAdminPushSubscription();
+			if (subscription) remoteState = await syncAdminPushSubscription(subscription);
 		}
 		state.adminPush = {
-			...(response.data || {}),
+			...remoteState,
 			subscribed: Boolean(subscription),
 			permission: "Notification" in window ? Notification.permission : "default",
 		};
+	} catch (error) {
+		state.adminPushError = adminPushErrorMessage(error);
+		throw error;
 	} finally {
 		state.adminPushBusy = "";
 		render({ preserveScroll: true });
@@ -3569,6 +3622,7 @@ function urlBase64ToUint8Array(value) {
 async function enableAdminPush() {
 	const environment = adminPushEnvironment();
 	if (!environment.supported || environment.insideTelegram || environment.installRequired || !state.adminPush?.available) return;
+	state.adminPushError = "";
 	const permission = await Notification.requestPermission();
 	if (permission !== "granted") {
 		state.adminPush = { ...(state.adminPush || {}), permission, subscribed: false };
@@ -3579,24 +3633,50 @@ async function enableAdminPush() {
 	state.adminPushBusy = "enable";
 	render({ preserveScroll: true });
 	let subscription = null;
-	let created = false;
 	try {
 		const registration = await getPWAServiceWorkerRegistration();
-		if (!registration) throw new Error("Service Worker недоступен");
-		subscription = await registration.pushManager.getSubscription();
+		if (!registration?.pushManager) throw new Error("Service Worker недоступен");
+		subscription = await withWebPushTimeout(
+			registration.pushManager.getSubscription(),
+			WEB_PUSH_WORKER_TIMEOUT_MS,
+			"iPhone не ответил на запрос уведомлений. Полностью закройте Link-Bot, откройте снова и повторите.",
+			"push_subscription_state_timeout",
+		);
 		if (!subscription) {
-			subscription = await registration.pushManager.subscribe({
-			userVisibleOnly: true,
-			applicationServerKey: urlBase64ToUint8Array(state.adminPush.publicKey),
+			const subscriptionPromise = registration.pushManager.subscribe({
+				userVisibleOnly: true,
+				applicationServerKey: urlBase64ToUint8Array(state.adminPush.publicKey),
 			});
-			created = true;
+			try {
+				subscription = await withWebPushTimeout(
+					subscriptionPromise,
+					WEB_PUSH_SUBSCRIPTION_TIMEOUT_MS,
+					"iPhone не завершил подписку на уведомления",
+					"push_subscribe_timeout",
+				);
+			} catch (error) {
+				if (error?.code === "push_subscribe_timeout") {
+					void subscriptionPromise.then(async (lateSubscription) => {
+						try {
+							const data = await syncAdminPushSubscription(lateSubscription);
+							state.adminPush = { ...data, subscribed: true, permission: "granted" };
+							state.adminPushError = "";
+							render({ preserveScroll: true });
+							showToast("Push-уведомления включены", "success");
+						} catch (_) { /* the retry button will resync the local subscription */ }
+					}).catch(() => {});
+				}
+				throw error;
+			}
 		}
-		const response = await post("/api/mini-app/admin/push/subscribe", subscription.toJSON());
-		state.adminPush = { ...(response.data || {}), subscribed: true, permission: "granted" };
+		const data = await syncAdminPushSubscription(subscription);
+		state.adminPush = { ...data, subscribed: true, permission: "granted" };
+		state.adminPushError = "";
 		showToast("Push-уведомления включены", "success");
 	} catch (error) {
-		if (created && subscription) await subscription.unsubscribe().catch(() => {});
-		throw error;
+		state.adminPush = { ...(state.adminPush || {}), subscribed: false, permission: Notification.permission };
+		state.adminPushError = adminPushErrorMessage(error);
+		showToast(state.adminPushError, "danger");
 	} finally {
 		state.adminPushBusy = "";
 		render({ preserveScroll: true });

@@ -14,9 +14,13 @@ func TestAdminWebPushUIRequiresDirectPermissionGestureAndHomeScreen(t *testing.T
 	for _, required := range []string{
 		`Push-уведомления`,
 		`Notification.requestPermission()`,
+		`navigator.serviceWorker.ready`,
+		`withWebPushTimeout(`,
+		`push_subscribe_timeout`,
 		`registration.pushManager.subscribe({`,
 		`userVisibleOnly: true`,
 		`applicationServerKey: urlBase64ToUint8Array`,
+		`if (subscription) remoteState = await syncAdminPushSubscription(subscription);`,
 		`/api/mini-app/admin/push/subscribe`,
 		`/api/mini-app/admin/push/unsubscribe`,
 		`/api/mini-app/admin/push/test`,
