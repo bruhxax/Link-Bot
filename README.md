@@ -59,7 +59,7 @@
 Управляйте системой, интерфейсом, тарифами, интеграциями, рассылками, промокодами и другими функциями прямо из Mini App.
 
 <div align="center">
-  <img src="docs/link-bot-admin.png" width="100%" alt="Админ-панель Link-Bot">
+  <img src="docs/admin-menu.png" width="100%" alt="Админ-панель Link-Bot">
 </div>
 
 ---
