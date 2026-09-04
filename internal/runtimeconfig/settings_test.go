@@ -725,6 +725,55 @@ func TestNormalizeAndValidateGrid2Appearance(t *testing.T) {
 	}
 }
 
+func TestNormalizeAndValidateLiquidBackgroundAppearance(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Appearance.BackgroundMode = "liquid1"
+	settings.Appearance.Liquid = nil
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	for _, mode := range []string{"liquid1", "liquid2"} {
+		background, ok := settings.Appearance.Liquid[mode]
+		if !ok {
+			t.Fatalf("liquid background %q is missing", mode)
+		}
+		if len(background.Colors) != 4 {
+			t.Fatalf("liquid background %q colors = %d, want 4", mode, len(background.Colors))
+		}
+		if background.Colors[0] != "#000000" || background.Colors[1] != "#1646ff" || background.Colors[2] != "#7226ff" || background.Colors[3] != "#ffffff" {
+			t.Fatalf("liquid background %q defaults = %#v", mode, background.Colors)
+		}
+		if background.Speed < 10 || background.Speed > 100 {
+			t.Fatalf("liquid background %q speed = %d", mode, background.Speed)
+		}
+	}
+
+	custom := settings.Appearance.Liquid["liquid2"]
+	custom.Colors = []string{"#010101", "#123456", "#abcdef", "#fefefe"}
+	custom.Dimming = 0
+	custom.Speed = 100
+	settings.Appearance.Liquid["liquid2"] = custom
+	settings.Appearance.BackgroundMode = "liquid2"
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate(custom) error = %v", err)
+	}
+	if got := settings.Appearance.Liquid["liquid2"]; got.Dimming != 0 || got.Speed != 100 || got.Colors[2] != "#abcdef" {
+		t.Fatalf("custom liquid background was not preserved: %+v", got)
+	}
+}
+
+func TestNormalizeAndValidateRejectsInvalidLiquidBackgroundDimming(t *testing.T) {
+	settings := DefaultSettings()
+	background := settings.Appearance.Liquid["liquid1"]
+	background.Dimming = 81
+	settings.Appearance.Liquid["liquid1"] = background
+
+	if err := NormalizeAndValidate(&settings); err == nil {
+		t.Fatal("NormalizeAndValidate() accepted invalid liquid background dimming")
+	}
+}
+
 func TestNormalizeAndValidateKeepsFreeEditorGeometry(t *testing.T) {
 	settings := DefaultSettings()
 	positionX, positionY := 1870.5, -2910.25

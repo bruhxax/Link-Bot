@@ -23,7 +23,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 18
+const CurrentVersion = 19
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -218,10 +218,17 @@ type TelegramButtonSettings struct {
 }
 
 type AppearanceSettings struct {
-	BackgroundMode string            `json:"backgroundMode"`
-	Colors         map[string]string `json:"colors"`
-	Compact        bool              `json:"compact"`
-	ShowFrames     bool              `json:"showFrames"`
+	BackgroundMode string                              `json:"backgroundMode"`
+	Colors         map[string]string                   `json:"colors"`
+	Liquid         map[string]LiquidBackgroundSettings `json:"liquid"`
+	Compact        bool                                `json:"compact"`
+	ShowFrames     bool                                `json:"showFrames"`
+}
+
+type LiquidBackgroundSettings struct {
+	Colors  []string `json:"colors"`
+	Dimming int      `json:"dimming"`
+	Speed   int      `json:"speed"`
 }
 
 type LayoutElement struct {
@@ -508,6 +515,18 @@ func DefaultSettings() Settings {
 			BackgroundMode: "animated",
 			Compact:        true,
 			ShowFrames:     true,
+			Liquid: map[string]LiquidBackgroundSettings{
+				"liquid1": {
+					Colors:  []string{"#000000", "#1646ff", "#7226ff", "#ffffff"},
+					Dimming: 26,
+					Speed:   35,
+				},
+				"liquid2": {
+					Colors:  []string{"#000000", "#1646ff", "#7226ff", "#ffffff"},
+					Dimming: 38,
+					Speed:   30,
+				},
+			},
 			Colors: map[string]string{
 				"background":      "#000000",
 				"surface":         "#08090c",
@@ -1483,8 +1502,8 @@ func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings) 
 	if value.BackgroundMode == "" {
 		value.BackgroundMode = defaults.BackgroundMode
 	}
-	if value.BackgroundMode != "animated" && value.BackgroundMode != "grid" && value.BackgroundMode != "grid2" && value.BackgroundMode != "solid" {
-		return errors.New("background mode must be animated, grid, grid2 or solid")
+	if value.BackgroundMode != "animated" && value.BackgroundMode != "grid" && value.BackgroundMode != "grid2" && value.BackgroundMode != "liquid1" && value.BackgroundMode != "liquid2" && value.BackgroundMode != "solid" {
+		return errors.New("background mode must be animated, grid, grid2, liquid1, liquid2 or solid")
 	}
 	if value.Colors == nil {
 		value.Colors = map[string]string{}
@@ -1502,6 +1521,40 @@ func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings) 
 	for name := range value.Colors {
 		if _, ok := defaults.Colors[name]; !ok {
 			delete(value.Colors, name)
+		}
+	}
+	if value.Liquid == nil {
+		value.Liquid = map[string]LiquidBackgroundSettings{}
+	}
+	for name, fallback := range defaults.Liquid {
+		current, exists := value.Liquid[name]
+		if !exists {
+			current = fallback
+		}
+		if len(current.Colors) != len(fallback.Colors) {
+			current.Colors = append([]string(nil), fallback.Colors...)
+		}
+		for index, fallbackColor := range fallback.Colors {
+			color := strings.ToLower(strings.TrimSpace(current.Colors[index]))
+			if color == "" {
+				color = fallbackColor
+			}
+			if !hexColorPattern.MatchString(color) {
+				return fmt.Errorf("invalid liquid background color %q", name)
+			}
+			current.Colors[index] = color
+		}
+		if current.Dimming < 0 || current.Dimming > 80 {
+			return fmt.Errorf("liquid background dimming %q must be between 0 and 80", name)
+		}
+		if current.Speed < 10 || current.Speed > 100 {
+			current.Speed = fallback.Speed
+		}
+		value.Liquid[name] = current
+	}
+	for name := range value.Liquid {
+		if _, ok := defaults.Liquid[name]; !ok {
+			delete(value.Liquid, name)
 		}
 	}
 	return nil

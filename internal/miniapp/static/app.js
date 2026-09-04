@@ -1636,6 +1636,20 @@ const ADMIN_LAYOUT_DEFAULTS = [
 ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "promo_widget", order: 18, visible: false, width: 42, height: 92, framed: false, align: "center", offsetX: 0, offsetY: 0, promoCode: "", iconBubble: true });
 ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "notification_widget", order: 19, visible: false, width: 42, height: 92, framed: false, align: "center", offsetX: 0, offsetY: 0, notificationText: "", iconBubble: true });
 
+const DEFAULT_LIQUID_BACKGROUNDS = Object.freeze({
+	liquid1: { colors: ["#000000", "#1646ff", "#7226ff", "#ffffff"], dimming: 26, speed: 35 },
+	liquid2: { colors: ["#000000", "#1646ff", "#7226ff", "#ffffff"], dimming: 38, speed: 30 },
+});
+
+const ADMIN_BACKGROUND_OPTIONS = [
+	["animated", "Волны", "Точки и мягкие волны"],
+	["grid", "Движущаяся сетка", "Диагональное движение"],
+	["grid2", "Сетка 2", "Вертикальная сетка и свечение"],
+	["liquid1", "Жидкое стекло 1", "Яркий перелив с зерном"],
+	["liquid2", "Жидкое стекло 2", "Тёмный мягкий перелив"],
+	["solid", "Сплошной цвет", "Чистый однотонный фон"],
+];
+
 const ADMIN_APPEARANCE_PRESETS = [
 	{
 		id: "black-white",
@@ -1866,7 +1880,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 function buildPreviewRuntimeSettings() {
 	const features = Object.fromEntries(["mini_app", "stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "payments_history", "gifts", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
-		version: 18,
+		version: 19,
 		localization: { language: "ru", fontFamily: "auto" },
 		maintenance: { enabled: false, titleRu: "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u044b", textRu: "", reasonRu: "" },
 		features,
@@ -1882,7 +1896,7 @@ function buildPreviewRuntimeSettings() {
 			},
 			paymentNotification: { text: "💳 <b>Оплата:</b> <b>{{price}}</b>\n\n▦ <b>Тариф:</b> <b>{{sub}}</b>\n▦ <b>Доп. устройства:</b> <b>{{device}}</b>\n✈ <b>Telegram:</b> <b>{{username}}</b>\n◷ <b>Время:</b> <b>{{data}}</b>\n⚙ <b>Способ:</b> <b>{{integration}}</b>\n🏷 <b>Промокод:</b> <b>{{promo}}</b>\n▣ <b>Заказ:</b> <code>{{number}}</code>", openUserButton: { enabled: true, text: "Открыть пользователя в панели", iconCustomEmojiId: "", style: "primary" }, profileButton: { enabled: true, text: "Профиль", iconCustomEmojiId: "", style: "" } },
 		},
-		appearance: { backgroundMode: "animated", compact: true, showFrames: true, colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", waveBackground: "#000000", waveDot: "#ebebeb" } },
+		appearance: { backgroundMode: "animated", compact: true, showFrames: true, liquid: deepClone(DEFAULT_LIQUID_BACKGROUNDS), colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", waveBackground: "#000000", waveDot: "#ebebeb" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, titleFa: `${plan.months} \u0645\u0627\u0647`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
 		devicePacks: [],
@@ -2085,7 +2099,7 @@ function t() {
 }
 
 function getRuntimeSettings() {
-	if ((state.adminLayoutEditing || state.adminPlanEditing) && state.adminSettingsDraft) return state.adminSettingsDraft;
+	if ((state.adminLayoutEditing || state.adminPlanEditing || state.adminSection === "appearance") && state.adminSettingsDraft) return state.adminSettingsDraft;
 	return state.data?.runtime || state.publicSettings || state.adminSettingsDraft || null;
 }
 
@@ -4756,18 +4770,71 @@ function renderAdminAppearancePresets() {
 	</section>`;
 }
 
+function getAdminLiquidSettings(mode) {
+	const fallback = DEFAULT_LIQUID_BACKGROUNDS[mode] || DEFAULT_LIQUID_BACKGROUNDS.liquid1;
+	const current = getDeepValue(state.adminSettingsDraft, `appearance.liquid.${mode}`, {}) || {};
+	const colors = Array.from({ length: 4 }, (_, index) => String(current.colors?.[index] || fallback.colors[index]));
+	return {
+		colors,
+		dimming: Math.max(0, Math.min(80, Number(current.dimming ?? fallback.dimming))),
+		speed: Math.max(10, Math.min(100, Number(current.speed ?? fallback.speed))),
+	};
+}
+
+function liquidPreviewStyle(mode) {
+	const settings = getAdminLiquidSettings(mode);
+	return settings.colors.map((color, index) => `--preview-liquid-${index + 1}:${color}`).join(";");
+}
+
+function renderAdminBackgroundOptions(currentMode) {
+	return `<section class="admin-editor__section admin-background-picker">
+		<h3>Фон</h3>
+		<p class="admin-background-picker__hint">Выберите стиль. Настройки применяются к предпросмотру сразу.</p>
+		<div class="admin-background-options" role="radiogroup" aria-label="Стиль фона">
+			${ADMIN_BACKGROUND_OPTIONS.map(([mode, label, hint]) => {
+				const selected = currentMode === mode;
+				const previewStyle = mode.startsWith("liquid") ? ` style="${escapeAttribute(liquidPreviewStyle(mode))}"` : "";
+				return `<button class="admin-background-option ${selected ? "is-selected" : ""}" type="button" role="radio" aria-checked="${selected}" data-action="admin-background-mode" data-value="${escapeAttribute(mode)}">
+					<span class="admin-background-option__preview" data-preview-background="${escapeAttribute(mode)}"${previewStyle} aria-hidden="true"><i></i></span>
+					<span class="admin-background-option__copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(hint)}</small></span>
+				</button>`;
+			}).join("")}
+		</div>
+	</section>`;
+}
+
+function renderAdminLiquidControls(mode) {
+	if (!DEFAULT_LIQUID_BACKGROUNDS[mode]) return "";
+	const settings = getAdminLiquidSettings(mode);
+	const labels = ["Цвет 1 · основа", "Цвет 2 · холодный свет", "Цвет 3 · перелив", "Цвет 4 · блик"];
+	return `<section class="admin-editor__section admin-liquid-settings">
+		<div class="admin-liquid-settings__heading"><div><h3>Настройка перелива</h3><p>Отдельные параметры для «${mode === "liquid1" ? "Жидкое стекло 1" : "Жидкое стекло 2"}»</p></div><span class="admin-liquid-settings__sample" style="${escapeAttribute(liquidPreviewStyle(mode))}" aria-hidden="true"></span></div>
+		<div class="admin-color-grid">${labels.map((label, index) => renderAdminColorField(label, `appearance.liquid.${mode}.colors.${index}`)).join("")}</div>
+		<div class="admin-liquid-settings__ranges">
+			${renderAdminRangeField("Затемнение", "От светлого к глубокому тёмному фону", `appearance.liquid.${mode}.dimming`, { value: settings.dimming, min: 0, max: 80, suffix: "%", minLabel: "Светлее", maxLabel: "Темнее" })}
+			${renderAdminRangeField("Скорость", "Плавность движения без резких рывков", `appearance.liquid.${mode}.speed`, { value: settings.speed, min: 10, max: 100, suffix: "%", minLabel: "Медленно", maxLabel: "Быстрее" })}
+		</div>
+	</section>`;
+}
+
 function renderAdminAppearancePage() {
+	const currentMode = String(getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode", "animated"));
 	const groups = [
 		["Основа интерфейса", [["background", "Сплошной фон"], ["text", "Название подписки, дата и выбранный тариф"], ["muted", "Описания и подписи"], ["border", "Рамки"]]],
 		["Карточки", [["surface", "Обычные карточки"], ["surfaceStrong", "Выбранные элементы"]]],
 		["Кнопки и навигация", [["button", "Фон кнопок и тарифов"], ["buttonText", "Текст кнопок и тарифов"], ["icon", "Все SVG-иконки"], ["accent", "Акцент"]]],
 		["Состояния", [["success", "Успех"], ["danger", "Ошибка"], ["unlimitedBadge", "Метка «Безлимит»"]]],
-		["Фон «Волны»", [["waveBackground", "Фон за точками"], ["waveDot", "Точки"]]],
-		["Фон «Движущаяся сетка»", [["gridBackground", "Фон за линиями"], ["gridLine", "Линии"], ["gridGlowLeft", "Свечение слева"], ["gridGlowRight", "Свечение справа"]]],
-		["Фон «Сетка 2»", [["grid2Background", "Фон за сеткой"], ["grid2Line", "Цвет сетки"], ["grid2Glow", "Нижняя подсветка"]]],
 	];
+	const backgroundGroups = {
+		animated: ["Фон «Волны»", [["waveBackground", "Фон за точками"], ["waveDot", "Точки"]]],
+		grid: ["Фон «Движущаяся сетка»", [["gridBackground", "Фон за линиями"], ["gridLine", "Линии"], ["gridGlowLeft", "Свечение слева"], ["gridGlowRight", "Свечение справа"]]],
+		grid2: ["Фон «Сетка 2»", [["grid2Background", "Фон за сеткой"], ["grid2Line", "Цвет сетки"], ["grid2Glow", "Нижняя подсветка"]]],
+		solid: ["Сплошной фон", [["background", "Цвет фона"]]],
+	};
+	if (backgroundGroups[currentMode]) groups.push(backgroundGroups[currentMode]);
 	return renderAdminEditorPage(state.locale === "en" ? "Appearance" : "Оформление", `
-		<label class="admin-field"><span>Фон</span><select class="admin-field__control" data-setting-path="appearance.backgroundMode"><option value="animated" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "animated" ? "selected" : ""}>Волны</option><option value="grid" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "grid" ? "selected" : ""}>Движущаяся сетка</option><option value="grid2" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "grid2" ? "selected" : ""}>Сетка 2</option><option value="solid" ${getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode") === "solid" ? "selected" : ""}>Сплошной цвет</option></select></label>
+		${renderAdminBackgroundOptions(currentMode)}
+		${renderAdminLiquidControls(currentMode)}
 		<div class="admin-toggle-list">${renderAdminToggle("Компактный режим", "appearance.compact")}${renderAdminToggle("Показывать рамки", "appearance.showFrames")}</div>
 		${renderAdminAppearancePresets()}
 		<div class="admin-appearance-groups">${groups.map(([title, colors]) => `<section class="admin-editor__section admin-appearance-group"><h3>${escapeHtml(title)}</h3><div class="admin-color-grid">${colors.map(([key, label]) => renderAdminColorField(label, `appearance.colors.${key}`)).join("")}</div></section>`).join("")}</div>
@@ -5328,6 +5395,20 @@ function renderAdminFeatureToggle(label, hint, path) {
 function renderAdminColorField(label, path) {
 	const value = String(getDeepValue(state.adminSettingsDraft, path, "#000000"));
 	return `<label class="admin-color-field"><input type="color" value="${escapeAttribute(value)}" data-setting-path="${escapeAttribute(path)}" data-setting-type="color"><span><strong>${escapeHtml(label)}</strong><em>${escapeHtml(value)}</em></span></label>`;
+}
+
+function renderAdminRangeField(label, hint, path, options = {}) {
+	const min = Number(options.min ?? 0);
+	const max = Number(options.max ?? 100);
+	const value = Math.max(min, Math.min(max, Number(options.value ?? getDeepValue(state.adminSettingsDraft, path, min))));
+	const progress = max > min ? ((value - min) / (max - min)) * 100 : 0;
+	const suffix = String(options.suffix || "");
+	const output = `${value}${suffix}`;
+	return `<label class="admin-range-field">
+		<span class="admin-range-field__head"><span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(hint)}</small></span><output>${escapeHtml(output)}</output></span>
+		<input type="range" min="${min}" max="${max}" step="${Number(options.step || 1)}" value="${value}" style="--range-progress:${progress.toFixed(2)}%" data-setting-path="${escapeAttribute(path)}" data-setting-type="number" data-range-suffix="${escapeAttribute(suffix)}" aria-label="${escapeAttribute(label)}" aria-valuetext="${escapeAttribute(output)}">
+		<span class="admin-range-field__scale" aria-hidden="true"><small>${escapeHtml(options.minLabel || String(min))}</small><small>${escapeHtml(options.maxLabel || String(max))}</small></span>
+	</label>`;
 }
 
 function renderAdminSubscriptionsPage() {
@@ -7411,6 +7492,15 @@ function bindRootActions() {
 		if (value === "users") void refreshAdminUsers();
 		return;
 	  }
+	  if (action === "admin-background-mode") {
+		if (!state.adminSettingsDraft || !ADMIN_BACKGROUND_OPTIONS.some(([mode]) => mode === value)) return;
+		setDeepValue(state.adminSettingsDraft, "appearance.backgroundMode", value);
+		state.adminSettingsDirty = true;
+		haptic("light");
+		applyAppearance();
+		render({ preserveScroll: true });
+		return;
+	  }
 	  if (action === "close-admin-section") return closeAdminSection();
 			if (action === "admin-push-enable") return await enableAdminPush();
 			if (action === "admin-push-disable") return await disableAdminPush();
@@ -7760,6 +7850,23 @@ function bindRootActions() {
 			} else {
 				const value = type === "boolean" ? Boolean(target.checked) : type === "number" ? Number(target.value || 0) : target.value;
 				setDeepValue(state.adminSettingsDraft, settingPath, value);
+			}
+			if (settingPath.startsWith("appearance.")) {
+				if (target instanceof HTMLInputElement && target.type === "range") {
+					const min = Number(target.min || 0);
+					const max = Number(target.max || 100);
+					const progress = max > min ? ((Number(target.value) - min) / (max - min)) * 100 : 0;
+					const output = target.closest(".admin-range-field")?.querySelector("output");
+					const displayValue = `${target.value}${target.dataset.rangeSuffix || ""}`;
+					target.style.setProperty("--range-progress", `${progress}%`);
+					target.setAttribute("aria-valuetext", displayValue);
+					if (output) output.textContent = displayValue;
+				}
+				if (type === "color") {
+					const colorValue = target.closest(".admin-color-field")?.querySelector("em");
+					if (colorValue) colorValue.textContent = target.value;
+				}
+				applyAppearance();
 			}
 			if (settingPath.endsWith(".balanceMode")) {
 				state.adminSettingsDirty = true;
@@ -11419,7 +11526,13 @@ function applyAppearance() {
 	};
   state.theme = "dark";
   document.documentElement.dataset.theme = "dark";
-	const backgroundMode = ["animated", "grid", "grid2", "solid"].includes(appearance.backgroundMode) ? appearance.backgroundMode : "animated";
+	const backgroundMode = ["animated", "grid", "grid2", "liquid1", "liquid2", "solid"].includes(appearance.backgroundMode) ? appearance.backgroundMode : "animated";
+	const liquidFallback = DEFAULT_LIQUID_BACKGROUNDS[backgroundMode] || DEFAULT_LIQUID_BACKGROUNDS.liquid1;
+	const liquidSettings = appearance.liquid?.[backgroundMode] || liquidFallback;
+	const liquidColors = Array.from({ length: 4 }, (_, index) => String(liquidSettings.colors?.[index] || liquidFallback.colors[index]));
+	const liquidDimming = Math.max(0, Math.min(80, Number(liquidSettings.dimming ?? liquidFallback.dimming)));
+	const liquidSpeed = Math.max(10, Math.min(100, Number(liquidSettings.speed ?? liquidFallback.speed)));
+	const liquidDuration = 60 - ((liquidSpeed - 10) / 90) * 42;
 	document.documentElement.dataset.background = backgroundMode;
 	document.documentElement.dataset.frames = appearance.showFrames === false ? "off" : "on";
 	document.documentElement.dataset.compact = appearance.compact === false ? "off" : "on";
@@ -11450,6 +11563,12 @@ function applyAppearance() {
 		"--grid2-glow": colors.grid2Glow,
 		"--wave-background": colors.waveBackground,
 		"--wave-dot": colors.waveDot,
+		"--liquid-color-1": liquidColors[0],
+		"--liquid-color-2": liquidColors[1],
+		"--liquid-color-3": liquidColors[2],
+		"--liquid-color-4": liquidColors[3],
+		"--liquid-dimming": String(liquidDimming / 100),
+		"--liquid-duration": `${liquidDuration.toFixed(2)}s`,
 	};
 	Object.entries(variables).forEach(([name, value]) => { if (value) document.documentElement.style.setProperty(name, value); });
   document.documentElement.style.setProperty("--accent", accent.accent);

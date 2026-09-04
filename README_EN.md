@@ -50,7 +50,7 @@ It combines a user dashboard, payments, subscription management, support, and ad
 
 | 📣 Marketing and notifications | 🛠️ Administration |
 |---|---|
-| • Promo codes<br>• Referral system<br>• Broadcasts<br>• Subscription expiration and error notifications | • Support tickets and FAQ<br>• Russian, English, and Persian with RTL and the Vazir font<br>• Maintenance mode<br>• Content, appearance, and feature editor directly in the admin panel |
+| • Promo codes<br>• Referral system<br>• Broadcasts<br>• Subscription expiration and error notifications | • Support tickets and FAQ<br>• Russian, English, and Persian with RTL and the Vazir font<br>• Maintenance mode<br>• Content, appearance, and feature editor directly in the admin panel<br>• Animated backgrounds with color, dimming, and speed controls |
 
 ---
 
