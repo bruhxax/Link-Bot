@@ -10729,3 +10729,28 @@ body.has-open-modal .admin-save-bar {
 	.admin-user-control-row button,
 	.admin-user-controls__danger button { transition-duration: 1ms !important; }
 }
+
+/* Keep this rule last: theme sections above may restore component borders.
+   Transparent borders preserve layout while the global frame setting is off. */
+:root[data-frames="off"] body,
+:root[data-frames="off"] body *,
+:root[data-frames="off"] body *::before,
+:root[data-frames="off"] body *::after {
+	border-color: transparent !important;
+}
+
+:root[data-frames="off"] .runtime-layout-item--framed {
+	outline-color: transparent !important;
+}
+
+/* Loading rings are state indicators, not decorative frames. */
+:root[data-frames="off"] .subscription-switcher__progress {
+	border-color: color-mix(in srgb, var(--icon-color) 24%, transparent) !important;
+	border-top-color: var(--icon-color) !important;
+}
+
+:root[data-frames="off"] .admin-users__search > i,
+:root[data-frames="off"] .admin-user-detail__loading > i {
+	border-color: var(--line) !important;
+	border-top-color: var(--text) !important;
+}
