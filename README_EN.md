@@ -276,10 +276,12 @@ docker compose start
 <summary><b>⬆️ Update</b></summary>
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/bruhxax/Link-Bot/main/update.sh | bash -s -- /opt/Link-Bot
+cd /opt/Link-Bot
+git pull --ff-only
+docker compose up -d --build --force-recreate --remove-orphans
 ```
 
-This is the single command for the first and every subsequent update. The script shows the version, changed files, compact Docker progress, and service status without a wall of build logs. Updating preserves the database and admin panel settings. Existing plans, appearance settings, and integrations are not reset to new default values.
+These commands are used for the first and every subsequent update. Updating preserves the database and admin panel settings. Existing plans, appearance settings, and integrations are not reset to new default values.
 
 </details>
 
