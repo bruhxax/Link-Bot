@@ -20,6 +20,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/google/uuid"
 
+	"link-bot/internal/adminnotify"
 	"link-bot/internal/cache"
 	"link-bot/internal/config"
 	"link-bot/internal/cryptopay"
@@ -53,6 +54,13 @@ type PaymentService struct {
 	runtimeSettings           *runtimeconfig.Service
 	integrationSettings       *integrations.Service
 	integrationGateway        *integrations.Gateway
+	adminPushNotifier         adminnotify.Notifier
+}
+
+func (s *PaymentService) SetAdminPushNotifier(notifier adminnotify.Notifier) {
+	if s != nil {
+		s.adminPushNotifier = notifier
+	}
 }
 
 type CreatePurchaseOptions struct {

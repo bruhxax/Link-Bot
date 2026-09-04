@@ -28,6 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 
+	"link-bot/internal/adminnotify"
 	"link-bot/internal/broadcast"
 	"link-bot/internal/cache"
 	"link-bot/internal/config"
@@ -41,6 +42,7 @@ import (
 	"link-bot/internal/runtimeconfig"
 	"link-bot/internal/translation"
 	"link-bot/internal/webauth"
+	"link-bot/internal/webpush"
 	"link-bot/utils"
 )
 
@@ -78,6 +80,7 @@ type Handler struct {
 	translation            *translation.Manager
 	logoUploadDir          string
 	webLogin               *webauth.Service
+	webPush                *webpush.Service
 }
 
 func lockPromoPurchase(code string) func() {
@@ -574,6 +577,18 @@ type adminWithdrawalResolveRequest struct {
 	Approve bool  `json:"approve"`
 }
 
+type adminWebPushSubscriptionRequest struct {
+	Endpoint string `json:"endpoint"`
+	Keys     struct {
+		P256DH string `json:"p256dh"`
+		Auth   string `json:"auth"`
+	} `json:"keys"`
+}
+
+type adminWebPushUnsubscribeRequest struct {
+	Endpoint string `json:"endpoint"`
+}
+
 const (
 	reviewRewardDays         = 2
 	reviewRewardTrafficBytes = int64(20 * 1024 * 1024 * 1024)
@@ -634,6 +649,12 @@ func NewHandler(
 		translation:            translationManager,
 		logoUploadDir:          config.MediaUploadDir(),
 		webLogin:               webLogin,
+	}
+}
+
+func (h *Handler) SetWebPushService(service *webpush.Service) {
+	if h != nil {
+		h.webPush = service
 	}
 }
 
@@ -700,6 +721,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/moynalog/test", h.withSession(h.handleAdminMoyNalogTest))
 	mux.HandleFunc("/api/mini-app/admin/moynalog/retry", h.withSession(h.handleAdminMoyNalogRetry))
 	mux.HandleFunc("/api/mini-app/admin/finance", h.withSession(h.handleAdminFinance))
+	mux.HandleFunc("/api/mini-app/admin/push/state", h.withSession(h.handleAdminWebPushState))
+	mux.HandleFunc("/api/mini-app/admin/push/subscribe", h.withSession(h.handleAdminWebPushSubscribe))
+	mux.HandleFunc("/api/mini-app/admin/push/unsubscribe", h.withSession(h.handleAdminWebPushUnsubscribe))
+	mux.HandleFunc("/api/mini-app/admin/push/test", h.withSession(h.handleAdminWebPushTest))
 	mux.HandleFunc("/api/mini-app/admin/users/search", h.withSession(h.handleAdminUsersSearch))
 	mux.HandleFunc("/api/mini-app/admin/users/detail", h.withSession(h.handleAdminUserDetail))
 	mux.HandleFunc("/api/mini-app/admin/users/balance", h.withSession(h.handleAdminUserBalance))
@@ -2692,6 +2717,121 @@ func (h *Handler) handleAdminEventResolve(w http.ResponseWriter, r *http.Request
 	}
 
 	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "event_resolved"})
+}
+
+func (h *Handler) handleAdminWebPushState(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
+	if !h.isAdmin(sess.User.ID) {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+		return
+	}
+	if r.Method != http.MethodPost {
+		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		return
+	}
+	if h.webPush == nil {
+		h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": webpush.State{}})
+		return
+	}
+	state, err := h.webPush.State(r.Context())
+	if err != nil {
+		slog.Error("mini app: load admin web push state", "error", err)
+		h.writeError(w, http.StatusInternalServerError, "push_state_failed", "Не удалось загрузить настройки уведомлений")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": state})
+}
+
+func (h *Handler) handleAdminWebPushSubscribe(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
+	if !h.isAdmin(sess.User.ID) {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+		return
+	}
+	if r.Method != http.MethodPost {
+		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		return
+	}
+	if h.webPush == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "push_unavailable", "Push-уведомления временно недоступны")
+		return
+	}
+	var req adminWebPushSubscriptionRequest
+	if err := h.decodeJSONRequest(w, r, 8192, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid_push_subscription", "Некорректная подписка на уведомления")
+		return
+	}
+	if err := h.webPush.Subscribe(r.Context(), webpush.SubscriptionInput{
+		Endpoint:  req.Endpoint,
+		P256DH:    req.Keys.P256DH,
+		Auth:      req.Keys.Auth,
+		UserAgent: r.UserAgent(),
+	}); err != nil {
+		slog.Warn("mini app: subscribe admin web push", "error", err)
+		h.writeError(w, http.StatusBadRequest, "push_subscribe_failed", "Не удалось включить уведомления")
+		return
+	}
+	state, err := h.webPush.State(r.Context())
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "push_state_failed", "Не удалось обновить настройки уведомлений")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": state})
+}
+
+func (h *Handler) handleAdminWebPushUnsubscribe(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
+	if !h.isAdmin(sess.User.ID) {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+		return
+	}
+	if r.Method != http.MethodPost {
+		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		return
+	}
+	if h.webPush == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "push_unavailable", "Push-уведомления временно недоступны")
+		return
+	}
+	var req adminWebPushUnsubscribeRequest
+	if err := h.decodeJSONRequest(w, r, 4096, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid_push_subscription", "Некорректная подписка на уведомления")
+		return
+	}
+	if err := h.webPush.Unsubscribe(r.Context(), req.Endpoint); err != nil {
+		slog.Warn("mini app: unsubscribe admin web push", "error", err)
+		h.writeError(w, http.StatusBadRequest, "push_unsubscribe_failed", "Не удалось отключить уведомления")
+		return
+	}
+	state, err := h.webPush.State(r.Context())
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "push_state_failed", "Не удалось обновить настройки уведомлений")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": state})
+}
+
+func (h *Handler) handleAdminWebPushTest(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
+	if !h.isAdmin(sess.User.ID) {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+		return
+	}
+	if r.Method != http.MethodPost {
+		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		return
+	}
+	if h.webPush == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "push_unavailable", "Push-уведомления временно недоступны")
+		return
+	}
+	if err := h.webPush.Notify(r.Context(), adminnotify.Event{
+		Title: "Тестовое уведомление",
+		Body:  "Push-уведомления Link-Bot работают",
+		URL:   "/mini-app/?page=admin&section=push",
+		Tag:   "admin-push-test",
+	}); err != nil {
+		slog.Warn("mini app: test admin web push", "error", err)
+		h.writeError(w, http.StatusBadGateway, "push_test_failed", "Не удалось отправить тестовое уведомление")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "Тестовое уведомление отправлено"})
 }
 
 func (h *Handler) handleCancelPurchase(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
@@ -5233,7 +5373,11 @@ func (h *Handler) notifyAdminAboutReview(ctx context.Context, sess *session, rev
 }
 
 func (h *Handler) notifyAdminAboutSupportTicket(ctx context.Context, ticket *database.SupportTicket, firstMessage string) {
-	if h.telegramBot == nil || config.GetAdminTelegramId() == 0 || ticket == nil {
+	if ticket == nil {
+		return
+	}
+	h.notifyAdminAboutSupportByPush(ctx, "Новое обращение", ticket, "support-ticket")
+	if h.telegramBot == nil || config.GetAdminTelegramId() == 0 {
 		return
 	}
 
@@ -5253,12 +5397,35 @@ func (h *Handler) notifySupportAsync(fn func(context.Context)) {
 }
 
 func (h *Handler) notifyAdminAboutSupportReply(ctx context.Context, ticket *database.SupportTicket, message string) {
-	if h.telegramBot == nil || config.GetAdminTelegramId() == 0 || ticket == nil {
+	if ticket == nil {
+		return
+	}
+	h.notifyAdminAboutSupportByPush(ctx, "Ответ в обращении", ticket, "support-reply")
+	if h.telegramBot == nil || config.GetAdminTelegramId() == 0 {
 		return
 	}
 
 	text := renderSupportNotification(h.supportNotificationSettings().CustomerReplyText, ticket, message)
 	h.sendMiniAppNotification(ctx, config.GetAdminTelegramId(), text)
+}
+
+func (h *Handler) notifyAdminAboutSupportByPush(ctx context.Context, title string, ticket *database.SupportTicket, tagPrefix string) {
+	if h.webPush == nil || ticket == nil {
+		return
+	}
+	identity := formatUsername(ticket.CustomerUsername)
+	if identity == "—" {
+		identity = fallbackText(ticket.CustomerName, "Пользователь")
+	}
+	body := strings.Join([]string{identity, fallbackText(ticket.Subject, "Без темы")}, " · ")
+	if err := h.webPush.Notify(ctx, adminnotify.Event{
+		Title: title,
+		Body:  body,
+		URL:   "/mini-app/?page=support",
+		Tag:   fmt.Sprintf("%s-%d", tagPrefix, ticket.ID),
+	}); err != nil {
+		slog.Warn("mini app: admin support web push failed", "ticketId", ticket.ID, "error", err)
+	}
 }
 
 func (h *Handler) notifyCustomerAboutSupportReply(ctx context.Context, ticket *database.SupportTicket, message string) {

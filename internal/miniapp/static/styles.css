@@ -415,6 +415,7 @@ select:focus-visible {
 .app-svg-icon--promocodes { --app-icon: url("./assets/admin-promocodes.svg"); }
 .app-svg-icon--maintenance { --app-icon: url("./assets/admin-maintenance.svg"); }
 .app-svg-icon--appearance { --app-icon: url("./assets/admin-appearance.svg"); }
+.app-svg-icon--push { --app-icon: url("./assets/admin-push.svg"); }
 .app-svg-icon--checkout-edit { --app-icon: url("./assets/checkout-edit.svg"); }
 .checkout-payment .pay-selector__tail {
   color: #ffffff !important;
@@ -9110,6 +9111,133 @@ body.is-plan-editing .page-scroll {
   line-height: 1;
 }
 .profile-row__tools button svg { width: 15px; height: 15px; }
+
+/* Admin Web Push */
+.admin-push {
+  width: min(100%, 680px);
+  margin: 0 auto;
+  padding: 2px 4px 104px;
+  animation: admin-push-enter 220ms ease-out both;
+}
+
+.admin-push__header { padding: 4px 2px 18px; }
+.admin-push__header > span { color: var(--muted); font-size: 10px; font-weight: 800; }
+.admin-push__header h2 { margin: 5px 0 7px; font-size: 22px; line-height: 1.15; }
+.admin-push__header p { max-width: 470px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+.admin-push__surface {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.admin-push__status {
+  min-height: 112px;
+  padding: 20px;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.admin-push__status-icon {
+  width: 48px;
+  height: 48px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--muted);
+  background: var(--control-bg);
+}
+
+.admin-push__status-icon .app-svg-icon { width: 23px; height: 23px; }
+.admin-push__status-icon i {
+  width: 9px;
+  height: 9px;
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--muted);
+}
+.admin-push__status.is-enabled .admin-push__status-icon { border-color: color-mix(in srgb, var(--accent) 54%, var(--line)); color: var(--text); }
+.admin-push__status.is-enabled .admin-push__status-icon i { background: var(--accent); }
+.admin-push__status h3 { margin: 0; font-size: 15px; line-height: 1.25; }
+.admin-push__status p { margin: 6px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+
+.admin-push__events { padding: 0 20px; }
+.admin-push__events > div {
+  min-height: 68px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid var(--line-soft);
+}
+.admin-push__events > div:last-child { border-bottom: 0; }
+.admin-push__events > div > span { width: 32px; height: 32px; display: grid; place-items: center; color: var(--text); }
+.admin-push__events svg { width: 19px; height: 19px; }
+.admin-push__events p { min-width: 0; margin: 0; }
+.admin-push__events strong, .admin-push__events small { display: block; }
+.admin-push__events strong { font-size: 12px; line-height: 1.3; }
+.admin-push__events small { margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+
+.admin-push__footer { padding: 17px 20px 20px; border-top: 1px solid var(--line-soft); background: var(--surface-soft); }
+.admin-push__footer > p { margin: 0 0 13px; color: var(--muted); font-size: 10px; }
+.admin-push__footer > p strong { color: var(--text); }
+.admin-push__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-push__actions button {
+  min-height: 44px;
+  padding: 0 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  transition: border-color 160ms ease, background-color 160ms ease, opacity 160ms ease;
+}
+.admin-push__actions button.is-primary { border-color: var(--accent); background: var(--accent); color: var(--accent-text, #ffffff); }
+.admin-push__actions button:hover:not(:disabled) { border-color: var(--text); }
+.admin-push__actions button:active:not(:disabled) { background: var(--control-bg); }
+.admin-push__actions button.is-primary:active:not(:disabled) { background: color-mix(in srgb, var(--accent) 82%, #000000); }
+.admin-push__actions button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.admin-push__actions button:disabled { opacity: .44; cursor: default; }
+.admin-push__actions svg, .admin-push__actions .app-svg-icon { width: 17px; height: 17px; }
+.admin-push__privacy { margin: 13px 2px 0; color: var(--muted); font-size: 9px; line-height: 1.55; }
+.admin-push.is-loading .admin-push__status-icon,
+.admin-push.is-loading .admin-push__status h3,
+.admin-push.is-loading .admin-push__status p { opacity: .42; }
+
+@keyframes admin-push-enter {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 520px) {
+  .admin-push { padding-inline: 0; }
+  .admin-push__status { padding: 17px 15px; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; }
+  .admin-push__status-icon { width: 44px; height: 44px; }
+  .admin-push__events { padding-inline: 15px; }
+  .admin-push__footer { padding: 16px 15px 18px; }
+  .admin-push__actions { display: grid; }
+  .admin-push__actions button { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-push { animation: none; }
+  .admin-push__actions button { transition: none; }
+}
 
 .admin-add-profile-button {
   width: 100%;

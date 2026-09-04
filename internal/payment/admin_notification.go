@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"link-bot/internal/adminnotify"
 	"link-bot/internal/config"
 	"link-bot/internal/database"
 	"link-bot/internal/integrations"
@@ -75,8 +76,7 @@ type PaymentNotificationPreviewOptions struct {
 }
 
 func (s PaymentService) notifyAdminAboutPayment(ctx context.Context, purchase *database.Purchase, customer *database.Customer) {
-	token, chatID, timezone := s.paymentNotificationConfig()
-	if token == "" || chatID == 0 {
+	if purchase == nil {
 		return
 	}
 
@@ -89,6 +89,12 @@ func (s PaymentService) notifyAdminAboutPayment(ctx context.Context, purchase *d
 		}
 	}
 	method := s.paymentMethodLabel(purchase)
+	s.notifyAdminAboutPaymentByPush(purchase, username, method)
+
+	token, chatID, timezone := s.paymentNotificationConfig()
+	if token == "" || chatID == 0 {
+		return
+	}
 
 	notifyCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -120,6 +126,53 @@ func (s PaymentService) notifyAdminAboutPayment(ctx context.Context, purchase *d
 			}
 		}
 		slog.Error("failed to send payment notification", "error", err, "purchase_id", purchase.ID)
+	}
+}
+
+func (s PaymentService) notifyAdminAboutPaymentByPush(purchase *database.Purchase, username, method string) {
+	if s.adminPushNotifier == nil || purchase == nil {
+		return
+	}
+	identity := strings.TrimSpace(username)
+	if identity == "" {
+		identity = "Пользователь"
+	} else if !strings.HasPrefix(identity, "@") {
+		identity = "@" + identity
+	}
+	description := "Покупка"
+	if purchase.Month > 0 {
+		description = formatTariff(purchase.Month)
+	}
+	if purchase.PurchaseKind == database.PurchaseKindExtraDevices && purchase.ExtraDevices > 0 {
+		description = fmt.Sprintf("+%d устройств", purchase.ExtraDevices)
+	} else if purchase.PurchaseKind == database.PurchaseKindGift {
+		description = "Подарок · " + description
+	}
+
+	event := adminnotify.Event{
+		Title: "Новая оплата",
+		Body:  strings.Join([]string{formatPushPurchaseAmount(purchase), description, identity, method}, " · "),
+		URL:   "/mini-app/?page=admin&section=finance",
+		Tag:   fmt.Sprintf("payment-%d", purchase.ID),
+	}
+	go func(purchaseID int64) {
+		pushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := s.adminPushNotifier.Notify(pushCtx, event); err != nil {
+			slog.Warn("payment: admin web push failed", "purchase_id", purchaseID, "error", err)
+		}
+	}(purchase.ID)
+}
+
+func formatPushPurchaseAmount(purchase *database.Purchase) string {
+	amount := formatPurchaseAmount(purchase)
+	switch strings.ToUpper(strings.TrimSpace(purchase.Currency)) {
+	case "RUB":
+		return strings.TrimSuffix(amount, " RUB") + " ₽"
+	case "XTR", "STARS":
+		return strings.TrimSuffix(strings.TrimSuffix(amount, " XTR"), " STARS") + " Stars"
+	default:
+		return amount
 	}
 }
 

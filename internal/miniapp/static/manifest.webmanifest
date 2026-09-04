@@ -2,6 +2,7 @@
   "name": "Link-Bot",
   "short_name": "Link-Bot",
   "description": "Link-Bot web dashboard",
+  "id": "/mini-app/",
   "start_url": "/mini-app/",
   "scope": "/mini-app/",
   "display": "standalone",

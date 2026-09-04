@@ -16,6 +16,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
+	"link-bot/internal/adminnotify"
 	"link-bot/internal/database"
 )
 
@@ -27,9 +28,16 @@ type Reporter struct {
 	repository *database.RuntimeSettingsRepository
 	bot        *bot.Bot
 	adminID    int64
+	push       adminnotify.Notifier
 
 	mu        sync.Mutex
 	lastAlert map[string]time.Time
+}
+
+func (r *Reporter) SetAdminPushNotifier(notifier adminnotify.Notifier) {
+	if r != nil {
+		r.push = notifier
+	}
 }
 
 type ReportInput struct {
@@ -133,7 +141,29 @@ func (r *Reporter) shouldAlert(fingerprint string, count int, severity string) b
 }
 
 func (r *Reporter) sendAdminAlert(_ context.Context, event *database.OperationalEvent) {
-	if r.bot == nil || r.adminID == 0 || event == nil {
+	if event == nil {
+		return
+	}
+	if r.push != nil {
+		title := "Ошибка диагностики"
+		if event.Severity == "critical" {
+			title = "Критическая ошибка"
+		} else if event.Severity == "info" {
+			title = "Событие диагностики"
+		}
+		pushCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		err := r.push.Notify(pushCtx, adminnotify.Event{
+			Title: title,
+			Body:  strings.Join([]string{event.Category, event.Operation, event.Message}, " · "),
+			URL:   "/mini-app/?page=admin&section=diagnostics",
+			Tag:   "diagnostic-" + event.Fingerprint,
+		})
+		cancel()
+		if err != nil {
+			slog.Warn("operations: admin web push failed", "eventId", event.ID, "error", err)
+		}
+	}
+	if r.bot == nil || r.adminID == 0 {
 		return
 	}
 	icon := "⚠️"

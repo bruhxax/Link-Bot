@@ -29,6 +29,7 @@ import (
 	"link-bot/internal/translation"
 	"link-bot/internal/tribute"
 	"link-bot/internal/webauth"
+	"link-bot/internal/webpush"
 	"link-bot/internal/yookasa"
 
 	"github.com/go-telegram/bot"
@@ -79,6 +80,7 @@ func main() {
 	broadcastRepository := database.NewBroadcastRepository(pool)
 	paymentIntegrationRepository := database.NewPaymentIntegrationRepository(pool)
 	moynalogReceiptRepository := database.NewMoyNalogReceiptRepository(pool)
+	webPushRepository := database.NewWebPushRepository(pool)
 	if err := moynalogReceiptRepository.RecoverInterrupted(ctx); err != nil {
 		slog.Warn("moynalog receipt recovery failed", "error", err)
 	}
@@ -91,6 +93,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	webPushService, err := webpush.NewService(ctx, webPushRepository, config.GetAdminTelegramId(), config.GetMiniAppURL())
+	if err != nil {
+		slog.Error("admin web push disabled", "error", err)
+		webPushService = nil
+	}
 
 	cryptoPayClient := cryptopay.NewCryptoPayClient(config.CryptoPayUrl(), config.CryptoPayToken())
 	remnawaveClient := remnawave.NewClient(config.RemnawaveUrl(), config.RemnawaveToken(), config.RemnawaveMode())
@@ -100,12 +107,14 @@ func main() {
 		panic(err)
 	}
 	errorReporter := operations.NewReporter(runtimeSettingsRepository, b, config.GetAdminTelegramId())
+	errorReporter.SetAdminPushNotifier(webPushService)
 	broadcastService := broadcast.NewService(broadcastRepository, customerRepository, promoCodeRepository, b)
 	if err := broadcastService.RecoverInterrupted(ctx); err != nil {
 		slog.Warn("broadcast recovery failed", "error", err)
 	}
 
 	paymentService := payment.NewPaymentService(tm, purchaseRepository, promoCodeRepository, remnawaveClient, customerRepository, b, cryptoPayClient, yookasaClient, referralRepository, walletRepository, cache, moynalogReceiptRepository, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository)
+	paymentService.SetAdminPushNotifier(webPushService)
 
 	cronScheduler := setupInvoiceChecker(customerRepository, purchaseRepository, paymentService)
 	if cronScheduler != nil {
@@ -124,6 +133,7 @@ func main() {
 	webLogin := webauth.NewService(webauth.DefaultTTL)
 	h := handler.NewHandler(syncService, paymentService, tm, customerRepository, purchaseRepository, cryptoPayClient, yookasaClient, referralRepository, cache, runtimeSettings, errorReporter, webLogin)
 	miniAppHandler := miniapp.NewHandler(customerRepository, purchaseRepository, promoCodeRepository, referralRepository, walletRepository, supportRepository, reviewRepository, paymentService, remnawaveClient, b, broadcastService, subService, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository, tm, webLogin)
+	miniAppHandler.SetWebPushService(webPushService)
 	miniAppHandler.StartSupportAutoCloser(ctx)
 	operations.StartHealthMonitor(ctx, pool, remnawaveClient, errorReporter)
 

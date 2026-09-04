@@ -30,6 +30,15 @@ func TestBuildPaymentNotificationMessageUsesAssignedOrderNumber(t *testing.T) {
 	}
 }
 
+func TestFormatPushPurchaseAmountUsesLockScreenFriendlyCurrency(t *testing.T) {
+	if got := formatPushPurchaseAmount(&database.Purchase{Amount: 350, Currency: "RUB"}); got != "350 ₽" {
+		t.Fatalf("RUB push amount = %q, want %q", got, "350 ₽")
+	}
+	if got := formatPushPurchaseAmount(&database.Purchase{Amount: 150, Currency: "XTR"}); got != "150 Stars" {
+		t.Fatalf("Stars push amount = %q, want %q", got, "150 Stars")
+	}
+}
+
 func TestBuildPaymentNotificationMessageIncludesPromoCode(t *testing.T) {
 	code := "LINK<FREE>"
 	discount := 20
@@ -144,9 +153,9 @@ func TestBuildPaymentNotificationKeyboardOmitsProfileWithoutValidUsername(t *tes
 
 func TestPaymentNotificationProfileURLNormalizesTelegramUsername(t *testing.T) {
 	for input, expected := range map[string]string{
-		"@Example_User":              "https://t.me/Example_User",
+		"@Example_User":             "https://t.me/Example_User",
 		"https://t.me/Example_User": "https://t.me/Example_User",
-		"t.me/example123":            "https://t.me/example123",
+		"t.me/example123":           "https://t.me/example123",
 	} {
 		if actual := paymentNotificationProfileURL(input); actual != expected {
 			t.Fatalf("paymentNotificationProfileURL(%q) = %q, want %q", input, actual, expected)
