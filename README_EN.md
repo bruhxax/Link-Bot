@@ -4,7 +4,7 @@
   <a href="README.md">Русский</a> · <b>English</b>
 </p>
 
-<img src="docs/link-bot-overview.png" width="100%" alt="Link-Bot interface">
+<img src="docs/Link-Bot.png" width="100%" alt="Link-Bot interface">
 
 # Link-Bot
 
@@ -59,7 +59,7 @@ It combines a user dashboard, payments, subscription management, support, and ad
 Manage the system, interface, plans, integrations, broadcasts, promo codes, and other features directly from the Mini App.
 
 <div align="center">
-  <img src="docs/link-bot-admin.png" width="100%" alt="Link-Bot admin panel">
+  <img src="docs/admin-menu.png" width="100%" alt="Link-Bot admin panel">
 </div>
 
 ---
