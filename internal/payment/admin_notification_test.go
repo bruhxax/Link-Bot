@@ -9,9 +9,19 @@ import (
 	"testing"
 	"time"
 
+	"link-bot/internal/adminnotify"
 	"link-bot/internal/database"
 	"link-bot/internal/runtimeconfig"
 )
+
+type recordingPaymentPushNotifier struct {
+	events chan adminnotify.Event
+}
+
+func (n *recordingPaymentPushNotifier) Notify(_ context.Context, event adminnotify.Event) error {
+	n.events <- event
+	return nil
+}
 
 func TestBuildPaymentNotificationMessageUsesAssignedOrderNumber(t *testing.T) {
 	purchase := &database.Purchase{
@@ -36,6 +46,35 @@ func TestFormatPushPurchaseAmountUsesLockScreenFriendlyCurrency(t *testing.T) {
 	}
 	if got := formatPushPurchaseAmount(&database.Purchase{Amount: 150, Currency: "XTR"}); got != "150 Stars" {
 		t.Fatalf("Stars push amount = %q, want %q", got, "150 Stars")
+	}
+}
+
+func TestCompletedPaymentDispatchesAutomaticAdminPush(t *testing.T) {
+	notifier := &recordingPaymentPushNotifier{events: make(chan adminnotify.Event, 1)}
+	service := &PaymentService{adminPushNotifier: notifier}
+	service.notifyAdminAboutPaymentByPush(&database.Purchase{
+		ID:       73,
+		Amount:   350,
+		Currency: "RUB",
+		Month:    1,
+	}, "bruh_user", "СБП")
+
+	select {
+	case event := <-notifier.events:
+		if event.Title != "Новая оплата" || event.Tag != "payment-73" || event.URL != "/mini-app/?page=admin&section=finance" {
+			t.Fatalf("automatic payment push = %+v", event)
+		}
+		if event.Body != "350 ₽ · 1 месяц · @bruh_user · СБП" {
+			t.Fatalf("automatic payment push body = %q", event.Body)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("automatic payment push was not dispatched")
+	}
+}
+
+func TestPaymentPushDeliveryWindowCoversNetworkRequest(t *testing.T) {
+	if adminPaymentPushTimeout < 15*time.Second {
+		t.Fatalf("payment push timeout = %s, want at least 15s", adminPaymentPushTimeout)
 	}
 }
 

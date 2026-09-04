@@ -15,11 +15,10 @@ self.addEventListener("push", (event) => {
   }
 
   const title = String(data.title || "Новое событие");
-  const icon = String(data.icon || "/mini-app/assets/pwa-192.png?v=20260720-brand2");
   const options = {
     body: String(data.body || "Откройте Link-Bot, чтобы посмотреть подробности"),
-    icon,
-    badge: icon,
+    icon: "/mini-app/assets/pwa-192.png?v=20260720-brand2",
+    badge: "/mini-app/assets/pwa-192.png?v=20260720-brand2",
     tag: String(data.tag || "admin-event"),
     renotify: false,
     data: {
@@ -27,9 +26,19 @@ self.addEventListener("push", (event) => {
     },
   };
 
-  const tasks = [self.registration.showNotification(title, options)];
+  const showNotification = async () => {
+    try {
+      await self.registration.showNotification(title, options);
+    } catch (_) {
+      const fallbackOptions = { ...options };
+      delete fallbackOptions.icon;
+      delete fallbackOptions.badge;
+      await self.registration.showNotification(title, fallbackOptions);
+    }
+  };
+  const tasks = [showNotification()];
   if (Number(data.badge || 0) > 0 && "setAppBadge" in self.navigator) {
-    tasks.push(self.navigator.setAppBadge(Number(data.badge)));
+    tasks.push(Promise.resolve(self.navigator.setAppBadge(Number(data.badge))).catch(() => {}));
   }
   event.waitUntil(Promise.all(tasks));
 });

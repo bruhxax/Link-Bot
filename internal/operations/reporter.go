@@ -20,7 +20,10 @@ import (
 	"link-bot/internal/database"
 )
 
-const alertCooldown = 15 * time.Minute
+const (
+	alertCooldown              = 15 * time.Minute
+	adminDiagnosticPushTimeout = 20 * time.Second
+)
 
 var sensitiveValuePattern = regexp.MustCompile(`(?i)(token|secret|password|authorization|api[_-]?key)([=: ]+)([^\s&]+)`)
 
@@ -151,7 +154,7 @@ func (r *Reporter) sendAdminAlert(_ context.Context, event *database.Operational
 		} else if event.Severity == "info" {
 			title = "Событие диагностики"
 		}
-		pushCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		pushCtx, cancel := context.WithTimeout(context.Background(), adminDiagnosticPushTimeout)
 		err := r.push.Notify(pushCtx, adminnotify.Event{
 			Title: title,
 			Body:  strings.Join([]string{event.Category, event.Operation, event.Message}, " · "),

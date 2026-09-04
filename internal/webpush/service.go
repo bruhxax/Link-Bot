@@ -46,11 +46,6 @@ type Service struct {
 	subject    string
 	httpClient *http.Client
 	send       sendNotificationFunc
-	branding   func() Branding
-}
-
-type Branding struct {
-	IconURL string
 }
 
 type SubscriptionInput struct {
@@ -72,7 +67,6 @@ type notificationPayload struct {
 	URL   string `json:"url"`
 	Tag   string `json:"tag,omitempty"`
 	Badge int    `json:"badge"`
-	Icon  string `json:"icon,omitempty"`
 }
 
 func NewService(ctx context.Context, repository repository, adminID int64, subject string) (*Service, error) {
@@ -121,12 +115,6 @@ func normalizeSubject(value string) string {
 		return parsed.Scheme + "://" + parsed.Host
 	}
 	return defaultSubject
-}
-
-func (s *Service) SetBrandingProvider(provider func() Branding) {
-	if s != nil {
-		s.branding = provider
-	}
 }
 
 func (s *Service) State(ctx context.Context) (State, error) {
@@ -188,17 +176,12 @@ func (s *Service) Notify(ctx context.Context, event adminnotify.Event) error {
 		event.URL = "/mini-app/"
 	}
 
-	branding := Branding{}
-	if s.branding != nil {
-		branding = s.branding()
-	}
 	payload, err := json.Marshal(notificationPayload{
 		Title: event.Title,
 		Body:  event.Body,
 		URL:   event.URL,
 		Tag:   truncate(event.Tag, 64),
 		Badge: 1,
-		Icon:  safeIconURL(branding.IconURL),
 	})
 	if err != nil {
 		return err
@@ -228,18 +211,6 @@ func (s *Service) Notify(ctx context.Context, event adminnotify.Event) error {
 		deliveryErrors = append(deliveryErrors, deliveryErr)
 	}
 	return errors.Join(deliveryErrors...)
-}
-
-func safeIconURL(value string) string {
-	value = strings.TrimSpace(value)
-	if strings.HasPrefix(value, "/mini-app/") {
-		return value
-	}
-	parsed, err := url.Parse(value)
-	if err == nil && parsed.Scheme == "https" && parsed.Host != "" {
-		return value
-	}
-	return ""
 }
 
 func (s *Service) sendOne(ctx context.Context, payload []byte, topic string, item database.WebPushSubscription) error {

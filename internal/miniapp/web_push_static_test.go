@@ -46,7 +46,8 @@ func TestServiceWorkerAlwaysShowsPushAndOpensTarget(t *testing.T) {
 		`self.addEventListener("notificationclick"`,
 		`self.clients.openWindow(target)`,
 		`self.navigator.setAppBadge`,
-		`data.icon`,
+		`delete fallbackOptions.icon`,
+		`delete fallbackOptions.badge`,
 	} {
 		if !strings.Contains(source, required) {
 			t.Fatalf("sw.js is missing Web Push fragment %q", required)

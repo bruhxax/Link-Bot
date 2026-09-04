@@ -22,6 +22,8 @@ import (
 	"link-bot/internal/runtimeconfig"
 )
 
+const adminPaymentPushTimeout = 20 * time.Second
+
 type telegramSendMessageRequest struct {
 	ChatID      int64                         `json:"chat_id"`
 	Text        string                        `json:"text"`
@@ -156,7 +158,7 @@ func (s PaymentService) notifyAdminAboutPaymentByPush(purchase *database.Purchas
 		Tag:   fmt.Sprintf("payment-%d", purchase.ID),
 	}
 	go func(purchaseID int64) {
-		pushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		pushCtx, cancel := context.WithTimeout(context.Background(), adminPaymentPushTimeout)
 		defer cancel()
 		if err := s.adminPushNotifier.Notify(pushCtx, event); err != nil {
 			slog.Warn("payment: admin web push failed", "purchase_id", purchaseID, "error", err)

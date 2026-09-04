@@ -47,3 +47,31 @@ func TestSupportNotificationWindowCoversPushDelivery(t *testing.T) {
 		t.Fatalf("support notification timeout = %s, want at least 10s", supportNotificationTimeout)
 	}
 }
+
+func TestSupportAsyncDispatchesAutomaticAdminPush(t *testing.T) {
+	delivered := make(chan adminnotify.Event, 1)
+	handler := &Handler{webPushNotifier: adminnotifyFunc(func(_ context.Context, event adminnotify.Event) error {
+		delivered <- event
+		return nil
+	})}
+	ticket := &database.SupportTicket{ID: 74, Subject: "Не работает VPN", CustomerUsername: "client"}
+
+	handler.notifySupportAsync(func(ctx context.Context) {
+		handler.notifyAdminAboutSupportTicket(ctx, ticket, "Помогите")
+	})
+
+	select {
+	case event := <-delivered:
+		if event.Title != "Новое обращение" || event.Tag != "support-ticket-74" {
+			t.Fatalf("automatic support push = %+v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("automatic support push was not dispatched")
+	}
+}
+
+type adminnotifyFunc func(context.Context, adminnotify.Event) error
+
+func (fn adminnotifyFunc) Notify(ctx context.Context, event adminnotify.Event) error {
+	return fn(ctx, event)
+}

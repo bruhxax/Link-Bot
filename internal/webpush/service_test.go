@@ -72,7 +72,6 @@ func TestNotifyBuildsVisiblePayloadAndMarksSuccess(t *testing.T) {
 		subject:    defaultSubject,
 		httpClient: http.DefaultClient,
 	}
-	service.SetBrandingProvider(func() Branding { return Branding{IconURL: "/mini-app/uploads/logo-0123456789abcdef.png"} })
 	var delivered notificationPayload
 	service.send = func(_ context.Context, payload []byte, _ *webpushlib.Subscription, options *webpushlib.Options) (*http.Response, error) {
 		if err := json.Unmarshal(payload, &delivered); err != nil {
@@ -93,7 +92,7 @@ func TestNotifyBuildsVisiblePayloadAndMarksSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Notify() error = %v", err)
 	}
-	if delivered.Title != "Новая оплата" || delivered.Badge != 1 || delivered.URL != "/mini-app/?page=admin&section=finance" || delivered.Icon != "/mini-app/uploads/logo-0123456789abcdef.png" {
+	if delivered.Title != "Новая оплата" || delivered.Badge != 1 || delivered.URL != "/mini-app/?page=admin&section=finance" {
 		t.Fatalf("unexpected payload: %+v", delivered)
 	}
 	if len(repository.successIDs) != 1 || repository.successIDs[0] != 7 {

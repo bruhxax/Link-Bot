@@ -53,3 +53,24 @@ func TestSendAdminAlertUsesWebPushWithoutTelegramBot(t *testing.T) {
 		t.Fatalf("push URL = %q", notifier.event.URL)
 	}
 }
+
+func TestReportDispatchesAutomaticDiagnosticPush(t *testing.T) {
+	notifier := &recordingAdminNotifier{}
+	reporter := &Reporter{push: notifier, lastAlert: map[string]time.Time{}}
+	reporter.Report(context.Background(), ReportInput{
+		Category:  "database",
+		Severity:  "critical",
+		Operation: "ping",
+		Message:   "connection failed",
+	})
+
+	if notifier.event.Title != "Критическая ошибка" || notifier.event.URL != "/mini-app/?page=admin&section=diagnostics" {
+		t.Fatalf("automatic diagnostic push = %+v", notifier.event)
+	}
+}
+
+func TestDiagnosticPushDeliveryWindowCoversNetworkRequest(t *testing.T) {
+	if adminDiagnosticPushTimeout < 15*time.Second {
+		t.Fatalf("diagnostic push timeout = %s, want at least 15s", adminDiagnosticPushTimeout)
+	}
+}
