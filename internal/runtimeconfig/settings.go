@@ -23,7 +23,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 19
+const CurrentVersion = 20
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -218,17 +218,23 @@ type TelegramButtonSettings struct {
 }
 
 type AppearanceSettings struct {
-	BackgroundMode string                              `json:"backgroundMode"`
-	Colors         map[string]string                   `json:"colors"`
-	Liquid         map[string]LiquidBackgroundSettings `json:"liquid"`
-	Compact        bool                                `json:"compact"`
-	ShowFrames     bool                                `json:"showFrames"`
+	BackgroundMode   string                              `json:"backgroundMode"`
+	Colors           map[string]string                   `json:"colors"`
+	Liquid           map[string]LiquidBackgroundSettings `json:"liquid"`
+	BackgroundMotion map[string]BackgroundMotionSettings `json:"backgroundMotion"`
+	Compact          bool                                `json:"compact"`
+	ShowFrames       bool                                `json:"showFrames"`
 }
 
 type LiquidBackgroundSettings struct {
 	Colors  []string `json:"colors"`
 	Dimming int      `json:"dimming"`
 	Speed   int      `json:"speed"`
+}
+
+type BackgroundMotionSettings struct {
+	Dimming int `json:"dimming"`
+	Speed   int `json:"speed"`
 }
 
 type LayoutElement struct {
@@ -515,6 +521,14 @@ func DefaultSettings() Settings {
 			BackgroundMode: "animated",
 			Compact:        true,
 			ShowFrames:     true,
+			BackgroundMotion: map[string]BackgroundMotionSettings{
+				"animated": {Dimming: 12, Speed: 45},
+				"grid":     {Dimming: 14, Speed: 50},
+				"grid2":    {Dimming: 14, Speed: 50},
+				"liquid1":  {Dimming: 26, Speed: 35},
+				"liquid2":  {Dimming: 38, Speed: 30},
+				"solid":    {Dimming: 0, Speed: 50},
+			},
 			Liquid: map[string]LiquidBackgroundSettings{
 				"liquid1": {
 					Colors:  []string{"#000000", "#1646ff", "#7226ff", "#ffffff"},
@@ -972,7 +986,7 @@ func NormalizeAndValidate(settings *Settings) error {
 		return err
 	}
 	ensureCustomProfileLayout(&settings.Layout, settings.Content.CustomLinks)
-	if err := validateAppearance(&settings.Appearance, defaults.Appearance); err != nil {
+	if err := validateAppearance(&settings.Appearance, defaults.Appearance, previousVersion < CurrentVersion); err != nil {
 		return err
 	}
 	if err := validateLayout(&settings.Layout, defaults.Layout); err != nil {
@@ -1497,7 +1511,7 @@ func normalizedRequiredText(value, fallback string, max int) string {
 	return limit(value, max)
 }
 
-func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings) error {
+func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings, migrating bool) error {
 	value.BackgroundMode = strings.ToLower(strings.TrimSpace(value.BackgroundMode))
 	if value.BackgroundMode == "" {
 		value.BackgroundMode = defaults.BackgroundMode
@@ -1555,6 +1569,33 @@ func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings) 
 	for name := range value.Liquid {
 		if _, ok := defaults.Liquid[name]; !ok {
 			delete(value.Liquid, name)
+		}
+	}
+	if value.BackgroundMotion == nil {
+		value.BackgroundMotion = map[string]BackgroundMotionSettings{}
+	}
+	for name, fallback := range defaults.BackgroundMotion {
+		current, exists := value.BackgroundMotion[name]
+		if !exists {
+			current = fallback
+		}
+		if migrating && (name == "liquid1" || name == "liquid2") {
+			if legacy, ok := value.Liquid[name]; ok {
+				current.Dimming = legacy.Dimming
+				current.Speed = legacy.Speed
+			}
+		}
+		if current.Dimming < 0 || current.Dimming > 80 {
+			return fmt.Errorf("background dimming %q must be between 0 and 80", name)
+		}
+		if current.Speed < 10 || current.Speed > 100 {
+			current.Speed = fallback.Speed
+		}
+		value.BackgroundMotion[name] = current
+	}
+	for name := range value.BackgroundMotion {
+		if _, ok := defaults.BackgroundMotion[name]; !ok {
+			delete(value.BackgroundMotion, name)
 		}
 	}
 	return nil

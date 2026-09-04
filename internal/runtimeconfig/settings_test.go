@@ -748,6 +748,15 @@ func TestNormalizeAndValidateLiquidBackgroundAppearance(t *testing.T) {
 			t.Fatalf("liquid background %q speed = %d", mode, background.Speed)
 		}
 	}
+	for _, mode := range []string{"animated", "grid", "grid2", "liquid1", "liquid2", "solid"} {
+		motion, ok := settings.Appearance.BackgroundMotion[mode]
+		if !ok {
+			t.Fatalf("background motion %q is missing", mode)
+		}
+		if motion.Dimming < 0 || motion.Dimming > 80 || motion.Speed < 10 || motion.Speed > 100 {
+			t.Fatalf("background motion %q is invalid: %+v", mode, motion)
+		}
+	}
 
 	custom := settings.Appearance.Liquid["liquid2"]
 	custom.Colors = []string{"#010101", "#123456", "#abcdef", "#fefefe"}
@@ -760,6 +769,34 @@ func TestNormalizeAndValidateLiquidBackgroundAppearance(t *testing.T) {
 	}
 	if got := settings.Appearance.Liquid["liquid2"]; got.Dimming != 0 || got.Speed != 100 || got.Colors[2] != "#abcdef" {
 		t.Fatalf("custom liquid background was not preserved: %+v", got)
+	}
+}
+
+func TestNormalizeAndValidateMigratesLiquidMotion(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Version = CurrentVersion - 1
+	settings.Appearance.BackgroundMotion = nil
+	legacy := settings.Appearance.Liquid["liquid1"]
+	legacy.Dimming = 52
+	legacy.Speed = 78
+	settings.Appearance.Liquid["liquid1"] = legacy
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if got := settings.Appearance.BackgroundMotion["liquid1"]; got.Dimming != 52 || got.Speed != 78 {
+		t.Fatalf("migrated liquid motion = %+v, want dimming 52 speed 78", got)
+	}
+}
+
+func TestNormalizeAndValidateRejectsInvalidBackgroundDimming(t *testing.T) {
+	settings := DefaultSettings()
+	motion := settings.Appearance.BackgroundMotion["grid"]
+	motion.Dimming = 81
+	settings.Appearance.BackgroundMotion["grid"] = motion
+
+	if err := NormalizeAndValidate(&settings); err == nil {
+		t.Fatal("NormalizeAndValidate() accepted invalid background dimming")
 	}
 }
 

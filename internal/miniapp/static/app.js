@@ -1641,6 +1641,15 @@ const DEFAULT_LIQUID_BACKGROUNDS = Object.freeze({
 	liquid2: { colors: ["#000000", "#1646ff", "#7226ff", "#ffffff"], dimming: 38, speed: 30 },
 });
 
+const DEFAULT_BACKGROUND_MOTION = Object.freeze({
+	animated: { dimming: 12, speed: 45 },
+	grid: { dimming: 14, speed: 50 },
+	grid2: { dimming: 14, speed: 50 },
+	liquid1: { dimming: 26, speed: 35 },
+	liquid2: { dimming: 38, speed: 30 },
+	solid: { dimming: 0, speed: 50 },
+});
+
 const ADMIN_BACKGROUND_OPTIONS = [
 	["animated", "Волны", "Точки и мягкие волны"],
 	["grid", "Движущаяся сетка", "Диагональное движение"],
@@ -1649,6 +1658,15 @@ const ADMIN_BACKGROUND_OPTIONS = [
 	["liquid2", "Жидкое стекло 2", "Тёмный мягкий перелив"],
 	["solid", "Сплошной цвет", "Чистый однотонный фон"],
 ];
+
+const ADMIN_BACKGROUND_COLOR_FIELDS = Object.freeze({
+	animated: [["appearance.colors.waveBackground", "Цвет фона"], ["appearance.colors.waveDot", "Цвет точек"]],
+	grid: [["appearance.colors.gridBackground", "Цвет фона"], ["appearance.colors.gridLine", "Цвет линий"], ["appearance.colors.gridGlowLeft", "Свечение слева"], ["appearance.colors.gridGlowRight", "Свечение справа"]],
+	grid2: [["appearance.colors.grid2Background", "Цвет фона"], ["appearance.colors.grid2Line", "Цвет сетки"], ["appearance.colors.grid2Glow", "Нижняя подсветка"]],
+	liquid1: [["appearance.liquid.liquid1.colors.0", "Цвет 1 · основа"], ["appearance.liquid.liquid1.colors.1", "Цвет 2 · холодный свет"], ["appearance.liquid.liquid1.colors.2", "Цвет 3 · перелив"], ["appearance.liquid.liquid1.colors.3", "Цвет 4 · блик"]],
+	liquid2: [["appearance.liquid.liquid2.colors.0", "Цвет 1 · основа"], ["appearance.liquid.liquid2.colors.1", "Цвет 2 · холодный свет"], ["appearance.liquid.liquid2.colors.2", "Цвет 3 · перелив"], ["appearance.liquid.liquid2.colors.3", "Цвет 4 · блик"]],
+	solid: [["appearance.colors.background", "Цвет фона"]],
+});
 
 const ADMIN_APPEARANCE_PRESETS = [
 	{
@@ -1880,7 +1898,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 function buildPreviewRuntimeSettings() {
 	const features = Object.fromEntries(["mini_app", "stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "payments_history", "gifts", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
-		version: 19,
+		version: 20,
 		localization: { language: "ru", fontFamily: "auto" },
 		maintenance: { enabled: false, titleRu: "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u044b", textRu: "", reasonRu: "" },
 		features,
@@ -1896,7 +1914,7 @@ function buildPreviewRuntimeSettings() {
 			},
 			paymentNotification: { text: "💳 <b>Оплата:</b> <b>{{price}}</b>\n\n▦ <b>Тариф:</b> <b>{{sub}}</b>\n▦ <b>Доп. устройства:</b> <b>{{device}}</b>\n✈ <b>Telegram:</b> <b>{{username}}</b>\n◷ <b>Время:</b> <b>{{data}}</b>\n⚙ <b>Способ:</b> <b>{{integration}}</b>\n🏷 <b>Промокод:</b> <b>{{promo}}</b>\n▣ <b>Заказ:</b> <code>{{number}}</code>", openUserButton: { enabled: true, text: "Открыть пользователя в панели", iconCustomEmojiId: "", style: "primary" }, profileButton: { enabled: true, text: "Профиль", iconCustomEmojiId: "", style: "" } },
 		},
-		appearance: { backgroundMode: "animated", compact: true, showFrames: true, liquid: deepClone(DEFAULT_LIQUID_BACKGROUNDS), colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", waveBackground: "#000000", waveDot: "#ebebeb" } },
+		appearance: { backgroundMode: "animated", compact: true, showFrames: true, liquid: deepClone(DEFAULT_LIQUID_BACKGROUNDS), backgroundMotion: deepClone(DEFAULT_BACKGROUND_MOTION), colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", waveBackground: "#000000", waveDot: "#ebebeb" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, titleFa: `${plan.months} \u0645\u0627\u0647`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
 		devicePacks: [],
@@ -2091,6 +2109,7 @@ const ADMIN_LAYOUT_SNAP_THRESHOLD = 6;
 const MODAL_CLOSE_MS = 220;
 
 const particleEngine = createParticleEngine();
+const waveMotionEngine = createWaveMotionEngine();
 
 function t() {
 	const base = copybook[state.locale] || copybook.ru;
@@ -4774,8 +4793,13 @@ function getAdminLiquidSettings(mode) {
 	const fallback = DEFAULT_LIQUID_BACKGROUNDS[mode] || DEFAULT_LIQUID_BACKGROUNDS.liquid1;
 	const current = getDeepValue(state.adminSettingsDraft, `appearance.liquid.${mode}`, {}) || {};
 	const colors = Array.from({ length: 4 }, (_, index) => String(current.colors?.[index] || fallback.colors[index]));
+	return { colors };
+}
+
+function getAdminBackgroundMotion(mode) {
+	const fallback = DEFAULT_BACKGROUND_MOTION[mode] || DEFAULT_BACKGROUND_MOTION.animated;
+	const current = getDeepValue(state.adminSettingsDraft, `appearance.backgroundMotion.${mode}`, {}) || {};
 	return {
-		colors,
 		dimming: Math.max(0, Math.min(80, Number(current.dimming ?? fallback.dimming))),
 		speed: Math.max(10, Math.min(100, Number(current.speed ?? fallback.speed))),
 	};
@@ -4803,16 +4827,17 @@ function renderAdminBackgroundOptions(currentMode) {
 	</section>`;
 }
 
-function renderAdminLiquidControls(mode) {
-	if (!DEFAULT_LIQUID_BACKGROUNDS[mode]) return "";
-	const settings = getAdminLiquidSettings(mode);
-	const labels = ["Цвет 1 · основа", "Цвет 2 · холодный свет", "Цвет 3 · перелив", "Цвет 4 · блик"];
-	return `<section class="admin-editor__section admin-liquid-settings">
-		<div class="admin-liquid-settings__heading"><div><h3>Настройка перелива</h3><p>Отдельные параметры для «${mode === "liquid1" ? "Жидкое стекло 1" : "Жидкое стекло 2"}»</p></div><span class="admin-liquid-settings__sample" style="${escapeAttribute(liquidPreviewStyle(mode))}" aria-hidden="true"></span></div>
-		<div class="admin-color-grid">${labels.map((label, index) => renderAdminColorField(label, `appearance.liquid.${mode}.colors.${index}`)).join("")}</div>
-		<div class="admin-liquid-settings__ranges">
-			${renderAdminRangeField("Затемнение", "От светлого к глубокому тёмному фону", `appearance.liquid.${mode}.dimming`, { value: settings.dimming, min: 0, max: 80, suffix: "%", minLabel: "Светлее", maxLabel: "Темнее" })}
-			${renderAdminRangeField("Скорость", "Плавность движения без резких рывков", `appearance.liquid.${mode}.speed`, { value: settings.speed, min: 10, max: 100, suffix: "%", minLabel: "Медленно", maxLabel: "Быстрее" })}
+function renderAdminBackgroundControls(mode) {
+	const option = ADMIN_BACKGROUND_OPTIONS.find(([value]) => value === mode) || ADMIN_BACKGROUND_OPTIONS[0];
+	const motion = getAdminBackgroundMotion(mode);
+	const colorFields = ADMIN_BACKGROUND_COLOR_FIELDS[mode] || ADMIN_BACKGROUND_COLOR_FIELDS.animated;
+	const previewStyle = mode.startsWith("liquid") ? ` style="${escapeAttribute(liquidPreviewStyle(mode))}"` : "";
+	return `<section class="admin-editor__section admin-background-settings">
+		<div class="admin-background-settings__heading"><div><h3>Настройка фона</h3><p>Отдельные параметры для «${escapeHtml(option[1])}»</p></div><span class="admin-background-settings__sample" data-preview-background="${escapeAttribute(mode)}"${previewStyle} aria-hidden="true"><i></i></span></div>
+		<div class="admin-color-grid">${colorFields.map(([path, label]) => renderAdminColorField(label, path)).join("")}</div>
+		<div class="admin-background-settings__ranges">
+			${renderAdminRangeField("Затемнение", "От светлого к глубокому тёмному фону", `appearance.backgroundMotion.${mode}.dimming`, { value: motion.dimming, min: 0, max: 80, suffix: "%", minLabel: "Светлее", maxLabel: "Темнее" })}
+			${renderAdminRangeField("Скорость", mode === "solid" ? "Скорость едва заметного движения текстуры" : "Плавность движения без резких рывков", `appearance.backgroundMotion.${mode}.speed`, { value: motion.speed, min: 10, max: 100, suffix: "%", minLabel: "Медленно", maxLabel: "Быстрее" })}
 		</div>
 	</section>`;
 }
@@ -4820,21 +4845,14 @@ function renderAdminLiquidControls(mode) {
 function renderAdminAppearancePage() {
 	const currentMode = String(getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode", "animated"));
 	const groups = [
-		["Основа интерфейса", [["background", "Сплошной фон"], ["text", "Название подписки, дата и выбранный тариф"], ["muted", "Описания и подписи"], ["border", "Рамки"]]],
+		["Основа интерфейса", [["text", "Название подписки, дата и выбранный тариф"], ["muted", "Описания и подписи"], ["border", "Рамки"]]],
 		["Карточки", [["surface", "Обычные карточки"], ["surfaceStrong", "Выбранные элементы"]]],
 		["Кнопки и навигация", [["button", "Фон кнопок и тарифов"], ["buttonText", "Текст кнопок и тарифов"], ["icon", "Все SVG-иконки"], ["accent", "Акцент"]]],
 		["Состояния", [["success", "Успех"], ["danger", "Ошибка"], ["unlimitedBadge", "Метка «Безлимит»"]]],
 	];
-	const backgroundGroups = {
-		animated: ["Фон «Волны»", [["waveBackground", "Фон за точками"], ["waveDot", "Точки"]]],
-		grid: ["Фон «Движущаяся сетка»", [["gridBackground", "Фон за линиями"], ["gridLine", "Линии"], ["gridGlowLeft", "Свечение слева"], ["gridGlowRight", "Свечение справа"]]],
-		grid2: ["Фон «Сетка 2»", [["grid2Background", "Фон за сеткой"], ["grid2Line", "Цвет сетки"], ["grid2Glow", "Нижняя подсветка"]]],
-		solid: ["Сплошной фон", [["background", "Цвет фона"]]],
-	};
-	if (backgroundGroups[currentMode]) groups.push(backgroundGroups[currentMode]);
 	return renderAdminEditorPage(state.locale === "en" ? "Appearance" : "Оформление", `
 		${renderAdminBackgroundOptions(currentMode)}
-		${renderAdminLiquidControls(currentMode)}
+		${renderAdminBackgroundControls(currentMode)}
 		<div class="admin-toggle-list">${renderAdminToggle("Компактный режим", "appearance.compact")}${renderAdminToggle("Показывать рамки", "appearance.showFrames")}</div>
 		${renderAdminAppearancePresets()}
 		<div class="admin-appearance-groups">${groups.map(([title, colors]) => `<section class="admin-editor__section admin-appearance-group"><h3>${escapeHtml(title)}</h3><div class="admin-color-grid">${colors.map(([key, label]) => renderAdminColorField(label, `appearance.colors.${key}`)).join("")}</div></section>`).join("")}</div>
@@ -7865,6 +7883,12 @@ function bindRootActions() {
 				if (type === "color") {
 					const colorValue = target.closest(".admin-color-field")?.querySelector("em");
 					if (colorValue) colorValue.textContent = target.value;
+					const liquidMatch = settingPath.match(/^appearance\.liquid\.(liquid[12])\.colors\.(\d)$/);
+					if (liquidMatch) {
+						app.querySelectorAll(`[data-preview-background="${liquidMatch[1]}"]`).forEach((preview) => {
+							preview.style.setProperty(`--preview-liquid-${Number(liquidMatch[2]) + 1}`, target.value);
+						});
+					}
 				}
 				applyAppearance();
 			}
@@ -11527,12 +11551,14 @@ function applyAppearance() {
   state.theme = "dark";
   document.documentElement.dataset.theme = "dark";
 	const backgroundMode = ["animated", "grid", "grid2", "liquid1", "liquid2", "solid"].includes(appearance.backgroundMode) ? appearance.backgroundMode : "animated";
+	const motionFallback = DEFAULT_BACKGROUND_MOTION[backgroundMode] || DEFAULT_BACKGROUND_MOTION.animated;
+	const motionSettings = appearance.backgroundMotion?.[backgroundMode] || motionFallback;
+	const backgroundDimming = Math.max(0, Math.min(80, Number(motionSettings.dimming ?? motionFallback.dimming)));
+	const backgroundSpeed = Math.max(10, Math.min(100, Number(motionSettings.speed ?? motionFallback.speed)));
+	const backgroundDuration = 9.2 - ((backgroundSpeed - 10) / 90) * 6.7;
 	const liquidFallback = DEFAULT_LIQUID_BACKGROUNDS[backgroundMode] || DEFAULT_LIQUID_BACKGROUNDS.liquid1;
 	const liquidSettings = appearance.liquid?.[backgroundMode] || liquidFallback;
 	const liquidColors = Array.from({ length: 4 }, (_, index) => String(liquidSettings.colors?.[index] || liquidFallback.colors[index]));
-	const liquidDimming = Math.max(0, Math.min(80, Number(liquidSettings.dimming ?? liquidFallback.dimming)));
-	const liquidSpeed = Math.max(10, Math.min(100, Number(liquidSettings.speed ?? liquidFallback.speed)));
-	const liquidDuration = 60 - ((liquidSpeed - 10) / 90) * 42;
 	document.documentElement.dataset.background = backgroundMode;
 	document.documentElement.dataset.frames = appearance.showFrames === false ? "off" : "on";
 	document.documentElement.dataset.compact = appearance.compact === false ? "off" : "on";
@@ -11567,8 +11593,9 @@ function applyAppearance() {
 		"--liquid-color-2": liquidColors[1],
 		"--liquid-color-3": liquidColors[2],
 		"--liquid-color-4": liquidColors[3],
-		"--liquid-dimming": String(liquidDimming / 100),
-		"--liquid-duration": `${liquidDuration.toFixed(2)}s`,
+		"--background-dimming": String(backgroundDimming / 100),
+		"--background-animation-duration": `${backgroundDuration.toFixed(2)}s`,
+		"--background-texture-duration": `${(backgroundDuration * 3.4).toFixed(2)}s`,
 	};
 	Object.entries(variables).forEach(([name, value]) => { if (value) document.documentElement.style.setProperty(name, value); });
   document.documentElement.style.setProperty("--accent", accent.accent);
@@ -11582,6 +11609,9 @@ function applyAppearance() {
   document.documentElement.style.setProperty("--unlimited-badge-border", hexToRGBA(unlimitedBadgeColor, 0.72));
   updateWaveColorFilter(colors.waveBackground || "#000000", colors.waveDot || "#ebebeb");
   particleEngine.setColor(accent.particle);
+	particleEngine.setSpeed?.(backgroundSpeed);
+	waveMotionEngine.setSpeed(backgroundSpeed);
+	window.__linkBotLiquid?.setConfig({ variant: backgroundMode, colors: liquidColors, speed: backgroundSpeed });
   if (themeMeta) themeMeta.setAttribute("content", PALETTE.themeColor.dark);
 	if (tg) {
     const color = PALETTE.themeColor.dark;
@@ -11615,9 +11645,9 @@ function syncBackgroundEngines() {
 	const waveShouldRun = backgroundMode === "animated" && !paused;
 	particleEngine.setPaused?.(backgroundMode !== "animated" || paused);
 	const wave = window.__linkBotWave;
-	if (!wave) return;
-	if (waveShouldRun) wave.resume?.();
-	else wave.pause?.();
+	wave?.pause?.();
+	waveMotionEngine.setPaused(!waveShouldRun);
+	window.__linkBotLiquid?.setPaused(!backgroundMode.startsWith("liquid") || paused || reducedMotionMedia?.matches);
 }
 
 function updateWaveColorFilter(backgroundHex, dotHex) {
@@ -12463,6 +12493,43 @@ function pluralizeRu(value, forms) {
   return forms[2];
 }
 
+function createWaveMotionEngine() {
+	let animationFrame = 0;
+	let paused = true;
+	let speed = 45;
+	let progress = 0;
+	let previousTime = 0;
+
+	function frame(now) {
+		animationFrame = 0;
+		if (paused) return;
+		const elapsed = previousTime ? Math.min(80, now - previousTime) : 0;
+		previousTime = now;
+		const duration = 17000 - ((speed - 10) / 90) * 12000;
+		progress = (progress + elapsed / duration) % 1;
+		window.__linkBotWave?.renderAtProgress?.(progress);
+		animationFrame = requestAnimationFrame(frame);
+	}
+
+	return {
+		setSpeed(nextSpeed) {
+			speed = Math.max(10, Math.min(100, Number(nextSpeed || 45)));
+		},
+		setPaused(nextPaused) {
+			const shouldPause = Boolean(nextPaused);
+			if (shouldPause === paused) return;
+			paused = shouldPause;
+			previousTime = 0;
+			if (paused) {
+				if (animationFrame) cancelAnimationFrame(animationFrame);
+				animationFrame = 0;
+				return;
+			}
+			animationFrame = requestAnimationFrame(frame);
+		},
+	};
+}
+
 function createParticleEngine() {
   const canvas = document.getElementById("particles-canvas");
   if (!canvas) {
@@ -12475,9 +12542,10 @@ function createParticleEngine() {
   const context = canvas.getContext("2d");
   const particles = [];
   let running = false;
-	let paused = false;
+	let paused = true;
 	let animationFrame = 0;
   let color = "rgba(160,28,28,0.66)";
+	let speedScale = 1;
 
   function withAlpha(alpha) {
     return color.replace(/[\d.]+\)$/u, `${alpha})`);
@@ -12546,10 +12614,10 @@ function createParticleEngine() {
 	if (!running || paused) return;
     context.clearRect(0, 0, window.innerWidth, window.innerHeight);
       particles.forEach((particle) => {
-        particle.x += particle.vx;
-        particle.y += particle.vy;
-        particle.rotation += particle.rotSpeed;
-        particle.wobble += particle.wobbleSpeed;
+        particle.x += particle.vx * speedScale;
+        particle.y += particle.vy * speedScale;
+        particle.rotation += particle.rotSpeed * speedScale;
+        particle.wobble += particle.wobbleSpeed * speedScale;
         if (particle.x < -20) particle.x = window.innerWidth + 20;
         if (particle.x > window.innerWidth + 20) particle.x = -20;
         if (particle.y < -20) particle.y = window.innerHeight + 20;
@@ -12579,6 +12647,10 @@ function createParticleEngine() {
 		if (!paused) frame();
     },
     setColor(nextColor) { color = nextColor; },
+	setSpeed(nextSpeed) {
+		const normalized = Math.max(10, Math.min(100, Number(nextSpeed || 45)));
+		speedScale = 0.35 + ((normalized - 10) / 90) * 1.65;
+	},
 	setPaused(nextPaused) {
 		const shouldPause = Boolean(nextPaused);
 		if (paused === shouldPause) return;
