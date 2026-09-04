@@ -22,6 +22,9 @@ func TestAdminWebPushUIRequiresDirectPermissionGestureAndHomeScreen(t *testing.T
 		`registration.pushManager.subscribe({`,
 		`userVisibleOnly: true`,
 		`applicationServerKey: urlBase64ToUint8Array`,
+		`updateViaCache: "none"`,
+		`renewAdminPushSubscription()`,
+		`push_subscription_stale`,
 		`if (subscription) remoteState = await syncAdminPushSubscription(subscription);`,
 		`/api/mini-app/admin/push/subscribe`,
 		`/api/mini-app/admin/push/unsubscribe`,
@@ -46,8 +49,8 @@ func TestServiceWorkerAlwaysShowsPushAndOpensTarget(t *testing.T) {
 		`self.addEventListener("notificationclick"`,
 		`self.clients.openWindow(target)`,
 		`self.navigator.setAppBadge`,
-		`delete fallbackOptions.icon`,
-		`delete fallbackOptions.badge`,
+		`notification delivery must not depend on the icon badge`,
+		`renotify: true`,
 	} {
 		if !strings.Contains(source, required) {
 			t.Fatalf("sw.js is missing Web Push fragment %q", required)

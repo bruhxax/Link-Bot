@@ -159,7 +159,7 @@ func (r *Reporter) sendAdminAlert(_ context.Context, event *database.Operational
 			Title: title,
 			Body:  strings.Join([]string{event.Category, event.Operation, event.Message}, " · "),
 			URL:   "/mini-app/?page=admin&section=diagnostics",
-			Tag:   "diagnostic-" + event.Fingerprint,
+			Tag:   fmt.Sprintf("diagnostic-%s-%d", event.Fingerprint, event.OccurrenceCount),
 		})
 		cancel()
 		if err != nil {

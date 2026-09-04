@@ -277,11 +277,10 @@ docker compose start
 
 ```bash
 cd /opt/Link-Bot
-git pull --ff-only
-docker compose up -d --build --force-recreate --remove-orphans
+./update.sh
 ```
 
-Updating preserves the database and admin panel settings. Existing plans, appearance settings, and integrations are not reset to new default values.
+The script shows the version, changed files, compact Docker progress, and service status without a wall of build logs. Updating preserves the database and admin panel settings. Existing plans, appearance settings, and integrations are not reset to new default values.
 
 </details>
 

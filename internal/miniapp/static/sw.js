@@ -17,37 +17,30 @@ self.addEventListener("push", (event) => {
   const title = String(data.title || "Новое событие");
   const options = {
     body: String(data.body || "Откройте Link-Bot, чтобы посмотреть подробности"),
-    icon: "/mini-app/assets/pwa-192.png?v=20260720-brand2",
-    badge: "/mini-app/assets/pwa-192.png?v=20260720-brand2",
     tag: String(data.tag || "admin-event"),
-    renotify: false,
+    renotify: true,
     data: {
       url: String(data.url || "/mini-app/"),
     },
   };
 
-  const showNotification = async () => {
-    try {
-      await self.registration.showNotification(title, options);
-    } catch (_) {
-      const fallbackOptions = { ...options };
-      delete fallbackOptions.icon;
-      delete fallbackOptions.badge;
-      await self.registration.showNotification(title, fallbackOptions);
+  event.waitUntil((async () => {
+    await self.registration.showNotification(title, options);
+    if (Number(data.badge || 0) > 0 && "setAppBadge" in self.navigator) {
+      try {
+        await self.navigator.setAppBadge(Number(data.badge));
+      } catch (_) { /* notification delivery must not depend on the icon badge */ }
     }
-  };
-  const tasks = [showNotification()];
-  if (Number(data.badge || 0) > 0 && "setAppBadge" in self.navigator) {
-    tasks.push(Promise.resolve(self.navigator.setAppBadge(Number(data.badge))).catch(() => {}));
-  }
-  event.waitUntil(Promise.all(tasks));
+  })());
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const target = new URL(event.notification.data?.url || "/mini-app/", self.location.origin).href;
   event.waitUntil((async () => {
-    if ("clearAppBadge" in self.navigator) await self.navigator.clearAppBadge();
+    if ("clearAppBadge" in self.navigator) {
+      try { await self.navigator.clearAppBadge(); } catch (_) { /* continue opening the app */ }
+    }
     const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     const current = windows.find((client) => new URL(client.url).origin === self.location.origin);
     if (current) {
@@ -60,5 +53,5 @@ self.addEventListener("notificationclick", (event) => {
 
 self.addEventListener("message", (event) => {
   if (event.data?.type !== "CLEAR_APP_BADGE" || !("clearAppBadge" in self.navigator)) return;
-  event.waitUntil(self.navigator.clearAppBadge());
+  event.waitUntil(self.navigator.clearAppBadge().catch(() => {}));
 });

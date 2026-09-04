@@ -2945,9 +2945,13 @@ func (h *Handler) handleAdminWebPushTest(w http.ResponseWriter, r *http.Request,
 		Title: "Тестовое уведомление",
 		Body:  "Push-уведомления Link-Bot работают",
 		URL:   "/mini-app/?page=admin&section=push",
-		Tag:   "admin-push-test",
+		Tag:   fmt.Sprintf("admin-push-test-%d", time.Now().UnixNano()),
 	}); err != nil {
 		slog.Warn("mini app: test admin web push", "error", err)
+		if errors.Is(err, webpush.ErrSubscriptionExpired) || errors.Is(err, webpush.ErrNoSubscriptions) {
+			h.writeError(w, http.StatusConflict, "push_subscription_stale", "Подписка устарела и будет подключена заново")
+			return
+		}
 		h.writeError(w, http.StatusBadGateway, "push_test_failed", "Не удалось отправить тестовое уведомление")
 		return
 	}
@@ -5542,7 +5546,7 @@ func (h *Handler) notifyAdminAboutSupportByPush(ctx context.Context, title strin
 		Title: title,
 		Body:  body,
 		URL:   "/mini-app/?page=support",
-		Tag:   fmt.Sprintf("%s-%d", tagPrefix, ticket.ID),
+		Tag:   fmt.Sprintf("%s-%d-%d", tagPrefix, ticket.ID, time.Now().UnixNano()),
 	}); err != nil {
 		slog.Warn("mini app: admin support web push failed", "ticketId", ticket.ID, "error", err)
 	}

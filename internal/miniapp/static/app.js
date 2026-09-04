@@ -129,7 +129,8 @@ function preventMiniAppZoom() {
 
 function registerPWAServiceWorker() {
   if (!("serviceWorker" in navigator) || window.location.protocol !== "https:") return;
-  navigator.serviceWorker.register("/mini-app/sw.js", { scope: "/mini-app/" }).then((registration) => {
+	navigator.serviceWorker.register("/mini-app/sw.js", { scope: "/mini-app/", updateViaCache: "none" }).then((registration) => {
+	registration.update().catch(() => {});
 	registration.active?.postMessage({ type: "CLEAR_APP_BADGE" });
   }).catch(() => {});
 	if ("clearAppBadge" in navigator) navigator.clearAppBadge().catch(() => {});
@@ -153,7 +154,7 @@ function withWebPushTimeout(promise, timeoutMs, message, code) {
 async function getPWAServiceWorkerRegistration() {
 	if (!("serviceWorker" in navigator) || window.location.protocol !== "https:") return null;
 	const registration = await withWebPushTimeout(
-		navigator.serviceWorker.register("/mini-app/sw.js", { scope: "/mini-app/" }),
+		navigator.serviceWorker.register("/mini-app/sw.js", { scope: "/mini-app/", updateViaCache: "none" }),
 		WEB_PUSH_WORKER_TIMEOUT_MS,
 		"iPhone не завершил подготовку уведомлений. Полностью закройте Link-Bot, откройте снова и повторите.",
 		"push_worker_timeout",
@@ -3572,6 +3573,37 @@ async function syncAdminPushSubscription(subscription) {
 	return response.data || {};
 }
 
+async function renewAdminPushSubscription() {
+	const registration = await getPWAServiceWorkerRegistration();
+	if (!registration?.pushManager) throw new Error("Service Worker недоступен");
+	const current = await withWebPushTimeout(
+		registration.pushManager.getSubscription(),
+		WEB_PUSH_WORKER_TIMEOUT_MS,
+		"iPhone не ответил на запрос уведомлений",
+		"push_subscription_state_timeout",
+	);
+	if (current) {
+		await withWebPushTimeout(
+			current.unsubscribe(),
+			WEB_PUSH_WORKER_TIMEOUT_MS,
+			"iPhone не удалил устаревшую подписку",
+			"push_unsubscribe_timeout",
+		);
+	}
+	const subscription = await withWebPushTimeout(
+		registration.pushManager.subscribe({
+			userVisibleOnly: true,
+			applicationServerKey: urlBase64ToUint8Array(state.adminPush.publicKey),
+		}),
+		WEB_PUSH_SUBSCRIPTION_TIMEOUT_MS,
+		"iPhone не создал новую подписку на уведомления",
+		"push_subscribe_timeout",
+	);
+	const data = await syncAdminPushSubscription(subscription);
+	state.adminPush = { ...data, subscribed: true, permission: Notification.permission };
+	return subscription;
+}
+
 function adminPushErrorMessage(error) {
 	if (error?.code === "push_subscribe_timeout") return "iPhone не завершил подписку. Нажмите «Повторить»; если не поможет, полностью закройте Link-Bot и откройте снова.";
 	if (error?.name === "InvalidStateError") return "iPhone ещё не активировал сайт. Полностью закройте Link-Bot, откройте снова и нажмите «Повторить».";
@@ -3706,7 +3738,14 @@ async function testAdminPush() {
 	state.adminPushBusy = "test";
 	render({ preserveScroll: true });
 	try {
-		const response = await post("/api/mini-app/admin/push/test", {});
+		let response;
+		try {
+			response = await post("/api/mini-app/admin/push/test", {});
+		} catch (error) {
+			if (error?.code !== "push_subscription_stale") throw error;
+			await renewAdminPushSubscription();
+			response = await post("/api/mini-app/admin/push/test", {});
+		}
 		showToast(response.message || "Тестовое уведомление отправлено", "success");
 	} finally {
 		state.adminPushBusy = "";

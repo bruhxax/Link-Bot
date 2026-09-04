@@ -3,6 +3,7 @@ package webpush
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -107,10 +108,42 @@ func TestNotifyRemovesExpiredSubscription(t *testing.T) {
 		return &http.Response{StatusCode: http.StatusGone, Body: io.NopCloser(strings.NewReader("expired"))}, nil
 	}
 
-	if err := service.Notify(context.Background(), adminnotify.Event{Title: "Ошибка"}); err != nil {
-		t.Fatalf("Notify() error = %v", err)
+	if err := service.Notify(context.Background(), adminnotify.Event{Title: "Ошибка"}); !errors.Is(err, ErrSubscriptionExpired) {
+		t.Fatalf("Notify() error = %v, want ErrSubscriptionExpired", err)
 	}
 	if len(repository.deletedIDs) != 1 || repository.deletedIDs[0] != 9 {
+		t.Fatalf("deleted IDs = %v", repository.deletedIDs)
+	}
+}
+
+func TestNotifyRejectsMissingSubscriptions(t *testing.T) {
+	service := &Service{repository: &fakeRepository{}, adminID: 42}
+	if err := service.Notify(context.Background(), adminnotify.Event{Title: "Тест"}); !errors.Is(err, ErrNoSubscriptions) {
+		t.Fatalf("Notify() error = %v, want ErrNoSubscriptions", err)
+	}
+}
+
+func TestNotifySucceedsWhenCurrentSubscriptionWorksAlongsideExpiredOne(t *testing.T) {
+	repository := &fakeRepository{items: []database.WebPushSubscription{
+		{ID: 10, Endpoint: "https://push.example/current", P256DH: "p", Auth: "a"},
+		{ID: 11, Endpoint: "https://push.example/expired", P256DH: "p", Auth: "a"},
+	}}
+	service := &Service{repository: repository, adminID: 42, publicKey: "public", privateKey: "private", subject: defaultSubject, httpClient: http.DefaultClient}
+	service.send = func(_ context.Context, _ []byte, subscription *webpushlib.Subscription, _ *webpushlib.Options) (*http.Response, error) {
+		status := http.StatusCreated
+		if strings.HasSuffix(subscription.Endpoint, "/expired") {
+			status = http.StatusGone
+		}
+		return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(""))}, nil
+	}
+
+	if err := service.Notify(context.Background(), adminnotify.Event{Title: "Тест"}); err != nil {
+		t.Fatalf("Notify() error = %v", err)
+	}
+	if len(repository.successIDs) != 1 || repository.successIDs[0] != 10 {
+		t.Fatalf("success IDs = %v", repository.successIDs)
+	}
+	if len(repository.deletedIDs) != 1 || repository.deletedIDs[0] != 11 {
 		t.Fatalf("deleted IDs = %v", repository.deletedIDs)
 	}
 }

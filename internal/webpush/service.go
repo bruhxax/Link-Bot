@@ -24,6 +24,11 @@ const (
 	pushTTL        = 12 * 60 * 60
 )
 
+var (
+	ErrNoSubscriptions     = errors.New("no web push subscriptions")
+	ErrSubscriptionExpired = errors.New("web push subscription expired")
+)
+
 type repository interface {
 	VAPIDConfig(context.Context) (*database.WebPushVAPIDConfig, error)
 	SaveVAPIDConfig(context.Context, string, string) error
@@ -187,28 +192,41 @@ func (s *Service) Notify(ctx context.Context, event adminnotify.Event) error {
 		return err
 	}
 	subscriptions, err := s.repository.ListSubscriptions(ctx, s.adminID)
-	if err != nil || len(subscriptions) == 0 {
+	if err != nil {
 		return err
+	}
+	if len(subscriptions) == 0 {
+		return ErrNoSubscriptions
 	}
 
 	var wg sync.WaitGroup
-	errorsCh := make(chan error, len(subscriptions))
+	results := make(chan error, len(subscriptions))
 	for _, item := range subscriptions {
 		item := item
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if sendErr := s.sendOne(ctx, payload, event.Tag, item); sendErr != nil {
-				errorsCh <- sendErr
-			}
+			results <- s.sendOne(ctx, payload, event.Tag, item)
 		}()
 	}
 	wg.Wait()
-	close(errorsCh)
+	close(results)
 
 	var deliveryErrors []error
-	for deliveryErr := range errorsCh {
-		deliveryErrors = append(deliveryErrors, deliveryErr)
+	delivered := 0
+	expired := 0
+	for deliveryErr := range results {
+		switch {
+		case deliveryErr == nil:
+			delivered++
+		case errors.Is(deliveryErr, ErrSubscriptionExpired):
+			expired++
+		default:
+			deliveryErrors = append(deliveryErrors, deliveryErr)
+		}
+	}
+	if delivered == 0 && expired > 0 {
+		deliveryErrors = append(deliveryErrors, ErrSubscriptionExpired)
 	}
 	return errors.Join(deliveryErrors...)
 }
@@ -247,7 +265,7 @@ func (s *Service) sendOne(ctx context.Context, payload []byte, topic string, ite
 	}
 	if response.StatusCode == http.StatusNotFound || response.StatusCode == http.StatusGone {
 		s.deleteExpired(item.ID)
-		return nil
+		return fmt.Errorf("%w: subscription %d", ErrSubscriptionExpired, item.ID)
 	}
 	s.markFailure(item.ID)
 	return fmt.Errorf("web push subscription %d returned status %d", item.ID, response.StatusCode)

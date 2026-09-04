@@ -2,6 +2,7 @@ package miniapp
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,10 +35,10 @@ func TestSupportTicketAndReplySendAdminPush(t *testing.T) {
 	if len(notifier.events) != 2 {
 		t.Fatalf("push event count = %d, want 2", len(notifier.events))
 	}
-	if got := notifier.events[0]; got.Title != "Новое обращение" || got.Body != "@bruh_user · Не подключается VPN" || got.Tag != "support-ticket-73" || got.URL != "/mini-app/?page=support" {
+	if got := notifier.events[0]; got.Title != "Новое обращение" || got.Body != "@bruh_user · Не подключается VPN" || !strings.HasPrefix(got.Tag, "support-ticket-73-") || got.URL != "/mini-app/?page=support" {
 		t.Fatalf("new ticket push = %+v", got)
 	}
-	if got := notifier.events[1]; got.Title != "Ответ в обращении" || got.Tag != "support-reply-73" {
+	if got := notifier.events[1]; got.Title != "Ответ в обращении" || !strings.HasPrefix(got.Tag, "support-reply-73-") {
 		t.Fatalf("reply push = %+v", got)
 	}
 }
@@ -62,7 +63,7 @@ func TestSupportAsyncDispatchesAutomaticAdminPush(t *testing.T) {
 
 	select {
 	case event := <-delivered:
-		if event.Title != "Новое обращение" || event.Tag != "support-ticket-74" {
+		if event.Title != "Новое обращение" || !strings.HasPrefix(event.Tag, "support-ticket-74-") {
 			t.Fatalf("automatic support push = %+v", event)
 		}
 	case <-time.After(time.Second):
