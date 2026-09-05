@@ -2265,6 +2265,16 @@ img { display: block; max-width: 100%; }
 .page.admin-page.active.page--animate { animation: none; }
 .page.admin-page.active.page--animate > :not(.admin-save-bar) { animation: pageIn .28s ease both; }
 
+/* Custom dashboard coordinates must remain visually fixed while the page
+   enters. A short opacity-only reveal avoids the pageIn translate flash. */
+#page-dashboard.page--animate {
+  animation: dashboardPageIn .14s ease both;
+}
+
+#page-dashboard.layout-runtime-pending [data-runtime-layout-key] {
+  visibility: hidden !important;
+}
+
 .terms-article {
   max-width: 780px;
   margin: 0 auto;
@@ -6830,6 +6840,7 @@ body.is-install-guide #app {
 }
 
 @keyframes pageIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes dashboardPageIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes bottomNavIn { from { opacity: 0; transform: translate(-50%, 10px) scale(.98); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
 @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes sidebarIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }

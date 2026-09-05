@@ -5675,7 +5675,10 @@ function renderDashboardPage() {
 		blocks[item.id] = '<div class="empty-design-card" aria-hidden="true"></div>';
 	});
 	const switchAnimationClass = subscriptionSwitchAnimation ? `subscription-switch--${subscriptionSwitchAnimation}` : "";
-	return `<section class="page ${pageClass("dashboard")} ${switchAnimationClass}" id="page-dashboard">${renderSubscriptionSwitcher()}${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
+	const layoutPendingClass = getLayoutElements("dashboard").some((item) => item?.visible !== false && hasStoredLayoutPosition(item))
+		? "layout-runtime-pending"
+		: "";
+	return `<section class="page ${pageClass("dashboard")} ${switchAnimationClass} ${layoutPendingClass}" id="page-dashboard">${renderSubscriptionSwitcher()}${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
 }
 
 function renderPromoGiftWidget(item) {
@@ -9738,7 +9741,10 @@ function mountRuntimeLayoutSurface(surface, kind) {
 	const selector = kind === "navigation" ? ".bottom-nav" : ".page.active";
 	const nodes = Array.from(surface.querySelectorAll("[data-runtime-layout-key]"))
 		.filter((node) => node.closest(selector) === surface && getRuntimeLayoutItemForNode(node));
-	if (!nodes.length) return;
+	if (!nodes.length) {
+		surface.classList.remove("layout-runtime-pending");
+		return;
+	}
 
 	const surfaceRect = surface.getBoundingClientRect();
 	const records = nodes.map((node) => {
@@ -9807,6 +9813,9 @@ function mountRuntimeLayoutSurface(surface, kind) {
 		node.dataset.editorParentWidth = String(Math.max(1, parent.clientWidth));
 		setAdminLayoutMountedGeometry(node, parentPageX + localLeft, parentPageY + localTop, rect.width, rect.height, { expandSurface: false });
 	}
+	// The raw flow layout stays hidden until every saved coordinate is applied.
+	// This prevents one frame at the unmounted positions during page entry.
+	surface.classList.remove("layout-runtime-pending");
 
 	let requiredHeight = 0;
 	for (const { node } of records) {

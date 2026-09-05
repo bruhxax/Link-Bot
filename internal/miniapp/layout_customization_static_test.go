@@ -64,3 +64,30 @@ func TestSaveButtonsDoNotRenderDecorativeIcons(t *testing.T) {
 		t.Fatal("compact save button class is missing")
 	}
 }
+
+func TestDashboardLayoutEntryDoesNotAnimateSavedCoordinates(t *testing.T) {
+	appRaw, err := embeddedStatic.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	stylesRaw, err := embeddedStatic.ReadFile("static/styles.css")
+	if err != nil {
+		t.Fatalf("read styles.css: %v", err)
+	}
+
+	app := string(appRaw)
+	for _, fragment := range []string{
+		`layout-runtime-pending`,
+		`surface.classList.remove("layout-runtime-pending")`,
+	} {
+		if !strings.Contains(app, fragment) {
+			t.Fatalf("dashboard mount does not contain %q", fragment)
+		}
+	}
+
+	styles := string(stylesRaw)
+	if !strings.Contains(styles, `#page-dashboard.page--animate`) ||
+		!strings.Contains(styles, `@keyframes dashboardPageIn { from { opacity: 0; } to { opacity: 1; } }`) {
+		t.Fatal("dashboard page entry must use an opacity-only animation")
+	}
+}
