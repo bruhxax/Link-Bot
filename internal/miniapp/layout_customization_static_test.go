@@ -91,3 +91,47 @@ func TestDashboardLayoutEntryDoesNotAnimateSavedCoordinates(t *testing.T) {
 		t.Fatal("dashboard page entry must use an opacity-only animation")
 	}
 }
+
+func TestDashboardRuntimeAndEditorUseTheSamePositioningSurface(t *testing.T) {
+	stylesRaw, err := embeddedStatic.ReadFile("static/styles.css")
+	if err != nil {
+		t.Fatalf("read styles.css: %v", err)
+	}
+	styles := string(stylesRaw)
+
+	start := strings.Index(styles, `.page.active.layout-runtime-surface {`)
+	if start < 0 {
+		t.Fatal("dashboard runtime positioning surface styles are missing")
+	}
+	end := strings.Index(styles[start:], "\n}")
+	if end < 0 {
+		t.Fatal("dashboard runtime positioning surface style block is incomplete")
+	}
+	rule := styles[start : start+end]
+	for _, fragment := range []string{`position: relative`, `isolation: isolate`} {
+		if !strings.Contains(rule, fragment) {
+			t.Fatalf("dashboard runtime positioning surface does not contain %q", fragment)
+		}
+	}
+}
+
+func TestSubscriptionSwitcherStaysAboveCustomDashboardLayers(t *testing.T) {
+	stylesRaw, err := embeddedStatic.ReadFile("static/styles.css")
+	if err != nil {
+		t.Fatalf("read styles.css: %v", err)
+	}
+	styles := string(stylesRaw)
+
+	start := strings.Index(styles, `.subscription-switcher {`)
+	if start < 0 {
+		t.Fatal("subscription switcher styles are missing")
+	}
+	end := strings.Index(styles[start:], "\n}")
+	if end < 0 {
+		t.Fatal("subscription switcher style block is incomplete")
+	}
+	rule := styles[start : start+end]
+	if !strings.Contains(rule, `z-index: 200`) {
+		t.Fatal("subscription switcher must stay above the maximum custom dashboard layer")
+	}
+}

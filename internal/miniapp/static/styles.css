@@ -2573,7 +2573,7 @@ img { display: block; max-width: 100%; }
 
 .subscription-switcher {
   position: relative;
-  z-index: 14;
+  z-index: 200;
   width: min(100%, 304px);
   margin: 2px auto 8px;
   display: grid;
@@ -7447,6 +7447,8 @@ body.is-layout-editing .page.active {
 }
 
 .page.active.layout-runtime-surface {
+  position: relative;
+  isolation: isolate;
   min-height: var(--layout-runtime-min-height, auto);
 }
 
