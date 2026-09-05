@@ -1580,6 +1580,10 @@ const PROFILE_DEFAULT_GROUPS = {
 };
 
 const ADMIN_LAYOUT_META = {
+	"dashboard:primary_action": ["Основная кнопка", "cartShopping"],
+	"dashboard:secondary_action": ["Вторая кнопка", "arrowDownSquare"],
+	"dashboard:traffic": ["Трафик", "chartLine"],
+	"dashboard:devices": ["Устройства", "devicePhone"],
 	"dashboard:promo_widget": ["Промокод", "gift"],
 	"dashboard:notification_widget": ["Уведомление", "profileLetter"],
 	"buy:plans": ["\u0422\u0430\u0440\u0438\u0444\u044b", "cartShopping"],
@@ -1632,9 +1636,9 @@ const ADMIN_LAYOUT_DEFAULTS = [
 	...["server_status", "gift", "payments", "referrals", "reviews", "media", "login_methods", "news", "web_version", "pwa_install", "terms", "privacy"].map((id, order) => ["profile", id, order, 100, 48, true, "left", PROFILE_DEFAULT_GROUPS[id]]),
 	...["main", "purchases", "programs", "help", "account"].map((id, order) => ["profile", `group_${id}`, 20 + order, 100, 28, false, "left"]),
 	...["dashboard", "buy", "support", "settings", "admin"].map((id, order) => ["navigation", id, order, 44, 38, true, "center"]),
-].map(([area, id, order, width, height, framed, align, group]) => ({ area, id, order, visible: true, width, height, framed, align, offsetX: 0, offsetY: 0, ...(group ? { group } : {}) }));
-ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "promo_widget", order: 18, visible: false, width: 42, height: 92, framed: false, align: "center", offsetX: 0, offsetY: 0, promoCode: "", iconBubble: true });
-ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "notification_widget", order: 19, visible: false, width: 42, height: 92, framed: false, align: "center", offsetX: 0, offsetY: 0, notificationText: "", iconBubble: true });
+].map(([area, id, order, width, height, framed, align, group]) => ({ area, id, order, visible: true, width, height, framed, align, offsetX: 0, offsetY: 0, ...(area === "dashboard" ? { cornerRadius: ["primary_action", "secondary_action", "traffic", "devices"].includes(id) ? 22 : 0, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 } : {}), ...(group ? { group } : {}) }));
+ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "promo_widget", order: 18, visible: false, width: 42, height: 92, framed: false, align: "center", offsetX: 0, offsetY: 0, promoCode: "", iconBubble: true, cornerRadius: 10, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 });
+ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "notification_widget", order: 19, visible: false, width: 42, height: 92, framed: false, align: "center", offsetX: 0, offsetY: 0, notificationText: "", iconBubble: true, cornerRadius: 10, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 });
 
 const DEFAULT_LIQUID_BACKGROUNDS = Object.freeze({
 	liquid1: { colors: ["#000000", "#1646ff", "#7226ff", "#ffffff"], dimming: 26, speed: 35 },
@@ -1898,7 +1902,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 function buildPreviewRuntimeSettings() {
 	const features = Object.fromEntries(["mini_app", "stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "payments_history", "gifts", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
-		version: 20,
+		version: 21,
 		localization: { language: "ru", fontFamily: "auto" },
 		maintenance: { enabled: false, titleRu: "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u044b", textRu: "", reasonRu: "" },
 		features,
@@ -2004,6 +2008,8 @@ const state = {
 	adminPromoWidgetBusy: "",
 	adminNotificationWidgetEditorOpen: false,
 	adminNotificationWidgetTextDraft: "",
+	adminLayoutAddMenuOpen: false,
+	adminLayoutStyleEditorOpen: false,
 	notificationPopoverOpen: false,
 	notificationPopoverClosing: false,
 	notificationPopoverAlign: "center",
@@ -2180,7 +2186,34 @@ function mountedRuntimeLocalLeft(item, parentWidth, renderedWidth, flowLocalLeft
 	return storedLeft;
 }
 
+function isEmptyLayoutCardID(id) {
+	return /^empty_card_\d+$/.test(String(id || ""));
+}
+
+function isDashboardStyleElement(item) {
+	return item?.area === "dashboard" && (["primary_action", "secondary_action", "traffic", "devices", "promo_widget", "notification_widget"].includes(item.id) || isEmptyLayoutCardID(item.id));
+}
+
+function dashboardLayoutStyleDefaults(id) {
+	if (["primary_action", "secondary_action", "traffic", "devices"].includes(id)) return { cornerRadius: 22, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 };
+	if (["promo_widget", "notification_widget"].includes(id)) return { cornerRadius: 10, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 };
+	if (isEmptyLayoutCardID(id)) return { cornerRadius: 14, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: -1 };
+	return { cornerRadius: 0, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 };
+}
+
+function ensureDashboardLayoutStyle(item) {
+	if (item?.area !== "dashboard") return item;
+	const fallback = dashboardLayoutStyleDefaults(item.id);
+	if (!Number.isFinite(Number(item.cornerRadius))) item.cornerRadius = fallback.cornerRadius;
+	if (!Number.isFinite(Number(item.textScale)) || Number(item.textScale) < 50) item.textScale = fallback.textScale;
+	if (!Number.isFinite(Number(item.textOffsetX))) item.textOffsetX = fallback.textOffsetX;
+	if (!Number.isFinite(Number(item.textOffsetY))) item.textOffsetY = fallback.textOffsetY;
+	if (!Number.isFinite(Number(item.layer))) item.layer = fallback.layer;
+	return item;
+}
+
 function runtimeLayoutStyle(item, area = item?.area) {
+	ensureDashboardLayoutStyle(item);
 	const isNavigation = area === "navigation";
 	const isCompactWidget = area === "dashboard" && ["promo_widget", "notification_widget"].includes(item?.id);
 	const width = isNavigation
@@ -2192,7 +2225,10 @@ function runtimeLayoutStyle(item, area = item?.area) {
 	const positioned = hasStoredLayoutPosition(item);
 	const offsetX = positioned ? 0 : Math.max(-1000, Math.min(1000, Number(item?.offsetX || 0)));
 	const offsetY = positioned ? 0 : Math.max(-1000, Math.min(1000, Number(item?.offsetY || 0)));
-	return `--runtime-width:${width}${isNavigation ? "px" : "%"};--runtime-height:${height}px;--runtime-x:${offsetX}px;--runtime-y:${offsetY}px`;
+	const visual = area === "dashboard"
+		? `;--runtime-corner-radius:${Math.max(0, Math.min(64, Number(item?.cornerRadius || 0)))}px;--runtime-text-scale:${Math.max(50, Math.min(200, Number(item?.textScale || 100))) / 100};--runtime-text-x:${Math.max(-120, Math.min(120, Number(item?.textOffsetX || 0)))}px;--runtime-text-y:${Math.max(-120, Math.min(120, Number(item?.textOffsetY || 0)))}px;--runtime-layer:${Math.max(-100, Math.min(100, Number(item?.layer || 0)))}`
+		: "";
+	return `--runtime-width:${width}${isNavigation ? "px" : "%"};--runtime-height:${height}px;--runtime-x:${offsetX}px;--runtime-y:${offsetY}px${visual}`;
 }
 
 function getLayoutElementIndex(area, id) {
@@ -2203,14 +2239,11 @@ function renderLayoutEditHandles(area = "", id = "") {
 	if (!state.adminLayoutEditing) return "";
 	const moveLabel = localizedText("Переместить элемент", "Move element", "جابجایی عنصر");
 	const resizeLabel = localizedText("Изменить размер", "Resize element", "تغییر اندازه عنصر");
-	let edit = "";
-	if (area === "dashboard" && id === "promo_widget") {
-		const label = localizedText("Изменить промокод", "Edit promo code", "ویرایش کد تخفیف");
-		edit = `<button class="layout-editable__edit" type="button" data-action="admin-edit-promo-widget" aria-label="${escapeAttribute(label)}" title="${escapeAttribute(label)}">${icon("pencil")}</button>`;
-	} else if (area === "dashboard" && id === "notification_widget") {
-		const label = localizedText("Изменить уведомление", "Edit notification", "ویرایش اعلان");
-		edit = `<button class="layout-editable__edit" type="button" data-action="admin-edit-notification-widget" aria-label="${escapeAttribute(label)}" title="${escapeAttribute(label)}">${icon("pencil")}</button>`;
-	}
+	const item = getLayoutElement(area, id);
+	const editLabel = localizedText("Настроить элемент", "Customize element", "تنظیم عنصر");
+	const edit = isDashboardStyleElement(item)
+		? `<button class="layout-editable__edit" type="button" data-action="admin-open-layout-style" aria-label="${escapeAttribute(editLabel)}" title="${escapeAttribute(editLabel)}">${icon("sliders")}</button>`
+		: "";
 	return `<button class="layout-editable__move" type="button" data-ui-move-handle aria-label="${escapeAttribute(moveLabel)}" title="${escapeAttribute(moveLabel)}">${icon("move")}</button>${edit}<button class="layout-editable__resize" type="button" data-ui-resize-handle aria-label="${escapeAttribute(resizeLabel)}" title="${escapeAttribute(resizeLabel)}">${icon("resize")}</button>`;
 }
 
@@ -3077,7 +3110,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-	const modalOpen = Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen;
+	const modalOpen = Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminLayoutStyleEditorOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -3147,6 +3180,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
 		${state.adminProfileEditorModalOpen ? renderAdminProfileEditorModal() : ""}
 		${isModalVisible("admin-promo-widget", state.adminPromoWidgetEditorOpen) ? renderAdminPromoWidgetModal() : ""}
 		${isModalVisible("admin-notification-widget", state.adminNotificationWidgetEditorOpen) ? renderAdminNotificationWidgetModal() : ""}
+		${isModalVisible("admin-layout-style", state.adminLayoutStyleEditorOpen) ? renderAdminLayoutStyleModal() : ""}
     </div>
   `;
   bindRootActions();
@@ -4176,7 +4210,7 @@ function renderAdminMoyNalogPage() {
 			</div>
 			<label class="admin-field admin-moynalog__item"><span>Название услуги в чеке</span><input class="admin-field__control" type="text" maxlength="120" data-integration-provider="moynalog" data-integration-field="itemName" value="${escapeAttribute(draft.fields.itemName || "VPN-подписка")}" placeholder="VPN-подписка"></label>
 			<fieldset class="admin-moynalog__methods"><legend>Создавать чек после оплаты через</legend><div>${MOYNALOG_PAYMENT_METHODS.map(([id, label]) => `<label><input type="checkbox" data-integration-provider="moynalog" data-moynalog-method="${id}" ${methods.has(id) ? "checked" : ""}><span>${escapeHtml(label)}</span></label>`).join("")}</div></fieldset>
-			<div class="admin-moynalog__actions"><button type="button" data-action="admin-integration-save" data-value="moynalog" ${busy ? "disabled" : ""}>${icon(state.adminIntegrationBusy ? "refresh" : "check")}<span>${state.adminIntegrationBusy ? "Сохраняем" : "Сохранить"}</span></button><button type="button" data-action="admin-moynalog-test" ${busy || !item.configured ? "disabled" : ""}>${icon(state.adminMoyNalogBusy === "test" ? "refresh" : "shield")}<span>${state.adminMoyNalogBusy === "test" ? "Проверяем" : "Проверить вход"}</span></button></div>
+			<div class="admin-moynalog__actions"><button type="button" data-action="admin-integration-save" data-value="moynalog" ${busy ? "disabled" : ""}><span>${state.adminIntegrationBusy ? "Сохраняем" : "Сохранить"}</span></button><button type="button" data-action="admin-moynalog-test" ${busy || !item.configured ? "disabled" : ""}>${icon(state.adminMoyNalogBusy === "test" ? "refresh" : "shield")}<span>${state.adminMoyNalogBusy === "test" ? "Проверяем" : "Проверить вход"}</span></button></div>
 			<p class="admin-moynalog__notice">Пароль хранится в зашифрованном виде. Используется неофициальный API личного кабинета — при изменениях на стороне ФНС интеграция может потребовать обновления.</p>
 		</section>
 		<section class="admin-moynalog__journal" aria-labelledby="moynalog-journal-title"><div class="admin-moynalog__section-head"><div><h3 id="moynalog-journal-title">Последние чеки</h3><p>Повтор разрешён только после подтверждённой ошибки.</p></div><button type="button" data-action="admin-moynalog-refresh" ${busy ? "disabled" : ""} aria-label="Обновить журнал">${icon("refresh")}</button></div>${receipts.length ? `<div class="admin-moynalog__receipt-list">${receipts.map(renderAdminMoyNalogReceipt).join("")}</div>` : `<p class="admin-moynalog__empty">Чеков пока нет.</p>`}</section>
@@ -4202,7 +4236,7 @@ function renderAdminIntegrationRow(item) {
 			<label class="admin-integration__toggle"><span><strong>Включить интеграцию</strong><small>${item.kind === "payment" ? "Показывать этот способ оплаты" : "Отправлять уведомления об оплатах"}</small></span><input type="checkbox" data-integration-provider="${escapeAttribute(item.id)}" data-integration-enabled ${draft.enabled ? "checked" : ""}></label>
 			${item.id === "p2p" ? renderAdminP2PIntegrationFields(draft) : `<div class="admin-integration__fields">${(item.fields || []).map((field) => `<label class="admin-field"><span>${escapeHtml(field.label)}${field.required ? " *" : ""}</span><input class="admin-field__control" type="${field.secret ? "password" : "text"}" autocomplete="off" spellcheck="false" data-integration-provider="${escapeAttribute(item.id)}" data-integration-field="${escapeAttribute(field.key)}" value="${escapeAttribute(draft.fields[field.key] || "")}" placeholder="${escapeAttribute(field.secret && field.configured ? "Ключ сохранён — оставьте пустым" : (field.placeholder || ""))}">${field.help ? `<small>${escapeHtml(field.help)}</small>` : ""}</label>`).join("")}</div>`}
 			${item.webhookUrl ? `<div class="admin-integration__webhook"><span>Webhook URL</span><code>${escapeHtml(item.webhookUrl)}</code><button type="button" data-action="admin-integration-copy-webhook" data-value="${escapeAttribute(item.webhookUrl)}" aria-label="Скопировать webhook">${icon("copy")}</button></div>` : ""}
-			<button class="admin-integration__save" type="button" data-action="admin-integration-save" data-value="${escapeAttribute(item.id)}" ${busy ? "disabled" : ""}>${icon(busy ? "refresh" : "check")}<span>${busy ? "Сохраняем" : "Сохранить"}</span></button>
+			<button class="admin-integration__save" type="button" data-action="admin-integration-save" data-value="${escapeAttribute(item.id)}" ${busy ? "disabled" : ""}><span>${busy ? "Сохраняем" : "Сохранить"}</span></button>
 		</div>` : ""}
 	</article>`;
 }
@@ -4239,7 +4273,7 @@ function renderAdminBroadcastPage() {
 				<section class="admin-broadcast__section">
 					<div class="admin-broadcast__section-head"><div><span>2</span><div><strong>${english ? "Buttons" : "Кнопки"}</strong><small>${english ? "Up to 8 buttons" : "До 8 кнопок"}</small></div></div><button class="admin-icon-button" type="button" data-action="admin-broadcast-add-button" ${running || buttons.length >= 8 ? "disabled" : ""} aria-label="${english ? "Add button" : "Добавить кнопку"}">${icon("plus")}</button></div>
 					<div class="admin-broadcast__buttons">${buttons.length ? buttons.map((button, index) => renderAdminBroadcastButton(button, index, running, english)).join("") : `<p class="admin-broadcast__empty">${english ? "The message will be sent without buttons." : "Сообщение будет отправлено без кнопок."}</p>`}</div>
-					${buttons.length ? `<button class="admin-broadcast__secondary" type="button" data-action="admin-broadcast-save-buttons" ${running || saveBusy || !state.adminBroadcastButtonsDirty ? "disabled" : ""}>${icon(saveBusy ? "refresh" : "check")}<span>${english ? "Save buttons" : "Сохранить кнопки"}</span></button>` : ""}
+					${buttons.length ? `<button class="admin-broadcast__secondary" type="button" data-action="admin-broadcast-save-buttons" ${running || saveBusy || !state.adminBroadcastButtonsDirty ? "disabled" : ""}><span>${english ? "Save buttons" : "Сохранить кнопки"}</span></button>` : ""}
 				</section>
 
 				<section class="admin-broadcast__section admin-broadcast__section--delivery">
@@ -4903,7 +4937,9 @@ function ensureAdminVisualLayoutDraft() {
 		if (!Number.isFinite(Number(current.offsetY))) current.offsetY = 0;
 		if (!Number.isFinite(Number(current.width)) || Number(current.width) <= 0) current.width = fallback.width;
 		if (!Number.isFinite(Number(current.height)) || Number(current.height) <= 0) current.height = fallback.height;
+		ensureDashboardLayoutStyle(current);
 	}
+	draft.layout.elements.filter((item) => item?.area === "dashboard").forEach(ensureDashboardLayoutStyle);
 }
 
 function getAdminLayoutDraftEntries(area) {
@@ -4927,6 +4963,10 @@ function getAdminLayoutSelection() {
 }
 
 function adminLayoutMeta(area, id) {
+	if (area === "dashboard" && isEmptyLayoutCardID(id)) {
+		const number = String(id).match(/\d+$/)?.[0] || "";
+		return [`Пустая карточка${number ? ` ${number}` : ""}`, "card"];
+	}
 	return ADMIN_LAYOUT_META[`${area}:${id}`] || [id, "grid"];
 }
 
@@ -5186,6 +5226,52 @@ function renderAdminEditorPage(title, body) {
 	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-editor"><h2 class="admin-editor__title">${escapeHtml(title)}</h2>${body}</div>${renderAdminSaveBar()}</section>`;
 }
 
+function getSelectedDashboardStyleItem() {
+	const selected = getAdminLayoutSelection();
+	return selected?.type === "layout" && isDashboardStyleElement(selected.item) ? selected.item : null;
+}
+
+function renderAdminLayoutAddMenu() {
+	if (!state.adminLayoutAddMenuOpen || !state.adminLayoutEditing || state.currentPage !== "dashboard") return "";
+	const selected = getSelectedDashboardStyleItem();
+	const customizeLabel = localizedText("Настроить выбранное", "Customize selected", "تنظیم مورد انتخابی");
+	return `<div class="admin-layout-add-menu" role="menu" aria-label="${escapeAttribute(localizedText("Элементы главного экрана", "Home screen elements", "عناصر صفحه اصلی"))}">
+		${selected ? `<button type="button" role="menuitem" data-action="admin-open-layout-style">${icon("sliders")}<span><strong>${escapeHtml(customizeLabel)}</strong><small>${escapeHtml(adminLayoutMeta(selected.area, selected.id)[0])}</small></span></button><div class="admin-layout-add-menu__divider" aria-hidden="true"></div>` : ""}
+		<button type="button" role="menuitem" data-action="admin-add-notification-widget"><span class="admin-save-bar__notification-icon" aria-hidden="true"></span><span><strong>${localizedText("Уведомление", "Notification", "اعلان")}</strong><small>${localizedText("Сообщение на главном экране", "Message on the home screen", "پیام در صفحه اصلی")}</small></span></button>
+		<button type="button" role="menuitem" data-action="admin-add-promo-widget">${icon("gift")}<span><strong>${localizedText("Подарок", "Gift", "هدیه")}</strong><small>${localizedText("Карточка с промокодом", "Promo code card", "کارت کد تخفیف")}</small></span></button>
+		<button type="button" role="menuitem" data-action="admin-add-empty-card">${icon("card")}<span><strong>${localizedText("Пустая карточка", "Empty card", "کارت خالی")}</strong><small>${localizedText("Декоративный слой для дизайна", "Decorative design layer", "لایه تزئینی طراحی")}</small></span></button>
+	</div>`;
+}
+
+function renderAdminLayoutStyleRange(label, field, value, min, max, suffix) {
+	const numeric = Math.max(min, Math.min(max, Number(value || 0)));
+	const progress = max > min ? ((numeric - min) / (max - min)) * 100 : 0;
+	return `<label class="admin-layout-style-range"><span><strong>${escapeHtml(label)}</strong><output>${escapeHtml(`${numeric}${suffix}`)}</output></span><input type="range" min="${min}" max="${max}" step="1" value="${numeric}" data-input="admin-layout-style" data-layout-style-field="${escapeAttribute(field)}" data-range-suffix="${escapeAttribute(suffix)}" style="--range-progress:${progress}%" aria-label="${escapeAttribute(label)}" aria-valuetext="${escapeAttribute(`${numeric}${suffix}`)}"></label>`;
+}
+
+function renderAdminLayoutStyleModal() {
+	const item = getSelectedDashboardStyleItem();
+	if (!item) return "";
+	ensureDashboardLayoutStyle(item);
+	const [label] = adminLayoutMeta(item.area, item.id);
+	const empty = isEmptyLayoutCardID(item.id);
+	return `<div class="modal modal--layout-style open ${modalStateClass("admin-layout-style")}" role="dialog" aria-modal="true" aria-labelledby="admin-layout-style-title">
+		<button class="modal__backdrop" type="button" data-action="admin-close-layout-style" aria-label="${escapeAttribute(localizedText("Закрыть", "Close", "بستن"))}"></button>
+		<div class="modal__sheet modal__sheet--layout-style">
+			<div class="modal__header"><div><div class="section-label">${localizedText("ГЛАВНЫЙ ЭКРАН", "HOME SCREEN", "صفحه اصلی")}</div><div class="modal__title" id="admin-layout-style-title">${escapeHtml(label)}</div></div><button class="header__btn" type="button" data-action="admin-close-layout-style" aria-label="${escapeAttribute(localizedText("Закрыть", "Close", "بستن"))}">${icon("close")}</button></div>
+			<div class="admin-layout-style-editor">
+				${renderAdminLayoutStyleRange(localizedText("Закругление", "Corner radius", "گردی گوشه"), "cornerRadius", item.cornerRadius, 0, 32, " px")}
+				${empty ? "" : renderAdminLayoutStyleRange(localizedText("Масштаб текста", "Text scale", "مقیاس متن"), "textScale", item.textScale, 70, 150, "%")}
+				${empty ? "" : `<div class="admin-layout-style-editor__pair">${renderAdminLayoutStyleRange(localizedText("Текст по горизонтали", "Text horizontal", "متن افقی"), "textOffsetX", item.textOffsetX, -60, 60, " px")}${renderAdminLayoutStyleRange(localizedText("Текст по вертикали", "Text vertical", "متن عمودی"), "textOffsetY", item.textOffsetY, -40, 40, " px")}</div>`}
+				<div class="admin-layout-layer"><div><strong>${localizedText("Слой", "Layer", "لایه")}</strong><small>${localizedText("Расположите элемент поверх или под карточками", "Place the element above or below cards", "عنصر را بالا یا پایین کارت‌ها قرار دهید")}</small></div><output>${Number(item.layer || 0) > 0 ? `+${Number(item.layer)}` : Number(item.layer || 0)}</output><div><button type="button" data-action="admin-layout-layer-back">${icon("arrowDown")}<span>${localizedText("Назад", "Backward", "عقب")}</span></button><button type="button" data-action="admin-layout-layer-front">${icon("arrowUp")}<span>${localizedText("Вперёд", "Forward", "جلو")}</span></button></div></div>
+				${item.id === "promo_widget" ? `<button class="admin-layout-style-editor__content" type="button" data-action="admin-edit-promo-widget">${icon("pencil")}<span>${localizedText("Изменить подарок", "Edit gift", "ویرایش هدیه")}</span></button>` : ""}
+				${item.id === "notification_widget" ? `<button class="admin-layout-style-editor__content" type="button" data-action="admin-edit-notification-widget">${icon("pencil")}<span>${localizedText("Изменить уведомление", "Edit notification", "ویرایش اعلان")}</span></button>` : ""}
+				${empty ? `<button class="admin-layout-style-editor__remove" type="button" data-action="admin-remove-empty-card">${icon("trash")}<span>${localizedText("Удалить карточку", "Remove card", "حذف کارت")}</span></button>` : ""}
+			</div>
+		</div>
+	</div>`;
+}
+
 function renderAdminSaveBar(className = "") {
 	const saving = state.adminBusy === "save-settings";
 	const busy = Boolean(state.adminBusy);
@@ -5202,14 +5288,11 @@ function renderAdminSaveBar(className = "") {
 	const profileAddButton = state.adminLayoutEditing && state.currentPage === "settings"
 		? `<button class="admin-save-bar__add" type="button" data-action="admin-add-profile-button" ${busy ? "disabled" : ""}>${icon("plus")}<span>${state.locale === "en" ? "Add" : "Добавить"}</span></button>`
 		: "";
-	const promoWidgetButton = state.adminLayoutEditing && state.currentPage === "dashboard"
-		? `<button class="admin-save-bar__promo admin-save-bar__widget" type="button" data-action="admin-add-promo-widget" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(localizedText("Промокод", "Promo code", "کد تخفیف"))}" title="${escapeAttribute(localizedText("Промокод", "Promo code", "کد تخفیف"))}"><span class="admin-save-bar__promo-icon" aria-hidden="true"></span><span>${localizedText("Промокод", "Promo code", "کد تخفیف")}</span></button>`
+	const moreButton = state.adminLayoutEditing && state.currentPage === "dashboard"
+		? `<div class="admin-layout-more"><button class="admin-save-bar__more" type="button" data-action="admin-layout-more-toggle" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(localizedText("Добавить элемент", "Add element", "افزودن عنصر"))}" aria-haspopup="menu" aria-expanded="${Boolean(state.adminLayoutAddMenuOpen)}">${icon("moreHorizontal")}</button>${renderAdminLayoutAddMenu()}</div>`
 		: "";
-	const notificationWidgetButton = state.adminLayoutEditing && state.currentPage === "dashboard"
-		? `<button class="admin-save-bar__notification admin-save-bar__widget" type="button" data-action="admin-add-notification-widget" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(localizedText("Уведомление", "Notification", "اعلان"))}" title="${escapeAttribute(localizedText("Уведомление", "Notification", "اعلان"))}"><span class="admin-save-bar__notification-icon" aria-hidden="true"></span><span>${localizedText("Уведомление", "Notification", "اعلان")}</span></button>`
-		: "";
-	const profileClass = profileAddButton ? "admin-save-bar--profile-layout" : (promoWidgetButton ? "admin-save-bar--promo-layout admin-save-bar--widget-layout" : "");
-	return `<div class="admin-save-bar ${className} ${profileClass}" role="status" aria-live="polite"><span>${escapeHtml(status)}</span><div class="admin-save-bar__actions">${profileAddButton}${promoWidgetButton}${notificationWidgetButton}${resetButton}<button type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""}>${icon(saving ? "refresh" : "check")}<span>${localizedText("Сохранить", "Save", "ذخیره")}</span></button>${state.adminLayoutEditing ? `<button class="admin-save-bar__close" type="button" data-action="admin-layout-exit" aria-label="${state.locale === "en" ? "Exit editor" : "Выйти из редактора"}">${icon("close")}</button>` : ""}</div></div>`;
+	const profileClass = profileAddButton ? "admin-save-bar--profile-layout" : "";
+	return `<div class="admin-save-bar ${className} ${profileClass}"><span role="status" aria-live="polite">${escapeHtml(status)}</span><div class="admin-save-bar__actions">${profileAddButton}${moreButton}${resetButton}<button class="admin-save-bar__save" type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""}><span>${localizedText("Сохранить", "Save", "ذخیره")}</span></button>${state.adminLayoutEditing ? `<button class="admin-save-bar__close" type="button" data-action="admin-layout-exit" aria-label="${state.locale === "en" ? "Exit editor" : "Выйти из редактора"}">${icon("close")}</button>` : ""}</div></div>`;
 }
 
 function renderAdminPlanSaveBar() {
@@ -5219,7 +5302,7 @@ function renderAdminPlanSaveBar() {
 		: state.adminSettingsDirty
 			? (state.locale === "en" ? "Unsaved changes" : "Есть несохранённые изменения")
 			: (state.locale === "en" ? "Changes saved" : "Изменения сохранены");
-	return `<div class="admin-save-bar admin-save-bar--plan-editor" role="status" aria-live="polite"><span>${escapeHtml(status)}</span><div class="admin-save-bar__actions"><button class="admin-save-bar__add" type="button" data-action="admin-add-plan" ${busy ? "disabled" : ""}>${icon("plus")}<span>${state.locale === "en" ? "Add" : "Добавить"}</span></button><button class="admin-save-bar__reset" type="button" data-action="admin-reset-plans" ${busy ? "disabled" : ""}>${icon("reset")}<span>${state.locale === "en" ? "Reset" : "Сбросить"}</span></button><button type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""}>${icon(busy ? "refresh" : "check")}<span>${state.locale === "en" ? "Save" : "Сохранить"}</span></button><button class="admin-save-bar__close" type="button" data-action="admin-plan-exit" aria-label="${state.locale === "en" ? "Exit plan editor" : "Выйти из редактора тарифов"}">${icon("close")}</button></div></div>`;
+	return `<div class="admin-save-bar admin-save-bar--plan-editor"><span role="status" aria-live="polite">${escapeHtml(status)}</span><div class="admin-save-bar__actions"><button class="admin-save-bar__add" type="button" data-action="admin-add-plan" ${busy ? "disabled" : ""}>${icon("plus")}<span>${state.locale === "en" ? "Add" : "Добавить"}</span></button><button class="admin-save-bar__reset" type="button" data-action="admin-reset-plans" ${busy ? "disabled" : ""}>${icon("reset")}<span>${state.locale === "en" ? "Reset" : "Сбросить"}</span></button><button class="admin-save-bar__save" type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""}><span>${state.locale === "en" ? "Save" : "Сохранить"}</span></button><button class="admin-save-bar__close" type="button" data-action="admin-plan-exit" aria-label="${state.locale === "en" ? "Exit plan editor" : "Выйти из редактора тарифов"}">${icon("close")}</button></div></div>`;
 }
 
 function renderAdminPlanEditorModalLegacy() {
@@ -5568,12 +5651,12 @@ function renderDashboardPage() {
   const trafficLabel = active ? formatTrafficBadgeLabel(state.data.subscription.trafficUsedBytes, state.data.subscription.trafficLimitBytes, state.locale) : "";
   const deviceLabel = active ? formatDeviceBadgeLabel(state.data.subscription.deviceUsedCount, state.data.subscription.deviceLimitCount, state.locale) : "";
 	const primaryAction = active
-		? `<button class="btn" type="button" data-action="go-page" data-value="buy">${icon("cartShopping")}${copy.extend}</button>`
-		: `<button class="btn ${trialEligible ? "" : "btn--green"}" type="button" data-action="go-page" data-value="buy">${icon("cart")}${copy.buySubscription}</button>`;
+		? `<button class="btn" type="button" data-action="go-page" data-value="buy">${icon("cartShopping")}<span class="runtime-editable-text">${escapeHtml(copy.extend)}</span></button>`
+		: `<button class="btn ${trialEligible ? "" : "btn--green"}" type="button" data-action="go-page" data-value="buy">${icon("cart")}<span class="runtime-editable-text">${escapeHtml(copy.buySubscription)}</span></button>`;
 	const secondaryAction = active
-		? `<button class="btn btn--green" type="button" data-action="go-page" data-value="setup">${icon("arrowDownSquare")}${copy.setup}</button>`
+		? `<button class="btn btn--green" type="button" data-action="go-page" data-value="setup">${icon("arrowDownSquare")}<span class="runtime-editable-text">${escapeHtml(copy.setup)}</span></button>`
 		: trialEligible
-			? `<button class="btn btn--green btn--trial" type="button" data-action="activate-trial">${icon("gift")}${copy.activateTrial}</button>`
+			? `<button class="btn btn--green btn--trial" type="button" data-action="activate-trial">${icon("gift")}<span class="runtime-editable-text">${escapeHtml(copy.activateTrial)}</span></button>`
 			: "";
 	const actionStack = `<div class="action-stack action-stack--dashboard">${renderLayoutDetail("dashboard", "primary_action", primaryAction, "runtime-detail-item--action")}${secondaryAction ? renderLayoutDetail("dashboard", "secondary_action", secondaryAction, "runtime-detail-item--action") : ""}</div>`;
 	const promoWidgetItem = getLayoutElement("dashboard", "promo_widget");
@@ -5583,11 +5666,14 @@ function renderDashboardPage() {
 
 	const blocks = {
 		brand: `<div class="hero-center hero-center--brand">${renderLayoutDetail("dashboard", "logo", `<div class="hero-brand" style="--runtime-logo-width:${Math.max(48, Math.min(220, Number(getRuntimeSettings()?.layout?.logoWidth || 188)))}px"><img src="${escapeAttribute(resolveBrandMarkURL(state.data.brand.logoUrl))}" data-brand-logo alt="${escapeAttribute(state.data.brand.name || "Link-Bot")}" loading="eager" draggable="false"></div>`, "runtime-detail-item--logo")}${renderLayoutDetail("dashboard", "username", `<div class="hero-handle">${escapeHtml(avatarLabel)}</div>`, "runtime-detail-item--username")}</div>`,
-		subscription: active ? `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", `<div class="sub-bar__name">${title}</div>`, "runtime-detail-item--status runtime-detail-item--plan")}${renderLayoutDetail("dashboard", "expires", `<div class="sub-bar__date"><span class="sub-bar__date-icon">${icon("calendarDays")}</span><span>${expires}</span></div>`, "runtime-detail-item--status")}</div><div class="sub-bar__row sub-bar__row--pills">${trafficLabel ? renderLayoutDetail("dashboard", "traffic", `<span class="sub-pill"><span class="sub-pill__icon">${icon("chartLine")}</span><span>${escapeHtml(trafficLabel)}</span></span>`, "runtime-detail-item--pill") : ""}${deviceLabel ? renderLayoutDetail("dashboard", "devices", `<button class="sub-pill sub-pill--button" type="button" data-action="open-devices-modal"><span>${escapeHtml(deviceLabel)}</span><span class="sub-pill__edit">${icon("userPen")}</span></button>`, "runtime-detail-item--pill") : ""}</div></div></div></div>` : "",
+		subscription: active ? `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", `<div class="sub-bar__name">${title}</div>`, "runtime-detail-item--status runtime-detail-item--plan")}${renderLayoutDetail("dashboard", "expires", `<div class="sub-bar__date"><span class="sub-bar__date-icon">${icon("calendarDays")}</span><span>${expires}</span></div>`, "runtime-detail-item--status")}</div><div class="sub-bar__row sub-bar__row--pills">${trafficLabel ? renderLayoutDetail("dashboard", "traffic", `<span class="sub-pill"><span class="sub-pill__icon">${icon("chartLine")}</span><span class="runtime-editable-text">${escapeHtml(trafficLabel)}</span></span>`, "runtime-detail-item--pill") : ""}${deviceLabel ? renderLayoutDetail("dashboard", "devices", `<button class="sub-pill sub-pill--button" type="button" data-action="open-devices-modal"><span class="runtime-editable-text">${escapeHtml(deviceLabel)}</span><span class="sub-pill__edit">${icon("userPen")}</span></button>`, "runtime-detail-item--pill") : ""}</div></div></div></div>` : "",
 		actions: `<div class="dashboard-compact">${actionStack}</div>`,
 		...(promoWidgetVisible ? { promo_widget: renderPromoGiftWidget(promoWidgetItem) } : {}),
 		...(notificationWidgetVisible ? { notification_widget: renderNotificationWidget(notificationWidgetItem) } : {}),
 	};
+	getLayoutElements("dashboard").filter((item) => isEmptyLayoutCardID(item.id)).forEach((item) => {
+		blocks[item.id] = '<div class="empty-design-card" aria-hidden="true"></div>';
+	});
 	const switchAnimationClass = subscriptionSwitchAnimation ? `subscription-switch--${subscriptionSwitchAnimation}` : "";
 	return `<section class="page ${pageClass("dashboard")} ${switchAnimationClass}" id="page-dashboard">${renderSubscriptionSwitcher()}${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
 }
@@ -5701,7 +5787,7 @@ function renderSubscriptionEditorModal() {
 	const label = localizedText("Название", "Name", "نام");
 	const save = createMode ? localizedText("Создать", "Create", "ایجاد") : localizedText("Сохранить", "Save", "ذخیره");
 	const cancel = localizedText("Отмена", "Cancel", "لغو");
-	return `<div class="modal open ${modalStateClass("subscription-editor")}" role="dialog" aria-modal="true" aria-labelledby="subscription-editor-title"><button class="modal__backdrop" type="button" data-action="close-subscription-editor" aria-label="${escapeAttribute(cancel)}"></button><div class="modal__sheet modal__sheet--subscription-editor"><div class="modal__header"><div class="modal__title" id="subscription-editor-title">${escapeHtml(title)}</div><button class="header__btn" type="button" data-action="close-subscription-editor" aria-label="${escapeAttribute(cancel)}">${icon("close")}</button></div><label class="support-field"><span class="support-field__label">${escapeHtml(label)}</span><input class="support-field__input" type="text" maxlength="40" autocomplete="off" value="${escapeAttribute(state.subscriptionNameDraft)}" data-input="subscription-name" autofocus></label><div class="subscription-editor__actions"><button class="btn" type="button" data-action="close-subscription-editor" ${state.subscriptionBusy ? "disabled" : ""}>${escapeHtml(cancel)}</button><button class="btn btn--green-filled" type="button" data-action="save-subscription" ${!state.subscriptionNameDraft.trim() || state.subscriptionBusy ? "disabled" : ""}>${icon(state.subscriptionBusy ? "refresh" : "check")}${escapeHtml(save)}</button></div></div></div>`;
+	return `<div class="modal open ${modalStateClass("subscription-editor")}" role="dialog" aria-modal="true" aria-labelledby="subscription-editor-title"><button class="modal__backdrop" type="button" data-action="close-subscription-editor" aria-label="${escapeAttribute(cancel)}"></button><div class="modal__sheet modal__sheet--subscription-editor"><div class="modal__header"><div class="modal__title" id="subscription-editor-title">${escapeHtml(title)}</div><button class="header__btn" type="button" data-action="close-subscription-editor" aria-label="${escapeAttribute(cancel)}">${icon("close")}</button></div><label class="support-field"><span class="support-field__label">${escapeHtml(label)}</span><input class="support-field__input" type="text" maxlength="40" autocomplete="off" value="${escapeAttribute(state.subscriptionNameDraft)}" data-input="subscription-name" autofocus></label><div class="subscription-editor__actions"><button class="btn" type="button" data-action="close-subscription-editor" ${state.subscriptionBusy ? "disabled" : ""}>${escapeHtml(cancel)}</button><button class="btn btn--green-filled" type="button" data-action="save-subscription" ${!state.subscriptionNameDraft.trim() || state.subscriptionBusy ? "disabled" : ""}>${escapeHtml(save)}</button></div></div></div>`;
 }
 
 function renderSubscriptionDeleteModal() {
@@ -7416,6 +7502,11 @@ function bindRootActions() {
   app.addEventListener("click", async (event) => {
     const target = event.target.closest("[data-action]");
     if (!target) {
+		if (state.adminLayoutAddMenuOpen && !event.target.closest(".admin-layout-more")) {
+			state.adminLayoutAddMenuOpen = false;
+			render({ preserveScroll: true });
+			return;
+		}
 		if (state.adminFinancePeriodMenuOpen && !event.target.closest(".admin-finance-period")) {
 			state.adminFinancePeriodMenuOpen = false;
 			render({ preserveScroll: true });
@@ -7430,6 +7521,11 @@ function bindRootActions() {
 	}
     const action = target.dataset.action;
     const value = target.dataset.value || "";
+		if (state.adminLayoutAddMenuOpen && !event.target.closest(".admin-layout-more")) {
+			state.adminLayoutAddMenuOpen = false;
+			app.querySelector(".admin-layout-add-menu")?.remove();
+			app.querySelector('[data-action="admin-layout-more-toggle"]')?.setAttribute("aria-expanded", "false");
+		}
 		if (state.adminFinancePeriodMenuOpen && !event.target.closest(".admin-finance-period")) {
 			state.adminFinancePeriodMenuOpen = false;
 			app.querySelector(".admin-finance-period")?.classList.remove("is-open");
@@ -7454,6 +7550,12 @@ function bindRootActions() {
 		if (action === "admin-edit-notification-widget") {
 			event.preventDefault();
 			return openAdminNotificationWidgetEditor();
+		}
+		if (action === "admin-open-layout-style") {
+			event.preventDefault();
+			const node = event.target.closest?.("[data-layout-edit-key]");
+			if (node) selectAdminLayoutNode(node);
+			return openAdminLayoutStyleEditor();
 		}
 		const editableNode = event.target.closest?.("[data-layout-edit-key]");
 		if (state.adminLayoutEditing && editableNode) {
@@ -7563,6 +7665,18 @@ function bindRootActions() {
 			if (action === "admin-user-traffic") return await addAdminUserTraffic();
 			if (action === "admin-user-block") return await setAdminUserBlocked(target.dataset.blocked === "true");
 			if (action === "admin-layout-exit") return exitAdminLayoutEditor();
+			if (action === "admin-layout-more-toggle") {
+				state.adminLayoutAddMenuOpen = !state.adminLayoutAddMenuOpen;
+				haptic("light");
+				render({ preserveScroll: true });
+				if (state.adminLayoutAddMenuOpen) queueMicrotask(() => app.querySelector(".admin-layout-add-menu [role=menuitem]")?.focus());
+				return;
+			}
+			if (action === "admin-add-empty-card") return addAdminEmptyLayoutCard();
+			if (action === "admin-close-layout-style") return closeAdminLayoutStyleEditor();
+			if (action === "admin-layout-layer-back") return moveSelectedAdminLayoutLayer(-1);
+			if (action === "admin-layout-layer-front") return moveSelectedAdminLayoutLayer(1);
+			if (action === "admin-remove-empty-card") return removeSelectedAdminEmptyCard();
 			if (action === "admin-plan-exit") return exitAdminPlanEditor();
 			if (action === "open-device-packs") { state.devicePackModalOpen = true; render({ preserveScroll: true }); return; }
 			if (action === "close-device-packs") return requestModalClose("device-packs", () => { state.devicePackModalOpen = false; });
@@ -7782,8 +7896,27 @@ function bindRootActions() {
 		}
 	});
 
-    app.addEventListener("input", (event) => {
+	app.addEventListener("input", (event) => {
       const target = event.target;
+		if (target?.dataset?.input === "admin-layout-style") {
+			const item = getSelectedDashboardStyleItem();
+			const field = target.dataset.layoutStyleField;
+			const limits = { cornerRadius: [0, 32], textScale: [70, 150], textOffsetX: [-60, 60], textOffsetY: [-40, 40] };
+			if (!item || !limits[field]) return;
+			const [minimum, maximum] = limits[field];
+			const numeric = Math.max(minimum, Math.min(maximum, Math.round(Number(target.value || 0))));
+			item[field] = numeric;
+			const suffix = target.dataset.rangeSuffix || "";
+			const output = target.closest(".admin-layout-style-range")?.querySelector("output");
+			const progress = maximum > minimum ? ((numeric - minimum) / (maximum - minimum)) * 100 : 0;
+			target.style.setProperty("--range-progress", `${progress}%`);
+			target.setAttribute("aria-valuetext", `${numeric}${suffix}`);
+			if (output) output.textContent = `${numeric}${suffix}`;
+			const node = [...app.querySelectorAll("[data-layout-edit-key]")].find((entry) => entry.dataset.layoutEditKey === state.adminLayoutSelection);
+			applyAdminLayoutNodeStyle(node, item);
+			markAdminLayoutDirty();
+			return;
+		}
 		const profileEditPath = target?.dataset?.profileEditPath;
 		if (profileEditPath && state.adminProfileFormDraft) {
 			setDeepValue(state.adminProfileFormDraft, profileEditPath, target.value);
@@ -8103,6 +8236,26 @@ function bindRootActions() {
 	app.addEventListener("pointerdown", beginAdminPlanPointer);
 	app.addEventListener("pointerdown", beginAdminLayoutPointer);
 	app.addEventListener("keydown", (event) => {
+		if (state.adminLayoutAddMenuOpen && event.target.closest?.(".admin-layout-add-menu [role=menuitem]") && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+			event.preventDefault();
+			const options = [...app.querySelectorAll(".admin-layout-add-menu [role=menuitem]")];
+			const current = options.indexOf(event.target.closest("[role=menuitem]"));
+			const next = event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 : (current + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+			options[next]?.focus();
+			return;
+		}
+		if (state.adminLayoutStyleEditorOpen && event.key === "Escape") {
+			event.preventDefault();
+			closeAdminLayoutStyleEditor();
+			return;
+		}
+		if (state.adminLayoutAddMenuOpen && event.key === "Escape") {
+			event.preventDefault();
+			state.adminLayoutAddMenuOpen = false;
+			render({ preserveScroll: true });
+			queueMicrotask(() => app.querySelector('[data-action="admin-layout-more-toggle"]')?.focus());
+			return;
+		}
 		if (state.adminFinancePeriodMenuOpen && event.target.closest?.(".admin-finance-period-option") && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
 			event.preventDefault();
 			const options = [...app.querySelectorAll(".admin-finance-period-option")];
@@ -8526,7 +8679,6 @@ async function uploadAdminFavicon(file) {
 }
 
 function syncAdminSaveBarDOM() {
-	const saving = state.adminBusy === "save-settings";
 	const busy = Boolean(state.adminBusy);
 	const status = state.adminBusy === "upload-logo"
 		? localizedText("Загружаем логотип...", "Uploading logo...", "در حال بارگذاری لوگو...")
@@ -8541,7 +8693,7 @@ function syncAdminSaveBarDOM() {
 		if (label) label.textContent = status;
 		if (!button) return;
 		button.disabled = busy || !state.adminSettingsDirty;
-		button.innerHTML = `${icon(saving ? "refresh" : "check")}<span>${localizedText("Сохранить", "Save", "ذخیره")}</span>`;
+		button.innerHTML = `<span>${localizedText("Сохранить", "Save", "ذخیره")}</span>`;
 	});
 }
 
@@ -8894,6 +9046,89 @@ function markAdminLayoutDirty() {
 	syncAdminSaveBarDOM();
 }
 
+function addAdminEmptyLayoutCard() {
+	ensureAdminVisualLayoutDraft();
+	const items = state.adminSettingsDraft?.layout?.elements;
+	if (!Array.isArray(items)) return;
+	if (items.length >= 100) {
+		showToast(localizedText("Достигнут лимит элементов", "Element limit reached", "حد عناصر پر شده است"));
+		return;
+	}
+	let sequence = 1;
+	while (items.some((item) => item?.area === "dashboard" && item?.id === `empty_card_${sequence}`)) sequence += 1;
+	const order = items.filter((item) => item?.area === "dashboard").reduce((maximum, item) => Math.max(maximum, Number(item.order || 0)), 19) + 1;
+	const item = {
+		id: `empty_card_${sequence}`,
+		area: "dashboard",
+		order,
+		visible: true,
+		width: 100,
+		height: 96,
+		framed: false,
+		align: "center",
+		offsetX: 0,
+		offsetY: 0,
+		cornerRadius: 14,
+		textScale: 100,
+		textOffsetX: 0,
+		textOffsetY: 0,
+		layer: -1,
+	};
+	items.push(item);
+	state.adminLayoutSelection = `dashboard:${item.id}`;
+	state.adminLayoutAddMenuOpen = false;
+	markAdminLayoutDirty();
+	haptic("light");
+	render({ preserveScroll: true });
+}
+
+function openAdminLayoutStyleEditor() {
+	const item = getSelectedDashboardStyleItem();
+	if (!item || state.adminBusy) return;
+	ensureDashboardLayoutStyle(item);
+	state.adminLayoutAddMenuOpen = false;
+	state.adminLayoutStyleEditorOpen = true;
+	haptic("light");
+	render({ preserveScroll: true });
+}
+
+function closeAdminLayoutStyleEditor() {
+	requestModalClose("admin-layout-style", () => {
+		state.adminLayoutStyleEditorOpen = false;
+	});
+}
+
+function moveSelectedAdminLayoutLayer(direction) {
+	const item = getSelectedDashboardStyleItem();
+	if (!item) return;
+	const ordered = (state.adminSettingsDraft?.layout?.elements || [])
+		.filter((entry) => entry?.area === "dashboard" && entry.visible !== false && !["brand", "subscription", "actions"].includes(entry.id))
+		.sort((left, right) => Number(left.layer || 0) - Number(right.layer || 0) || Number(left.order || 0) - Number(right.order || 0));
+	const index = ordered.indexOf(item);
+	if (index >= 0) ordered.splice(index, 1);
+	if (direction > 0) ordered.push(item);
+	else ordered.unshift(item);
+	const middle = Math.floor((ordered.length - 1) / 2);
+	ordered.forEach((entry, order) => { entry.layer = order - middle; });
+	markAdminLayoutDirty();
+	haptic("light");
+	render({ preserveScroll: true });
+}
+
+function removeSelectedAdminEmptyCard() {
+	const item = getSelectedDashboardStyleItem();
+	if (!item || !isEmptyLayoutCardID(item.id)) return;
+	const items = state.adminSettingsDraft?.layout?.elements;
+	if (!Array.isArray(items)) return;
+	const index = items.indexOf(item);
+	if (index >= 0) items.splice(index, 1);
+	state.adminLayoutStyleEditorOpen = false;
+	state.adminLayoutSelection = "";
+	markAdminLayoutDirty();
+	haptic("light");
+	render({ preserveScroll: true });
+}
+
 function getAdminPromoWidgetItem() {
 	ensureAdminVisualLayoutDraft();
 	return state.adminSettingsDraft?.layout?.elements?.find((item) => item?.area === "dashboard" && item?.id === "promo_widget") || null;
@@ -8906,6 +9141,8 @@ function openAdminPromoWidgetEditor() {
 	state.adminPromoWidgetCodeDraft = normalizePromoCodeValue(item.promoCode || "");
 	state.adminPromoWidgetValidation = null;
 	state.adminPromoWidgetBusy = "";
+	state.adminLayoutAddMenuOpen = false;
+	state.adminLayoutStyleEditorOpen = false;
 	state.adminPromoWidgetEditorOpen = true;
 	haptic("light");
 	render({ preserveScroll: true });
@@ -8979,6 +9216,8 @@ function openAdminNotificationWidgetEditor() {
 	if (!item || state.adminBusy) return;
 	state.adminLayoutSelection = "dashboard:notification_widget";
 	state.adminNotificationWidgetTextDraft = String(item.notificationText || "").slice(0, 2000);
+	state.adminLayoutAddMenuOpen = false;
+	state.adminLayoutStyleEditorOpen = false;
 	state.adminNotificationWidgetEditorOpen = true;
 	haptic("light");
 	render({ preserveScroll: true });
@@ -9300,6 +9539,8 @@ function enterAdminLayoutEditor() {
 	state.adminLayoutBaselineJSONDrafts = deepClone(state.adminJSONDrafts || {});
 	ensureAdminVisualLayoutDraft();
 	state.adminLayoutEditing = true;
+	state.adminLayoutAddMenuOpen = false;
+	state.adminLayoutStyleEditorOpen = false;
 	state.adminSection = "layout";
 	state.adminLayoutCategory = "dashboard";
 	state.adminLayoutSelection = "";
@@ -9322,6 +9563,8 @@ function exitAdminLayoutEditor() {
 	state.adminLayoutBaselineDirty = false;
 	state.adminLayoutBaselineJSONDrafts = null;
 	state.adminLayoutEditing = false;
+	state.adminLayoutAddMenuOpen = false;
+	state.adminLayoutStyleEditorOpen = false;
 	state.adminLayoutSelection = "";
 	state.adminLayoutCategory = "dashboard";
 	state.currentPage = "admin";
@@ -9380,8 +9623,12 @@ function resetSelectedAdminLayoutItem() {
 
 function resetAdminLayoutCategory() {
 	finishAdminLayoutPointer();
-	const items = state.adminSettingsDraft?.layout?.elements;
+	let items = state.adminSettingsDraft?.layout?.elements;
 	if (!Array.isArray(items)) return;
+	if (state.adminLayoutCategory === "dashboard") {
+		items = items.filter((item) => !(item?.area === "dashboard" && isEmptyLayoutCardID(item.id)));
+		state.adminSettingsDraft.layout.elements = items;
+	}
 	const resetAreas = new Set([state.adminLayoutCategory]);
 	for (const fallback of ADMIN_LAYOUT_DEFAULTS.filter((item) => resetAreas.has(item.area))) {
 		const index = items.findIndex((item) => item.area === fallback.area && item.id === fallback.id);
@@ -9516,7 +9763,10 @@ function mountRuntimeLayoutSurface(surface, kind) {
 	for (const record of records) {
 		record.parent.classList.add("layout-runtime-host");
 		record.parent.replaceChild(record.placeholder, record.node);
-		record.parent.appendChild(record.node);
+		// All editable dashboard leaves share one stacking plane. Their original
+		// parent geometry is preserved below, but z-index can now order a button,
+		// widget and decorative card relative to each other.
+		surface.appendChild(record.node);
 	}
 
 	let overlay = null;
@@ -9582,14 +9832,12 @@ function mountRuntimeLayout() {
 
 function setAdminLayoutMountedGeometry(node, pageLeft, pageTop, width, height, { expandSurface = true } = {}) {
 	if (!node) return;
-	const parentOriginX = Number(node.dataset.editorParentOriginX || 0);
-	const parentOriginY = Number(node.dataset.editorParentOriginY || 0);
 	node.dataset.editorPageLeft = String(pageLeft);
 	node.dataset.editorPageTop = String(pageTop);
 	node.dataset.editorWidth = String(width);
 	node.dataset.editorHeight = String(height);
-	node.style.setProperty("--editor-local-left", `${pageLeft - parentOriginX}px`);
-	node.style.setProperty("--editor-local-top", `${pageTop - parentOriginY}px`);
+	node.style.setProperty("--editor-local-left", `${pageLeft}px`);
+	node.style.setProperty("--editor-local-top", `${pageTop}px`);
 	node.style.setProperty("--editor-pixel-width", `${width}px`);
 	node.style.setProperty("--editor-pixel-height", `${height}px`);
 	const surface = expandSurface ? node.closest(node.dataset.editorSurfaceKind === "navigation" ? ".bottom-nav" : ".page.active") : null;
@@ -9609,12 +9857,9 @@ function syncAdminLayoutMountedNodes() {
 		const item = getAdminLayoutItemForNode(node);
 		if (!item) return;
 		const surface = node.closest(node.dataset.editorSurfaceKind === "navigation" ? ".bottom-nav" : ".page.active");
-		const parent = node.parentElement;
-		if (!surface || !parent) return;
-		const surfaceRect = surface.getBoundingClientRect();
-		const parentRect = parent.getBoundingClientRect();
-		const parentOriginX = parentRect.left + parent.clientLeft - parent.scrollLeft - surfaceRect.left;
-		const parentOriginY = parentRect.top + parent.clientTop - parent.scrollTop - surfaceRect.top;
+		if (!surface) return;
+		const parentOriginX = Number(node.dataset.editorParentOriginX || 0);
+		const parentOriginY = Number(node.dataset.editorParentOriginY || 0);
 		const parentWidth = Math.max(1, Number(node.dataset.editorParentWidth || 1));
 		const width = item.area === "navigation" ? Number(item.width || 44) : parentWidth * Number(item.width || 100) / 100;
 		setAdminLayoutMountedGeometry(node, parentOriginX + Number(item.positionX || 0), parentOriginY + Number(item.positionY || 0), width, Number(item.height || 52));
@@ -9698,14 +9943,19 @@ function showAdminLayoutGuides(surface, x = null, y = null, guides = null) {
 
 function applyAdminLayoutNodeStyle(node, item) {
 	if (!node || !item) return;
+	if (item.area === "dashboard") {
+		ensureDashboardLayoutStyle(item);
+		node.style.setProperty("--runtime-corner-radius", `${Math.max(0, Math.min(64, Number(item.cornerRadius || 0)))}px`);
+		node.style.setProperty("--runtime-text-scale", `${Math.max(50, Math.min(200, Number(item.textScale || 100))) / 100}`);
+		node.style.setProperty("--runtime-text-x", `${Math.max(-120, Math.min(120, Number(item.textOffsetX || 0)))}px`);
+		node.style.setProperty("--runtime-text-y", `${Math.max(-120, Math.min(120, Number(item.textOffsetY || 0)))}px`);
+		node.style.setProperty("--runtime-layer", `${Math.max(-100, Math.min(100, Number(item.layer || 0)))}`);
+	}
 	if (node.classList.contains("runtime-layout-mounted")) {
 		const surface = node.closest(node.dataset.editorSurfaceKind === "navigation" ? ".bottom-nav" : ".page.active");
-		const parent = node.parentElement;
-		if (!surface || !parent) return;
-		const surfaceRect = surface.getBoundingClientRect();
-		const parentRect = parent.getBoundingClientRect();
-		const parentOriginX = parentRect.left + parent.clientLeft - parent.scrollLeft - surfaceRect.left;
-		const parentOriginY = parentRect.top + parent.clientTop - parent.scrollTop - surfaceRect.top;
+		if (!surface) return;
+		const parentOriginX = Number(node.dataset.editorParentOriginX || 0);
+		const parentOriginY = Number(node.dataset.editorParentOriginY || 0);
 		const parentWidth = Math.max(1, Number(node.dataset.editorParentWidth || 1));
 		const width = item.area === "navigation" ? Number(item.width || 44) : parentWidth * Number(item.width || 100) / 100;
 		setAdminLayoutMountedGeometry(node, parentOriginX + Number(item.positionX || 0), parentOriginY + Number(item.positionY || 0), width, Number(item.height || 52));
@@ -9766,7 +10016,7 @@ function nudgeAdminLayoutElement(node, mode, key, largeStep = false) {
 
 function beginAdminLayoutPointer(event) {
 	if (!state.adminLayoutEditing || event.button > 0 || !event.isPrimary) return;
-	if (event.target.closest?.('[data-action="admin-edit-promo-widget"]')) return;
+	if (event.target.closest?.(".layout-editable__edit")) return;
 	const layoutNode = event.target.closest?.("[data-layout-edit-key]");
 	if (!layoutNode) return;
 	const item = getAdminLayoutItemForNode(layoutNode);
@@ -9775,10 +10025,8 @@ function beginAdminLayoutPointer(event) {
 	const surface = layoutNode.closest(layoutNode.dataset.editorSurfaceKind === "navigation" ? ".bottom-nav" : ".page.active") || app;
 	const surfaceRect = surface.getBoundingClientRect();
 	const nodeRect = layoutNode.getBoundingClientRect();
-	const parent = layoutNode.parentElement;
-	const parentRect = parent?.getBoundingClientRect?.() || surfaceRect;
-	const parentOriginX = parentRect.left + (parent?.clientLeft || 0) - (parent?.scrollLeft || 0) - surfaceRect.left;
-	const parentOriginY = parentRect.top + (parent?.clientTop || 0) - (parent?.scrollTop || 0) - surfaceRect.top;
+	const parentOriginX = Number(layoutNode.dataset.editorParentOriginX || 0);
+	const parentOriginY = Number(layoutNode.dataset.editorParentOriginY || 0);
 	const overlay = surface.querySelector?.(":scope > .layout-editor-grid") || null;
 	const startLeft = nodeRect.left - surfaceRect.left;
 	const startTop = nodeRect.top - surfaceRect.top;
@@ -11423,7 +11671,7 @@ function syncNativeBackButton() {
 
 function shouldShowNativeBackButton() {
 	return Boolean(
-		state.adminLayoutEditing || state.adminPlanEditing || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.notificationPopoverOpen || state.notificationPopoverClosing ||
+		state.adminLayoutEditing || state.adminPlanEditing || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminLayoutStyleEditorOpen || state.adminLayoutAddMenuOpen || state.notificationPopoverOpen || state.notificationPopoverClosing ||
 		state.giftReceiptOpen ||
 		state.p2pMenuStep ||
     state.supportThreadOpen ||
@@ -11447,6 +11695,12 @@ function getNativeBackTargetPage() {
 }
 
 function handleNativeBackButton() {
+	if (state.adminLayoutStyleEditorOpen) return closeAdminLayoutStyleEditor();
+	if (state.adminLayoutAddMenuOpen) {
+		state.adminLayoutAddMenuOpen = false;
+		render({ preserveScroll: true });
+		return;
+	}
 	if (state.adminFinancePeriodMenuOpen) {
 		state.adminFinancePeriodMenuOpen = false;
 		render({ preserveScroll: true });
@@ -11494,6 +11748,7 @@ function handleNativeBackButton() {
 function getActiveModalName() {
 	if (state.p2pMenuStep) return "p2p";
 	if (state.giftReceiptOpen) return "gift-receipt";
+	if (state.adminLayoutStyleEditorOpen) return "admin-layout-style";
 	if (state.adminNotificationWidgetEditorOpen) return "admin-notification-widget";
 	if (state.adminPromoWidgetEditorOpen) return "admin-promo-widget";
 	if (state.adminProfileEditorModalOpen) return "admin-profile-editor";
@@ -12728,6 +12983,7 @@ function icon(name) {
     chrome: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5h7.4M4.8 7.6l3.8 6.7M19.2 7.6 15.4 14.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
     safari: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><path d="m14.9 8.2-1.7 5-5 1.7 1.7-5 5-1.7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
     dotsVertical: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="5" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="19" r="1.7" fill="currentColor"/></svg>`,
+		moreHorizontal: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="19" cy="12" r="1.7" fill="currentColor"/></svg>`,
     download: `<svg viewBox="0 0 24 24" fill="none"><path d="M12 4v10M8 10l4 4 4-4M5 16v2.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V16" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 		qr: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h2v2h-2v-2Zm4 0h2v2h-2v-2Zm-4 4h2v2h-2v-2Zm3-1h3v3h-3v-3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`,
 		tv: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="13" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="m9 21 3-3 3 3M9 2l3 3 3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,

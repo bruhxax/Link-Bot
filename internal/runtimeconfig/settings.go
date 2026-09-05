@@ -23,7 +23,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 20
+const CurrentVersion = 21
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -254,6 +254,11 @@ type LayoutElement struct {
 	PromoCode        string   `json:"promoCode,omitempty"`
 	NotificationText string   `json:"notificationText,omitempty"`
 	IconBubble       *bool    `json:"iconBubble,omitempty"`
+	CornerRadius     int      `json:"cornerRadius"`
+	TextScale        int      `json:"textScale,omitempty"`
+	TextOffsetX      int      `json:"textOffsetX,omitempty"`
+	TextOffsetY      int      `json:"textOffsetY,omitempty"`
+	Layer            int      `json:"layer"`
 }
 
 type LayoutSettings struct {
@@ -834,7 +839,27 @@ func defaultLayoutElements() []LayoutElement {
 		{ID: "group_account", Area: "profile", Order: 24, Visible: true, Width: 100, Height: 28, Align: "left"},
 	}
 	result = append(result, details...)
+	for index := range result {
+		if result[index].Area != "dashboard" {
+			continue
+		}
+		result[index].TextScale = 100
+		result[index].CornerRadius = defaultDashboardCornerRadius(result[index].ID)
+	}
 	return result
+}
+
+func defaultDashboardCornerRadius(id string) int {
+	switch {
+	case id == "primary_action" || id == "secondary_action" || id == "traffic" || id == "devices":
+		return 22
+	case id == "promo_widget" || id == "notification_widget":
+		return 10
+	case strings.HasPrefix(id, "empty_card_"):
+		return 14
+	default:
+		return 0
+	}
 }
 
 func (s *Service) Snapshot() Settings {
@@ -982,20 +1007,20 @@ func NormalizeAndValidate(settings *Settings) error {
 	settings.Content = LocalizeTelegramDefaults(settings.Content, settings.Localization.Language)
 	settings.Maintenance = LocalizeMaintenanceDefaults(settings.Maintenance, settings.Localization.Language)
 	normalizeMaintenance(&settings.Maintenance, defaults.Maintenance)
-	if err := validateContent(&settings.Content, defaults.Content, previousVersion < CurrentVersion); err != nil {
+	if err := validateContent(&settings.Content, defaults.Content, previousVersion < 20); err != nil {
 		return err
 	}
 	ensureCustomProfileLayout(&settings.Layout, settings.Content.CustomLinks)
-	if err := validateAppearance(&settings.Appearance, defaults.Appearance, previousVersion < CurrentVersion); err != nil {
+	if err := validateAppearance(&settings.Appearance, defaults.Appearance, previousVersion < 20); err != nil {
 		return err
 	}
-	if err := validateLayout(&settings.Layout, defaults.Layout); err != nil {
+	if err := validateLayout(&settings.Layout, defaults.Layout, previousVersion < CurrentVersion); err != nil {
 		return err
 	}
 	if err := validatePlans(&settings.Plans, defaults.Plans); err != nil {
 		return err
 	}
-	if previousVersion < CurrentVersion && len(settings.DevicePacks) == 0 {
+	if previousVersion < 12 && len(settings.DevicePacks) == 0 {
 		settings.DevicePacks = append([]DevicePackSettings(nil), defaults.DevicePacks...)
 	}
 	if err := validateDevicePacks(&settings.DevicePacks); err != nil {
@@ -1004,7 +1029,7 @@ func NormalizeAndValidate(settings *Settings) error {
 	if err := validateTrial(&settings.Trial, defaults.Trial, previousVersion < CurrentVersion); err != nil {
 		return err
 	}
-	if previousVersion < CurrentVersion {
+	if previousVersion < 17 && settings.Referrals == (ReferralSettings{}) {
 		settings.Referrals = defaults.Referrals
 	}
 	if err := validateReferrals(&settings.Referrals); err != nil {
@@ -1601,7 +1626,7 @@ func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings, 
 	return nil
 }
 
-func validateLayout(value *LayoutSettings, defaults LayoutSettings) error {
+func validateLayout(value *LayoutSettings, defaults LayoutSettings, migrate bool) error {
 	// Dashboard sections are structural wrappers. Keeping their legacy geometry
 	// would make a wrapper and its children move at the same time in the editor.
 	filtered := value.Elements[:0]
@@ -1664,6 +1689,30 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings) error {
 		item.NotificationText = strings.TrimSpace(item.NotificationText)
 		isPromoWidget := item.Area == "dashboard" && item.ID == "promo_widget"
 		isNotificationWidget := item.Area == "dashboard" && item.ID == "notification_widget"
+		isDashboardElement := item.Area == "dashboard"
+		if isDashboardElement {
+			if migrate {
+				item.CornerRadius = defaultDashboardCornerRadius(item.ID)
+				item.TextScale = 100
+			}
+			if item.CornerRadius < 0 {
+				item.CornerRadius = 0
+			} else if item.CornerRadius > 64 {
+				item.CornerRadius = 64
+			}
+			if item.TextScale < 50 || item.TextScale > 200 {
+				item.TextScale = 100
+			}
+			item.TextOffsetX = max(-120, min(120, item.TextOffsetX))
+			item.TextOffsetY = max(-120, min(120, item.TextOffsetY))
+			item.Layer = max(-100, min(100, item.Layer))
+		} else {
+			item.CornerRadius = 0
+			item.TextScale = 0
+			item.TextOffsetX = 0
+			item.TextOffsetY = 0
+			item.Layer = 0
+		}
 		if isPromoWidget || isNotificationWidget {
 			if item.IconBubble == nil {
 				item.IconBubble = boolPointer(true)

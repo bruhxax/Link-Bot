@@ -79,7 +79,7 @@ func TestNormalizeAndValidateRejectsTrialPercentageReward(t *testing.T) {
 
 func TestNormalizeAndValidateMigratesReferralDefaults(t *testing.T) {
 	settings := DefaultSettings()
-	settings.Version = CurrentVersion - 1
+	settings.Version = 16
 	settings.Referrals = ReferralSettings{}
 	if err := NormalizeAndValidate(&settings); err != nil {
 		t.Fatalf("NormalizeAndValidate() error = %v", err)
@@ -143,7 +143,7 @@ func TestLocalizeTelegramDefaultsTranslatesBundledTextAndPreservesCustomText(t *
 
 func TestNormalizeAndValidateMigratesPaymentNotificationDefaults(t *testing.T) {
 	settings := DefaultSettings()
-	settings.Version = CurrentVersion - 1
+	settings.Version = 13
 	settings.Content.PaymentNotification = TelegramPaymentNotificationSettings{}
 
 	if err := NormalizeAndValidate(&settings); err != nil {
@@ -211,7 +211,7 @@ func TestNormalizeAndValidateRejectsInvalidDevicePack(t *testing.T) {
 
 func TestNormalizeAndValidateMigratesDevicePackDefaultsAndNotifications(t *testing.T) {
 	settings := DefaultSettings()
-	settings.Version = CurrentVersion - 1
+	settings.Version = 11
 	settings.DevicePacks = nil
 	settings.Content.Copy = map[string]map[string]string{"ru": {}}
 	settings.Trial = TrialSettings{
@@ -665,6 +665,93 @@ func TestNormalizeAndValidateNotificationWidget(t *testing.T) {
 	}
 }
 
+func TestNormalizeAndValidateDashboardLayoutStylesAndEmptyCards(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Version = CurrentVersion
+	settings.Layout.Elements = append(settings.Layout.Elements, LayoutElement{
+		ID: "empty_card_1", Area: "dashboard", Order: 30, Visible: true,
+		Width: 86, Height: 120, Align: "center", CornerRadius: 18,
+		TextScale: 125, TextOffsetX: 12, TextOffsetY: -8, Layer: -4,
+	})
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+
+	foundPrimary := false
+	foundEmpty := false
+	for _, item := range settings.Layout.Elements {
+		switch item.Area + ":" + item.ID {
+		case "dashboard:primary_action":
+			foundPrimary = true
+			if item.CornerRadius != 22 || item.TextScale != 100 {
+				t.Fatalf("unexpected primary action style: %+v", item)
+			}
+		case "dashboard:empty_card_1":
+			foundEmpty = true
+			if item.CornerRadius != 18 || item.TextScale != 125 || item.TextOffsetX != 12 || item.TextOffsetY != -8 || item.Layer != -4 {
+				t.Fatalf("empty card style was changed: %+v", item)
+			}
+		}
+	}
+	if !foundPrimary || !foundEmpty {
+		t.Fatalf("missing styled dashboard elements: primary=%v empty=%v", foundPrimary, foundEmpty)
+	}
+}
+
+func TestNormalizeAndValidateMigratesDashboardLayoutStyles(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Version = CurrentVersion - 1
+	for index := range settings.Layout.Elements {
+		if settings.Layout.Elements[index].Area == "dashboard" {
+			settings.Layout.Elements[index].CornerRadius = 0
+			settings.Layout.Elements[index].TextScale = 0
+		}
+	}
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	for _, item := range settings.Layout.Elements {
+		if item.Area == "dashboard" && item.ID == "primary_action" {
+			if item.CornerRadius != 22 || item.TextScale != 100 {
+				t.Fatalf("legacy primary action style was not migrated: %+v", item)
+			}
+			return
+		}
+	}
+	t.Fatal("primary action is missing")
+}
+
+func TestNormalizeAndValidatePreservesVersion20AppearanceAndReferrals(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Version = 20
+	settings.Appearance.BackgroundMotion["liquid1"] = BackgroundMotionSettings{Dimming: 63, Speed: 27}
+	settings.Appearance.Liquid["liquid1"] = LiquidBackgroundSettings{Colors: append([]string(nil), settings.Appearance.Liquid["liquid1"].Colors...), Dimming: 11, Speed: 88}
+	settings.Referrals.Trial = ReferralRewardSettings{BalanceMode: "fixed", BalanceRub: 321}
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if got := settings.Appearance.BackgroundMotion["liquid1"]; got.Dimming != 63 || got.Speed != 27 {
+		t.Fatalf("version 20 background motion was overwritten: %+v", got)
+	}
+	if got := settings.Referrals.Trial; got.BalanceMode != "fixed" || got.BalanceRub != 321 {
+		t.Fatalf("version 20 referral settings were overwritten: %+v", got)
+	}
+}
+
+func TestLayoutElementJSONKeepsZeroRadiusAndLayer(t *testing.T) {
+	payload, err := json.Marshal(LayoutElement{ID: "primary_action", Area: "dashboard", CornerRadius: 0, Layer: 0})
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	text := string(payload)
+	if !strings.Contains(text, `"cornerRadius":0`) || !strings.Contains(text, `"layer":0`) {
+		t.Fatalf("zero style values must survive JSON round trip: %s", text)
+	}
+}
+
 func TestNormalizeAndValidateRemovesDashboardWrappers(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Layout.Elements = append(settings.Layout.Elements,
@@ -774,7 +861,7 @@ func TestNormalizeAndValidateLiquidBackgroundAppearance(t *testing.T) {
 
 func TestNormalizeAndValidateMigratesLiquidMotion(t *testing.T) {
 	settings := DefaultSettings()
-	settings.Version = CurrentVersion - 1
+	settings.Version = 19
 	settings.Appearance.BackgroundMotion = nil
 	legacy := settings.Appearance.Liquid["liquid1"]
 	legacy.Dimming = 52
