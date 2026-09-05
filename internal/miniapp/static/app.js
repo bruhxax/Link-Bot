@@ -9049,6 +9049,44 @@ function markAdminLayoutDirty() {
 	syncAdminSaveBarDOM();
 }
 
+function positionNewDashboardElement(item, cascade = 0) {
+	if (!item || hasStoredLayoutPosition(item)) return;
+	const surface = app.querySelector("#page-dashboard.page.active");
+	const parent = surface?.querySelector(".runtime-layout-area--dashboard");
+	if (!surface || !parent) {
+		item.positionX = 0;
+		item.positionY = 180 + Math.max(0, Number(cascade || 0)) * 12;
+		return;
+	}
+
+	const surfaceRect = surface.getBoundingClientRect();
+	const parentRect = parent.getBoundingClientRect();
+	const parentPageX = parentRect.left + parent.clientLeft - parent.scrollLeft - surfaceRect.left;
+	const parentPageY = parentRect.top + parent.clientTop - parent.scrollTop - surfaceRect.top;
+	const widthPercent = Math.max(6, Math.min(150, Number(item.width || 100)));
+	const renderedWidth = Math.max(1, parent.clientWidth * widthPercent / 100);
+	const renderedHeight = Math.max(24, Number(item.height || 52));
+	const switcher = surface.querySelector(".subscription-switcher");
+	const saveBar = app.querySelector(".admin-save-bar--layout-editor");
+	const visibleTop = Math.max(
+		12,
+		-surfaceRect.top + 12,
+		switcher ? switcher.getBoundingClientRect().bottom - surfaceRect.top + 12 : 0,
+	);
+	const visibleBottom = Math.min(
+		window.innerHeight - surfaceRect.top,
+		saveBar ? saveBar.getBoundingClientRect().top - surfaceRect.top : Number.POSITIVE_INFINITY,
+	) - 12;
+	const maximumTop = Math.max(visibleTop, visibleBottom - renderedHeight);
+	const centeredTop = visibleTop + Math.max(0, (visibleBottom - visibleTop - renderedHeight) / 2);
+	const pageTop = Math.max(visibleTop, Math.min(maximumTop, centeredTop + Math.max(0, Number(cascade || 0)) * 12));
+	const pageLeft = (surfaceRect.width - renderedWidth) / 2;
+	item.positionX = Math.round(Math.max(-2000, Math.min(2000, pageLeft - parentPageX)) * 100) / 100;
+	item.positionY = Math.round(Math.max(-2000, Math.min(4000, pageTop - parentPageY)) * 100) / 100;
+	item.offsetX = 0;
+	item.offsetY = 0;
+}
+
 function addAdminEmptyLayoutCard() {
 	ensureAdminVisualLayoutDraft();
 	const items = state.adminSettingsDraft?.layout?.elements;
@@ -9077,12 +9115,15 @@ function addAdminEmptyLayoutCard() {
 		textOffsetY: 0,
 		layer: -1,
 	};
+	positionNewDashboardElement(item, sequence - 1);
 	items.push(item);
 	state.adminLayoutSelection = `dashboard:${item.id}`;
 	state.adminLayoutAddMenuOpen = false;
 	markAdminLayoutDirty();
 	haptic("light");
 	render({ preserveScroll: true });
+	requestAnimationFrame(() => app.querySelector(`[data-layout-edit-key="dashboard:${item.id}"]`)?.focus({ preventScroll: true }));
+	showToast(localizedText("Пустая карточка добавлена", "Empty card added", "کارت خالی اضافه شد"), "success");
 }
 
 function openAdminLayoutStyleEditor() {
@@ -9176,6 +9217,7 @@ async function validateAdminPromoWidget() {
 		const item = getAdminPromoWidgetItem();
 		if (!item) throw new Error(localizedText("Не удалось добавить виджет", "Could not add the widget", "افزودن ویجت انجام نشد"));
 		item.promoCode = normalizePromoCodeValue(response.data?.code || code);
+		positionNewDashboardElement(item);
 		item.visible = true;
 		state.adminLayoutSelection = "dashboard:promo_widget";
 		state.adminPromoWidgetBusy = "";
@@ -9241,6 +9283,7 @@ function applyAdminNotificationWidget() {
 		return;
 	}
 	item.notificationText = text;
+	positionNewDashboardElement(item);
 	item.visible = true;
 	state.adminLayoutSelection = "dashboard:notification_widget";
 	markAdminLayoutDirty();

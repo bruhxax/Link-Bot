@@ -135,3 +135,25 @@ func TestSubscriptionSwitcherStaysAboveCustomDashboardLayers(t *testing.T) {
 		t.Fatal("subscription switcher must stay above the maximum custom dashboard layer")
 	}
 }
+
+func TestNewDashboardElementsReceiveAVisibleInitialPosition(t *testing.T) {
+	appRaw, err := embeddedStatic.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	app := string(appRaw)
+
+	for _, fragment := range []string{
+		`function positionNewDashboardElement(item, cascade = 0)`,
+		`app.querySelector(".admin-save-bar--layout-editor")`,
+		`positionNewDashboardElement(item, sequence - 1)`,
+		`localizedText("Пустая карточка добавлена"`,
+	} {
+		if !strings.Contains(app, fragment) {
+			t.Fatalf("new dashboard element placement does not contain %q", fragment)
+		}
+	}
+	if strings.Count(app, `positionNewDashboardElement(item`) < 4 {
+		t.Fatal("empty, promo and notification dashboard elements must all receive an initial visible position")
+	}
+}
