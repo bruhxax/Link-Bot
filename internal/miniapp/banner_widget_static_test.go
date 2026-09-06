@@ -38,7 +38,7 @@ func TestDashboardBannerWiresUploadCropActionsAndLayoutEditing(t *testing.T) {
 		`.dashboard-banner`,
 		`.admin-banner-preview`,
 		`.admin-banner-upload:focus-within`,
-		`object-position: var(--banner-crop-x, 50%) var(--banner-crop-y, 50%)`,
+		`.admin-banner-crop-corner:focus-visible`,
 		`@media (prefers-reduced-motion: reduce)`,
 	} {
 		if !strings.Contains(styles, fragment) {

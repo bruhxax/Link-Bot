@@ -240,35 +240,41 @@ type BackgroundMotionSettings struct {
 }
 
 type LayoutElement struct {
-	ID               string   `json:"id"`
-	Area             string   `json:"area"`
-	Order            int      `json:"order"`
-	Visible          bool     `json:"visible"`
-	Width            float64  `json:"width"`
-	Height           int      `json:"height"`
-	Framed           bool     `json:"framed"`
-	Align            string   `json:"align"`
-	OffsetX          int      `json:"offsetX"`
-	OffsetY          int      `json:"offsetY"`
-	PositionX        *float64 `json:"positionX,omitempty"`
-	PositionY        *float64 `json:"positionY,omitempty"`
-	Group            string   `json:"group,omitempty"`
-	PromoCode        string   `json:"promoCode,omitempty"`
-	NotificationText string   `json:"notificationText,omitempty"`
-	IconBubble       *bool    `json:"iconBubble,omitempty"`
-	CornerRadius     int      `json:"cornerRadius"`
-	TextScale        int      `json:"textScale,omitempty"`
-	TextOffsetX      int      `json:"textOffsetX,omitempty"`
-	TextOffsetY      int      `json:"textOffsetY,omitempty"`
-	Layer            int      `json:"layer"`
-	BannerURL        string   `json:"bannerUrl,omitempty"`
-	BannerMediaType  string   `json:"bannerMediaType,omitempty"`
-	BannerCropX      int      `json:"bannerCropX"`
-	BannerCropY      int      `json:"bannerCropY"`
-	BannerZoom       int      `json:"bannerZoom"`
-	BannerAction     string   `json:"bannerAction,omitempty"`
-	BannerTarget     string   `json:"bannerTarget,omitempty"`
-	BannerAlt        string   `json:"bannerAlt,omitempty"`
+	ID                string   `json:"id"`
+	Area              string   `json:"area"`
+	Order             int      `json:"order"`
+	Visible           bool     `json:"visible"`
+	Width             float64  `json:"width"`
+	Height            int      `json:"height"`
+	Framed            bool     `json:"framed"`
+	Align             string   `json:"align"`
+	OffsetX           int      `json:"offsetX"`
+	OffsetY           int      `json:"offsetY"`
+	PositionX         *float64 `json:"positionX,omitempty"`
+	PositionY         *float64 `json:"positionY,omitempty"`
+	Group             string   `json:"group,omitempty"`
+	PromoCode         string   `json:"promoCode,omitempty"`
+	NotificationText  string   `json:"notificationText,omitempty"`
+	IconBubble        *bool    `json:"iconBubble,omitempty"`
+	CornerRadius      int      `json:"cornerRadius"`
+	TextScale         int      `json:"textScale,omitempty"`
+	TextOffsetX       int      `json:"textOffsetX,omitempty"`
+	TextOffsetY       int      `json:"textOffsetY,omitempty"`
+	Layer             int      `json:"layer"`
+	BannerURL         string   `json:"bannerUrl,omitempty"`
+	BannerMediaType   string   `json:"bannerMediaType,omitempty"`
+	BannerCropX       int      `json:"bannerCropX"`
+	BannerCropY       int      `json:"bannerCropY"`
+	BannerZoom        int      `json:"bannerZoom"`
+	BannerMediaWidth  int      `json:"bannerMediaWidth,omitempty"`
+	BannerMediaHeight int      `json:"bannerMediaHeight,omitempty"`
+	BannerCropLeft    float64  `json:"bannerCropLeft,omitempty"`
+	BannerCropTop     float64  `json:"bannerCropTop,omitempty"`
+	BannerCropWidth   float64  `json:"bannerCropWidth,omitempty"`
+	BannerCropHeight  float64  `json:"bannerCropHeight,omitempty"`
+	BannerAction      string   `json:"bannerAction,omitempty"`
+	BannerTarget      string   `json:"bannerTarget,omitempty"`
+	BannerAlt         string   `json:"bannerAlt,omitempty"`
 }
 
 type LayoutSettings struct {
@@ -1765,6 +1771,32 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings, migrate bool
 			if item.BannerZoom < 100 || item.BannerZoom > 250 {
 				item.BannerZoom = 100
 			}
+			if item.BannerMediaWidth < 0 || item.BannerMediaWidth > 16384 || item.BannerMediaHeight < 0 || item.BannerMediaHeight > 16384 {
+				return fmt.Errorf("invalid banner dimensions for %q", key)
+			}
+			if (item.BannerMediaWidth == 0) != (item.BannerMediaHeight == 0) {
+				return fmt.Errorf("incomplete banner dimensions for %q", key)
+			}
+			for _, value := range []float64{item.BannerCropLeft, item.BannerCropTop, item.BannerCropWidth, item.BannerCropHeight} {
+				if math.IsNaN(value) || math.IsInf(value, 0) {
+					return fmt.Errorf("invalid banner crop for %q", key)
+				}
+			}
+			hasManualCrop := item.BannerCropWidth != 0 || item.BannerCropHeight != 0
+			if hasManualCrop {
+				if item.BannerCropWidth <= 0 || item.BannerCropHeight <= 0 || item.BannerMediaWidth == 0 {
+					return fmt.Errorf("incomplete banner crop for %q", key)
+				}
+				item.BannerCropWidth = math.Max(1, math.Min(100, item.BannerCropWidth))
+				item.BannerCropHeight = math.Max(1, math.Min(100, item.BannerCropHeight))
+				item.BannerCropLeft = math.Max(0, math.Min(100-item.BannerCropWidth, item.BannerCropLeft))
+				item.BannerCropTop = math.Max(0, math.Min(100-item.BannerCropHeight, item.BannerCropTop))
+			} else {
+				item.BannerCropLeft = 0
+				item.BannerCropTop = 0
+				item.BannerCropWidth = 0
+				item.BannerCropHeight = 0
+			}
 			item.BannerAction = strings.ToLower(strings.TrimSpace(item.BannerAction))
 			if !contains([]string{"none", "url", "page"}, item.BannerAction) {
 				return fmt.Errorf("invalid banner action for %q", key)
@@ -1790,6 +1822,12 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings, migrate bool
 			item.BannerCropX = 0
 			item.BannerCropY = 0
 			item.BannerZoom = 0
+			item.BannerMediaWidth = 0
+			item.BannerMediaHeight = 0
+			item.BannerCropLeft = 0
+			item.BannerCropTop = 0
+			item.BannerCropWidth = 0
+			item.BannerCropHeight = 0
 			item.BannerAction = ""
 			item.BannerTarget = ""
 			item.BannerAlt = ""

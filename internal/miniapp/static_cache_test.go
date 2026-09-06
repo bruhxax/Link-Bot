@@ -108,3 +108,12 @@ func TestStaticHeadersOnlyMakeCurrentVersionImmutable(t *testing.T) {
 		t.Fatalf("stale Cache-Control = %q", got)
 	}
 }
+
+func TestBannerCropModuleRevalidatesWithoutVersion(t *testing.T) {
+	request := httptest.NewRequest("GET", "/mini-app/banner-crop.mjs", nil)
+	response := httptest.NewRecorder()
+	setStaticHeaders(response, request, "current")
+	if got := response.Header().Get("Cache-Control"); got != "no-cache, max-age=0, must-revalidate" {
+		t.Fatalf("crop module can stay stale after an update: %q", got)
+	}
+}

@@ -2,6 +2,7 @@ package runtimeconfig
 
 import (
 	"encoding/json"
+	"math"
 	"strings"
 	"testing"
 
@@ -1204,6 +1205,8 @@ func TestNormalizeAndValidateDashboardBanner(t *testing.T) {
 		Width: 100, Height: 132, Align: "center", CornerRadius: 16,
 		BannerURL: "/mini-app/uploads/banner-0123456789abcdef.gif", BannerMediaType: "gif",
 		BannerCropX: 0, BannerCropY: 100, BannerZoom: 175,
+		BannerMediaWidth: 1920, BannerMediaHeight: 1080,
+		BannerCropLeft: 12.5, BannerCropTop: 20, BannerCropWidth: 75, BannerCropHeight: 60,
 		BannerAction: "page", BannerTarget: "reviews", BannerAlt: "Отзывы клиентов",
 	})
 	if err := NormalizeAndValidate(&settings); err != nil {
@@ -1220,12 +1223,97 @@ func TestNormalizeAndValidateDashboardBanner(t *testing.T) {
 	if banner == nil || banner.BannerCropX != 0 || banner.BannerCropY != 100 || banner.BannerZoom != 175 || banner.BannerTarget != "reviews" {
 		t.Fatalf("unexpected normalized banner: %+v", banner)
 	}
+	if banner.BannerMediaWidth != 1920 || banner.BannerMediaHeight != 1080 || banner.BannerCropLeft != 12.5 || banner.BannerCropTop != 20 || banner.BannerCropWidth != 75 || banner.BannerCropHeight != 60 {
+		t.Fatalf("manual crop was not preserved: %+v", banner)
+	}
 	payload, err := json.Marshal(banner)
 	if err != nil {
 		t.Fatalf("marshal banner: %v", err)
 	}
 	if !strings.Contains(string(payload), `"bannerCropX":0`) {
 		t.Fatalf("zero crop coordinate was omitted: %s", payload)
+	}
+}
+
+func TestNormalizeAndValidateClampsDashboardBannerCropRect(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Layout.Elements = append(settings.Layout.Elements, LayoutElement{
+		ID: "banner_1", Area: "dashboard", Visible: true, Width: 100, Height: 132, Align: "center",
+		BannerURL: "/mini-app/uploads/banner-0123456789abcdef.mp4", BannerMediaType: "mp4",
+		BannerCropX: 50, BannerCropY: 50, BannerZoom: 100,
+		BannerMediaWidth: 3840, BannerMediaHeight: 2160,
+		BannerCropLeft: 90, BannerCropTop: -10, BannerCropWidth: 40, BannerCropHeight: 120,
+		BannerAction: "none",
+	})
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("normalize crop rect: %v", err)
+	}
+	for _, item := range settings.Layout.Elements {
+		if item.ID != "banner_1" {
+			continue
+		}
+		if item.BannerCropLeft != 60 || item.BannerCropTop != 0 || item.BannerCropWidth != 40 || item.BannerCropHeight != 100 {
+			t.Fatalf("clamped crop rect = %+v", item)
+		}
+		return
+	}
+	t.Fatal("banner was not preserved")
+}
+
+func TestDashboardBannerCropSurvivesLayoutResizeAndJSON(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Layout.Elements = append(settings.Layout.Elements, LayoutElement{
+		ID: "banner_1", Area: "dashboard", Visible: true, Width: 100, Height: 132, Align: "center",
+		BannerURL: "/mini-app/uploads/banner-0123456789abcdef.mp4", BannerMediaType: "mp4", BannerAction: "none",
+		BannerMediaWidth: 1920, BannerMediaHeight: 1080,
+		BannerCropLeft: 12.3456, BannerCropTop: 0, BannerCropWidth: 67.8901, BannerCropHeight: 83.4567,
+	})
+	for _, size := range []struct {
+		width  float64
+		height int
+	}{{35, 90}, {100, 620}, {75.25, 160}} {
+		for i := range settings.Layout.Elements {
+			if settings.Layout.Elements[i].ID == "banner_1" {
+				settings.Layout.Elements[i].Width = size.width
+				settings.Layout.Elements[i].Height = size.height
+			}
+		}
+		payload, err := json.Marshal(settings)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(payload, &settings); err != nil {
+			t.Fatal(err)
+		}
+		if err := NormalizeAndValidate(&settings); err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range settings.Layout.Elements {
+			if item.ID == "banner_1" && (item.BannerCropLeft != 12.3456 || item.BannerCropTop != 0 || item.BannerCropWidth != 67.8901 || item.BannerCropHeight != 83.4567) {
+				t.Fatalf("resize changed source crop: %+v", item)
+			}
+		}
+	}
+}
+
+func TestDashboardBannerRejectsIncompleteOrNonFiniteCrop(t *testing.T) {
+	for _, change := range []func(*LayoutElement){
+		func(item *LayoutElement) { item.BannerCropHeight = 0 },
+		func(item *LayoutElement) { item.BannerCropWidth = -1 },
+		func(item *LayoutElement) { item.BannerMediaWidth = 0 },
+		func(item *LayoutElement) { item.BannerMediaWidth = 0; item.BannerMediaHeight = 0 },
+		func(item *LayoutElement) { item.BannerCropLeft = math.NaN() },
+		func(item *LayoutElement) { item.BannerCropTop = math.Inf(1) },
+	} {
+		settings := DefaultSettings()
+		item := LayoutElement{ID: "banner_1", Area: "dashboard", Visible: true, Width: 100, Height: 132, Align: "center",
+			BannerURL: "/mini-app/uploads/banner-0123456789abcdef.png", BannerMediaType: "png", BannerAction: "none",
+			BannerMediaWidth: 1920, BannerMediaHeight: 1080, BannerCropWidth: 60, BannerCropHeight: 80}
+		change(&item)
+		settings.Layout.Elements = append(settings.Layout.Elements, item)
+		if err := NormalizeAndValidate(&settings); err == nil {
+			t.Fatalf("accepted invalid crop: %+v", item)
+		}
 	}
 }
 

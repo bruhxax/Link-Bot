@@ -7,6 +7,7 @@ import {
   getSetupPlatform,
 } from "./setup-apps.js";
 import { renderSVG as renderQRCodeSVG } from "./uqr.mjs";
+import { defaultSourceCrop, legacySourceCrop, cropMediaGeometry, zoomCrop, resizeCropCorner, resizeBannerProportionally } from "./banner-crop.mjs";
 
 const app = document.getElementById("app");
 const toast = document.getElementById("toast");
@@ -2013,6 +2014,7 @@ const state = {
 	adminBannerEditingID: "",
 	adminBannerDraft: null,
 	adminBannerBusy: "",
+	adminBannerEditorAspect: 2.75,
 	adminLayoutAddMenuOpen: false,
 	adminLayoutStyleEditorOpen: false,
 	notificationPopoverOpen: false,
@@ -2112,6 +2114,9 @@ let adminLayoutPointer = null;
 let adminLayoutPointerFrame = 0;
 let adminLayoutPendingPoint = null;
 let suppressNextLayoutClick = false;
+let bannerMediaResizeObserver = null;
+const adminBannerCropPointers = new Map();
+let adminBannerCropGesture = null;
 let adminProfilePointer = null;
 let adminPlanPointer = null;
 let adminBroadcastPollTimer = 0;
@@ -3115,6 +3120,9 @@ function getBottomNavPages() {
 }
 
 function render({ preserveScroll = true, scrollTop = null } = {}) {
+  bannerMediaResizeObserver?.disconnect();
+  adminBannerCropPointers.clear();
+  adminBannerCropGesture = null;
   const nextScrollTop = preserveScroll ? getCurrentScrollTop() : scrollTop;
   const supportThreadScrollState = captureSupportThreadScrollState();
   const activeModalName = getActiveModalName();
@@ -3198,6 +3206,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   mountAdminContentTabs();
   restoreScrollPosition(nextScrollTop);
 	mountRuntimeLayout();
+	mountBannerMedia();
   syncBottomNavIndicator();
   restoreSupportThreadScrollState(supportThreadScrollState);
   syncToastAnchor();
@@ -5487,20 +5496,55 @@ function bannerTargetLabel(target) {
 	}[target] || target;
 }
 
+function normalizedBannerCrop(item) {
+	const width = Math.max(0, Math.min(100, Number(item?.bannerCropWidth || 0)));
+	const height = Math.max(0, Math.min(100, Number(item?.bannerCropHeight || 0)));
+	if (width <= 0 || height <= 0) return null;
+	return {
+		left: Math.max(0, Math.min(100 - width, Number(item?.bannerCropLeft || 0))),
+		top: Math.max(0, Math.min(100 - height, Number(item?.bannerCropTop || 0))),
+		width,
+		height,
+	};
+}
+
+function bannerCropAspect(item) {
+	const crop = normalizedBannerCrop(item);
+	const mediaWidth = Number(item?.bannerMediaWidth || 0);
+	const mediaHeight = Number(item?.bannerMediaHeight || 0);
+	if (!crop || mediaWidth <= 0 || mediaHeight <= 0) return Math.max(.001, Number(state.adminBannerEditorAspect || 2.75));
+	return (mediaWidth * crop.width) / (mediaHeight * crop.height);
+}
+
+function bannerCropZoomPercent(item) {
+	const crop = normalizedBannerCrop(item);
+	if (!crop) return 100;
+	return Math.max(100, Math.min(800, Math.round(Math.min(100 / crop.width, 100 / crop.height) * 100)));
+}
+
+function bannerMediaDataAttributes(item) {
+	const crop = normalizedBannerCrop(item);
+	return [
+		`data-banner-crop-left="${crop ? crop.left : ""}"`,
+		`data-banner-crop-top="${crop ? crop.top : ""}"`,
+		`data-banner-crop-width="${crop ? crop.width : ""}"`,
+		`data-banner-crop-height="${crop ? crop.height : ""}"`,
+		`data-banner-media-width="${Math.max(0, Number(item?.bannerMediaWidth || 0))}"`,
+		`data-banner-media-height="${Math.max(0, Number(item?.bannerMediaHeight || 0))}"`,
+		`data-banner-legacy-crop-x="${Math.max(0, Math.min(100, Number(item?.bannerCropX ?? 50)))}"`,
+		`data-banner-legacy-crop-y="${Math.max(0, Math.min(100, Number(item?.bannerCropY ?? 50)))}"`,
+		`data-banner-legacy-zoom="${Math.max(100, Math.min(250, Number(item?.bannerZoom || 100)))}"`,
+	].join(" ");
+}
+
 function renderBannerMedia(item, className = "") {
 	const source = String(item?.bannerUrl || "").trim();
 	if (!source) return "";
-	const style = `--banner-crop-x:${Math.max(0, Math.min(100, Number(item?.bannerCropX ?? 50)))}%;--banner-crop-y:${Math.max(0, Math.min(100, Number(item?.bannerCropY ?? 50)))}%;--banner-zoom:${Math.max(100, Math.min(250, Number(item?.bannerZoom || 100))) / 100}`;
+	const attributes = bannerMediaDataAttributes(item);
 	if (item?.bannerMediaType === "mp4") {
-		return `<video class="banner-media ${escapeAttribute(className)}" style="${escapeAttribute(style)}" src="${escapeAttribute(source)}" autoplay loop muted playsinline preload="metadata" aria-hidden="true"></video>`;
+		return `<video class="banner-media ${escapeAttribute(className)}" ${attributes} src="${escapeAttribute(source)}" autoplay loop muted playsinline preload="auto" disablepictureinpicture aria-hidden="true"></video>`;
 	}
-	return `<img class="banner-media ${escapeAttribute(className)}" style="${escapeAttribute(style)}" src="${escapeAttribute(source)}" alt="" aria-hidden="true" draggable="false">`;
-}
-
-function renderAdminBannerRange(label, field, value, min, max, suffix = "%") {
-	const numeric = Math.max(min, Math.min(max, Number(value || 0)));
-	const progress = max > min ? ((numeric - min) / (max - min)) * 100 : 0;
-	return `<label class="admin-layout-style-range"><span><strong>${escapeHtml(label)}</strong><output>${escapeHtml(`${numeric}${suffix}`)}</output></span><input type="range" min="${min}" max="${max}" step="1" value="${numeric}" data-input="admin-banner-setting" data-banner-field="${escapeAttribute(field)}" data-range-suffix="${escapeAttribute(suffix)}" style="--range-progress:${progress}%" aria-label="${escapeAttribute(label)}" aria-valuetext="${escapeAttribute(`${numeric}${suffix}`)}"></label>`;
+	return `<img class="banner-media ${escapeAttribute(className)}" ${attributes} src="${escapeAttribute(source)}" alt="" aria-hidden="true" draggable="false" decoding="async">`;
 }
 
 function renderAdminBannerModal() {
@@ -5513,23 +5557,21 @@ function renderAdminBannerModal() {
 	const mediaHint = draft.bannerUrl
 		? localizedText("Файл загружен", "File uploaded", "فایل بارگذاری شد")
 		: localizedText("До 50 МБ · PNG, GIF или MP4", "Up to 50 MB · PNG, GIF or MP4", "تا ۵۰ مگابایت · PNG، GIF یا MP4");
+	const cropHint = localizedText("Тяните углы рамки, чтобы выбрать кадр. Двигайте медиа пальцем или мышью. Масштаб: + / −, колёсико или два пальца. Стрелки — точная подгонка.", "Drag the frame corners to select a crop. Move the media with a finger or mouse. Zoom: + / −, wheel or pinch. Use arrow keys for fine adjustments.", "گوشه‌های قاب را بکشید و رسانه را جابه‌جا کنید. بزرگ‌نمایی با + / −، چرخ ماوس یا دو انگشت. تنظیم دقیق با کلیدهای جهت.");
+	const cropZoom = bannerCropZoomPercent(draft);
 	return `<div class="modal modal--banner-editor open ${modalStateClass("admin-banner")}" role="dialog" aria-modal="true" aria-labelledby="admin-banner-title">
 		<button class="modal__backdrop" type="button" data-action="admin-close-banner" aria-label="${escapeAttribute(localizedText("Закрыть", "Close", "بستن"))}"></button>
 		<div class="modal__sheet modal__sheet--banner-editor">
 			<div class="modal__header"><div><div class="section-label">${localizedText("ГЛАВНЫЙ ЭКРАН", "HOME SCREEN", "صفحه اصلی")}</div><div class="modal__title" id="admin-banner-title">${escapeHtml(title)}</div></div><button class="header__btn" type="button" data-action="admin-close-banner" aria-label="${escapeAttribute(localizedText("Закрыть", "Close", "بستن"))}">${icon("close")}</button></div>
 			<div class="admin-banner-editor">
-				<div class="admin-banner-preview ${draft.bannerUrl ? "has-media" : ""}" role="img" aria-label="${escapeAttribute(localizedText("Предпросмотр баннера", "Banner preview", "پیش‌نمایش بنر"))}">
-					${draft.bannerUrl ? renderBannerMedia(draft) : `<span>${icon("image")}<strong>${localizedText("Загрузите баннер", "Upload a banner", "بنر را بارگذاری کنید")}</strong></span>`}
+				<div class="admin-banner-preview ${draft.bannerUrl ? "has-media" : ""}" ${draft.bannerUrl ? `data-banner-crop-surface tabindex="0" role="group" aria-describedby="admin-banner-crop-hint"` : `role="img"`} aria-label="${escapeAttribute(localizedText("Область ручного кадрирования баннера", "Manual banner crop area", "ناحیه برش دستی بنر"))}">
+					${draft.bannerUrl ? `${renderBannerMedia(draft)}<div class="admin-banner-crop-overlay"><i class="admin-banner-crop-overlay__grid" aria-hidden="true"></i>${["tl", "tr", "bl", "br"].map((corner, index) => `<button type="button" class="admin-banner-crop-corner admin-banner-crop-corner--${corner}" data-banner-crop-corner="${corner}" aria-label="${escapeAttribute(localizedText(["Верхний левый угол кадра", "Верхний правый угол кадра", "Нижний левый угол кадра", "Нижний правый угол кадра"][index], ["Top left crop corner", "Top right crop corner", "Bottom left crop corner", "Bottom right crop corner"][index], ["گوشه بالا چپ", "گوشه بالا راست", "گوشه پایین چپ", "گوشه پایین راست"][index]))}" aria-describedby="admin-banner-crop-hint"></button>`).join("")}</div>` : `<span>${icon("image")}<strong>${localizedText("Загрузите баннер", "Upload a banner", "بنر را بارگذاری کنید")}</strong></span>`}
 				</div>
+				${draft.bannerUrl ? `<div class="admin-banner-crop-panel"><div><strong>${localizedText("Ручная кадрировка", "Manual crop", "برش دستی")}</strong><small id="admin-banner-crop-hint">${escapeHtml(cropHint)}</small></div><div class="admin-banner-crop-controls"><button type="button" data-action="admin-banner-zoom-out" aria-label="${escapeAttribute(localizedText("Уменьшить масштаб", "Zoom out", "کوچک‌نمایی"))}">${icon("zoomOut")}</button><button type="button" data-action="admin-banner-crop-reset" aria-label="${escapeAttribute(localizedText("Сбросить кадр", "Reset crop", "بازنشانی برش"))}">${icon("reset")}<output data-banner-crop-zoom>${cropZoom}%</output></button><button type="button" data-action="admin-banner-zoom-in" aria-label="${escapeAttribute(localizedText("Увеличить масштаб", "Zoom in", "بزرگ‌نمایی"))}">${icon("plus")}</button></div></div>` : ""}
 				<label class="admin-banner-upload ${busy ? "is-busy" : ""}">
 					<input type="file" accept=".png,.gif,.mp4,image/png,image/gif,video/mp4" data-input="admin-banner-file" ${busy ? "disabled" : ""}>
 					${icon(busy ? "refresh" : "upload")}<span><strong>${busy ? localizedText("Загружаем…", "Uploading…", "در حال بارگذاری…") : localizedText(draft.bannerUrl ? "Заменить файл" : "Выбрать файл", draft.bannerUrl ? "Replace file" : "Choose file", draft.bannerUrl ? "جایگزینی فایل" : "انتخاب فایل")}</strong><small>${escapeHtml(mediaHint)}</small></span>
 				</label>
-				<div class="admin-banner-crop">
-					${renderAdminBannerRange(localizedText("Кадр по горизонтали", "Horizontal crop", "برش افقی"), "bannerCropX", draft.bannerCropX, 0, 100)}
-					${renderAdminBannerRange(localizedText("Кадр по вертикали", "Vertical crop", "برش عمودی"), "bannerCropY", draft.bannerCropY, 0, 100)}
-					${renderAdminBannerRange(localizedText("Масштаб", "Zoom", "بزرگ‌نمایی"), "bannerZoom", draft.bannerZoom, 100, 250)}
-				</div>
 				<label class="admin-field admin-field--full"><span>${localizedText("При нажатии", "On tap", "با لمس")}</span><select class="admin-field__control" data-input="admin-banner-setting" data-banner-field="bannerAction"><option value="none" ${action === "none" ? "selected" : ""}>${localizedText("Ничего — статичный баннер", "Nothing — static banner", "هیچ — بنر ثابت")}</option><option value="url" ${action === "url" ? "selected" : ""}>${localizedText("Открыть ссылку", "Open a link", "باز کردن پیوند")}</option><option value="page" ${action === "page" ? "selected" : ""}>${localizedText("Перейти в раздел Mini App", "Open a Mini App section", "رفتن به بخش مینی‌اپ")}</option></select></label>
 				${action === "url" ? `<label class="admin-field admin-field--full"><span>${localizedText("Ссылка", "Link", "پیوند")}</span><input class="admin-field__control" type="url" inputmode="url" autocomplete="url" placeholder="https://example.com" value="${escapeAttribute(draft.bannerTarget || "")}" data-input="admin-banner-setting" data-banner-field="bannerTarget"></label>` : ""}
 				${action === "page" ? `<label class="admin-field admin-field--full"><span>${localizedText("Раздел Mini App", "Mini App section", "بخش مینی‌اپ")}</span><select class="admin-field__control" data-input="admin-banner-setting" data-banner-field="bannerTarget">${BANNER_PAGE_TARGETS.map((target) => `<option value="${target}" ${draft.bannerTarget === target ? "selected" : ""}>${escapeHtml(bannerTargetLabel(target))}</option>`).join("")}</select></label>` : ""}
@@ -7784,6 +7826,9 @@ function bindRootActions() {
 			if (action === "admin-edit-banner") return openAdminBannerEditor(getSelectedDashboardStyleItem()?.id || "");
 			if (action === "admin-close-banner") return closeAdminBannerEditor();
 			if (action === "admin-apply-banner") return applyAdminBanner();
+			if (action === "admin-banner-zoom-out") return zoomAdminBannerCrop(1 / 1.12);
+			if (action === "admin-banner-zoom-in") return zoomAdminBannerCrop(1.12);
+			if (action === "admin-banner-crop-reset") return resetAdminBannerCrop();
 			if (action === "admin-remove-banner") return removeAdminBannerByID(state.adminBannerEditingID);
 			if (action === "admin-remove-selected-banner") return removeSelectedAdminBanner();
 			if (action === "admin-close-layout-style") return closeAdminLayoutStyleEditor();
@@ -8037,19 +8082,6 @@ function bindRootActions() {
 		}
 		if (target?.dataset?.input === "admin-banner-setting" && state.adminBannerDraft) {
 			const field = target.dataset.bannerField;
-			if (["bannerCropX", "bannerCropY", "bannerZoom"].includes(field)) {
-				const limits = field === "bannerZoom" ? [100, 250] : [0, 100];
-				const numeric = Math.max(limits[0], Math.min(limits[1], Math.round(Number(target.value || 0))));
-				state.adminBannerDraft[field] = numeric;
-				const suffix = target.dataset.rangeSuffix || "";
-				const output = target.closest(".admin-layout-style-range")?.querySelector("output");
-				const progress = ((numeric - limits[0]) / (limits[1] - limits[0])) * 100;
-				target.style.setProperty("--range-progress", `${progress}%`);
-				target.setAttribute("aria-valuetext", `${numeric}${suffix}`);
-				if (output) output.textContent = `${numeric}${suffix}`;
-				syncAdminBannerPreviewDOM();
-				return;
-			}
 			if (field === "bannerAction") {
 				state.adminBannerDraft.bannerAction = ["none", "url", "page"].includes(target.value) ? target.value : "none";
 				state.adminBannerDraft.bannerTarget = state.adminBannerDraft.bannerAction === "page" ? BANNER_PAGE_TARGETS[0] : "";
@@ -8486,6 +8518,9 @@ function bindRootActions() {
 		selectAdminLayoutNode(node);
 	});
 	window.addEventListener("pointermove", moveAdminLayoutPointer, { passive: false });
+	window.addEventListener("pointermove", moveAdminBannerCropPointer, { passive: false });
+	window.addEventListener("pointerup", endAdminBannerCropPointer);
+	window.addEventListener("pointercancel", endAdminBannerCropPointer);
 	window.addEventListener("pointermove", moveAdminProfilePointer, { passive: false });
 	window.addEventListener("pointermove", moveAdminPlanPointer, { passive: false });
 	window.addEventListener("pointerup", endAdminLayoutPointer);
@@ -9325,10 +9360,72 @@ function defaultAdminBannerDraft() {
 		bannerCropX: 50,
 		bannerCropY: 50,
 		bannerZoom: 100,
+		bannerMediaWidth: 0,
+		bannerMediaHeight: 0,
+		bannerCropLeft: 0,
+		bannerCropTop: 0,
+		bannerCropWidth: 0,
+		bannerCropHeight: 0,
 		bannerAction: "none",
 		bannerTarget: "",
 		bannerAlt: "",
 	};
+}
+
+function defaultBannerCropRect(mediaWidth, mediaHeight, targetAspect = state.adminBannerEditorAspect) {
+	return defaultSourceCrop(mediaWidth, mediaHeight, targetAspect);
+}
+
+function legacyBannerCropRect(item, mediaWidth, mediaHeight, targetAspect = state.adminBannerEditorAspect) {
+	return legacySourceCrop(item, mediaWidth, mediaHeight, targetAspect);
+}
+
+function assignAdminBannerCropRect(rect) {
+	if (!state.adminBannerDraft || !rect) return;
+	const width = Math.max(1, Math.min(100, Number(rect.width || 100)));
+	const height = Math.max(1, Math.min(100, Number(rect.height || 100)));
+	const left = Math.max(0, Math.min(100 - width, Number(rect.left || 0)));
+	const top = Math.max(0, Math.min(100 - height, Number(rect.top || 0)));
+	Object.assign(state.adminBannerDraft, {
+		bannerCropLeft: Math.round(left * 10000) / 10000,
+		bannerCropTop: Math.round(top * 10000) / 10000,
+		bannerCropWidth: Math.round(width * 10000) / 10000,
+		bannerCropHeight: Math.round(height * 10000) / 10000,
+		bannerCropX: Math.round(left + width / 2),
+		bannerCropY: Math.round(top + height / 2),
+	});
+	state.adminBannerDraft.bannerZoom = Math.max(100, Math.min(250, bannerCropZoomPercent(state.adminBannerDraft)));
+}
+
+function readBannerFileDimensions(file) {
+	return new Promise((resolve, reject) => {
+		const source = URL.createObjectURL(file);
+		const video = String(file?.type || "").toLowerCase() === "video/mp4" || /\.mp4$/i.test(String(file?.name || ""));
+		const media = video ? document.createElement("video") : new Image();
+		let settled = false;
+		const finish = (value, error = null) => {
+			if (settled) return;
+			settled = true;
+			window.clearTimeout(timer);
+			media.onerror = null;
+			media.onload = null;
+			media.onloadedmetadata = null;
+			if (video) { media.pause(); media.removeAttribute("src"); media.load(); }
+			URL.revokeObjectURL(source);
+			if (error) reject(error);
+			else resolve(value);
+		};
+		const timer = window.setTimeout(() => finish(null, new Error("media metadata timeout")), 12000);
+		media.onerror = () => finish(null, new Error("media metadata unavailable"));
+		if (video) {
+			media.preload = "metadata";
+			media.muted = true;
+			media.onloadedmetadata = () => finish({ width: media.videoWidth, height: media.videoHeight });
+		} else {
+			media.onload = () => finish({ width: media.naturalWidth, height: media.naturalHeight });
+		}
+		media.src = source;
+	});
 }
 
 function getAdminBannerItem(id = state.adminBannerEditingID) {
@@ -9340,6 +9437,11 @@ function getAdminBannerItem(id = state.adminBannerEditingID) {
 function openAdminBannerEditor(id = "") {
 	if (state.adminBusy || state.adminBannerBusy) return;
 	const item = getAdminBannerItem(id);
+	const node = item ? app.querySelector(`[data-layout-edit-key="dashboard:${item.id}"]`) : null;
+	const rect = node?.getBoundingClientRect();
+	state.adminBannerEditorAspect = normalizedBannerCrop(item)
+		? bannerCropAspect(item)
+		: (rect?.width > 0 && rect?.height > 0 ? rect.width / rect.height : 2.75);
 	state.adminBannerEditingID = item?.id || "";
 	state.adminBannerDraft = {
 		...defaultAdminBannerDraft(),
@@ -9347,6 +9449,8 @@ function openAdminBannerEditor(id = "") {
 		bannerCropX: Number(item?.bannerCropX ?? 50),
 		bannerCropY: Number(item?.bannerCropY ?? 50),
 		bannerZoom: Number(item?.bannerZoom || 100),
+		bannerMediaWidth: Number(item?.bannerMediaWidth || 0),
+		bannerMediaHeight: Number(item?.bannerMediaHeight || 0),
 	};
 	if (item) state.adminLayoutSelection = `dashboard:${item.id}`;
 	state.adminLayoutAddMenuOpen = false;
@@ -9358,6 +9462,8 @@ function openAdminBannerEditor(id = "") {
 
 function closeAdminBannerEditor() {
 	if (state.adminBannerBusy) return;
+	adminBannerCropPointers.clear();
+	adminBannerCropGesture = null;
 	requestModalClose("admin-banner", () => {
 		state.adminBannerEditorOpen = false;
 		state.adminBannerEditingID = "";
@@ -9372,14 +9478,25 @@ async function uploadAdminBanner(file) {
 	if (!supported) return showToast(localizedText("Выберите PNG, GIF или MP4", "Choose a PNG, GIF or MP4 file", "یک فایل PNG، GIF یا MP4 انتخاب کنید"), "danger");
 	if (Number(file.size || 0) > 50 * 1024 * 1024) return showToast(localizedText("Файл должен быть не больше 50 МБ", "The file must be no larger than 50 MB", "فایل نباید بزرگ‌تر از ۵۰ مگابایت باشد"), "danger");
 
+	const dimensionsPromise = readBannerFileDimensions(file);
 	state.adminBannerBusy = "upload";
 	render({ preserveScroll: true });
 	try {
+		const dimensions = await dimensionsPromise.catch(() => null);
+		if (!dimensions || dimensions.width <= 0 || dimensions.height <= 0 || dimensions.width > 16384 || dimensions.height > 16384) {
+			throw new Error(localizedText("Не удалось открыть медиа для кадрирования. Для MP4 используйте видео с кодеком H.264.", "Could not open the media for cropping. For MP4, use an H.264 video.", "رسانه برای برش باز نشد. برای MP4 از کدک H.264 استفاده کنید."));
+		}
 		const body = new FormData();
 		body.append("banner", file, file.name || "banner");
 		const response = await postForm("/api/mini-app/admin/banner/upload", body);
 		state.adminBannerDraft.bannerUrl = String(response.data?.url || "");
 		state.adminBannerDraft.bannerMediaType = String(response.data?.type || "");
+		Object.assign(state.adminBannerDraft, { bannerCropLeft: 0, bannerCropTop: 0, bannerCropWidth: 0, bannerCropHeight: 0, bannerCropX: 50, bannerCropY: 50, bannerZoom: 100 });
+		state.adminBannerDraft.bannerMediaWidth = Math.max(0, Math.round(Number(dimensions.width || 0)));
+		state.adminBannerDraft.bannerMediaHeight = Math.max(0, Math.round(Number(dimensions.height || 0)));
+		if (state.adminBannerDraft.bannerMediaWidth > 0 && state.adminBannerDraft.bannerMediaHeight > 0) {
+			assignAdminBannerCropRect(defaultBannerCropRect(state.adminBannerDraft.bannerMediaWidth, state.adminBannerDraft.bannerMediaHeight));
+		}
 		state.adminBannerBusy = "";
 		haptic("success");
 		render({ preserveScroll: true });
@@ -9409,6 +9526,11 @@ function applyAdminBanner() {
 		target = BANNER_PAGE_TARGETS[0];
 	}
 	if (action === "none") target = "";
+	let crop = normalizedBannerCrop(draft);
+	if (!crop && Number(draft.bannerMediaWidth || 0) > 0 && Number(draft.bannerMediaHeight || 0) > 0) {
+		crop = legacyBannerCropRect(draft, draft.bannerMediaWidth, draft.bannerMediaHeight);
+		assignAdminBannerCropRect(crop);
+	}
 
 	ensureAdminVisualLayoutDraft();
 	const items = state.adminSettingsDraft?.layout?.elements;
@@ -9436,10 +9558,22 @@ function applyAdminBanner() {
 		bannerCropX: Math.max(0, Math.min(100, Math.round(Number(draft.bannerCropX ?? 50)))),
 		bannerCropY: Math.max(0, Math.min(100, Math.round(Number(draft.bannerCropY ?? 50)))),
 		bannerZoom: Math.max(100, Math.min(250, Math.round(Number(draft.bannerZoom || 100)))),
+		bannerMediaWidth: Math.max(0, Math.round(Number(draft.bannerMediaWidth || 0))),
+		bannerMediaHeight: Math.max(0, Math.round(Number(draft.bannerMediaHeight || 0))),
+		bannerCropLeft: crop ? crop.left : 0,
+		bannerCropTop: crop ? crop.top : 0,
+		bannerCropWidth: crop ? crop.width : 0,
+		bannerCropHeight: crop ? crop.height : 0,
 		bannerAction: action,
 		bannerTarget: target,
 		bannerAlt: String(draft.bannerAlt || "").trim().slice(0, 160),
 	});
+	if (crop) {
+		const node = app.querySelector(`[data-layout-edit-key="dashboard:${item.id}"]`);
+		const parentWidth = Number(node?.dataset.editorParentWidth || app.querySelector(".page.active")?.clientWidth || 360);
+		const width = node?.getBoundingClientRect().width || parentWidth * Number(item.width || 100) / 100;
+		item.height = Math.max(40, Math.min(720, Math.round(width / bannerCropAspect(item))));
+	}
 	state.adminLayoutSelection = `dashboard:${item.id}`;
 	markAdminLayoutDirty();
 	state.adminBannerEditorOpen = false;
@@ -9475,11 +9609,236 @@ function removeSelectedAdminBanner() {
 
 function syncAdminBannerPreviewDOM() {
 	const draft = state.adminBannerDraft;
-	const preview = app.querySelector(".admin-banner-preview .banner-media");
-	if (!draft || !preview) return;
-	preview.style.setProperty("--banner-crop-x", `${Math.max(0, Math.min(100, Number(draft.bannerCropX ?? 50)))}%`);
-	preview.style.setProperty("--banner-crop-y", `${Math.max(0, Math.min(100, Number(draft.bannerCropY ?? 50)))}%`);
-	preview.style.setProperty("--banner-zoom", `${Math.max(100, Math.min(250, Number(draft.bannerZoom || 100))) / 100}`);
+	const media = app.querySelector(".admin-banner-preview .banner-media");
+	const surface = media?.closest(".admin-banner-preview");
+	if (!draft || !media || !surface) return;
+	const crop = normalizedBannerCrop(draft);
+	media.dataset.bannerCropLeft = crop ? String(crop.left) : "";
+	media.dataset.bannerCropTop = crop ? String(crop.top) : "";
+	media.dataset.bannerCropWidth = crop ? String(crop.width) : "";
+	media.dataset.bannerCropHeight = crop ? String(crop.height) : "";
+	media.dataset.bannerMediaWidth = String(Math.max(0, Number(draft.bannerMediaWidth || 0)));
+	media.dataset.bannerMediaHeight = String(Math.max(0, Number(draft.bannerMediaHeight || 0)));
+	media.dataset.bannerLegacyCropX = String(Math.max(0, Math.min(100, Number(draft.bannerCropX ?? 50))));
+	media.dataset.bannerLegacyCropY = String(Math.max(0, Math.min(100, Number(draft.bannerCropY ?? 50))));
+	media.dataset.bannerLegacyZoom = String(Math.max(100, Math.min(250, Number(draft.bannerZoom || 100))));
+	const zoom = surface.parentElement?.querySelector("[data-banner-crop-zoom]");
+	if (zoom) zoom.textContent = `${bannerCropZoomPercent(draft)}%`;
+	positionBannerMediaElement(media);
+}
+
+function positionBannerMediaElement(media) {
+	const frame = media?.closest(".dashboard-banner, .admin-banner-preview");
+	if (!media || !frame) return;
+	const frameWidth = frame.clientWidth;
+	const frameHeight = frame.clientHeight;
+	if (frameWidth <= 0 || frameHeight <= 0) return;
+	let crop = normalizedBannerCrop({
+		bannerCropLeft: media.dataset.bannerCropLeft,
+		bannerCropTop: media.dataset.bannerCropTop,
+		bannerCropWidth: media.dataset.bannerCropWidth,
+		bannerCropHeight: media.dataset.bannerCropHeight,
+	});
+	const intrinsicWidth = Number(media.videoWidth || media.naturalWidth || media.dataset.bannerMediaWidth || 0);
+	const intrinsicHeight = Number(media.videoHeight || media.naturalHeight || media.dataset.bannerMediaHeight || 0);
+	if (intrinsicWidth <= 0 || intrinsicHeight <= 0) return;
+	if (!crop) {
+		crop = legacyBannerCropRect({ bannerCropX: media.dataset.bannerLegacyCropX, bannerCropY: media.dataset.bannerLegacyCropY, bannerZoom: media.dataset.bannerLegacyZoom }, intrinsicWidth, intrinsicHeight, frameWidth / frameHeight);
+		// Capture legacy cover geometry once, before the constructor resizes it.
+		const values = { bannerMediaWidth: intrinsicWidth, bannerMediaHeight: intrinsicHeight, bannerCropLeft: crop.left, bannerCropTop: crop.top, bannerCropWidth: crop.width, bannerCropHeight: crop.height };
+		Object.entries(values).forEach(([key, value]) => { media.dataset[key] = String(value); });
+		const item = state.adminLayoutEditing ? getAdminLayoutItemForNode(media.closest("[data-layout-edit-key]")) : null;
+		if (item) Object.assign(item, values);
+	}
+	const editor = frame.hasAttribute("data-banner-crop-surface");
+	const padding = editor ? 24 : 0;
+	const geometry = editor && adminBannerCropGesture?.mode === "resize" && adminBannerCropGesture.surface === frame
+		? { ...adminBannerCropGesture.media, viewport: {
+			left: adminBannerCropGesture.media.left + adminBannerCropGesture.media.width * crop.left / 100,
+			top: adminBannerCropGesture.media.top + adminBannerCropGesture.media.height * crop.top / 100,
+			width: adminBannerCropGesture.media.width * crop.width / 100,
+			height: adminBannerCropGesture.media.height * crop.height / 100,
+		} }
+		: cropMediaGeometry(crop, intrinsicWidth, intrinsicHeight, { left: padding, top: padding, width: Math.max(1, frameWidth - padding * 2), height: Math.max(1, frameHeight - padding * 2) });
+	for (const key of ["width", "height", "left", "top"]) media.style[key] = `${geometry[key]}px`;
+	// Clip to the saved source rectangle, even if the layout box has another ratio.
+	media.style.clipPath = editor ? "none" : `inset(${crop.top}% ${Math.max(0, 100 - crop.left - crop.width)}% ${Math.max(0, 100 - crop.top - crop.height)}% ${crop.left}%)`;
+	const overlay = frame.querySelector(".admin-banner-crop-overlay");
+	if (overlay) for (const key of ["width", "height", "left", "top"]) overlay.style[key] = `${geometry.viewport[key]}px`;
+}
+
+function ensureAdminBannerCropFromMedia(media) {
+	if (!state.adminBannerDraft || !media?.closest("[data-banner-crop-surface]")) return;
+	const width = Math.round(Number(media.videoWidth || media.naturalWidth || state.adminBannerDraft.bannerMediaWidth || 0));
+	const height = Math.round(Number(media.videoHeight || media.naturalHeight || state.adminBannerDraft.bannerMediaHeight || 0));
+	if (width <= 0 || height <= 0) return;
+	state.adminBannerDraft.bannerMediaWidth = width;
+	state.adminBannerDraft.bannerMediaHeight = height;
+	if (!normalizedBannerCrop(state.adminBannerDraft)) {
+		assignAdminBannerCropRect(legacyBannerCropRect(state.adminBannerDraft, width, height));
+	}
+	syncAdminBannerPreviewDOM();
+}
+
+function mountBannerMedia() {
+	bannerMediaResizeObserver?.disconnect?.();
+	bannerMediaResizeObserver = typeof ResizeObserver === "function"
+		? new ResizeObserver((entries) => entries.forEach((entry) => entry.target.querySelectorAll(":scope > .banner-media").forEach(positionBannerMediaElement)))
+		: null;
+	app.querySelectorAll(".banner-media").forEach((media) => {
+		const ready = media instanceof HTMLVideoElement ? media.readyState >= 1 : media.complete;
+		const sync = () => {
+			if (!media.isConnected) return;
+			ensureAdminBannerCropFromMedia(media);
+			positionBannerMediaElement(media);
+		};
+		if (ready) sync();
+		else media.addEventListener(media instanceof HTMLVideoElement ? "loadedmetadata" : "load", sync, { once: true });
+		const frame = media.closest(".dashboard-banner, .admin-banner-preview");
+		if (frame) bannerMediaResizeObserver?.observe(frame);
+	});
+	const cropSurface = app.querySelector("[data-banner-crop-surface]");
+	if (!cropSurface) return;
+	cropSurface.addEventListener("pointerdown", beginAdminBannerCropPointer);
+	cropSurface.addEventListener("wheel", handleAdminBannerCropWheel, { passive: false });
+	cropSurface.addEventListener("keydown", handleAdminBannerCropKeyboard);
+}
+
+function zoomAdminBannerCrop(factor) {
+	const crop = normalizedBannerCrop(state.adminBannerDraft);
+	if (!crop || adminBannerCropGesture?.mode === "resize") return;
+	assignAdminBannerCropRect(zoomCrop(crop, factor));
+	syncAdminBannerPreviewDOM();
+}
+
+function resetAdminBannerCrop() {
+	const draft = state.adminBannerDraft;
+	if (!draft) return;
+	const width = Number(draft.bannerMediaWidth || 0);
+	const height = Number(draft.bannerMediaHeight || 0);
+	assignAdminBannerCropRect(width > 0 && height > 0 ? defaultBannerCropRect(width, height) : { left: 0, top: 0, width: 100, height: 100 });
+	syncAdminBannerPreviewDOM();
+	haptic("light");
+}
+
+function restartAdminBannerCropGesture(surface) {
+	const crop = normalizedBannerCrop(state.adminBannerDraft);
+	const points = [...adminBannerCropPointers.values()];
+	if (!crop || !points.length) {
+		adminBannerCropGesture = null;
+		return;
+	}
+	if (points.length >= 2) {
+		adminBannerCropGesture = {
+			mode: "pinch",
+			surface,
+			initial: crop,
+			startDistance: Math.max(1, Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y)),
+		};
+		return;
+	}
+	adminBannerCropGesture = { mode: "drag", surface, initial: crop, startX: points[0].x, startY: points[0].y };
+}
+
+function beginAdminBannerCropPointer(event) {
+	const surface = event.currentTarget;
+	if (!state.adminBannerDraft || !normalizedBannerCrop(state.adminBannerDraft) || event.button > 0) return;
+	event.preventDefault();
+	adminBannerCropPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+	surface.setPointerCapture?.(event.pointerId);
+	surface.classList.add("is-adjusting");
+	restartAdminBannerCropGesture(surface);
+	const corner = event.target.closest?.("[data-banner-crop-corner]")?.dataset.bannerCropCorner;
+	if (corner && adminBannerCropPointers.size === 1) {
+		const media = surface.querySelector(".banner-media");
+		const geometry = Object.fromEntries(["width", "height", "left", "top"].map((key) => [key, parseFloat(media.style[key])]));
+		adminBannerCropGesture = { ...adminBannerCropGesture, mode: "resize", corner, media: geometry };
+	}
+}
+
+function moveAdminBannerCropPointer(event) {
+	if (!adminBannerCropPointers.has(event.pointerId) || !adminBannerCropGesture) return;
+	event.preventDefault();
+	adminBannerCropPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+	const gesture = adminBannerCropGesture;
+	const points = [...adminBannerCropPointers.values()];
+	if (gesture.mode === "pinch" && points.length >= 2) {
+		const distance = Math.max(1, Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y));
+		assignAdminBannerCropRect(zoomCrop(gesture.initial, distance / gesture.startDistance));
+		syncAdminBannerPreviewDOM();
+		return;
+	}
+	if (gesture.mode === "resize" && points.length === 1) {
+		const bounds = gesture.surface.getBoundingClientRect();
+		const x = Math.max(bounds.left + 12, Math.min(bounds.right - 12, points[0].x));
+		const y = Math.max(bounds.top + 12, Math.min(bounds.bottom - 12, points[0].y));
+		assignAdminBannerCropRect(resizeCropCorner(gesture.initial, gesture.corner, (x - gesture.startX) * 100 / gesture.media.width, (y - gesture.startY) * 100 / gesture.media.height, 4400 / gesture.media.width, 4400 / gesture.media.height));
+		syncAdminBannerPreviewDOM();
+		return;
+	}
+	if (gesture.mode !== "drag" || points.length !== 1) return;
+	const rect = gesture.surface.querySelector(".admin-banner-crop-overlay").getBoundingClientRect();
+	if (rect.width <= 0 || rect.height <= 0) return;
+	assignAdminBannerCropRect({
+		...gesture.initial,
+		left: gesture.initial.left - (points[0].x - gesture.startX) * gesture.initial.width / rect.width,
+		top: gesture.initial.top - (points[0].y - gesture.startY) * gesture.initial.height / rect.height,
+	});
+	syncAdminBannerPreviewDOM();
+}
+
+function endAdminBannerCropPointer(event) {
+	if (!adminBannerCropPointers.has(event.pointerId)) return;
+	if (event.type === "pointerup") moveAdminBannerCropPointer(event);
+	const surface = adminBannerCropGesture?.surface;
+	adminBannerCropPointers.delete(event.pointerId);
+	if (surface?.hasPointerCapture?.(event.pointerId)) surface.releasePointerCapture(event.pointerId);
+	if (adminBannerCropPointers.size) restartAdminBannerCropGesture(surface);
+	else {
+		adminBannerCropGesture = null;
+		surface?.classList.remove("is-adjusting");
+		syncAdminBannerPreviewDOM();
+		haptic("light");
+	}
+}
+
+function handleAdminBannerCropWheel(event) {
+	if (!normalizedBannerCrop(state.adminBannerDraft)) return;
+	event.preventDefault();
+	zoomAdminBannerCrop(Math.exp(-Math.max(-120, Math.min(120, event.deltaY)) * .002));
+}
+
+function handleAdminBannerCropKeyboard(event) {
+	const crop = normalizedBannerCrop(state.adminBannerDraft);
+	if (!crop) return;
+	if (["+", "="].includes(event.key)) {
+		event.preventDefault();
+		return zoomAdminBannerCrop(1.12);
+	}
+	if (event.key === "-") {
+		event.preventDefault();
+		return zoomAdminBannerCrop(1 / 1.12);
+	}
+	if (event.key === "0") {
+		event.preventDefault();
+		return resetAdminBannerCrop();
+	}
+	if (!["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"].includes(event.key)) return;
+	event.preventDefault();
+	const step = event.shiftKey ? 5 : 1;
+	const corner = event.target.closest?.("[data-banner-crop-corner]")?.dataset.bannerCropCorner;
+	if (corner) {
+		const media = event.currentTarget.querySelector(".banner-media");
+		assignAdminBannerCropRect(resizeCropCorner(crop, corner, event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0, event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0, 4400 / parseFloat(media.style.width), 4400 / parseFloat(media.style.height)));
+		syncAdminBannerPreviewDOM();
+		return;
+	}
+	assignAdminBannerCropRect({
+		...crop,
+		left: crop.left + (event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0),
+		top: crop.top + (event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0),
+	});
+	syncAdminBannerPreviewDOM();
 }
 
 function openDashboardBanner(id) {
@@ -10361,6 +10720,7 @@ function applyAdminLayoutNodeStyle(node, item) {
 
 function adminLayoutMinimumSize(item) {
 	if (item?.area === "navigation") return { width: 28, height: 24 };
+	if (item?.area === "dashboard" && isBannerLayoutID(item.id)) return { width: 32, height: 40 };
 	if (item?.area === "dashboard" && ["promo_widget", "notification_widget"].includes(item?.id)) return { width: 36, height: 36 };
 	if (item?.area === "dashboard" && ["username", "plan_name"].includes(item?.id)) return { width: 64, height: 20 };
 	return { width: 32, height: 20 };
@@ -10378,8 +10738,12 @@ function nudgeAdminLayoutElement(node, mode, key, largeStep = false) {
 		const parentWidth = Math.max(1, Number(node.dataset.editorParentWidth || node.parentElement?.clientWidth || 1));
 		const currentWidth = Math.max(minimum.width, Number(node.dataset.editorWidth || node.getBoundingClientRect().width));
 		const currentHeight = Math.max(minimum.height, Number(node.dataset.editorHeight || node.getBoundingClientRect().height));
-		const width = Math.max(minimum.width, currentWidth + horizontal);
-		const height = Math.max(minimum.height, Math.min(720, currentHeight + vertical));
+		let width = Math.max(minimum.width, currentWidth + horizontal);
+		let height = Math.max(minimum.height, Math.min(720, currentHeight + vertical));
+		if (isBannerLayoutID(item.id)) {
+			const scale = horizontal ? (currentWidth + horizontal) / currentWidth : (currentHeight + vertical) / currentHeight;
+			({ width, height } = resizeBannerProportionally(currentWidth, currentHeight, currentWidth * (scale - 1), currentHeight * (scale - 1), minimum.width, minimum.height, parentWidth * 1.5, 720));
+		}
 		item.width = item.area === "navigation" ? Math.min(100, Math.round(width)) : Math.min(150, Math.round((width / parentWidth) * 10000) / 100);
 		item.height = Math.round(height);
 	} else {
@@ -10473,8 +10837,13 @@ function flushAdminLayoutPointerFrame() {
 		const maxHeight = isNavigation ? 96 : Math.max(minHeight, pointer.surfaceHeight - pointer.startTop + 240);
 		const snappedRight = snapAdminLayoutEdge(pointer.startLeft + Math.max(minWidth, Math.min(maxWidth, pointer.startWidth + dx)), pointer.siblings, "x");
 		const snappedBottom = snapAdminLayoutEdge(pointer.startTop + Math.max(minHeight, Math.min(maxHeight, pointer.startHeight + dy)), pointer.siblings, "y");
-		const width = Math.max(minWidth, Math.min(maxWidth, snappedRight.edge - pointer.startLeft));
-		const height = Math.max(minHeight, Math.min(maxHeight, snappedBottom.edge - pointer.startTop));
+		let width = Math.max(minWidth, Math.min(maxWidth, snappedRight.edge - pointer.startLeft));
+		let height = Math.max(minHeight, Math.min(maxHeight, snappedBottom.edge - pointer.startTop));
+		if (isBannerLayoutID(item.id)) {
+			({ width, height } = resizeBannerProportionally(pointer.startWidth, pointer.startHeight, dx, dy, minWidth, minHeight, maxWidth, Math.min(720, maxHeight)));
+			snappedRight.guide = null;
+			snappedBottom.guide = null;
+		}
 		item.width = isNavigation ? Math.round(width) : Math.round((width / pointer.parentWidth) * 10000) / 100;
 		item.height = Math.round(height);
 		pointer.pendingGeometry = { left: pointer.startLeft, top: pointer.startTop, width, height };
@@ -13403,6 +13772,7 @@ function icon(name) {
     users: `<svg viewBox="0 0 24 24" fill="none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     shield: `<svg viewBox="0 0 24 24" fill="none"><path d="M12 3.5 19 6v5.7c0 4.4-2.6 7.5-7 8.8-4.4-1.3-7-4.4-7-8.8V6l7-2.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m9.5 12 1.8 1.8 3.5-3.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     plus: `<svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+		zoomOut: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
     ticketPlus: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12.75 9C12.75 8.58579 12.4142 8.25 12 8.25C11.5858 8.25 11.25 8.58579 11.25 9V11.25H9C8.58579 11.25 8.25 11.5858 8.25 12C8.25 12.4142 8.58579 12.75 9 12.75H11.25V15C11.25 15.4142 11.5858 15.75 12 15.75C12.4142 15.75 12.75 15.4142 12.75 15V12.75H15C15.4142 12.75 15.75 12.4142 15.75 12C15.75 11.5858 15.4142 11.25 15 11.25H12.75V9Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M12.0574 1.25H11.9426C9.63424 1.24999 7.82519 1.24998 6.41371 1.43975C4.96897 1.63399 3.82895 2.03933 2.93414 2.93414C2.03933 3.82895 1.63399 4.96897 1.43975 6.41371C1.24998 7.82519 1.24999 9.63422 1.25 11.9426V12.0574C1.24999 14.3658 1.24998 16.1748 1.43975 17.5863C1.63399 19.031 2.03933 20.1711 2.93414 21.0659C3.82895 21.9607 4.96897 22.366 6.41371 22.5603C7.82519 22.75 9.63423 22.75 11.9426 22.75H12.0574C14.3658 22.75 16.1748 22.75 17.5863 22.5603C19.031 22.366 20.1711 21.9607 21.0659 21.0659C21.9607 20.1711 22.366 19.031 22.5603 17.5863C22.75 16.1748 22.75 14.3658 22.75 12.0574V11.9426C22.75 9.63423 22.75 7.82519 22.5603 6.41371C22.366 4.96897 21.9607 3.82895 21.0659 2.93414C20.1711 2.03933 19.031 1.63399 17.5863 1.43975C16.1748 1.24998 14.3658 1.24999 12.0574 1.25ZM3.9948 3.9948C4.56445 3.42514 5.33517 3.09825 6.61358 2.92637C7.91356 2.75159 9.62177 2.75 12 2.75C14.3782 2.75 16.0864 2.75159 17.3864 2.92637C18.6648 3.09825 19.4355 3.42514 20.0052 3.9948C20.5749 4.56445 20.9018 5.33517 21.0736 6.61358C21.2484 7.91356 21.25 9.62177 21.25 12C21.25 14.3782 21.2484 16.0864 21.0736 17.3864C20.9018 18.6648 20.5749 19.4355 20.0052 20.0052C19.4355 20.5749 18.6648 20.9018 17.3864 21.0736C16.0864 21.2484 14.3782 21.25 12 21.25C9.62177 21.25 7.91356 21.2484 6.61358 21.0736C5.33517 20.9018 4.56445 20.5749 3.9948 20.0052C3.42514 19.4355 3.09825 18.6648 2.92637 17.3864C2.75159 16.0864 2.75 14.3782 2.75 12C2.75 9.62177 2.75159 7.91356 2.92637 6.61358C3.09825 5.33517 3.42514 4.56445 3.9948 3.9948Z" fill="currentColor"/></svg>`,
     faqCustom: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12 7.75C11.3787 7.75 10.875 8.25368 10.875 8.875C10.875 9.28921 10.5392 9.625 10.125 9.625C9.71079 9.625 9.375 9.28921 9.375 8.875C9.375 7.42525 10.5503 6.25 12 6.25C13.4497 6.25 14.625 7.42525 14.625 8.875C14.625 9.83834 14.1056 10.6796 13.3353 11.1354C13.1385 11.2518 12.9761 11.3789 12.8703 11.5036C12.7675 11.6246 12.75 11.7036 12.75 11.75V13C12.75 13.4142 12.4142 13.75 12 13.75C11.5858 13.75 11.25 13.4142 11.25 13V11.75C11.25 11.2441 11.4715 10.8336 11.7266 10.533C11.9786 10.236 12.2929 10.0092 12.5715 9.84439C12.9044 9.64739 13.125 9.28655 13.125 8.875C13.125 8.25368 12.6213 7.75 12 7.75Z" fill="currentColor"/><path d="M12 17C12.5523 17 13 16.5523 13 16C13 15.4477 12.5523 15 12 15C11.4477 15 11 15.4477 11 16C11 16.5523 11.4477 17 12 17Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M11.9426 1.25H12.0574C14.3658 1.24999 16.1748 1.24998 17.5863 1.43975C19.031 1.63399 20.1711 2.03933 21.0659 2.93414C21.9607 3.82895 22.366 4.96897 22.5603 6.41371C22.75 7.82519 22.75 9.63423 22.75 11.9426V12.0574C22.75 14.3658 22.75 16.1748 22.5603 17.5863C22.366 19.031 21.9607 20.1711 21.0659 21.0659C20.1711 21.9607 19.031 22.366 17.5863 22.5603C16.1748 22.75 14.3658 22.75 12.0574 22.75H11.9426C9.63423 22.75 7.82519 22.75 6.41371 22.5603C4.96897 22.366 3.82895 21.9607 2.93414 21.0659C2.03933 20.1711 1.63399 19.031 1.43975 17.5863C1.24998 16.1748 1.24999 14.3658 1.25 12.0574V11.9426C1.24999 9.63424 1.24998 7.82519 1.43975 6.41371C1.63399 4.96897 2.03933 3.82895 2.93414 2.93414C3.82895 2.03933 4.96897 1.63399 6.41371 1.43975C7.82519 1.24998 9.63424 1.24999 11.9426 1.25ZM6.61358 2.92637C5.33517 3.09825 4.56445 3.42514 3.9948 3.9948C3.42514 4.56445 3.09825 5.33517 2.92637 6.61358C2.75159 7.91356 2.75 9.62177 2.75 12C2.75 14.3782 2.75159 16.0864 2.92637 17.3864C3.09825 18.6648 3.42514 19.4355 3.9948 20.0052C4.56445 20.5749 5.33517 20.9018 6.61358 21.0736C7.91356 21.2484 9.62177 21.25 12 21.25C14.3782 21.25 16.0864 21.2484 17.3864 21.0736C18.6648 20.9018 19.4355 20.5749 20.0052 20.0052C20.5749 19.4355 20.9018 18.6648 21.0736 17.3864C21.2484 16.0864 21.25 14.3782 21.25 12C21.25 9.62177 21.2484 7.91356 21.0736 6.61358C20.9018 5.33517 20.5749 4.56445 20.0052 3.9948C19.4355 3.42514 18.6648 3.09825 17.3864 2.92637C16.0864 2.75159 14.3782 2.75 12 2.75C9.62177 2.75 7.91356 2.75159 6.61358 2.92637Z" fill="currentColor"/></svg>`,
     send: `<svg viewBox="0 0 24 24" fill="none"><path d="m21 3-9.5 18-1.8-7.7L2 11.5 21 3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9.7 13.3 21 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,

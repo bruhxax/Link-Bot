@@ -151,6 +151,7 @@ func setStaticHeaders(w http.ResponseWriter, r *http.Request, assetVersion strin
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Service-Worker-Allowed", "/mini-app/")
 	case strings.HasSuffix(r.URL.Path, ".js"),
+		strings.HasSuffix(r.URL.Path, ".mjs"),
 		strings.HasSuffix(r.URL.Path, ".css"):
 		if assetVersion != "" && r.URL.Query().Get("v") == assetVersion {
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")

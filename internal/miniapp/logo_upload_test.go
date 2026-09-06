@@ -38,8 +38,10 @@ func testBannerGIF(t *testing.T) []byte {
 	t.Helper()
 	canvas := image.NewPaletted(image.Rect(0, 0, 2, 1), color.Palette{color.Black, color.White})
 	canvas.SetColorIndex(1, 0, 1)
+	next := image.NewPaletted(canvas.Bounds(), canvas.Palette)
+	next.SetColorIndex(0, 0, 1)
 	var output bytes.Buffer
-	if err := gif.Encode(&output, canvas, nil); err != nil {
+	if err := gif.EncodeAll(&output, &gif.GIF{Image: []*image.Paletted{canvas, next}, Delay: []int{10, 10}, LoopCount: 0}); err != nil {
 		t.Fatalf("encode banner GIF: %v", err)
 	}
 	return output.Bytes()
@@ -101,6 +103,9 @@ func TestStoreUploadedBannerSupportsRequestedFormats(t *testing.T) {
 			(&Handler{logoUploadDir: uploadDir}).serveUploadedLogo(response, httptest.NewRequest(http.MethodGet, bannerURL, nil))
 			if response.Code != http.StatusOK || response.Header().Get("Content-Type") != fixture.contentType {
 				t.Fatalf("served banner = %d %q", response.Code, response.Header().Get("Content-Type"))
+			}
+			if !bytes.Equal(response.Body.Bytes(), fixture.data) {
+				t.Fatal("banner bytes changed: uploads must retain original quality and animation")
 			}
 		})
 	}

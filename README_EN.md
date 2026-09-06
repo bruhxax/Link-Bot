@@ -194,6 +194,12 @@ A square image of at least 256×256 px with a transparent background works best.
 
 ## 🖼️ Custom banners
 
+In the UI builder, choose **Add element → Banner** and upload a PNG, GIF, or MP4 up to 50 MB. Drag the frame corners to crop, move the media inside the frame, and zoom with the buttons, mouse wheel, or pinch gesture. Arrow keys provide precise adjustments for the media or focused corner. Original files are stored without compression or transcoding; GIF and MP4 playback is retained.
+
+Resizing a banner in the builder keeps its proportions and saved crop. Element settings provide corner rounding, layers, positioning, and deletion. Banners can be static, open a link, or navigate to a Mini App section. Apply the banner, then save the builder changes.
+
+Telegram message banners are configured separately:
+
 Ready-made banners are not included in the repository. Upload your own files to the required directories:
 
 ```text
