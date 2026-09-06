@@ -4892,12 +4892,17 @@ function renderAdminBackgroundControls(mode) {
 	const motion = getAdminBackgroundMotion(mode);
 	const colorFields = ADMIN_BACKGROUND_COLOR_FIELDS[mode] || ADMIN_BACKGROUND_COLOR_FIELDS.animated;
 	const previewStyle = mode.startsWith("liquid") ? ` style="${escapeAttribute(liquidPreviewStyle(mode))}"` : "";
+	const speedHint = mode === "twinkle"
+		? "Частота изменения яркости звёзд"
+		: mode === "solid"
+			? "Скорость едва заметного движения текстуры"
+			: "Плавность движения без резких рывков";
 	return `<section class="admin-editor__section admin-background-settings">
 		<div class="admin-background-settings__heading"><div><h3>Настройка фона</h3><p>Отдельные параметры для «${escapeHtml(option[1])}»</p></div><span class="admin-background-settings__sample" data-preview-background="${escapeAttribute(mode)}"${previewStyle} aria-hidden="true"><i></i></span></div>
 		<div class="admin-color-grid">${colorFields.map(([path, label]) => renderAdminColorField(label, path)).join("")}</div>
 		<div class="admin-background-settings__ranges">
 			${renderAdminRangeField("Затемнение", "От светлого к глубокому тёмному фону", `appearance.backgroundMotion.${mode}.dimming`, { value: motion.dimming, min: 0, max: 80, suffix: "%", minLabel: "Светлее", maxLabel: "Темнее" })}
-			${renderAdminRangeField("Скорость", mode === "solid" ? "Скорость едва заметного движения текстуры" : "Плавность движения без резких рывков", `appearance.backgroundMotion.${mode}.speed`, { value: motion.speed, min: 10, max: 100, suffix: "%", minLabel: "Медленно", maxLabel: "Быстрее" })}
+			${renderAdminRangeField("Скорость", speedHint, `appearance.backgroundMotion.${mode}.speed`, { value: motion.speed, min: 10, max: 100, suffix: "%", minLabel: "Медленно", maxLabel: "Быстрее" })}
 		</div>
 	</section>`;
 }

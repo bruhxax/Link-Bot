@@ -30,7 +30,7 @@ function createTwinkleBackground(canvas) {
 	function targetStarCount() {
 		const lowPerformance = document.documentElement.dataset.performance === "low";
 		const area = width * height;
-		return Math.round(Math.max(lowPerformance ? 22 : 32, Math.min(lowPerformance ? 36 : 68, area / (lowPerformance ? 11200 : 6800))));
+		return Math.round(Math.max(lowPerformance ? 54 : 96, Math.min(lowPerformance ? 100 : 200, area / (lowPerformance ? 4200 : 2400))));
 	}
 
 	function seed() {
@@ -44,7 +44,7 @@ function createTwinkleBackground(canvas) {
 				baseAlpha: bright ? randomBetween(0.2, 0.34) : randomBetween(0.08, 0.24),
 				amplitude: bright ? randomBetween(0.5, 0.64) : randomBetween(0.24, 0.5),
 				phase: randomBetween(0, Math.PI * 2),
-				rate: randomBetween(0.62, 1.34),
+				rate: randomBetween(0.75, 1.55),
 				glow: bright ? randomBetween(6, 9) : randomBetween(3, 6),
 			};
 		});
@@ -80,7 +80,8 @@ function createTwinkleBackground(canvas) {
 		lastDrawAt = now;
 		context.clearRect(0, 0, width, height);
 		const elapsed = (elapsedBeforePause + (paused ? 0 : now - startedAt)) / 1000;
-		const speedScale = 0.38 + ((speed - 10) / 90) * 1.32;
+		const normalizedSpeed = (speed - 10) / 90;
+		const speedScale = 0.7 + Math.pow(normalizedSpeed, 1.35) * 7.3;
 		const lowPerformance = document.documentElement.dataset.performance === "low";
 		for (const star of stars) {
 			const pulse = 0.5 + Math.sin(star.phase + elapsed * star.rate * speedScale) * 0.5;
