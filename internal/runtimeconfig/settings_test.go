@@ -789,7 +789,7 @@ func TestNormalizeAndValidateGridAppearanceAndAdminContact(t *testing.T) {
 			t.Fatalf("legacy integration feature %q was not removed", key)
 		}
 	}
-	for _, key := range []string{"gridBackground", "gridLine", "gridGlowLeft", "gridGlowRight", "grid2Background", "grid2Line", "grid2Glow", "waveBackground", "waveDot"} {
+	for _, key := range []string{"gridBackground", "gridLine", "gridGlowLeft", "gridGlowRight", "grid2Background", "grid2Line", "grid2Glow", "morphicBackground", "morphicBall", "waveBackground", "waveDot"} {
 		if settings.Appearance.Colors[key] == "" {
 			t.Fatalf("grid color %q is empty", key)
 		}
@@ -810,6 +810,30 @@ func TestNormalizeAndValidateGrid2Appearance(t *testing.T) {
 		if settings.Appearance.Colors[key] == "" {
 			t.Fatalf("grid2 color %q is empty", key)
 		}
+	}
+}
+
+func TestNormalizeAndValidateMorphicBackgroundAppearance(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Appearance.BackgroundMode = "morphic"
+	delete(settings.Appearance.Colors, "morphicBackground")
+	delete(settings.Appearance.Colors, "morphicBall")
+	delete(settings.Appearance.BackgroundMotion, "morphic")
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if settings.Appearance.BackgroundMode != "morphic" {
+		t.Fatalf("background mode = %q, want morphic", settings.Appearance.BackgroundMode)
+	}
+	if got := settings.Appearance.Colors["morphicBackground"]; got != "#000000" {
+		t.Fatalf("morphic background = %q, want #000000", got)
+	}
+	if got := settings.Appearance.Colors["morphicBall"]; got != "#ff69b4" {
+		t.Fatalf("morphic ball = %q, want #ff69b4", got)
+	}
+	if got := settings.Appearance.BackgroundMotion["morphic"]; got.Dimming != 0 || got.Speed != 42 {
+		t.Fatalf("morphic motion = %+v, want dimming 0 speed 42", got)
 	}
 }
 
@@ -836,7 +860,7 @@ func TestNormalizeAndValidateLiquidBackgroundAppearance(t *testing.T) {
 			t.Fatalf("liquid background %q speed = %d", mode, background.Speed)
 		}
 	}
-	for _, mode := range []string{"animated", "grid", "grid2", "liquid1", "liquid2", "solid"} {
+	for _, mode := range []string{"animated", "grid", "grid2", "morphic", "liquid1", "liquid2", "solid"} {
 		motion, ok := settings.Appearance.BackgroundMotion[mode]
 		if !ok {
 			t.Fatalf("background motion %q is missing", mode)

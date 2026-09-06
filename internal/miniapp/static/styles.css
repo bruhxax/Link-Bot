@@ -207,6 +207,8 @@
   --grid2-background: #000000;
   --grid2-line: #ffffff;
   --grid2-glow: #ff0000;
+  --morphic-background: #000000;
+  --morphic-ball: #ff69b4;
   --wave-background: #000000;
   --wave-dot: #ebebeb;
   --liquid-color-1: #000000;
@@ -252,6 +254,10 @@
   display: none;
 }
 
+:root:not([data-background="morphic"]) .bg-media__morphic {
+  display: none;
+}
+
 :root:not([data-background="liquid1"]):not([data-background="liquid2"]) .bg-media__liquid {
   display: none;
 }
@@ -263,6 +269,7 @@
 :root[data-background="pending"] .bg-media__fade,
 :root[data-background="pending"] .bg-media__grid,
 :root[data-background="pending"] .bg-media__grid2,
+:root[data-background="pending"] .bg-media__morphic,
 :root[data-background="pending"] .bg-media__liquid,
 :root[data-background="pending"] .bg-media__shade {
   visibility: hidden;
@@ -274,6 +281,9 @@
 :root[data-background="grid2"] .bg-media__canvas,
 :root[data-background="grid2"] .bg-media__scrim,
 :root[data-background="grid2"] .bg-media__fade,
+:root[data-background="morphic"] .bg-media__canvas,
+:root[data-background="morphic"] .bg-media__scrim,
+:root[data-background="morphic"] .bg-media__fade,
 :root[data-background="liquid1"] .bg-media__canvas,
 :root[data-background="liquid1"] .bg-media__scrim,
 :root[data-background="liquid1"] .bg-media__fade,
@@ -815,6 +825,26 @@ select:focus-visible {
 [data-preview-background="animated"] { background: radial-gradient(circle at 46% 24%, color-mix(in srgb, var(--wave-dot) 26%, transparent) 0 1px, transparent 2px) 0 0 / 9px 9px, var(--wave-background); }
 [data-preview-background="grid"] { background: linear-gradient(118deg, transparent 14%, color-mix(in srgb, var(--grid-glow-left) 76%, transparent), transparent 58%), linear-gradient(to right, color-mix(in srgb, var(--grid-line) 35%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--grid-line) 35%, transparent) 1px, transparent 1px), var(--grid-background); background-size: auto, 15px 15px, 15px 15px, auto; transform: translateZ(0); }
 [data-preview-background="grid2"] { background: radial-gradient(ellipse 90% 52% at 50% 108%, color-mix(in srgb, var(--grid2-glow) 68%, transparent), transparent 74%), linear-gradient(to right, color-mix(in srgb, var(--grid2-line) 42%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--grid2-line) 42%, transparent) 1px, transparent 1px), var(--grid2-background); background-size: auto, 16px 16px, 16px 16px, auto; }
+[data-preview-background="morphic"] {
+  background:
+    radial-gradient(circle at 17% 28%, var(--morphic-ball) 0 5px, transparent 5.5px),
+    radial-gradient(circle at 42% 20%, var(--morphic-ball) 0 11px, transparent 11.5px),
+    radial-gradient(circle at 73% 36%, var(--morphic-ball) 0 7px, transparent 7.5px),
+    radial-gradient(circle at 86% 18%, var(--morphic-ball) 0 5px, transparent 5.5px),
+    radial-gradient(circle at 28% 76%, var(--morphic-ball) 0 8px, transparent 8.5px),
+    radial-gradient(circle at 70% 82%, var(--morphic-ball) 0 10px, transparent 10.5px),
+    var(--morphic-background);
+}
+[data-preview-background="morphic"] > i {
+  position: absolute;
+  left: 48%;
+  bottom: 10px;
+  width: 22px;
+  height: 13px;
+  border-radius: 55% 45% 60% 40%;
+  background: var(--morphic-ball);
+  transform: rotate(-22deg);
+}
 [data-preview-background="solid"] { background: var(--bg); }
 [data-preview-background="liquid1"],
 [data-preview-background="liquid2"] {
@@ -1811,6 +1841,7 @@ img { display: block; max-width: 100%; }
 .bg-media__fade,
 .bg-media__grid,
 .bg-media__grid2,
+.bg-media__morphic,
 .bg-media__liquid,
 .bg-media__shade {
   position: absolute;
@@ -1963,6 +1994,45 @@ img { display: block; max-width: 100%; }
 
 :root[data-page-active="false"] .bg-media__grid2::before {
   animation-play-state: paused;
+}
+
+.bg-media__morphic {
+  overflow: hidden;
+  contain: strict;
+  isolation: isolate;
+  background: var(--morphic-background);
+}
+
+:root[data-background="morphic"] .bg-media__morphic {
+  display: block;
+}
+
+.bg-media__morphic-particles {
+  position: absolute;
+  inset: 0;
+  filter: url("#morphic-goo");
+  transform: translateZ(0);
+}
+
+.bg-media__morphic-particle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  border-radius: 50%;
+  background: var(--morphic-ball);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+:root[data-performance="low"] .bg-media__morphic-particles {
+  filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-media__morphic-particle {
+    will-change: auto;
+  }
 }
 
 .bg-media__liquid {

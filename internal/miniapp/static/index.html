@@ -25,6 +25,11 @@
     <filter id="wave-color-filter" color-interpolation-filters="sRGB">
       <feColorMatrix id="wave-color-matrix" type="matrix" values="0.193704 0.652378 0.065918 0 0 0.193704 0.652378 0.065918 0 0 0.193704 0.652378 0.065918 0 0 0 0 0 1 0"></feColorMatrix>
     </filter>
+    <filter id="morphic-goo" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" result="morphic-blur" stdDeviation="10"></feGaussianBlur>
+      <feColorMatrix in="morphic-blur" result="morphic-goo-alpha" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 21 -9"></feColorMatrix>
+      <feBlend in="SourceGraphic" in2="morphic-goo-alpha"></feBlend>
+    </filter>
   </svg>
   <div class="bg-media" aria-hidden="true">
     <canvas class="bg-media__canvas"></canvas>
@@ -32,6 +37,9 @@
     <div class="bg-media__fade"></div>
     <div class="bg-media__grid"></div>
     <div class="bg-media__grid2"></div>
+    <div class="bg-media__morphic">
+      <div class="bg-media__morphic-particles"></div>
+    </div>
     <div class="bg-media__liquid">
       <canvas class="bg-media__liquid-canvas"></canvas>
       <span class="bg-media__liquid-grain"></span>
@@ -42,6 +50,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script type="module" src="/mini-app/wave-background.bundle.js?v=__ASSET_VERSION__"></script>
   <script type="module" src="/mini-app/liquid-background.js?v=__ASSET_VERSION__"></script>
+  <script type="module" src="/mini-app/morphic-background.js?v=__ASSET_VERSION__"></script>
   <script type="module" src="/mini-app/app.js?v=__ASSET_VERSION__"></script>
 </body>
 </html>

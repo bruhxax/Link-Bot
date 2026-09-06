@@ -1651,6 +1651,7 @@ const DEFAULT_BACKGROUND_MOTION = Object.freeze({
 	animated: { dimming: 12, speed: 45 },
 	grid: { dimming: 14, speed: 50 },
 	grid2: { dimming: 14, speed: 50 },
+	morphic: { dimming: 0, speed: 42 },
 	liquid1: { dimming: 26, speed: 35 },
 	liquid2: { dimming: 38, speed: 30 },
 	solid: { dimming: 0, speed: 50 },
@@ -1660,6 +1661,7 @@ const ADMIN_BACKGROUND_OPTIONS = [
 	["animated", "Волны", "Точки и мягкие волны"],
 	["grid", "Движущаяся сетка", "Диагональное движение"],
 	["grid2", "Сетка 2", "Вертикальная сетка и свечение"],
+	["morphic", "Морфинг", "Мягкие поднимающиеся капли"],
 	["liquid1", "Жидкое стекло 1", "Яркий перелив с зерном"],
 	["liquid2", "Жидкое стекло 2", "Тёмный мягкий перелив"],
 	["solid", "Сплошной цвет", "Чистый однотонный фон"],
@@ -1669,6 +1671,7 @@ const ADMIN_BACKGROUND_COLOR_FIELDS = Object.freeze({
 	animated: [["appearance.colors.waveBackground", "Цвет фона"], ["appearance.colors.waveDot", "Цвет точек"]],
 	grid: [["appearance.colors.gridBackground", "Цвет фона"], ["appearance.colors.gridLine", "Цвет линий"], ["appearance.colors.gridGlowLeft", "Свечение слева"], ["appearance.colors.gridGlowRight", "Свечение справа"]],
 	grid2: [["appearance.colors.grid2Background", "Цвет фона"], ["appearance.colors.grid2Line", "Цвет сетки"], ["appearance.colors.grid2Glow", "Нижняя подсветка"]],
+	morphic: [["appearance.colors.morphicBackground", "Цвет фона"], ["appearance.colors.morphicBall", "Цвет капель"]],
 	liquid1: [["appearance.liquid.liquid1.colors.0", "Цвет 1 · основа"], ["appearance.liquid.liquid1.colors.1", "Цвет 2 · холодный свет"], ["appearance.liquid.liquid1.colors.2", "Цвет 3 · перелив"], ["appearance.liquid.liquid1.colors.3", "Цвет 4 · блик"]],
 	liquid2: [["appearance.liquid.liquid2.colors.0", "Цвет 1 · основа"], ["appearance.liquid.liquid2.colors.1", "Цвет 2 · холодный свет"], ["appearance.liquid.liquid2.colors.2", "Цвет 3 · перелив"], ["appearance.liquid.liquid2.colors.3", "Цвет 4 · блик"]],
 	solid: [["appearance.colors.background", "Цвет фона"]],
@@ -1920,7 +1923,7 @@ function buildPreviewRuntimeSettings() {
 			},
 			paymentNotification: { text: "💳 <b>Оплата:</b> <b>{{price}}</b>\n\n▦ <b>Тариф:</b> <b>{{sub}}</b>\n▦ <b>Доп. устройства:</b> <b>{{device}}</b>\n✈ <b>Telegram:</b> <b>{{username}}</b>\n◷ <b>Время:</b> <b>{{data}}</b>\n⚙ <b>Способ:</b> <b>{{integration}}</b>\n🏷 <b>Промокод:</b> <b>{{promo}}</b>\n▣ <b>Заказ:</b> <code>{{number}}</code>", openUserButton: { enabled: true, text: "Открыть пользователя в панели", iconCustomEmojiId: "", style: "primary" }, profileButton: { enabled: true, text: "Профиль", iconCustomEmojiId: "", style: "" } },
 		},
-		appearance: { backgroundMode: "animated", compact: true, showFrames: true, liquid: deepClone(DEFAULT_LIQUID_BACKGROUNDS), backgroundMotion: deepClone(DEFAULT_BACKGROUND_MOTION), colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", waveBackground: "#000000", waveDot: "#ebebeb" } },
+		appearance: { backgroundMode: "animated", compact: true, showFrames: true, liquid: deepClone(DEFAULT_LIQUID_BACKGROUNDS), backgroundMotion: deepClone(DEFAULT_BACKGROUND_MOTION), colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", morphicBackground: "#000000", morphicBall: "#ff69b4", waveBackground: "#000000", waveDot: "#ebebeb" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, titleFa: `${plan.months} \u0645\u0627\u0647`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
 		devicePacks: [],
@@ -12554,7 +12557,7 @@ function applyAppearance() {
 	};
   state.theme = "dark";
   document.documentElement.dataset.theme = "dark";
-	const backgroundMode = ["animated", "grid", "grid2", "liquid1", "liquid2", "solid"].includes(appearance.backgroundMode) ? appearance.backgroundMode : "animated";
+	const backgroundMode = ["animated", "grid", "grid2", "morphic", "liquid1", "liquid2", "solid"].includes(appearance.backgroundMode) ? appearance.backgroundMode : "animated";
 	const motionFallback = DEFAULT_BACKGROUND_MOTION[backgroundMode] || DEFAULT_BACKGROUND_MOTION.animated;
 	const motionSettings = appearance.backgroundMotion?.[backgroundMode] || motionFallback;
 	const backgroundDimming = Math.max(0, Math.min(80, Number(motionSettings.dimming ?? motionFallback.dimming)));
@@ -12591,6 +12594,8 @@ function applyAppearance() {
 		"--grid2-background": colors.grid2Background,
 		"--grid2-line": colors.grid2Line,
 		"--grid2-glow": colors.grid2Glow,
+		"--morphic-background": colors.morphicBackground || "#000000",
+		"--morphic-ball": colors.morphicBall || "#ff69b4",
 		"--wave-background": colors.waveBackground,
 		"--wave-dot": colors.waveDot,
 		"--liquid-color-1": liquidColors[0],
@@ -12615,6 +12620,7 @@ function applyAppearance() {
   particleEngine.setColor(accent.particle);
 	particleEngine.setSpeed?.(backgroundSpeed);
 	waveMotionEngine.setSpeed(backgroundSpeed);
+	window.__linkBotMorphic?.setConfig({ color: colors.morphicBall || "#ff69b4", speed: backgroundSpeed });
 	window.__linkBotLiquid?.setConfig({ variant: backgroundMode, colors: liquidColors, speed: backgroundSpeed });
   if (themeMeta) themeMeta.setAttribute("content", PALETTE.themeColor.dark);
 	if (tg) {
@@ -12651,6 +12657,8 @@ function syncBackgroundEngines() {
 	const wave = window.__linkBotWave;
 	wave?.pause?.();
 	waveMotionEngine.setPaused(!waveShouldRun);
+	const reducedBackgroundMotion = Boolean(reducedMotionMedia?.matches || document.documentElement.dataset.performance === "reduced");
+	window.__linkBotMorphic?.setPaused(backgroundMode !== "morphic" || paused || reducedBackgroundMotion);
 	window.__linkBotLiquid?.setPaused(!backgroundMode.startsWith("liquid") || paused || reducedMotionMedia?.matches);
 }
 
