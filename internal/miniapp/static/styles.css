@@ -2265,6 +2265,15 @@ img { display: block; max-width: 100%; }
 .page.admin-page.active.page--animate { animation: none; }
 .page.admin-page.active.page--animate > :not(.admin-save-bar) { animation: pageIn .28s ease both; }
 
+/* Dashboard positions are edited in a 360px coordinate plane. Keep that
+   plane identical in Telegram and the browser so stored pixel coordinates do
+   not drift when one host exposes a wider viewport. Narrow screens still use
+   all available space. */
+#page-dashboard.page.active {
+  width: min(100%, 360px);
+  margin-inline: auto;
+}
+
 /* Custom dashboard coordinates must remain visually fixed while the page
    enters. A short opacity-only reveal avoids the pageIn translate flash. */
 #page-dashboard.page--animate {

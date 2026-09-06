@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestBrowserLayoutIsCenteredWithoutChangingTelegramMiniApp(t *testing.T) {
+func TestBrowserAndTelegramLayoutSurfaces(t *testing.T) {
 	appRaw, err := embeddedStatic.ReadFile("static/app.js")
 	if err != nil {
 		t.Fatalf("read embedded app.js: %v", err)
@@ -50,6 +50,18 @@ func TestBrowserLayoutIsCenteredWithoutChangingTelegramMiniApp(t *testing.T) {
 	if strings.Contains(styles, `:root[data-client="telegram"] #app`) ||
 		strings.Contains(styles, `:root[data-client="telegram"] .modal`) {
 		t.Fatal("browser layout fix must not override the Telegram Mini App")
+	}
+
+	dashboardCoordinatePlane := `#page-dashboard.page.active {
+  width: min(100%, 360px);
+  margin-inline: auto;
+}`
+	if !strings.Contains(styles, dashboardCoordinatePlane) {
+		t.Fatal("dashboard must use the same 360px coordinate plane in browser and Telegram clients")
+	}
+	if strings.Contains(styles, `:root[data-client="browser"] #page-dashboard`) ||
+		strings.Contains(styles, `:root[data-client="telegram"] #page-dashboard`) {
+		t.Fatal("dashboard coordinate plane must not differ between browser and Telegram clients")
 	}
 
 	if !strings.Contains(styles, ".modal__sheet--thread {\n  margin-inline: auto;\n}") {
