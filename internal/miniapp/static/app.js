@@ -877,6 +877,7 @@ const PAYMENT_LOGO_URLS = Object.freeze({
 });
 
 const PAGES = ["dashboard", "buy", "gift", "setup", "support", "faq", "reviews", "referrals", "servers", "settings", "media", "login-methods", "payments", "terms", "privacy", "custom-page", "admin"];
+const BANNER_PAGE_TARGETS = ["reviews", "promo", "buy", "servers", "support", "referrals", "payments", "gift"];
 const BOTTOM_NAV = ["dashboard", "buy", "support", "settings", "admin"];
 const SUPPORT_TABS = ["open", "history"];
 const PLATFORMS = SETUP_PLATFORMS.map((platform) => platform.id);
@@ -2008,6 +2009,10 @@ const state = {
 	adminPromoWidgetBusy: "",
 	adminNotificationWidgetEditorOpen: false,
 	adminNotificationWidgetTextDraft: "",
+	adminBannerEditorOpen: false,
+	adminBannerEditingID: "",
+	adminBannerDraft: null,
+	adminBannerBusy: "",
 	adminLayoutAddMenuOpen: false,
 	adminLayoutStyleEditorOpen: false,
 	notificationPopoverOpen: false,
@@ -2190,14 +2195,19 @@ function isEmptyLayoutCardID(id) {
 	return /^empty_card_\d+$/.test(String(id || ""));
 }
 
+function isBannerLayoutID(id) {
+	return /^banner_[1-9]\d*$/.test(String(id || ""));
+}
+
 function isDashboardStyleElement(item) {
-	return item?.area === "dashboard" && (["primary_action", "secondary_action", "traffic", "devices", "promo_widget", "notification_widget"].includes(item.id) || isEmptyLayoutCardID(item.id));
+	return item?.area === "dashboard" && (["primary_action", "secondary_action", "traffic", "devices", "promo_widget", "notification_widget"].includes(item.id) || isEmptyLayoutCardID(item.id) || isBannerLayoutID(item.id));
 }
 
 function dashboardLayoutStyleDefaults(id) {
 	if (["primary_action", "secondary_action", "traffic", "devices"].includes(id)) return { cornerRadius: 22, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 };
 	if (["promo_widget", "notification_widget"].includes(id)) return { cornerRadius: 10, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 };
 	if (isEmptyLayoutCardID(id)) return { cornerRadius: 14, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: -1 };
+	if (isBannerLayoutID(id)) return { cornerRadius: 16, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 };
 	return { cornerRadius: 0, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 };
 }
 
@@ -2215,7 +2225,7 @@ function ensureDashboardLayoutStyle(item) {
 function runtimeLayoutStyle(item, area = item?.area) {
 	ensureDashboardLayoutStyle(item);
 	const isNavigation = area === "navigation";
-	const isCompactWidget = area === "dashboard" && ["promo_widget", "notification_widget"].includes(item?.id);
+	const isCompactWidget = area === "dashboard" && (["promo_widget", "notification_widget"].includes(item?.id) || isBannerLayoutID(item?.id));
 	const width = isNavigation
 		? Math.max(28, Math.min(100, Number(item?.width || 44)))
 		: Math.max(isCompactWidget ? 6 : 10, Math.min(150, Number(item?.width || 100)));
@@ -3110,7 +3120,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-	const modalOpen = Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminLayoutStyleEditorOpen;
+	const modalOpen = Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminBannerEditorOpen || state.adminLayoutStyleEditorOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -3180,6 +3190,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
 		${state.adminProfileEditorModalOpen ? renderAdminProfileEditorModal() : ""}
 		${isModalVisible("admin-promo-widget", state.adminPromoWidgetEditorOpen) ? renderAdminPromoWidgetModal() : ""}
 		${isModalVisible("admin-notification-widget", state.adminNotificationWidgetEditorOpen) ? renderAdminNotificationWidgetModal() : ""}
+		${isModalVisible("admin-banner", state.adminBannerEditorOpen) ? renderAdminBannerModal() : ""}
 		${isModalVisible("admin-layout-style", state.adminLayoutStyleEditorOpen) ? renderAdminLayoutStyleModal() : ""}
     </div>
   `;
@@ -4967,6 +4978,10 @@ function adminLayoutMeta(area, id) {
 		const number = String(id).match(/\d+$/)?.[0] || "";
 		return [`Пустая карточка${number ? ` ${number}` : ""}`, "card"];
 	}
+	if (area === "dashboard" && isBannerLayoutID(id)) {
+		const number = String(id).match(/\d+$/)?.[0] || "";
+		return [localizedText(`Баннер${number ? ` ${number}` : ""}`, `Banner${number ? ` ${number}` : ""}`, `بنر${number ? ` ${number}` : ""}`), "image"];
+	}
 	return ADMIN_LAYOUT_META[`${area}:${id}`] || [id, "grid"];
 }
 
@@ -5239,6 +5254,7 @@ function renderAdminLayoutAddMenu() {
 		${selected ? `<button type="button" role="menuitem" data-action="admin-open-layout-style">${icon("sliders")}<span><strong>${escapeHtml(customizeLabel)}</strong><small>${escapeHtml(adminLayoutMeta(selected.area, selected.id)[0])}</small></span></button><div class="admin-layout-add-menu__divider" aria-hidden="true"></div>` : ""}
 		<button type="button" role="menuitem" data-action="admin-add-notification-widget"><span class="admin-save-bar__notification-icon" aria-hidden="true"></span><span><strong>${localizedText("Уведомление", "Notification", "اعلان")}</strong><small>${localizedText("Сообщение на главном экране", "Message on the home screen", "پیام در صفحه اصلی")}</small></span></button>
 		<button type="button" role="menuitem" data-action="admin-add-promo-widget">${icon("gift")}<span><strong>${localizedText("Подарок", "Gift", "هدیه")}</strong><small>${localizedText("Карточка с промокодом", "Promo code card", "کارت کد تخفیف")}</small></span></button>
+		<button type="button" role="menuitem" data-action="admin-add-banner">${icon("image")}<span><strong>${localizedText("Баннер", "Banner", "بنر")}</strong><small>${localizedText("PNG, GIF или MP4", "PNG, GIF or MP4", "PNG، GIF یا MP4")}</small></span></button>
 		<button type="button" role="menuitem" data-action="admin-add-empty-card">${icon("card")}<span><strong>${localizedText("Пустая карточка", "Empty card", "کارت خالی")}</strong><small>${localizedText("Декоративный слой для дизайна", "Decorative design layer", "لایه تزئینی طراحی")}</small></span></button>
 	</div>`;
 }
@@ -5255,18 +5271,22 @@ function renderAdminLayoutStyleModal() {
 	ensureDashboardLayoutStyle(item);
 	const [label] = adminLayoutMeta(item.area, item.id);
 	const empty = isEmptyLayoutCardID(item.id);
+	const banner = isBannerLayoutID(item.id);
+	const visualOnly = empty || banner;
 	return `<div class="modal modal--layout-style open ${modalStateClass("admin-layout-style")}" role="dialog" aria-modal="true" aria-labelledby="admin-layout-style-title">
 		<button class="modal__backdrop" type="button" data-action="admin-close-layout-style" aria-label="${escapeAttribute(localizedText("Закрыть", "Close", "بستن"))}"></button>
 		<div class="modal__sheet modal__sheet--layout-style">
 			<div class="modal__header"><div><div class="section-label">${localizedText("ГЛАВНЫЙ ЭКРАН", "HOME SCREEN", "صفحه اصلی")}</div><div class="modal__title" id="admin-layout-style-title">${escapeHtml(label)}</div></div><button class="header__btn" type="button" data-action="admin-close-layout-style" aria-label="${escapeAttribute(localizedText("Закрыть", "Close", "بستن"))}">${icon("close")}</button></div>
 			<div class="admin-layout-style-editor">
 				${renderAdminLayoutStyleRange(localizedText("Закругление", "Corner radius", "گردی گوشه"), "cornerRadius", item.cornerRadius, 0, 32, " px")}
-				${empty ? "" : renderAdminLayoutStyleRange(localizedText("Масштаб текста", "Text scale", "مقیاس متن"), "textScale", item.textScale, 70, 150, "%")}
-				${empty ? "" : `<div class="admin-layout-style-editor__pair">${renderAdminLayoutStyleRange(localizedText("Текст по горизонтали", "Text horizontal", "متن افقی"), "textOffsetX", item.textOffsetX, -60, 60, " px")}${renderAdminLayoutStyleRange(localizedText("Текст по вертикали", "Text vertical", "متن عمودی"), "textOffsetY", item.textOffsetY, -40, 40, " px")}</div>`}
+				${visualOnly ? "" : renderAdminLayoutStyleRange(localizedText("Масштаб текста", "Text scale", "مقیاس متن"), "textScale", item.textScale, 70, 150, "%")}
+				${visualOnly ? "" : `<div class="admin-layout-style-editor__pair">${renderAdminLayoutStyleRange(localizedText("Текст по горизонтали", "Text horizontal", "متن افقی"), "textOffsetX", item.textOffsetX, -60, 60, " px")}${renderAdminLayoutStyleRange(localizedText("Текст по вертикали", "Text vertical", "متن عمودی"), "textOffsetY", item.textOffsetY, -40, 40, " px")}</div>`}
 				<div class="admin-layout-layer"><div><strong>${localizedText("Слой", "Layer", "لایه")}</strong><small>${localizedText("Расположите элемент поверх или под карточками", "Place the element above or below cards", "عنصر را بالا یا پایین کارت‌ها قرار دهید")}</small></div><output>${Number(item.layer || 0) > 0 ? `+${Number(item.layer)}` : Number(item.layer || 0)}</output><div><button type="button" data-action="admin-layout-layer-back">${icon("arrowDown")}<span>${localizedText("Назад", "Backward", "عقب")}</span></button><button type="button" data-action="admin-layout-layer-front">${icon("arrowUp")}<span>${localizedText("Вперёд", "Forward", "جلو")}</span></button></div></div>
 				${item.id === "promo_widget" ? `<button class="admin-layout-style-editor__content" type="button" data-action="admin-edit-promo-widget">${icon("pencil")}<span>${localizedText("Изменить подарок", "Edit gift", "ویرایش هدیه")}</span></button>` : ""}
 				${item.id === "notification_widget" ? `<button class="admin-layout-style-editor__content" type="button" data-action="admin-edit-notification-widget">${icon("pencil")}<span>${localizedText("Изменить уведомление", "Edit notification", "ویرایش اعلان")}</span></button>` : ""}
+				${banner ? `<button class="admin-layout-style-editor__content" type="button" data-action="admin-edit-banner">${icon("pencil")}<span>${localizedText("Настроить баннер", "Edit banner", "ویرایش بنر")}</span></button>` : ""}
 				${empty ? `<button class="admin-layout-style-editor__remove" type="button" data-action="admin-remove-empty-card">${icon("trash")}<span>${localizedText("Удалить карточку", "Remove card", "حذف کارت")}</span></button>` : ""}
+				${banner ? `<button class="admin-layout-style-editor__remove" type="button" data-action="admin-remove-selected-banner">${icon("trash")}<span>${localizedText("Удалить баннер", "Delete banner", "حذف بنر")}</span></button>` : ""}
 			</div>
 		</div>
 	</div>`;
@@ -5449,6 +5469,75 @@ function renderAdminNotificationWidgetModal() {
 			<footer class="promo-widget-editor__actions">
 				${item?.visible !== false ? `<button class="promo-widget-editor__remove" type="button" data-action="admin-remove-notification-widget">${icon("trash")}<span>${localizedText("Убрать", "Remove", "حذف")}</span></button>` : "<span></span>"}
 				<button class="btn btn--green-filled" type="button" data-action="admin-apply-notification-widget" ${!text.trim() ? "disabled" : ""}>${icon("check")}<span>${localizedText("Применить", "Apply", "اعمال")}</span></button>
+			</footer>
+		</div>
+	</div>`;
+}
+
+function bannerTargetLabel(target) {
+	return {
+		reviews: localizedText("Отзывы", "Reviews", "دیدگاه‌ها"),
+		promo: localizedText("Промокод", "Promo code", "کد تخفیف"),
+		buy: localizedText("Тарифы", "Plans", "تعرفه‌ها"),
+		servers: localizedText("Статус серверов", "Server status", "وضعیت سرورها"),
+		support: localizedText("Поддержка", "Support", "پشتیبانی"),
+		referrals: localizedText("Реферальная система", "Referral program", "سیستم دعوت"),
+		payments: localizedText("Платежи", "Payments", "پرداخت‌ها"),
+		gift: localizedText("Подарить подписку", "Gift a subscription", "هدیه اشتراک"),
+	}[target] || target;
+}
+
+function renderBannerMedia(item, className = "") {
+	const source = String(item?.bannerUrl || "").trim();
+	if (!source) return "";
+	const style = `--banner-crop-x:${Math.max(0, Math.min(100, Number(item?.bannerCropX ?? 50)))}%;--banner-crop-y:${Math.max(0, Math.min(100, Number(item?.bannerCropY ?? 50)))}%;--banner-zoom:${Math.max(100, Math.min(250, Number(item?.bannerZoom || 100))) / 100}`;
+	if (item?.bannerMediaType === "mp4") {
+		return `<video class="banner-media ${escapeAttribute(className)}" style="${escapeAttribute(style)}" src="${escapeAttribute(source)}" autoplay loop muted playsinline preload="metadata" aria-hidden="true"></video>`;
+	}
+	return `<img class="banner-media ${escapeAttribute(className)}" style="${escapeAttribute(style)}" src="${escapeAttribute(source)}" alt="" aria-hidden="true" draggable="false">`;
+}
+
+function renderAdminBannerRange(label, field, value, min, max, suffix = "%") {
+	const numeric = Math.max(min, Math.min(max, Number(value || 0)));
+	const progress = max > min ? ((numeric - min) / (max - min)) * 100 : 0;
+	return `<label class="admin-layout-style-range"><span><strong>${escapeHtml(label)}</strong><output>${escapeHtml(`${numeric}${suffix}`)}</output></span><input type="range" min="${min}" max="${max}" step="1" value="${numeric}" data-input="admin-banner-setting" data-banner-field="${escapeAttribute(field)}" data-range-suffix="${escapeAttribute(suffix)}" style="--range-progress:${progress}%" aria-label="${escapeAttribute(label)}" aria-valuetext="${escapeAttribute(`${numeric}${suffix}`)}"></label>`;
+}
+
+function renderAdminBannerModal() {
+	const draft = state.adminBannerDraft || defaultAdminBannerDraft();
+	const busy = state.adminBannerBusy === "upload";
+	const action = ["none", "url", "page"].includes(draft.bannerAction) ? draft.bannerAction : "none";
+	const title = state.adminBannerEditingID
+		? localizedText("Настройка баннера", "Banner settings", "تنظیمات بنر")
+		: localizedText("Новый баннер", "New banner", "بنر جدید");
+	const mediaHint = draft.bannerUrl
+		? localizedText("Файл загружен", "File uploaded", "فایل بارگذاری شد")
+		: localizedText("До 50 МБ · PNG, GIF или MP4", "Up to 50 MB · PNG, GIF or MP4", "تا ۵۰ مگابایت · PNG، GIF یا MP4");
+	return `<div class="modal modal--banner-editor open ${modalStateClass("admin-banner")}" role="dialog" aria-modal="true" aria-labelledby="admin-banner-title">
+		<button class="modal__backdrop" type="button" data-action="admin-close-banner" aria-label="${escapeAttribute(localizedText("Закрыть", "Close", "بستن"))}"></button>
+		<div class="modal__sheet modal__sheet--banner-editor">
+			<div class="modal__header"><div><div class="section-label">${localizedText("ГЛАВНЫЙ ЭКРАН", "HOME SCREEN", "صفحه اصلی")}</div><div class="modal__title" id="admin-banner-title">${escapeHtml(title)}</div></div><button class="header__btn" type="button" data-action="admin-close-banner" aria-label="${escapeAttribute(localizedText("Закрыть", "Close", "بستن"))}">${icon("close")}</button></div>
+			<div class="admin-banner-editor">
+				<div class="admin-banner-preview ${draft.bannerUrl ? "has-media" : ""}" role="img" aria-label="${escapeAttribute(localizedText("Предпросмотр баннера", "Banner preview", "پیش‌نمایش بنر"))}">
+					${draft.bannerUrl ? renderBannerMedia(draft) : `<span>${icon("image")}<strong>${localizedText("Загрузите баннер", "Upload a banner", "بنر را بارگذاری کنید")}</strong></span>`}
+				</div>
+				<label class="admin-banner-upload ${busy ? "is-busy" : ""}">
+					<input type="file" accept=".png,.gif,.mp4,image/png,image/gif,video/mp4" data-input="admin-banner-file" ${busy ? "disabled" : ""}>
+					${icon(busy ? "refresh" : "upload")}<span><strong>${busy ? localizedText("Загружаем…", "Uploading…", "در حال بارگذاری…") : localizedText(draft.bannerUrl ? "Заменить файл" : "Выбрать файл", draft.bannerUrl ? "Replace file" : "Choose file", draft.bannerUrl ? "جایگزینی فایل" : "انتخاب فایل")}</strong><small>${escapeHtml(mediaHint)}</small></span>
+				</label>
+				<div class="admin-banner-crop">
+					${renderAdminBannerRange(localizedText("Кадр по горизонтали", "Horizontal crop", "برش افقی"), "bannerCropX", draft.bannerCropX, 0, 100)}
+					${renderAdminBannerRange(localizedText("Кадр по вертикали", "Vertical crop", "برش عمودی"), "bannerCropY", draft.bannerCropY, 0, 100)}
+					${renderAdminBannerRange(localizedText("Масштаб", "Zoom", "بزرگ‌نمایی"), "bannerZoom", draft.bannerZoom, 100, 250)}
+				</div>
+				<label class="admin-field admin-field--full"><span>${localizedText("При нажатии", "On tap", "با لمس")}</span><select class="admin-field__control" data-input="admin-banner-setting" data-banner-field="bannerAction"><option value="none" ${action === "none" ? "selected" : ""}>${localizedText("Ничего — статичный баннер", "Nothing — static banner", "هیچ — بنر ثابت")}</option><option value="url" ${action === "url" ? "selected" : ""}>${localizedText("Открыть ссылку", "Open a link", "باز کردن پیوند")}</option><option value="page" ${action === "page" ? "selected" : ""}>${localizedText("Перейти в раздел Mini App", "Open a Mini App section", "رفتن به بخش مینی‌اپ")}</option></select></label>
+				${action === "url" ? `<label class="admin-field admin-field--full"><span>${localizedText("Ссылка", "Link", "پیوند")}</span><input class="admin-field__control" type="url" inputmode="url" autocomplete="url" placeholder="https://example.com" value="${escapeAttribute(draft.bannerTarget || "")}" data-input="admin-banner-setting" data-banner-field="bannerTarget"></label>` : ""}
+				${action === "page" ? `<label class="admin-field admin-field--full"><span>${localizedText("Раздел Mini App", "Mini App section", "بخش مینی‌اپ")}</span><select class="admin-field__control" data-input="admin-banner-setting" data-banner-field="bannerTarget">${BANNER_PAGE_TARGETS.map((target) => `<option value="${target}" ${draft.bannerTarget === target ? "selected" : ""}>${escapeHtml(bannerTargetLabel(target))}</option>`).join("")}</select></label>` : ""}
+				<label class="admin-field admin-field--full"><span>${localizedText("Описание для доступности", "Accessibility description", "توضیح دسترس‌پذیری")}</span><input class="admin-field__control" type="text" maxlength="160" placeholder="${escapeAttribute(localizedText("Например: Осенняя акция", "For example: Autumn offer", "برای مثال: پیشنهاد پاییزی"))}" value="${escapeAttribute(draft.bannerAlt || "")}" data-input="admin-banner-setting" data-banner-field="bannerAlt"></label>
+			</div>
+			<footer class="admin-banner-editor__actions">
+				${state.adminBannerEditingID ? `<button class="admin-banner-editor__remove" type="button" data-action="admin-remove-banner" ${busy ? "disabled" : ""}>${icon("trash")}<span>${localizedText("Удалить", "Delete", "حذف")}</span></button>` : "<span></span>"}
+				<button class="btn btn--green-filled" type="button" data-action="admin-apply-banner" ${busy || !draft.bannerUrl ? "disabled" : ""}>${icon("check")}<span>${localizedText("Применить", "Apply", "اعمال")}</span></button>
 			</footer>
 		</div>
 	</div>`;
@@ -5674,6 +5763,9 @@ function renderDashboardPage() {
 	getLayoutElements("dashboard").filter((item) => isEmptyLayoutCardID(item.id)).forEach((item) => {
 		blocks[item.id] = '<div class="empty-design-card" aria-hidden="true"></div>';
 	});
+	getLayoutElements("dashboard").filter((item) => isBannerLayoutID(item.id) && item.bannerUrl).forEach((item) => {
+		blocks[item.id] = renderDashboardBanner(item);
+	});
 	const switchAnimationClass = subscriptionSwitchAnimation ? `subscription-switch--${subscriptionSwitchAnimation}` : "";
 	const layoutPendingClass = getLayoutElements("dashboard").some((item) => item?.visible !== false && hasStoredLayoutPosition(item))
 		? "layout-runtime-pending"
@@ -5693,6 +5785,18 @@ function renderPromoGiftWidget(item) {
 		<span class="promo-gift-widget__copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(hint)}</small></span>
 		<span class="promo-gift-widget__arrow" aria-hidden="true">${icon("arrow")}</span>
 	</button>`;
+}
+
+function renderDashboardBanner(item) {
+	const clickable = ["url", "page"].includes(item?.bannerAction) && Boolean(String(item?.bannerTarget || "").trim());
+	const fallbackAlt = localizedText("Баннер", "Banner", "بنر");
+	const alt = String(item?.bannerAlt || "").trim() || fallbackAlt;
+	const media = renderBannerMedia(item);
+	if (clickable) {
+		const destination = item.bannerAction === "page" ? bannerTargetLabel(item.bannerTarget) : localizedText("Открыть ссылку", "Open link", "باز کردن پیوند");
+		return `<button class="dashboard-banner dashboard-banner--clickable" type="button" data-action="open-banner" data-value="${escapeAttribute(item.id)}" aria-label="${escapeAttribute(`${alt}. ${destination}`)}">${media}<span class="dashboard-banner__action" aria-hidden="true">${icon("arrow")}</span></button>`;
+	}
+	return `<div class="dashboard-banner dashboard-banner--static" role="img" aria-label="${escapeAttribute(alt)}">${media}</div>`;
 }
 
 function notificationWidgetFingerprint(text) {
@@ -7676,6 +7780,12 @@ function bindRootActions() {
 				return;
 			}
 			if (action === "admin-add-empty-card") return addAdminEmptyLayoutCard();
+			if (action === "admin-add-banner") return openAdminBannerEditor();
+			if (action === "admin-edit-banner") return openAdminBannerEditor(getSelectedDashboardStyleItem()?.id || "");
+			if (action === "admin-close-banner") return closeAdminBannerEditor();
+			if (action === "admin-apply-banner") return applyAdminBanner();
+			if (action === "admin-remove-banner") return removeAdminBannerByID(state.adminBannerEditingID);
+			if (action === "admin-remove-selected-banner") return removeSelectedAdminBanner();
 			if (action === "admin-close-layout-style") return closeAdminLayoutStyleEditor();
 			if (action === "admin-layout-layer-back") return moveSelectedAdminLayoutLayer(-1);
 			if (action === "admin-layout-layer-front") return moveSelectedAdminLayoutLayer(1);
@@ -7724,6 +7834,7 @@ function bindRootActions() {
 			if (action === "admin-remove-legal-section") return removeAdminLegalSection(Number(value));
       if (action === "go-home") return setPage("dashboard");
 		if (action === "go-page") return setPage(value);
+		if (action === "open-banner") return openDashboardBanner(value);
 		if (action === "open-promo-widget-checkout") return await openPromoWidgetCheckout(value);
 		if (action === "open-notification-widget") return toggleNotificationPopover(target);
       if (action === "open-review-compose") { state.reviewComposeOpen = true; render(); return; }
@@ -7897,6 +8008,10 @@ function bindRootActions() {
 			const file = input.files?.[0];
 			if (file) void uploadAdminFavicon(file);
 		}
+		if (input.dataset.input === "admin-banner-file") {
+			const file = input.files?.[0];
+			if (file) void uploadAdminBanner(file);
+		}
 	});
 
 	app.addEventListener("input", (event) => {
@@ -7918,6 +8033,31 @@ function bindRootActions() {
 			const node = [...app.querySelectorAll("[data-layout-edit-key]")].find((entry) => entry.dataset.layoutEditKey === state.adminLayoutSelection);
 			applyAdminLayoutNodeStyle(node, item);
 			markAdminLayoutDirty();
+			return;
+		}
+		if (target?.dataset?.input === "admin-banner-setting" && state.adminBannerDraft) {
+			const field = target.dataset.bannerField;
+			if (["bannerCropX", "bannerCropY", "bannerZoom"].includes(field)) {
+				const limits = field === "bannerZoom" ? [100, 250] : [0, 100];
+				const numeric = Math.max(limits[0], Math.min(limits[1], Math.round(Number(target.value || 0))));
+				state.adminBannerDraft[field] = numeric;
+				const suffix = target.dataset.rangeSuffix || "";
+				const output = target.closest(".admin-layout-style-range")?.querySelector("output");
+				const progress = ((numeric - limits[0]) / (limits[1] - limits[0])) * 100;
+				target.style.setProperty("--range-progress", `${progress}%`);
+				target.setAttribute("aria-valuetext", `${numeric}${suffix}`);
+				if (output) output.textContent = `${numeric}${suffix}`;
+				syncAdminBannerPreviewDOM();
+				return;
+			}
+			if (field === "bannerAction") {
+				state.adminBannerDraft.bannerAction = ["none", "url", "page"].includes(target.value) ? target.value : "none";
+				state.adminBannerDraft.bannerTarget = state.adminBannerDraft.bannerAction === "page" ? BANNER_PAGE_TARGETS[0] : "";
+				render({ preserveScroll: true });
+				return;
+			}
+			if (field === "bannerTarget") state.adminBannerDraft.bannerTarget = String(target.value || "");
+			if (field === "bannerAlt") state.adminBannerDraft.bannerAlt = String(target.value || "").slice(0, 160);
 			return;
 		}
 		const profileEditPath = target?.dataset?.profileEditPath;
@@ -8257,6 +8397,11 @@ function bindRootActions() {
 			state.adminLayoutAddMenuOpen = false;
 			render({ preserveScroll: true });
 			queueMicrotask(() => app.querySelector('[data-action="admin-layout-more-toggle"]')?.focus());
+			return;
+		}
+		if (state.adminBannerEditorOpen && event.key === "Escape") {
+			event.preventDefault();
+			closeAdminBannerEditor();
 			return;
 		}
 		if (state.adminFinancePeriodMenuOpen && event.target.closest?.(".admin-finance-period-option") && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
@@ -9171,6 +9316,187 @@ function removeSelectedAdminEmptyCard() {
 	markAdminLayoutDirty();
 	haptic("light");
 	render({ preserveScroll: true });
+}
+
+function defaultAdminBannerDraft() {
+	return {
+		bannerUrl: "",
+		bannerMediaType: "",
+		bannerCropX: 50,
+		bannerCropY: 50,
+		bannerZoom: 100,
+		bannerAction: "none",
+		bannerTarget: "",
+		bannerAlt: "",
+	};
+}
+
+function getAdminBannerItem(id = state.adminBannerEditingID) {
+	if (!isBannerLayoutID(id)) return null;
+	ensureAdminVisualLayoutDraft();
+	return state.adminSettingsDraft?.layout?.elements?.find((item) => item?.area === "dashboard" && item?.id === id) || null;
+}
+
+function openAdminBannerEditor(id = "") {
+	if (state.adminBusy || state.adminBannerBusy) return;
+	const item = getAdminBannerItem(id);
+	state.adminBannerEditingID = item?.id || "";
+	state.adminBannerDraft = {
+		...defaultAdminBannerDraft(),
+		...(item ? deepClone(item) : {}),
+		bannerCropX: Number(item?.bannerCropX ?? 50),
+		bannerCropY: Number(item?.bannerCropY ?? 50),
+		bannerZoom: Number(item?.bannerZoom || 100),
+	};
+	if (item) state.adminLayoutSelection = `dashboard:${item.id}`;
+	state.adminLayoutAddMenuOpen = false;
+	state.adminLayoutStyleEditorOpen = false;
+	state.adminBannerEditorOpen = true;
+	haptic("light");
+	render({ preserveScroll: true });
+}
+
+function closeAdminBannerEditor() {
+	if (state.adminBannerBusy) return;
+	requestModalClose("admin-banner", () => {
+		state.adminBannerEditorOpen = false;
+		state.adminBannerEditingID = "";
+		state.adminBannerDraft = null;
+	});
+}
+
+async function uploadAdminBanner(file) {
+	if (!file || !state.adminBannerDraft || state.adminBannerBusy) return;
+	const name = String(file.name || "").toLowerCase();
+	const supported = ["image/png", "image/gif", "video/mp4"].includes(String(file.type || "").toLowerCase()) || /\.(png|gif|mp4)$/.test(name);
+	if (!supported) return showToast(localizedText("Выберите PNG, GIF или MP4", "Choose a PNG, GIF or MP4 file", "یک فایل PNG، GIF یا MP4 انتخاب کنید"), "danger");
+	if (Number(file.size || 0) > 50 * 1024 * 1024) return showToast(localizedText("Файл должен быть не больше 50 МБ", "The file must be no larger than 50 MB", "فایل نباید بزرگ‌تر از ۵۰ مگابایت باشد"), "danger");
+
+	state.adminBannerBusy = "upload";
+	render({ preserveScroll: true });
+	try {
+		const body = new FormData();
+		body.append("banner", file, file.name || "banner");
+		const response = await postForm("/api/mini-app/admin/banner/upload", body);
+		state.adminBannerDraft.bannerUrl = String(response.data?.url || "");
+		state.adminBannerDraft.bannerMediaType = String(response.data?.type || "");
+		state.adminBannerBusy = "";
+		haptic("success");
+		render({ preserveScroll: true });
+		showToast(localizedText("Баннер загружен", "Banner uploaded", "بنر بارگذاری شد"), "success");
+	} catch (error) {
+		state.adminBannerBusy = "";
+		render({ preserveScroll: true });
+		showToast(error?.message || localizedText("Не удалось загрузить баннер", "Could not upload the banner", "بارگذاری بنر انجام نشد"), "danger");
+	}
+}
+
+function applyAdminBanner() {
+	const draft = state.adminBannerDraft;
+	if (!draft?.bannerUrl || state.adminBannerBusy) return;
+	const action = ["none", "url", "page"].includes(draft.bannerAction) ? draft.bannerAction : "none";
+	let target = String(draft.bannerTarget || "").trim();
+	if (action === "url") {
+		try {
+			const parsed = new URL(target);
+			if (!["https:", "http:"].includes(parsed.protocol)) throw new Error("protocol");
+		} catch {
+			showToast(localizedText("Введите корректную ссылку", "Enter a valid link", "یک پیوند معتبر وارد کنید"), "danger");
+			return;
+		}
+	}
+	if (action === "page" && !BANNER_PAGE_TARGETS.includes(target)) {
+		target = BANNER_PAGE_TARGETS[0];
+	}
+	if (action === "none") target = "";
+
+	ensureAdminVisualLayoutDraft();
+	const items = state.adminSettingsDraft?.layout?.elements;
+	if (!Array.isArray(items)) return;
+	let item = getAdminBannerItem();
+	let created = false;
+	if (!item) {
+		if (items.length >= 100) return showToast(localizedText("Достигнут лимит элементов", "Element limit reached", "حد عناصر پر شده است"), "danger");
+		let sequence = 1;
+		while (items.some((entry) => entry?.area === "dashboard" && entry?.id === `banner_${sequence}`)) sequence += 1;
+		const order = items.filter((entry) => entry?.area === "dashboard").reduce((maximum, entry) => Math.max(maximum, Number(entry.order || 0)), 19) + 1;
+		item = {
+			id: `banner_${sequence}`, area: "dashboard", order, visible: true, width: 100, height: 132,
+			framed: false, align: "center", offsetX: 0, offsetY: 0, cornerRadius: 16,
+			textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0,
+		};
+		positionNewDashboardElement(item, sequence - 1);
+		items.push(item);
+		created = true;
+	}
+	Object.assign(item, {
+		visible: true,
+		bannerUrl: String(draft.bannerUrl),
+		bannerMediaType: String(draft.bannerMediaType),
+		bannerCropX: Math.max(0, Math.min(100, Math.round(Number(draft.bannerCropX ?? 50)))),
+		bannerCropY: Math.max(0, Math.min(100, Math.round(Number(draft.bannerCropY ?? 50)))),
+		bannerZoom: Math.max(100, Math.min(250, Math.round(Number(draft.bannerZoom || 100)))),
+		bannerAction: action,
+		bannerTarget: target,
+		bannerAlt: String(draft.bannerAlt || "").trim().slice(0, 160),
+	});
+	state.adminLayoutSelection = `dashboard:${item.id}`;
+	markAdminLayoutDirty();
+	state.adminBannerEditorOpen = false;
+	state.adminBannerEditingID = "";
+	state.adminBannerDraft = null;
+	haptic("success");
+	render({ preserveScroll: true });
+	requestAnimationFrame(() => app.querySelector(`[data-layout-edit-key="dashboard:${item.id}"]`)?.focus({ preventScroll: true }));
+	showToast(created ? localizedText("Баннер добавлен", "Banner added", "بنر اضافه شد") : localizedText("Баннер обновлён", "Banner updated", "بنر به‌روزرسانی شد"), "success");
+}
+
+function removeAdminBannerByID(id) {
+	const items = state.adminSettingsDraft?.layout?.elements;
+	if (!Array.isArray(items) || !isBannerLayoutID(id)) return;
+	const index = items.findIndex((item) => item?.area === "dashboard" && item?.id === id);
+	if (index < 0) return;
+	items.splice(index, 1);
+	state.adminLayoutStyleEditorOpen = false;
+	state.adminBannerEditorOpen = false;
+	state.adminBannerEditingID = "";
+	state.adminBannerDraft = null;
+	state.adminLayoutSelection = "";
+	markAdminLayoutDirty();
+	haptic("light");
+	render({ preserveScroll: true });
+	showToast(localizedText("Баннер удалён. Сохраните изменения.", "Banner deleted. Save the changes.", "بنر حذف شد. تغییرات را ذخیره کنید."), "success");
+}
+
+function removeSelectedAdminBanner() {
+	const item = getSelectedDashboardStyleItem();
+	if (item && isBannerLayoutID(item.id)) removeAdminBannerByID(item.id);
+}
+
+function syncAdminBannerPreviewDOM() {
+	const draft = state.adminBannerDraft;
+	const preview = app.querySelector(".admin-banner-preview .banner-media");
+	if (!draft || !preview) return;
+	preview.style.setProperty("--banner-crop-x", `${Math.max(0, Math.min(100, Number(draft.bannerCropX ?? 50)))}%`);
+	preview.style.setProperty("--banner-crop-y", `${Math.max(0, Math.min(100, Number(draft.bannerCropY ?? 50)))}%`);
+	preview.style.setProperty("--banner-zoom", `${Math.max(100, Math.min(250, Number(draft.bannerZoom || 100))) / 100}`);
+}
+
+function openDashboardBanner(id) {
+	if (state.adminLayoutEditing) return;
+	const item = getLayoutElement("dashboard", id);
+	if (!item) return;
+	if (item.bannerAction === "url") return openExternal(String(item.bannerTarget || ""));
+	if (item.bannerAction !== "page" || !BANNER_PAGE_TARGETS.includes(item.bannerTarget)) return;
+	const target = item.bannerTarget === "promo" ? "buy" : item.bannerTarget;
+	setPage(target);
+	if (item.bannerTarget === "promo") {
+		requestAnimationFrame(() => requestAnimationFrame(() => {
+			const promo = app.querySelector('[data-input="promo-code"]');
+			promo?.scrollIntoView({ behavior: reducedMotionMedia?.matches ? "auto" : "smooth", block: "center" });
+			promo?.focus({ preventScroll: true });
+		}));
+	}
 }
 
 function getAdminPromoWidgetItem() {
@@ -11723,7 +12049,7 @@ function syncNativeBackButton() {
 
 function shouldShowNativeBackButton() {
 	return Boolean(
-		state.adminLayoutEditing || state.adminPlanEditing || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminLayoutStyleEditorOpen || state.adminLayoutAddMenuOpen || state.notificationPopoverOpen || state.notificationPopoverClosing ||
+		state.adminLayoutEditing || state.adminPlanEditing || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminBannerEditorOpen || state.adminLayoutStyleEditorOpen || state.adminLayoutAddMenuOpen || state.notificationPopoverOpen || state.notificationPopoverClosing ||
 		state.giftReceiptOpen ||
 		state.p2pMenuStep ||
     state.supportThreadOpen ||
@@ -11747,6 +12073,7 @@ function getNativeBackTargetPage() {
 }
 
 function handleNativeBackButton() {
+	if (state.adminBannerEditorOpen) return closeAdminBannerEditor();
 	if (state.adminLayoutStyleEditorOpen) return closeAdminLayoutStyleEditor();
 	if (state.adminLayoutAddMenuOpen) {
 		state.adminLayoutAddMenuOpen = false;
@@ -11800,6 +12127,7 @@ function handleNativeBackButton() {
 function getActiveModalName() {
 	if (state.p2pMenuStep) return "p2p";
 	if (state.giftReceiptOpen) return "gift-receipt";
+	if (state.adminBannerEditorOpen) return "admin-banner";
 	if (state.adminLayoutStyleEditorOpen) return "admin-layout-style";
 	if (state.adminNotificationWidgetEditorOpen) return "admin-notification-widget";
 	if (state.adminPromoWidgetEditorOpen) return "admin-promo-widget";

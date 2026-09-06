@@ -1197,6 +1197,60 @@ func hasLayoutElement(items []LayoutElement, area, id string) bool {
 	return false
 }
 
+func TestNormalizeAndValidateDashboardBanner(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Layout.Elements = append(settings.Layout.Elements, LayoutElement{
+		ID: "banner_1", Area: "dashboard", Order: 30, Visible: true,
+		Width: 100, Height: 132, Align: "center", CornerRadius: 16,
+		BannerURL: "/mini-app/uploads/banner-0123456789abcdef.gif", BannerMediaType: "gif",
+		BannerCropX: 0, BannerCropY: 100, BannerZoom: 175,
+		BannerAction: "page", BannerTarget: "reviews", BannerAlt: "Отзывы клиентов",
+	})
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("normalize banner: %v", err)
+	}
+
+	var banner *LayoutElement
+	for index := range settings.Layout.Elements {
+		if settings.Layout.Elements[index].ID == "banner_1" {
+			banner = &settings.Layout.Elements[index]
+			break
+		}
+	}
+	if banner == nil || banner.BannerCropX != 0 || banner.BannerCropY != 100 || banner.BannerZoom != 175 || banner.BannerTarget != "reviews" {
+		t.Fatalf("unexpected normalized banner: %+v", banner)
+	}
+	payload, err := json.Marshal(banner)
+	if err != nil {
+		t.Fatalf("marshal banner: %v", err)
+	}
+	if !strings.Contains(string(payload), `"bannerCropX":0`) {
+		t.Fatalf("zero crop coordinate was omitted: %s", payload)
+	}
+}
+
+func TestNormalizeAndValidateRejectsUnsafeDashboardBanner(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Layout.Elements = append(settings.Layout.Elements, LayoutElement{
+		ID: "banner_1", Area: "dashboard", Visible: true, Width: 100, Height: 132, Align: "center",
+		BannerURL: "/mini-app/uploads/banner-0123456789abcdef.png", BannerMediaType: "png",
+		BannerCropX: 50, BannerCropY: 50, BannerZoom: 100, BannerAction: "url", BannerTarget: "javascript:alert(1)",
+	})
+	if err := NormalizeAndValidate(&settings); err == nil || !strings.Contains(err.Error(), "invalid banner link") {
+		t.Fatalf("unsafe banner link error = %v", err)
+	}
+
+	settings = DefaultSettings()
+	settings.Layout.Elements = append(settings.Layout.Elements, LayoutElement{
+		ID: "banner_1", Area: "dashboard", Visible: true, Width: 100, Height: 132, Align: "center",
+		BannerURL: "/mini-app/uploads/../secret.mp4", BannerMediaType: "mp4",
+		BannerCropX: 50, BannerCropY: 50, BannerZoom: 100, BannerAction: "none",
+	})
+	if err := NormalizeAndValidate(&settings); err == nil || !strings.Contains(err.Error(), "invalid banner media") {
+		t.Fatalf("unsafe banner media error = %v", err)
+	}
+}
+
 func TestNormalizeAndValidateTelegramButtonCodeAndColor(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Content.Commerce.PayButton = TelegramButtonSettings{

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"image"
 	"image/color"
+	"image/gif"
 	"image/png"
 	"io/fs"
 	"mime/multipart"
@@ -29,6 +30,17 @@ func testLogoPNG(t *testing.T, width, height int) []byte {
 	var output bytes.Buffer
 	if err := png.Encode(&output, canvas); err != nil {
 		t.Fatalf("encode logo: %v", err)
+	}
+	return output.Bytes()
+}
+
+func testBannerGIF(t *testing.T) []byte {
+	t.Helper()
+	canvas := image.NewPaletted(image.Rect(0, 0, 2, 1), color.Palette{color.Black, color.White})
+	canvas.SetColorIndex(1, 0, 1)
+	var output bytes.Buffer
+	if err := gif.Encode(&output, canvas, nil); err != nil {
+		t.Fatalf("encode banner GIF: %v", err)
 	}
 	return output.Bytes()
 }
@@ -59,6 +71,48 @@ func TestStoreUploadedLogoPersistsContentAddressedFile(t *testing.T) {
 	}
 	if duplicateURL != logoURL {
 		t.Fatalf("duplicate URL = %q, want %q", duplicateURL, logoURL)
+	}
+}
+
+func TestStoreUploadedBannerSupportsRequestedFormats(t *testing.T) {
+	uploadDir := t.TempDir()
+	fixtures := []struct {
+		name        string
+		data        []byte
+		mediaType   string
+		extension   string
+		contentType string
+	}{
+		{name: "png", data: testLogoPNG(t, 32, 16), mediaType: "png", extension: ".png", contentType: "image/png"},
+		{name: "gif", data: testBannerGIF(t), mediaType: "gif", extension: ".gif", contentType: "image/gif"},
+		{name: "mp4", data: []byte("\x00\x00\x00\x18ftypisom\x00\x00\x02\x00isomiso2"), mediaType: "mp4", extension: ".mp4", contentType: "video/mp4"},
+	}
+
+	for _, fixture := range fixtures {
+		t.Run(fixture.name, func(t *testing.T) {
+			bannerURL, mediaType, err := storeUploadedBanner(uploadDir, fixture.data)
+			if err != nil {
+				t.Fatalf("store banner: %v", err)
+			}
+			if mediaType != fixture.mediaType || !strings.HasPrefix(bannerURL, "/mini-app/uploads/banner-") || !strings.HasSuffix(bannerURL, fixture.extension) {
+				t.Fatalf("stored banner = %q %q", bannerURL, mediaType)
+			}
+			response := httptest.NewRecorder()
+			(&Handler{logoUploadDir: uploadDir}).serveUploadedLogo(response, httptest.NewRequest(http.MethodGet, bannerURL, nil))
+			if response.Code != http.StatusOK || response.Header().Get("Content-Type") != fixture.contentType {
+				t.Fatalf("served banner = %d %q", response.Code, response.Header().Get("Content-Type"))
+			}
+		})
+	}
+}
+
+func TestStoreUploadedBannerRejectsUnsupportedAndOversizedFiles(t *testing.T) {
+	uploadDir := t.TempDir()
+	if _, _, err := storeUploadedBanner(uploadDir, []byte(`<svg xmlns="http://www.w3.org/2000/svg"></svg>`)); err != errBannerUnsupported {
+		t.Fatalf("SVG error = %v, want %v", err, errBannerUnsupported)
+	}
+	if _, _, err := storeUploadedBanner(uploadDir, make([]byte, maxBannerUploadSize+1)); err != errBannerTooLarge {
+		t.Fatalf("oversized error = %v, want %v", err, errBannerTooLarge)
 	}
 }
 

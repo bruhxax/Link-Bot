@@ -33,6 +33,8 @@ var (
 	customEmojiIDPattern  = regexp.MustCompile(`^[0-9]{5,32}$`)
 	customEmojiTagPattern = regexp.MustCompile(`(?is)<tg-emoji\s+emoji-id=["']([0-9]{5,32})["'][^>]*>.*?</tg-emoji>`)
 	promoCodePattern      = regexp.MustCompile(`^[A-Z0-9_-]{3,32}$`)
+	bannerIDPattern       = regexp.MustCompile(`^banner_[1-9][0-9]*$`)
+	bannerUploadPattern   = regexp.MustCompile(`^/mini-app/uploads/banner-[0-9a-f]{16}\.(png|gif|mp4)$`)
 )
 
 var featureOrder = []string{
@@ -259,6 +261,14 @@ type LayoutElement struct {
 	TextOffsetX      int      `json:"textOffsetX,omitempty"`
 	TextOffsetY      int      `json:"textOffsetY,omitempty"`
 	Layer            int      `json:"layer"`
+	BannerURL        string   `json:"bannerUrl,omitempty"`
+	BannerMediaType  string   `json:"bannerMediaType,omitempty"`
+	BannerCropX      int      `json:"bannerCropX"`
+	BannerCropY      int      `json:"bannerCropY"`
+	BannerZoom       int      `json:"bannerZoom"`
+	BannerAction     string   `json:"bannerAction,omitempty"`
+	BannerTarget     string   `json:"bannerTarget,omitempty"`
+	BannerAlt        string   `json:"bannerAlt,omitempty"`
 }
 
 type LayoutSettings struct {
@@ -857,6 +867,8 @@ func defaultDashboardCornerRadius(id string) int {
 		return 10
 	case strings.HasPrefix(id, "empty_card_"):
 		return 14
+	case bannerIDPattern.MatchString(id):
+		return 16
 	default:
 		return 0
 	}
@@ -1689,6 +1701,7 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings, migrate bool
 		item.NotificationText = strings.TrimSpace(item.NotificationText)
 		isPromoWidget := item.Area == "dashboard" && item.ID == "promo_widget"
 		isNotificationWidget := item.Area == "dashboard" && item.ID == "notification_widget"
+		isBanner := item.Area == "dashboard" && bannerIDPattern.MatchString(item.ID)
 		isDashboardElement := item.Area == "dashboard"
 		if isDashboardElement {
 			if migrate {
@@ -1733,6 +1746,53 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings, migrate bool
 			}
 		} else {
 			item.NotificationText = ""
+		}
+		if isBanner {
+			item.BannerURL = strings.TrimSpace(item.BannerURL)
+			matches := bannerUploadPattern.FindStringSubmatch(item.BannerURL)
+			if len(matches) != 2 {
+				return fmt.Errorf("invalid banner media for %q", key)
+			}
+			item.BannerMediaType = strings.ToLower(strings.TrimSpace(item.BannerMediaType))
+			if item.BannerMediaType == "" {
+				item.BannerMediaType = matches[1]
+			}
+			if item.BannerMediaType != matches[1] || !contains([]string{"png", "gif", "mp4"}, item.BannerMediaType) {
+				return fmt.Errorf("invalid banner media type for %q", key)
+			}
+			item.BannerCropX = max(0, min(100, item.BannerCropX))
+			item.BannerCropY = max(0, min(100, item.BannerCropY))
+			if item.BannerZoom < 100 || item.BannerZoom > 250 {
+				item.BannerZoom = 100
+			}
+			item.BannerAction = strings.ToLower(strings.TrimSpace(item.BannerAction))
+			if !contains([]string{"none", "url", "page"}, item.BannerAction) {
+				return fmt.Errorf("invalid banner action for %q", key)
+			}
+			item.BannerTarget = strings.TrimSpace(item.BannerTarget)
+			switch item.BannerAction {
+			case "none":
+				item.BannerTarget = ""
+			case "page":
+				if !contains([]string{"reviews", "promo", "buy", "servers", "support", "referrals", "payments", "gift"}, item.BannerTarget) {
+					return fmt.Errorf("invalid banner page target for %q", key)
+				}
+			case "url":
+				parsed, err := url.ParseRequestURI(item.BannerTarget)
+				if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
+					return fmt.Errorf("invalid banner link for %q", key)
+				}
+			}
+			item.BannerAlt = limit(strings.TrimSpace(item.BannerAlt), 160)
+		} else {
+			item.BannerURL = ""
+			item.BannerMediaType = ""
+			item.BannerCropX = 0
+			item.BannerCropY = 0
+			item.BannerZoom = 0
+			item.BannerAction = ""
+			item.BannerTarget = ""
+			item.BannerAlt = ""
 		}
 		if item.Area == "profile" && !strings.HasPrefix(item.ID, "group_") {
 			if item.Group == "" {
@@ -1783,7 +1843,7 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings, migrate bool
 			if item.Height < 24 || item.Height > 96 {
 				item.Height = fallback.Height
 			}
-		} else if item.Area == "dashboard" && contains([]string{"promo_widget", "notification_widget"}, item.ID) {
+		} else if item.Area == "dashboard" && (contains([]string{"promo_widget", "notification_widget"}, item.ID) || isBanner) {
 			if item.Width < 6 || item.Width > 150 {
 				item.Width = fallback.Width
 			}
