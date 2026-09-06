@@ -209,6 +209,8 @@
   --grid2-glow: #ff0000;
   --morphic-background: #000000;
   --morphic-ball: #ff69b4;
+  --twinkle-background: #000000;
+  --twinkle-star: #ffffff;
   --wave-background: #000000;
   --wave-dot: #ebebeb;
   --liquid-color-1: #000000;
@@ -258,6 +260,10 @@
   display: none;
 }
 
+:root:not([data-background="twinkle"]) .bg-media__twinkle {
+  display: none;
+}
+
 :root:not([data-background="liquid1"]):not([data-background="liquid2"]) .bg-media__liquid {
   display: none;
 }
@@ -270,6 +276,7 @@
 :root[data-background="pending"] .bg-media__grid,
 :root[data-background="pending"] .bg-media__grid2,
 :root[data-background="pending"] .bg-media__morphic,
+:root[data-background="pending"] .bg-media__twinkle,
 :root[data-background="pending"] .bg-media__liquid,
 :root[data-background="pending"] .bg-media__shade {
   visibility: hidden;
@@ -284,6 +291,9 @@
 :root[data-background="morphic"] .bg-media__canvas,
 :root[data-background="morphic"] .bg-media__scrim,
 :root[data-background="morphic"] .bg-media__fade,
+:root[data-background="twinkle"] .bg-media__canvas,
+:root[data-background="twinkle"] .bg-media__scrim,
+:root[data-background="twinkle"] .bg-media__fade,
 :root[data-background="liquid1"] .bg-media__canvas,
 :root[data-background="liquid1"] .bg-media__scrim,
 :root[data-background="liquid1"] .bg-media__fade,
@@ -844,6 +854,24 @@ select:focus-visible {
   border-radius: 55% 45% 60% 40%;
   background: var(--morphic-ball);
   transform: rotate(-22deg);
+}
+[data-preview-background="twinkle"] {
+  background: var(--twinkle-background);
+}
+[data-preview-background="twinkle"] > i {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 12% 24%, var(--twinkle-star) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 31% 68%, var(--twinkle-star) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 46% 18%, var(--twinkle-star) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 61% 48%, var(--twinkle-star) 0 1.25px, transparent 1.75px),
+    radial-gradient(circle at 78% 22%, var(--twinkle-star) 0 1.75px, transparent 2.25px),
+    radial-gradient(circle at 89% 72%, var(--twinkle-star) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 20% 88%, var(--twinkle-star) 0 .75px, transparent 1.25px),
+    radial-gradient(circle at 70% 86%, var(--twinkle-star) 0 1.25px, transparent 1.75px);
+  opacity: .82;
+  filter: drop-shadow(0 0 2px color-mix(in srgb, var(--twinkle-star) 72%, transparent));
 }
 [data-preview-background="solid"] { background: var(--bg); }
 [data-preview-background="liquid1"],
@@ -1842,6 +1870,7 @@ img { display: block; max-width: 100%; }
 .bg-media__grid,
 .bg-media__grid2,
 .bg-media__morphic,
+.bg-media__twinkle,
 .bg-media__liquid,
 .bg-media__shade {
   position: absolute;
@@ -2033,6 +2062,26 @@ img { display: block; max-width: 100%; }
   .bg-media__morphic-particle {
     will-change: auto;
   }
+}
+
+.bg-media__twinkle {
+  overflow: hidden;
+  contain: strict;
+  isolation: isolate;
+  background: var(--twinkle-background);
+}
+
+:root[data-background="twinkle"] .bg-media__twinkle {
+  display: block;
+}
+
+.bg-media__twinkle-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  transform: translateZ(0);
 }
 
 .bg-media__liquid {

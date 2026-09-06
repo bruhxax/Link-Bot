@@ -789,7 +789,7 @@ func TestNormalizeAndValidateGridAppearanceAndAdminContact(t *testing.T) {
 			t.Fatalf("legacy integration feature %q was not removed", key)
 		}
 	}
-	for _, key := range []string{"gridBackground", "gridLine", "gridGlowLeft", "gridGlowRight", "grid2Background", "grid2Line", "grid2Glow", "morphicBackground", "morphicBall", "waveBackground", "waveDot"} {
+	for _, key := range []string{"gridBackground", "gridLine", "gridGlowLeft", "gridGlowRight", "grid2Background", "grid2Line", "grid2Glow", "morphicBackground", "morphicBall", "twinkleBackground", "twinkleStar", "waveBackground", "waveDot"} {
 		if settings.Appearance.Colors[key] == "" {
 			t.Fatalf("grid color %q is empty", key)
 		}
@@ -837,6 +837,30 @@ func TestNormalizeAndValidateMorphicBackgroundAppearance(t *testing.T) {
 	}
 }
 
+func TestNormalizeAndValidateTwinkleBackgroundAppearance(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Appearance.BackgroundMode = "twinkle"
+	delete(settings.Appearance.Colors, "twinkleBackground")
+	delete(settings.Appearance.Colors, "twinkleStar")
+	delete(settings.Appearance.BackgroundMotion, "twinkle")
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if settings.Appearance.BackgroundMode != "twinkle" {
+		t.Fatalf("background mode = %q, want twinkle", settings.Appearance.BackgroundMode)
+	}
+	if got := settings.Appearance.Colors["twinkleBackground"]; got != "#000000" {
+		t.Fatalf("twinkle background = %q, want #000000", got)
+	}
+	if got := settings.Appearance.Colors["twinkleStar"]; got != "#ffffff" {
+		t.Fatalf("twinkle star = %q, want #ffffff", got)
+	}
+	if got := settings.Appearance.BackgroundMotion["twinkle"]; got.Dimming != 0 || got.Speed != 38 {
+		t.Fatalf("twinkle motion = %+v, want dimming 0 speed 38", got)
+	}
+}
+
 func TestNormalizeAndValidateLiquidBackgroundAppearance(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Appearance.BackgroundMode = "liquid1"
@@ -860,7 +884,7 @@ func TestNormalizeAndValidateLiquidBackgroundAppearance(t *testing.T) {
 			t.Fatalf("liquid background %q speed = %d", mode, background.Speed)
 		}
 	}
-	for _, mode := range []string{"animated", "grid", "grid2", "morphic", "liquid1", "liquid2", "solid"} {
+	for _, mode := range []string{"animated", "grid", "grid2", "morphic", "twinkle", "liquid1", "liquid2", "solid"} {
 		motion, ok := settings.Appearance.BackgroundMotion[mode]
 		if !ok {
 			t.Fatalf("background motion %q is missing", mode)
