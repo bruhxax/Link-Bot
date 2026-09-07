@@ -1,6 +1,6 @@
 import {
-  SETUP_PLATFORMS,
   buildSetupClientURL,
+  getSetupPlatforms,
   getLocalizedSetupValue,
   getSetupApp,
   getSetupPlatform,
@@ -99,8 +99,19 @@ function renderInvalid(copy) {
   root.innerHTML = `<section class="opener-card opener-card--error"><span class="opener-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><p class="opener-eyebrow">${escapeHTML(copy.eyebrow)}</p><h1>${escapeHTML(copy.invalidTitle)}</h1><p class="opener-hint">${escapeHTML(copy.invalidHint)}</p><a class="opener-secondary" href="/mini-app/">${escapeHTML(copy.back)}</a></section>`;
 }
 
-function boot() {
+async function loadSubPageSettings() {
+  try {
+    const response = await fetch("/api/mini-app/public-config", { cache: "no-store", credentials: "same-origin" });
+    const payload = await response.json();
+    return response.ok ? payload?.data?.subPage || null : null;
+  } catch {
+    return null;
+  }
+}
+
+async function boot() {
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+	window.history.replaceState(null, "", window.location.pathname);
   const locale = ["ru", "en", "fa"].includes(params.get("lang")) ? params.get("lang") : "ru";
   const copy = copybook[locale];
   document.documentElement.lang = locale;
@@ -110,21 +121,20 @@ function boot() {
   const platformID = params.get("platform") || "";
   const appID = params.get("app") || "";
   const subscription = params.get("subscription") || "";
-  const platformExists = SETUP_PLATFORMS.some((platform) => platform.id === platformID);
-  const appExists = platformExists && getSetupPlatform(platformID).apps.some((app) => app.id === appID);
+	const subPageSettings = await loadSubPageSettings();
+	const platformExists = getSetupPlatforms(subPageSettings).some((platform) => platform.id === platformID);
+	const appExists = platformExists && getSetupPlatform(platformID, subPageSettings)?.apps.some((app) => app.id === appID);
   let clientURL = "";
   try {
     if (!appExists) throw new Error("Unknown app");
-    clientURL = buildSetupClientURL(platformID, appID, subscription);
+    clientURL = buildSetupClientURL(platformID, appID, subscription, subPageSettings);
   } catch {
-    window.history.replaceState(null, "", window.location.pathname);
     renderInvalid(copy);
     return;
   }
 
-  const app = getSetupApp(platformID, appID);
-  const platform = getSetupPlatform(platformID);
-  window.history.replaceState(null, "", window.location.pathname);
+	const app = getSetupApp(platformID, appID, subPageSettings);
+	const platform = getSetupPlatform(platformID, subPageSettings);
   document.title = copy.title(app.name);
   const installLinks = (app.links || []).slice(0, 4).map((item) => `<a href="${escapeHTML(item.url)}" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 5h5v5M10 14 19 5M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>${escapeHTML(getLocalizedSetupValue(item.label, locale))}</a>`).join("");
   root.innerHTML = `<section class="opener-card"><span class="opener-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 17 17 7M9 7h8v8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></span><p class="opener-eyebrow">${escapeHTML(copy.eyebrow)}</p><h1>${escapeHTML(copy.title(app.name))}</h1><p class="opener-platform">${escapeHTML(getLocalizedSetupValue(platform.name, locale))}</p><p class="opener-hint">${escapeHTML(copy.hint(app.name))}</p><button class="opener-primary" id="open-client" type="button"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>${escapeHTML(copy.open(app.name))}</button><div class="opener-fallback"><h2>${escapeHTML(copy.fallback)}</h2><p>${escapeHTML(copy.fallbackHint)}</p><div class="opener-install-links">${installLinks}</div></div><button class="opener-copy" id="copy-subscription" type="button"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>${escapeHTML(copy.copy)}</button><a class="opener-back" href="/mini-app/">${escapeHTML(copy.back)}</a></section>`;
@@ -134,4 +144,4 @@ function boot() {
   window.setTimeout(launchClient, 120);
 }
 
-boot();
+void boot();

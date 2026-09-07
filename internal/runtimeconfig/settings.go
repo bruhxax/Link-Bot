@@ -23,7 +23,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 21
+const CurrentVersion = 22
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -39,6 +39,7 @@ var (
 
 var featureOrder = []string{
 	"mini_app",
+	"additional_subscriptions",
 	"google",
 	"stars",
 	"trials",
@@ -58,6 +59,8 @@ var featureOrder = []string{
 	"pwa_install",
 }
 
+var setupPlatformOrder = []string{"ios", "android", "macos", "windows", "android-tv", "apple-tv"}
+
 type Settings struct {
 	Version      int                  `json:"version"`
 	Localization LocalizationSettings `json:"localization"`
@@ -66,6 +69,7 @@ type Settings struct {
 	Content      ContentSettings      `json:"content"`
 	Appearance   AppearanceSettings   `json:"appearance"`
 	Layout       LayoutSettings       `json:"layout"`
+	SubPage      SubPageSettings      `json:"subPage"`
 	Plans        []PlanSettings       `json:"plans"`
 	DevicePacks  []DevicePackSettings `json:"devicePacks"`
 	Trial        TrialSettings        `json:"trial"`
@@ -281,6 +285,23 @@ type LayoutSettings struct {
 	Elements    []LayoutElement `json:"elements"`
 	PlanColumns int             `json:"planColumns"`
 	LogoWidth   int             `json:"logoWidth"`
+}
+
+type SubPageSettings struct {
+	IncludeBuiltIns bool                    `json:"includeBuiltIns"`
+	Clients         []SubPageClientSettings `json:"clients"`
+}
+
+type SubPageClientSettings struct {
+	ID             string   `json:"id"`
+	Name           string   `json:"name"`
+	Scheme         string   `json:"scheme"`
+	InstallURL     string   `json:"installUrl"`
+	InstallLabelRU string   `json:"installLabelRu"`
+	Enabled        bool     `json:"enabled"`
+	Featured       bool     `json:"featured"`
+	AllPlatforms   bool     `json:"allPlatforms"`
+	Platforms      []string `json:"platforms"`
 }
 
 type PlanSettings struct {
@@ -598,6 +619,10 @@ func DefaultSettings() Settings {
 			PlanColumns: 2,
 			LogoWidth:   188,
 		},
+		SubPage: SubPageSettings{
+			IncludeBuiltIns: true,
+			Clients:         []SubPageClientSettings{},
+		},
 		Plans:       defaultPlans(),
 		DevicePacks: defaultDevicePacks(),
 		Trial: TrialSettings{
@@ -829,6 +854,7 @@ func defaultLayoutElements() []LayoutElement {
 	}
 
 	details := []LayoutElement{
+		{ID: "subscription_switcher", Area: "dashboard", Order: 0, Visible: true, Width: 36, Height: 38, Align: "center"},
 		{ID: "logo", Area: "dashboard", Order: 10, Visible: true, Width: 60, Height: 150, Align: "center"},
 		{ID: "username", Area: "dashboard", Order: 11, Visible: true, Width: 100, Height: 28, Align: "center"},
 		{ID: "plan_name", Area: "dashboard", Order: 12, Visible: true, Width: 48, Height: 32, Align: "left"},
@@ -873,6 +899,8 @@ func defaultLayoutElements() []LayoutElement {
 
 func defaultDashboardCornerRadius(id string) int {
 	switch {
+	case id == "subscription_switcher":
+		return 15
 	case id == "primary_action" || id == "secondary_action" || id == "traffic" || id == "devices":
 		return 22
 	case id == "promo_widget" || id == "notification_widget":
@@ -1038,7 +1066,10 @@ func NormalizeAndValidate(settings *Settings) error {
 	if err := validateAppearance(&settings.Appearance, defaults.Appearance, previousVersion < 20); err != nil {
 		return err
 	}
-	if err := validateLayout(&settings.Layout, defaults.Layout, previousVersion < CurrentVersion); err != nil {
+	if err := validateLayout(&settings.Layout, defaults.Layout, previousVersion < 21); err != nil {
+		return err
+	}
+	if err := validateSubPage(&settings.SubPage, defaults.SubPage, previousVersion < 22); err != nil {
 		return err
 	}
 	if err := validatePlans(&settings.Plans, defaults.Plans); err != nil {
@@ -1887,6 +1918,13 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings, migrate bool
 			if item.Height < 24 || item.Height > 96 {
 				item.Height = fallback.Height
 			}
+		} else if item.Area == "dashboard" && item.ID == "subscription_switcher" {
+			if item.Width < 24 || item.Width > 100 {
+				item.Width = fallback.Width
+			}
+			if item.Height < 32 || item.Height > 72 {
+				item.Height = fallback.Height
+			}
 		} else if item.Area == "dashboard" && (contains([]string{"promo_widget", "notification_widget"}, item.ID) || isBanner) {
 			if item.Width < 6 || item.Width > 150 {
 				item.Width = fallback.Width
@@ -1916,6 +1954,84 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings, migrate bool
 		}
 		return value.Elements[i].Area < value.Elements[j].Area
 	})
+	return nil
+}
+
+func validateSubPage(value *SubPageSettings, defaults SubPageSettings, migrate bool) error {
+	if migrate {
+		value.IncludeBuiltIns = defaults.IncludeBuiltIns
+	}
+	if value.Clients == nil {
+		value.Clients = []SubPageClientSettings{}
+	}
+	if len(value.Clients) > 24 {
+		return errors.New("too many Sub page clients")
+	}
+
+	seen := make(map[string]bool, len(value.Clients))
+	featuredFound := false
+	enabledFound := value.IncludeBuiltIns
+	for index := range value.Clients {
+		client := &value.Clients[index]
+		client.ID = strings.ToLower(strings.TrimSpace(client.ID))
+		client.Name = limit(strings.TrimSpace(client.Name), 60)
+		client.Scheme = strings.TrimSpace(client.Scheme)
+		client.InstallURL = strings.TrimSpace(client.InstallURL)
+		client.InstallLabelRU = limit(strings.TrimSpace(client.InstallLabelRU), 60)
+		if !elementIDPattern.MatchString(client.ID) || client.ID == "happ" || client.ID == "incy" || seen[client.ID] {
+			return fmt.Errorf("invalid or duplicate Sub page client %q", client.ID)
+		}
+		seen[client.ID] = true
+		if client.Name == "" {
+			return fmt.Errorf("Sub page client %q requires a name", client.ID)
+		}
+		if len(client.Scheme) > 256 || !strings.Contains(client.Scheme, "://") || strings.ContainsAny(client.Scheme, " \t\r\n") {
+			return fmt.Errorf("invalid scheme for Sub page client %q", client.ID)
+		}
+		parsedScheme, err := url.Parse(client.Scheme + "https://example.com/subscription")
+		if err != nil || parsedScheme.Scheme == "" || contains([]string{"http", "https", "javascript", "data", "file", "blob"}, strings.ToLower(parsedScheme.Scheme)) {
+			return fmt.Errorf("invalid scheme for Sub page client %q", client.ID)
+		}
+		if client.InstallURL != "" && !isSafeWebURL(client.InstallURL) {
+			return fmt.Errorf("invalid install URL for Sub page client %q", client.ID)
+		}
+		if client.InstallLabelRU == "" {
+			client.InstallLabelRU = "Скачать " + client.Name
+		}
+		if client.AllPlatforms {
+			client.Platforms = []string{}
+		} else {
+			normalized := make([]string, 0, len(client.Platforms))
+			platformSeen := map[string]bool{}
+			for _, platform := range client.Platforms {
+				platform = strings.ToLower(strings.TrimSpace(platform))
+				if !contains(setupPlatformOrder, platform) || platformSeen[platform] {
+					continue
+				}
+				platformSeen[platform] = true
+				normalized = append(normalized, platform)
+			}
+			client.Platforms = normalized
+			if client.Enabled && len(client.Platforms) == 0 {
+				return fmt.Errorf("Sub page client %q requires at least one device", client.ID)
+			}
+		}
+		if !client.Enabled {
+			client.Featured = false
+			continue
+		}
+		enabledFound = true
+		if client.Featured {
+			if featuredFound {
+				client.Featured = false
+			} else {
+				featuredFound = true
+			}
+		}
+	}
+	if !enabledFound {
+		return errors.New("Sub page requires at least one enabled client")
+	}
 	return nil
 }
 

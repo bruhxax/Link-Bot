@@ -756,6 +756,89 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
+.admin-subpage { display: grid; gap: 18px; }
+.admin-subpage-intro {
+	display: grid;
+	grid-template-columns: 42px minmax(0, 1fr);
+	gap: 12px;
+	align-items: start;
+	padding-bottom: 16px;
+	border-bottom: 1px solid var(--line);
+}
+.admin-subpage-intro > span {
+	width: 42px;
+	height: 42px;
+	display: grid;
+	place-items: center;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--control-bg);
+}
+.admin-subpage-intro svg { width: 20px; height: 20px; }
+.admin-subpage-intro h3 { margin: 2px 0 4px; font-size: 13px; }
+.admin-subpage-intro p,
+.admin-subpage-client__hint { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.admin-subpage-list { display: grid; gap: 12px; }
+.admin-subpage-client {
+	display: grid;
+	gap: 14px;
+	padding: 15px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+.admin-subpage-client__header { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.admin-subpage-client__header > div:first-child { min-width: 0; display: flex; align-items: center; gap: 9px; }
+.admin-subpage-client__header > div:first-child > span { color: var(--muted); font-size: 9px; font-variant-numeric: tabular-nums; }
+.admin-subpage-client__header h3 { overflow: hidden; margin: 0; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-subpage-client__actions { display: flex; gap: 4px; }
+.admin-subpage-client__actions button {
+	width: 44px;
+	height: 44px;
+	display: grid;
+	place-items: center;
+	border: 1px solid var(--line-soft);
+	border-radius: 6px;
+	color: var(--text);
+	background: transparent;
+}
+.admin-subpage-client__actions button.is-danger { color: var(--danger); }
+.admin-subpage-client__actions button:disabled { opacity: .3; }
+.admin-subpage-client__actions svg { width: 15px; height: 15px; }
+.admin-subpage-client__toggles { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
+.admin-subpage-platforms { margin: 0; padding: 0; border: 0; }
+.admin-subpage-platforms legend { margin-bottom: 8px; color: var(--muted); font-size: 9px; font-weight: 750; }
+.admin-subpage-platforms > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.admin-subpage-platforms label {
+	min-height: 44px;
+	padding: 0 10px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	border: 1px solid var(--line-soft);
+	border-radius: 6px;
+	background: var(--control-bg);
+	font-size: 9px;
+}
+.admin-subpage-platforms input { width: 16px; height: 16px; accent-color: var(--accent); }
+.admin-subpage-empty { padding: 24px 12px; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); color: var(--muted); font-size: 10px; text-align: center; }
+.admin-subpage-add {
+	min-height: 48px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	border: 1px solid var(--line);
+	border-radius: 7px;
+	color: var(--text);
+	background: var(--control-bg);
+	font: inherit;
+	font-size: 10px;
+	font-weight: 800;
+}
+.admin-subpage-add svg { width: 16px; height: 16px; }
+.admin-subpage :where(button, input, select):focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
 .admin-color-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
 .admin-color-field { min-height: 52px; padding: 0; overflow: hidden; display: flex; align-items: stretch; gap: 0; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--control-bg); color: var(--button-text); }
 .admin-color-field:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -2728,6 +2811,43 @@ img { display: block; max-width: 100%; }
   box-shadow: var(--glass-shadow-soft);
 }
 
+.runtime-layout-item[data-runtime-id="subscription_switcher"] {
+	height: var(--runtime-height, 38px);
+	min-width: 72px;
+	container-type: size;
+}
+
+body:not(.is-layout-editing) .runtime-layout-item[data-runtime-id="subscription_switcher"] { z-index: 220; }
+.runtime-layout-item[data-runtime-id="subscription_switcher"] .subscription-switcher {
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	justify-items: stretch;
+}
+.runtime-layout-item[data-runtime-id="subscription_switcher"] .subscription-switcher__trigger {
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+	padding: 5px clamp(5px, 5cqw, 10px);
+	justify-content: center;
+	gap: clamp(2px, 3cqw, 5px);
+	border-radius: var(--runtime-corner-radius, 15px);
+	font-size: 12px;
+	font-size: clamp(9px, 31cqh, 14px);
+	overflow: hidden;
+}
+.runtime-layout-item[data-runtime-id="subscription_switcher"] .subscription-switcher__trigger > span:first-child {
+	max-width: calc(100% - 14px);
+	transform: translate3d(var(--runtime-text-x), var(--runtime-text-y), 0) scale(var(--runtime-text-scale));
+	transform-origin: center;
+}
+.runtime-layout-item[data-runtime-id="subscription_switcher"] .subscription-switcher__chevron {
+	width: clamp(10px, 31cqh, 15px);
+	height: clamp(10px, 31cqh, 15px);
+	flex: 0 0 auto;
+}
+.runtime-layout-item[data-runtime-id="subscription_switcher"] .subscription-switcher__chevron svg { width: 100%; height: 100%; }
+
 .subscription-switcher__trigger > span:first-child {
   min-width: 0;
   max-width: 220px;
@@ -2864,23 +2984,23 @@ img { display: block; max-width: 100%; }
 
 @keyframes subscriptionSwitchProgress { to { transform: rotate(360deg); } }
 
-#page-dashboard.subscription-switch--out-next .runtime-layout-area--dashboard,
-#page-dashboard.subscription-switch--out-next > .subscription-switcher .subscription-switcher__trigger > span:first-child {
+#page-dashboard.subscription-switch--out-next .runtime-layout-item:not([data-runtime-id="subscription_switcher"]),
+#page-dashboard.subscription-switch--out-next .subscription-switcher .subscription-switcher__trigger > span:first-child {
   animation: subscriptionContentOutNext .18s cubic-bezier(.4, 0, 1, 1) both;
 }
 
-#page-dashboard.subscription-switch--out-previous .runtime-layout-area--dashboard,
-#page-dashboard.subscription-switch--out-previous > .subscription-switcher .subscription-switcher__trigger > span:first-child {
+#page-dashboard.subscription-switch--out-previous .runtime-layout-item:not([data-runtime-id="subscription_switcher"]),
+#page-dashboard.subscription-switch--out-previous .subscription-switcher .subscription-switcher__trigger > span:first-child {
   animation: subscriptionContentOutPrevious .18s cubic-bezier(.4, 0, 1, 1) both;
 }
 
-#page-dashboard.subscription-switch--in-next .runtime-layout-area--dashboard,
-#page-dashboard.subscription-switch--in-next > .subscription-switcher .subscription-switcher__trigger > span:first-child {
+#page-dashboard.subscription-switch--in-next .runtime-layout-item:not([data-runtime-id="subscription_switcher"]),
+#page-dashboard.subscription-switch--in-next .subscription-switcher .subscription-switcher__trigger > span:first-child {
   animation: subscriptionContentInNext .38s cubic-bezier(.22, 1, .36, 1) both;
 }
 
-#page-dashboard.subscription-switch--in-previous .runtime-layout-area--dashboard,
-#page-dashboard.subscription-switch--in-previous > .subscription-switcher .subscription-switcher__trigger > span:first-child {
+#page-dashboard.subscription-switch--in-previous .runtime-layout-item:not([data-runtime-id="subscription_switcher"]),
+#page-dashboard.subscription-switch--in-previous .subscription-switcher .subscription-switcher__trigger > span:first-child {
   animation: subscriptionContentInPrevious .38s cubic-bezier(.22, 1, .36, 1) both;
 }
 
@@ -2908,8 +3028,8 @@ img { display: block; max-width: 100%; }
   .subscription-switcher__menu { animation-duration: 1ms !important; }
   .subscription-switcher__chevron { transition-duration: 1ms; }
   .subscription-switcher__progress,
-  #page-dashboard[class*="subscription-switch--"] .runtime-layout-area--dashboard,
-  #page-dashboard[class*="subscription-switch--"] > .subscription-switcher .subscription-switcher__trigger > span:first-child {
+  #page-dashboard[class*="subscription-switch--"] .runtime-layout-item:not([data-runtime-id="subscription_switcher"]),
+  #page-dashboard[class*="subscription-switch--"] .subscription-switcher .subscription-switcher__trigger > span:first-child {
     animation: none !important;
     filter: none !important;
   }
@@ -7257,6 +7377,23 @@ body.is-install-guide #app {
 .admin-ui-node__grab svg,
 .admin-ui-node__resize svg { width: 13px; height: 13px; }
 
+.admin-ui-preview-subscription {
+	width: 100%;
+	min-height: inherit;
+	padding: 0 10px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	border: 1px solid var(--line-soft);
+	border-radius: 15px;
+	background: #0b0d12;
+	font-size: 9px;
+	font-weight: 800;
+}
+.admin-ui-preview-subscription span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-ui-preview-subscription svg { width: 12px; height: 12px; flex: 0 0 auto; }
+
 .admin-ui-preview-checkout {
   min-height: inherit;
   padding: 10px;
@@ -10894,6 +11031,7 @@ body.is-layout-editing [data-runtime-layout-key^="dashboard:"].layout-editable--
 
 .runtime-detail-item--action > .btn,
 .runtime-detail-item--pill > .sub-pill,
+.runtime-layout-item[data-runtime-id="subscription_switcher"] .subscription-switcher__trigger,
 .runtime-layout-item[data-runtime-id="promo_widget"] .promo-gift-widget,
 .runtime-layout-item[data-runtime-id="notification_widget"] .notification-widget,
 .runtime-layout-item[data-runtime-id^="banner_"] .dashboard-banner,

@@ -3731,6 +3731,24 @@ func (h *Handler) loadCustomerSubscriptions(ctx context.Context, customer *datab
 	return active, items, nil
 }
 
+func primarySubscriptionOnly(active *database.CustomerSubscription, subscriptions []database.CustomerSubscription) (*database.CustomerSubscription, []database.CustomerSubscription) {
+	for _, subscription := range subscriptions {
+		if subscription.IsPrimary {
+			primary := subscription
+			return &primary, []database.CustomerSubscription{primary}
+		}
+	}
+	if active != nil {
+		fallback := *active
+		return &fallback, []database.CustomerSubscription{fallback}
+	}
+	if len(subscriptions) > 0 {
+		fallback := subscriptions[0]
+		return &fallback, []database.CustomerSubscription{fallback}
+	}
+	return nil, []database.CustomerSubscription{}
+}
+
 func customerSubscriptionIdentity(subscription *database.CustomerSubscription) (int64, uuid.UUID) {
 	if subscription == nil {
 		return 0, uuid.Nil
@@ -3854,6 +3872,9 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 	activeSubscription, subscriptions, err := h.loadCustomerSubscriptions(ctx, customer)
 	if err != nil {
 		return nil, err
+	}
+	if !settings.Features["additional_subscriptions"] {
+		activeSubscription, subscriptions = primarySubscriptionOnly(activeSubscription, subscriptions)
 	}
 	viewCustomer := customerForActiveSubscription(customer, activeSubscription)
 
@@ -6035,6 +6056,8 @@ func runtimeFeatureForPath(path string) string {
 		return "google"
 	case strings.HasPrefix(path, "/api/mini-app/trial/"):
 		return "trials"
+	case strings.HasPrefix(path, "/api/mini-app/subscriptions/"):
+		return "additional_subscriptions"
 	case strings.HasPrefix(path, "/api/mini-app/promocode/"):
 		return "promocodes"
 	case strings.HasPrefix(path, "/api/mini-app/reviews/"):

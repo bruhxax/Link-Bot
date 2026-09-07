@@ -94,12 +94,45 @@ export const SETUP_PLATFORMS = Object.freeze([
   },
 ]);
 
-export function getSetupPlatform(platformID) {
-  return SETUP_PLATFORMS.find((platform) => platform.id === platformID) || SETUP_PLATFORMS[0];
+export const SETUP_PLATFORM_IDS = Object.freeze(SETUP_PLATFORMS.map((platform) => platform.id));
+
+export function getSetupPlatforms(settings = null) {
+  const includeBuiltIns = settings?.includeBuiltIns !== false;
+  const customClients = Array.isArray(settings?.clients) ? settings.clients : [];
+  return SETUP_PLATFORMS.map((platform) => {
+    const apps = includeBuiltIns ? [...platform.apps] : [];
+    for (const client of customClients) {
+      if (!client?.enabled) continue;
+      const supportsPlatform = client.allPlatforms || (Array.isArray(client.platforms) && client.platforms.includes(platform.id));
+      if (!supportsPlatform) continue;
+      const name = String(client.name || "").trim();
+      const scheme = String(client.scheme || "").trim();
+      const id = String(client.id || "").trim();
+      if (!id || !name || !scheme || apps.some((app) => app.id === id)) continue;
+      const installURL = String(client.installUrl || "").trim();
+      const installLabel = String(client.installLabelRu || "").trim() || `Скачать ${name}`;
+      const app = Object.freeze({
+        id,
+        name,
+        scheme,
+        featured: Boolean(client.featured),
+        links: installURL ? Object.freeze([link(installLabel, `Download ${name}`, `دانلود ${name}`, installURL)]) : Object.freeze([]),
+      });
+			if (client.featured) apps.unshift(app);
+			else apps.push(app);
+    }
+    return Object.freeze({ ...platform, apps: Object.freeze(apps) });
+  }).filter((platform) => platform.apps.length > 0);
 }
 
-export function getSetupApp(platformID, appID) {
-  const platform = getSetupPlatform(platformID);
+export function getSetupPlatform(platformID, settings = null) {
+  const platforms = getSetupPlatforms(settings);
+  return platforms.find((platform) => platform.id === platformID) || platforms[0] || null;
+}
+
+export function getSetupApp(platformID, appID, settings = null) {
+  const platform = getSetupPlatform(platformID, settings);
+  if (!platform) return null;
   return platform.apps.find((app) => app.id === appID) || platform.apps.find((app) => app.featured) || platform.apps[0];
 }
 
@@ -120,9 +153,10 @@ export function detectSetupPlatform(userAgent = "", telegramPlatform = "") {
   return "windows";
 }
 
-export function buildSetupClientURL(platformID, appID, subscriptionURL) {
+export function buildSetupClientURL(platformID, appID, subscriptionURL, settings = null) {
   const parsed = new URL(String(subscriptionURL || ""));
   if (!/^https?:$/.test(parsed.protocol)) throw new Error("Invalid subscription URL");
-  const app = getSetupApp(platformID, appID);
+  const app = getSetupApp(platformID, appID, settings);
+  if (!app) throw new Error("Unknown setup client");
   return `${app.scheme}${parsed.toString()}`;
 }

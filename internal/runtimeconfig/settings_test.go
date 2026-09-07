@@ -702,7 +702,7 @@ func TestNormalizeAndValidateDashboardLayoutStylesAndEmptyCards(t *testing.T) {
 
 func TestNormalizeAndValidateMigratesDashboardLayoutStyles(t *testing.T) {
 	settings := DefaultSettings()
-	settings.Version = CurrentVersion - 1
+	settings.Version = 20
 	for index := range settings.Layout.Elements {
 		if settings.Layout.Elements[index].Area == "dashboard" {
 			settings.Layout.Elements[index].CornerRadius = 0
@@ -722,6 +722,60 @@ func TestNormalizeAndValidateMigratesDashboardLayoutStyles(t *testing.T) {
 		}
 	}
 	t.Fatal("primary action is missing")
+}
+
+func TestNormalizeAndValidatePreservesVersion21LayoutAndAddsSubscriptionSwitcher(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Version = 21
+	settings.Layout.Elements = filterLayoutElement(settings.Layout.Elements, "dashboard", "subscription_switcher")
+	for index := range settings.Layout.Elements {
+		if settings.Layout.Elements[index].Area == "dashboard" && settings.Layout.Elements[index].ID == "primary_action" {
+			settings.Layout.Elements[index].Width = 73
+			settings.Layout.Elements[index].CornerRadius = 7
+		}
+	}
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if !hasLayoutElement(settings.Layout.Elements, "dashboard", "subscription_switcher") {
+		t.Fatal("subscription switcher was not added during migration")
+	}
+	for _, item := range settings.Layout.Elements {
+		if item.Area == "dashboard" && item.ID == "primary_action" && (item.Width != 73 || item.CornerRadius != 7) {
+			t.Fatalf("version 21 layout was overwritten: %+v", item)
+		}
+	}
+}
+
+func TestNormalizeAndValidateSubPageCustomClients(t *testing.T) {
+	settings := DefaultSettings()
+	settings.SubPage = SubPageSettings{
+		IncludeBuiltIns: false,
+		Clients: []SubPageClientSettings{{
+			ID: " Custom_Client ", Name: " My Client ", Scheme: "myclient://add/", InstallURL: "https://example.com/download",
+			Enabled: true, Featured: true, AllPlatforms: false, Platforms: []string{"windows", "android", "windows", "unsupported"},
+		}},
+	}
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	client := settings.SubPage.Clients[0]
+	if client.ID != "custom_client" || client.Name != "My Client" || client.InstallLabelRU != "Скачать My Client" {
+		t.Fatalf("unexpected normalized Sub page client: %+v", client)
+	}
+	if len(client.Platforms) != 2 || client.Platforms[0] != "windows" || client.Platforms[1] != "android" {
+		t.Fatalf("unexpected Sub page platforms: %#v", client.Platforms)
+	}
+}
+
+func TestNormalizeAndValidateRejectsSubPageWithoutUsableClient(t *testing.T) {
+	settings := DefaultSettings()
+	settings.SubPage = SubPageSettings{IncludeBuiltIns: false, Clients: []SubPageClientSettings{{ID: "custom", Name: "Custom", Scheme: "https://example.com/", Enabled: true, AllPlatforms: true}}}
+	if err := NormalizeAndValidate(&settings); err == nil || !strings.Contains(err.Error(), "invalid scheme") {
+		t.Fatalf("NormalizeAndValidate() error = %v, want invalid scheme", err)
+	}
 }
 
 func TestNormalizeAndValidatePreservesVersion20AppearanceAndReferrals(t *testing.T) {
@@ -1018,7 +1072,7 @@ func TestNormalizeAndValidateAddsProfileFeatureFlags(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Version = CurrentVersion - 1
 	settings.Features["reviews"] = false
-	for _, name := range []string{"payments_history", "news", "login_methods", "terms", "privacy"} {
+	for _, name := range []string{"additional_subscriptions", "payments_history", "news", "login_methods", "terms", "privacy"} {
 		delete(settings.Features, name)
 	}
 
@@ -1026,7 +1080,7 @@ func TestNormalizeAndValidateAddsProfileFeatureFlags(t *testing.T) {
 		t.Fatalf("NormalizeAndValidate() error = %v", err)
 	}
 
-	for _, name := range []string{"payments_history", "news", "login_methods", "terms", "privacy"} {
+	for _, name := range []string{"additional_subscriptions", "payments_history", "news", "login_methods", "terms", "privacy"} {
 		if !settings.Features[name] {
 			t.Fatalf("migrated feature %q is disabled", name)
 		}

@@ -1,7 +1,8 @@
 import {
-  SETUP_PLATFORMS,
+  SETUP_PLATFORM_IDS,
   buildSetupClientURL,
   detectSetupPlatform,
+  getSetupPlatforms,
   getLocalizedSetupValue,
   getSetupApp,
   getSetupPlatform,
@@ -881,7 +882,7 @@ const PAGES = ["dashboard", "buy", "gift", "setup", "support", "faq", "reviews",
 const BANNER_PAGE_TARGETS = ["reviews", "promo", "buy", "servers", "support", "referrals", "payments", "gift"];
 const BOTTOM_NAV = ["dashboard", "buy", "support", "settings", "admin"];
 const SUPPORT_TABS = ["open", "history"];
-const PLATFORMS = SETUP_PLATFORMS.map((platform) => platform.id);
+const PLATFORMS = [...SETUP_PLATFORM_IDS];
 
 const PALETTE = {
   accent: {
@@ -1582,6 +1583,7 @@ const PROFILE_DEFAULT_GROUPS = {
 };
 
 const ADMIN_LAYOUT_META = {
+	"dashboard:subscription_switcher": ["Выбор подписки", "adminSubscriptions"],
 	"dashboard:primary_action": ["Основная кнопка", "cartShopping"],
 	"dashboard:secondary_action": ["Вторая кнопка", "arrowDownSquare"],
 	"dashboard:traffic": ["Трафик", "chartLine"],
@@ -1613,6 +1615,7 @@ const ADMIN_LAYOUT_META = {
 };
 
 const ADMIN_LAYOUT_DEFAULTS = [
+	["dashboard", "subscription_switcher", 0, 36, 38, false, "center"],
 	["dashboard", "logo", 10, 60, 150, false, "center"],
 	["dashboard", "username", 11, 100, 28, false, "center"],
 	["dashboard", "plan_name", 12, 48, 32, false, "left"],
@@ -1638,7 +1641,7 @@ const ADMIN_LAYOUT_DEFAULTS = [
 	...["server_status", "gift", "payments", "referrals", "reviews", "media", "login_methods", "news", "web_version", "pwa_install", "terms", "privacy"].map((id, order) => ["profile", id, order, 100, 48, true, "left", PROFILE_DEFAULT_GROUPS[id]]),
 	...["main", "purchases", "programs", "help", "account"].map((id, order) => ["profile", `group_${id}`, 20 + order, 100, 28, false, "left"]),
 	...["dashboard", "buy", "support", "settings", "admin"].map((id, order) => ["navigation", id, order, 44, 38, true, "center"]),
-].map(([area, id, order, width, height, framed, align, group]) => ({ area, id, order, visible: true, width, height, framed, align, offsetX: 0, offsetY: 0, ...(area === "dashboard" ? { cornerRadius: ["primary_action", "secondary_action", "traffic", "devices"].includes(id) ? 22 : 0, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 } : {}), ...(group ? { group } : {}) }));
+].map(([area, id, order, width, height, framed, align, group]) => ({ area, id, order, visible: true, width, height, framed, align, offsetX: 0, offsetY: 0, ...(area === "dashboard" ? { cornerRadius: id === "subscription_switcher" ? 15 : (["primary_action", "secondary_action", "traffic", "devices"].includes(id) ? 22 : 0), textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 } : {}), ...(group ? { group } : {}) }));
 ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "promo_widget", order: 18, visible: false, width: 42, height: 92, framed: false, align: "center", offsetX: 0, offsetY: 0, promoCode: "", iconBubble: true, cornerRadius: 10, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 });
 ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "notification_widget", order: 19, visible: false, width: 42, height: 92, framed: false, align: "center", offsetX: 0, offsetY: 0, notificationText: "", iconBubble: true, cornerRadius: 10, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 });
 
@@ -1908,9 +1911,9 @@ const ADMIN_APPEARANCE_PRESETS = [
 ];
 
 function buildPreviewRuntimeSettings() {
-	const features = Object.fromEntries(["mini_app", "stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "payments_history", "gifts", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
+	const features = Object.fromEntries(["mini_app", "additional_subscriptions", "stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "payments_history", "gifts", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
-		version: 21,
+		version: 22,
 		localization: { language: "ru", fontFamily: "auto" },
 		maintenance: { enabled: false, titleRu: "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u044b", textRu: "", reasonRu: "" },
 		features,
@@ -1928,6 +1931,7 @@ function buildPreviewRuntimeSettings() {
 		},
 		appearance: { backgroundMode: "animated", compact: true, showFrames: true, liquid: deepClone(DEFAULT_LIQUID_BACKGROUNDS), backgroundMotion: deepClone(DEFAULT_BACKGROUND_MOTION), colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", morphicBackground: "#000000", morphicBall: "#ff69b4", twinkleBackground: "#000000", twinkleStar: "#ffffff", waveBackground: "#000000", waveDot: "#ebebeb" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
+		subPage: { includeBuiltIns: true, clients: [] },
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, titleFa: `${plan.months} \u0645\u0627\u0647`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
 		devicePacks: [],
 		trial: { enabled: true, days: 3, trafficGb: 10, unlimitedTraffic: false, deviceLimit: 5, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "", trafficResetStrategy: "MONTH", tag: "" },
@@ -2211,10 +2215,11 @@ function isBannerLayoutID(id) {
 }
 
 function isDashboardStyleElement(item) {
-	return item?.area === "dashboard" && (["primary_action", "secondary_action", "traffic", "devices", "promo_widget", "notification_widget"].includes(item.id) || isEmptyLayoutCardID(item.id) || isBannerLayoutID(item.id));
+	return item?.area === "dashboard" && (["subscription_switcher", "primary_action", "secondary_action", "traffic", "devices", "promo_widget", "notification_widget"].includes(item.id) || isEmptyLayoutCardID(item.id) || isBannerLayoutID(item.id));
 }
 
 function dashboardLayoutStyleDefaults(id) {
+	if (id === "subscription_switcher") return { cornerRadius: 15, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 };
 	if (["primary_action", "secondary_action", "traffic", "devices"].includes(id)) return { cornerRadius: 22, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 };
 	if (["promo_widget", "notification_widget"].includes(id)) return { cornerRadius: 10, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 };
 	if (isEmptyLayoutCardID(id)) return { cornerRadius: 14, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: -1 };
@@ -2330,6 +2335,8 @@ function syncAdminSettingsDraft(force = false) {
 
 function seedEditableCopy(settings) {
 	if (!settings?.content) return;
+	if (!settings.subPage || typeof settings.subPage !== "object") settings.subPage = { includeBuiltIns: true, clients: [] };
+	if (!Array.isArray(settings.subPage.clients)) settings.subPage.clients = [];
 	if (!settings.content.webPage) {
 		const title = String(settings.content.brandName || "Link-Bot").trim() || "Link-Bot";
 		settings.content.webPage = { title, description: `${title} Mini App`, faviconUrl: BRAND_MARK_PATH };
@@ -3365,6 +3372,7 @@ function renderAdminPage() {
 	if (state.adminSection === "maintenance") return renderAdminMaintenancePage();
 	if (state.adminSection === "diagnostics") return renderAdminDiagnosticsPage();
 	if (state.adminSection === "features") return renderAdminFeaturesPage();
+	if (state.adminSection === "subpage") return renderAdminSubPagePage();
 	if (state.adminSection === "content") return renderAdminContentPage();
 	if (state.adminSection === "appearance") return renderAdminAppearancePage();
 	if (state.adminSection === "layout") return renderAdminLayoutPage();
@@ -3394,6 +3402,7 @@ function renderAdminPage() {
 			])}
 			${renderAdminMenuGroup(localizedText("Интерфейс", "Interface", "رابط کاربری"), [
 				[localizedText("Редактор контента", "Content", "ویرایشگر محتوا"), "", "content", "adminContent"],
+				["Sub page", "", "subpage", "adminSubscriptions"],
 				[localizedText("Оформление", "Appearance", "ظاهر"), "", "appearance", "adminAppearance"],
 				[localizedText("Конструктор UI", "UI builder", "سازنده رابط"), "", "layout", "grid"],
 				[localizedText("Тарифы", "Plans", "تعرفه‌ها"), "", "plans", "cartShopping"],
@@ -4385,6 +4394,7 @@ function renderAdminFeaturesPage() {
 			hint: "Основные возможности бота и Mini App",
 			items: [
 				["mini_app", "Mini App", "Доступ к личному кабинету"],
+				["additional_subscriptions", "Доп. подписки", "Создание, переключение и удаление дополнительных подписок"],
 				["google", "Gmail", "Авторизация через Google"],
 				["stars", "Telegram Stars", "Оплата звёздами Telegram"],
 				["trials", "Триалы", "Бесплатный пробный доступ"],
@@ -4429,6 +4439,46 @@ function renderAdminFeaturesPage() {
 			</section>
 		`).join("")}</div>`,
 	);
+}
+
+function ensureAdminSubPageDraft() {
+	if (!state.adminSettingsDraft) return { includeBuiltIns: true, clients: [] };
+	if (!state.adminSettingsDraft.subPage || typeof state.adminSettingsDraft.subPage !== "object") {
+		state.adminSettingsDraft.subPage = { includeBuiltIns: true, clients: [] };
+	}
+	if (!Array.isArray(state.adminSettingsDraft.subPage.clients)) state.adminSettingsDraft.subPage.clients = [];
+	return state.adminSettingsDraft.subPage;
+}
+
+function setupPlatformLabel(platformID) {
+	const platform = getSetupPlatform(platformID, { includeBuiltIns: true, clients: [] });
+	return platform ? getLocalizedSetupValue(platform.name, state.locale) : platformID;
+}
+
+function renderAdminSubPageClient(client, index, total) {
+	const allPlatforms = client?.allPlatforms !== false;
+	const platforms = Array.isArray(client?.platforms) ? client.platforms : [];
+	const title = String(client?.name || "").trim() || localizedText("Новый клиент", "New client", "کلاینت جدید");
+	return `<article class="admin-subpage-client" aria-labelledby="admin-subpage-client-${index}">
+		<header class="admin-subpage-client__header"><div><span>${String(index + 1).padStart(2, "0")}</span><h3 id="admin-subpage-client-${index}">${escapeHtml(title)}</h3></div><div class="admin-subpage-client__actions"><button type="button" data-action="admin-move-subpage-client" data-value="${index}" data-direction="-1" ${index === 0 ? "disabled" : ""} aria-label="${escapeAttribute(localizedText("Переместить выше", "Move up", "انتقال به بالا"))}">${icon("arrowUp")}</button><button type="button" data-action="admin-move-subpage-client" data-value="${index}" data-direction="1" ${index === total - 1 ? "disabled" : ""} aria-label="${escapeAttribute(localizedText("Переместить ниже", "Move down", "انتقال به پایین"))}">${icon("arrowDown")}</button><button class="is-danger" type="button" data-action="admin-remove-subpage-client" data-value="${index}" aria-label="${escapeAttribute(localizedText("Удалить клиент", "Delete client", "حذف کلاینت"))}">${icon("trash")}</button></div></header>
+		<div class="admin-toggle-list admin-subpage-client__toggles">${renderAdminToggle(localizedText("Клиент включён", "Client enabled", "کلاینت فعال"), `subPage.clients.${index}.enabled`)}${renderAdminToggle(localizedText("Рекомендуемый", "Recommended", "پیشنهاد شده"), `subPage.clients.${index}.featured`)}</div>
+		<div class="admin-editor__grid">${renderAdminSettingField(localizedText("Название", "Name", "نام"), `subPage.clients.${index}.name`, { placeholder: "Happ" })}${renderAdminSettingField(localizedText("Схема открытия", "Open URL prefix", "پیشوند باز کردن"), `subPage.clients.${index}.scheme`, { placeholder: "client://add/" })}</div>
+		<div class="admin-editor__grid">${renderAdminSettingField(localizedText("Ссылка для установки", "Install link", "لینک نصب"), `subPage.clients.${index}.installUrl`, { type: "url", placeholder: "https://..." })}${renderAdminSettingField(localizedText("Текст ссылки", "Link label", "متن لینک"), `subPage.clients.${index}.installLabelRu`, { placeholder: `Скачать ${title}` })}</div>
+		<label class="admin-field admin-field--full"><span>${escapeHtml(localizedText("Для каких устройств", "Devices", "دستگاه‌ها"))}</span><select class="admin-field__control" data-input="admin-subpage-scope" data-subpage-index="${index}"><option value="all" ${allPlatforms ? "selected" : ""}>${escapeHtml(localizedText("Один клиент для всех устройств", "One client for all devices", "یک کلاینت برای همه دستگاه‌ها"))}</option><option value="selected" ${!allPlatforms ? "selected" : ""}>${escapeHtml(localizedText("Только выбранные устройства", "Selected devices only", "فقط دستگاه‌های انتخاب‌شده"))}</option></select></label>
+		${allPlatforms ? "" : `<fieldset class="admin-subpage-platforms"><legend>${escapeHtml(localizedText("Устройства", "Devices", "دستگاه‌ها"))}</legend><div>${SETUP_PLATFORM_IDS.map((platformID) => `<label><input type="checkbox" data-input="admin-subpage-platform" data-subpage-index="${index}" value="${escapeAttribute(platformID)}" ${platforms.includes(platformID) ? "checked" : ""}><span>${escapeHtml(setupPlatformLabel(platformID))}</span></label>`).join("")}</div></fieldset>`}
+		<p class="admin-subpage-client__hint">${escapeHtml(localizedText("Схема — это часть ссылки до URL подписки, например happ://add/.", "The open URL prefix comes before the subscription URL, for example happ://add/.", "پیشوند باز کردن قبل از لینک اشتراک قرار می‌گیرد، مانند happ://add/."))}</p>
+	</article>`;
+}
+
+function renderAdminSubPagePage() {
+	const subPage = ensureAdminSubPageDraft();
+	const clients = subPage.clients;
+	return renderAdminEditorPage("Sub page", `<div class="admin-subpage">
+		<section class="admin-subpage-intro"><span aria-hidden="true">${icon("devicePhone")}</span><div><h3>${escapeHtml(localizedText("Клиенты подключения", "Connection clients", "کلاینت‌های اتصال"))}</h3><p>${escapeHtml(localizedText("Happ и INCY доступны по умолчанию. Добавьте свои клиенты для всех или только выбранных устройств.", "Happ and INCY are available by default. Add your own clients for all or selected devices.", "Happ و INCY به‌صورت پیش‌فرض در دسترس‌اند. کلاینت‌های خود را برای همه یا دستگاه‌های انتخاب‌شده اضافه کنید."))}</p></div></section>
+		<div class="admin-toggle-list">${renderAdminToggle(localizedText("Показывать встроенные Happ и INCY", "Show built-in Happ and INCY", "نمایش Happ و INCY داخلی"), "subPage.includeBuiltIns")}</div>
+		<div class="admin-subpage-list">${clients.map((client, index) => renderAdminSubPageClient(client, index, clients.length)).join("") || `<div class="admin-subpage-empty">${escapeHtml(localizedText("Пользовательских клиентов пока нет.", "No custom clients yet.", "هنوز کلاینت سفارشی وجود ندارد."))}</div>`}</div>
+		<button class="admin-subpage-add" type="button" data-action="admin-add-subpage-client">${icon("plus")}<span>${escapeHtml(localizedText("Добавить клиент", "Add client", "افزودن کلاینت"))}</span></button>
+	</div>`);
 }
 
 function renderAdminContentPage() {
@@ -5039,8 +5089,9 @@ function renderAdminLayoutNode(entry) {
 	const [label, iconName] = adminLayoutMeta(item.area, item.id);
 	const selected = state.adminLayoutSelection === key;
 	const isNavigation = item.area === "navigation";
-	const width = isNavigation ? Math.max(36, Math.min(72, Number(item.width || 44))) : Math.max(35, Math.min(100, Number(item.width || 100)));
-	const height = isNavigation ? Math.max(32, Math.min(64, Number(item.height || 38))) : Math.max(36, Math.min(720, Number(item.height || 52)));
+	const subscriptionSwitcher = key === "dashboard:subscription_switcher";
+	const width = isNavigation ? Math.max(36, Math.min(72, Number(item.width || 44))) : Math.max(subscriptionSwitcher ? 24 : 35, Math.min(100, Number(item.width || 100)));
+	const height = isNavigation ? Math.max(32, Math.min(64, Number(item.height || 38))) : Math.max(subscriptionSwitcher ? 32 : 36, Math.min(720, Number(item.height || 52)));
 	const style = `--editor-width:${width}${isNavigation ? "px" : "%"};--editor-height:${height}px;--editor-x:${Math.max(-160, Math.min(160, Number(item.offsetX || 0)))}px;--editor-y:${Math.max(-160, Math.min(160, Number(item.offsetY || 0)))}px`;
 	return `<article class="admin-ui-node ${selected ? "is-selected" : ""} ${item.framed ? "is-framed" : ""}" tabindex="0" role="button" aria-pressed="${selected}" aria-label="${escapeAttribute(label)}" data-ui-layout-index="${index}" data-ui-layout-key="${escapeAttribute(key)}" data-ui-align="${escapeAttribute(item.align || "left")}" style="${escapeAttribute(style)}">
 		<span class="admin-ui-node__grab" aria-hidden="true">${icon("move")}</span>
@@ -5051,6 +5102,7 @@ function renderAdminLayoutNode(entry) {
 
 function renderAdminLayoutPreview(item, label, iconName) {
 	const key = `${item.area}:${item.id}`;
+	if (key === "dashboard:subscription_switcher") return `<div class="admin-ui-preview-subscription"><span>${escapeHtml(localizedText("Основная", "Primary", "اصلی"))}</span>${icon("arrowDown")}</div>`;
 	if (key === "buy:plans") return `<div class="admin-ui-preview-plans">${renderAdminVisualPlans()}</div>`;
 	if (key === "buy:checkout") return `<div class="admin-ui-preview-checkout"><small>\u0412\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u0439 \u0442\u0430\u0440\u0438\u0444</small><strong>6 \u043c\u0435\u0441\u044f\u0446\u0435\u0432</strong><span>${icon("wallet")}\u041a\u0430\u0440\u0442\u0430 / \u0421\u0411\u041f</span><span>\u041f\u0440\u043e\u043c\u043e\u043a\u043e\u0434</span><b>\u041e\u043f\u043b\u0430\u0442\u0438\u0442\u044c 350 \u0420</b></div>`;
 	if (key === "support:actions") return `<div class="admin-ui-preview-support-actions"><span>${icon("plus")}<b>\u041d\u043e\u0432\u043e\u0435 \u043e\u0431\u0440\u0430\u0449\u0435\u043d\u0438\u0435</b></span><span>${icon("question")}<b>\u0427\u0430\u0441\u0442\u044b\u0435 \u0432\u043e\u043f\u0440\u043e\u0441\u044b</b></span></div>`;
@@ -5292,12 +5344,14 @@ function renderAdminLayoutStyleModal() {
 	const [label] = adminLayoutMeta(item.area, item.id);
 	const empty = isEmptyLayoutCardID(item.id);
 	const banner = isBannerLayoutID(item.id);
+	const subscriptionSwitcher = item.id === "subscription_switcher";
 	const visualOnly = empty || banner;
 	return `<div class="modal modal--layout-style open ${modalStateClass("admin-layout-style")}" role="dialog" aria-modal="true" aria-labelledby="admin-layout-style-title">
 		<button class="modal__backdrop" type="button" data-action="admin-close-layout-style" aria-label="${escapeAttribute(localizedText("Закрыть", "Close", "بستن"))}"></button>
 		<div class="modal__sheet modal__sheet--layout-style">
 			<div class="modal__header"><div><div class="section-label">${localizedText("ГЛАВНЫЙ ЭКРАН", "HOME SCREEN", "صفحه اصلی")}</div><div class="modal__title" id="admin-layout-style-title">${escapeHtml(label)}</div></div><button class="header__btn" type="button" data-action="admin-close-layout-style" aria-label="${escapeAttribute(localizedText("Закрыть", "Close", "بستن"))}">${icon("close")}</button></div>
 			<div class="admin-layout-style-editor">
+				${subscriptionSwitcher ? `<div class="admin-layout-style-editor__pair">${renderAdminLayoutStyleRange(localizedText("Ширина", "Width", "عرض"), "width", item.width, 24, 100, "%")}${renderAdminLayoutStyleRange(localizedText("Высота", "Height", "ارتفاع"), "height", item.height, 32, 72, " px")}</div>` : ""}
 				${renderAdminLayoutStyleRange(localizedText("Закругление", "Corner radius", "گردی گوشه"), "cornerRadius", item.cornerRadius, 0, 32, " px")}
 				${visualOnly ? "" : renderAdminLayoutStyleRange(localizedText("Масштаб текста", "Text scale", "مقیاس متن"), "textScale", item.textScale, 70, 150, "%")}
 				${visualOnly ? "" : `<div class="admin-layout-style-editor__pair">${renderAdminLayoutStyleRange(localizedText("Текст по горизонтали", "Text horizontal", "متن افقی"), "textOffsetX", item.textOffsetX, -60, 60, " px")}${renderAdminLayoutStyleRange(localizedText("Текст по вертикали", "Text vertical", "متن عمودی"), "textOffsetY", item.textOffsetY, -40, 40, " px")}</div>`}
@@ -5805,8 +5859,10 @@ function renderDashboardPage() {
 	const promoWidgetVisible = promoWidgetItem?.visible !== false && (Boolean(promoWidgetItem?.promoCode) || state.adminLayoutEditing);
 	const notificationWidgetItem = getLayoutElement("dashboard", "notification_widget");
 	const notificationWidgetVisible = notificationWidgetItem?.visible !== false && (Boolean(String(notificationWidgetItem?.notificationText || "").trim()) || state.adminLayoutEditing);
+	const subscriptionSwitcher = featureEnabled("additional_subscriptions") || state.adminLayoutEditing ? renderSubscriptionSwitcher() : "";
 
 	const blocks = {
+		...(subscriptionSwitcher ? { subscription_switcher: subscriptionSwitcher } : {}),
 		brand: `<div class="hero-center hero-center--brand">${renderLayoutDetail("dashboard", "logo", `<div class="hero-brand" style="--runtime-logo-width:${Math.max(48, Math.min(220, Number(getRuntimeSettings()?.layout?.logoWidth || 188)))}px"><img src="${escapeAttribute(resolveBrandMarkURL(state.data.brand.logoUrl))}" data-brand-logo alt="${escapeAttribute(state.data.brand.name || "Link-Bot")}" loading="eager" draggable="false"></div>`, "runtime-detail-item--logo")}${renderLayoutDetail("dashboard", "username", `<div class="hero-handle">${escapeHtml(avatarLabel)}</div>`, "runtime-detail-item--username")}</div>`,
 		subscription: active ? `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", `<div class="sub-bar__name">${title}</div>`, "runtime-detail-item--status runtime-detail-item--plan")}${renderLayoutDetail("dashboard", "expires", `<div class="sub-bar__date"><span class="sub-bar__date-icon">${icon("calendarDays")}</span><span>${expires}</span></div>`, "runtime-detail-item--status")}</div><div class="sub-bar__row sub-bar__row--pills">${trafficLabel ? renderLayoutDetail("dashboard", "traffic", `<span class="sub-pill"><span class="sub-pill__icon">${icon("chartLine")}</span><span class="runtime-editable-text">${escapeHtml(trafficLabel)}</span></span>`, "runtime-detail-item--pill") : ""}${deviceLabel ? renderLayoutDetail("dashboard", "devices", `<button class="sub-pill sub-pill--button" type="button" data-action="open-devices-modal"><span class="runtime-editable-text">${escapeHtml(deviceLabel)}</span><span class="sub-pill__edit">${icon("userPen")}</span></button>`, "runtime-detail-item--pill") : ""}</div></div></div></div>` : "",
 		actions: `<div class="dashboard-compact">${actionStack}</div>`,
@@ -5823,7 +5879,7 @@ function renderDashboardPage() {
 	const layoutPendingClass = getLayoutElements("dashboard").some((item) => item?.visible !== false && hasStoredLayoutPosition(item))
 		? "layout-runtime-pending"
 		: "";
-	return `<section class="page ${pageClass("dashboard")} ${switchAnimationClass} ${layoutPendingClass}" id="page-dashboard">${renderSubscriptionSwitcher()}${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
+	return `<section class="page ${pageClass("dashboard")} ${switchAnimationClass} ${layoutPendingClass}" id="page-dashboard">${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
 }
 
 function renderPromoGiftWidget(item) {
@@ -5919,6 +5975,7 @@ function subscriptionSwitcherCopy() {
 }
 
 function renderSubscriptionSwitcher() {
+	if (!featureEnabled("additional_subscriptions") && !state.adminLayoutEditing) return "";
 	const items = getSubscriptionItems();
 	if (!items.length) return "";
 	const copy = subscriptionSwitcherCopy();
@@ -6130,9 +6187,20 @@ function setupGuideCopy() {
   };
 }
 
+function getSubPageSettings() {
+	return getRuntimeSettings()?.subPage || { includeBuiltIns: true, clients: [] };
+}
+
+function getRuntimeSetupPlatforms() {
+	return getSetupPlatforms(getSubPageSettings());
+}
+
 function getSelectedSetupApp() {
-  const platform = getSetupPlatform(state.selectedPlatform);
-  const selected = getSetupApp(platform.id, state.selectedSetupAppID);
+	const settings = getSubPageSettings();
+	const platform = getSetupPlatform(state.selectedPlatform, settings);
+	if (!platform) return null;
+	if (state.selectedPlatform !== platform.id) state.selectedPlatform = platform.id;
+  const selected = getSetupApp(platform.id, state.selectedSetupAppID, settings);
   if (selected && state.selectedSetupAppID !== selected.id) state.selectedSetupAppID = selected.id;
   return selected;
 }
@@ -6147,13 +6215,14 @@ function setupInstallHint(platformID) {
 
 function renderSetupPlatformSelect(platform) {
   const copy = setupGuideCopy();
+	const platforms = getRuntimeSetupPlatforms();
   const platformName = getLocalizedSetupValue(platform.name, state.locale);
-  const options = SETUP_PLATFORMS.map((item) => {
+  const options = platforms.map((item) => {
     const selected = item.id === platform.id;
     return `<button class="setup-platform-option ${selected ? "is-selected" : ""}" type="button" role="option" aria-selected="${selected}" tabindex="${state.setupPlatformMenuOpen ? "0" : "-1"}" data-action="select-setup-platform" data-value="${escapeAttribute(item.id)}"><span class="setup-platform-option__icon" aria-hidden="true">${icon(platformIcon(item.id))}</span><span>${escapeHtml(getLocalizedSetupValue(item.name, state.locale))}</span>${selected ? `<span class="setup-platform-option__check" aria-hidden="true">${icon("check")}</span>` : ""}</button>`;
   }).join("");
   return `<div class="setup-platform-picker ${state.setupPlatformMenuOpen ? "is-open" : ""}">
-    <label class="setup-platform-select setup-platform-select--native"><span class="sr-only">${escapeHtml(copy.platform)}</span><span class="setup-platform-select__icon" aria-hidden="true">${icon(platformIcon(platform.id))}</span><select data-input="setup-platform" aria-label="${escapeAttribute(copy.platform)}">${SETUP_PLATFORMS.map((item) => `<option value="${escapeAttribute(item.id)}" ${item.id === platform.id ? "selected" : ""}>${escapeHtml(getLocalizedSetupValue(item.name, state.locale))}</option>`).join("")}</select><span class="setup-platform-select__chevron" aria-hidden="true">${icon("chevron")}</span></label>
+    <label class="setup-platform-select setup-platform-select--native"><span class="sr-only">${escapeHtml(copy.platform)}</span><span class="setup-platform-select__icon" aria-hidden="true">${icon(platformIcon(platform.id))}</span><select data-input="setup-platform" aria-label="${escapeAttribute(copy.platform)}">${platforms.map((item) => `<option value="${escapeAttribute(item.id)}" ${item.id === platform.id ? "selected" : ""}>${escapeHtml(getLocalizedSetupValue(item.name, state.locale))}</option>`).join("")}</select><span class="setup-platform-select__chevron" aria-hidden="true">${icon("chevron")}</span></label>
     <div class="setup-platform-custom">
       <button class="setup-platform-select setup-platform-trigger" type="button" data-action="toggle-setup-platform" aria-label="${escapeAttribute(`${copy.platform}: ${platformName}`)}" aria-haspopup="listbox" aria-expanded="${state.setupPlatformMenuOpen}" aria-controls="setup-platform-menu"><span class="setup-platform-select__icon" aria-hidden="true">${icon(platformIcon(platform.id))}</span><span class="setup-platform-trigger__label">${escapeHtml(platformName)}</span><span class="setup-platform-select__chevron" aria-hidden="true">${icon("chevron")}</span></button>
       <div class="setup-platform-menu" id="setup-platform-menu" role="listbox" aria-label="${escapeAttribute(copy.platform)}" aria-hidden="${!state.setupPlatformMenuOpen}">${options}</div>
@@ -6189,8 +6258,9 @@ function renderSetupPage() {
   const copy = t();
   const guide = setupGuideCopy();
   const active = isSubscriptionActive() && state.data.subscription.hasAccessLink;
-  const platform = getSetupPlatform(state.selectedPlatform);
+	const platform = getSetupPlatform(state.selectedPlatform, getSubPageSettings());
   const selectedApp = getSelectedSetupApp();
+	if (active && (!platform || !selectedApp)) return `<section class="page page-setup ${pageClass("setup")}" id="page-setup"><div class="card"><div class="empty-state"><div class="empty-state__icon">${icon("alert")}</div><div class="empty-state__title">${escapeHtml(localizedText("Клиенты не настроены", "No clients configured", "هیچ کلاینتی تنظیم نشده"))}</div><div class="empty-state__desc">${escapeHtml(localizedText("Обратитесь в поддержку.", "Contact support.", "با پشتیبانی تماس بگیرید."))}</div></div></div></section>`;
   return `
     <section class="page page-setup ${pageClass("setup")}" id="page-setup">
       ${active ? `
@@ -7873,6 +7943,9 @@ function bindRootActions() {
 			if (action === "admin-close-plan-modal") return closeAdminPlanEditorModal();
 			if (action === "admin-apply-plan-edit") return applyAdminPlanEdit();
 			if (action === "admin-select-all-squads") return selectAllAdminSquads(value);
+			if (action === "admin-add-subpage-client") return addAdminSubPageClient();
+			if (action === "admin-remove-subpage-client") return removeAdminSubPageClient(Number(value));
+			if (action === "admin-move-subpage-client") return moveAdminSubPageClient(Number(value), Number(target.dataset.direction || 0));
 			if (action === "admin-resolve-withdrawal") return await resolveAdminWithdrawal(Number(value), target.dataset.approve === "true");
 			if (action === "admin-add-profile-button") return openAdminProfileEditor("", { create: true });
 			if (action === "admin-add-promo-widget") return openAdminPromoWidgetEditor();
@@ -8075,7 +8148,7 @@ function bindRootActions() {
 		if (target?.dataset?.input === "admin-layout-style") {
 			const item = getSelectedDashboardStyleItem();
 			const field = target.dataset.layoutStyleField;
-			const limits = { cornerRadius: [0, 32], textScale: [70, 150], textOffsetX: [-60, 60], textOffsetY: [-40, 40] };
+			const limits = { width: [24, 100], height: [32, 72], cornerRadius: [0, 32], textScale: [70, 150], textOffsetX: [-60, 60], textOffsetY: [-40, 40] };
 			if (!item || !limits[field]) return;
 			const [minimum, maximum] = limits[field];
 			const numeric = Math.max(minimum, Math.min(maximum, Math.round(Number(target.value || 0))));
@@ -8178,6 +8251,33 @@ function bindRootActions() {
 			syncAdminSaveBarDOM();
 			return;
 		}
+		if (target?.dataset?.input === "admin-subpage-scope") {
+			const index = Number(target.dataset.subpageIndex);
+			const client = ensureAdminSubPageDraft().clients[index];
+			if (!client) return;
+			client.allPlatforms = target.value !== "selected";
+			if (!client.allPlatforms && (!Array.isArray(client.platforms) || !client.platforms.length)) client.platforms = [SETUP_PLATFORM_IDS[0]];
+			state.adminSettingsDirty = true;
+			render({ preserveScroll: true });
+			return;
+		}
+		if (target?.dataset?.input === "admin-subpage-platform") {
+			const index = Number(target.dataset.subpageIndex);
+			const client = ensureAdminSubPageDraft().clients[index];
+			if (!client) return;
+			const selected = new Set(Array.isArray(client.platforms) ? client.platforms : []);
+			if (target.checked) selected.add(target.value);
+			else if (selected.size > 1) selected.delete(target.value);
+			else {
+				target.checked = true;
+				showToast(localizedText("Выберите хотя бы одно устройство", "Select at least one device", "حداقل یک دستگاه را انتخاب کنید"), "danger");
+				return;
+			}
+			client.platforms = SETUP_PLATFORM_IDS.filter((platformID) => selected.has(platformID));
+			state.adminSettingsDirty = true;
+			syncAdminSaveBarDOM();
+			return;
+		}
 		const settingPath = target?.dataset?.settingPath;
 		if (settingPath && state.adminSettingsDraft) {
 			const type = target.dataset.settingType || "text";
@@ -8187,6 +8287,12 @@ function bindRootActions() {
 			} else {
 				const value = type === "boolean" ? Boolean(target.checked) : type === "number" ? Number(target.value || 0) : target.value;
 				setDeepValue(state.adminSettingsDraft, settingPath, value);
+			}
+			const featuredClient = settingPath.match(/^subPage\.clients\.(\d+)\.featured$/);
+			if (featuredClient && target.checked) {
+				const selectedIndex = Number(featuredClient[1]);
+				ensureAdminSubPageDraft().clients.forEach((client, index) => { if (index !== selectedIndex) client.featured = false; });
+				render({ preserveScroll: true });
 			}
 			if (settingPath.startsWith("appearance.")) {
 				if (target instanceof HTMLInputElement && target.type === "range") {
@@ -9202,6 +9308,46 @@ function removeAdminLegalSection(index) {
 	const sections = state.adminProfileFormDraft?.document?.sections;
 	if (!Array.isArray(sections) || index < 0 || index >= sections.length) return;
 	sections.splice(index, 1);
+	render({ preserveScroll: true });
+}
+
+function addAdminSubPageClient() {
+	const subPage = ensureAdminSubPageDraft();
+	if (subPage.clients.length >= 24) {
+		showToast(localizedText("Можно добавить не больше 24 клиентов", "You can add up to 24 clients", "حداکثر ۲۴ کلاینت می‌توان افزود"), "danger");
+		return;
+	}
+	const used = new Set(subPage.clients.map((client) => String(client?.id || "")));
+	let sequence = subPage.clients.length + 1;
+	let id = `client_${sequence}`;
+	while (used.has(id)) id = `client_${++sequence}`;
+	subPage.clients.push({ id, name: "Новый клиент", scheme: "", installUrl: "", installLabelRu: "", enabled: true, featured: false, allPlatforms: true, platforms: [] });
+	state.adminSettingsDirty = true;
+	haptic("light");
+	render({ preserveScroll: true });
+	queueMicrotask(() => app.querySelector(`[data-setting-path="subPage.clients.${subPage.clients.length - 1}.name"]`)?.focus());
+}
+
+function removeAdminSubPageClient(index) {
+	const subPage = ensureAdminSubPageDraft();
+	if (index < 0 || index >= subPage.clients.length) return;
+	if (!subPage.includeBuiltIns && subPage.clients.filter((client) => client?.enabled).length <= 1 && subPage.clients[index]?.enabled) {
+		showToast(localizedText("Сначала включите Happ и INCY или другой клиент", "Enable Happ and INCY or another client first", "ابتدا Happ و INCY یا کلاینت دیگری را فعال کنید"), "danger");
+		return;
+	}
+	subPage.clients.splice(index, 1);
+	state.adminSettingsDirty = true;
+	haptic("light");
+	render({ preserveScroll: true });
+}
+
+function moveAdminSubPageClient(index, direction) {
+	const clients = ensureAdminSubPageDraft().clients;
+	const next = index + Math.sign(direction);
+	if (index < 0 || index >= clients.length || next < 0 || next >= clients.length) return;
+	[clients[index], clients[next]] = [clients[next], clients[index]];
+	state.adminSettingsDirty = true;
+	haptic("light");
 	render({ preserveScroll: true });
 }
 
@@ -10731,6 +10877,7 @@ function applyAdminLayoutNodeStyle(node, item) {
 
 function adminLayoutMinimumSize(item) {
 	if (item?.area === "navigation") return { width: 28, height: 24 };
+	if (item?.area === "dashboard" && item.id === "subscription_switcher") return { width: 72, height: 32 };
 	if (item?.area === "dashboard" && isBannerLayoutID(item.id)) return { width: 32, height: 40 };
 	if (item?.area === "dashboard" && ["promo_widget", "notification_widget"].includes(item?.id)) return { width: 36, height: 36 };
 	if (item?.area === "dashboard" && ["username", "plan_name"].includes(item?.id)) return { width: 64, height: 20 };
@@ -12713,13 +12860,13 @@ function getPageTitle(page, short = false) {
   const copy = t();
 	if (page === "admin" && !short && state.adminSection !== "home") {
 		const labels = state.locale === "fa" ? {
-			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", push: "اعلان‌های پوش", features: "امکانات", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", users: "کاربران",
+			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", push: "اعلان‌های پوش", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", users: "کاربران",
 		} : state.locale === "en" ? {
 			localization: "Language and font",
-			maintenance: "Maintenance", diagnostics: "Diagnostics", push: "Push notifications", features: "Functions", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", users: "Users",
+			maintenance: "Maintenance", diagnostics: "Diagnostics", push: "Push notifications", features: "Functions", subpage: "Sub page", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", users: "Users",
 		} : {
 			localization: "Язык и шрифт",
-			maintenance: "Режим аварии", diagnostics: "Диагностика", push: "Push-уведомления", features: "Функции", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", users: "Пользователи",
+			maintenance: "Режим аварии", diagnostics: "Диагностика", push: "Push-уведомления", features: "Функции", subpage: "Sub page", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", users: "Пользователи",
 		};
 		return labels[state.adminSection] || copy.pageAdmin || "Admin panel";
 	}
@@ -13022,7 +13169,7 @@ function setupBridgeColor(variable, fallback) {
 }
 
 function buildSetupBridgeURL(platformID, appID, subscriptionURL) {
-  buildSetupClientURL(platformID, appID, subscriptionURL);
+	buildSetupClientURL(platformID, appID, subscriptionURL, getSubPageSettings());
   const target = new URL(getWebVersionURL());
   target.pathname = "/mini-app/open-app";
   target.search = "";
