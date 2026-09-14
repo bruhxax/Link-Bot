@@ -31,10 +31,6 @@ const previewMode = (() => {
   return host === "localhost" || host === "127.0.0.1" || host === "::1" || window.location.protocol === "file:";
 })();
 const previewAdminMode = previewMode && urlParams.get("admin") === "1";
-const adminWebSurface = clientSurface === "browser" && (
-	/^\/admin(?:\/|$)/.test(window.location.pathname) || (previewAdminMode && urlParams.get("admin-web") === "1")
-);
-document.documentElement.dataset.adminSurface = adminWebSurface ? "web" : "none";
 const installGuideMode = urlParams.get("install") === "desktop";
 const themeMeta = document.querySelector('meta[name="theme-color"]');
 const reducedMotionMedia = window.matchMedia?.("(prefers-reduced-motion: reduce)");
@@ -884,8 +880,7 @@ const PAYMENT_LOGO_URLS = Object.freeze({
 
 const PAGES = ["dashboard", "buy", "gift", "setup", "support", "faq", "reviews", "referrals", "servers", "settings", "media", "login-methods", "payments", "terms", "privacy", "custom-page", "admin"];
 const BANNER_PAGE_TARGETS = ["reviews", "promo", "buy", "servers", "support", "referrals", "payments", "gift"];
-const BOTTOM_NAV = ["dashboard", "buy", "support", "settings"];
-const ADMIN_SECTION_IDS = ["home", "users", "finance", "referrals", "broadcast", "promocodes", "content", "subpage", "appearance", "layout", "plans", "localization", "maintenance", "diagnostics", "push", "features", "trial", "grace", "subscriptions", "integrations", "moynalog"];
+const BOTTOM_NAV = ["dashboard", "buy", "support", "settings", "admin"];
 const SUPPORT_TABS = ["open", "history"];
 const PLATFORMS = [...SETUP_PLATFORM_IDS];
 
@@ -2107,13 +2102,8 @@ const state = {
 };
 
 state.currentPage = normalizePage(state.currentPage);
-if (adminWebSurface) {
-	const entrySection = String(urlParams.get("section") || "home");
-	if (["support", "reviews"].includes(entrySection)) state.currentPage = entrySection;
-	else if (ADMIN_SECTION_IDS.includes(entrySection)) {
-		state.currentPage = "admin";
-		state.adminSection = entrySection;
-	}
+if (state.currentPage === "admin" && ["finance", "diagnostics", "push"].includes(String(urlParams.get("section") || ""))) {
+	state.adminSection = String(urlParams.get("section"));
 }
 
 let pageAnimationEnabled = false;
@@ -2579,13 +2569,8 @@ async function boot() {
 	applyAppearance();
   const paymentReturn = Boolean(getPaymentReturnState());
   state.currentPage = getEntryPage();
-	if (adminWebSurface) {
-		const entrySection = String(urlParams.get("section") || "home");
-		if (["support", "reviews"].includes(entrySection)) state.currentPage = entrySection;
-		else if (ADMIN_SECTION_IDS.includes(entrySection)) {
-			state.currentPage = "admin";
-			state.adminSection = entrySection;
-		}
+	if (state.currentPage === "admin" && ["finance", "diagnostics", "push"].includes(String(urlParams.get("section") || ""))) {
+		state.adminSection = String(urlParams.get("section"));
 	}
   state.sidebarOpen = false;
   state.subscriptionMenuOpen = false;
@@ -2612,12 +2597,6 @@ async function boot() {
   state.supportReplyDraft = "";
   writeSetting(STORAGE_KEYS.page, state.currentPage);
   await refreshDashboard({ initial: true, silent: paymentReturn });
-	if (isAdminUser() && adminWebSurface && state.currentPage === "admin" && state.adminSection === "home") {
-		void Promise.allSettled([
-			refreshAdminFinance(),
-			refreshAdminUsers({ silent: true }),
-		]);
-	}
 	if (isAdminUser() && state.currentPage === "admin" && state.adminSection === "finance") void refreshAdminFinance().catch((error) => showToast(error?.message || "Не удалось загрузить финансы", "danger"));
 	if (isAdminUser() && state.currentPage === "admin" && state.adminSection === "push") void refreshAdminPush().catch((error) => showToast(error?.message || "Не удалось загрузить уведомления", "danger"));
   await handlePostBootstrapFlow();
@@ -2809,13 +2788,9 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 		state.adminUserPreviewDetail = deepClone(state.adminUserDetail);
 		if (urlParams.get("detail") !== "1") state.adminUserDetail = null;
 		const previewSection = String(urlParams.get("section") || "");
-		if (adminWebSurface && ["support", "reviews"].includes(previewSection)) {
-			state.currentPage = previewSection;
-			state.adminSection = "home";
-			state.adminLayoutEditing = false;
-		} else if (adminWebSurface || ADMIN_SECTION_IDS.includes(previewSection)) {
+		if (["integrations", "referrals", "moynalog", "finance", "push", "users"].includes(previewSection)) {
 			state.currentPage = "admin";
-			state.adminSection = ADMIN_SECTION_IDS.includes(previewSection) ? previewSection : "home";
+			state.adminSection = previewSection;
 			state.adminLayoutEditing = false;
 		} else {
 			state.currentPage = "dashboard";
@@ -3171,7 +3146,6 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
 	document.body.classList.toggle("is-plan-editing", state.adminPlanEditing);
-	document.body.classList.toggle("is-admin-web", isAdminWebShellActive());
 	syncAdminLayoutBackgroundAnimation();
   pageAnimationEnabled = Boolean(state.animatePageEntry);
   state.animatePageEntry = false;
@@ -3214,13 +3188,31 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
     return;
   }
 
-	app.innerHTML = isAdminWebShellActive() ? renderAdminWebShell() : `
+	app.innerHTML = `
     <div class="app-shell ${state.adminLayoutEditing ? "app-shell--layout-editor" : ""}">
       <div class="page-scroll">${renderPages()}</div>
       ${state.adminPlanEditing ? "" : renderBottomNav()}
 		${state.adminLayoutEditing ? renderAdminSaveBar("admin-save-bar--layout-editor") : ""}
 		${state.adminPlanEditing ? renderAdminPlanSaveBar() : ""}
-		${renderModalStack()}
+      ${isModalVisible("support-compose", state.supportComposeOpen) ? renderSupportComposerModal() : ""}
+      ${isModalVisible("support-thread", state.supportThreadOpen) ? renderSupportThreadModal() : ""}
+      ${isModalVisible("devices", state.devicesModalOpen) ? renderDevicesModal() : ""}
+      ${isModalVisible("pay", state.payModalOpen) ? renderPayModal() : ""}
+		${state.p2pMenuStep ? renderP2PMenu() : ""}
+		${isModalVisible("subscription-editor", state.subscriptionEditorOpen) ? renderSubscriptionEditorModal() : ""}
+		${isModalVisible("subscription-delete", state.subscriptionDeleteOpen) ? renderSubscriptionDeleteModal() : ""}
+		${isModalVisible("device-packs", state.devicePackModalOpen) ? renderDevicePackModal() : ""}
+		${isModalVisible("admin-device-packs", state.adminDevicePackEditorOpen) ? renderAdminDevicePackModal() : ""}
+      ${isModalVisible("payment-launch", state.paymentLaunchModalOpen) ? renderPaymentLaunchModal() : ""}
+      ${isModalVisible("review-compose", state.reviewComposeOpen) ? renderReviewComposerModal() : ""}
+		${isModalVisible("review-detail", state.reviewDetailOpen) ? renderReviewDetailModal() : ""}
+		${isModalVisible("gift-receipt", state.giftReceiptOpen) ? renderGiftReceiptModal() : ""}
+		${state.adminPlanEditorModalOpen ? renderAdminPlanEditorModal() : ""}
+		${state.adminProfileEditorModalOpen ? renderAdminProfileEditorModal() : ""}
+		${isModalVisible("admin-promo-widget", state.adminPromoWidgetEditorOpen) ? renderAdminPromoWidgetModal() : ""}
+		${isModalVisible("admin-notification-widget", state.adminNotificationWidgetEditorOpen) ? renderAdminNotificationWidgetModal() : ""}
+		${isModalVisible("admin-banner", state.adminBannerEditorOpen) ? renderAdminBannerModal() : ""}
+		${isModalVisible("admin-layout-style", state.adminLayoutStyleEditorOpen) ? renderAdminLayoutStyleModal() : ""}
     </div>
   `;
   bindRootActions();
@@ -3237,30 +3229,6 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   mountGoogleLoginWidgets();
   pageAnimationEnabled = false;
 	subscriptionSwitchAnimation = "";
-}
-
-function renderModalStack() {
-	return `
-		${isModalVisible("support-compose", state.supportComposeOpen) ? renderSupportComposerModal() : ""}
-		${isModalVisible("support-thread", state.supportThreadOpen) ? renderSupportThreadModal() : ""}
-		${isModalVisible("devices", state.devicesModalOpen) ? renderDevicesModal() : ""}
-		${isModalVisible("pay", state.payModalOpen) ? renderPayModal() : ""}
-		${state.p2pMenuStep ? renderP2PMenu() : ""}
-		${isModalVisible("subscription-editor", state.subscriptionEditorOpen) ? renderSubscriptionEditorModal() : ""}
-		${isModalVisible("subscription-delete", state.subscriptionDeleteOpen) ? renderSubscriptionDeleteModal() : ""}
-		${isModalVisible("device-packs", state.devicePackModalOpen) ? renderDevicePackModal() : ""}
-		${isModalVisible("admin-device-packs", state.adminDevicePackEditorOpen) ? renderAdminDevicePackModal() : ""}
-		${isModalVisible("payment-launch", state.paymentLaunchModalOpen) ? renderPaymentLaunchModal() : ""}
-		${isModalVisible("review-compose", state.reviewComposeOpen) ? renderReviewComposerModal() : ""}
-		${isModalVisible("review-detail", state.reviewDetailOpen) ? renderReviewDetailModal() : ""}
-		${isModalVisible("gift-receipt", state.giftReceiptOpen) ? renderGiftReceiptModal() : ""}
-		${state.adminPlanEditorModalOpen ? renderAdminPlanEditorModal() : ""}
-		${state.adminProfileEditorModalOpen ? renderAdminProfileEditorModal() : ""}
-		${isModalVisible("admin-promo-widget", state.adminPromoWidgetEditorOpen) ? renderAdminPromoWidgetModal() : ""}
-		${isModalVisible("admin-notification-widget", state.adminNotificationWidgetEditorOpen) ? renderAdminNotificationWidgetModal() : ""}
-		${isModalVisible("admin-banner", state.adminBannerEditorOpen) ? renderAdminBannerModal() : ""}
-		${isModalVisible("admin-layout-style", state.adminLayoutStyleEditorOpen) ? renderAdminLayoutStyleModal() : ""}
-	`;
 }
 
 function mountAdminContentTabs() {
@@ -3328,119 +3296,6 @@ function mountAdminContentTabs() {
 	});
 }
 
-function isAdminWebShellActive() {
-	return adminWebSurface
-		&& isAdminUser()
-		&& !state.adminLayoutEditing
-		&& !state.adminPlanEditing
-		&& ["admin", "support", "reviews"].includes(state.currentPage);
-}
-
-function syncAdminWebLocation() {
-	if (!adminWebSurface || !window.history?.replaceState) return;
-	const section = state.currentPage === "admin" ? state.adminSection : state.currentPage;
-	const nextURL = new URL(window.location.href);
-	if (!section || section === "home") nextURL.searchParams.delete("section");
-	else nextURL.searchParams.set("section", section);
-	window.history.replaceState(null, "", `${nextURL.pathname}${nextURL.search}${nextURL.hash}`);
-}
-
-function adminWebNavigationGroups() {
-	return [
-		{
-			label: localizedText("Управление", "Management", "مدیریت"),
-			items: [
-				["home", localizedText("Обзор", "Overview", "نمای کلی"), "grid"],
-				["users", localizedText("Пользователи", "Users", "کاربران"), "users"],
-				["finance", localizedText("Финансы", "Finance", "امور مالی"), "chartLine"],
-				["referrals", localizedText("Рефералы и баланс", "Referrals and balance", "دعوت و موجودی"), "wallet"],
-				["broadcast", localizedText("Рассылка", "Broadcast", "ارسال همگانی"), "adminBroadcast"],
-				["promocodes", localizedText("Промокоды", "Promo codes", "کدهای تخفیف"), "adminPromocodes"],
-			],
-		},
-		{
-			label: localizedText("Поддержка", "Support", "پشتیبانی"),
-			items: [
-				["support", localizedText("Тикеты", "Tickets", "تیکت ها"), "openTickets", "page"],
-				["reviews", localizedText("Отзывы", "Reviews", "دیدگاه ها"), "star", "page"],
-			],
-		},
-		{
-			label: localizedText("Интерфейс", "Interface", "رابط کاربری"),
-			items: [
-				["content", localizedText("Редактор контента", "Content editor", "ویرایشگر محتوا"), "adminContent"],
-				["subpage", "Sub page", "doc"],
-				["appearance", localizedText("Оформление", "Appearance", "ظاهر"), "adminAppearance"],
-				["layout", localizedText("Конструктор UI", "UI builder", "سازنده رابط"), "grid"],
-				["plans", localizedText("Тарифы", "Plans", "تعرفه ها"), "cartShopping"],
-			],
-		},
-		{
-			label: localizedText("Настройки", "Settings", "تنظیمات"),
-			items: [
-				["localization", localizedText("Язык и шрифт", "Language and font", "زبان و فونت"), "language"],
-				["maintenance", localizedText("Режим аварии", "Maintenance mode", "حالت تعمیر"), "adminMaintenance"],
-				["diagnostics", localizedText("Диагностика", "Diagnostics", "عیب یابی"), "adminDiagnostics"],
-				["push", localizedText("Push-уведомления", "Push notifications", "اعلان های پوش"), "adminPush"],
-				["features", localizedText("Управление функциями", "Functions", "مدیریت امکانات"), "adminFeatures"],
-				["trial", localizedText("Триал", "Trial", "آزمایشی"), "adminTrial"],
-				["grace", localizedText("Доступ после окончания", "Access after expiry", "دسترسی پس از انقضا"), "adminTrial"],
-				["subscriptions", localizedText("Привязка подписок", "Subscription binding", "اتصال اشتراک ها"), "adminSubscriptions"],
-				["integrations", localizedText("Интеграции", "Integrations", "یکپارچه سازی ها"), "adminIntegrations"],
-				["moynalog", localizedText("Мой налог", "My Tax", "مالیات من"), "adminIntegrations"],
-			],
-		},
-	];
-}
-
-function renderAdminWebNavigationItem([value, label, iconName, type = "admin"]) {
-	const active = type === "page"
-		? state.currentPage === value
-		: state.currentPage === "admin" && state.adminSection === value;
-	const action = type === "page" ? "go-page" : "open-admin-section";
-	return `<button class="admin-web-nav__item ${active ? "is-active" : ""}" type="button" data-action="${action}" data-value="${escapeAttribute(value)}" ${active ? 'aria-current="page"' : ""}><span>${icon(iconName)}</span><strong>${escapeHtml(label)}</strong></button>`;
-}
-
-function adminWebTitle() {
-	if (state.currentPage === "support" || state.currentPage === "reviews") return getPageTitle(state.currentPage);
-	if (state.adminSection === "home") return localizedText("Обзор", "Overview", "نمای کلی");
-	return getPageTitle("admin");
-}
-
-function adminWebSubtitle() {
-	if (state.currentPage === "support") return localizedText("Обращения пользователей и история переписки", "User requests and conversation history", "درخواست های کاربران و تاریخچه گفتگو");
-	if (state.currentPage === "reviews") return localizedText("Отзывы пользователей и модерация", "User reviews and moderation", "دیدگاه های کاربران و مدیریت آنها");
-	if (state.adminSection === "home") return localizedText("Главные показатели и состояние сервиса", "Key metrics and service status", "شاخص های اصلی و وضعیت سرویس");
-	return localizedText("Настройки Link-Bot", "Link-Bot settings", "تنظیمات Link-Bot");
-}
-
-function renderAdminWebShell() {
-	const brand = state.data?.brand || {};
-	const user = state.data?.user || {};
-	const username = String(user.username || "").replace(/^@+/, "");
-	const displayName = username ? `@${username}` : String(user.firstName || localizedText("Администратор", "Administrator", "مدیر"));
-	const navigation = adminWebNavigationGroups().map((group) => `<section class="admin-web-nav__group"><h2>${escapeHtml(group.label)}</h2><div>${group.items.map(renderAdminWebNavigationItem).join("")}</div></section>`).join("");
-	const content = state.currentPage === "support"
-		? renderSupportPage()
-		: state.currentPage === "reviews"
-			? renderReviewsPage()
-			: renderAdminPage();
-	document.title = `${adminWebTitle()} · ${brand.name || "Link-Bot"}`;
-	return `<div class="admin-web-shell">
-		<button class="admin-web-backdrop ${state.sidebarOpen ? "is-visible" : ""}" type="button" data-action="close-sidebar" aria-label="${escapeAttribute(localizedText("Закрыть меню", "Close menu", "بستن منو"))}"></button>
-		<aside class="admin-web-sidebar ${state.sidebarOpen ? "is-open" : ""}" aria-label="${escapeAttribute(localizedText("Навигация админ-панели", "Admin navigation", "ناوبری مدیریت"))}">
-			<div class="admin-web-brand"><span class="admin-web-brand__mark">${brand.logoUrl ? `<img src="${escapeAttribute(resolveBrandMarkURL(brand.logoUrl))}" alt="">` : icon("shield")}</span><span><strong>${escapeHtml(brand.name || "Link-Bot")}</strong><small>${localizedText("Админ-панель", "Admin panel", "پنل مدیریت")}</small></span><button type="button" data-action="close-sidebar" aria-label="${escapeAttribute(localizedText("Закрыть меню", "Close menu", "بستن منو"))}">${icon("close")}</button></div>
-			<nav class="admin-web-nav">${navigation}</nav>
-			<div class="admin-web-profile"><span>${adminUserAvatar(user)}</span><span><strong>${escapeHtml(displayName)}</strong><small>Telegram ID: ${escapeHtml(String(user.id || "—"))}</small></span><a href="/mini-app/" aria-label="${escapeAttribute(localizedText("Открыть личный кабинет", "Open personal account", "باز کردن حساب شخصی"))}">${icon("external")}</a></div>
-		</aside>
-		<div class="admin-web-workspace">
-			<header class="admin-web-topbar"><button class="admin-web-topbar__menu" type="button" data-action="open-sidebar" aria-label="${escapeAttribute(localizedText("Открыть меню", "Open menu", "باز کردن منو"))}">${icon("menu")}</button><div><span>${localizedText("АДМИН-ПАНЕЛЬ", "ADMIN PANEL", "پنل مدیریت")}</span><h1>${escapeHtml(adminWebTitle())}</h1><p>${escapeHtml(adminWebSubtitle())}</p></div><div class="admin-web-topbar__actions"><button type="button" data-action="admin-web-refresh" aria-label="${escapeAttribute(localizedText("Обновить данные", "Refresh data", "به روزرسانی اطلاعات"))}" title="${escapeAttribute(localizedText("Обновить данные", "Refresh data", "به روزرسانی اطلاعات"))}">${icon("refresh")}</button><a href="/mini-app/">${icon("external")}<span>${localizedText("Личный кабинет", "Personal account", "حساب شخصی")}</span></a></div></header>
-			<main class="admin-web-scroll"><div class="admin-web-content">${content}</div></main>
-		</div>
-		${renderModalStack()}
-	</div>`;
-}
-
 function renderSidebar() {
   const copy = t();
   const links = state.data.links || {};
@@ -3504,7 +3359,7 @@ function renderPages() {
     renderTermsPage(),
     renderPrivacyPage(),
     renderCustomProfilePage(),
-		adminWebSurface ? renderAdminPage() : "",
+    renderAdminPage(),
   ].join("");
 }
 
@@ -3531,7 +3386,6 @@ function renderAdminPage() {
 	if (state.adminSection === "finance") return renderAdminFinancePage();
 	if (state.adminSection === "push") return renderAdminPushPage();
 	if (state.adminSection === "users") return renderAdminUsersPage();
-	if (adminWebSurface) return renderAdminWebOverviewPage();
 	return `
 		<section class="page admin-page ${pageClass("admin")}" id="page-admin">
 			${renderAdminMenuGroup(localizedText("Система", "System", "سیستم"), [
@@ -3562,46 +3416,6 @@ function renderAdminPage() {
 			])}
 		</section>
 	`;
-}
-
-function renderAdminWebMetric(label, value, note, iconName) {
-	return `<article class="admin-web-metric"><span class="admin-web-metric__icon" aria-hidden="true">${icon(iconName)}</span><div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(note)}</small></div></article>`;
-}
-
-function renderAdminWebOverviewPage() {
-	const finance = state.adminFinance;
-	const summary = finance?.summary || {};
-	const daily = Array.isArray(finance?.daily) ? finance.daily : [];
-	const usersTotal = Number(state.adminUsers?.total || 0);
-	const openTickets = Number(state.data?.support?.openTickets?.length || 0);
-	const events = Array.isArray(state.data?.admin?.events) ? state.data.admin.events : [];
-	const withdrawals = Array.isArray(state.data?.admin?.withdrawals) ? state.data.admin.withdrawals.filter((item) => item.status === "pending") : [];
-	const integrations = Array.isArray(state.data?.admin?.integrations) ? state.data.admin.integrations : [];
-	const configuredIntegrations = integrations.filter((item) => item.enabled && item.configured).length;
-	const today = daily[daily.length - 1] || {};
-	const payments = Array.isArray(finance?.payments) ? finance.payments.slice(0, 6) : [];
-	const loadingFinance = !finance && state.adminFinanceBusy;
-	const loadingUsers = !usersTotal && state.adminUsersBusy;
-	const metrics = [
-		renderAdminWebMetric(localizedText("Пользователи", "Users", "کاربران"), loadingUsers ? "…" : usersTotal.toLocaleString("ru-RU"), localizedText("всего в системе", "total in the system", "مجموع در سیستم"), "users"),
-		renderAdminWebMetric(localizedText("Выручка", "Revenue", "درآمد"), loadingFinance ? "…" : formatFinanceRub(summary.revenueRub || 0), localizedText("за выбранный период", "for the selected period", "برای دوره انتخابی"), "chartLine"),
-		renderAdminWebMetric(localizedText("Платежи", "Payments", "پرداخت ها"), loadingFinance ? "…" : Number(summary.paymentCount || 0).toLocaleString("ru-RU"), localizedText("успешных операций", "successful operations", "عملیات موفق"), "card"),
-		renderAdminWebMetric(localizedText("Открытые тикеты", "Open tickets", "تیکت های باز"), openTickets.toLocaleString("ru-RU"), openTickets ? localizedText("нужен ответ", "need a reply", "نیازمند پاسخ") : localizedText("всё обработано", "all handled", "همه رسیدگی شده"), "openTickets"),
-	].join("");
-	const recent = payments.length ? payments.map((item) => `<div class="admin-web-activity__row"><span class="admin-web-activity__status is-${escapeAttribute(item.status || "unknown")}" aria-hidden="true"></span><span><strong>${escapeHtml(item.username ? `@${String(item.username).replace(/^@+/, "")}` : String(item.telegramId || localizedText("Без username", "No username", "بدون نام کاربری")))}</strong><small>${escapeHtml(item.plan || item.provider || "—")}</small></span><span><strong>${escapeHtml(formatFinanceAmount(item.amount, item.currency))}</strong><small>${escapeHtml(formatPaymentDate(item.occurredAt))}</small></span></div>`).join("") : `<div class="admin-web-empty">${icon("wallet")}<strong>${localizedText("Операций пока нет", "No operations yet", "هنوز عملیاتی وجود ندارد")}</strong><span>${localizedText("Платежи появятся здесь автоматически", "Payments will appear here automatically", "پرداخت ها به صورت خودکار اینجا نمایش داده می شوند")}</span></div>`;
-	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-web-overview">
-		<section class="admin-web-metrics" aria-label="${escapeAttribute(localizedText("Основные показатели", "Key metrics", "شاخص های اصلی"))}">${metrics}</section>
-		<div class="admin-web-overview__grid">
-			<section class="admin-web-panel admin-web-panel--chart" aria-labelledby="admin-web-revenue-title"><header><div><span>${localizedText("ФИНАНСЫ", "FINANCE", "امور مالی")}</span><h2 id="admin-web-revenue-title">${localizedText("Выручка по дням", "Daily revenue", "درآمد روزانه")}</h2></div><button type="button" data-action="open-admin-section" data-value="finance">${localizedText("Подробнее", "Details", "جزئیات")}${icon("arrow")}</button></header><div class="admin-web-chart">${renderAdminFinanceChart(daily)}</div><footer><span><i aria-hidden="true"></i>${localizedText("Выручка в рублях", "Revenue in rubles", "درآمد به روبل")}</span><strong>${localizedText("Сегодня", "Today", "امروز")}: ${escapeHtml(formatFinanceRub(today.revenueRub || 0))}</strong></footer></section>
-			<section class="admin-web-panel admin-web-status" aria-labelledby="admin-web-status-title"><header><div><span>${localizedText("СИСТЕМА", "SYSTEM", "سیستم")}</span><h2 id="admin-web-status-title">${localizedText("Состояние сервисов", "Service status", "وضعیت سرویس ها")}</h2></div></header><div class="admin-web-status__list">
-				<div><i class="${events.length ? "is-warning" : "is-ok"}" aria-hidden="true"></i><span><strong>${localizedText("Диагностика", "Diagnostics", "عیب یابی")}</strong><small>${events.length ? `${events.length} ${localizedText("открытых событий", "open events", "رویداد باز")}` : localizedText("Ошибок не обнаружено", "No errors detected", "خطایی شناسایی نشد")}</small></span><button type="button" data-action="open-admin-section" data-value="diagnostics" aria-label="${escapeAttribute(localizedText("Открыть диагностику", "Open diagnostics", "باز کردن عیب یابی"))}">${icon("chevronRight")}</button></div>
-				<div><i class="${withdrawals.length ? "is-warning" : "is-ok"}" aria-hidden="true"></i><span><strong>${localizedText("Заявки на вывод", "Withdrawal requests", "درخواست های برداشت")}</strong><small>${withdrawals.length ? `${withdrawals.length} ${localizedText("ожидают решения", "awaiting review", "در انتظار بررسی")}` : localizedText("Нет ожидающих заявок", "No pending requests", "درخواستی در انتظار نیست")}</small></span><button type="button" data-action="open-admin-section" data-value="referrals" aria-label="${escapeAttribute(localizedText("Открыть заявки", "Open requests", "باز کردن درخواست ها"))}">${icon("chevronRight")}</button></div>
-				<div><i class="is-ok" aria-hidden="true"></i><span><strong>${localizedText("Интеграции", "Integrations", "یکپارچه سازی ها")}</strong><small>${configuredIntegrations} ${localizedText("активно и настроено", "active and configured", "فعال و پیکربندی شده")}</small></span><button type="button" data-action="open-admin-section" data-value="integrations" aria-label="${escapeAttribute(localizedText("Открыть интеграции", "Open integrations", "باز کردن یکپارچه سازی ها"))}">${icon("chevronRight")}</button></div>
-				<div><i class="${openTickets ? "is-warning" : "is-ok"}" aria-hidden="true"></i><span><strong>${localizedText("Поддержка", "Support", "پشتیبانی")}</strong><small>${openTickets ? `${openTickets} ${localizedText("обращений в работе", "tickets in progress", "درخواست در حال رسیدگی")}` : localizedText("Все обращения обработаны", "All tickets handled", "همه درخواست ها رسیدگی شده")}</small></span><button type="button" data-action="go-page" data-value="support" aria-label="${escapeAttribute(localizedText("Открыть поддержку", "Open support", "باز کردن پشتیبانی"))}">${icon("chevronRight")}</button></div>
-			</div></section>
-		</div>
-		<section class="admin-web-panel admin-web-activity" aria-labelledby="admin-web-activity-title"><header><div><span>${localizedText("ПОСЛЕДНИЕ ОПЕРАЦИИ", "RECENT OPERATIONS", "عملیات اخیر")}</span><h2 id="admin-web-activity-title">${localizedText("История платежей", "Payment history", "تاریخچه پرداخت")}</h2></div><button type="button" data-action="open-admin-section" data-value="finance">${localizedText("Все платежи", "All payments", "همه پرداخت ها")}${icon("arrow")}</button></header><div class="admin-web-activity__list">${recent}</div></section>
-	</div></section>`;
 }
 
 function formatFinanceRub(value) {
@@ -3776,7 +3590,7 @@ async function refreshAdminFinance({ append = false } = {}) {
 	if (!append) render({ preserveScroll: true });
 	try {
 		const response = await post("/api/mini-app/admin/finance", { period: state.adminFinancePeriod, from: state.adminFinanceFrom, to: state.adminFinanceTo, limit: 30, offset });
-		if (requestID !== adminFinanceRequestID || !["finance", "home"].includes(state.adminSection)) return;
+		if (requestID !== adminFinanceRequestID || state.adminSection !== "finance") return;
 		const next = response.data || {};
 		state.adminFinance = { ...next, payments: append ? [...(state.adminFinance?.payments || []), ...(next.payments || [])] : (next.payments || []) };
 		state.adminFinancePeriod = String(next.period || state.adminFinancePeriod || "7d");
@@ -4134,7 +3948,7 @@ async function refreshAdminUsers({ append = false, silent = false } = {}) {
 	if (!silent) syncAdminUsersBusyDOM();
 	try {
 		const response = await post("/api/mini-app/admin/users/search", { query, limit: 30, offset });
-		if (requestID !== adminUsersSearchRequestID || (!append && query !== state.adminUsersQuery) || !["users", "home"].includes(state.adminSection) || state.adminUserPending) return;
+		if (requestID !== adminUsersSearchRequestID || (!append && query !== state.adminUsersQuery) || state.adminSection !== "users" || state.adminUserPending) return;
 		const next = response.data || { items: [], total: 0, limit: 30, offset };
 		state.adminUsers = {
 			...next,
@@ -8018,17 +7832,9 @@ function bindRootActions() {
       if (action === "open-admin-section") {
 		if (value === "layout") return enterAdminLayoutEditor();
 		if (value === "plans") return enterAdminPlanEditor();
-		if (adminWebSurface) {
-			state.currentPage = "admin";
-			state.sidebarOpen = false;
-		}
 		state.adminSection = value || "home";
-		syncAdminWebLocation();
 		haptic("light");
 		renderAdminTransition();
-		if (state.adminSection === "home") {
-			void Promise.allSettled([refreshAdminFinance(), refreshAdminUsers({ silent: true })]);
-		}
 		if (value === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 		if (value === "moynalog") void refreshAdminMoyNalog();
 		if (value === "finance") void refreshAdminFinance();
@@ -8046,14 +7852,6 @@ function bindRootActions() {
 		return;
 	  }
 	  if (action === "close-admin-section") return closeAdminSection();
-			if (action === "admin-web-refresh") {
-				await refreshDashboard({ silent: true });
-				if (state.currentPage === "admin" && state.adminSection === "home") {
-					await Promise.allSettled([refreshAdminFinance(), refreshAdminUsers({ silent: true })]);
-				}
-				showToast(localizedText("Данные обновлены", "Data refreshed", "اطلاعات به روز شد"), "success");
-				return;
-			}
 			if (action === "admin-push-enable") return await enableAdminPush();
 			if (action === "admin-push-disable") return await disableAdminPush();
 			if (action === "admin-push-test") return await testAdminPush();
@@ -10449,7 +10247,6 @@ function exitAdminPlanEditor() {
 	state.currentPage = "admin";
 	state.adminSection = "home";
 	previousBottomNavIndex = -1;
-	syncAdminWebLocation();
 	haptic("light");
 	renderAdminTransition();
 }
@@ -10661,7 +10458,6 @@ function exitAdminLayoutEditor() {
 	state.currentPage = "admin";
 	state.adminSection = "home";
 	previousBottomNavIndex = -1;
-	syncAdminWebLocation();
 	haptic("light");
 	renderAdminTransition();
 }
@@ -12652,7 +12448,6 @@ function closeAdminSection() {
 	state.adminUserDetailSettled = false;
 	state.adminUsersBusy = "";
 	state.adminBroadcastConfirmOpen = false;
-	syncAdminWebLocation();
 	haptic("light");
 	renderAdminTransition();
 }
@@ -12722,7 +12517,6 @@ function setPage(page) {
   writeSetting(STORAGE_KEYS.page, state.currentPage);
   haptic("light");
   render({ preserveScroll: samePage, scrollTop: samePage ? state.scrollTopByPage[state.currentPage] ?? 0 : 0 });
-	syncAdminWebLocation();
 }
 
 function getCurrentScrollTop() {
@@ -13830,14 +13624,11 @@ function persistBrowserSessionFromResponse(response) {
 
 function normalizePage(value) {
   if (!PAGES.includes(value)) return "dashboard";
-	if (value === "admin" && clientSurface === "telegram") return "dashboard";
-	if (value === "admin" && adminWebSurface) return "admin";
   if (value === "admin" && !isAdminUser()) return "dashboard";
   return value;
 }
 
 function getEntryPage() {
-	if (adminWebSurface) return "admin";
   return normalizePage(urlParams.get("page") || "dashboard");
 }
 

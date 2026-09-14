@@ -686,8 +686,6 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	fileServer := http.FileServer(http.FS(h.staticFS))
 
 	mux.HandleFunc("/", h.serveRoot)
-	mux.HandleFunc("/admin", h.serveAdminIndex)
-	mux.HandleFunc("/admin/", h.serveAdminIndex)
 	mux.HandleFunc("/mini-app", h.serveIndex)
 	mux.HandleFunc("/mini-app/open-app", h.serveAppOpener)
 	mux.HandleFunc("/mini-app/payment-return", h.handlePaymentReturnRedirect)
@@ -770,18 +768,6 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/support/send", h.withSession(h.handleSupportSend))
 	mux.HandleFunc("/api/mini-app/support/close", h.withSession(h.handleSupportClose))
 	mux.HandleFunc("/api/payments/webhook/", h.handlePaymentIntegrationWebhook)
-}
-
-func (h *Handler) serveAdminIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/admin" {
-		http.Redirect(w, r, "/admin/", http.StatusMovedPermanently)
-		return
-	}
-	if r.URL.Path != "/admin/" {
-		http.NotFound(w, r)
-		return
-	}
-	h.serveIndex(w, r)
 }
 
 func (h *Handler) handlePublicConfig(w http.ResponseWriter, r *http.Request) {

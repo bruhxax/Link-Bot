@@ -56,7 +56,7 @@
 
 ## 🛠️ Админ-панель
 
-Админ-панель вынесена из Telegram Mini App в отдельный браузерный интерфейс с боковой навигацией. После входа аккаунтом из `ADMIN_TELEGRAM_ID` она доступна по адресу `https://bot.example.com/admin/`; пользовательская Mini App не показывает административные разделы.
+Управляйте системой, интерфейсом, тарифами, интеграциями, рассылками, промокодами и другими функциями прямо из Mini App.
 
 <div align="center">
   <img src="docs/admin-menu.png" width="100%" alt="Админ-панель Link-Bot">
@@ -171,10 +171,11 @@ curl https://bot.example.com/healthcheck
 ### 6. Выполните первый запуск
 
 1. Откройте бота и отправьте `/start`.
-2. Откройте в браузере `https://bot.example.com/admin/` и войдите аккаунтом из `ADMIN_TELEGRAM_ID`.
-3. Настройте интеграции, тарифы, триал, сквады, контент и функции. Язык и шрифт можно повторно выбрать в разделе **Настройки → Язык и шрифт**.
-4. В Mini App [@BotFather](https://t.me/BotFather?startapp) выберите бота → **Login Widget** и добавьте в **Allowed URLs** адреса `https://bot.example.com`, `https://bot.example.com/admin/` и `https://bot.example.com/mini-app/`.
-5. В **Login Widget → Advanced** оставьте стандартный алгоритм подписи `RS256`.
+2. Откройте Mini App под аккаунтом из `ADMIN_TELEGRAM_ID`.
+3. Перейдите в раздел **Админка**.
+4. Настройте интеграции, тарифы, триал, сквады, контент и функции. Язык и шрифт можно повторно выбрать в разделе **Админка → Язык и шрифт**.
+5. В Mini App [@BotFather](https://t.me/BotFather?startapp) выберите бота → **Login Widget** и добавьте в **Allowed URLs** адреса `https://bot.example.com` и `https://bot.example.com/mini-app/`.
+6. В **Login Widget → Advanced** оставьте стандартный алгоритм подписи `RS256`.
 
 Браузерная версия использует новый **Log In With Telegram (OIDC)**: Telegram открывается по ссылке, а пользователь подтверждает вход без ручного ввода номера и кода. `id_token` проверяется на сервере по официальным ключам Telegram; Client Secret в `.env` не требуется.
 
