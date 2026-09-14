@@ -71,4 +71,10 @@ func TestGlassDesignStaticContract(t *testing.T) {
 	if !strings.Contains(indexHTML, `/mini-app/glass.css?v=__ASSET_VERSION__`) {
 		t.Error("index.html does not load the versioned glass stylesheet")
 	}
+	if strings.Contains(appJS, `class="${glassInterface ? "glass-workspace" : "app-workspace"}"`) {
+		t.Error("classic design must not be wrapped in an unconstrained workspace that disables page scrolling")
+	}
+	if !strings.Contains(appJS, ": `<div class=\"page-scroll\">${renderPages()}</div>`}") {
+		t.Error("classic design must keep page-scroll as a direct flex child of app-shell")
+	}
 }

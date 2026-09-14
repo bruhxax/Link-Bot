@@ -3201,10 +3201,12 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
 	app.innerHTML = `
     <div class="app-shell ${state.adminLayoutEditing ? "app-shell--layout-editor" : ""} ${glassInterface ? "app-shell--glass" : ""}">
       ${glassInterface ? renderGlassNavigation() : ""}
-	  <div class="${glassInterface ? "glass-workspace" : "app-workspace"}">
-		${glassInterface ? renderGlassTopbar() : ""}
-		<div class="page-scroll">${renderPages()}</div>
-	  </div>
+	  ${glassInterface
+		? `<div class="glass-workspace">
+			${renderGlassTopbar()}
+			<div class="page-scroll">${renderPages()}</div>
+		  </div>`
+		: `<div class="page-scroll">${renderPages()}</div>`}
       ${state.adminPlanEditing || glassInterface ? "" : renderBottomNav()}
 		${state.adminLayoutEditing ? renderAdminSaveBar("admin-save-bar--layout-editor") : ""}
 		${state.adminPlanEditing ? renderAdminPlanSaveBar() : ""}
