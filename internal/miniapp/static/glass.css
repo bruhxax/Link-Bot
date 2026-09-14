@@ -1,0 +1,1171 @@
+/*
+ * Link-Bot Glass design
+ *
+ * The classic interface remains in styles.css. Every product-facing override
+ * in this file is scoped to data-design="glass" so the admin can switch back
+ * without losing any layout or appearance settings.
+ */
+
+.admin-design-intro {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.admin-design-intro > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.admin-design-intro h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1.18;
+  letter-spacing: -.025em;
+  text-transform: none;
+}
+
+.admin-design-intro p,
+.admin-design-note p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.admin-design-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.admin-design-option {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 116px auto;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: transform 220ms cubic-bezier(.22, 1, .36, 1), border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.admin-design-option:hover {
+  transform: translateY(-2px);
+  border-color: var(--text);
+}
+
+.admin-design-option:focus-within {
+  outline: 2px solid var(--text);
+  outline-offset: 3px;
+}
+
+.admin-design-option > input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  opacity: .001;
+}
+
+.admin-design-option:has(input:checked) {
+  border-color: var(--text);
+  box-shadow: 0 0 0 1px var(--text), 0 18px 44px color-mix(in srgb, var(--bg) 42%, transparent);
+}
+
+.admin-design-option__preview {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--bg);
+}
+
+.admin-design-option__preview > i {
+  position: absolute;
+  display: block;
+}
+
+.admin-design-preview__nav {
+  inset: 10px 10px auto;
+  height: 18px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface-strong);
+}
+
+.admin-design-preview__hero {
+  top: 38px;
+  left: 50%;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface-strong);
+  transform: translateX(-50%);
+}
+
+.admin-design-preview__card {
+  inset: auto 10px 10px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-strong);
+}
+
+.admin-design-preview__button {
+  right: 18px;
+  bottom: 17px;
+  width: 32%;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--text);
+}
+
+.admin-design-option--glass .admin-design-option__preview {
+  background:
+    radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--text) 15%, transparent), transparent 38%),
+    var(--bg);
+}
+
+.admin-design-option--glass .admin-design-preview__nav,
+.admin-design-option--glass .admin-design-preview__hero,
+.admin-design-option--glass .admin-design-preview__card {
+  border-color: color-mix(in srgb, var(--text) 30%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 48%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 22%, transparent), 0 12px 28px color-mix(in srgb, var(--bg) 42%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.admin-design-option__copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 12px 38px 13px 12px;
+}
+
+.admin-design-option__copy strong,
+.admin-design-option__copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-design-option__copy strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.admin-design-option__copy small {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.admin-design-option__check {
+  position: absolute;
+  right: 12px;
+  bottom: 16px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: transparent;
+}
+
+.admin-design-option:has(input:checked) .admin-design-option__check {
+  border-color: var(--text);
+  color: var(--bg);
+  background: var(--text);
+}
+
+.admin-design-option__check svg {
+  width: 12px;
+  height: 12px;
+}
+
+.admin-design-note {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.admin-design-note > span {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  color: var(--text);
+}
+
+.admin-design-note svg {
+  width: 18px;
+  height: 18px;
+}
+
+:root[data-design="glass"] {
+  --glass-blur: blur(24px) saturate(118%);
+  --glass-blur-strong: blur(34px) saturate(126%);
+  --glass-panel: color-mix(in srgb, var(--surface-strong) 58%, transparent);
+  --glass-panel-soft: color-mix(in srgb, var(--surface) 46%, transparent);
+  --glass-panel-hover: color-mix(in srgb, var(--surface-strong) 74%, transparent);
+  --glass-stroke: color-mix(in srgb, var(--text) 18%, transparent);
+  --glass-stroke-soft: color-mix(in srgb, var(--text) 10%, transparent);
+  --glass-highlight: color-mix(in srgb, var(--text) 14%, transparent);
+  --glass-depth: 0 24px 68px color-mix(in srgb, var(--bg) 52%, transparent), inset 0 1px 0 var(--glass-highlight);
+  --glass-depth-soft: 0 14px 38px color-mix(in srgb, var(--bg) 38%, transparent), inset 0 1px 0 color-mix(in srgb, var(--text) 10%, transparent);
+  --glass-radius-lg: 28px;
+  --glass-radius-md: 20px;
+  --glass-radius-sm: 14px;
+  --glass-control-height: 48px;
+  --glass-filter: var(--glass-blur);
+  --glass-shadow: var(--glass-depth);
+  --glass-shadow-soft: var(--glass-depth-soft);
+  --glass-edge: linear-gradient(145deg, color-mix(in srgb, var(--text) 15%, transparent), transparent 42%);
+  --radius-lg: var(--glass-radius-lg);
+  --radius-md: var(--glass-radius-md);
+  --radius-sm: var(--glass-radius-sm);
+  --radius-pill: 999px;
+}
+
+:root[data-design="glass"][data-frames="off"] {
+  --glass-stroke: transparent;
+  --glass-stroke-soft: transparent;
+}
+
+:root[data-design="glass"] body {
+  background: var(--bg);
+}
+
+:root[data-design="glass"] body::before {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--text) 3%, transparent), transparent 34%, color-mix(in srgb, var(--bg) 18%, transparent));
+  content: "";
+}
+
+:root[data-design="glass"] .bg-media__shade {
+  background-color: color-mix(in srgb, var(--bg) 34%, transparent);
+}
+
+:root[data-design="glass"] #app {
+  width: min(100%, 720px);
+  max-width: 720px;
+}
+
+:root[data-design="glass"] .app-shell {
+  isolation: isolate;
+}
+
+:root[data-design="glass"] .page-scroll {
+  padding: 22px 18px calc(112px + var(--safe-bottom));
+}
+
+:root[data-design="glass"] .page.active.page--animate {
+  animation: glass-page-in 420ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+:root[data-design="glass"] .page.admin-page.active.page--animate {
+  animation: none;
+}
+
+:root[data-design="glass"] .page.admin-page.active.page--animate > :not(.admin-save-bar) {
+  animation: glass-page-in 420ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+:root[data-design="glass"] :where(button, a, input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--text) 88%, transparent);
+  outline-offset: 3px;
+}
+
+:root[data-design="glass"] :where(button, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea, select) {
+  min-height: 44px;
+}
+
+:root[data-design="glass"] :where(.card, .pricing-card, .menu-row, .profile-row, .menu-card, .quick-link, .pay-selector, .pay-row, .platform-btn, .support-ticket-card, .payments-switch, .promo-box, .metric, .server-summary-card, .server-card, .state-card, .admin-editor__section, .admin-integrations__list, .admin-finance-card, .admin-finance-history__surface, .admin-users-panel, .admin-broadcast__preview, .admin-subscription-card) {
+  border-color: var(--glass-stroke);
+  background: var(--glass-panel);
+  box-shadow: var(--glass-depth-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+:root[data-design="glass"] :where(.card, .pricing-card, .menu-row, .profile-row, .menu-card, .quick-link, .pay-selector, .pay-row, .platform-btn, .support-ticket-card, .payments-switch, .promo-box, .metric, .server-summary-card, .server-card, .state-card)::before {
+  opacity: .9;
+}
+
+:root[data-design="glass"] :where(.card, .pricing-card, .menu-row, .profile-row, .menu-card, .quick-link, .pay-selector, .pay-row, .platform-btn, .support-ticket-card, .server-card):hover {
+  border-color: color-mix(in srgb, var(--text) 28%, transparent);
+  background: var(--glass-panel-hover);
+}
+
+:root[data-design="glass"] :where(.card, .pricing-card, .menu-row, .profile-row, .menu-card, .quick-link, .pay-selector, .pay-row, .platform-btn, .support-ticket-card, .server-card):active {
+  transform: translateY(1px) scale(.995);
+}
+
+/* Header and navigation */
+:root[data-design="glass"] .header {
+  margin: 12px 16px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-stroke);
+  border-radius: 999px;
+  background: var(--glass-panel-soft);
+  box-shadow: var(--glass-depth-soft);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+}
+
+:root[data-design="glass"] .header__btn {
+  width: 42px;
+  height: 42px;
+  flex-basis: 42px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  color: var(--text);
+  transition: background-color 220ms ease, border-color 220ms ease, transform 220ms ease;
+}
+
+:root[data-design="glass"] .header__btn:hover {
+  border-color: var(--glass-stroke);
+  background: var(--glass-highlight);
+}
+
+:root[data-design="glass"] .header__title {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+
+:root[data-design="glass"] .bottom-nav {
+  left: 50%;
+  right: auto;
+  bottom: calc(14px + var(--safe-bottom));
+  width: min(calc(100% - 32px), 460px);
+  min-height: 72px;
+  gap: 2px;
+  padding: 7px;
+  border: 1px solid var(--glass-stroke);
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--surface-strong) 62%, transparent);
+  box-shadow: var(--glass-depth);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+}
+
+:root[data-design="glass"] .bottom-nav__indicator {
+  display: none;
+}
+
+:root[data-design="glass"] .bottom-nav__item {
+  width: auto !important;
+  min-height: 56px;
+  height: 56px !important;
+  flex: 1 1 0 !important;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 4px;
+  border-radius: 18px;
+  color: color-mix(in srgb, var(--text) 54%, transparent);
+  transition: color 240ms ease, background-color 240ms ease, transform 240ms cubic-bezier(.22, 1, .36, 1);
+}
+
+:root[data-design="glass"] .bottom-nav__item.active {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+
+:root[data-design="glass"] .bottom-nav__item.active::before {
+  display: none;
+}
+
+:root[data-design="glass"] .bottom-nav__icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+:root[data-design="glass"] .bottom-nav__label {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: .01em;
+}
+
+/* Main dashboard */
+:root[data-design="glass"] #page-dashboard.page.active {
+  width: min(100%, 390px);
+}
+
+:root[data-design="glass"] .hero-center--brand {
+  gap: 12px;
+  padding: 10px 0 14px;
+}
+
+:root[data-design="glass"] .hero-brand {
+  position: relative;
+  width: min(64vw, 224px);
+  min-height: 150px;
+  display: grid;
+  place-items: center;
+  margin-inline: auto;
+  border: 1px solid var(--glass-stroke-soft);
+  border-radius: 34px;
+  background: color-mix(in srgb, var(--surface) 20%, transparent);
+  box-shadow: 0 30px 90px color-mix(in srgb, var(--bg) 28%, transparent), inset 0 1px 0 var(--glass-highlight);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+:root[data-design="glass"] .hero-brand::before {
+  position: absolute;
+  inset: 10px;
+  border: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+  border-radius: 25px;
+  pointer-events: none;
+  content: "";
+}
+
+:root[data-design="glass"] .hero-brand img {
+  filter: drop-shadow(0 18px 34px color-mix(in srgb, var(--bg) 48%, transparent));
+}
+
+:root[data-design="glass"] .hero-handle {
+  color: color-mix(in srgb, var(--text) 72%, transparent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .035em;
+}
+
+:root[data-design="glass"] .dashboard-compact {
+  width: min(100%, 338px);
+}
+
+:root[data-design="glass"] .subscription-switcher {
+  width: min(100%, 338px);
+  margin-bottom: 12px;
+}
+
+:root[data-design="glass"] .subscription-switcher__trigger {
+  min-height: 44px;
+  padding: 9px 14px;
+  border-color: var(--glass-stroke);
+  border-radius: 999px;
+  background: var(--glass-panel);
+  box-shadow: var(--glass-depth-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+:root[data-design="glass"] .sub-bar--status {
+  padding: 18px;
+  border: 1px solid var(--glass-stroke);
+  border-radius: 26px;
+  background: var(--glass-panel);
+  box-shadow: var(--glass-depth);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+}
+
+:root[data-design="glass"] .sub-bar__row + .sub-bar__row {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--glass-stroke-soft);
+}
+
+:root[data-design="glass"] .sub-bar__name {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -.025em;
+}
+
+:root[data-design="glass"] .sub-pill {
+  min-height: 34px;
+  padding: 0 12px;
+  border-color: var(--glass-stroke-soft);
+  background: color-mix(in srgb, var(--surface-strong) 42%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+:root[data-design="glass"] .action-stack {
+  gap: 10px;
+  margin-top: 12px;
+}
+
+:root[data-design="glass"] .btn {
+  min-height: var(--glass-control-height);
+  padding: 0 20px;
+  border-color: var(--glass-stroke);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-strong) 58%, transparent);
+  color: var(--text);
+  box-shadow: var(--glass-depth-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  transition: transform 220ms cubic-bezier(.22, 1, .36, 1), border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease;
+}
+
+:root[data-design="glass"] .btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--text) 30%, transparent);
+  background: var(--glass-panel-hover);
+  box-shadow: var(--glass-depth);
+}
+
+:root[data-design="glass"] .btn:active:not(:disabled) {
+  transform: translateY(1px) scale(.992);
+}
+
+:root[data-design="glass"] :where(.btn--green, .btn--green-filled, .buy-action, .admin-save-bar button, .admin-promo-submit, .admin-subscription-submit) {
+  border-color: color-mix(in srgb, var(--text) 84%, transparent);
+  background: color-mix(in srgb, var(--text) 92%, transparent);
+  color: var(--bg);
+  box-shadow: 0 14px 38px color-mix(in srgb, var(--bg) 34%, transparent), inset 0 1px 0 color-mix(in srgb, var(--bg) 12%, transparent);
+}
+
+:root[data-design="glass"] .home-widget,
+:root[data-design="glass"] .dashboard-banner {
+  border-color: var(--glass-stroke);
+  border-radius: 24px;
+  background: var(--glass-panel);
+  box-shadow: var(--glass-depth-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+/* Plans and checkout */
+:root[data-design="glass"] .plan-label,
+:root[data-design="glass"] .section-label,
+:root[data-design="glass"] .settings-caption {
+  color: color-mix(in srgb, var(--text) 58%, transparent);
+  font-size: 10px;
+  letter-spacing: .15em;
+}
+
+:root[data-design="glass"] .pricing-list {
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+:root[data-design="glass"] .pricing-card {
+  min-height: 168px;
+  padding: 18px;
+  border-color: var(--glass-stroke);
+  border-radius: 24px;
+  background: var(--glass-panel-soft);
+  box-shadow: var(--glass-depth-soft);
+  transition: transform 240ms cubic-bezier(.22, 1, .36, 1), border-color 240ms ease, background-color 240ms ease, box-shadow 240ms ease;
+}
+
+:root[data-design="glass"] .pricing-card.selected {
+  border-color: color-mix(in srgb, var(--text) 52%, transparent);
+  background: var(--glass-panel-hover);
+  box-shadow: var(--glass-depth), inset 0 0 0 1px color-mix(in srgb, var(--text) 12%, transparent);
+  transform: translateY(-2px);
+}
+
+:root[data-design="glass"] .pricing-card.selected::after {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--text) 9%, transparent);
+  content: "";
+}
+
+:root[data-design="glass"] .pricing-card__name {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -.035em;
+}
+
+:root[data-design="glass"] .pricing-card__spec {
+  color: color-mix(in srgb, var(--text) 62%, transparent);
+  font-size: 11px;
+}
+
+:root[data-design="glass"] .pricing-card__price-stack {
+  border-top: 1px solid var(--glass-stroke-soft);
+}
+
+:root[data-design="glass"] .pricing-card__price-line strong {
+  font-size: 21px;
+  letter-spacing: -.045em;
+}
+
+:root[data-design="glass"] .pricing-card__unlimited-badge,
+:root[data-design="glass"] .pricing-card__tag,
+:root[data-design="glass"] .badge {
+  border-color: var(--glass-stroke-soft);
+  background: color-mix(in srgb, var(--surface-strong) 48%, transparent);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+
+:root[data-design="glass"] :where(.pay-selector, .pay-row, .promo-box, .agreement, .checkout-free-note, .gift-payment-row) {
+  border-color: var(--glass-stroke);
+  border-radius: 18px;
+  background: var(--glass-panel);
+  box-shadow: var(--glass-depth-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+:root[data-design="glass"] :where(.promo-box__input, .gift-field__input, .support-field__input, .support-field__textarea, .support-reply__textarea) {
+  min-height: 48px;
+  border-color: var(--glass-stroke);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--surface-strong) 42%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+:root[data-design="glass"] :where(.promo-box__input, .gift-field__input, .support-field__input, .support-field__textarea, .support-reply__textarea):focus {
+  border-color: color-mix(in srgb, var(--text) 38%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--text) 6%, transparent), inset 0 1px 0 var(--glass-highlight);
+}
+
+/* Profile, support and utility pages */
+:root[data-design="glass"] .profile-group + .profile-group,
+:root[data-design="glass"] .admin-menu-group + .admin-menu-group {
+  margin-top: 24px;
+}
+
+:root[data-design="glass"] .profile-group__title,
+:root[data-design="glass"] .admin-menu-group__title {
+  margin: 0 4px 10px;
+  color: color-mix(in srgb, var(--text) 58%, transparent);
+  font-size: 10px;
+  letter-spacing: .14em;
+}
+
+:root[data-design="glass"] .profile-group__title > span,
+:root[data-design="glass"] .admin-menu-group__title > span {
+  display: none;
+}
+
+:root[data-design="glass"] .profile-group__rows,
+:root[data-design="glass"] .admin-menu-group__rows {
+  gap: 9px;
+}
+
+:root[data-design="glass"] :where(.menu-row, .profile-row, .quick-link, .pay-row) {
+  min-height: 60px;
+  margin-top: 0;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--glass-panel-soft);
+  box-shadow: var(--glass-depth-soft);
+  transition: transform 220ms cubic-bezier(.22, 1, .36, 1), border-color 220ms ease, background-color 220ms ease;
+}
+
+:root[data-design="glass"] :where(.menu-row__icon, .profile-row__icon, .quick-link__icon, .pay-row__icon, .pay-selector__icon) {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--glass-stroke-soft);
+  border-radius: 12px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-strong) 36%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+:root[data-design="glass"] :where(.menu-row__icon, .profile-row__icon, .quick-link__icon, .pay-row__icon, .pay-selector__icon) svg {
+  width: 18px;
+  height: 18px;
+}
+
+:root[data-design="glass"] .menu-row__body strong,
+:root[data-design="glass"] .profile-row__body strong {
+  font-size: 13px;
+  font-weight: 750;
+}
+
+:root[data-design="glass"] .menu-card {
+  min-height: 76px;
+  padding: 14px 16px;
+  border-radius: 20px;
+}
+
+:root[data-design="glass"] .page-support .support-top-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+:root[data-design="glass"] .page-support .menu-card {
+  width: 100%;
+  min-height: 76px;
+  padding: 13px 14px;
+  justify-self: stretch;
+}
+
+:root[data-design="glass"] .tabs {
+  gap: 4px;
+  padding: 5px;
+  border-color: var(--glass-stroke);
+  border-radius: 18px;
+  background: var(--glass-panel-soft);
+  box-shadow: var(--glass-depth-soft);
+}
+
+:root[data-design="glass"] .tab {
+  min-height: 42px;
+  border-radius: 13px;
+}
+
+:root[data-design="glass"] .tab.active {
+  border-color: var(--glass-stroke-soft);
+  background: var(--glass-highlight);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+
+:root[data-design="glass"] .support-ticket-card,
+:root[data-design="glass"] .server-summary-card,
+:root[data-design="glass"] .server-card,
+:root[data-design="glass"] .review-card,
+:root[data-design="glass"] .payment-item {
+  border-radius: 18px;
+  background: var(--glass-panel-soft);
+}
+
+:root[data-design="glass"] .support-message__bubble {
+  border-color: var(--glass-stroke);
+  border-radius: 18px 18px 18px 6px;
+  background: var(--glass-panel-soft);
+  box-shadow: var(--glass-depth-soft);
+}
+
+:root[data-design="glass"] .support-message--mine .support-message__bubble,
+:root[data-design="glass"] .support-message--admin-author .support-message__bubble {
+  border-radius: 18px 18px 6px;
+  background: var(--glass-panel-hover);
+}
+
+:root[data-design="glass"] .payment-item {
+  padding: 13px;
+  border: 1px solid var(--glass-stroke-soft);
+}
+
+:root[data-design="glass"] .payment-item + .payment-item {
+  margin-top: 8px;
+}
+
+:root[data-design="glass"] .payment-item__logo {
+  border-color: var(--glass-stroke);
+  box-shadow: var(--glass-depth-soft);
+}
+
+:root[data-design="glass"] .empty-state__icon {
+  width: 54px;
+  height: 54px;
+  margin-bottom: 14px;
+  border: 1px solid var(--glass-stroke);
+  border-radius: 18px;
+  background: var(--glass-panel-soft);
+  box-shadow: var(--glass-depth-soft);
+  color: var(--text);
+}
+
+/* Modals, sheets and transient surfaces */
+:root[data-design="glass"] .modal__backdrop,
+:root[data-design="glass"] .p2p-menu-layer {
+  background: color-mix(in srgb, var(--bg) 54%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+:root[data-design="glass"] .modal__sheet {
+  border: 1px solid var(--glass-stroke);
+  border-radius: 30px 30px 0 0;
+  background: color-mix(in srgb, var(--surface-strong) 68%, transparent);
+  box-shadow: 0 -24px 90px color-mix(in srgb, var(--bg) 48%, transparent), inset 0 1px 0 var(--glass-highlight);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+}
+
+:root[data-design="glass"] .modal__header {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--glass-stroke-soft);
+}
+
+:root[data-design="glass"] .modal__title {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -.025em;
+}
+
+:root[data-design="glass"] .toast,
+:root[data-design="glass"] .notification-popover,
+:root[data-design="glass"] .subscription-switcher__menu,
+:root[data-design="glass"] .admin-finance-period__menu {
+  border: 1px solid var(--glass-stroke);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  box-shadow: var(--glass-depth);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+}
+
+/* Admin */
+:root[data-design="glass"] .admin-page {
+  padding: 4px 2px 22px;
+}
+
+:root[data-design="glass"] .admin-menu-group .menu-row {
+  min-height: 58px;
+  border-color: var(--glass-stroke-soft);
+  background: var(--glass-panel-soft);
+}
+
+:root[data-design="glass"] .admin-menu-group .menu-row__icon,
+:root[data-design="glass"] .admin-menu-group .menu-row__tail {
+  color: var(--text) !important;
+}
+
+:root[data-design="glass"] .admin-editor {
+  gap: 16px;
+}
+
+:root[data-design="glass"] .admin-editor__title {
+  margin: 2px 2px 6px;
+  font-size: 23px;
+  font-weight: 850;
+  letter-spacing: -.035em;
+}
+
+:root[data-design="glass"] .admin-editor__section {
+  padding: 16px;
+  border: 1px solid var(--glass-stroke);
+  border-radius: 20px;
+  background: var(--glass-panel-soft);
+  box-shadow: var(--glass-depth-soft);
+}
+
+:root[data-design="glass"] .admin-editor__section:first-of-type {
+  padding-top: 16px;
+  border-top: 1px solid var(--glass-stroke);
+}
+
+:root[data-design="glass"] .admin-editor__section h3 {
+  color: color-mix(in srgb, var(--text) 64%, transparent);
+  font-size: 10px;
+  letter-spacing: .11em;
+}
+
+:root[data-design="glass"] :where(.admin-field__control, .admin-finance__custom input, .admin-finance__section-head select, .admin-finance-period__trigger) {
+  min-height: 46px;
+  border-color: var(--glass-stroke);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-strong) 42%, transparent);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+:root[data-design="glass"] :where(.admin-field__control, .admin-finance__custom input, .admin-finance__section-head select):focus {
+  border-color: color-mix(in srgb, var(--text) 38%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--text) 6%, transparent), inset 0 1px 0 var(--glass-highlight);
+}
+
+:root[data-design="glass"] .admin-toggle-list {
+  gap: 8px;
+}
+
+:root[data-design="glass"] .admin-toggle,
+:root[data-design="glass"] .admin-feature-toggle {
+  min-height: 52px;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-stroke-soft);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--surface-strong) 30%, transparent);
+}
+
+:root[data-design="glass"] .admin-toggle i {
+  width: 40px;
+  height: 24px;
+  flex-basis: 40px;
+  border-color: var(--glass-stroke);
+  background: color-mix(in srgb, var(--surface-strong) 54%, transparent);
+}
+
+:root[data-design="glass"] .admin-toggle i::after {
+  width: 18px;
+  height: 18px;
+  background: color-mix(in srgb, var(--text) 54%, transparent);
+}
+
+:root[data-design="glass"] .admin-toggle input:checked + i {
+  border-color: color-mix(in srgb, var(--text) 42%, transparent);
+  background: color-mix(in srgb, var(--text) 16%, transparent);
+}
+
+:root[data-design="glass"] .admin-toggle input:checked + i::after {
+  background: var(--text);
+  transform: translateX(16px);
+}
+
+:root[data-design="glass"] :where(.admin-background-option, .admin-preset, .admin-color-field, .admin-ui-category, .admin-repeat-row, .admin-builder-row, .admin-integration, .admin-promo-row, .admin-withdrawal, .admin-subscription-option) {
+  border-color: var(--glass-stroke-soft);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--surface-strong) 30%, transparent);
+}
+
+:root[data-design="glass"] :where(.admin-background-option.is-selected, .admin-preset.is-selected, .admin-ui-category.active, .admin-subscription-option.is-selected) {
+  border-color: color-mix(in srgb, var(--text) 40%, transparent);
+  background: var(--glass-highlight);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+
+:root[data-design="glass"] .admin-content-nav,
+:root[data-design="glass"] .admin-content-groups {
+  border-color: var(--glass-stroke-soft);
+}
+
+:root[data-design="glass"] .admin-content-tabs button {
+  border-radius: 12px;
+}
+
+:root[data-design="glass"] .admin-content-tabs button.is-active {
+  border-color: var(--glass-stroke);
+  background: var(--glass-highlight);
+}
+
+:root[data-design="glass"] .admin-save-bar {
+  right: auto;
+  bottom: calc(100px + var(--safe-bottom));
+  left: 50%;
+  width: min(536px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  border: 1px solid var(--glass-stroke);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  box-shadow: var(--glass-depth);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+}
+
+:root[data-design="glass"] .admin-finance {
+  gap: 16px;
+}
+
+:root[data-design="glass"] .admin-finance__metrics {
+  gap: 1px;
+  border: 1px solid var(--glass-stroke-soft);
+  border-radius: 16px;
+  background: var(--glass-stroke-soft);
+}
+
+:root[data-design="glass"] .admin-finance__metrics > div {
+  border: 0;
+  background: color-mix(in srgb, var(--surface-strong) 40%, transparent);
+}
+
+:root[data-design="glass"] .admin-finance__chart-wrap {
+  border-color: var(--glass-stroke-soft);
+}
+
+:root[data-design="glass"] .admin-finance-chart__grid line {
+  stroke: color-mix(in srgb, var(--text) 9%, transparent);
+  stroke-dasharray: 2 5;
+}
+
+:root[data-design="glass"] .admin-finance-chart__area {
+  fill-opacity: .07;
+}
+
+:root[data-design="glass"] .admin-finance-chart__line {
+  stroke-width: 1.6;
+  filter: drop-shadow(0 4px 9px color-mix(in srgb, var(--accent) 30%, transparent));
+}
+
+:root[data-design="glass"] .admin-finance-chart__tooltip rect {
+  fill: color-mix(in srgb, var(--surface-strong) 82%, transparent);
+  stroke: var(--glass-stroke);
+}
+
+/* Legal, login and empty application states */
+:root[data-design="glass"] .terms-article,
+:root[data-design="glass"] .browser-auth,
+:root[data-design="glass"] .verify-gate,
+:root[data-design="glass"] .state-card {
+  border: 1px solid var(--glass-stroke);
+  border-radius: 28px;
+  background: var(--glass-panel);
+  box-shadow: var(--glass-depth);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+}
+
+:root[data-design="glass"] .terms-article {
+  padding: clamp(20px, 5vw, 36px);
+}
+
+:root[data-design="glass"] .terms-article__title,
+:root[data-design="glass"] .terms-article__section-title {
+  color: var(--text);
+  font-family: inherit;
+}
+
+:root[data-design="glass"] .terms-article__lead,
+:root[data-design="glass"] .terms-article__paragraph,
+:root[data-design="glass"] .terms-article__list {
+  color: color-mix(in srgb, var(--text) 86%, transparent);
+}
+
+:root[data-design="glass"] .browser-auth__telegram,
+:root[data-design="glass"] .browser-auth__google,
+:root[data-design="glass"] .verify-gate__button {
+  min-height: 50px;
+  border: 1px solid var(--glass-stroke);
+  border-radius: 999px;
+  background: var(--glass-panel-hover);
+  color: var(--text);
+  box-shadow: var(--glass-depth-soft);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-design="glass"] :where(.card, .pricing-card, .menu-row, .profile-row, .menu-card, .quick-link, .pay-selector, .pay-row, .platform-btn, .bottom-nav, .modal__sheet, .admin-editor__section) {
+    background: var(--surface-strong);
+  }
+}
+
+@media (min-width: 640px) {
+  :root[data-design="glass"] .admin-menu-group__rows {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :root[data-design="glass"] .pricing-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  :root[data-design="glass"] .pricing-card--wide {
+    grid-column: span 2;
+  }
+
+  :root[data-design="glass"] .modal__sheet {
+    bottom: 18px;
+    width: min(calc(100% - 36px), 620px);
+    border-radius: 30px;
+  }
+}
+
+@media (max-width: 560px) {
+  .admin-design-picker {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-design-option {
+    grid-template-columns: 118px minmax(0, 1fr);
+    grid-template-rows: minmax(108px, auto);
+  }
+
+  .admin-design-option__preview {
+    border-right: 1px solid var(--line-soft);
+    border-bottom: 0;
+  }
+
+  .admin-design-option__copy {
+    align-content: center;
+    padding-right: 38px;
+  }
+
+  :root[data-design="glass"] .page-scroll {
+    padding: 18px 14px calc(106px + var(--safe-bottom));
+  }
+
+  :root[data-design="glass"] .bottom-nav {
+    width: calc(100% - 24px);
+    bottom: calc(10px + var(--safe-bottom));
+    min-height: 68px;
+    border-radius: 23px;
+  }
+
+  :root[data-design="glass"] .bottom-nav__item {
+    min-height: 52px;
+    height: 52px !important;
+  }
+
+  :root[data-design="glass"] .pricing-list {
+    gap: 9px;
+  }
+
+  :root[data-design="glass"] .pricing-card {
+    min-height: 160px;
+    padding: 15px;
+    border-radius: 20px;
+  }
+
+  :root[data-design="glass"] .admin-editor__section {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  :root[data-design="glass"] .admin-save-bar {
+    right: auto;
+    bottom: calc(91px + var(--safe-bottom));
+    left: 50%;
+    width: calc(100% - 24px);
+  }
+}
+
+@media (max-width: 380px) {
+  :root[data-design="glass"] .page-support .support-top-grid {
+    grid-template-columns: 1fr;
+  }
+
+  :root[data-design="glass"] .pricing-card__name {
+    font-size: 16px;
+  }
+
+  :root[data-design="glass"] .pricing-card__price-line strong {
+    font-size: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-design="glass"] *,
+  :root[data-design="glass"] *::before,
+  :root[data-design="glass"] *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+@keyframes glass-page-in {
+  from { opacity: 0; transform: translateY(8px); filter: blur(4px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}

@@ -23,7 +23,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 22
+const CurrentVersion = 23
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -224,6 +224,7 @@ type TelegramButtonSettings struct {
 }
 
 type AppearanceSettings struct {
+	Design           string                              `json:"design"`
 	BackgroundMode   string                              `json:"backgroundMode"`
 	Colors           map[string]string                   `json:"colors"`
 	Liquid           map[string]LiquidBackgroundSettings `json:"liquid"`
@@ -560,6 +561,7 @@ func DefaultSettings() Settings {
 			},
 		},
 		Appearance: AppearanceSettings{
+			Design:         "classic",
 			BackgroundMode: "animated",
 			Compact:        true,
 			ShowFrames:     true,
@@ -1592,6 +1594,13 @@ func normalizedRequiredText(value, fallback string, max int) string {
 }
 
 func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings, migrating bool) error {
+	value.Design = strings.ToLower(strings.TrimSpace(value.Design))
+	if value.Design == "" {
+		value.Design = defaults.Design
+	}
+	if value.Design != "classic" && value.Design != "glass" {
+		return errors.New("design must be classic or glass")
+	}
 	value.BackgroundMode = strings.ToLower(strings.TrimSpace(value.BackgroundMode))
 	if value.BackgroundMode == "" {
 		value.BackgroundMode = defaults.BackgroundMode

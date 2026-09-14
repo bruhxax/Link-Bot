@@ -850,6 +850,39 @@ func TestNormalizeAndValidateGridAppearanceAndAdminContact(t *testing.T) {
 	}
 }
 
+func TestNormalizeAndValidateAppearanceDesign(t *testing.T) {
+	settings := DefaultSettings()
+	if settings.Appearance.Design != "classic" {
+		t.Fatalf("default design = %q, want classic", settings.Appearance.Design)
+	}
+
+	settings.Appearance.Design = " GLASS "
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if settings.Appearance.Design != "glass" {
+		t.Fatalf("normalized design = %q, want glass", settings.Appearance.Design)
+	}
+
+	settings.Appearance.Design = "neon"
+	if err := NormalizeAndValidate(&settings); err == nil || !strings.Contains(err.Error(), "design") {
+		t.Fatalf("NormalizeAndValidate() error = %v, want design error", err)
+	}
+}
+
+func TestNormalizeAndValidateMigratesAppearanceDesign(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Version = CurrentVersion - 1
+	settings.Appearance.Design = ""
+
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if settings.Appearance.Design != "classic" {
+		t.Fatalf("migrated design = %q, want classic", settings.Appearance.Design)
+	}
+}
+
 func TestNormalizeAndValidateGrid2Appearance(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Appearance.BackgroundMode = "grid2"

@@ -1913,7 +1913,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 function buildPreviewRuntimeSettings() {
 	const features = Object.fromEntries(["mini_app", "additional_subscriptions", "stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "payments_history", "gifts", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
-		version: 22,
+		version: 23,
 		localization: { language: "ru", fontFamily: "auto" },
 		maintenance: { enabled: false, titleRu: "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u044b", textRu: "", reasonRu: "" },
 		features,
@@ -1929,7 +1929,7 @@ function buildPreviewRuntimeSettings() {
 			},
 			paymentNotification: { text: "💳 <b>Оплата:</b> <b>{{price}}</b>\n\n▦ <b>Тариф:</b> <b>{{sub}}</b>\n▦ <b>Доп. устройства:</b> <b>{{device}}</b>\n✈ <b>Telegram:</b> <b>{{username}}</b>\n◷ <b>Время:</b> <b>{{data}}</b>\n⚙ <b>Способ:</b> <b>{{integration}}</b>\n🏷 <b>Промокод:</b> <b>{{promo}}</b>\n▣ <b>Заказ:</b> <code>{{number}}</code>", openUserButton: { enabled: true, text: "Открыть пользователя в панели", iconCustomEmojiId: "", style: "primary" }, profileButton: { enabled: true, text: "Профиль", iconCustomEmojiId: "", style: "" } },
 		},
-		appearance: { backgroundMode: "animated", compact: true, showFrames: true, liquid: deepClone(DEFAULT_LIQUID_BACKGROUNDS), backgroundMotion: deepClone(DEFAULT_BACKGROUND_MOTION), colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", morphicBackground: "#000000", morphicBall: "#ff69b4", twinkleBackground: "#000000", twinkleStar: "#ffffff", waveBackground: "#000000", waveDot: "#ebebeb" } },
+		appearance: { design: "classic", backgroundMode: "animated", compact: true, showFrames: true, liquid: deepClone(DEFAULT_LIQUID_BACKGROUNDS), backgroundMotion: deepClone(DEFAULT_BACKGROUND_MOTION), colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", morphicBackground: "#000000", morphicBall: "#ff69b4", twinkleBackground: "#000000", twinkleStar: "#ffffff", waveBackground: "#000000", waveDot: "#ebebeb" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
 		subPage: { includeBuiltIns: true, clients: [] },
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, titleFa: `${plan.months} \u0645\u0627\u0647`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
@@ -2144,7 +2144,7 @@ function t() {
 }
 
 function getRuntimeSettings() {
-	if ((state.adminLayoutEditing || state.adminPlanEditing || state.adminSection === "appearance") && state.adminSettingsDraft) return state.adminSettingsDraft;
+	if ((state.adminLayoutEditing || state.adminPlanEditing || ["appearance", "design"].includes(state.adminSection)) && state.adminSettingsDraft) return state.adminSettingsDraft;
 	return state.data?.runtime || state.publicSettings || state.adminSettingsDraft || null;
 }
 
@@ -3374,6 +3374,7 @@ function renderAdminPage() {
 	if (state.adminSection === "features") return renderAdminFeaturesPage();
 	if (state.adminSection === "subpage") return renderAdminSubPagePage();
 	if (state.adminSection === "content") return renderAdminContentPage();
+	if (state.adminSection === "design") return renderAdminDesignPage();
 	if (state.adminSection === "appearance") return renderAdminAppearancePage();
 	if (state.adminSection === "layout") return renderAdminLayoutPage();
 	if (state.adminSection === "plans") return renderAdminPlansPage();
@@ -3403,6 +3404,7 @@ function renderAdminPage() {
 			${renderAdminMenuGroup(localizedText("Интерфейс", "Interface", "رابط کاربری"), [
 				[localizedText("Редактор контента", "Content", "ویرایشگر محتوا"), "", "content", "adminContent"],
 				["Sub page", "", "subpage", "adminSubscriptions"],
+				[localizedText("Дизайн", "Design", "طراحی"), "", "design", "layers"],
 				[localizedText("Оформление", "Appearance", "ظاهر"), "", "appearance", "adminAppearance"],
 				[localizedText("Конструктор UI", "UI builder", "سازنده رابط"), "", "layout", "grid"],
 				[localizedText("Тарифы", "Plans", "تعرفه‌ها"), "", "plans", "cartShopping"],
@@ -4897,6 +4899,38 @@ function renderAdminAppearancePresets() {
 			}).join("")}
 		</div>
 	</section>`;
+}
+
+function renderAdminDesignPage() {
+	const current = String(getDeepValue(state.adminSettingsDraft, "appearance.design", "classic") || "classic");
+	const options = [
+		{
+			id: "classic",
+			title: localizedText("Классический", "Classic", "کلاسیک"),
+			hint: localizedText("Текущий интерфейс без изменений", "The current interface without changes", "رابط فعلی بدون تغییر"),
+		},
+		{
+			id: "glass",
+			title: localizedText("Glass", "Glass", "شیشه‌ای"),
+			hint: localizedText("Воздушное стекло, мягкая глубина и новая компоновка", "Airy glass, soft depth and a refined layout", "شیشه شفاف، عمق نرم و چیدمان تازه"),
+		},
+	];
+	return renderAdminEditorPage(localizedText("Дизайн", "Design", "طراحی"), `
+		<section class="admin-design-intro">
+			<span>${localizedText("ВНЕШНИЙ ВИД", "APPEARANCE", "ظاهر")}</span>
+			<h3>${localizedText("Выберите интерфейс Mini App", "Choose the Mini App interface", "رابط Mini App را انتخاب کنید")}</h3>
+			<p>${localizedText("Переключение применяется ко всем экранам: главной, тарифам, профилю, поддержке, модальным окнам и админке. Классический вариант всегда можно вернуть.", "The choice applies to every screen, including plans, profile, support, dialogs and admin tools. You can always return to Classic.", "انتخاب روی همه صفحه‌ها اعمال می‌شود و همیشه می‌توانید به حالت کلاسیک برگردید.")}</p>
+		</section>
+		<fieldset class="admin-design-picker"><legend class="sr-only">${localizedText("Стиль интерфейса", "Interface style", "سبک رابط")}</legend>
+			${options.map((option) => `<label class="admin-design-option admin-design-option--${option.id}">
+				<input type="radio" name="appearance-design" value="${option.id}" data-setting-path="appearance.design" data-setting-type="text" ${current === option.id ? "checked" : ""}>
+				<span class="admin-design-option__preview" aria-hidden="true"><i class="admin-design-preview__nav"></i><i class="admin-design-preview__hero"></i><i class="admin-design-preview__card"></i><i class="admin-design-preview__button"></i></span>
+				<span class="admin-design-option__copy"><strong>${escapeHtml(option.title)}</strong><small>${escapeHtml(option.hint)}</small></span>
+				<span class="admin-design-option__check" aria-hidden="true">${icon("check")}</span>
+			</label>`).join("")}
+		</fieldset>
+		<section class="admin-design-note"><span aria-hidden="true">${icon("stars")}</span><p>${localizedText("Glass использует выбранный фон и цвета из раздела «Оформление», поэтому стиль можно настроить под бренд.", "Glass uses the background and colors from Appearance, so it can still match your brand.", "حالت شیشه‌ای از پس‌زمینه و رنگ‌های بخش ظاهر استفاده می‌کند.")}</p></section>
+	`);
 }
 
 function getAdminLiquidSettings(mode) {
@@ -12700,6 +12734,7 @@ function applyAppearance() {
 	syncLocalizationFromSettings();
 	applyWebPageMetadata();
 	const appearance = getRuntimeSettings()?.appearance || {};
+	document.documentElement.dataset.design = appearance.design === "glass" ? "glass" : "classic";
 	const colors = appearance.colors || {};
 	const accentColor = colors.accent || PALETTE.accent.accent;
 	const unlimitedBadgeColor = colors.unlimitedBadge || "#949494";
@@ -12860,13 +12895,13 @@ function getPageTitle(page, short = false) {
   const copy = t();
 	if (page === "admin" && !short && state.adminSection !== "home") {
 		const labels = state.locale === "fa" ? {
-			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", push: "اعلان‌های پوش", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", users: "کاربران",
+			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", push: "اعلان‌های پوش", features: "امکانات", subpage: "Sub page", content: "محتوا", design: "طراحی", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", users: "کاربران",
 		} : state.locale === "en" ? {
 			localization: "Language and font",
-			maintenance: "Maintenance", diagnostics: "Diagnostics", push: "Push notifications", features: "Functions", subpage: "Sub page", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", users: "Users",
+			maintenance: "Maintenance", diagnostics: "Diagnostics", push: "Push notifications", features: "Functions", subpage: "Sub page", content: "Content", design: "Design", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", users: "Users",
 		} : {
 			localization: "Язык и шрифт",
-			maintenance: "Режим аварии", diagnostics: "Диагностика", push: "Push-уведомления", features: "Функции", subpage: "Sub page", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", users: "Пользователи",
+			maintenance: "Режим аварии", diagnostics: "Диагностика", push: "Push-уведомления", features: "Функции", subpage: "Sub page", content: "Контент", design: "Дизайн", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", users: "Пользователи",
 		};
 		return labels[state.adminSection] || copy.pageAdmin || "Admin panel";
 	}
