@@ -27,8 +27,15 @@ func TestGlassDesignStaticContract(t *testing.T) {
 		`appearance: { design: "classic"`,
 		`state.adminSection === "design"`,
 		`function renderAdminDesignPage()`,
+		`function useGlassInterface()`,
+		`function renderGlassNavigation()`,
+		`function renderGlassTopbar()`,
+		`function renderGlassDashboardPage()`,
+		`function renderGlassProfileItem(item)`,
+		`function switchInterfaceDesign(nextDesign)`,
+		`document.startViewTransition`,
 		`data-setting-path="appearance.design"`,
-		`document.documentElement.dataset.design = appearance.design === "glass" ? "glass" : "classic";`,
+		`document.documentElement.dataset.design = isGlassDesign() ? "glass" : "classic";`,
 	} {
 		if !strings.Contains(appJS, fragment) {
 			t.Errorf("app.js is missing glass design contract %q", fragment)
@@ -37,10 +44,19 @@ func TestGlassDesignStaticContract(t *testing.T) {
 
 	for _, fragment := range []string{
 		`:root[data-design="glass"]`,
-		`--glass-blur:`,
+		`--glass-next-blur:`,
+		`.app-shell--glass`,
+		`.glass-rail`,
+		`.glass-workspace`,
+		`.glass-mobile-nav`,
+		`.glass-access-card`,
+		`.glass-command-grid`,
+		`.glass-profile__groups`,
+		`.glass-admin-home`,
 		`.pricing-card`,
-		`.bottom-nav`,
 		`.admin-editor__section`,
+		`::view-transition-new(root)`,
+		`.design-switching-fallback::after`,
 		`:focus-visible`,
 		`@media (prefers-reduced-motion: reduce)`,
 	} {

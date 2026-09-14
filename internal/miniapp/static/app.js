@@ -102,6 +102,7 @@ let adminUsersSearchRequestID = 0;
 let adminUserDetailRequestID = 0;
 let adminFinanceRequestID = 0;
 let browserDeviceFingerprintPromise = null;
+let designTransitionCleanupTimer = null;
 
 function preventMiniAppZoom() {
   let lastTouchEndAt = 0;
@@ -2148,6 +2149,14 @@ function getRuntimeSettings() {
 	return state.data?.runtime || state.publicSettings || state.adminSettingsDraft || null;
 }
 
+function isGlassDesign() {
+	return getRuntimeSettings()?.appearance?.design === "glass" || (previewMode && urlParams.get("design") === "glass");
+}
+
+function useGlassInterface() {
+	return isGlassDesign() && !state.adminLayoutEditing && !state.adminPlanEditing;
+}
+
 function featureEnabled(name) {
 	const features = getRuntimeSettings()?.features;
 	return !features || features[name] !== false;
@@ -3188,10 +3197,15 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
     return;
   }
 
+	const glassInterface = useGlassInterface();
 	app.innerHTML = `
-    <div class="app-shell ${state.adminLayoutEditing ? "app-shell--layout-editor" : ""}">
-      <div class="page-scroll">${renderPages()}</div>
-      ${state.adminPlanEditing ? "" : renderBottomNav()}
+    <div class="app-shell ${state.adminLayoutEditing ? "app-shell--layout-editor" : ""} ${glassInterface ? "app-shell--glass" : ""}">
+      ${glassInterface ? renderGlassNavigation() : ""}
+	  <div class="${glassInterface ? "glass-workspace" : "app-workspace"}">
+		${glassInterface ? renderGlassTopbar() : ""}
+		<div class="page-scroll">${renderPages()}</div>
+	  </div>
+      ${state.adminPlanEditing || glassInterface ? "" : renderBottomNav()}
 		${state.adminLayoutEditing ? renderAdminSaveBar("admin-save-bar--layout-editor") : ""}
 		${state.adminPlanEditing ? renderAdminPlanSaveBar() : ""}
       ${isModalVisible("support-compose", state.supportComposeOpen) ? renderSupportComposerModal() : ""}
@@ -3388,7 +3402,11 @@ function renderAdminPage() {
 	if (state.adminSection === "push") return renderAdminPushPage();
 	if (state.adminSection === "users") return renderAdminUsersPage();
 	return `
-		<section class="page admin-page ${pageClass("admin")}" id="page-admin">
+		<section class="page admin-page ${useGlassInterface() ? "glass-admin-home" : ""} ${pageClass("admin")}" id="page-admin">
+			${useGlassInterface() ? `<div class="glass-admin-overview">
+				<div><span>${escapeHtml(localizedText("ЦЕНТР УПРАВЛЕНИЯ", "CONTROL CENTER", "مرکز مدیریت"))}</span><h2>${escapeHtml(localizedText("Настройте сервис без лишних переходов", "Run the service without unnecessary steps", "سرویس را بدون مراحل اضافی مدیریت کنید"))}</h2><p>${escapeHtml(localizedText("Система, интерфейс и ежедневные операции собраны в трёх понятных разделах.", "System, interface and daily operations are grouped into three clear areas.", "سیستم، رابط و عملیات روزانه در سه بخش روشن گروه‌بندی شده‌اند."))}</p></div>
+				<div class="glass-admin-overview__status"><i></i><span>${escapeHtml(localizedText("Система работает", "System operational", "سیستم فعال است"))}</span></div>
+			</div>` : ""}
 			${renderAdminMenuGroup(localizedText("Система", "System", "سیستم"), [
 				[localizedText("Язык и шрифт", "Language and font", "زبان و فونت"), "", "localization", "language"],
 				[localizedText("Режим аварии", "Maintenance mode", "حالت تعمیر"), "", "maintenance", "adminMaintenance"],
@@ -4911,25 +4929,25 @@ function renderAdminDesignPage() {
 		},
 		{
 			id: "glass",
-			title: localizedText("Glass", "Glass", "شیشه‌ای"),
-			hint: localizedText("Воздушное стекло, мягкая глубина и новая компоновка", "Airy glass, soft depth and a refined layout", "شیشه شفاف، عمق نرم و چیدمان تازه"),
+			title: localizedText("Новый / Glass", "Glass Next", "شیشه‌ای جدید"),
+			hint: localizedText("Новая структура, боковое меню и полностью другие компоненты", "A new structure, side navigation and completely different components", "ساختار، منو و اجزای کاملاً جدید"),
 		},
 	];
 	return renderAdminEditorPage(localizedText("Дизайн", "Design", "طراحی"), `
 		<section class="admin-design-intro">
 			<span>${localizedText("ВНЕШНИЙ ВИД", "APPEARANCE", "ظاهر")}</span>
 			<h3>${localizedText("Выберите интерфейс Mini App", "Choose the Mini App interface", "رابط Mini App را انتخاب کنید")}</h3>
-			<p>${localizedText("Переключение применяется ко всем экранам: главной, тарифам, профилю, поддержке, модальным окнам и админке. Классический вариант всегда можно вернуть.", "The choice applies to every screen, including plans, profile, support, dialogs and admin tools. You can always return to Classic.", "انتخاب روی همه صفحه‌ها اعمال می‌شود و همیشه می‌توانید به حالت کلاسیک برگردید.")}</p>
+			<p>${localizedText("Это два самостоятельных интерфейса. Новый вариант меняет структуру экранов, навигацию, карточки, кнопки, формы, модальные окна и админку. Классический всегда можно вернуть.", "These are two independent interfaces. The new option changes screen structure, navigation, cards, buttons, forms, dialogs and admin tools. You can always return to Classic.", "این دو رابط مستقل هستند و حالت جدید ساختار صفحه‌ها، منو، کارت‌ها، دکمه‌ها، فرم‌ها و پنل مدیریت را تغییر می‌دهد.")}</p>
 		</section>
 		<fieldset class="admin-design-picker"><legend class="sr-only">${localizedText("Стиль интерфейса", "Interface style", "سبک رابط")}</legend>
 			${options.map((option) => `<label class="admin-design-option admin-design-option--${option.id}">
 				<input type="radio" name="appearance-design" value="${option.id}" data-setting-path="appearance.design" data-setting-type="text" ${current === option.id ? "checked" : ""}>
-				<span class="admin-design-option__preview" aria-hidden="true"><i class="admin-design-preview__nav"></i><i class="admin-design-preview__hero"></i><i class="admin-design-preview__card"></i><i class="admin-design-preview__button"></i></span>
+				<span class="admin-design-option__preview" aria-hidden="true">${option.id === "glass" ? `<i class="admin-design-preview__rail"></i><i class="admin-design-preview__topbar"></i><i class="admin-design-preview__feature"></i><i class="admin-design-preview__rows"></i>` : `<i class="admin-design-preview__nav"></i><i class="admin-design-preview__hero"></i><i class="admin-design-preview__card"></i><i class="admin-design-preview__button"></i>`}</span>
 				<span class="admin-design-option__copy"><strong>${escapeHtml(option.title)}</strong><small>${escapeHtml(option.hint)}</small></span>
 				<span class="admin-design-option__check" aria-hidden="true">${icon("check")}</span>
 			</label>`).join("")}
 		</fieldset>
-		<section class="admin-design-note"><span aria-hidden="true">${icon("stars")}</span><p>${localizedText("Glass использует выбранный фон и цвета из раздела «Оформление», поэтому стиль можно настроить под бренд.", "Glass uses the background and colors from Appearance, so it can still match your brand.", "حالت شیشه‌ای از پس‌زمینه و رنگ‌های بخش ظاهر استفاده می‌کند.")}</p></section>
+		<section class="admin-design-note"><span aria-hidden="true">${icon("stars")}</span><p>${localizedText("Переключение анимировано и применяется сразу для предпросмотра. После выбора нажмите «Сохранить», чтобы включить интерфейс для всех пользователей.", "The switch is animated and previews immediately. Press Save to enable it for every user.", "تغییر رابط با انیمیشن پیش‌نمایش می‌شود. برای فعال‌سازی برای همه کاربران ذخیره را بزنید.")}</p></section>
 	`);
 }
 
@@ -5872,6 +5890,7 @@ function renderAdminPromocodesPage() {
 }
 
 function renderDashboardPage() {
+	if (useGlassInterface()) return renderGlassDashboardPage();
   const copy = t();
   const active = isSubscriptionActive();
   const trialEligible = state.data.trial.enabled && state.data.trial.eligible;
@@ -5914,6 +5933,65 @@ function renderDashboardPage() {
 		? "layout-runtime-pending"
 		: "";
 	return `<section class="page ${pageClass("dashboard")} ${switchAnimationClass} ${layoutPendingClass}" id="page-dashboard">${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
+}
+
+function renderGlassDashboardPage() {
+	const copy = t();
+	const active = isSubscriptionActive();
+	const trialEligible = Boolean(state.data?.trial?.enabled && state.data?.trial?.eligible);
+	const planTitle = active ? getCurrentSubscriptionPlanLabel() : localizedText("Подписка не выбрана", "No active subscription", "اشتراک فعالی وجود ندارد");
+	const expires = active ? `${getUntilLabel()} ${formatShortDateLabel(state.data.subscription.expiresAt, state.locale)}` : localizedText("Выберите тариф для подключения", "Choose a plan to connect", "برای اتصال یک تعرفه انتخاب کنید");
+	const traffic = active ? formatTrafficBadgeLabel(state.data.subscription.trafficUsedBytes, state.data.subscription.trafficLimitBytes, state.locale) : "—";
+	const devices = active ? formatDeviceBadgeLabel(state.data.subscription.deviceUsedCount, state.data.subscription.deviceLimitCount, state.locale) : "—";
+	const limit = Number(state.data?.subscription?.trafficLimitBytes || 0);
+	const used = Number(state.data?.subscription?.trafficUsedBytes || 0);
+	const progress = active ? (limit > 0 ? Math.max(4, Math.min(100, Math.round(used / limit * 100))) : 100) : 0;
+	const promoWidgetItem = getLayoutElement("dashboard", "promo_widget");
+	const notificationWidgetItem = getLayoutElement("dashboard", "notification_widget");
+	const extras = [
+		promoWidgetItem?.visible !== false && promoWidgetItem?.promoCode ? renderPromoGiftWidget(promoWidgetItem) : "",
+		notificationWidgetItem?.visible !== false && String(notificationWidgetItem?.notificationText || "").trim() ? renderNotificationWidget(notificationWidgetItem) : "",
+		...getLayoutElements("dashboard").filter((item) => isBannerLayoutID(item.id) && item.visible !== false && item.bannerUrl).map(renderDashboardBanner),
+	].filter(Boolean).join("");
+	const subscriptionSwitcher = featureEnabled("additional_subscriptions") ? renderSubscriptionSwitcher() : "";
+	const primaryAction = active
+		? `<button class="glass-action glass-action--primary" type="button" data-action="go-page" data-value="setup"><span>${icon("arrowDownSquare")}</span><strong>${escapeHtml(copy.setup)}</strong>${icon("arrow")}</button>`
+		: `<button class="glass-action glass-action--primary" type="button" data-action="go-page" data-value="buy"><span>${icon("cart")}</span><strong>${escapeHtml(copy.buySubscription)}</strong>${icon("arrow")}</button>`;
+	const secondaryAction = active
+		? `<button class="glass-action glass-action--secondary" type="button" data-action="go-page" data-value="buy"><span>${icon("cartShopping")}</span><strong>${escapeHtml(copy.extend)}</strong></button>`
+		: trialEligible
+			? `<button class="glass-action glass-action--secondary" type="button" data-action="activate-trial"><span>${icon("gift")}</span><strong>${escapeHtml(copy.activateTrial)}</strong></button>`
+			: "";
+	return `<section class="page glass-dashboard ${pageClass("dashboard")}" id="page-dashboard">
+		<div class="glass-dashboard__welcome">
+			<div><span>${escapeHtml(localizedText("ВАШЕ ПОДКЛЮЧЕНИЕ", "YOUR CONNECTION", "اتصال شما"))}</span><h2>${escapeHtml(localizedText("Всё важное — на одном экране", "Everything important, in one place", "همه چیز مهم در یک صفحه"))}</h2><p>${escapeHtml(getDashboardUserLabel())}</p></div>
+			<div class="glass-dashboard__logo"><img src="${escapeAttribute(resolveBrandMarkURL(state.data.brand.logoUrl))}" data-brand-logo alt="${escapeAttribute(state.data.brand.name || "Link-Bot")}" loading="eager" draggable="false"></div>
+		</div>
+		${subscriptionSwitcher ? `<div class="glass-dashboard__switcher">${subscriptionSwitcher}</div>` : ""}
+		<article class="glass-access-card ${active ? "is-active" : "is-inactive"}">
+			<div class="glass-access-card__head">
+				<span class="glass-access-card__status"><i></i>${escapeHtml(active ? localizedText("ДОСТУП АКТИВЕН", "ACCESS ACTIVE", "دسترسی فعال") : localizedText("НЕТ ПОДКЛЮЧЕНИЯ", "NOT CONNECTED", "متصل نیست"))}</span>
+				<span class="glass-access-card__shield" aria-hidden="true">${icon("shield")}</span>
+			</div>
+			<div class="glass-access-card__title"><h2>${escapeHtml(planTitle)}</h2><p>${escapeHtml(expires)}</p></div>
+			<div class="glass-access-card__meter" aria-label="${escapeAttribute(traffic)}"><span style="--glass-progress:${progress}%"></span></div>
+			<div class="glass-access-card__stats">
+				<div><span>${icon("chartLine")}</span><small>${escapeHtml(localizedText("Трафик", "Traffic", "ترافیک"))}</small><strong>${escapeHtml(traffic)}</strong></div>
+				<button type="button" data-action="open-devices-modal" ${active ? "" : "disabled"}><span>${icon("devicePhone")}</span><small>${escapeHtml(localizedText("Устройства", "Devices", "دستگاه‌ها"))}</small><strong>${escapeHtml(devices)}</strong></button>
+			</div>
+			<div class="glass-access-card__actions">${primaryAction}${secondaryAction}</div>
+		</article>
+		<section class="glass-command-grid" aria-label="${escapeAttribute(localizedText("Быстрые действия", "Quick actions", "اقدامات سریع"))}">
+			${renderGlassDashboardCommand("setup", "shield", localizedText("Подключение", "Setup", "راه‌اندازی"), localizedText("Инструкция и приложения", "Apps and instructions", "برنامه‌ها و راهنما"))}
+			${renderGlassDashboardCommand("buy", "shop", localizedText("Тарифы", "Plans", "تعرفه‌ها"), localizedText("Продление и устройства", "Renewal and devices", "تمدید و دستگاه‌ها"))}
+			${renderGlassDashboardCommand("support", "sms", localizedText("Поддержка", "Support", "پشتیبانی"), localizedText("Помощь и обращения", "Help and tickets", "راهنما و تیکت‌ها"))}
+		</section>
+		${extras ? `<section class="glass-dashboard__extras">${extras}</section>` : ""}
+	</section>`;
+}
+
+function renderGlassDashboardCommand(page, iconName, title, hint) {
+	return `<button class="glass-command" type="button" data-action="go-page" data-value="${escapeAttribute(page)}"><span class="glass-command__icon" aria-hidden="true">${icon(iconName)}</span><span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(hint)}</small></span><span class="glass-command__arrow" aria-hidden="true">${icon("arrow")}</span></button>`;
 }
 
 function renderPromoGiftWidget(item) {
@@ -6062,8 +6140,10 @@ function renderBuyPage() {
   const payLabel = freeCheckout ? freeLabel : (plan && method ? `${copy.pay} ${formatCheckoutPrice(plan, devicePack, method.id)}` : copy.paymentUnavailable);
   const displayedPlans = getDisplayedPlans();
   const devicePacks = getDevicePacks();
+	const glassIntro = useGlassInterface() ? `<header class="glass-page-intro"><span>${escapeHtml(localizedText("ПОДПИСКА", "SUBSCRIPTION", "اشتراک"))}</span><h2>${escapeHtml(localizedText("Выберите формат доступа", "Choose your access", "نوع دسترسی را انتخاب کنید"))}</h2><p>${escapeHtml(localizedText("Срок, устройства и способ оплаты — в одном понятном сценарии.", "Duration, devices and payment in one clear flow.", "مدت، دستگاه‌ها و پرداخت در یک مسیر روشن."))}</p></header>` : "";
   if (!state.adminPlanEditing && !displayedPlans.length && !devicePacks.length) {
     return `<section class="page page-buy--empty ${state.adminPlanEditing ? "page-buy--admin-editor" : ""} ${pageClass("buy")}" id="page-buy">
+	  ${glassIntro}
       <div class="commerce-empty" role="status">
         <div class="commerce-empty__icon">${icon("cartShopping")}</div>
         <div class="commerce-empty__title">${escapeHtml(copy.noPlansTitle)}</div>
@@ -6093,7 +6173,7 @@ function renderBuyPage() {
 		<button class="btn btn--green-filled buy-action" type="button" data-action="pay-selected" ${checkoutDisabled ? "disabled aria-disabled=\"true\"" : ""}>${icon(state.busyMethod ? "refresh" : "cart")}${payLabel}</button>
         </div>
       </div>`;
-  return `<section class="page ${state.adminPlanEditing ? "page-buy--admin-editor" : ""} ${pageClass("buy")}" id="page-buy">${devicePackTrigger}${planList}${displayedPlans.length ? checkout : ""}</section>`;
+	return `<section class="page ${state.adminPlanEditing ? "page-buy--admin-editor" : ""} ${useGlassInterface() ? "glass-buy" : ""} ${pageClass("buy")}" id="page-buy">${glassIntro}${devicePackTrigger}${planList}${displayedPlans.length ? checkout : ""}</section>`;
 }
 
 function getDevicePacks(settings = getRuntimeSettings()) {
@@ -6353,7 +6433,8 @@ function renderSupportPage() {
       `;
 	const tabs = `<div class="tabs tabs--support">${SUPPORT_TABS.map((tab) => `<button class="tab ${state.supportTab === tab ? "active" : ""}" type="button" data-action="switch-support-tab" data-value="${tab}">${tab === "open" ? scopy.open : scopy.history}</button>`).join("")}</div>`;
 	const ticketContent = tickets.length ? `<div class="support-ticket-list">${tickets.map((ticket) => renderSupportTicketCard(ticket, support.isAdmin)).join("")}</div>` : `<div class="card"><div class="empty-state"><div class="empty-state__icon">${icon(emptyIcon)}</div><div class="empty-state__title">${emptyTitle}</div><div class="empty-state__desc">${emptyHint}</div></div></div>`;
-  return `<section class="page page-support ${pageClass("support")}" id="page-support">${actions}${tabs}${ticketContent}</section>`;
+	const glassIntro = useGlassInterface() ? `<header class="glass-page-intro glass-page-intro--support"><span>${escapeHtml(localizedText("ПОМОЩЬ", "SUPPORT", "پشتیبانی"))}</span><h2>${escapeHtml(localizedText("Мы рядом, когда это нужно", "Help when you need it", "هر زمان نیاز دارید کنار شما هستیم"))}</h2><p>${escapeHtml(localizedText("Создайте обращение или найдите быстрый ответ в базе знаний.", "Create a ticket or find a quick answer in the knowledge base.", "تیکت بسازید یا پاسخ سریع را در راهنما پیدا کنید."))}</p></header>` : "";
+  return `<section class="page page-support ${useGlassInterface() ? "glass-support" : ""} ${pageClass("support")}" id="page-support">${glassIntro}${actions}${tabs}${ticketContent}</section>`;
 }
 
 function renderSupportTicketCard(ticket, isAdmin) {
@@ -6549,6 +6630,26 @@ function renderSettingsPage() {
 	const orderedGroups = PROFILE_GROUP_ORDER
 		.map((key) => [key, groups[key]])
 		.filter(([, items]) => state.adminLayoutEditing || items.length);
+	if (useGlassInterface()) {
+		const active = isSubscriptionActive();
+		const plan = active ? getCurrentSubscriptionPlanLabel() : localizedText("Без подписки", "No subscription", "بدون اشتراک");
+		return `
+			<section class="page glass-profile ${pageClass("settings")}" id="page-settings">
+				<div class="glass-profile__identity">
+					<span class="glass-profile__avatar" aria-hidden="true">${escapeHtml(getDashboardAvatarFallback())}</span>
+					<div><span>${escapeHtml(localizedText("АККАУНТ", "ACCOUNT", "حساب"))}</span><h2>${escapeHtml(getDashboardUserLabel())}</h2><p><i class="${active ? "is-active" : ""}"></i>${escapeHtml(plan)}</p></div>
+				</div>
+				<div class="glass-profile__groups">
+					${orderedGroups.map(([key, items]) => `
+						<section class="profile-group" aria-labelledby="profile-${key}">
+							<h2 class="profile-group__title" id="profile-${key}">${escapeHtml(labels[key])}<span>${formatNumber(items.length, state.locale)}</span></h2>
+							<div class="profile-group__rows">${items.map(renderGlassProfileItem).join("")}</div>
+						</section>
+					`).join("")}
+				</div>
+			</section>
+		`;
+	}
 	return `
 		<section class="page profile-page ${state.adminLayoutEditing ? "profile-page--sorting" : ""} ${pageClass("settings")}" id="page-settings">
 			${orderedGroups.map(([key, items]) => `
@@ -6559,6 +6660,14 @@ function renderSettingsPage() {
 			`).join("")}
 		</section>
 	`;
+}
+
+function renderGlassProfileItem(item) {
+	return `<button class="glass-profile-row" type="button" data-action="${escapeAttribute(item.action)}" ${item.value ? `data-value="${escapeAttribute(item.value)}"` : ""}>
+		<span class="glass-profile-row__icon" aria-hidden="true">${icon(item.icon)}</span>
+		<span class="glass-profile-row__copy"><strong>${escapeHtml(item.label || item.id)}</strong>${item.hint ? `<small>${escapeHtml(item.hint)}</small>` : ""}</span>
+		<span class="glass-profile-row__arrow" aria-hidden="true">${icon("chevronRight")}</span>
+	</button>`;
 }
 
 function getProfileItems() {
@@ -7094,6 +7203,64 @@ function renderStateScreen(kind, message = "", meta = null) {
     `;
   }
   return `<div class="state-screen"><div class="state-card"><div class="state-card__eyebrow">${escapeHtml(t().appName)}</div><div class="state-card__title">${escapeHtml(t().errorTitle)}</div><div class="state-card__text">${escapeHtml(message)}</div><button class="btn mt-16" type="button" data-action="refresh">${icon("refresh")}${escapeHtml(t().retry)}</button></div></div>`;
+}
+
+function renderGlassNavigation() {
+	const pages = getBottomNavPages();
+	const activePage = getBottomNavActivePage();
+	const brandName = String(state.data?.brand?.name || "Link-Bot").trim() || "Link-Bot";
+	const userLabel = getDashboardUserLabel();
+	const active = isSubscriptionActive();
+	const status = active
+		? localizedText("Подключение активно", "Connection active", "اتصال فعال است")
+		: localizedText("Нужна подписка", "Subscription required", "اشتراک لازم است");
+	const items = pages.map((page) => renderGlassNavigationItem(page, activePage)).join("");
+	return `
+		<aside class="glass-rail" aria-label="${escapeAttribute(localizedText("Основная навигация", "Primary navigation", "پیمایش اصلی"))}">
+			<button class="glass-rail__brand" type="button" data-action="go-page" data-value="dashboard" aria-label="${escapeAttribute(brandName)}">
+				<span class="glass-rail__mark" aria-hidden="true">${icon("shield")}</span>
+				<span class="glass-rail__brand-copy"><strong>${escapeHtml(brandName)}</strong><small>Private network</small></span>
+			</button>
+			<nav class="glass-rail__nav">${items}</nav>
+			<div class="glass-rail__account">
+				<span class="glass-rail__avatar" aria-hidden="true">${escapeHtml(getDashboardAvatarFallback())}</span>
+				<span class="glass-rail__account-copy"><strong>${escapeHtml(userLabel)}</strong><small><i class="${active ? "is-active" : ""}"></i>${escapeHtml(status)}</small></span>
+			</div>
+		</aside>
+		<nav class="glass-mobile-nav" style="--glass-mobile-count:${pages.length}" aria-label="${escapeAttribute(localizedText("Основная навигация", "Primary navigation", "پیمایش اصلی"))}">${items}</nav>
+	`;
+}
+
+function renderGlassNavigationItem(page, activePage) {
+	const active = activePage === page;
+	const label = getPageTitle(page, true);
+	const descriptions = {
+		dashboard: localizedText("Подписка и доступ", "Access and subscription", "دسترسی و اشتراک"),
+		buy: localizedText("Выбор тарифа", "Choose a plan", "انتخاب تعرفه"),
+		support: localizedText("Тикеты и помощь", "Tickets and help", "تیکت و راهنما"),
+		settings: localizedText("Аккаунт и сервисы", "Account and services", "حساب و خدمات"),
+		admin: localizedText("Управление системой", "System management", "مدیریت سیستم"),
+	};
+	return `<button class="glass-nav-item ${active ? "is-active" : ""}" type="button" data-action="go-page" data-value="${escapeAttribute(page)}" ${active ? 'aria-current="page"' : ""}>
+		<span class="glass-nav-item__icon" aria-hidden="true">${icon(bottomNavIcon(page))}</span>
+		<span class="glass-nav-item__copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(descriptions[page] || "")}</small></span>
+		<span class="glass-nav-item__arrow" aria-hidden="true">${icon("chevronRight")}</span>
+	</button>`;
+}
+
+function renderGlassTopbar() {
+	const title = getPageTitle(state.currentPage);
+	const eyebrow = state.currentPage === "admin"
+		? localizedText("ПАНЕЛЬ УПРАВЛЕНИЯ", "CONTROL PANEL", "پنل مدیریت")
+		: localizedText("ЛИЧНОЕ ПРОСТРАНСТВО", "PERSONAL SPACE", "فضای شخصی");
+	const userLabel = getDashboardUserLabel();
+	return `<header class="glass-topbar">
+		<div class="glass-topbar__heading"><span>${escapeHtml(eyebrow)}</span><h1>${escapeHtml(title)}</h1></div>
+		<div class="glass-topbar__actions">
+			${state.currentPage !== "support" ? `<button class="glass-topbar__action" type="button" data-action="go-page" data-value="support" aria-label="${escapeAttribute(getPageTitle("support"))}">${icon("sms")}</button>` : ""}
+			<div class="glass-topbar__identity"><span>${escapeHtml(getDashboardAvatarFallback())}</span><strong>${escapeHtml(userLabel)}</strong></div>
+		</div>
+	</header>`;
 }
 
 function renderBottomNav() {
@@ -8321,6 +8488,11 @@ function bindRootActions() {
 			} else {
 				const value = type === "boolean" ? Boolean(target.checked) : type === "number" ? Number(target.value || 0) : target.value;
 				setDeepValue(state.adminSettingsDraft, settingPath, value);
+			}
+			if (settingPath === "appearance.design") {
+				state.adminSettingsDirty = true;
+				switchInterfaceDesign(target.value);
+				return;
 			}
 			const featuredClient = settingPath.match(/^subPage\.clients\.(\d+)\.featured$/);
 			if (featuredClient && target.checked) {
@@ -12730,11 +12902,51 @@ function requestModalClose(name, onClosed) {
   }, reducedMotionMedia?.matches ? 0 : MODAL_CLOSE_MS);
 }
 
+function switchInterfaceDesign(nextDesign) {
+	const design = nextDesign === "glass" ? "glass" : "classic";
+	const root = document.documentElement;
+	const current = root.dataset.design === "glass" ? "glass" : "classic";
+	if (current === design) {
+		render({ preserveScroll: true });
+		return;
+	}
+	const reduced = Boolean(reducedMotionMedia?.matches);
+	const direction = design === "glass" ? "forward" : "backward";
+	const cleanup = () => {
+		root.classList.remove("design-switching", "design-switching-fallback");
+		delete root.dataset.designDirection;
+	};
+	const commit = () => {
+		root.dataset.design = design;
+		render({ preserveScroll: true });
+	};
+	window.clearTimeout(designTransitionCleanupTimer);
+	root.dataset.designDirection = direction;
+	if (!reduced && typeof document.startViewTransition === "function") {
+		root.classList.add("design-switching");
+		try {
+			const transition = document.startViewTransition(commit);
+			Promise.resolve(transition.finished).catch(() => {}).finally(cleanup);
+			return;
+		} catch {
+			cleanup();
+		}
+	}
+	if (reduced) {
+		commit();
+		cleanup();
+		return;
+	}
+	root.classList.add("design-switching-fallback");
+	window.requestAnimationFrame(commit);
+	designTransitionCleanupTimer = window.setTimeout(cleanup, 720);
+}
+
 function applyAppearance() {
 	syncLocalizationFromSettings();
 	applyWebPageMetadata();
 	const appearance = getRuntimeSettings()?.appearance || {};
-	document.documentElement.dataset.design = appearance.design === "glass" ? "glass" : "classic";
+	document.documentElement.dataset.design = isGlassDesign() ? "glass" : "classic";
 	const colors = appearance.colors || {};
 	const accentColor = colors.accent || PALETTE.accent.accent;
 	const unlimitedBadgeColor = colors.unlimitedBadge || "#949494";
