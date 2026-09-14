@@ -29,6 +29,7 @@ func TestGlassDesignStaticContract(t *testing.T) {
 		`function renderAdminDesignPage()`,
 		`function useGlassInterface()`,
 		`function renderGlassNavigation()`,
+		`function renderGlassAdminNavigation()`,
 		`function renderGlassTopbar()`,
 		`function renderGlassDashboardPage()`,
 		`function renderGlassProfileItem(item)`,
@@ -44,20 +45,24 @@ func TestGlassDesignStaticContract(t *testing.T) {
 
 	for _, fragment := range []string{
 		`:root[data-design="glass"]`,
-		`--glass-next-blur:`,
+		`--next-sidebar-width:`,
 		`.app-shell--glass`,
 		`.glass-rail`,
 		`.glass-workspace`,
 		`.glass-mobile-nav`,
+		`.glass-admin-nav-item`,
 		`.glass-access-card`,
+		`.glass-dashboard__layout`,
+		`.glass-command-panel`,
 		`.glass-command-grid`,
 		`.glass-profile__groups`,
 		`.glass-admin-home`,
 		`.pricing-card`,
 		`.admin-editor__section`,
 		`::view-transition-new(root)`,
-		`.design-switching-fallback::after`,
+		`.design-switching-fallback #app`,
 		`:focus-visible`,
+		`@media (max-width: 899px)`,
 		`@media (prefers-reduced-motion: reduce)`,
 	} {
 		if !strings.Contains(glassCSS, fragment) {
@@ -76,5 +81,11 @@ func TestGlassDesignStaticContract(t *testing.T) {
 	}
 	if !strings.Contains(appJS, ": `<div class=\"page-scroll\">${renderPages()}</div>`}") {
 		t.Error("classic design must keep page-scroll as a direct flex child of app-shell")
+	}
+	if strings.Contains(glassCSS, "backdrop-filter: blur") {
+		t.Error("alternate design must not use expensive backdrop blur")
+	}
+	if strings.Contains(glassCSS, "infinite") {
+		t.Error("alternate design must not use continuous animations")
 	}
 }

@@ -4931,15 +4931,15 @@ function renderAdminDesignPage() {
 		},
 		{
 			id: "glass",
-			title: localizedText("Новый / Glass", "Glass Next", "شیشه‌ای جدید"),
-			hint: localizedText("Новая структура, боковое меню и полностью другие компоненты", "A new structure, side navigation and completely different components", "ساختار، منو و اجزای کاملاً جدید"),
+			title: localizedText("Новый интерфейс", "New interface", "رابط جدید"),
+			hint: localizedText("Самостоятельный минималистичный интерфейс для телефона и широкого экрана", "An independent minimal interface for mobile and wide screens", "رابط مینیمال مستقل برای موبایل و صفحه عریض"),
 		},
 	];
 	return renderAdminEditorPage(localizedText("Дизайн", "Design", "طراحی"), `
 		<section class="admin-design-intro">
 			<span>${localizedText("ВНЕШНИЙ ВИД", "APPEARANCE", "ظاهر")}</span>
 			<h3>${localizedText("Выберите интерфейс Mini App", "Choose the Mini App interface", "رابط Mini App را انتخاب کنید")}</h3>
-			<p>${localizedText("Это два самостоятельных интерфейса. Новый вариант меняет структуру экранов, навигацию, карточки, кнопки, формы, модальные окна и админку. Классический всегда можно вернуть.", "These are two independent interfaces. The new option changes screen structure, navigation, cards, buttons, forms, dialogs and admin tools. You can always return to Classic.", "این دو رابط مستقل هستند و حالت جدید ساختار صفحه‌ها، منو، کارت‌ها، دکمه‌ها، فرم‌ها و پنل مدیریت را تغییر می‌دهد.")}</p>
+			<p>${localizedText("Новый вариант полностью меняет структуру экранов, навигацию и компоненты, но использует только уже существующие функции бота. Классический интерфейс всегда можно вернуть.", "The new option completely changes the screens, navigation and components while using only the bot's existing functions. You can always return to Classic.", "حالت جدید ساختار صفحه‌ها، منو و اجزا را کاملاً تغییر می‌دهد و فقط از قابلیت‌های موجود ربات استفاده می‌کند.")}</p>
 		</section>
 		<fieldset class="admin-design-picker"><legend class="sr-only">${localizedText("Стиль интерфейса", "Interface style", "سبک رابط")}</legend>
 			${options.map((option) => `<label class="admin-design-option admin-design-option--${option.id}">
@@ -4949,7 +4949,7 @@ function renderAdminDesignPage() {
 				<span class="admin-design-option__check" aria-hidden="true">${icon("check")}</span>
 			</label>`).join("")}
 		</fieldset>
-		<section class="admin-design-note"><span aria-hidden="true">${icon("stars")}</span><p>${localizedText("Переключение анимировано и применяется сразу для предпросмотра. После выбора нажмите «Сохранить», чтобы включить интерфейс для всех пользователей.", "The switch is animated and previews immediately. Press Save to enable it for every user.", "تغییر رابط با انیمیشن پیش‌نمایش می‌شود. برای فعال‌سازی برای همه کاربران ذخیره را بزنید.")}</p></section>
+		<section class="admin-design-note"><span aria-hidden="true">${icon("stars")}</span><p>${localizedText("Предпросмотр применяется сразу. После выбора нажмите «Сохранить», чтобы включить интерфейс для всех пользователей.", "The preview is applied immediately. Press Save to enable it for every user.", "پیش‌نمایش بلافاصله اعمال می‌شود. برای فعال‌سازی برای همه کاربران ذخیره را بزنید.")}</p></section>
 	`);
 }
 
@@ -5941,8 +5941,8 @@ function renderGlassDashboardPage() {
 	const copy = t();
 	const active = isSubscriptionActive();
 	const trialEligible = Boolean(state.data?.trial?.enabled && state.data?.trial?.eligible);
-	const planTitle = active ? getCurrentSubscriptionPlanLabel() : localizedText("Подписка не выбрана", "No active subscription", "اشتراک فعالی وجود ندارد");
-	const expires = active ? `${getUntilLabel()} ${formatShortDateLabel(state.data.subscription.expiresAt, state.locale)}` : localizedText("Выберите тариф для подключения", "Choose a plan to connect", "برای اتصال یک تعرفه انتخاب کنید");
+	const planTitle = active ? getCurrentSubscriptionPlanLabel() : localizedText("Нет активной подписки", "No active subscription", "اشتراک فعالی وجود ندارد");
+	const expires = active ? `${getUntilLabel()} ${formatShortDateLabel(state.data.subscription.expiresAt, state.locale)}` : localizedText("Выберите тариф, чтобы открыть доступ", "Choose a plan to get access", "برای دسترسی یک تعرفه انتخاب کنید");
 	const traffic = active ? formatTrafficBadgeLabel(state.data.subscription.trafficUsedBytes, state.data.subscription.trafficLimitBytes, state.locale) : "—";
 	const devices = active ? formatDeviceBadgeLabel(state.data.subscription.deviceUsedCount, state.data.subscription.deviceLimitCount, state.locale) : "—";
 	const limit = Number(state.data?.subscription?.trafficLimitBytes || 0);
@@ -5957,37 +5957,42 @@ function renderGlassDashboardPage() {
 	].filter(Boolean).join("");
 	const subscriptionSwitcher = featureEnabled("additional_subscriptions") ? renderSubscriptionSwitcher() : "";
 	const primaryAction = active
-		? `<button class="glass-action glass-action--primary" type="button" data-action="go-page" data-value="setup"><span>${icon("arrowDownSquare")}</span><strong>${escapeHtml(copy.setup)}</strong>${icon("arrow")}</button>`
+		? `<button class="glass-action glass-action--primary" type="button" data-action="go-page" data-value="buy"><span>${icon("cartShopping")}</span><strong>${escapeHtml(copy.extend)}</strong>${icon("arrow")}</button>`
 		: `<button class="glass-action glass-action--primary" type="button" data-action="go-page" data-value="buy"><span>${icon("cart")}</span><strong>${escapeHtml(copy.buySubscription)}</strong>${icon("arrow")}</button>`;
 	const secondaryAction = active
-		? `<button class="glass-action glass-action--secondary" type="button" data-action="go-page" data-value="buy"><span>${icon("cartShopping")}</span><strong>${escapeHtml(copy.extend)}</strong></button>`
+		? `<button class="glass-action glass-action--secondary" type="button" data-action="go-page" data-value="setup"><span>${icon("arrowDownSquare")}</span><strong>${escapeHtml(copy.setup)}</strong></button>`
 		: trialEligible
 			? `<button class="glass-action glass-action--secondary" type="button" data-action="activate-trial"><span>${icon("gift")}</span><strong>${escapeHtml(copy.activateTrial)}</strong></button>`
 			: "";
 	return `<section class="page glass-dashboard ${pageClass("dashboard")}" id="page-dashboard">
-		<div class="glass-dashboard__welcome">
-			<div><span>${escapeHtml(localizedText("ВАШЕ ПОДКЛЮЧЕНИЕ", "YOUR CONNECTION", "اتصال شما"))}</span><h2>${escapeHtml(localizedText("Всё важное — на одном экране", "Everything important, in one place", "همه چیز مهم در یک صفحه"))}</h2><p>${escapeHtml(getDashboardUserLabel())}</p></div>
+		<header class="glass-dashboard__welcome">
+			<div><span>${escapeHtml(localizedText("ЛИЧНЫЙ КАБИНЕТ", "PERSONAL AREA", "حساب کاربری"))}</span><h2>${escapeHtml(active ? localizedText("VPN готов к работе", "VPN is ready", "VPN آماده است") : localizedText("Подключите безопасный доступ", "Set up secure access", "دسترسی امن را فعال کنید"))}</h2><p>${escapeHtml(getDashboardUserLabel())}</p></div>
 			<div class="glass-dashboard__logo"><img src="${escapeAttribute(resolveBrandMarkURL(state.data.brand.logoUrl))}" data-brand-logo alt="${escapeAttribute(state.data.brand.name || "Link-Bot")}" loading="eager" draggable="false"></div>
-		</div>
+		</header>
 		${subscriptionSwitcher ? `<div class="glass-dashboard__switcher">${subscriptionSwitcher}</div>` : ""}
-		<article class="glass-access-card ${active ? "is-active" : "is-inactive"}">
-			<div class="glass-access-card__head">
-				<span class="glass-access-card__status"><i></i>${escapeHtml(active ? localizedText("ДОСТУП АКТИВЕН", "ACCESS ACTIVE", "دسترسی فعال") : localizedText("НЕТ ПОДКЛЮЧЕНИЯ", "NOT CONNECTED", "متصل نیست"))}</span>
-				<span class="glass-access-card__shield" aria-hidden="true">${icon("shield")}</span>
-			</div>
-			<div class="glass-access-card__title"><h2>${escapeHtml(planTitle)}</h2><p>${escapeHtml(expires)}</p></div>
-			<div class="glass-access-card__meter" aria-label="${escapeAttribute(traffic)}"><span style="--glass-progress:${progress}%"></span></div>
-			<div class="glass-access-card__stats">
-				<div><span>${icon("chartLine")}</span><small>${escapeHtml(localizedText("Трафик", "Traffic", "ترافیک"))}</small><strong>${escapeHtml(traffic)}</strong></div>
-				<button type="button" data-action="open-devices-modal" ${active ? "" : "disabled"}><span>${icon("devicePhone")}</span><small>${escapeHtml(localizedText("Устройства", "Devices", "دستگاه‌ها"))}</small><strong>${escapeHtml(devices)}</strong></button>
-			</div>
-			<div class="glass-access-card__actions">${primaryAction}${secondaryAction}</div>
-		</article>
-		<section class="glass-command-grid" aria-label="${escapeAttribute(localizedText("Быстрые действия", "Quick actions", "اقدامات سریع"))}">
-			${renderGlassDashboardCommand("setup", "shield", localizedText("Подключение", "Setup", "راه‌اندازی"), localizedText("Инструкция и приложения", "Apps and instructions", "برنامه‌ها و راهنما"))}
-			${renderGlassDashboardCommand("buy", "shop", localizedText("Тарифы", "Plans", "تعرفه‌ها"), localizedText("Продление и устройства", "Renewal and devices", "تمدید و دستگاه‌ها"))}
-			${renderGlassDashboardCommand("support", "sms", localizedText("Поддержка", "Support", "پشتیبانی"), localizedText("Помощь и обращения", "Help and tickets", "راهنما و تیکت‌ها"))}
-		</section>
+		<div class="glass-dashboard__layout">
+			<article class="glass-access-card ${active ? "is-active" : "is-inactive"}">
+				<div class="glass-access-card__head">
+					<div><span class="glass-access-card__status"><i></i>${escapeHtml(active ? localizedText("Активна", "Active", "فعال") : localizedText("Не подключено", "Not connected", "متصل نیست"))}</span><h2>${escapeHtml(planTitle)}</h2></div>
+					<span class="glass-access-card__shield" aria-hidden="true">${icon("shield")}</span>
+				</div>
+				<div class="glass-access-card__title"><span>${escapeHtml(localizedText("Срок действия", "Valid until", "اعتبار"))}</span><strong>${escapeHtml(expires)}</strong></div>
+				<div class="glass-access-card__meter" aria-label="${escapeAttribute(traffic)}"><span style="--glass-progress:${progress}%"></span></div>
+				<div class="glass-access-card__stats">
+					<div><span>${icon("chartLine")}</span><small>${escapeHtml(localizedText("Трафик", "Traffic", "ترافیک"))}</small><strong>${escapeHtml(traffic)}</strong></div>
+					<button type="button" data-action="open-devices-modal" ${active ? "" : "disabled"}><span>${icon("devicePhone")}</span><small>${escapeHtml(localizedText("Устройства", "Devices", "دستگاه‌ها"))}</small><strong>${escapeHtml(devices)}</strong></button>
+				</div>
+				<div class="glass-access-card__actions">${primaryAction}${secondaryAction}</div>
+			</article>
+			<section class="glass-command-panel" aria-labelledby="glass-command-title">
+				<div class="glass-command-panel__head"><span>${escapeHtml(localizedText("Навигация", "Navigation", "پیمایش"))}</span><h3 id="glass-command-title">${escapeHtml(localizedText("Быстрый доступ", "Quick access", "دسترسی سریع"))}</h3></div>
+				<div class="glass-command-grid">
+					${renderGlassDashboardCommand("setup", "shield", localizedText("Подключение", "Setup", "راه‌اندازی"), localizedText("Приложения и инструкция", "Apps and instructions", "برنامه‌ها و راهنما"))}
+					${renderGlassDashboardCommand("buy", "shop", localizedText("Тарифы", "Plans", "تعرفه‌ها"), localizedText("Продлить или выбрать тариф", "Renew or choose a plan", "تمدید یا انتخاب تعرفه"))}
+					${renderGlassDashboardCommand("support", "sms", localizedText("Поддержка", "Support", "پشتیبانی"), localizedText("Ответы и обращения", "Answers and tickets", "پاسخ‌ها و تیکت‌ها"))}
+				</div>
+			</section>
+		</div>
 		${extras ? `<section class="glass-dashboard__extras">${extras}</section>` : ""}
 	</section>`;
 }
@@ -7210,6 +7215,7 @@ function renderStateScreen(kind, message = "", meta = null) {
 function renderGlassNavigation() {
 	const pages = getBottomNavPages();
 	const activePage = getBottomNavActivePage();
+	const adminMode = state.currentPage === "admin";
 	const brandName = String(state.data?.brand?.name || "Link-Bot").trim() || "Link-Bot";
 	const userLabel = getDashboardUserLabel();
 	const active = isSubscriptionActive();
@@ -7221,16 +7227,55 @@ function renderGlassNavigation() {
 		<aside class="glass-rail" aria-label="${escapeAttribute(localizedText("Основная навигация", "Primary navigation", "پیمایش اصلی"))}">
 			<button class="glass-rail__brand" type="button" data-action="go-page" data-value="dashboard" aria-label="${escapeAttribute(brandName)}">
 				<span class="glass-rail__mark" aria-hidden="true">${icon("shield")}</span>
-				<span class="glass-rail__brand-copy"><strong>${escapeHtml(brandName)}</strong><small>Private network</small></span>
+				<span class="glass-rail__brand-copy"><strong>${escapeHtml(brandName)}</strong><small>${escapeHtml(localizedText("Защищённый доступ", "Secure access", "دسترسی امن"))}</small></span>
 			</button>
-			<nav class="glass-rail__nav">${items}</nav>
-			<div class="glass-rail__account">
+			${adminMode ? renderGlassAdminNavigation() : `<nav class="glass-rail__nav">${items}</nav>`}
+			${adminMode ? `<button class="glass-rail__return" type="button" data-action="go-page" data-value="dashboard">${icon("back")}<span>${escapeHtml(localizedText("Личный кабинет", "Personal area", "حساب کاربری"))}</span></button>` : `<div class="glass-rail__account">
 				<span class="glass-rail__avatar" aria-hidden="true">${escapeHtml(getDashboardAvatarFallback())}</span>
 				<span class="glass-rail__account-copy"><strong>${escapeHtml(userLabel)}</strong><small><i class="${active ? "is-active" : ""}"></i>${escapeHtml(status)}</small></span>
-			</div>
+			</div>`}
 		</aside>
 		<nav class="glass-mobile-nav" style="--glass-mobile-count:${pages.length}" aria-label="${escapeAttribute(localizedText("Основная навигация", "Primary navigation", "پیمایش اصلی"))}">${items}</nav>
 	`;
+}
+
+function renderGlassAdminNavigation() {
+	const groups = [
+		[localizedText("Управление", "Management", "مدیریت"), [
+			["home", localizedText("Обзор", "Overview", "نمای کلی"), "grid"],
+			["users", localizedText("Пользователи", "Users", "کاربران"), "users"],
+			["finance", localizedText("Финансы", "Finance", "امور مالی"), "chartLine"],
+			["broadcast", localizedText("Рассылка", "Broadcast", "ارسال همگانی"), "adminBroadcast"],
+			["promocodes", localizedText("Промокоды", "Promo codes", "کدهای تخفیف"), "adminPromocodes"],
+		]],
+		[localizedText("Интерфейс", "Interface", "رابط کاربری"), [
+			["content", localizedText("Контент", "Content", "محتوا"), "adminContent"],
+			["design", localizedText("Дизайн", "Design", "طراحی"), "layers"],
+			["appearance", localizedText("Оформление", "Appearance", "ظاهر"), "adminAppearance"],
+			["layout", localizedText("Конструктор UI", "UI builder", "سازنده رابط"), "grid"],
+			["plans", localizedText("Тарифы", "Plans", "تعرفه‌ها"), "cartShopping"],
+			["subpage", "Sub page", "adminSubscriptions"],
+		]],
+		[localizedText("Система", "System", "سیستم"), [
+			["features", localizedText("Функции", "Functions", "امکانات"), "adminFeatures"],
+			["localization", localizedText("Язык и шрифт", "Language and font", "زبان و فونت"), "language"],
+			["trial", localizedText("Триал", "Trial", "آزمایشی"), "adminTrial"],
+			["grace", localizedText("Доступ после окончания", "Access after expiry", "دسترسی پس از انقضا"), "clock"],
+			["subscriptions", localizedText("Привязка подписок", "Subscription binding", "اتصال اشتراک‌ها"), "adminSubscriptions"],
+			["referrals", localizedText("Рефералы и баланс", "Referrals and balance", "دعوت و موجودی"), "users"],
+			["integrations", localizedText("Интеграции", "Integrations", "یکپارچه‌سازی‌ها"), "adminIntegrations"],
+			["moynalog", localizedText("Мой налог", "My Tax", "مالیات من"), "adminIntegrations"],
+			["push", localizedText("Push-уведомления", "Push notifications", "اعلان‌های پوش"), "adminPush"],
+			["diagnostics", localizedText("Диагностика", "Diagnostics", "عیب‌یابی"), "adminDiagnostics"],
+			["maintenance", localizedText("Режим аварии", "Maintenance", "حالت تعمیر"), "adminMaintenance"],
+		]],
+	];
+	return `<nav class="glass-rail__nav glass-rail__nav--admin">${groups.map(([label, items]) => `
+		<section class="glass-admin-nav-group">
+			<h2>${escapeHtml(label)}</h2>
+			${items.map(([id, title, iconName]) => `<button class="glass-admin-nav-item ${state.adminSection === id ? "is-active" : ""}" type="button" data-action="open-admin-section" data-value="${escapeAttribute(id)}" ${state.adminSection === id ? 'aria-current="page"' : ""}><span aria-hidden="true">${icon(iconName)}</span><strong>${escapeHtml(title)}</strong></button>`).join("")}
+		</section>
+	`).join("")}</nav>`;
 }
 
 function renderGlassNavigationItem(page, activePage) {
@@ -7252,12 +7297,11 @@ function renderGlassNavigationItem(page, activePage) {
 
 function renderGlassTopbar() {
 	const title = getPageTitle(state.currentPage);
-	const eyebrow = state.currentPage === "admin"
-		? localizedText("ПАНЕЛЬ УПРАВЛЕНИЯ", "CONTROL PANEL", "پنل مدیریت")
-		: localizedText("ЛИЧНОЕ ПРОСТРАНСТВО", "PERSONAL SPACE", "فضای شخصی");
+	const eyebrow = state.currentPage === "admin" ? localizedText("Управление сервисом", "Service management", "مدیریت سرویس") : String(state.data?.brand?.name || "Link-Bot");
 	const userLabel = getDashboardUserLabel();
+	const showBack = !["dashboard", "buy", "support", "settings", "admin"].includes(state.currentPage) || (state.currentPage === "admin" && state.adminSection !== "home");
 	return `<header class="glass-topbar">
-		<div class="glass-topbar__heading"><span>${escapeHtml(eyebrow)}</span><h1>${escapeHtml(title)}</h1></div>
+		<div class="glass-topbar__heading">${showBack ? `<button class="glass-topbar__back" type="button" ${headerBackAction()} aria-label="${escapeAttribute(localizedText("Назад", "Back", "بازگشت"))}">${icon("back")}</button>` : ""}<div><span>${escapeHtml(eyebrow)}</span><h1>${escapeHtml(title)}</h1></div></div>
 		<div class="glass-topbar__actions">
 			${state.currentPage !== "support" ? `<button class="glass-topbar__action" type="button" data-action="go-page" data-value="support" aria-label="${escapeAttribute(getPageTitle("support"))}">${icon("sms")}</button>` : ""}
 			<div class="glass-topbar__identity"><span>${escapeHtml(getDashboardAvatarFallback())}</span><strong>${escapeHtml(userLabel)}</strong></div>
@@ -12941,7 +12985,7 @@ function switchInterfaceDesign(nextDesign) {
 	}
 	root.classList.add("design-switching-fallback");
 	window.requestAnimationFrame(commit);
-	designTransitionCleanupTimer = window.setTimeout(cleanup, 720);
+	designTransitionCleanupTimer = window.setTimeout(cleanup, 220);
 }
 
 function applyAppearance() {
@@ -13058,7 +13102,7 @@ function applyWebPageMetadata() {
 
 function syncBackgroundEngines() {
 	const backgroundMode = document.documentElement.dataset.background || "animated";
-	const paused = document.hidden || state.adminLayoutEditing || state.adminPlanEditing;
+	const paused = document.hidden || state.adminLayoutEditing || state.adminPlanEditing || isGlassDesign();
 	const waveShouldRun = backgroundMode === "animated" && !paused;
 	particleEngine.setPaused?.(backgroundMode !== "animated" || paused);
 	const wave = window.__linkBotWave;
@@ -13107,6 +13151,7 @@ function readableTextColor(hex) {
 
 function getPageTitle(page, short = false) {
   const copy = t();
+	const customPageTitle = (getRuntimeSettings()?.content?.customLinks || []).find((entry) => String(entry.id) === String(state.activeCustomPageID))?.labelRu;
 	if (page === "admin" && !short && state.adminSection !== "home") {
 		const labels = state.locale === "fa" ? {
 			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", push: "اعلان‌های پوش", features: "امکانات", subpage: "Sub page", content: "محتوا", design: "طراحی", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", users: "کاربران",
@@ -13134,6 +13179,8 @@ function getPageTitle(page, short = false) {
     "login-methods": loginMethodsLabel(),
     payments: copy.paymentsTitle || "Payments",
     terms: copy.tos,
+		privacy: localizedText("Политика конфиденциальности", "Privacy policy", "سیاست حفظ حریم خصوصی"),
+		"custom-page": customPageTitle || localizedText("Страница", "Page", "صفحه"),
     admin: short ? (copy.navAdmin || "Admin") : (copy.pageAdmin || "Admin panel"),
   };
   return map[page] || copy.pageDashboard;
@@ -13141,7 +13188,7 @@ function getPageTitle(page, short = false) {
 
 function headerBackAction() {
   if (state.currentPage === "dashboard") return 'data-action="open-sidebar"';
-  if (["gift", "media", "login-methods", "payments", "terms"].includes(state.currentPage)) return 'data-action="go-page" data-value="settings"';
+  if (["gift", "servers", "referrals", "reviews", "media", "login-methods", "payments", "terms", "privacy", "custom-page"].includes(state.currentPage)) return 'data-action="go-page" data-value="settings"';
   if (state.currentPage === "admin" && state.adminSection !== "home") return 'data-action="close-admin-section"';
   return 'data-action="go-home"';
 }
@@ -13153,7 +13200,7 @@ function bottomNavIcon(page) {
 function getBottomNavActivePage() {
   if (state.currentPage === "faq") return "support";
 	if (state.currentPage === "setup") return "dashboard";
-  if (["gift", "media", "login-methods", "payments", "terms", "referrals", "servers"].includes(state.currentPage)) return "settings";
+  if (["gift", "servers", "referrals", "reviews", "media", "login-methods", "payments", "terms", "privacy", "custom-page"].includes(state.currentPage)) return "settings";
   return state.currentPage;
 }
 
