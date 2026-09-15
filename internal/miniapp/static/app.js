@@ -3272,6 +3272,16 @@ function getBottomNavPages() {
 	return pages.filter((page) => PAGES.includes(page) && (page !== "admin" || isAdminUser()) && pageFeatureEnabled(page));
 }
 
+const ADMIN_SAVE_SECTIONS = new Set(["localization", "maintenance", "features", "subpage", "content", "appearance", "layout", "plans", "trial", "referrals", "grace"]);
+let lastBottomDockMode = "navigation";
+
+function getBottomDockMode() {
+	if (state.adminLayoutEditing) return "layout";
+	if (state.adminPlanEditing) return "plan";
+	if (state.currentPage === "admin" && ADMIN_SAVE_SECTIONS.has(state.adminSection)) return "settings";
+	return "navigation";
+}
+
 function render({ preserveScroll = true, scrollTop = null } = {}) {
   bannerMediaResizeObserver?.disconnect();
   adminBannerCropPointers.clear();
@@ -3328,12 +3338,12 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
     return;
   }
 
+	const dockMode = getBottomDockMode();
+	const dockModeChanged = dockMode !== lastBottomDockMode;
 	app.innerHTML = `
     <div class="app-shell ${state.adminLayoutEditing ? "app-shell--layout-editor" : ""}">
       <div class="page-scroll">${renderPages()}</div>
-      ${state.adminPlanEditing ? "" : renderBottomNav()}
-		${state.adminLayoutEditing ? renderAdminSaveBar("admin-save-bar--layout-editor") : ""}
-		${state.adminPlanEditing ? renderAdminPlanSaveBar() : ""}
+      ${renderBottomNav(dockMode, dockModeChanged)}
       ${isModalVisible("support-compose", state.supportComposeOpen) ? renderSupportComposerModal() : ""}
       ${isModalVisible("support-thread", state.supportThreadOpen) ? renderSupportThreadModal() : ""}
       ${isModalVisible("devices", state.devicesModalOpen) ? renderDevicesModal() : ""}
@@ -3355,6 +3365,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
 		${isModalVisible("admin-layout-style", state.adminLayoutStyleEditorOpen) ? renderAdminLayoutStyleModal() : ""}
     </div>
   `;
+	lastBottomDockMode = dockMode;
   bindRootActions();
   mountAdminContentTabs();
   restoreScrollPosition(nextScrollTop);
@@ -5450,7 +5461,7 @@ function renderAdminEvent(event) {
 }
 
 function renderAdminEditorPage(title, body) {
-	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-editor"><h2 class="admin-editor__title">${escapeHtml(title)}</h2>${body}</div>${renderAdminSaveBar()}</section>`;
+	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-editor"><h2 class="admin-editor__title">${escapeHtml(title)}</h2>${body}</div></section>`;
 }
 
 function getSelectedDashboardStyleItem() {
@@ -5459,7 +5470,15 @@ function getSelectedDashboardStyleItem() {
 }
 
 function renderAdminLayoutAddMenu() {
-	if (!state.adminLayoutAddMenuOpen || !state.adminLayoutEditing || state.currentPage !== "dashboard") return "";
+	if (!state.adminLayoutAddMenuOpen || (!state.adminLayoutEditing && !state.adminPlanEditing)) return "";
+	if (state.adminPlanEditing) return `<div class="admin-layout-add-menu" role="menu" aria-label="${escapeAttribute(localizedText("Действия с тарифами", "Plan actions", "اقدامات تعرفه"))}">
+		<button type="button" role="menuitem" data-action="admin-add-plan">${icon("plus")}<span><strong>${localizedText("Добавить тариф", "Add plan", "افزودن تعرفه")}</strong></span></button>
+		<button type="button" role="menuitem" data-action="admin-reset-plans">${icon("reset")}<span><strong>${localizedText("Сбросить тарифы", "Reset plans", "بازنشانی تعرفه‌ها")}</strong></span></button>
+	</div>`;
+	if (state.currentPage === "settings") return `<div class="admin-layout-add-menu" role="menu" aria-label="${escapeAttribute(localizedText("Действия с профилем", "Profile actions", "اقدامات پروفایل"))}">
+		<button type="button" role="menuitem" data-action="admin-add-profile-button">${icon("plus")}<span><strong>${localizedText("Добавить кнопку", "Add button", "افزودن دکمه")}</strong></span></button>
+		<button type="button" role="menuitem" data-action="admin-layout-reset-category">${icon("reset")}<span><strong>${localizedText("Сбросить экран", "Reset screen", "بازنشانی صفحه")}</strong></span></button>
+	</div>`;
 	const selected = getSelectedDashboardStyleItem();
 	const customizeLabel = localizedText("Настроить выбранное", "Customize selected", "تنظیم مورد انتخابی");
 	return `<div class="admin-layout-add-menu" role="menu" aria-label="${escapeAttribute(localizedText("Элементы главного экрана", "Home screen elements", "عناصر صفحه اصلی"))}">
@@ -5468,6 +5487,7 @@ function renderAdminLayoutAddMenu() {
 		<button type="button" role="menuitem" data-action="admin-add-promo-widget">${icon("gift")}<span><strong>${localizedText("Подарок", "Gift", "هدیه")}</strong><small>${localizedText("Карточка с промокодом", "Promo code card", "کارت کد تخفیف")}</small></span></button>
 		<button type="button" role="menuitem" data-action="admin-add-banner">${icon("image")}<span><strong>${localizedText("Баннер", "Banner", "بنر")}</strong><small>${localizedText("PNG, GIF или MP4", "PNG, GIF or MP4", "PNG، GIF یا MP4")}</small></span></button>
 		<button type="button" role="menuitem" data-action="admin-add-empty-card">${icon("card")}<span><strong>${localizedText("Пустая карточка", "Empty card", "کارت خالی")}</strong><small>${localizedText("Декоративный слой для дизайна", "Decorative design layer", "لایه تزئینی طراحی")}</small></span></button>
+		<div class="admin-layout-add-menu__divider" aria-hidden="true"></div><button type="button" role="menuitem" data-action="admin-layout-reset-category">${icon("reset")}<span><strong>${localizedText("Сбросить экран", "Reset screen", "بازنشانی صفحه")}</strong></span></button>
 	</div>`;
 }
 
@@ -5506,7 +5526,7 @@ function renderAdminLayoutStyleModal() {
 	</div>`;
 }
 
-function renderAdminSaveBar(className = "") {
+function renderAdminSaveBar(className = "", entering = false) {
 	const saving = state.adminBusy === "save-settings";
 	const busy = Boolean(state.adminBusy);
 	const status = state.adminBusy === "upload-logo"
@@ -5516,27 +5536,17 @@ function renderAdminSaveBar(className = "") {
 		: state.adminSettingsDirty
 			? localizedText("Есть несохранённые изменения", "Unsaved changes", "تغییرات ذخیره‌نشده")
 			: localizedText("Изменения сохранены", "Changes saved", "تغییرات ذخیره شد");
-	const resetButton = state.adminLayoutEditing
-		? `<button class="admin-save-bar__reset" type="button" data-action="admin-layout-reset-category" ${busy ? "disabled" : ""} aria-label="${state.locale === "en" ? "Reset current screen" : "Сбросить текущий экран"}">${icon("reset")}<span>${state.locale === "en" ? "Reset" : "Сбросить"}</span></button>`
+	const moreButton = state.adminLayoutEditing || state.adminPlanEditing
+		? `<div class="admin-layout-more"><button class="admin-save-bar__more" type="button" data-action="admin-layout-more-toggle" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(localizedText("Дополнительные действия", "More actions", "اقدامات بیشتر"))}" title="${escapeAttribute(localizedText("Дополнительные действия", "More actions", "اقدامات بیشتر"))}" aria-haspopup="menu" aria-expanded="${Boolean(state.adminLayoutAddMenuOpen)}">${icon("moreHorizontal")}</button>${renderAdminLayoutAddMenu()}</div>`
 		: "";
-	const profileAddButton = state.adminLayoutEditing && state.currentPage === "settings"
-		? `<button class="admin-save-bar__add" type="button" data-action="admin-add-profile-button" ${busy ? "disabled" : ""}>${icon("plus")}<span>${state.locale === "en" ? "Add" : "Добавить"}</span></button>`
-		: "";
-	const moreButton = state.adminLayoutEditing && state.currentPage === "dashboard"
-		? `<div class="admin-layout-more"><button class="admin-save-bar__more" type="button" data-action="admin-layout-more-toggle" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(localizedText("Добавить элемент", "Add element", "افزودن عنصر"))}" aria-haspopup="menu" aria-expanded="${Boolean(state.adminLayoutAddMenuOpen)}">${icon("moreHorizontal")}</button>${renderAdminLayoutAddMenu()}</div>`
-		: "";
-	const profileClass = profileAddButton ? "admin-save-bar--profile-layout" : "";
-	return `<div class="admin-save-bar ${className} ${profileClass}"><span role="status" aria-live="polite">${escapeHtml(status)}</span><div class="admin-save-bar__actions">${profileAddButton}${moreButton}${resetButton}<button class="admin-save-bar__save" type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""}><span>${localizedText("Сохранить", "Save", "ذخیره")}</span></button>${state.adminLayoutEditing ? `<button class="admin-save-bar__close" type="button" data-action="admin-layout-exit" aria-label="${state.locale === "en" ? "Exit editor" : "Выйти из редактора"}">${icon("close")}</button>` : ""}</div></div>`;
+	const cancelAction = state.adminLayoutEditing ? "admin-layout-exit" : state.adminPlanEditing ? "admin-plan-exit" : "admin-cancel-settings";
+	const saveLabel = localizedText("Сохранить изменения", "Save changes", "ذخیره تغییرات");
+	const cancelLabel = localizedText("Отменить изменения и выйти", "Discard changes and exit", "لغو تغییرات و خروج");
+	return `<nav class="bottom-nav bottom-nav--editor ${entering ? "bottom-nav--entering" : ""} admin-save-bar ${className}" aria-label="${escapeAttribute(localizedText("Действия редактора", "Editor actions", "اقدامات ویرایشگر"))}"><span class="sr-only" role="status" aria-live="polite">${escapeHtml(status)}</span><div class="admin-save-bar__actions">${moreButton}<button class="admin-save-bar__save" type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""} aria-label="${escapeAttribute(saveLabel)}" title="${escapeAttribute(saveLabel)}">${icon("check")}</button><button class="admin-save-bar__close" type="button" data-action="${cancelAction}" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(cancelLabel)}" title="${escapeAttribute(cancelLabel)}">${icon("close")}</button></div></nav>`;
 }
 
-function renderAdminPlanSaveBar() {
-	const busy = state.adminBusy === "save-settings";
-	const status = busy
-		? (state.locale === "en" ? "Saving..." : "Сохраняем...")
-		: state.adminSettingsDirty
-			? (state.locale === "en" ? "Unsaved changes" : "Есть несохранённые изменения")
-			: (state.locale === "en" ? "Changes saved" : "Изменения сохранены");
-	return `<div class="admin-save-bar admin-save-bar--plan-editor"><span role="status" aria-live="polite">${escapeHtml(status)}</span><div class="admin-save-bar__actions"><button class="admin-save-bar__add" type="button" data-action="admin-add-plan" ${busy ? "disabled" : ""}>${icon("plus")}<span>${state.locale === "en" ? "Add" : "Добавить"}</span></button><button class="admin-save-bar__reset" type="button" data-action="admin-reset-plans" ${busy ? "disabled" : ""}>${icon("reset")}<span>${state.locale === "en" ? "Reset" : "Сбросить"}</span></button><button class="admin-save-bar__save" type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""}><span>${state.locale === "en" ? "Save" : "Сохранить"}</span></button><button class="admin-save-bar__close" type="button" data-action="admin-plan-exit" aria-label="${state.locale === "en" ? "Exit plan editor" : "Выйти из редактора тарифов"}">${icon("close")}</button></div></div>`;
+function renderAdminPlanSaveBar(entering = false) {
+	return renderAdminSaveBar("admin-save-bar--plan-editor", entering);
 }
 
 function renderAdminPlanEditorModalLegacy() {
@@ -7202,7 +7212,23 @@ function renderStateScreen(kind, message = "", meta = null) {
   return `<div class="state-screen"><div class="state-card"><div class="state-card__eyebrow">${escapeHtml(t().appName)}</div><div class="state-card__title">${escapeHtml(t().errorTitle)}</div><div class="state-card__text">${escapeHtml(message)}</div><button class="btn mt-16" type="button" data-action="refresh">${icon("refresh")}${escapeHtml(t().retry)}</button></div></div>`;
 }
 
-function renderBottomNav() {
+function renderEditorScreenSwitches(entering = false) {
+	if (!state.adminLayoutEditing) return "";
+	const homeLabel = localizedText("Главный экран", "Home screen", "صفحه اصلی");
+	const profileLabel = localizedText("Экран профиля", "Profile screen", "صفحه پروفایل");
+	return `<div class="editor-screen-switches ${entering ? "editor-screen-switches--entering" : ""}" role="group" aria-label="${escapeAttribute(localizedText("Экран конструктора", "Builder screen", "صفحه سازنده"))}">
+		<button class="editor-screen-switches__button ${state.currentPage === "dashboard" ? "is-active" : ""}" type="button" data-action="go-page" data-value="dashboard" aria-label="${escapeAttribute(homeLabel)}" title="${escapeAttribute(homeLabel)}" aria-pressed="${state.currentPage === "dashboard"}">${icon("houseLine")}</button>
+		<button class="editor-screen-switches__button ${state.currentPage === "settings" ? "is-active" : ""}" type="button" data-action="go-page" data-value="settings" aria-label="${escapeAttribute(profileLabel)}" title="${escapeAttribute(profileLabel)}" aria-pressed="${state.currentPage === "settings"}">${icon("userAlt")}</button>
+	</div>`;
+}
+
+function renderBottomNav(dockMode = getBottomDockMode(), dockModeChanged = false) {
+	if (dockMode !== "navigation") {
+		pendingBottomNavAnimation = null;
+		const className = dockMode === "layout" ? "admin-save-bar--layout-editor" : dockMode === "plan" ? "admin-save-bar--plan-editor" : "admin-save-bar--settings-editor";
+		const dock = dockMode === "plan" ? renderAdminPlanSaveBar(dockModeChanged) : renderAdminSaveBar(className, dockModeChanged);
+		return `${dock}${renderEditorScreenSwitches(dockModeChanged)}`;
+	}
   const pages = getBottomNavPages();
   const activePage = getBottomNavActivePage();
   let activeIndex = pages.indexOf(activePage);
@@ -7216,7 +7242,7 @@ function renderBottomNav() {
   previousBottomNavIndex = activeIndex;
 
   return `
-    <nav class="bottom-nav" style="--nav-active-index: ${activeIndex}; --nav-prev-index: ${previousIndex}; --nav-count: ${pages.length};" data-active-index="${activeIndex}" data-prev-index="${previousIndex}">
+    <nav class="bottom-nav ${dockModeChanged ? "bottom-nav--entering" : ""}" style="--nav-active-index: ${activeIndex}; --nav-prev-index: ${previousIndex}; --nav-count: ${pages.length};" data-active-index="${activeIndex}" data-prev-index="${previousIndex}" aria-label="${escapeAttribute(localizedText("Навигация", "Navigation", "پیمایش"))}">
       <span class="bottom-nav__indicator" aria-hidden="true"></span>
       ${pages.map((page) => renderBottomNavItem(page, activePage)).join("")}
     </nav>
@@ -7891,6 +7917,7 @@ function bindRootActions() {
 	}
     const action = target.dataset.action;
     const value = target.dataset.value || "";
+		if (state.adminLayoutAddMenuOpen && target.closest(".admin-layout-add-menu [role=menuitem]")) state.adminLayoutAddMenuOpen = false;
 		if (state.adminLayoutAddMenuOpen && !event.target.closest(".admin-layout-more")) {
 			state.adminLayoutAddMenuOpen = false;
 			app.querySelector(".admin-layout-add-menu")?.remove();
@@ -8035,6 +8062,11 @@ function bindRootActions() {
 			if (action === "admin-user-traffic") return await addAdminUserTraffic();
 			if (action === "admin-user-block") return await setAdminUserBlocked(target.dataset.blocked === "true");
 			if (action === "admin-layout-exit") return exitAdminLayoutEditor();
+			if (action === "admin-cancel-settings") {
+				if (state.adminBusy) return;
+				syncAdminSettingsDraft(true);
+				return closeAdminSection();
+			}
 			if (action === "admin-layout-more-toggle") {
 				state.adminLayoutAddMenuOpen = !state.adminLayoutAddMenuOpen;
 				haptic("light");
@@ -8987,6 +9019,7 @@ async function saveAdminSettings() {
 		}
 		if (state.adminPlanEditing) {
 			state.adminPlanBaseline = deepClone(response.data.plans || []);
+			state.adminPlanBaselineDirty = false;
 			if (state.data) state.data.plans = (response.data.plans || []).filter((plan) => plan.enabled !== false).map(runtimePlanToPayload);
 			ensureSelections();
 		}
@@ -9124,6 +9157,8 @@ function syncAdminSaveBarDOM() {
 		? localizedText("Загружаем логотип...", "Uploading logo...", "در حال بارگذاری لوگو...")
 		: state.adminBusy === "upload-favicon"
 		? localizedText("Загружаем favicon...", "Uploading favicon...", "در حال بارگذاری favicon...")
+		: state.adminBusy === "save-settings"
+		? localizedText("Сохраняем...", "Saving...", "در حال ذخیره...")
 		: state.adminSettingsDirty
 		? localizedText("Есть несохранённые изменения", "Unsaved changes", "تغییرات ذخیره‌نشده")
 		: localizedText("Все изменения сохранены", "All changes saved", "همه تغییرات ذخیره شد");
@@ -9133,7 +9168,7 @@ function syncAdminSaveBarDOM() {
 		if (label) label.textContent = status;
 		if (!button) return;
 		button.disabled = busy || !state.adminSettingsDirty;
-		button.innerHTML = `<span>${localizedText("Сохранить", "Save", "ذخیره")}</span>`;
+		bar.querySelector('[data-action="admin-cancel-settings"], [data-action="admin-layout-exit"], [data-action="admin-plan-exit"]')?.toggleAttribute("disabled", busy);
 	});
 }
 
@@ -10363,6 +10398,8 @@ function enterAdminPlanEditor() {
 	syncAdminSettingsDraft();
 	if (!state.adminSettingsDraft) return;
 	state.adminPlanBaseline = deepClone(state.adminSettingsDraft.plans || []);
+	state.adminPlanBaselineDirty = state.adminSettingsDirty;
+	state.adminLayoutAddMenuOpen = false;
 	state.adminPlanEditing = true;
 	state.adminLayoutEditing = false;
 	state.adminPlanEditorModalOpen = false;
@@ -10379,11 +10416,17 @@ function enterAdminPlanEditor() {
 
 function exitAdminPlanEditor() {
 	finishAdminPlanPointer();
+	if (state.adminPlanBaseline && state.adminSettingsDraft) {
+		state.adminSettingsDraft.plans = deepClone(state.adminPlanBaseline);
+		state.adminSettingsDirty = Boolean(state.adminPlanBaselineDirty);
+	}
 	state.adminPlanEditing = false;
+	state.adminLayoutAddMenuOpen = false;
 	state.adminPlanEditorModalOpen = false;
 	state.adminPlanEditingID = "";
 	state.adminPlanFormDraft = null;
 	state.adminPlanBaseline = null;
+	state.adminPlanBaselineDirty = false;
 	state.currentPage = "admin";
 	state.adminSection = "home";
 	previousBottomNavIndex = -1;
@@ -12603,6 +12646,7 @@ function setPage(page) {
 	if (state.adminLayoutEditing) {
 		if (!new Set(["dashboard", "settings"]).has(nextPage)) return;
 		const sameEditorPage = nextPage === state.currentPage;
+		state.adminLayoutAddMenuOpen = false;
 		state.currentPage = nextPage;
 		state.adminLayoutCategory = nextPage === "settings" ? "profile" : nextPage;
 		state.adminLayoutSelection = "";

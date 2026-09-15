@@ -51,17 +51,29 @@ func TestHomeLayoutCustomizationWiresControlsAndRuntimeStyles(t *testing.T) {
 	}
 }
 
-func TestSaveButtonsDoNotRenderDecorativeIcons(t *testing.T) {
+func TestEditorDockUsesIconOnlySaveAndCancelActions(t *testing.T) {
 	appRaw, err := embeddedStatic.ReadFile("static/app.js")
 	if err != nil {
 		t.Fatalf("read app.js: %v", err)
 	}
 	app := string(appRaw)
-	if strings.Contains(app, "button.innerHTML = `${icon(saving ?") {
-		t.Fatal("save bar still injects a decorative save icon")
+	for _, fragment := range []string{
+		`bottom-nav--editor ${entering ?`,
+		`admin-save-bar ${className}`,
+		`class="admin-save-bar__save"`,
+		`aria-label="${escapeAttribute(saveLabel)}"`,
+		`icon("check")`,
+		`"admin-cancel-settings"`,
+		`renderEditorScreenSwitches(dockModeChanged)`,
+		`data-value="dashboard"`,
+		`data-value="settings"`,
+	} {
+		if !strings.Contains(app, fragment) {
+			t.Fatalf("editor dock does not contain %q", fragment)
+		}
 	}
-	if !strings.Contains(app, `class="admin-save-bar__save"`) {
-		t.Fatal("compact save button class is missing")
+	if strings.Contains(app, "button.innerHTML = `<span>") {
+		t.Fatal("DOM synchronization restores a text save button")
 	}
 }
 

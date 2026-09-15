@@ -11541,6 +11541,175 @@ body.is-layout-editing .modal--banner-editor {
 	.admin-layout-style-editor__remove { transition-duration: 1ms !important; }
 }
 
+/* The navigation pill becomes the editor's action dock, never a second floating card. */
+.bottom-nav--editor.admin-save-bar {
+	bottom: calc(12px + var(--safe-bottom, 0px));
+	width: max-content;
+	max-width: calc(100vw - 24px);
+	min-width: 0;
+	min-height: 58px;
+	padding: 5px;
+	display: flex;
+	gap: 0;
+	border-radius: 999px;
+	border: 1px solid var(--line);
+	background: var(--control-bg);
+	box-shadow: 0 12px 32px color-mix(in srgb, var(--bg) 28%, transparent);
+	backdrop-filter: var(--glass-filter);
+	-webkit-backdrop-filter: var(--glass-filter);
+	overflow: visible;
+	isolation: isolate;
+	z-index: 42;
+}
+
+.bottom-nav--editor.admin-save-bar > .sr-only {
+	position: absolute;
+	display: block;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	border: 0;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.bottom-nav--editor.admin-save-bar .admin-save-bar__actions { gap: 5px; }
+.bottom-nav--editor.admin-save-bar .admin-layout-more { flex: 0 0 46px; }
+
+.bottom-nav--editor.admin-save-bar :is(.admin-save-bar__more, .admin-save-bar__save, .admin-save-bar__close) {
+	width: 46px;
+	min-width: 46px;
+	height: 46px;
+	min-height: 46px;
+	margin: 0;
+	padding: 0;
+	display: inline-grid;
+	place-items: center;
+	border: 1px solid transparent;
+	border-radius: 50%;
+	color: var(--icon-color);
+	background: transparent;
+	box-shadow: none;
+	font-size: 0;
+	transition: background-color 200ms ease, border-color 200ms ease, transform 220ms cubic-bezier(.22, 1, .36, 1), opacity 200ms ease;
+}
+
+.bottom-nav--editor.admin-save-bar .admin-save-bar__save {
+	width: 48px;
+	min-width: 48px;
+	height: 48px;
+	min-height: 48px;
+	background: color-mix(in srgb, var(--icon-color) 22%, var(--control-bg));
+}
+
+.bottom-nav--editor.admin-save-bar :is(.admin-save-bar__more, .admin-save-bar__save, .admin-save-bar__close) svg {
+	width: 21px;
+	height: 21px;
+	color: currentColor;
+}
+
+.bottom-nav--editor.admin-save-bar .admin-save-bar__save svg { width: 25px; height: 25px; stroke-width: 2.2; }
+
+.bottom-nav--editor.admin-save-bar :is(.admin-save-bar__more, .admin-save-bar__save, .admin-save-bar__close):is(:hover, :focus-visible),
+.bottom-nav--editor.admin-save-bar .admin-save-bar__more[aria-expanded="true"] {
+	background: color-mix(in srgb, var(--icon-color) 24%, var(--control-bg));
+}
+
+.bottom-nav--editor.admin-save-bar :is(.admin-save-bar__more, .admin-save-bar__save, .admin-save-bar__close):active { transform: scale(.94); }
+.bottom-nav--editor.admin-save-bar :is(.admin-save-bar__more, .admin-save-bar__save, .admin-save-bar__close):focus-visible { outline: 2px solid var(--icon-color); outline-offset: 3px; }
+.bottom-nav--editor.admin-save-bar .admin-save-bar__save:disabled { opacity: .5; background: transparent; }
+.bottom-nav--editor.admin-save-bar .admin-save-bar__save:disabled svg { opacity: .75; }
+
+.editor-screen-switches {
+	position: fixed;
+	left: 50%;
+	bottom: calc(18px + var(--safe-bottom, 0px));
+	width: min(320px, calc(100vw - 16px));
+	display: flex;
+	justify-content: space-between;
+	transform: translateX(-50%);
+	pointer-events: none;
+	z-index: 43;
+}
+
+.editor-screen-switches__button {
+	width: 46px;
+	min-width: 46px;
+	height: 46px;
+	min-height: 46px;
+	padding: 0;
+	display: inline-grid;
+	place-items: center;
+	border: 1px solid var(--line);
+	border-radius: 50%;
+	color: var(--icon-color);
+	background: var(--control-bg);
+	box-shadow: 0 8px 22px color-mix(in srgb, var(--bg) 24%, transparent);
+	backdrop-filter: var(--glass-filter);
+	-webkit-backdrop-filter: var(--glass-filter);
+	pointer-events: auto;
+	transition: background-color 200ms ease, transform 220ms cubic-bezier(.22, 1, .36, 1), box-shadow 220ms ease;
+}
+
+.editor-screen-switches__button svg { width: 21px; height: 21px; color: currentColor; }
+.editor-screen-switches__button.is-active { background: color-mix(in srgb, var(--icon-color) 20%, var(--control-bg)); }
+.editor-screen-switches__button:hover { background: color-mix(in srgb, var(--icon-color) 26%, var(--control-bg)); }
+.editor-screen-switches__button:active { transform: scale(.94); }
+.editor-screen-switches__button:focus-visible { outline: 2px solid var(--icon-color); outline-offset: 3px; }
+body.has-open-modal .editor-screen-switches { opacity: 0; pointer-events: none; }
+body.has-open-modal .editor-screen-switches__button { pointer-events: none; }
+
+.bottom-nav--editor.bottom-nav--entering { animation: editorDockEnter 260ms cubic-bezier(.22, 1, .36, 1) both; }
+.bottom-nav:not(.bottom-nav--editor).bottom-nav--entering { animation: navigationDockEnter 260ms cubic-bezier(.22, 1, .36, 1) both; }
+.editor-screen-switches--entering { animation: editorSwitchesEnter 280ms cubic-bezier(.22, 1, .36, 1) both; }
+
+@keyframes editorDockEnter {
+	from { opacity: .12; transform: translateX(-50%) translateY(4px) scaleX(1.22) scaleY(.94); }
+	to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+@keyframes navigationDockEnter {
+	from { opacity: .12; transform: translateX(-50%) translateY(4px) scaleX(.82) scaleY(.94); }
+	to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+@keyframes editorSwitchesEnter {
+	from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+	to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* The studio uses a neutral, square snap grid instead of the user's animated background grid. */
+body.is-layout-editing .bg-media { background: var(--bg); }
+body.is-layout-editing :is(.bg-media__canvas, .bg-media__scrim, .bg-media__fade, .bg-media__grid, .bg-media__grid2, .bg-media__morphic, .bg-media__twinkle, .bg-media__liquid, .bg-media__shade) { display: none !important; }
+body.is-layout-editing .layout-editor-grid {
+	background-color: color-mix(in srgb, var(--surface-strong) 11%, transparent);
+	background-image:
+		linear-gradient(to right, color-mix(in srgb, var(--icon-color) 15%, transparent) 1px, transparent 1px),
+		linear-gradient(to bottom, color-mix(in srgb, var(--icon-color) 15%, transparent) 1px, transparent 1px),
+		radial-gradient(circle, color-mix(in srgb, var(--icon-color) 9%, transparent) .7px, transparent 1px);
+	background-size: 32px 32px, 32px 32px, 8px 8px;
+	background-position: 0 0, 0 0, -.5px -.5px;
+}
+
+@media (max-width: 420px) {
+	.bottom-nav--editor.admin-save-bar .admin-layout-add-menu {
+		position: fixed;
+		left: 8px;
+		right: 8px;
+		bottom: calc(82px + var(--safe-bottom, 0px));
+		width: auto;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.bottom-nav--entering,
+	.editor-screen-switches--entering { animation: none; }
+	.bottom-nav--editor.admin-save-bar :is(.admin-save-bar__more, .admin-save-bar__save, .admin-save-bar__close),
+	.editor-screen-switches__button { transition: none; }
+}
+
 /* Keep this rule last: theme sections above may restore component borders.
    Transparent borders preserve layout while the global frame setting is off. */
 :root[data-frames="off"] body,
