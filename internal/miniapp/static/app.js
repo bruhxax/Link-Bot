@@ -5471,17 +5471,17 @@ function getSelectedDashboardStyleItem() {
 
 function renderAdminLayoutAddMenu() {
 	if (!state.adminLayoutAddMenuOpen || (!state.adminLayoutEditing && !state.adminPlanEditing)) return "";
-	if (state.adminPlanEditing) return `<div class="admin-layout-add-menu" role="menu" aria-label="${escapeAttribute(localizedText("Действия с тарифами", "Plan actions", "اقدامات تعرفه"))}">
+	if (state.adminPlanEditing) return `<div class="admin-layout-add-menu" id="admin-editor-more-menu" role="menu" aria-label="${escapeAttribute(localizedText("Действия с тарифами", "Plan actions", "اقدامات تعرفه"))}">
 		<button type="button" role="menuitem" data-action="admin-add-plan">${icon("plus")}<span><strong>${localizedText("Добавить тариф", "Add plan", "افزودن تعرفه")}</strong></span></button>
 		<button type="button" role="menuitem" data-action="admin-reset-plans">${icon("reset")}<span><strong>${localizedText("Сбросить тарифы", "Reset plans", "بازنشانی تعرفه‌ها")}</strong></span></button>
 	</div>`;
-	if (state.currentPage === "settings") return `<div class="admin-layout-add-menu" role="menu" aria-label="${escapeAttribute(localizedText("Действия с профилем", "Profile actions", "اقدامات پروفایل"))}">
+	if (state.currentPage === "settings") return `<div class="admin-layout-add-menu" id="admin-editor-more-menu" role="menu" aria-label="${escapeAttribute(localizedText("Действия с профилем", "Profile actions", "اقدامات پروفایل"))}">
 		<button type="button" role="menuitem" data-action="admin-add-profile-button">${icon("plus")}<span><strong>${localizedText("Добавить кнопку", "Add button", "افزودن دکمه")}</strong></span></button>
 		<button type="button" role="menuitem" data-action="admin-layout-reset-category">${icon("reset")}<span><strong>${localizedText("Сбросить экран", "Reset screen", "بازنشانی صفحه")}</strong></span></button>
 	</div>`;
 	const selected = getSelectedDashboardStyleItem();
 	const customizeLabel = localizedText("Настроить выбранное", "Customize selected", "تنظیم مورد انتخابی");
-	return `<div class="admin-layout-add-menu" role="menu" aria-label="${escapeAttribute(localizedText("Элементы главного экрана", "Home screen elements", "عناصر صفحه اصلی"))}">
+	return `<div class="admin-layout-add-menu" id="admin-editor-more-menu" role="menu" aria-label="${escapeAttribute(localizedText("Элементы главного экрана", "Home screen elements", "عناصر صفحه اصلی"))}">
 		${selected ? `<button type="button" role="menuitem" data-action="admin-open-layout-style">${icon("sliders")}<span><strong>${escapeHtml(customizeLabel)}</strong><small>${escapeHtml(adminLayoutMeta(selected.area, selected.id)[0])}</small></span></button><div class="admin-layout-add-menu__divider" aria-hidden="true"></div>` : ""}
 		<button type="button" role="menuitem" data-action="admin-add-notification-widget"><span class="admin-save-bar__notification-icon" aria-hidden="true"></span><span><strong>${localizedText("Уведомление", "Notification", "اعلان")}</strong><small>${localizedText("Сообщение на главном экране", "Message on the home screen", "پیام در صفحه اصلی")}</small></span></button>
 		<button type="button" role="menuitem" data-action="admin-add-promo-widget">${icon("gift")}<span><strong>${localizedText("Подарок", "Gift", "هدیه")}</strong><small>${localizedText("Карточка с промокодом", "Promo code card", "کارت کد تخفیف")}</small></span></button>
@@ -5537,12 +5537,12 @@ function renderAdminSaveBar(className = "", entering = false) {
 			? localizedText("Есть несохранённые изменения", "Unsaved changes", "تغییرات ذخیره‌نشده")
 			: localizedText("Изменения сохранены", "Changes saved", "تغییرات ذخیره شد");
 	const moreButton = state.adminLayoutEditing || state.adminPlanEditing
-		? `<div class="admin-layout-more"><button class="admin-save-bar__more" type="button" data-action="admin-layout-more-toggle" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(localizedText("Дополнительные действия", "More actions", "اقدامات بیشتر"))}" title="${escapeAttribute(localizedText("Дополнительные действия", "More actions", "اقدامات بیشتر"))}" aria-haspopup="menu" aria-expanded="${Boolean(state.adminLayoutAddMenuOpen)}">${icon("moreHorizontal")}</button>${renderAdminLayoutAddMenu()}</div>`
+		? `<div class="admin-layout-more"><button class="admin-save-bar__more" type="button" data-action="admin-layout-more-toggle" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(localizedText("Дополнительные действия", "More actions", "اقدامات بیشتر"))}" title="${escapeAttribute(localizedText("Дополнительные действия", "More actions", "اقدامات بیشتر"))}" aria-haspopup="menu" aria-expanded="${Boolean(state.adminLayoutAddMenuOpen)}" ${state.adminLayoutAddMenuOpen ? 'aria-controls="admin-editor-more-menu"' : ""}>${icon("moreHorizontal")}</button></div>`
 		: "";
 	const cancelAction = state.adminLayoutEditing ? "admin-layout-exit" : state.adminPlanEditing ? "admin-plan-exit" : "admin-cancel-settings";
 	const saveLabel = localizedText("Сохранить изменения", "Save changes", "ذخیره تغییرات");
 	const cancelLabel = localizedText("Отменить изменения и выйти", "Discard changes and exit", "لغو تغییرات و خروج");
-	return `<nav class="bottom-nav bottom-nav--editor ${entering ? "bottom-nav--entering" : ""} admin-save-bar ${className}" aria-label="${escapeAttribute(localizedText("Действия редактора", "Editor actions", "اقدامات ویرایشگر"))}"><span class="sr-only" role="status" aria-live="polite">${escapeHtml(status)}</span><div class="admin-save-bar__actions">${moreButton}<button class="admin-save-bar__save" type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""} aria-label="${escapeAttribute(saveLabel)}" title="${escapeAttribute(saveLabel)}">${icon("check")}</button><button class="admin-save-bar__close" type="button" data-action="${cancelAction}" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(cancelLabel)}" title="${escapeAttribute(cancelLabel)}">${icon("close")}</button></div></nav>`;
+	return `<nav class="bottom-nav bottom-nav--editor ${entering ? "bottom-nav--entering" : ""} admin-save-bar ${className}" aria-label="${escapeAttribute(localizedText("Действия редактора", "Editor actions", "اقدامات ویرایشگر"))}"><span class="sr-only" role="status" aria-live="polite">${escapeHtml(status)}</span><div class="admin-save-bar__actions">${moreButton}<button class="admin-save-bar__save" type="button" data-action="admin-save-settings" ${busy || !state.adminSettingsDirty ? "disabled" : ""} aria-label="${escapeAttribute(saveLabel)}" title="${escapeAttribute(saveLabel)}">${icon("check")}</button><button class="admin-save-bar__close" type="button" data-action="${cancelAction}" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(cancelLabel)}" title="${escapeAttribute(cancelLabel)}">${icon("close")}</button></div></nav>${renderAdminLayoutAddMenu()}`;
 }
 
 function renderAdminPlanSaveBar(entering = false) {
@@ -7898,7 +7898,7 @@ function bindRootActions() {
   app.addEventListener("click", async (event) => {
     const target = event.target.closest("[data-action]");
     if (!target) {
-		if (state.adminLayoutAddMenuOpen && !event.target.closest(".admin-layout-more")) {
+		if (state.adminLayoutAddMenuOpen && !event.target.closest(".admin-layout-more, .admin-layout-add-menu")) {
 			state.adminLayoutAddMenuOpen = false;
 			render({ preserveScroll: true });
 			return;
@@ -7918,7 +7918,7 @@ function bindRootActions() {
     const action = target.dataset.action;
     const value = target.dataset.value || "";
 		if (state.adminLayoutAddMenuOpen && target.closest(".admin-layout-add-menu [role=menuitem]")) state.adminLayoutAddMenuOpen = false;
-		if (state.adminLayoutAddMenuOpen && !event.target.closest(".admin-layout-more")) {
+		if (state.adminLayoutAddMenuOpen && !event.target.closest(".admin-layout-more, .admin-layout-add-menu")) {
 			state.adminLayoutAddMenuOpen = false;
 			app.querySelector(".admin-layout-add-menu")?.remove();
 			app.querySelector('[data-action="admin-layout-more-toggle"]')?.setAttribute("aria-expanded", "false");
@@ -12993,7 +12993,7 @@ function applyWebPageMetadata() {
 
 function syncBackgroundEngines() {
 	const backgroundMode = document.documentElement.dataset.background || "animated";
-	const paused = document.hidden || state.adminLayoutEditing || state.adminPlanEditing;
+	const paused = document.hidden || state.adminPlanEditing;
 	const waveShouldRun = backgroundMode === "animated" && !paused;
 	particleEngine.setPaused?.(backgroundMode !== "animated" || paused);
 	const wave = window.__linkBotWave;

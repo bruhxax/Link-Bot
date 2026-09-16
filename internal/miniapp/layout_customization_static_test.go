@@ -77,6 +77,42 @@ func TestEditorDockUsesIconOnlySaveAndCancelActions(t *testing.T) {
 	}
 }
 
+func TestEditorKeepsConfiguredBackgroundAndUsesViewportSizedMenu(t *testing.T) {
+	appRaw, err := embeddedStatic.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	stylesRaw, err := embeddedStatic.ReadFile("static/styles.css")
+	if err != nil {
+		t.Fatalf("read styles.css: %v", err)
+	}
+	app, styles := string(appRaw), string(stylesRaw)
+	for _, fragment := range []string{
+		`</nav>${renderAdminLayoutAddMenu()}`,
+		`id="admin-editor-more-menu"`,
+		`const paused = document.hidden || state.adminPlanEditing;`,
+	} {
+		if !strings.Contains(app, fragment) {
+			t.Fatalf("editor script does not contain %q", fragment)
+		}
+	}
+	for _, fragment := range []string{
+		`.app-shell > .admin-layout-add-menu {`,
+		`width: min(320px, calc(100vw - 24px));`,
+		`background: var(--surface-strong);`,
+		`body.is-layout-editing .profile-page--sorting.active::before`,
+		`--studio-grid-pattern:`,
+		`padding-bottom: calc(88px + var(--safe-bottom, 0px));`,
+	} {
+		if !strings.Contains(styles, fragment) {
+			t.Fatalf("editor styles do not contain %q", fragment)
+		}
+	}
+	if strings.Contains(styles, `body.is-layout-editing :is(.bg-media__canvas`) {
+		t.Fatal("editor still hides the configured background")
+	}
+}
+
 func TestDashboardLayoutEntryDoesNotAnimateSavedCoordinates(t *testing.T) {
 	appRaw, err := embeddedStatic.ReadFile("static/app.js")
 	if err != nil {

@@ -7703,7 +7703,7 @@ body.is-editing-layout { overscroll-behavior: none; }
 }
 
 body.is-layout-editing .page-scroll {
-  padding-bottom: calc(154px + var(--safe-bottom, 0px));
+  padding-bottom: calc(88px + var(--safe-bottom, 0px));
 }
 
 body.is-layout-editing .page.active {
@@ -8095,7 +8095,7 @@ body.is-editing-layout * { overscroll-behavior: none; }
   .admin-save-bar > span { font-size: 8px; }
   .admin-save-bar button { height: 34px; min-height: 34px; padding-inline: 11px; }
   .admin-save-bar--layout-editor > span { display: none; }
-  body.is-layout-editing .page-scroll { padding-bottom: calc(148px + var(--safe-bottom, 0px)); }
+  body.is-layout-editing .page-scroll { padding-bottom: calc(88px + var(--safe-bottom, 0px)); }
   .layout-editable__move,
   .layout-editable__edit,
   .layout-editable__resize { width: 28px; height: 28px; }
@@ -8595,7 +8595,7 @@ body.is-layout-editing .home-widget:active {
 .profile-page--sorting.active {
   display: grid;
   gap: 10px;
-  padding-bottom: 76px;
+  padding-bottom: 12px;
 }
 
 .profile-page--sorting:not(.active) {
@@ -11680,17 +11680,75 @@ body.has-open-modal .editor-screen-switches__button { pointer-events: none; }
 	to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
-/* The studio uses a neutral, square snap grid instead of the user's animated background grid. */
-body.is-layout-editing .bg-media { background: var(--bg); }
-body.is-layout-editing :is(.bg-media__canvas, .bg-media__scrim, .bg-media__fade, .bg-media__grid, .bg-media__grid2, .bg-media__morphic, .bg-media__twinkle, .bg-media__liquid, .bg-media__shade) { display: none !important; }
-body.is-layout-editing .layout-editor-grid {
-	background-color: color-mix(in srgb, var(--surface-strong) 11%, transparent);
-	background-image:
+/* Keep the configured background visible beneath the square editor grid. */
+body.is-layout-editing {
+	--studio-grid-pattern:
 		linear-gradient(to right, color-mix(in srgb, var(--icon-color) 15%, transparent) 1px, transparent 1px),
 		linear-gradient(to bottom, color-mix(in srgb, var(--icon-color) 15%, transparent) 1px, transparent 1px),
 		radial-gradient(circle, color-mix(in srgb, var(--icon-color) 9%, transparent) .7px, transparent 1px);
+}
+
+body.is-layout-editing .layout-editor-grid {
+	background-color: color-mix(in srgb, var(--surface-strong) 11%, transparent);
+	background-image: var(--studio-grid-pattern);
 	background-size: 32px 32px, 32px 32px, 8px 8px;
 	background-position: 0 0, 0 0, -.5px -.5px;
+}
+
+body.is-layout-editing .profile-page--sorting.active { position: relative; isolation: isolate; }
+body.is-layout-editing .profile-page--sorting.active::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background-color: color-mix(in srgb, var(--surface-strong) 11%, transparent);
+	background-image: var(--studio-grid-pattern);
+	background-size: 32px 32px, 32px 32px, 8px 8px;
+	background-position: 0 0, 0 0, -.5px -.5px;
+	pointer-events: none;
+	z-index: 0;
+}
+body.is-layout-editing .profile-page--sorting.active > .profile-group { position: relative; z-index: 1; }
+
+/* Place the actions menu outside the transformed bottom dock so it can use the viewport width. */
+.app-shell > .admin-layout-add-menu {
+	position: fixed;
+	left: 50%;
+	right: auto;
+	bottom: calc(82px + var(--safe-bottom, 0px));
+	width: min(320px, calc(100vw - 24px));
+	max-height: min(380px, calc(var(--app-viewport-height, 100dvh) - 110px - var(--safe-bottom, 0px)));
+	padding: 8px;
+	overflow-x: hidden;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	border-radius: 10px;
+	background: var(--surface-strong);
+	box-shadow: 0 14px 32px rgba(0, 0, 0, .36);
+	backdrop-filter: none;
+	-webkit-backdrop-filter: none;
+	transform-origin: center bottom;
+	animation: editorMenuIn 260ms cubic-bezier(.22, 1, .36, 1) both;
+	z-index: 45;
+}
+
+.app-shell > .admin-layout-add-menu > button {
+	min-width: 0;
+	grid-template-columns: 20px minmax(0, 1fr);
+	gap: 11px;
+	overflow: hidden;
+}
+.app-shell > .admin-layout-add-menu > button > span:last-child { overflow: hidden; }
+.app-shell > .admin-layout-add-menu strong,
+.app-shell > .admin-layout-add-menu small {
+	white-space: normal;
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+}
+.app-shell > .admin-layout-add-menu small { font-size: 9px; }
+
+@keyframes editorMenuIn {
+	from { opacity: 0; transform: translateX(-50%) translateY(7px) scale(.98); }
+	to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
 
 @media (max-width: 420px) {
@@ -11705,7 +11763,9 @@ body.is-layout-editing .layout-editor-grid {
 
 @media (prefers-reduced-motion: reduce) {
 	.bottom-nav--entering,
-	.editor-screen-switches--entering { animation: none; }
+	.editor-screen-switches--entering,
+	.app-shell > .admin-layout-add-menu { animation: none; }
+	.app-shell > .admin-layout-add-menu { transform: translateX(-50%); }
 	.bottom-nav--editor.admin-save-bar :is(.admin-save-bar__more, .admin-save-bar__save, .admin-save-bar__close),
 	.editor-screen-switches__button { transition: none; }
 }
