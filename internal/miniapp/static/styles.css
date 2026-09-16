@@ -11680,34 +11680,30 @@ body.has-open-modal .editor-screen-switches__button { pointer-events: none; }
 	to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
-/* Keep the configured background visible beneath the square editor grid. */
+/* Keep the configured background visible beneath an edge-to-edge editor grid. */
 body.is-layout-editing {
 	--studio-grid-pattern:
 		linear-gradient(to right, color-mix(in srgb, var(--icon-color) 15%, transparent) 1px, transparent 1px),
-		linear-gradient(to bottom, color-mix(in srgb, var(--icon-color) 15%, transparent) 1px, transparent 1px),
-		radial-gradient(circle, color-mix(in srgb, var(--icon-color) 9%, transparent) .7px, transparent 1px);
+		linear-gradient(to bottom, color-mix(in srgb, var(--icon-color) 15%, transparent) 1px, transparent 1px);
 }
 
-body.is-layout-editing .layout-editor-grid {
-	background-color: color-mix(in srgb, var(--surface-strong) 11%, transparent);
-	background-image: var(--studio-grid-pattern);
-	background-size: 32px 32px, 32px 32px, 8px 8px;
-	background-position: 0 0, 0 0, -.5px -.5px;
-}
-
-body.is-layout-editing .profile-page--sorting.active { position: relative; isolation: isolate; }
-body.is-layout-editing .profile-page--sorting.active::before {
+body.is-layout-editing .app-shell::before {
 	content: "";
-	position: absolute;
+	position: fixed;
 	inset: 0;
-	background-color: color-mix(in srgb, var(--surface-strong) 11%, transparent);
-	background-image: var(--studio-grid-pattern);
-	background-size: 32px 32px, 32px 32px, 8px 8px;
-	background-position: 0 0, 0 0, -.5px -.5px;
 	pointer-events: none;
 	z-index: 0;
+	background-color: color-mix(in srgb, var(--surface-strong) 11%, transparent);
+	background-image: var(--studio-grid-pattern);
+	background-size: 32px 32px;
+	background-position: 0 0;
 }
-body.is-layout-editing .profile-page--sorting.active > .profile-group { position: relative; z-index: 1; }
+
+body.is-layout-editing .page-scroll {
+	position: relative;
+	z-index: 1;
+}
+body.is-layout-editing .layout-editor-grid { background: none; }
 
 /* Place the actions menu outside the transformed bottom dock so it can use the viewport width. */
 .app-shell > .admin-layout-add-menu {

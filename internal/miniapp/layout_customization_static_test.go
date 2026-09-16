@@ -100,8 +100,9 @@ func TestEditorKeepsConfiguredBackgroundAndUsesViewportSizedMenu(t *testing.T) {
 		`.app-shell > .admin-layout-add-menu {`,
 		`width: min(320px, calc(100vw - 24px));`,
 		`background: var(--surface-strong);`,
-		`body.is-layout-editing .profile-page--sorting.active::before`,
+		`body.is-layout-editing .app-shell::before`,
 		`--studio-grid-pattern:`,
+		`body.is-layout-editing .layout-editor-grid { background: none; }`,
 		`padding-bottom: calc(88px + var(--safe-bottom, 0px));`,
 	} {
 		if !strings.Contains(styles, fragment) {
@@ -110,6 +111,9 @@ func TestEditorKeepsConfiguredBackgroundAndUsesViewportSizedMenu(t *testing.T) {
 	}
 	if strings.Contains(styles, `body.is-layout-editing :is(.bg-media__canvas`) {
 		t.Fatal("editor still hides the configured background")
+	}
+	if strings.Contains(styles, `radial-gradient(circle, color-mix(in srgb, var(--icon-color) 9%`) {
+		t.Fatal("editor grid still contains decorative dots")
 	}
 }
 
