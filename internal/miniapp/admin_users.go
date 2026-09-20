@@ -30,13 +30,14 @@ type adminUserDetailRequest struct {
 }
 
 type adminUserActionRequest struct {
-	CustomerID     int64  `json:"customerId"`
-	SubscriptionID int64  `json:"subscriptionId"`
-	AmountRub      int64  `json:"amountRub"`
-	Days           int    `json:"days"`
-	TrafficGB      int64  `json:"trafficGb"`
-	Blocked        bool   `json:"blocked"`
-	Reason         string `json:"reason"`
+	CustomerID         int64  `json:"customerId"`
+	SubscriptionID     int64  `json:"subscriptionId"`
+	AmountRub          int64  `json:"amountRub"`
+	Days               int    `json:"days"`
+	TrafficGB          int64  `json:"trafficGb"`
+	Blocked            bool   `json:"blocked"`
+	Reason             string `json:"reason"`
+	DeleteSubscription bool   `json:"deleteSubscription"`
 }
 
 type adminUserSearchPayload struct {
@@ -276,16 +277,28 @@ func (h *Handler) handleAdminUserBlock(w http.ResponseWriter, r *http.Request, s
 		h.writeError(w, http.StatusServiceUnavailable, "admin_subscription_unavailable", "Панель подписок недоступна")
 		return
 	}
-	if req.Blocked {
+	if req.Blocked || customer.IsBlocked {
 		subscriptions, listErr := h.subscriptionRepository.ListByCustomer(r.Context(), customer.ID)
 		if listErr != nil {
 			h.writeError(w, http.StatusInternalServerError, "admin_user_failed", "Не удалось загрузить подписки")
 			return
 		}
 		for i := range subscriptions {
-			if annulErr := h.annulAdminUserSubscription(r.Context(), customer, &subscriptions[i]); annulErr != nil {
-				slog.Error("mini app: annul subscription on user block", "error", annulErr, "customerId", utils.MaskHalfInt64(customer.ID), "subscriptionId", subscriptions[i].ID)
-				h.writeError(w, http.StatusBadGateway, "admin_subscription_failed", "Не удалось аннулировать подписки пользователя")
+			var subscriptionErr error
+			if req.Blocked && req.DeleteSubscription {
+				subscriptionErr = h.annulAdminUserSubscription(r.Context(), customer, &subscriptions[i])
+			} else {
+				subscriptionErr = h.setAdminUserSubscriptionBlocked(r.Context(), customer, &subscriptions[i], req.Blocked)
+			}
+			if subscriptionErr != nil {
+				slog.Error("mini app: update subscription on user block", "error", subscriptionErr, "customerId", utils.MaskHalfInt64(customer.ID), "subscriptionId", subscriptions[i].ID, "blocked", req.Blocked, "delete", req.DeleteSubscription)
+				message := "Не удалось выключить подписки пользователя"
+				if !req.Blocked {
+					message = "Не удалось включить подписки пользователя"
+				} else if req.DeleteSubscription {
+					message = "Не удалось удалить подписки пользователя"
+				}
+				h.writeError(w, http.StatusBadGateway, "admin_subscription_failed", message)
 				return
 			}
 		}
@@ -296,9 +309,33 @@ func (h *Handler) handleAdminUserBlock(w http.ResponseWriter, r *http.Request, s
 	}
 	message := "Пользователь разблокирован"
 	if req.Blocked {
-		message = "Пользователь заблокирован, подписки аннулированы"
+		message = "Пользователь заблокирован, подписки выключены"
+		if req.DeleteSubscription {
+			message = "Пользователь заблокирован, подписки удалены"
+		}
 	}
 	h.writeAdminUserActionResult(w, r, req.CustomerID, message)
+}
+
+func (h *Handler) setAdminUserSubscriptionBlocked(ctx context.Context, customer *database.Customer, subscription *database.CustomerSubscription, blocked bool) error {
+	if h.subscriptionRepository == nil || h.remnawaveClient == nil || customer == nil || subscription == nil {
+		return errors.New("Панель подписок недоступна")
+	}
+	panelState, err := h.panelStateForCustomerSubscription(ctx, customer, subscription)
+	if err != nil {
+		return err
+	}
+	if panelState == nil || !panelState.Exists {
+		return nil
+	}
+	updated, err := h.remnawaveClient.SetUserBlocked(ctx, panelState.UserID, panelState.UserUUID, blocked)
+	if err != nil {
+		return err
+	}
+	if updated == nil {
+		return nil
+	}
+	return h.persistAdminSubscriptionPanelState(ctx, subscription, updated)
 }
 
 func (h *Handler) handleAdminUserDeleteSubscription(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {

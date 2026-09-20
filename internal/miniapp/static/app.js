@@ -2089,6 +2089,7 @@ const state = {
   loading: true,
   refreshing: false,
   subscriptionGate: null,
+	blocked: null,
   error: "",
   currentPage: readSetting(STORAGE_KEYS.page, "dashboard"),
   sidebarOpen: false,
@@ -2213,6 +2214,7 @@ const state = {
 	adminUserDaysDraft: "",
 	adminUserTrafficDraft: "",
 	adminUserBlockReasonDraft: "",
+	adminUserDeleteSubscriptionOnBlock: false,
 	adminSettingsDraft: null,
 	adminSettingsDirty: false,
 	adminJSONDrafts: {},
@@ -2943,6 +2945,7 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 			syncLocalizationFromSettings(state.data.runtime);
       ensureSelections();
       state.subscriptionGate = null;
+		state.blocked = null;
       state.error = "";
       return;
     }
@@ -2950,6 +2953,7 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
     if (!hasAuth()) {
       state.data = null;
       state.subscriptionGate = null;
+		state.blocked = null;
       state.error = "";
       return;
     }
@@ -2966,6 +2970,7 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 		syncAdminSettingsDraft();
     ensureSelections();
     state.subscriptionGate = null;
+		state.blocked = null;
     state.error = "";
     if (initial) scheduleDashboardHydration();
   } catch (error) {
@@ -2981,6 +2986,7 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
     if (error?.code === "channel_subscription_required" || error?.code === "channel_subscription_check_failed") {
       state.data = null;
       state.error = "";
+		state.blocked = null;
       state.subscriptionGate = {
         ...(error?.meta || {}),
         reason: error.code,
@@ -2991,12 +2997,23 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 		if (error?.code === "maintenance") {
 			state.data = null;
 			state.error = "";
+			state.blocked = null;
 			state.subscriptionGate = null;
 			state.maintenance = error?.meta || getRuntimeSettings()?.maintenance || {};
 			return;
 		}
 
+		if (error?.code === "user_blocked") {
+			state.data = null;
+			state.error = "";
+			state.subscriptionGate = null;
+			state.maintenance = null;
+			state.blocked = { reason: String(error?.meta?.reason || "").trim() };
+			return;
+		}
+
     const message = error?.message || t().errorTitle;
+		state.blocked = null;
     if (!state.data || initial) state.error = message;
     else showToast(message);
   } finally {
@@ -3328,6 +3345,10 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
     app.innerHTML = renderStateScreen("subscription", "", state.subscriptionGate);
     return bindRootActions();
   }
+	if (state.blocked && !state.data) {
+		app.innerHTML = renderStateScreen("blocked", "", state.blocked);
+		return bindRootActions();
+	}
   if (state.error && !state.data) {
     app.innerHTML = renderStateScreen("error", state.error);
     return bindRootActions();
@@ -4079,7 +4100,7 @@ function renderAdminUserDetailPage(user) {
 			${subscriptions.length > 1 ? `<label class="admin-user-control admin-user-control--select"><span>Подписка для изменения</span><select data-input="admin-user-subscription">${subscriptions.map((item) => `<option value="${Number(item.id || 0)}" ${selected && item.id === selected.id ? "selected" : ""}>${escapeHtml(item.name || "Подписка")}${item.isPrimary ? " · основная" : ""}</option>`).join("")}</select></label>` : ""}
 			<div class="admin-user-controls__group"><div><strong>Пополнить баланс</strong><span>Деньги сразу появятся в Mini App</span></div><div class="admin-user-control-row"><label><span>Сумма, ₽</span><input type="number" min="1" max="1000000" inputmode="numeric" value="${escapeAttribute(state.adminUserBalanceDraft)}" data-input="admin-user-balance" placeholder="500"></label><button type="button" data-action="admin-user-credit" ${busy ? "disabled" : ""}>Пополнить</button></div></div>
 			<div class="admin-user-controls__group ${user.isBlocked || !selected ? "is-disabled" : ""}"><div><strong>Изменить подписку</strong><span>${selected ? escapeHtml(selected.name || "Выбранная подписка") : "Нет доступной подписки"}</span></div><div class="admin-user-control-grid"><div class="admin-user-control-row"><label><span>Продлить, дней</span><input type="number" min="1" max="3650" inputmode="numeric" value="${escapeAttribute(state.adminUserDaysDraft)}" data-input="admin-user-days" placeholder="30" ${user.isBlocked || !selected ? "disabled" : ""}></label><button type="button" data-action="admin-user-extend" ${busy || user.isBlocked || !selected ? "disabled" : ""}>Продлить</button></div><div class="admin-user-control-row"><label><span>Добавить, ГБ</span><input type="number" min="1" max="1000000" inputmode="numeric" value="${escapeAttribute(state.adminUserTrafficDraft)}" data-input="admin-user-traffic" placeholder="50" ${user.isBlocked || !selected ? "disabled" : ""}></label><button type="button" data-action="admin-user-traffic" ${busy || user.isBlocked || !selected ? "disabled" : ""}>Добавить</button></div></div><div class="admin-user-controls__delete"><span>Удаление аннулирует доступ в панели и не может быть отменено.</span><button type="button" data-action="admin-user-delete-subscription" ${busy || user.isBlocked || !selected ? "disabled" : ""}>Удалить подписку</button></div></div>
-			<div class="admin-user-controls__danger"><div><strong>${user.isBlocked ? "Разблокировать пользователя" : "Заблокировать пользователя"}</strong><span>${user.isBlocked ? `Причина: ${escapeHtml(user.blockedReason || "не указана")}` : "Доступ будет закрыт, а все подписки безвозвратно аннулированы."}</span></div>${user.isBlocked ? "" : `<label class="admin-user-block-reason"><span>Причина блокировки</span><textarea maxlength="500" rows="3" data-input="admin-user-block-reason" placeholder="Укажите причину для истории блокировки">${escapeHtml(state.adminUserBlockReasonDraft)}</textarea></label>`}<button type="button" class="${user.isBlocked ? "is-unblock" : "is-block"}" data-action="admin-user-block" data-blocked="${user.isBlocked ? "false" : "true"}" ${busy ? "disabled" : ""}>${user.isBlocked ? "Разблокировать" : "Заблокировать"}</button></div>
+			<div class="admin-user-controls__danger"><div><strong>${user.isBlocked ? "Разблокировать пользователя" : "Заблокировать пользователя"}</strong><span>${user.isBlocked ? `Причина: ${escapeHtml(user.blockedReason || "не указана")}` : (state.adminUserDeleteSubscriptionOnBlock ? "Доступ будет закрыт, а подписки безвозвратно удалены." : "Доступ в панели будет выключен. Подписки и их срок сохранятся.")}</span></div>${user.isBlocked ? "" : `<label class="admin-user-block-reason"><span>Причина блокировки</span><textarea maxlength="500" rows="3" data-input="admin-user-block-reason" placeholder="Укажите причину для истории блокировки">${escapeHtml(state.adminUserBlockReasonDraft)}</textarea></label><label class="admin-user-block-delete"><input type="checkbox" data-input="admin-user-block-delete" ${state.adminUserDeleteSubscriptionOnBlock ? "checked" : ""}><span><strong>Удалить подписку</strong><small>Безвозвратно удалить доступ из панели вместо временного отключения</small></span></label>`}<button type="button" class="${user.isBlocked ? "is-unblock" : "is-block"}" data-action="admin-user-block" data-blocked="${user.isBlocked ? "false" : "true"}" ${busy ? "disabled" : ""}>${user.isBlocked ? "Разблокировать" : "Заблокировать"}</button></div>
 		</section>
 	</div></section>`;
 }
@@ -4165,6 +4186,7 @@ async function openAdminUser(customerID) {
 		state.adminUsersBusy = "";
 		state.adminUserSelectedSubscriptionID = String(state.adminUserDetail.subscriptions?.find((item) => item.isSelected)?.id || state.adminUserDetail.subscriptions?.[0]?.id || "");
 		state.adminUserBlockReasonDraft = String(state.adminUserDetail.blockedReason || "");
+		state.adminUserDeleteSubscriptionOnBlock = false;
 		renderAdminTransition();
 		return;
 	}
@@ -4187,6 +4209,7 @@ async function openAdminUser(customerID) {
 		state.adminUserDaysDraft = "";
 		state.adminUserTrafficDraft = "";
 		state.adminUserBlockReasonDraft = String(state.adminUserDetail?.blockedReason || "");
+		state.adminUserDeleteSubscriptionOnBlock = false;
 		state.adminUsersBusy = "";
 		render({ preserveScroll: false, scrollTop: 0 });
 	} catch (error) {
@@ -4209,6 +4232,7 @@ function closeAdminUserDetail() {
 	state.adminUserDaysDraft = "";
 	state.adminUserTrafficDraft = "";
 	state.adminUserBlockReasonDraft = "";
+	state.adminUserDeleteSubscriptionOnBlock = false;
 	haptic("light");
 	renderAdminTransition();
 }
@@ -4234,6 +4258,7 @@ async function runAdminUserAction(path, body, busyKey) {
 		state.adminUserDaysDraft = "";
 		state.adminUserTrafficDraft = "";
 		state.adminUserBlockReasonDraft = String(state.adminUserDetail?.blockedReason || "");
+		state.adminUserDeleteSubscriptionOnBlock = false;
 		render({ preserveScroll: true });
 		haptic("success");
 		showToast(response.message || "Изменение сохранено", "success");
@@ -4277,9 +4302,12 @@ async function deleteAdminUserSubscription() {
 
 async function setAdminUserBlocked(blocked) {
 	const reason = String(state.adminUserBlockReasonDraft || "").trim();
-	const question = blocked ? "Заблокировать пользователя и безвозвратно аннулировать все его подписки?" : "Разблокировать пользователя?";
+	const deleteSubscription = Boolean(blocked && state.adminUserDeleteSubscriptionOnBlock);
+	const question = blocked
+		? (deleteSubscription ? "Заблокировать пользователя и безвозвратно удалить его подписки?" : "Заблокировать пользователя и выключить его подписки в панели?")
+		: "Разблокировать пользователя и включить действующие подписки?";
 	if (!window.confirm(question)) return;
-	return runAdminUserAction("/api/mini-app/admin/users/block", { blocked: Boolean(blocked), reason }, "block");
+	return runAdminUserAction("/api/mini-app/admin/users/block", { blocked: Boolean(blocked), reason, deleteSubscription }, "block");
 }
 
 function renderAdminLocalizationPage() {
@@ -7228,6 +7256,10 @@ function renderStateScreen(kind, message = "", meta = null) {
       </div>
     `;
   }
+	if (kind === "blocked") {
+		const reason = String(meta?.reason || "").trim() || localizedText("Не указана", "Not specified", "مشخص نشده");
+		return `<div class="state-screen"><div class="state-card state-card--blocked" role="status"><div class="state-card__eyebrow">${escapeHtml(t().appName)}</div><div class="state-card__title">${escapeHtml(localizedText("Заблокирован", "Blocked", "مسدود شده"))}</div><div class="state-card__text state-card__blocked-reason"><span>${escapeHtml(localizedText("Причина:", "Reason:", "دلیل:"))}</span><strong>${escapeHtml(reason)}</strong></div></div></div>`;
+	}
   return `<div class="state-screen"><div class="state-card"><div class="state-card__eyebrow">${escapeHtml(t().appName)}</div><div class="state-card__title">${escapeHtml(t().errorTitle)}</div><div class="state-card__text">${escapeHtml(message)}</div><button class="btn mt-16" type="button" data-action="refresh">${icon("refresh")}${escapeHtml(t().retry)}</button></div></div>`;
 }
 
@@ -8577,6 +8609,7 @@ function bindRootActions() {
 		if (inputKey === "admin-user-days") { state.adminUserDaysDraft = target.value; return; }
 		if (inputKey === "admin-user-traffic") { state.adminUserTrafficDraft = target.value; return; }
 		if (inputKey === "admin-user-block-reason") { state.adminUserBlockReasonDraft = String(target.value || "").slice(0, 500); return; }
+		if (inputKey === "admin-user-block-delete") { state.adminUserDeleteSubscriptionOnBlock = Boolean(target.checked); render({ preserveScroll: true }); return; }
 		if (inputKey === "setup-platform") {
 			state.selectedPlatform = PLATFORMS.includes(target.value) ? target.value : "windows";
 			state.selectedSetupAppID = "";
@@ -12688,6 +12721,7 @@ function closeAdminSection() {
 	state.adminUserDetailSettled = false;
 	state.adminUsersBusy = "";
 	state.adminUserBlockReasonDraft = "";
+	state.adminUserDeleteSubscriptionOnBlock = false;
 	state.adminBroadcastConfirmOpen = false;
 	haptic("light");
 	renderAdminTransition();

@@ -1067,7 +1067,7 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 		}
 
 		if config.GetBlockedTelegramIds()[sess.User.ID] {
-			h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+			h.writeErrorWithMeta(w, http.StatusForbidden, "user_blocked", "Доступ заблокирован", map[string]string{"reason": ""})
 			return
 		}
 		if h.runtimeSettings != nil {
@@ -1099,11 +1099,11 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 			}
 		}
 		if customer.IsBlocked && !h.isAdmin(sess.User.ID) {
-			message := "Доступ заблокирован"
+			reason := ""
 			if customer.BlockedReason != nil && strings.TrimSpace(*customer.BlockedReason) != "" {
-				message += ": " + strings.TrimSpace(*customer.BlockedReason)
+				reason = strings.TrimSpace(*customer.BlockedReason)
 			}
-			h.writeError(w, http.StatusForbidden, "forbidden", message)
+			h.writeErrorWithMeta(w, http.StatusForbidden, "user_blocked", "Доступ заблокирован", map[string]string{"reason": reason})
 			return
 		}
 		forceChannelCheck := strings.TrimSpace(r.Header.Get("X-Force-Channel-Check")) == "1"

@@ -65,3 +65,29 @@ func TestSetUserBlockedDisablesPanelUser(t *testing.T) {
 		t.Fatalf("SetUserBlocked() = %#v, %v", updated, err)
 	}
 }
+
+func TestSetUserBlockedReactivatesCurrentPanelUser(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet {
+			_, _ = w.Write([]byte(`{"response":{"id":1281,"username":"link_user","status":"DISABLED","expireAt":"2027-08-10T12:00:00Z"}}`))
+			return
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode patch: %v", err)
+		}
+		if body["status"] != "ACTIVE" {
+			t.Fatalf("status = %#v", body["status"])
+		}
+		_, _ = w.Write([]byte(`{"response":{"id":1281,"username":"link_user","status":"ACTIVE","expireAt":"2027-08-10T12:00:00Z"}}`))
+	}))
+	defer server.Close()
+
+	updated, err := NewClient(server.URL, "token", "remote").SetUserBlocked(context.Background(), 1281, uuid.Nil, false)
+	if err != nil || updated.Status != "ACTIVE" || requests != 2 {
+		t.Fatalf("SetUserBlocked() = %#v, %v, requests=%d", updated, err, requests)
+	}
+}

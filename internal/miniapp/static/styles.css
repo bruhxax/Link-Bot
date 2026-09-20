@@ -5911,6 +5911,9 @@ button.rating-star {
 .state-card__eyebrow { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
 .state-card__title { margin-top: 14px; font-size: 22px; font-weight: 800; line-height: 1.1; letter-spacing: -.04em; }
 .state-card__text { margin-top: 10px; color: var(--muted); line-height: 1.5; }
+.state-card__blocked-reason { display: grid; gap: 4px; }
+.state-card__blocked-reason span { font-size: 12px; font-weight: 700; }
+.state-card__blocked-reason strong { overflow-wrap: anywhere; color: var(--text); font-size: 14px; }
 
 .state-screen--browser-auth {
   align-content: center;
@@ -10998,6 +11001,11 @@ body.has-open-modal .admin-save-bar {
 .admin-user-block-reason { grid-column: 1 / -1; display: grid; gap: 6px; }
 .admin-user-block-reason > span { color: var(--muted); font-size: 8px; font-weight: 750; }
 .admin-user-block-reason textarea { width: 100%; min-height: 76px; resize: vertical; padding: 10px 11px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--control-bg); font: inherit; font-size: 10px; line-height: 1.45; }
+.admin-user-block-delete { grid-column: 1 / -1; min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 10px 11px; border: 1px solid color-mix(in srgb, var(--danger) 36%, var(--line)); border-radius: 6px; background: color-mix(in srgb, var(--danger) 5%, var(--control-bg)); cursor: pointer; }
+.admin-user-block-delete input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--danger); }
+.admin-user-block-delete > span { display: grid; gap: 2px; }
+.admin-user-block-delete strong { color: var(--text); font-size: 11px; }
+.admin-user-block-delete small { color: var(--muted); font-size: 9px; line-height: 1.4; }
 .admin-user-controls__danger button.is-block { border-color: color-mix(in srgb, var(--danger) 62%, var(--line)); color: var(--danger); }
 .admin-user-controls__danger button.is-unblock { border-color: color-mix(in srgb, var(--success) 62%, var(--line)); color: var(--success); }
 .admin-users :where(button, input, select, textarea):focus-visible,

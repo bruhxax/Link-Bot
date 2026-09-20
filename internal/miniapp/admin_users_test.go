@@ -52,6 +52,8 @@ func TestAdminUsersStaticSurface(t *testing.T) {
 		`/api/mini-app/admin/users/subscription/delete`,
 		`/api/mini-app/admin/users/block`,
 		`data-input="admin-user-block-reason"`,
+		`data-input="admin-user-block-delete"`,
+		`deleteSubscription`,
 		`data-action="admin-user-delete-subscription"`,
 		`Telegram ID:`,
 	} {
@@ -64,6 +66,7 @@ func TestAdminUsersStaticSurface(t *testing.T) {
 		".admin-user-row",
 		".admin-user-metrics",
 		".admin-user-controls",
+		".admin-user-block-delete",
 		"@media (prefers-reduced-motion: reduce)",
 	} {
 		if !strings.Contains(styles, fragment) {
