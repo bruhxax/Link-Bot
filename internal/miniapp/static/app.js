@@ -2212,6 +2212,7 @@ const state = {
 	adminUserBalanceDraft: "",
 	adminUserDaysDraft: "",
 	adminUserTrafficDraft: "",
+	adminUserBlockReasonDraft: "",
 	adminSettingsDraft: null,
 	adminSettingsDirty: false,
 	adminJSONDrafts: {},
@@ -2917,6 +2918,7 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 			avatarUrl: "",
 			createdAt: new Date(Date.now() - 78 * 86400000).toISOString(),
 			isBlocked: false,
+			blockedReason: "",
 			trialUsed: true,
 			referrals: { balanceCents: 125000, invited: 47, purchased: 12, trial: 29 },
 			subscriptions: [
@@ -4076,8 +4078,8 @@ function renderAdminUserDetailPage(user) {
 		<section class="admin-user-controls" aria-labelledby="admin-user-controls-title"><div class="admin-user-section-head"><div><span>НАСТРОЙКИ</span><h3 id="admin-user-controls-title">Управление</h3></div></div>
 			${subscriptions.length > 1 ? `<label class="admin-user-control admin-user-control--select"><span>Подписка для изменения</span><select data-input="admin-user-subscription">${subscriptions.map((item) => `<option value="${Number(item.id || 0)}" ${selected && item.id === selected.id ? "selected" : ""}>${escapeHtml(item.name || "Подписка")}${item.isPrimary ? " · основная" : ""}</option>`).join("")}</select></label>` : ""}
 			<div class="admin-user-controls__group"><div><strong>Пополнить баланс</strong><span>Деньги сразу появятся в Mini App</span></div><div class="admin-user-control-row"><label><span>Сумма, ₽</span><input type="number" min="1" max="1000000" inputmode="numeric" value="${escapeAttribute(state.adminUserBalanceDraft)}" data-input="admin-user-balance" placeholder="500"></label><button type="button" data-action="admin-user-credit" ${busy ? "disabled" : ""}>Пополнить</button></div></div>
-			<div class="admin-user-controls__group ${user.isBlocked || !selected ? "is-disabled" : ""}"><div><strong>Изменить подписку</strong><span>${selected ? escapeHtml(selected.name || "Выбранная подписка") : "Нет доступной подписки"}</span></div><div class="admin-user-control-grid"><div class="admin-user-control-row"><label><span>Продлить, дней</span><input type="number" min="1" max="3650" inputmode="numeric" value="${escapeAttribute(state.adminUserDaysDraft)}" data-input="admin-user-days" placeholder="30" ${user.isBlocked || !selected ? "disabled" : ""}></label><button type="button" data-action="admin-user-extend" ${busy || user.isBlocked || !selected ? "disabled" : ""}>Продлить</button></div><div class="admin-user-control-row"><label><span>Добавить, ГБ</span><input type="number" min="1" max="1000000" inputmode="numeric" value="${escapeAttribute(state.adminUserTrafficDraft)}" data-input="admin-user-traffic" placeholder="50" ${user.isBlocked || !selected ? "disabled" : ""}></label><button type="button" data-action="admin-user-traffic" ${busy || user.isBlocked || !selected ? "disabled" : ""}>Добавить</button></div></div></div>
-			<div class="admin-user-controls__danger"><div><strong>${user.isBlocked ? "Разблокировать пользователя" : "Заблокировать пользователя"}</strong><span>${user.isBlocked ? "Активные подписки с неистёкшим сроком снова включатся" : "Бот закроет доступ и отключит все подписки в панели"}</span></div><button type="button" class="${user.isBlocked ? "is-unblock" : "is-block"}" data-action="admin-user-block" data-blocked="${user.isBlocked ? "false" : "true"}" ${busy ? "disabled" : ""}>${user.isBlocked ? "Разблокировать" : "Заблокировать"}</button></div>
+			<div class="admin-user-controls__group ${user.isBlocked || !selected ? "is-disabled" : ""}"><div><strong>Изменить подписку</strong><span>${selected ? escapeHtml(selected.name || "Выбранная подписка") : "Нет доступной подписки"}</span></div><div class="admin-user-control-grid"><div class="admin-user-control-row"><label><span>Продлить, дней</span><input type="number" min="1" max="3650" inputmode="numeric" value="${escapeAttribute(state.adminUserDaysDraft)}" data-input="admin-user-days" placeholder="30" ${user.isBlocked || !selected ? "disabled" : ""}></label><button type="button" data-action="admin-user-extend" ${busy || user.isBlocked || !selected ? "disabled" : ""}>Продлить</button></div><div class="admin-user-control-row"><label><span>Добавить, ГБ</span><input type="number" min="1" max="1000000" inputmode="numeric" value="${escapeAttribute(state.adminUserTrafficDraft)}" data-input="admin-user-traffic" placeholder="50" ${user.isBlocked || !selected ? "disabled" : ""}></label><button type="button" data-action="admin-user-traffic" ${busy || user.isBlocked || !selected ? "disabled" : ""}>Добавить</button></div></div><div class="admin-user-controls__delete"><span>Удаление аннулирует доступ в панели и не может быть отменено.</span><button type="button" data-action="admin-user-delete-subscription" ${busy || user.isBlocked || !selected ? "disabled" : ""}>Удалить подписку</button></div></div>
+			<div class="admin-user-controls__danger"><div><strong>${user.isBlocked ? "Разблокировать пользователя" : "Заблокировать пользователя"}</strong><span>${user.isBlocked ? `Причина: ${escapeHtml(user.blockedReason || "не указана")}` : "Доступ будет закрыт, а все подписки безвозвратно аннулированы."}</span></div>${user.isBlocked ? "" : `<label class="admin-user-block-reason"><span>Причина блокировки</span><textarea maxlength="500" rows="3" data-input="admin-user-block-reason" placeholder="Укажите причину для истории блокировки">${escapeHtml(state.adminUserBlockReasonDraft)}</textarea></label>`}<button type="button" class="${user.isBlocked ? "is-unblock" : "is-block"}" data-action="admin-user-block" data-blocked="${user.isBlocked ? "false" : "true"}" ${busy ? "disabled" : ""}>${user.isBlocked ? "Разблокировать" : "Заблокировать"}</button></div>
 		</section>
 	</div></section>`;
 }
@@ -4162,6 +4164,7 @@ async function openAdminUser(customerID) {
 		state.adminUserDetailSettled = false;
 		state.adminUsersBusy = "";
 		state.adminUserSelectedSubscriptionID = String(state.adminUserDetail.subscriptions?.find((item) => item.isSelected)?.id || state.adminUserDetail.subscriptions?.[0]?.id || "");
+		state.adminUserBlockReasonDraft = String(state.adminUserDetail.blockedReason || "");
 		renderAdminTransition();
 		return;
 	}
@@ -4183,6 +4186,7 @@ async function openAdminUser(customerID) {
 		state.adminUserBalanceDraft = "";
 		state.adminUserDaysDraft = "";
 		state.adminUserTrafficDraft = "";
+		state.adminUserBlockReasonDraft = String(state.adminUserDetail?.blockedReason || "");
 		state.adminUsersBusy = "";
 		render({ preserveScroll: false, scrollTop: 0 });
 	} catch (error) {
@@ -4204,6 +4208,7 @@ function closeAdminUserDetail() {
 	state.adminUserBalanceDraft = "";
 	state.adminUserDaysDraft = "";
 	state.adminUserTrafficDraft = "";
+	state.adminUserBlockReasonDraft = "";
 	haptic("light");
 	renderAdminTransition();
 }
@@ -4220,10 +4225,15 @@ async function runAdminUserAction(path, body, busyKey) {
 	try {
 		const response = await post(path, { customerId: Number(state.adminUserDetail.customerId || 0), ...body });
 		state.adminUserDetail = response.data || state.adminUserDetail;
+		const subscriptions = state.adminUserDetail?.subscriptions || [];
+		if (!subscriptions.some((item) => String(item.id) === String(state.adminUserSelectedSubscriptionID))) {
+			state.adminUserSelectedSubscriptionID = String(subscriptions.find((item) => item.isSelected)?.id || subscriptions[0]?.id || "");
+		}
 		state.adminUsersBusy = "";
 		state.adminUserBalanceDraft = "";
 		state.adminUserDaysDraft = "";
 		state.adminUserTrafficDraft = "";
+		state.adminUserBlockReasonDraft = String(state.adminUserDetail?.blockedReason || "");
 		render({ preserveScroll: true });
 		haptic("success");
 		showToast(response.message || "Изменение сохранено", "success");
@@ -4257,10 +4267,19 @@ async function addAdminUserTraffic() {
 	return runAdminUserAction("/api/mini-app/admin/users/subscription", { subscriptionId, trafficGb }, "subscription");
 }
 
+async function deleteAdminUserSubscription() {
+	const subscriptionId = adminUserSelectedSubscriptionID();
+	const selected = (state.adminUserDetail?.subscriptions || []).find((item) => Number(item.id) === subscriptionId);
+	if (!subscriptionId || !selected) return showToast("Выберите подписку", "danger");
+	if (!window.confirm(`Удалить подписку «${selected.name || "Подписка"}» и безвозвратно аннулировать доступ?`)) return;
+	return runAdminUserAction("/api/mini-app/admin/users/subscription/delete", { subscriptionId }, "subscription-delete");
+}
+
 async function setAdminUserBlocked(blocked) {
-	const question = blocked ? "Заблокировать пользователя и отключить все его подписки?" : "Разблокировать пользователя?";
+	const reason = String(state.adminUserBlockReasonDraft || "").trim();
+	const question = blocked ? "Заблокировать пользователя и безвозвратно аннулировать все его подписки?" : "Разблокировать пользователя?";
 	if (!window.confirm(question)) return;
-	return runAdminUserAction("/api/mini-app/admin/users/block", { blocked: Boolean(blocked) }, "block");
+	return runAdminUserAction("/api/mini-app/admin/users/block", { blocked: Boolean(blocked), reason }, "block");
 }
 
 function renderAdminLocalizationPage() {
@@ -7268,11 +7287,11 @@ function syncBottomNavIndicator() {
   const previousItem = items[previousIndex] || activeItem;
   const indicatorWidth = 22;
   const indicatorHeight = 3;
-  const navRect = nav.getBoundingClientRect();
-  const previousRect = previousItem.getBoundingClientRect();
-  const activeRect = activeItem.getBoundingClientRect();
-  const from = Math.round(previousRect.left - navRect.left + ((previousRect.width - indicatorWidth) / 2));
-  const to = Math.round(activeRect.left - navRect.left + ((activeRect.width - indicatorWidth) / 2));
+  // Layout offsets stay stable while the dock entrance animation scales the nav.
+  // Viewport rectangles do not, which used to place the indicator under a
+  // neighbouring icon after returning from an admin settings screen.
+  const from = Math.round(previousItem.offsetLeft + ((previousItem.offsetWidth - indicatorWidth) / 2));
+  const to = Math.round(activeItem.offsetLeft + ((activeItem.offsetWidth - indicatorWidth) / 2));
   const reduceMotion = Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
 
   (indicator.getAnimations?.() || []).forEach((animation) => animation.cancel());
@@ -7884,11 +7903,46 @@ function renderSupportMessage(message) {
     <div class="support-message ${isMine ? "support-message--mine" : "support-message--peer"} ${fromAdmin ? "support-message--admin-author" : "support-message--customer-author"} ${message.pending ? "support-message--pending" : ""}">
       <div class="support-message__bubble">
         <span class="support-message__author">${escapeHtml(authorLabel)}</span>
-        <div class="support-message__body">${escapeHtml(message.body || "")}</div>
+		<div class="support-message__body">${renderSupportMessageBody(message.body || "")}</div>
         <span class="support-message__time">${escapeHtml(formatSupportTime(message.createdAt))}</span>
       </div>
     </div>
   `;
+}
+
+function normalizeSupportMessageLink(rawURL) {
+	const value = String(rawURL || "").trim();
+	return /^www\./i.test(value) ? `https://${value}` : value;
+}
+
+function trimSupportMessageLink(rawURL) {
+	let url = String(rawURL || "");
+	let suffix = "";
+	while (/[.,!?;:\]\}]/.test(url.slice(-1))) {
+		suffix = url.slice(-1) + suffix;
+		url = url.slice(0, -1);
+	}
+	while (url.endsWith(")") && (url.match(/\(/g) || []).length < (url.match(/\)/g) || []).length) {
+		suffix = ")" + suffix;
+		url = url.slice(0, -1);
+	}
+	return { url, suffix };
+}
+
+function renderSupportMessageBody(body) {
+	const source = String(body || "");
+	const pattern = /(?:https?:\/\/|www\.|(?:vless|vmess|trojan|ss|ssr|hysteria2?|hy2|tuic|wireguard):\/\/)[^\s<>"']+/giu;
+	let html = "";
+	let offset = 0;
+	for (const match of source.matchAll(pattern)) {
+		const start = Number(match.index || 0);
+		const { url, suffix } = trimSupportMessageLink(match[0]);
+		if (!url) continue;
+		html += escapeHtml(source.slice(offset, start));
+		html += `<button class="support-message__link" type="button" data-action="open-support-link" data-value="${escapeAttribute(normalizeSupportMessageLink(url))}" aria-label="${escapeAttribute(localizedText("Открыть ссылку", "Open link", "باز کردن پیوند"))}">${escapeHtml(url)}</button>${escapeHtml(suffix)}`;
+		offset = start + match[0].length;
+	}
+	return html + escapeHtml(source.slice(offset));
 }
 
 function bindRootActions() {
@@ -8060,6 +8114,7 @@ function bindRootActions() {
 			if (action === "admin-user-credit") return await creditAdminUserBalance();
 			if (action === "admin-user-extend") return await extendAdminUserSubscription();
 			if (action === "admin-user-traffic") return await addAdminUserTraffic();
+			if (action === "admin-user-delete-subscription") return await deleteAdminUserSubscription();
 			if (action === "admin-user-block") return await setAdminUserBlocked(target.dataset.blocked === "true");
 			if (action === "admin-layout-exit") return exitAdminLayoutEditor();
 			if (action === "admin-cancel-settings") {
@@ -8291,6 +8346,7 @@ function bindRootActions() {
       if (action === "share-referral") return state.data?.referral?.shareUrl ? openExternal(state.data.referral.shareUrl) : undefined;
       if (action === "copy-referral") return state.data?.referral?.inviteUrl ? copyToClipboard(state.data.referral.inviteUrl).then(() => showToast(t().copied)) : undefined;
 			if (action === "wallet-withdraw") return await submitWalletWithdrawal();
+			if (action === "open-support-link") return openSupportMessageLink(value);
       if (action === "open-link") return openExternal(value);
         if (action === "set-theme") { state.theme = value === "light" ? "light" : "dark"; writeSetting(STORAGE_KEYS.theme, state.theme); applyAppearance(); render(); return; }
       } catch (error) {
@@ -8520,6 +8576,7 @@ function bindRootActions() {
 		if (inputKey === "admin-user-balance") { state.adminUserBalanceDraft = target.value; return; }
 		if (inputKey === "admin-user-days") { state.adminUserDaysDraft = target.value; return; }
 		if (inputKey === "admin-user-traffic") { state.adminUserTrafficDraft = target.value; return; }
+		if (inputKey === "admin-user-block-reason") { state.adminUserBlockReasonDraft = String(target.value || "").slice(0, 500); return; }
 		if (inputKey === "setup-platform") {
 			state.selectedPlatform = PLATFORMS.includes(target.value) ? target.value : "windows";
 			state.selectedSetupAppID = "";
@@ -12630,6 +12687,7 @@ function closeAdminSection() {
 	state.adminUserPending = null;
 	state.adminUserDetailSettled = false;
 	state.adminUsersBusy = "";
+	state.adminUserBlockReasonDraft = "";
 	state.adminBroadcastConfirmOpen = false;
 	haptic("light");
 	renderAdminTransition();
@@ -13348,6 +13406,46 @@ function openExternal(url) {
     }
   }
   window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function openBrowserExternal(url) {
+	if (!url) return;
+	haptic("light");
+	if (tg && typeof tg.openLink === "function") {
+		try {
+			return tg.openLink(url, { try_instant_view: false, try_browser: true });
+		} catch {
+			try { return tg.openLink(url, { try_instant_view: false }); } catch {}
+		}
+	}
+	window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function isSupportSubscriptionLink(rawURL) {
+	const value = normalizeSupportMessageLink(rawURL);
+	if (/^(?:vless|vmess|trojan|ss|ssr|hysteria2?|hy2|tuic|wireguard):\/\//i.test(value)) return true;
+	const currentLink = String(state.data?.subscription?.subscriptionLink || "").trim();
+	if (currentLink && value === currentLink) return true;
+	try {
+		const parsed = new URL(value);
+		return /^https?:$/i.test(parsed.protocol) && /(?:^|\/)(?:api\/)?(?:sub|subscription|subscribe)\/[^/?#]{6,}/i.test(parsed.pathname);
+	} catch {
+		return false;
+	}
+}
+
+function openSupportMessageLink(rawURL) {
+	const url = normalizeSupportMessageLink(rawURL);
+	if (!url) return;
+	if (isSupportSubscriptionLink(url)) {
+		const appItem = getSelectedSetupApp();
+		if (appItem) {
+			try {
+				return openExternal(buildSetupBridgeURL(state.selectedPlatform, appItem.id, url));
+			} catch {}
+		}
+	}
+	return openBrowserExternal(url);
 }
 
 function setupBridgeColor(variable, fallback) {

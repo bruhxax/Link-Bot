@@ -49,7 +49,10 @@ func TestAdminUsersStaticSurface(t *testing.T) {
 		`/api/mini-app/admin/users/detail`,
 		`/api/mini-app/admin/users/balance`,
 		`/api/mini-app/admin/users/subscription`,
+		`/api/mini-app/admin/users/subscription/delete`,
 		`/api/mini-app/admin/users/block`,
+		`data-input="admin-user-block-reason"`,
+		`data-action="admin-user-delete-subscription"`,
 		`Telegram ID:`,
 	} {
 		if !strings.Contains(app, fragment) {

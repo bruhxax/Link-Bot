@@ -738,3 +738,41 @@ func (sr *SubscriptionRepository) UpdatePanelAccess(ctx context.Context, subscri
 	}
 	return nil
 }
+
+// AnnulPanelAccess keeps the subscription slot but removes all usable panel access.
+// The slot can later be activated again by a new purchase without restoring the old link.
+func (sr *SubscriptionRepository) AnnulPanelAccess(ctx context.Context, subscription *CustomerSubscription) error {
+	if subscription == nil || subscription.ID <= 0 {
+		return ErrCustomerSubscriptionNotFound
+	}
+	tx, err := sr.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin subscription annulment: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE customer_subscription
+		SET panel_user_id = NULL,
+		    panel_user_uuid = NULL,
+		    subscription_link = NULL,
+		    expire_at = NULL,
+		    updated_at = NOW()
+		WHERE id = $1
+	`, subscription.ID); err != nil {
+		return fmt.Errorf("annul customer subscription: %w", err)
+	}
+	if subscription.IsPrimary {
+		if _, err := tx.Exec(ctx, `
+			UPDATE customer
+			SET subscription_link = NULL, expire_at = NULL
+			WHERE id = $1
+		`, subscription.CustomerID); err != nil {
+			return fmt.Errorf("annul primary subscription cache: %w", err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit subscription annulment: %w", err)
+	}
+	return nil
+}

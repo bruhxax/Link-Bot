@@ -4987,6 +4987,27 @@ button.rating-star {
   font-size: 12px;
 }
 
+.support-message__link {
+	display: inline;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	color: var(--icon-color);
+	font: inherit;
+	font-weight: 750;
+	line-height: inherit;
+	text-align: inherit;
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 2px;
+	overflow-wrap: anywhere;
+	cursor: pointer;
+}
+
+.support-message__link:hover { opacity: .82; }
+.support-message__link:focus-visible { outline: 2px solid var(--icon-color); outline-offset: 2px; }
+
 .support-message__time {
   align-self: flex-end;
 }
@@ -10961,18 +10982,26 @@ body.has-open-modal .admin-save-bar {
 .admin-user-control-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; }
 .admin-user-control-row label { min-width: 0; display: grid; gap: 6px; }
 .admin-user-control-row button,
-.admin-user-controls__danger button { min-width: 98px; min-height: 42px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--button-text); background: var(--control-bg); font-size: 9px; font-weight: 800; transition: border-color 220ms ease, background-color 220ms ease, transform 220ms ease; }
+.admin-user-controls__danger button,
+.admin-user-controls__delete button { min-width: 98px; min-height: 42px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--button-text); background: var(--control-bg); font-size: 9px; font-weight: 800; transition: border-color 220ms ease, background-color 220ms ease, transform 220ms ease; }
 .admin-user-control-row button:hover { border-color: var(--text); background: var(--surface-strong); }
 .admin-user-control-row button:active,
-.admin-user-controls__danger button:active { transform: scale(.985); }
-.admin-user-controls__danger { padding-top: 15px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-top: 1px solid var(--line); }
+.admin-user-controls__danger button:active,
+.admin-user-controls__delete button:active { transform: scale(.985); }
+.admin-user-controls__delete { padding-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line-soft); }
+.admin-user-controls__delete > span { color: var(--muted); font-size: 8px; line-height: 1.45; }
+.admin-user-controls__delete button { flex: 0 0 auto; border-color: color-mix(in srgb, var(--danger) 48%, var(--line)); color: var(--danger); }
+.admin-user-controls__danger { padding-top: 15px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 14px; border-top: 1px solid var(--line); }
 .admin-user-controls__danger > div { min-width: 0; display: grid; gap: 4px; }
 .admin-user-controls__danger strong { font-size: 11px; }
 .admin-user-controls__danger span { color: var(--muted); font-size: 8px; line-height: 1.45; }
+.admin-user-block-reason { grid-column: 1 / -1; display: grid; gap: 6px; }
+.admin-user-block-reason > span { color: var(--muted); font-size: 8px; font-weight: 750; }
+.admin-user-block-reason textarea { width: 100%; min-height: 76px; resize: vertical; padding: 10px 11px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--control-bg); font: inherit; font-size: 10px; line-height: 1.45; }
 .admin-user-controls__danger button.is-block { border-color: color-mix(in srgb, var(--danger) 62%, var(--line)); color: var(--danger); }
 .admin-user-controls__danger button.is-unblock { border-color: color-mix(in srgb, var(--success) 62%, var(--line)); color: var(--success); }
-.admin-users :where(button, input, select):focus-visible,
-.admin-user-detail :where(button, input, select):focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.admin-users :where(button, input, select, textarea):focus-visible,
+.admin-user-detail :where(button, input, select, textarea):focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .admin-users :where(button, input):disabled,
 .admin-user-detail :where(button, input, select):disabled { opacity: .48; cursor: default; }
 
@@ -10990,7 +11019,10 @@ body.has-open-modal .admin-save-bar {
 	.admin-user-control-grid { grid-template-columns: 1fr; }
 	.admin-user-subscription__facts { grid-template-columns: 1fr; gap: 6px; }
 	.admin-user-controls__danger { align-items: stretch; flex-direction: column; }
-	.admin-user-controls__danger button { width: 100%; }
+	.admin-user-controls__danger { grid-template-columns: 1fr; }
+	.admin-user-controls__danger button,
+	.admin-user-controls__delete button { width: 100%; }
+	.admin-user-controls__delete { align-items: stretch; flex-direction: column; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -11005,7 +11037,8 @@ body.has-open-modal .admin-save-bar {
 	.admin-users__search,
 	.admin-user-detail button,
 	.admin-user-control-row button,
-	.admin-user-controls__danger button { transition-duration: 1ms !important; }
+	.admin-user-controls__danger button,
+	.admin-user-controls__delete button { transition-duration: 1ms !important; }
 }
 
 /* Home-screen layout styling and the compact live-editor command menu. */

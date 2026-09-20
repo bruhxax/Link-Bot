@@ -100,14 +100,16 @@ func (cr *CustomerRepository) SearchAdminUsers(ctx context.Context, query string
 	return items, total, nil
 }
 
-func (cr *CustomerRepository) SetBlocked(ctx context.Context, customerID int64, blocked bool) error {
+func (cr *CustomerRepository) SetBlocked(ctx context.Context, customerID int64, blocked bool, reason string) error {
+	reason = strings.TrimSpace(reason)
 	result, err := cr.pool.Exec(ctx, `
 		UPDATE customer
 		SET is_blocked = $2,
 		    blocked_at = CASE WHEN $2 THEN NOW() ELSE NULL END,
+		    blocked_reason = CASE WHEN $2 THEN NULLIF($3, '') ELSE NULL END,
 		    autopay_enabled = CASE WHEN $2 THEN FALSE ELSE autopay_enabled END
 		WHERE id = $1
-	`, customerID, blocked)
+	`, customerID, blocked, reason)
 	if err != nil {
 		return fmt.Errorf("set customer block status: %w", err)
 	}

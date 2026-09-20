@@ -30,12 +30,13 @@ type adminUserDetailRequest struct {
 }
 
 type adminUserActionRequest struct {
-	CustomerID     int64 `json:"customerId"`
-	SubscriptionID int64 `json:"subscriptionId"`
-	AmountRub      int64 `json:"amountRub"`
-	Days           int   `json:"days"`
-	TrafficGB      int64 `json:"trafficGb"`
-	Blocked        bool  `json:"blocked"`
+	CustomerID     int64  `json:"customerId"`
+	SubscriptionID int64  `json:"subscriptionId"`
+	AmountRub      int64  `json:"amountRub"`
+	Days           int    `json:"days"`
+	TrafficGB      int64  `json:"trafficGb"`
+	Blocked        bool   `json:"blocked"`
+	Reason         string `json:"reason"`
 }
 
 type adminUserSearchPayload struct {
@@ -63,6 +64,7 @@ type adminUserDetailPayload struct {
 	AvatarURL     string                         `json:"avatarUrl,omitempty"`
 	CreatedAt     string                         `json:"createdAt"`
 	IsBlocked     bool                           `json:"isBlocked"`
+	BlockedReason string                         `json:"blockedReason,omitempty"`
 	TrialUsed     bool                           `json:"trialUsed"`
 	Referrals     adminUserReferralPayload       `json:"referrals"`
 	Subscriptions []adminUserSubscriptionPayload `json:"subscriptions"`
@@ -261,43 +263,96 @@ func (h *Handler) handleAdminUserBlock(w http.ResponseWriter, r *http.Request, s
 		h.writeError(w, http.StatusConflict, "admin_self_block", "Нельзя заблокировать свой аккаунт администратора")
 		return
 	}
+	reason := strings.TrimSpace(req.Reason)
+	if len([]rune(reason)) > 500 {
+		h.writeError(w, http.StatusBadRequest, "admin_block_reason_invalid", "Причина блокировки не должна превышать 500 символов")
+		return
+	}
 	if !req.Blocked && config.GetBlockedTelegramIds()[customer.TelegramID] {
 		h.writeError(w, http.StatusConflict, "admin_user_env_blocked", "Пользователь заблокирован в переменных окружения")
+		return
+	}
+	if req.Blocked && (h.subscriptionRepository == nil || h.remnawaveClient == nil) {
+		h.writeError(w, http.StatusServiceUnavailable, "admin_subscription_unavailable", "Панель подписок недоступна")
+		return
+	}
+	if req.Blocked {
+		subscriptions, listErr := h.subscriptionRepository.ListByCustomer(r.Context(), customer.ID)
+		if listErr != nil {
+			h.writeError(w, http.StatusInternalServerError, "admin_user_failed", "Не удалось загрузить подписки")
+			return
+		}
+		for i := range subscriptions {
+			if annulErr := h.annulAdminUserSubscription(r.Context(), customer, &subscriptions[i]); annulErr != nil {
+				slog.Error("mini app: annul subscription on user block", "error", annulErr, "customerId", utils.MaskHalfInt64(customer.ID), "subscriptionId", subscriptions[i].ID)
+				h.writeError(w, http.StatusBadGateway, "admin_subscription_failed", "Не удалось аннулировать подписки пользователя")
+				return
+			}
+		}
+	}
+	if err := h.customerRepository.SetBlocked(r.Context(), customer.ID, req.Blocked, reason); err != nil {
+		h.writeError(w, http.StatusInternalServerError, "admin_block_failed", "Не удалось сохранить блокировку")
+		return
+	}
+	message := "Пользователь разблокирован"
+	if req.Blocked {
+		message = "Пользователь заблокирован, подписки аннулированы"
+	}
+	h.writeAdminUserActionResult(w, r, req.CustomerID, message)
+}
+
+func (h *Handler) handleAdminUserDeleteSubscription(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
+	if !h.isAdmin(sess.User.ID) {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+		return
+	}
+	var req adminUserActionRequest
+	if err := h.decodeJSONRequest(w, r, 2048, &req); err != nil || req.CustomerID <= 0 || req.SubscriptionID <= 0 {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Выберите подписку")
 		return
 	}
 	if h.subscriptionRepository == nil || h.remnawaveClient == nil {
 		h.writeError(w, http.StatusServiceUnavailable, "admin_subscription_unavailable", "Панель подписок недоступна")
 		return
 	}
-	subscriptions, err := h.subscriptionRepository.ListByCustomer(r.Context(), customer.ID)
+	customer, err := h.customerRepository.FindById(r.Context(), req.CustomerID)
+	if err != nil || customer == nil {
+		h.writeError(w, http.StatusNotFound, "admin_user_not_found", "Пользователь не найден")
+		return
+	}
+	subscription, err := h.subscriptionRepository.FindForCustomer(r.Context(), customer.ID, req.SubscriptionID)
+	if err != nil || subscription == nil {
+		h.writeError(w, http.StatusNotFound, "subscription_not_found", "Подписка не найдена")
+		return
+	}
+	if err := h.annulAdminUserSubscription(r.Context(), customer, subscription); err != nil {
+		slog.Error("mini app: admin delete user subscription", "error", err, "customerId", utils.MaskHalfInt64(customer.ID), "subscriptionId", subscription.ID)
+		h.writeError(w, http.StatusBadGateway, "admin_subscription_delete_failed", "Не удалось удалить подписку")
+		return
+	}
+	if !subscription.IsPrimary {
+		if err := h.subscriptionRepository.DeleteAdditional(r.Context(), customer.ID, subscription.ID); err != nil {
+			h.writeError(w, http.StatusInternalServerError, "admin_subscription_delete_failed", "Доступ аннулирован, но подписка не удалена из списка")
+			return
+		}
+	}
+	h.writeAdminUserActionResult(w, r, req.CustomerID, "Подписка удалена")
+}
+
+func (h *Handler) annulAdminUserSubscription(ctx context.Context, customer *database.Customer, subscription *database.CustomerSubscription) error {
+	if h.subscriptionRepository == nil || h.remnawaveClient == nil || customer == nil || subscription == nil {
+		return errors.New("Панель подписок недоступна")
+	}
+	panelState, err := h.panelStateForCustomerSubscription(ctx, customer, subscription)
 	if err != nil {
-		h.writeError(w, http.StatusInternalServerError, "admin_user_failed", "Не удалось загрузить подписки")
-		return
+		return err
 	}
-	for i := range subscriptions {
-		panelState, stateErr := h.panelStateForCustomerSubscription(r.Context(), customer, &subscriptions[i])
-		if stateErr != nil {
-			h.writeError(w, http.StatusBadGateway, "admin_subscription_failed", "Не удалось отключить подписки пользователя")
-			return
-		}
-		if panelState == nil || !panelState.Exists {
-			continue
-		}
-		if _, stateErr = h.remnawaveClient.SetUserBlocked(r.Context(), panelState.UserID, panelState.UserUUID, req.Blocked); stateErr != nil {
-			slog.Error("mini app: set panel user block", "error", stateErr, "customerId", utils.MaskHalfInt64(customer.ID), "subscriptionId", subscriptions[i].ID)
-			h.writeError(w, http.StatusBadGateway, "admin_subscription_failed", "Не удалось изменить доступ в панели")
-			return
+	if panelState != nil && panelState.Exists {
+		if err := h.remnawaveClient.DeleteUser(ctx, panelState.UserID, panelState.UserUUID); err != nil {
+			return err
 		}
 	}
-	if err := h.customerRepository.SetBlocked(r.Context(), customer.ID, req.Blocked); err != nil {
-		h.writeError(w, http.StatusInternalServerError, "admin_block_failed", "Не удалось сохранить блокировку")
-		return
-	}
-	message := "Пользователь разблокирован"
-	if req.Blocked {
-		message = "Пользователь и его подписки заблокированы"
-	}
-	h.writeAdminUserActionResult(w, r, req.CustomerID, message)
+	return h.subscriptionRepository.AnnulPanelAccess(ctx, subscription)
 }
 
 type adminSubscriptionTarget struct {
@@ -356,6 +411,7 @@ func (h *Handler) loadAdminUserDetail(ctx context.Context, customerID int64) (*a
 		Username:      strings.TrimSpace(adminStringPointerValue(customer.TelegramUsername)),
 		CreatedAt:     customer.CreatedAt.UTC().Format(time.RFC3339),
 		IsBlocked:     customer.IsBlocked || config.GetBlockedTelegramIds()[customer.TelegramID],
+		BlockedReason: strings.TrimSpace(adminStringPointerValue(customer.BlockedReason)),
 		TrialUsed:     customer.TrialUsed,
 		Subscriptions: []adminUserSubscriptionPayload{},
 	}

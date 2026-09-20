@@ -755,6 +755,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/users/detail", h.withSession(h.handleAdminUserDetail))
 	mux.HandleFunc("/api/mini-app/admin/users/balance", h.withSession(h.handleAdminUserBalance))
 	mux.HandleFunc("/api/mini-app/admin/users/subscription", h.withSession(h.handleAdminUserSubscription))
+	mux.HandleFunc("/api/mini-app/admin/users/subscription/delete", h.withSession(h.handleAdminUserDeleteSubscription))
 	mux.HandleFunc("/api/mini-app/admin/users/block", h.withSession(h.handleAdminUserBlock))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/state", h.withSession(h.handleAdminBroadcastState))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/capture/start", h.withSession(h.handleAdminBroadcastCaptureStart))
@@ -1098,7 +1099,11 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 			}
 		}
 		if customer.IsBlocked && !h.isAdmin(sess.User.ID) {
-			h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+			message := "Доступ заблокирован"
+			if customer.BlockedReason != nil && strings.TrimSpace(*customer.BlockedReason) != "" {
+				message += ": " + strings.TrimSpace(*customer.BlockedReason)
+			}
+			h.writeError(w, http.StatusForbidden, "forbidden", message)
 			return
 		}
 		forceChannelCheck := strings.TrimSpace(r.Header.Get("X-Force-Channel-Check")) == "1"

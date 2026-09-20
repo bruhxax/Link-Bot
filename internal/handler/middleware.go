@@ -2,8 +2,9 @@ package handler
 
 import (
 	"context"
-
+	"html"
 	"log/slog"
+	"strings"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -108,6 +109,7 @@ func (h Handler) SuspiciousUserFilterMiddleware(next bot.HandlerFunc) bot.Handle
 		}
 
 		blocked := config.GetBlockedTelegramIds()[userID]
+		blockedReason := ""
 		if !blocked {
 			customer, findErr := h.customerRepository.FindByTelegramId(ctx, userID)
 			if findErr != nil {
@@ -115,12 +117,19 @@ func (h Handler) SuspiciousUserFilterMiddleware(next bot.HandlerFunc) bot.Handle
 				return
 			}
 			blocked = customer != nil && customer.IsBlocked
+			if blocked && customer.BlockedReason != nil {
+				blockedReason = strings.TrimSpace(*customer.BlockedReason)
+			}
 		}
 		if blocked {
 			slog.Warn("blocked user by telegram id", "userId", utils.MaskHalfInt64(userID))
+			message := h.translation.GetText(langCode, "access_denied")
+			if blockedReason != "" {
+				message += "\n\n<b>Причина:</b> " + html.EscapeString(blockedReason)
+			}
 			_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    chatID,
-				Text:      h.translation.GetText(langCode, "access_denied"),
+				Text:      message,
 				ParseMode: models.ParseModeHTML,
 			})
 			if err != nil {

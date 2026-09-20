@@ -52,6 +52,7 @@ type Customer struct {
 	TelegramIDIsSynthetic         bool       `db:"telegram_id_is_synthetic"`
 	IsBlocked                     bool       `db:"is_blocked"`
 	BlockedAt                     *time.Time `db:"blocked_at"`
+	BlockedReason                 *string    `db:"blocked_reason"`
 }
 
 var customerSelectColumns = []string{
@@ -80,6 +81,7 @@ var customerSelectColumns = []string{
 	"telegram_id_is_synthetic",
 	"is_blocked",
 	"blocked_at",
+	"blocked_reason",
 }
 
 func scanCustomer(scanner interface {
@@ -115,6 +117,7 @@ func customerScanDestinations(customer *Customer) []interface{} {
 		&customer.TelegramIDIsSynthetic,
 		&customer.IsBlocked,
 		&customer.BlockedAt,
+		&customer.BlockedReason,
 	}
 }
 
