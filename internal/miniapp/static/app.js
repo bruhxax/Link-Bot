@@ -5088,7 +5088,7 @@ function renderAdminAppearancePresets() {
 			${ADMIN_APPEARANCE_PRESETS.map((preset) => {
 				const selected = adminAppearancePresetSelected(preset);
 				const swatches = [preset.colors.background, preset.colors.surfaceStrong, preset.colors.text, preset.colors.accent];
-				return `<button class="admin-preset ${selected ? "is-selected" : ""}" type="button" role="radio" aria-checked="${selected}" data-action="admin-appearance-preset" data-value="${escapeAttribute(preset.id)}">
+				return `<button class="admin-preset ${selected ? "is-selected" : ""}" type="button" role="radio" aria-checked="${selected}" data-action="admin-appearance-preset" data-value="${escapeAttribute(preset.id)}" data-selection-feedback>
 					<span class="admin-preset__swatches" aria-hidden="true">${swatches.map((color) => `<i style="--preset-color:${escapeAttribute(color)}"></i>`).join("")}</span>
 					<span class="admin-preset__name">${escapeHtml(preset.name)}</span>
 				</button>`;
@@ -5126,7 +5126,7 @@ function renderAdminBackgroundOptions(currentMode) {
 			${ADMIN_BACKGROUND_OPTIONS.map(([mode, label, hint]) => {
 				const selected = currentMode === mode;
 				const previewStyle = mode.startsWith("liquid") ? ` style="${escapeAttribute(liquidPreviewStyle(mode))}"` : "";
-				return `<button class="admin-background-option ${selected ? "is-selected" : ""}" type="button" role="radio" aria-checked="${selected}" data-action="admin-background-mode" data-value="${escapeAttribute(mode)}">
+				return `<button class="admin-background-option ${selected ? "is-selected" : ""}" type="button" role="radio" aria-checked="${selected}" data-action="admin-background-mode" data-value="${escapeAttribute(mode)}" data-selection-feedback>
 					<span class="admin-background-option__preview" data-preview-background="${escapeAttribute(mode)}"${previewStyle} aria-hidden="true"><i></i></span>
 					<span class="admin-background-option__copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(hint)}</small></span>
 				</button>`;
@@ -6314,7 +6314,7 @@ function renderDevicePackAdminTrigger(editor = false) {
 
 function renderDevicePackCard(pack, selected = false) {
 	const price = `${formatNumber(pack.priceRub, state.locale)} ₽`;
-	return `<button class="pricing-card device-pack-card ${selected ? "selected" : ""} ${pack.wide ? "is-wide" : ""}" type="button" data-action="select-device-pack" data-value="${escapeAttribute(pack.id)}" aria-pressed="${selected}">
+	return `<button class="pricing-card device-pack-card ${selected ? "selected" : ""} ${pack.wide ? "is-wide" : ""}" type="button" data-action="select-device-pack" data-value="${escapeAttribute(pack.id)}" data-selection-feedback aria-pressed="${selected}">
 		<div class="pricing-card__content">
 			<div class="pricing-card__copy">
 				<div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(devicePackTitle(pack.devices))}</div></div>
@@ -6431,7 +6431,7 @@ function renderSetupAppTabs(platform, selectedApp) {
   const copy = setupGuideCopy();
   return `<div class="setup-apps" role="tablist" aria-label="${escapeAttribute(copy.chooseApp)}">${platform.apps.map((appItem) => {
     const selected = appItem.id === selectedApp.id;
-    return `<button class="setup-app ${selected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${selected}" data-action="select-setup-app" data-value="${escapeAttribute(appItem.id)}"><span>${escapeHtml(appItem.name)}</span></button>`;
+    return `<button class="setup-app ${selected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${selected}" data-action="select-setup-app" data-value="${escapeAttribute(appItem.id)}" data-selection-feedback><span>${escapeHtml(appItem.name)}</span></button>`;
   }).join("")}</div>`;
 }
 
@@ -6921,7 +6921,7 @@ function renderGiftPage() {
 				<div class="gift-section__heading gift-section__heading--caps"><h2 id="gift-period-heading">${escapeHtml(copy.giftPeriod)}</h2></div>
 				${plans.length ? `<div class="gift-plan-list" role="radiogroup" aria-label="${escapeAttribute(copy.giftPeriod)}">${plans.map((plan) => {
 					const active = planKey(plan) === planKey(selected);
-					return `<button class="gift-plan-row ${active ? "is-selected" : ""}" type="button" role="radio" aria-checked="${active}" data-action="select-gift-plan" data-value="${escapeAttribute(planKey(plan))}"><strong>${escapeHtml(getGiftPlanTitle(plan, state.locale))}</strong><span data-gift-plan-price="${escapeAttribute(planKey(plan))}">${escapeHtml(formatGiftPlanPrice(plan))}</span></button>`;
+					return `<button class="gift-plan-row ${active ? "is-selected" : ""}" type="button" role="radio" aria-checked="${active}" data-action="select-gift-plan" data-value="${escapeAttribute(planKey(plan))}" data-selection-feedback><strong>${escapeHtml(getGiftPlanTitle(plan, state.locale))}</strong><span data-gift-plan-price="${escapeAttribute(planKey(plan))}">${escapeHtml(formatGiftPlanPrice(plan))}</span></button>`;
 				}).join("")}</div>` : `<div class="gift-empty"><strong>${escapeHtml(copy.noPlansTitle)}</strong><span>${escapeHtml(copy.noPlansHint)}</span></div>`}
 			</section>
 
@@ -7536,7 +7536,7 @@ function renderPlanCard(plan, selected) {
 			: (state.locale === "en" ? "Make plan full width" : "Растянуть тариф");
 		return `<article class="pricing-card pricing-card--admin ${unlimited ? "pricing-card--unlimited" : ""} ${plan.wide ? "pricing-card--wide" : ""} ${plan.enabled === false ? "is-draft" : ""}" data-admin-plan-id="${escapeAttribute(key)}">${content}<div class="pricing-card__admin-actions"><button class="pricing-card__admin-drag" type="button" data-admin-plan-drag aria-label="${escapeAttribute(moveLabel)}" title="${escapeAttribute(moveLabel)}">${icon("move")}</button><button type="button" data-action="admin-toggle-plan-wide" data-value="${escapeAttribute(key)}" aria-label="${escapeAttribute(widthLabel)}" title="${escapeAttribute(widthLabel)}" aria-pressed="${Boolean(plan.wide)}">${icon("resize")}</button><button type="button" data-action="admin-edit-plan" data-value="${escapeAttribute(key)}" aria-label="${state.locale === "en" ? "Edit plan" : "Редактировать тариф"}" title="${state.locale === "en" ? "Edit plan" : "Редактировать тариф"}">${icon("pencil")}</button><button type="button" data-action="admin-delete-plan" data-value="${escapeAttribute(key)}" aria-label="${state.locale === "en" ? "Delete plan" : "Удалить тариф"}" title="${state.locale === "en" ? "Delete plan" : "Удалить тариф"}">${icon("trash")}</button></div></article>`;
 	}
-  return `<button class="pricing-card ${unlimited ? "pricing-card--unlimited" : ""} ${plan.wide ? "pricing-card--wide" : ""} ${selected ? "selected" : ""}" type="button" data-action="select-plan" data-value="${escapeAttribute(key)}">${content}</button>`;
+  return `<button class="pricing-card ${unlimited ? "pricing-card--unlimited" : ""} ${plan.wide ? "pricing-card--wide" : ""} ${selected ? "selected" : ""}" type="button" data-action="select-plan" data-value="${escapeAttribute(key)}" data-selection-feedback aria-pressed="${selected}">${content}</button>`;
 }
 
 function renderPaymentHistoryItem(item) {
@@ -7628,7 +7628,7 @@ function renderAdminPromoRow(item) {
 function renderPayModal() {
   const copy = t();
 	const plan = state.currentPage === "gift" ? getSelectedGiftPlan() : getSelectedPlan();
-	return `<div class="modal open ${modalStateClass("pay")}"><button class="modal__backdrop" type="button" data-action="close-pay-modal"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title">${copy.choosePaymentMethod}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${localizedText("Закрыть способы оплаты", "Close payment methods", "بستن روش‌های پرداخت")}">${icon("close")}</button></div><div class="menu-list">${getAvailableMethods(plan).map((method) => `<button class="pay-row ${state.paymentMethod === method.id ? "selected" : ""}" type="button" data-action="select-pay-method" data-value="${method.id}" aria-pressed="${state.paymentMethod === method.id}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(method.label)}</strong><span>${escapeHtml(method.hint)}</span></span><span class="pay-row__check">${state.paymentMethod === method.id ? icon("check") : ""}</span></button>`).join("") || `<div class="note">${copy.paymentUnavailable}</div>`}</div></div></div>`;
+	return `<div class="modal open ${modalStateClass("pay")}"><button class="modal__backdrop" type="button" data-action="close-pay-modal"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title">${copy.choosePaymentMethod}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${localizedText("Закрыть способы оплаты", "Close payment methods", "بستن روش‌های پرداخت")}">${icon("close")}</button></div><div class="menu-list">${getAvailableMethods(plan).map((method) => `<button class="pay-row ${state.paymentMethod === method.id ? "selected" : ""}" type="button" data-action="select-pay-method" data-value="${method.id}" data-selection-feedback aria-pressed="${state.paymentMethod === method.id}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(method.label)}</strong><span>${escapeHtml(method.hint)}</span></span><span class="pay-row__check">${state.paymentMethod === method.id ? icon("check") : ""}</span></button>`).join("") || `<div class="note">${copy.paymentUnavailable}</div>`}</div></div></div>`;
 }
 
 function renderP2PMenu() {
@@ -7668,7 +7668,7 @@ function renderP2PMenu() {
 				const active = String(destination.id) === String(selectedID);
 				const details = String(destination.details || "");
 				const isLink = /^https?:\/\//i.test(details.trim());
-				return `<article class="p2p-destination ${active ? "is-selected" : ""}"><button class="p2p-destination__select" type="button" role="radio" aria-checked="${active}" data-action="select-p2p-destination" data-value="${escapeAttribute(destination.id)}"><span><strong>${escapeHtml(destination.title || "—")}</strong><code>${escapeHtml(details)}</code>${destination.description ? `<small>${escapeHtml(destination.description)}</small>` : ""}</span><i aria-hidden="true">${active ? icon("check") : ""}</i></button><button class="p2p-destination__action" type="button" data-action="${isLink ? "open-p2p-details" : "copy-p2p-details"}" data-value="${escapeAttribute(details)}" aria-label="${escapeAttribute(isLink ? localizedText("Открыть ссылку на оплату", "Open payment link", "باز کردن لینک پرداخت") : localizedText("Скопировать реквизиты", "Copy details", "کپی اطلاعات"))}">${icon(isLink ? "arrow" : "copy")}<span>${isLink ? localizedText("Открыть", "Open", "باز کردن") : localizedText("Копировать", "Copy", "کپی")}</span></button></article>`;
+				return `<article class="p2p-destination ${active ? "is-selected" : ""}"><button class="p2p-destination__select" type="button" role="radio" aria-checked="${active}" data-action="select-p2p-destination" data-value="${escapeAttribute(destination.id)}" data-selection-feedback><span><strong>${escapeHtml(destination.title || "—")}</strong><code>${escapeHtml(details)}</code>${destination.description ? `<small>${escapeHtml(destination.description)}</small>` : ""}</span><i aria-hidden="true">${active ? icon("check") : ""}</i></button><button class="p2p-destination__action" type="button" data-action="${isLink ? "open-p2p-details" : "copy-p2p-details"}" data-value="${escapeAttribute(details)}" aria-label="${escapeAttribute(isLink ? localizedText("Открыть ссылку на оплату", "Open payment link", "باز کردن لینک پرداخت") : localizedText("Скопировать реквизиты", "Copy details", "کپی اطلاعات"))}">${icon(isLink ? "arrow" : "copy")}<span>${isLink ? localizedText("Открыть", "Open", "باز کردن") : localizedText("Копировать", "Copy", "کپی")}</span></button></article>`;
 			}).join("")}</div>${settings.footerText ? `<p class="p2p-menu__footer-note">${escapeHtml(settings.footerText)}</p>` : ""}`}
 			</div>
 			<footer class="p2p-menu__actions">${senderStep ? `<button class="p2p-menu__primary" type="button" data-action="submit-p2p-payment" ${state.p2pBusy || !state.p2pSenderReference.trim() ? "disabled" : ""}>${icon(state.p2pBusy ? "refresh" : "check")}<span>${state.p2pBusy ? localizedText("Отправляем", "Sending", "در حال ارسال") : localizedText("Отправить на проверку", "Send for review", "ارسال برای بررسی")}</span></button>` : `<button class="p2p-menu__primary" type="button" data-action="confirm-p2p-transfer" ${!selectedID ? "disabled" : ""}>${localizedText("Перевёл", "Transferred", "انتقال دادم")}${icon("arrow")}</button>`}</footer>
@@ -7977,6 +7977,19 @@ function renderSupportMessageBody(body) {
 	return html + escapeHtml(source.slice(offset));
 }
 
+function queueSelectionFeedback(action, value) {
+	const selectedAction = String(action || "");
+	const selectedValue = String(value || "");
+	window.requestAnimationFrame(() => {
+		const selected = Array.from(app.querySelectorAll("[data-selection-feedback]")).find((item) => (
+			item.dataset.action === selectedAction && String(item.dataset.value || "") === selectedValue
+		));
+		if (!selected) return;
+		selected.classList.add("is-selection-feedback");
+		selected.addEventListener("animationend", () => selected.classList.remove("is-selection-feedback"), { once: true });
+	});
+}
+
 function bindRootActions() {
   if (bindRootActions.bound) return;
   bindRootActions.bound = true;
@@ -8003,6 +8016,7 @@ function bindRootActions() {
 	}
     const action = target.dataset.action;
     const value = target.dataset.value || "";
+		if (target.hasAttribute("data-selection-feedback")) queueSelectionFeedback(action, value);
 		if (state.adminLayoutAddMenuOpen && target.closest(".admin-layout-add-menu [role=menuitem]")) state.adminLayoutAddMenuOpen = false;
 		if (state.adminLayoutAddMenuOpen && !event.target.closest(".admin-layout-more, .admin-layout-add-menu")) {
 			state.adminLayoutAddMenuOpen = false;

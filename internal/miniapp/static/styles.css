@@ -11807,6 +11807,32 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 	.editor-screen-switches__button { transition: none; }
 }
 
+/* Selection feedback stays restrained and works after the app rerenders a chosen option. */
+:where([data-selection-feedback]) {
+	transition:
+		background-color 220ms ease,
+		border-color 220ms ease,
+		box-shadow 220ms ease,
+		color 220ms ease,
+		transform 180ms ease;
+}
+
+[data-selection-feedback].is-selection-feedback {
+	transform-origin: center;
+	animation: selectionFeedback 320ms cubic-bezier(.22, 1, .36, 1);
+}
+
+@keyframes selectionFeedback {
+	0% { opacity: .82; transform: scale(.982); }
+	55% { opacity: 1; transform: scale(1.006); }
+	100% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:where([data-selection-feedback]) { transition-duration: 1ms !important; }
+	[data-selection-feedback].is-selection-feedback { animation: none !important; }
+}
+
 /* Keep this rule last: theme sections above may restore component borders.
    Transparent borders preserve layout while the global frame setting is off. */
 :root[data-frames="off"] body,
