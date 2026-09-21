@@ -124,6 +124,7 @@ REMNAWAVE_TOKEN=токен_remnawave
 REMNAWAVE_MODE=remote
 CADDY_AUTH_API_TOKEN=
 REMNAWAVE_HEADERS=
+EGAMES_COOKIE=
 
 POSTGRES_USER=linkbot
 POSTGRES_PASSWORD=сложный_пароль
@@ -144,6 +145,32 @@ DEFAULT_FONT=auto
 `CADDY_AUTH_API_TOKEN`. Бот будет отправлять его в заголовке `X-Api-Key`.
 Дополнительные заголовки можно задать через `REMNAWAVE_HEADERS` в формате
 `Header-One:value;Header-Two:value`.
+
+### Панель установлена скриптом eGames
+
+Link-Bot поддерживает eGames Reverse-Proxy. Выберите только один вариант
+защиты, который был выбран при установке панели:
+
+| Защита панели eGames | Что указать в .env |
+|---|---|
+| Cookie-защита Nginx | EGAMES_COOKIE=ИМЯ=ЗНАЧЕНИЕ |
+| Страница входа TinyAuth | CADDY_AUTH_API_TOKEN=Basic base64(логин:пароль) |
+| Caddy с MFA | CADDY_AUTH_API_TOKEN=ключ из API Keys |
+
+Для cookie-защиты откройте /opt/remnawave/nginx.conf, найдите строку
+map $http_cookie $auth_cookie и скопируйте пару из кавычек после ~*, например
+aEmFnBcC=WbYWpixX. Вставьте только эту пару в EGAMES_COOKIE:
+
+~~~dotenv
+REMNAWAVE_URL=https://panel.example.com
+REMNAWAVE_MODE=remote
+REMNAWAVE_TOKEN=токен_панели
+EGAMES_COOKIE=aEmFnBcC=WbYWpixX
+~~~
+
+Не вставляйте URL входа, Cookie: или Path=/. Если Link-Bot подключён к
+контейнеру remnawave в той же Docker-сети, вместо внешнего URL можно указать
+REMNAWAVE_URL=http://remnawave:3000 и REMNAWAVE_MODE=local; cookie тогда не нужна.
 
 Сгенерировать пароль PostgreSQL:
 

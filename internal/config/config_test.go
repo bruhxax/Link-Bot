@@ -9,6 +9,7 @@ func TestParseRemnawaveHeaders(t *testing.T) {
 	headers := parseRemnawaveHeaders(
 		"X-Test: value; X-Api-Key: old; invalid; Empty: ",
 		"caddy-token",
+		"",
 	)
 
 	if got := headers["X-Test"]; got != "value" {
@@ -19,6 +20,21 @@ func TestParseRemnawaveHeaders(t *testing.T) {
 	}
 	if _, exists := headers["Empty"]; exists {
 		t.Fatal("empty header value must be ignored")
+	}
+}
+
+func TestParseRemnawaveHeadersAddsEGamesCookie(t *testing.T) {
+	headers := parseRemnawaveHeaders("Cookie: old=value", "", " rEmnaprx = aBCDefgh ")
+	if got := headers["Cookie"]; got != "rEmnaprx=aBCDefgh" {
+		t.Fatalf("Cookie = %q, want eGames cookie", got)
+	}
+}
+
+func TestNormalizeEGamesCookieRejectsUnsafeValues(t *testing.T) {
+	for _, value := range []string{"", "only-name", "name=", "name=value; Path=/", "name=value\r\nX-Injected: yes"} {
+		if _, ok := normalizeEGamesCookie(value); ok {
+			t.Fatalf("normalizeEGamesCookie(%q) unexpectedly succeeded", value)
+		}
 	}
 }
 
