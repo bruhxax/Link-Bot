@@ -876,6 +876,8 @@ const PAYMENT_LOGO_URLS = Object.freeze({
   freekassa: "/mini-app/assets/payment-freekassa.png",
   heleket: "/mini-app/assets/payment-heleket.png",
   pally: "/mini-app/assets/payment-pally.png",
+	rollypay: "/mini-app/assets/payment-card.png",
+	cispay: "/mini-app/assets/payment-card.png",
 	p2p: "/mini-app/assets/payment-card.png",
 });
 
@@ -4434,7 +4436,7 @@ function renderAdminIntegrationsPage() {
 const MOYNALOG_PAYMENT_METHODS = [
 	["yookassa", "YooKassa"], ["lava", "LAVA"], ["wata", "WATA"],
 	["platega", "Platega"], ["freekassa", "FreeKassa"], ["cryptopay", "Crypto Pay"],
-	["heleket", "Heleket"], ["pally", "Pally"], ["p2p", "P2P"],
+  ["heleket", "Heleket"], ["pally", "Pally"], ["rollypay", "RollyPay"], ["cispay", "cisPay"], ["p2p", "P2P"],
 	["telegram", "Telegram Stars"], ["tribute", "Tribute"],
 ];
 
@@ -7599,7 +7601,7 @@ function paymentHistoryMethodMeta(item, copy) {
   const normalized = `${invoiceType} ${title}`.toLowerCase();
 	if (invoiceType === "free") return { id: "free", label: title || localizedText("Бесплатная активация", "Free activation", "فعال‌سازی رایگان"), logo: "" };
 	if (invoiceType === "balance") return { id: "balance", label: title || localizedText("Баланс", "Balance", "موجودی"), logo: "" };
-  const providers = ["lava", "wata", "platega", "freekassa", "heleket", "pally"];
+  const providers = ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay"];
   const provider = providers.find((name) => normalized.includes(name));
   if (provider) {
     const meta = paymentMethodMeta(provider);
@@ -13677,6 +13679,8 @@ function paymentMethodMeta(id) {
 		freekassa: { id: "freekassa", label: "FreeKassa", hint: "Оплата через FreeKassa", logo: PAYMENT_LOGO_URLS.freekassa },
 		heleket: { id: "heleket", label: "Heleket", hint: "Оплата криптовалютой", logo: PAYMENT_LOGO_URLS.heleket },
 		pally: { id: "pally", label: "Pally", hint: "Оплата картой или через СБП", logo: PAYMENT_LOGO_URLS.pally },
+		rollypay: { id: "rollypay", label: "RollyPay", hint: "Оплата через RollyPay", logo: PAYMENT_LOGO_URLS.rollypay },
+		cispay: { id: "cispay", label: "cisPay", hint: "Оплата картой или через СБП", logo: PAYMENT_LOGO_URLS.cispay },
   };
   return map[id] || null;
 }

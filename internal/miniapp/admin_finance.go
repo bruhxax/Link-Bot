@@ -116,6 +116,8 @@ func adminFinanceProvider(item database.AdminFinancePayment) string {
 		database.InvoiceTypeFreeKassa: "FreeKassa",
 		database.InvoiceTypeHeleket:   "Heleket",
 		database.InvoiceTypePally:     "Pally",
+		database.InvoiceTypeRollyPay:  "RollyPay",
+		database.InvoiceTypeCisPay:    "cisPay",
 		database.InvoiceTypeP2P:       "P2P",
 		database.InvoiceTypeBalance:   "Баланс",
 	}[item.InvoiceType]

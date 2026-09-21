@@ -6095,7 +6095,7 @@ func runtimeFeatureForPath(path string) string {
 }
 
 func mapPaymentMethods(methods map[string]bool) []paymentMethodPayload {
-	order := []string{"balance", "sbp", "card", "p2p", "stars", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally"}
+	order := []string{"balance", "sbp", "card", "p2p", "stars", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay"}
 	payload := make([]paymentMethodPayload, 0, len(order))
 	for _, method := range order {
 		if methods[method] {
@@ -6127,6 +6127,10 @@ func mapPaymentMethod(method string) (database.InvoiceType, error) {
 		return database.InvoiceTypeHeleket, nil
 	case "pally":
 		return database.InvoiceTypePally, nil
+	case "rollypay":
+		return database.InvoiceTypeRollyPay, nil
+	case "cispay":
+		return database.InvoiceTypeCisPay, nil
 	case "p2p":
 		return database.InvoiceTypeP2P, nil
 	default:

@@ -49,6 +49,22 @@ func TestMapPaymentMethodRoutesPally(t *testing.T) {
 	}
 }
 
+func TestMapPaymentMethodRoutesRollyPayAndCisPay(t *testing.T) {
+	tests := map[string]database.InvoiceType{
+		"rollypay": database.InvoiceTypeRollyPay,
+		"cispay":   database.InvoiceTypeCisPay,
+	}
+	for method, want := range tests {
+		invoiceType, err := mapPaymentMethod(method)
+		if err != nil {
+			t.Fatalf("mapPaymentMethod(%q): %v", method, err)
+		}
+		if invoiceType != want {
+			t.Fatalf("mapPaymentMethod(%q) = %q, want %q", method, invoiceType, want)
+		}
+	}
+}
+
 func TestMapPaymentMethodRoutesP2P(t *testing.T) {
 	invoiceType, err := mapPaymentMethod("p2p")
 	if err != nil {

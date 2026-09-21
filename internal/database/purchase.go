@@ -26,6 +26,8 @@ const (
 	InvoiceTypeFreeKassa InvoiceType = "freekassa"
 	InvoiceTypeHeleket   InvoiceType = "heleket"
 	InvoiceTypePally     InvoiceType = "pally"
+	InvoiceTypeRollyPay  InvoiceType = "rollypay"
+	InvoiceTypeCisPay    InvoiceType = "cispay"
 	InvoiceTypeP2P       InvoiceType = "p2p"
 	InvoiceTypeFree      InvoiceType = "free"
 	InvoiceTypeBalance   InvoiceType = "balance"

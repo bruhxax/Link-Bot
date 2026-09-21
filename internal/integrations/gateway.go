@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -25,6 +26,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Gateway struct {
@@ -83,6 +86,10 @@ func (g *Gateway) Create(ctx context.Context, input CreatePaymentRequest) (Creat
 		return g.createHeleket(ctx, cfg, input)
 	case ProviderPally:
 		return g.createPally(ctx, cfg, input)
+	case ProviderRollyPay:
+		return g.createRollyPay(ctx, cfg, input)
+	case ProviderCisPay:
+		return g.createCisPay(ctx, cfg, input)
 	default:
 		return CreatedPayment{}, fmt.Errorf("unsupported gateway: %s", input.Provider)
 	}
@@ -106,6 +113,10 @@ func (g *Gateway) HandleWebhook(ctx context.Context, provider string, headers ht
 		return parseHeleketWebhook(cfg, raw)
 	case ProviderPally:
 		return parsePallyWebhook(cfg, form)
+	case ProviderRollyPay:
+		return parseRollyPayWebhook(cfg, headers, raw)
+	case ProviderCisPay:
+		return parseCisPayWebhook(cfg, headers, raw)
 	default:
 		return WebhookPayment{}, fmt.Errorf("unknown webhook provider: %s", provider)
 	}
@@ -269,6 +280,71 @@ func (g *Gateway) createPally(ctx context.Context, cfg map[string]string, input 
 		return CreatedPayment{}, errors.New(message)
 	}
 	return CreatedPayment{ExternalID: billID, URL: response.LinkPageURL}, nil
+}
+
+func (g *Gateway) createRollyPay(ctx context.Context, cfg map[string]string, input CreatePaymentRequest) (CreatedPayment, error) {
+	payload := map[string]any{
+		"amount":               formatAmount(input.Amount),
+		"payment_currency":     input.Currency,
+		"order_id":             strconv.FormatInt(input.PurchaseID, 10),
+		"description":          input.Description,
+		"success_redirect_url": input.ReturnURL,
+		"fail_redirect_url":    input.ReturnURL,
+	}
+	raw, _ := json.Marshal(payload)
+	var response struct {
+		PaymentID string `json:"payment_id"`
+		PayURL    string `json:"pay_url"`
+	}
+	endpoint := strings.TrimRight(firstNonEmpty(cfg["apiUrl"], "https://rollypay.io"), "/") + "/api/v1/payments"
+	if err := g.doJSON(ctx, http.MethodPost, endpoint, raw, map[string]string{
+		"X-API-Key": cfg["apiKey"],
+		"X-Nonce":   uuid.NewString(),
+	}, &response); err != nil {
+		return CreatedPayment{}, err
+	}
+	if strings.TrimSpace(response.PaymentID) == "" || strings.TrimSpace(response.PayURL) == "" {
+		return CreatedPayment{}, errors.New("RollyPay did not return payment link")
+	}
+	return CreatedPayment{ExternalID: response.PaymentID, URL: response.PayURL}, nil
+}
+
+func (g *Gateway) createCisPay(ctx context.Context, cfg map[string]string, input CreatePaymentRequest) (CreatedPayment, error) {
+	amountKopecks := int64(math.Round(input.Amount * 100))
+	if amountKopecks <= 0 {
+		return CreatedPayment{}, errors.New("cisPay payment amount must be positive")
+	}
+	method := strings.ToUpper(strings.TrimSpace(cfg["paymentMethod"]))
+	if method != "CARD" && method != "SBP" {
+		return CreatedPayment{}, errors.New("cisPay payment method must be CARD or SBP")
+	}
+	payload := map[string]any{
+		"amount":               amountKopecks,
+		"currency":             input.Currency,
+		"order_id":             strconv.FormatInt(input.PurchaseID, 10),
+		"payment_method":       method,
+		"customer_id":          strconv.FormatInt(input.CustomerID, 10),
+		"description":          input.Description,
+		"redirect_success_url": input.ReturnURL,
+		"redirect_fail_url":    input.ReturnURL,
+		"payload":              strconv.FormatInt(input.PurchaseID, 10),
+	}
+	raw, _ := json.Marshal(payload)
+	var response struct {
+		ID         string `json:"id"`
+		PaymentURL string `json:"payment_url"`
+	}
+	endpoint := strings.TrimRight(firstNonEmpty(cfg["apiUrl"], "https://api.cispay.app"), "/") + "/payments"
+	if err := g.doJSON(ctx, http.MethodPost, endpoint, raw, map[string]string{
+		"X-Shop-ID": cfg["shopId"],
+		"X-API-Key": cfg["apiKey"],
+	}, &response); err != nil {
+		return CreatedPayment{}, err
+	}
+	if strings.TrimSpace(response.ID) == "" || strings.TrimSpace(response.PaymentURL) == "" {
+		return CreatedPayment{}, errors.New("cisPay did not return payment link")
+	}
+	return CreatedPayment{ExternalID: response.ID, URL: response.PaymentURL}, nil
 }
 
 func (g *Gateway) doJSON(ctx context.Context, method, endpoint string, body []byte, headers map[string]string, target any) error {
@@ -531,6 +607,75 @@ func parsePallyWebhook(cfg map[string]string, form url.Values) (WebhookPayment, 
 		Currency:   strings.ToUpper(strings.TrimSpace(form.Get("CurrencyIn"))),
 		Paid:       status == "SUCCESS" || status == "OVERPAID",
 		Cancelled:  status == "FAIL" || status == "CANCELED" || status == "CANCELLED",
+	}, nil
+}
+
+func parseRollyPayWebhook(cfg map[string]string, headers http.Header, raw []byte) (WebhookPayment, error) {
+	timestamp := strings.TrimSpace(headers.Get("X-Timestamp"))
+	signature := strings.TrimSpace(headers.Get("X-Signature"))
+	if timestamp == "" || signature == "" {
+		return WebhookPayment{}, errors.New("missing RollyPay webhook signature")
+	}
+	if _, err := strconv.ParseInt(timestamp, 10, 64); err != nil {
+		return WebhookPayment{}, errors.New("invalid RollyPay webhook timestamp")
+	}
+	mac := hmac.New(sha256.New, []byte(cfg["signingSecret"]))
+	_, _ = mac.Write([]byte(timestamp))
+	_, _ = mac.Write([]byte("."))
+	_, _ = mac.Write(raw)
+	expected := hex.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(strings.ToLower(expected)), []byte(strings.ToLower(signature))) {
+		return WebhookPayment{}, errors.New("invalid RollyPay webhook signature")
+	}
+	var payload struct {
+		PaymentID string `json:"payment_id"`
+		OrderID   string `json:"order_id"`
+		Status    string `json:"status"`
+		Amount    string `json:"amount"`
+		Currency  string `json:"currency"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return WebhookPayment{}, err
+	}
+	purchaseID, err := strconv.ParseInt(payload.OrderID, 10, 64)
+	if err != nil || strings.TrimSpace(payload.PaymentID) == "" {
+		return WebhookPayment{}, errors.New("invalid RollyPay webhook payload")
+	}
+	amount, err := strconv.ParseFloat(payload.Amount, 64)
+	if err != nil || amount <= 0 {
+		return WebhookPayment{}, errors.New("invalid RollyPay webhook amount")
+	}
+	status := strings.ToLower(strings.TrimSpace(payload.Status))
+	return WebhookPayment{
+		PurchaseID: purchaseID, ExternalID: payload.PaymentID, Amount: amount, Currency: strings.ToUpper(strings.TrimSpace(payload.Currency)),
+		Paid: status == "paid", Cancelled: status == "canceled" || status == "expired" || status == "chargeback" || status == "refunded",
+	}, nil
+}
+
+func parseCisPayWebhook(cfg map[string]string, headers http.Header, raw []byte) (WebhookPayment, error) {
+	signature := strings.TrimSpace(headers.Get("X-Signature"))
+	expected := hmacHex(sha256.New, []byte(cfg["apiKey"]), raw)
+	if signature == "" || !hmac.Equal([]byte(strings.ToLower(expected)), []byte(strings.ToLower(signature))) {
+		return WebhookPayment{}, errors.New("invalid cisPay webhook signature")
+	}
+	var payload struct {
+		ID       string `json:"id"`
+		OrderID  string `json:"order_id"`
+		Status   string `json:"status"`
+		Amount   int64  `json:"amount"`
+		Currency string `json:"currency"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return WebhookPayment{}, err
+	}
+	purchaseID, err := strconv.ParseInt(payload.OrderID, 10, 64)
+	if err != nil || strings.TrimSpace(payload.ID) == "" || payload.Amount <= 0 {
+		return WebhookPayment{}, errors.New("invalid cisPay webhook payload")
+	}
+	status := strings.ToUpper(strings.TrimSpace(payload.Status))
+	return WebhookPayment{
+		PurchaseID: purchaseID, ExternalID: payload.ID, Amount: float64(payload.Amount) / 100, Currency: strings.ToUpper(strings.TrimSpace(payload.Currency)),
+		Paid: status == "PAID", Cancelled: status == "FAILED" || status == "EXPIRED" || status == "REFUNDED",
 	}, nil
 }
 

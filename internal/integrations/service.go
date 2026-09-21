@@ -32,6 +32,8 @@ const (
 	ProviderFreeKassa       = "freekassa"
 	ProviderHeleket         = "heleket"
 	ProviderPally           = "pally"
+	ProviderRollyPay        = "rollypay"
+	ProviderCisPay          = "cispay"
 	ProviderP2P             = "p2p"
 	ProviderMoyNalog        = "moynalog"
 )
@@ -46,7 +48,7 @@ const (
 
 var moyNalogPaymentMethods = []string{
 	ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega,
-	ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally,
+	ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay,
 	ProviderP2P, "telegram", "tribute",
 }
 
@@ -204,6 +206,21 @@ var definitions = []ProviderDefinition{
 			{Key: "shopId", Label: "Shop ID", Required: true, Placeholder: "ID магазина в Pally"},
 			{Key: "apiToken", Label: "API token", Required: true, Secret: true, Placeholder: "Токен API магазина"},
 			{Key: "apiUrl", Label: "API URL", Required: true, Placeholder: "https://pal24.pro"},
+		},
+	},
+	{
+		ID: ProviderRollyPay, Name: "RollyPay", Description: "Платёжная форма RollyPay", Logo: "/mini-app/assets/payment-card.png", Kind: "payment",
+		Fields: []FieldDefinition{
+			{Key: "apiKey", Label: "API key", Required: true, Secret: true, Placeholder: "rpk_..."},
+			{Key: "signingSecret", Label: "Webhook signing secret", Required: true, Secret: true, Help: "Секрет подписи вебхуков из настроек кассы RollyPay"},
+		},
+	},
+	{
+		ID: ProviderCisPay, Name: "cisPay", Description: "Карты или СБП через cisPay", Logo: "/mini-app/assets/payment-card.png", Kind: "payment",
+		Fields: []FieldDefinition{
+			{Key: "shopId", Label: "Shop ID", Required: true, Placeholder: "UUID магазина"},
+			{Key: "apiKey", Label: "API key", Required: true, Secret: true, Placeholder: "cis_sec_..."},
+			{Key: "paymentMethod", Label: "Способ оплаты", Required: true, Placeholder: "CARD", Help: "Укажите CARD для банковских карт или SBP для СБП"},
 		},
 	},
 	{
@@ -381,6 +398,13 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 		if err := normalizeMoyNalogConfig(rec.Config, input.Enabled); err != nil {
 			return ProviderView{}, err
 		}
+	}
+	if provider == ProviderCisPay {
+		method := strings.ToUpper(strings.TrimSpace(rec.Config["paymentMethod"]))
+		if method != "" && method != "CARD" && method != "SBP" {
+			return ProviderView{}, errors.New("для cisPay укажите способ оплаты CARD или SBP")
+		}
+		rec.Config["paymentMethod"] = method
 	}
 	if input.Enabled {
 		for _, field := range definition.Fields {
@@ -787,7 +811,7 @@ func firstNonEmpty(values ...string) string {
 }
 
 func SortedPaymentProviders() []string {
-	items := []string{ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega, ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderP2P}
+	items := []string{ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega, ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay, ProviderP2P}
 	sort.Strings(items)
 	return items
 }
