@@ -2128,6 +2128,9 @@ const state = {
   supportDraftSubject: "",
   supportDraftMessage: "",
   supportReplyDraft: "",
+  supportPendingMedia: null,
+  supportPendingMediaURL: "",
+  supportMediaViewer: null,
   paymentAgreementAccepted: false,
   promoCodeDraft: "",
   appliedPromo: null,
@@ -2254,6 +2257,8 @@ let pageAnimationEnabled = false;
 let subscriptionSwitchAnimation = "";
 let supportListPollTimer = 0;
 let supportThreadPollTimer = 0;
+const supportMediaObjectURLs = new Map();
+const supportMediaRequests = new Map();
 let previousActiveModalName = "";
 let animatedModalName = "";
 let closingModalName = "";
@@ -2557,6 +2562,7 @@ function supportText() {
 			createTitle: "ایجاد درخواست", subject: "موضوع", subjectPlaceholder: "مشکل را کوتاه توضیح دهید", message: "پیام", messagePlaceholder: "مشکل یا پرسش خود را با جزئیات بنویسید...", send: "ارسال",
 			ticketFallback: (id) => `درخواست #${id}`, you: "شما", admin: "پشتیبانی", closeTicket: "بستن درخواست", closed: "درخواست بسته شد", closedHint: "گفت‌وگو در تاریخچه در دسترس است.", replyPlaceholder: "پاسخ خود را بنویسید...",
 			ticketCreated: "درخواست ارسال شد", replySent: "پاسخ ارسال شد", ticketClosedToast: "درخواست بسته شد", loadingThread: "در حال بارگذاری گفت‌وگو...", customer: "نام کاربری", subscription: "اشتراک", unread: "جدید",
+			attachMedia: "پیوست کردن عکس یا ویدیو", removeMedia: "حذف پیوست", downloadMedia: "دانلود فایل", openMedia: "باز کردن فایل", mediaTooLarge: "حجم فایل نباید بیشتر از ۵۰ مگابایت باشد", mediaInvalid: "یک عکس یا ویدیوی پشتیبانی‌شده انتخاب کنید", mediaSending: "در حال ارسال فایل...", photo: "عکس", video: "ویدیو",
 		};
 	}
   if (state.locale === "en") {
@@ -2589,6 +2595,15 @@ function supportText() {
       customer: "Username",
       subscription: "Subscription",
       unread: "New",
+      attachMedia: "Attach a photo or video",
+      removeMedia: "Remove attachment",
+      downloadMedia: "Download file",
+      openMedia: "Open file",
+      mediaTooLarge: "The file must be no larger than 50 MB",
+      mediaInvalid: "Choose a supported photo or video",
+      mediaSending: "Sending file...",
+      photo: "Photo",
+      video: "Video",
     };
   }
 
@@ -2623,6 +2638,15 @@ function supportText() {
       customer: "Имя пользователя",
       subscription: "Подписка",
       unread: "Новое",
+      attachMedia: "Прикрепить фото или видео",
+      removeMedia: "Убрать вложение",
+      downloadMedia: "Скачать файл",
+      openMedia: "Открыть файл",
+      mediaTooLarge: "Файл должен быть не больше 50 МБ",
+      mediaInvalid: "Выберите поддерживаемое фото или видео",
+      mediaSending: "Отправляем файл...",
+      photo: "Фото",
+      video: "Видео",
   };
 }
 
@@ -2735,10 +2759,7 @@ async function boot() {
   state.reviewBusy = "";
   state.deviceBusyHwid = "";
   state.supportComposeOpen = false;
-  state.supportThreadOpen = false;
-  state.activeSupportTicketId = 0;
-  state.activeSupportThread = null;
-  state.supportReplyDraft = "";
+	closeSupportThreadState();
   writeSetting(STORAGE_KEYS.page, state.currentPage);
   await refreshDashboard({ initial: true, silent: paymentReturn });
 	if (isAdminUser() && state.currentPage === "admin" && state.adminSection === "finance") void refreshAdminFinance().catch((error) => showToast(error?.message || "Не удалось загрузить финансы", "danger"));
@@ -3091,6 +3112,8 @@ function requestTimeoutForURL(url) {
   const path = String(url || "");
   if (path.includes("/api/mini-app/bootstrap")) return 30000;
   if (path.includes("/api/mini-app/purchase")) return 45000;
+  if (path.includes("/api/mini-app/support/send-media")) return 90000;
+  if (path.includes("/api/mini-app/support/media-link")) return 30000;
   return 15000;
 }
 
@@ -3178,6 +3201,10 @@ function mapApiErrorMessage(code, fallback) {
 	free_plan_already_used: localizedText("Этот бесплатный тариф можно получить только один раз", "This free plan can only be claimed once", "این تعرفه رایگان فقط یک‌بار قابل دریافت است"),
 	free_plan_too_early: localizedText("Повторно получить тариф можно за 7 дней до окончания подписки", "You can claim it again during the last 7 days", "در ۷ روز پایانی اشتراک می‌توانید دوباره آن را دریافت کنید"),
 	free_plan_failed: localizedText("Не удалось активировать бесплатный тариф", "Could not activate the free plan", "فعال‌سازی تعرفه رایگان انجام نشد"),
+	support_media_too_large: supportText().mediaTooLarge,
+	support_media_format_invalid: supportText().mediaInvalid,
+	support_media_missing: supportText().mediaInvalid,
+	support_media_invalid: supportText().mediaInvalid,
     promo_code_required: copy.promoCodeRequired,
     promo_not_found: copy.promoInvalid,
     promo_expired: copy.promoExpired,
@@ -3311,7 +3338,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-	const modalOpen = Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminBannerEditorOpen || state.adminLayoutStyleEditorOpen;
+	const modalOpen = Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.supportMediaViewer || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminBannerEditorOpen || state.adminLayoutStyleEditorOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -3370,6 +3397,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
       ${renderBottomNav(dockMode, dockModeChanged)}
       ${isModalVisible("support-compose", state.supportComposeOpen) ? renderSupportComposerModal() : ""}
       ${isModalVisible("support-thread", state.supportThreadOpen) ? renderSupportThreadModal() : ""}
+      ${isModalVisible("support-media-viewer", Boolean(state.supportMediaViewer)) ? renderSupportMediaViewerModal() : ""}
       ${isModalVisible("devices", state.devicesModalOpen) ? renderDevicesModal() : ""}
       ${isModalVisible("pay", state.payModalOpen) ? renderPayModal() : ""}
 		${state.p2pMenuStep ? renderP2PMenu() : ""}
@@ -3397,6 +3425,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
 	mountBannerMedia();
   syncBottomNavIndicator();
   restoreSupportThreadScrollState(supportThreadScrollState);
+  hydrateSupportMedia();
   syncToastAnchor();
   syncNativeBackButton();
   syncSupportPolling();
@@ -7910,9 +7939,17 @@ function renderSupportThreadModal() {
           ${(thread.messages || []).map((message) => renderSupportMessage(message)).join("")}
         </div>
         ${thread.canReply ? `
-          <div class="support-reply">
-            <textarea class="support-reply__textarea" rows="1" maxlength="2000" placeholder="${escapeAttribute(scopy.replyPlaceholder)}" data-input="support-reply">${escapeHtml(state.supportReplyDraft)}</textarea>
-            <button class="support-reply__send" type="button" data-action="send-support-message" ${state.supportBusy ? "disabled" : ""} aria-label="${escapeAttribute(scopy.send)}">${icon(state.supportBusy === "send-support-message" ? "refresh" : "mapArrow")}</button>
+          <div class="support-reply ${state.supportPendingMedia ? "support-reply--has-media" : ""}">
+            ${renderSupportPendingMedia()}
+            <div class="support-reply__row">
+              <label class="support-reply__attach ${state.supportBusy === "send-support-media" ? "is-loading" : ""}" aria-label="${escapeAttribute(scopy.attachMedia)}">
+                <input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" data-input="support-media-file" ${state.supportBusy ? "disabled" : ""}>
+                ${icon(state.supportBusy === "send-support-media" ? "refresh" : "paperclip")}
+              </label>
+              <textarea class="support-reply__textarea" rows="1" maxlength="2000" placeholder="${escapeAttribute(scopy.replyPlaceholder)}" data-input="support-reply">${escapeHtml(state.supportReplyDraft)}</textarea>
+              <button class="support-reply__send" type="button" data-action="send-support-message" ${state.supportBusy ? "disabled" : ""} aria-label="${escapeAttribute(scopy.send)}">${icon(state.supportBusy ? "refresh" : "mapArrow")}</button>
+            </div>
+            ${state.supportBusy === "send-support-media" ? `<span class="support-reply__status" role="status">${escapeHtml(scopy.mediaSending)}</span>` : ""}
           </div>
         ` : `
           <div class="support-thread__closed">
@@ -7925,6 +7962,30 @@ function renderSupportThreadModal() {
   `;
 }
 
+function formatSupportMediaSize(bytes) {
+	const value = Math.max(0, Number(bytes) || 0);
+	if (value < 1024) return `${value} B`;
+	if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} KB`;
+	return `${(value / (1024 * 1024)).toFixed(value >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+}
+
+function renderSupportPendingMedia() {
+	const file = state.supportPendingMedia;
+	if (!file) return "";
+	const scopy = supportText();
+	const isVideo = String(file.type || "").startsWith("video/") || /\.(?:mp4|webm|mov)$/i.test(String(file.name || ""));
+	const preview = state.supportPendingMediaURL
+		? isVideo
+			? `<video src="${escapeAttribute(state.supportPendingMediaURL)}" muted playsinline preload="metadata" aria-hidden="true"></video>`
+			: `<img src="${escapeAttribute(state.supportPendingMediaURL)}" alt="" aria-hidden="true">`
+		: `<span aria-hidden="true">${icon(isVideo ? "play" : "image")}</span>`;
+	return `<div class="support-reply__attachment">
+		<div class="support-reply__attachment-preview">${preview}</div>
+		<div class="support-reply__attachment-copy"><strong>${escapeHtml(file.name || (isVideo ? scopy.video : scopy.photo))}</strong><span>${escapeHtml(`${isVideo ? scopy.video : scopy.photo} · ${formatSupportMediaSize(file.size)}`)}</span></div>
+		<button type="button" data-action="remove-support-media" aria-label="${escapeAttribute(scopy.removeMedia)}" ${state.supportBusy ? "disabled" : ""}>${icon("close")}</button>
+	</div>`;
+}
+
 function renderSupportMessage(message) {
   const scopy = supportText();
   const fromAdmin = message.authorRole === "admin";
@@ -7932,15 +7993,65 @@ function renderSupportMessage(message) {
   const isMine = viewerIsAdmin ? fromAdmin : !fromAdmin;
 	const peerName = String(state.activeSupportThread?.ticket?.customerName || "").trim() || localizedText("Пользователь", "Customer", "کاربر");
   const authorLabel = isMine ? scopy.you : (fromAdmin ? scopy.admin : peerName);
+	const body = String(message.body || "");
+	const hasAttachment = Boolean(message.attachment?.type);
   return `
     <div class="support-message ${isMine ? "support-message--mine" : "support-message--peer"} ${fromAdmin ? "support-message--admin-author" : "support-message--customer-author"} ${message.pending ? "support-message--pending" : ""}">
-      <div class="support-message__bubble">
+      <div class="support-message__bubble ${hasAttachment ? "support-message__bubble--media" : ""}">
         <span class="support-message__author">${escapeHtml(authorLabel)}</span>
-		<div class="support-message__body">${renderSupportMessageBody(message.body || "")}</div>
+		${hasAttachment ? renderSupportMessageAttachment(message) : ""}
+		${body ? `<div class="support-message__body">${renderSupportMessageBody(body)}</div>` : ""}
         <span class="support-message__time">${escapeHtml(formatSupportTime(message.createdAt))}</span>
       </div>
     </div>
   `;
+}
+
+function renderSupportMessageAttachment(message) {
+	const attachment = message.attachment || {};
+	const messageID = Number(message.id || 0);
+	const scopy = supportText();
+	const isVideo = attachment.type === "video";
+	const label = isVideo ? scopy.video : scopy.photo;
+	const name = String(attachment.name || label);
+	const media = isVideo
+		? `<video muted playsinline preload="metadata" data-support-media-id="${messageID}" aria-label="${escapeAttribute(name)}"></video><span class="support-message__media-play" aria-hidden="true">${icon("play")}</span>`
+		: `<img data-support-media-id="${messageID}" alt="${escapeAttribute(name)}" decoding="async">`;
+	return `<div class="support-message__media-shell">
+		<button class="support-message__media" type="button" data-action="open-support-media" data-value="${messageID}" aria-label="${escapeAttribute(`${scopy.openMedia}: ${name}`)}">
+			<span class="support-message__media-loader" aria-hidden="true">${icon(isVideo ? "play" : "image")}</span>
+			${media}
+			<span class="support-message__media-kind">${escapeHtml(label)}</span>
+		</button>
+		<button class="support-message__media-download" type="button" data-action="download-support-media" data-value="${messageID}" aria-label="${escapeAttribute(`${scopy.downloadMedia}: ${name}`)}">${icon("download")}</button>
+	</div>`;
+}
+
+function renderSupportMediaViewerModal() {
+	const message = state.supportMediaViewer;
+	if (!message?.attachment) return "";
+	const attachment = message.attachment;
+	const messageID = Number(message.id || 0);
+	const scopy = supportText();
+	const isVideo = attachment.type === "video";
+	const label = isVideo ? scopy.video : scopy.photo;
+	const name = String(attachment.name || label);
+	const closeLabel = localizedText("Закрыть просмотр", "Close preview", "بستن پیش‌نمایش");
+	const media = isVideo
+		? `<video controls playsinline preload="metadata" data-support-media-id="${messageID}" aria-label="${escapeAttribute(name)}"></video>`
+		: `<img data-support-media-id="${messageID}" alt="${escapeAttribute(name)}" decoding="async">`;
+	return `<div class="modal open support-media-viewer ${modalStateClass("support-media-viewer")}" role="dialog" aria-modal="true" aria-labelledby="support-media-viewer-title">
+		<button class="modal__backdrop" type="button" data-action="close-support-media" aria-label="${escapeAttribute(closeLabel)}"></button>
+		<div class="support-media-viewer__sheet">
+			<header class="support-media-viewer__header">
+				<div><strong id="support-media-viewer-title">${escapeHtml(name)}</strong><span>${escapeHtml(`${label} · ${formatSupportMediaSize(attachment.sizeBytes)}`)}</span></div>
+				<button type="button" data-action="download-support-media" data-value="${messageID}" aria-label="${escapeAttribute(scopy.downloadMedia)}">${icon("download")}</button>
+				<button type="button" data-action="close-support-media" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button>
+			</header>
+			<div class="support-media-viewer__stage">${media}<span class="support-media-viewer__loader" aria-hidden="true">${icon("refresh")}</span></div>
+			${message.body ? `<div class="support-media-viewer__caption">${renderSupportMessageBody(message.body)}</div>` : ""}
+		</div>
+	</div>`;
 }
 
 function normalizeSupportMessageLink(rawURL) {
@@ -8251,9 +8362,13 @@ function bindRootActions() {
       if (action === "open-support-compose") { state.supportComposeOpen = true; render(); return; }
       if (action === "close-support-compose") return requestModalClose("support-compose", () => { state.supportComposeOpen = false; state.supportDraftSubject = ""; state.supportDraftMessage = ""; });
       if (action === "open-support-ticket") return await openSupportTicket(Number(value));
-      if (action === "close-support-thread") return requestModalClose("support-thread", () => { state.supportThreadOpen = false; state.activeSupportTicketId = 0; state.activeSupportThread = null; state.supportReplyDraft = ""; });
+      if (action === "close-support-thread") return requestModalClose("support-thread", closeSupportThreadState);
       if (action === "submit-support-ticket") return await submitSupportTicket();
       if (action === "send-support-message") return await sendSupportMessage();
+      if (action === "remove-support-media") { clearPendingSupportMedia(); render({ preserveScroll: true }); return; }
+      if (action === "open-support-media") return openSupportMediaViewer(Number(value));
+      if (action === "close-support-media") return requestModalClose("support-media-viewer", () => { state.supportMediaViewer = null; });
+      if (action === "download-support-media") return await downloadSupportMedia(Number(value));
       if (action === "close-support-ticket") return await closeSupportTicket();
       if (action === "set-server-filter") { state.serverFilter = ["all", "online", "offline"].includes(value) ? value : "all"; render(); return; }
       if (action === "toggle-faq") { const index = Number(value); state.selectedFaqIndex = state.selectedFaqIndex === index ? -1 : index; render(); return; }
@@ -8402,6 +8517,12 @@ function bindRootActions() {
 	app.addEventListener("change", (event) => {
 		const input = event.target;
 		if (!(input instanceof HTMLInputElement)) return;
+		if (input.dataset.input === "support-media-file") {
+			const file = input.files?.[0];
+			input.value = "";
+			if (file) selectSupportMediaFile(file);
+			return;
+		}
 		if (input.dataset.input === "admin-logo-file") {
 			const file = input.files?.[0];
 			if (file) void uploadAdminLogo(file);
@@ -11695,6 +11816,115 @@ async function deleteAdminReview(id) {
   }
 }
 
+function supportMessageByID(messageID) {
+	return (state.activeSupportThread?.messages || []).find((message) => Number(message.id) === Number(messageID)) || null;
+}
+
+function clearPendingSupportMedia() {
+	if (state.supportPendingMediaURL) URL.revokeObjectURL(state.supportPendingMediaURL);
+	state.supportPendingMedia = null;
+	state.supportPendingMediaURL = "";
+}
+
+function clearSupportMediaCache() {
+	for (const url of supportMediaObjectURLs.values()) {
+		if (String(url).startsWith("blob:")) URL.revokeObjectURL(url);
+	}
+	supportMediaObjectURLs.clear();
+	supportMediaRequests.clear();
+}
+
+function closeSupportThreadState() {
+	state.supportThreadOpen = false;
+	state.supportMediaViewer = null;
+	state.activeSupportTicketId = 0;
+	state.activeSupportThread = null;
+	state.supportReplyDraft = "";
+	clearPendingSupportMedia();
+	clearSupportMediaCache();
+}
+
+function isSupportedSupportMedia(file) {
+	const type = String(file?.type || "").toLowerCase();
+	const name = String(file?.name || "").toLowerCase();
+	return /^(?:image\/(?:jpeg|png|webp|gif)|video\/(?:mp4|webm|quicktime))$/.test(type) || /\.(?:jpe?g|png|webp|gif|mp4|webm|mov)$/.test(name);
+}
+
+function selectSupportMediaFile(file) {
+	const scopy = supportText();
+	if (!isSupportedSupportMedia(file)) return showToast(scopy.mediaInvalid, "danger");
+	if (Number(file.size || 0) > 50 * 1024 * 1024) return showToast(scopy.mediaTooLarge, "danger");
+	clearPendingSupportMedia();
+	state.supportPendingMedia = file;
+	state.supportPendingMediaURL = URL.createObjectURL(file);
+	haptic("light");
+	render({ preserveScroll: true });
+}
+
+async function loadSupportMediaURL(messageID, { force = false } = {}) {
+	const id = Number(messageID || 0);
+	if (!id) throw new Error(supportText().mediaInvalid);
+	if (!force && supportMediaObjectURLs.has(id)) return supportMediaObjectURLs.get(id);
+	if (!force && supportMediaRequests.has(id)) return await supportMediaRequests.get(id);
+	const message = supportMessageByID(id);
+	const previewURL = String(message?.attachment?.previewURL || "").trim();
+	if (previewMode && previewURL) {
+		supportMediaObjectURLs.set(id, previewURL);
+		return previewURL;
+	}
+	const request = post("/api/mini-app/support/media-link", { messageId: id }).then((response) => {
+		const url = String(response?.data?.url || "");
+		if (!url) throw new Error(supportText().mediaInvalid);
+		supportMediaObjectURLs.set(id, url);
+		return url;
+	}).finally(() => supportMediaRequests.delete(id));
+	supportMediaRequests.set(id, request);
+	return await request;
+}
+
+function hydrateSupportMedia() {
+	for (const node of app.querySelectorAll("[data-support-media-id]")) {
+		const messageID = Number(node.dataset.supportMediaId || 0);
+		if (!messageID || node.dataset.supportMediaMounted === "true") continue;
+		node.dataset.supportMediaMounted = "true";
+		const surface = node.closest(".support-message__media, .support-media-viewer__stage");
+		surface?.classList.add("is-loading");
+		void loadSupportMediaURL(messageID).then((url) => {
+			if (!node.isConnected) return;
+			node.addEventListener("load", () => surface?.classList.add("is-loaded"), { once: true });
+			node.addEventListener("loadeddata", () => surface?.classList.add("is-loaded"), { once: true });
+			node.addEventListener("loadedmetadata", () => surface?.classList.add("is-loaded"), { once: true });
+			node.src = url;
+			if (node.complete || node.readyState >= 2) surface?.classList.add("is-loaded");
+		}).catch(() => {
+			if (!node.isConnected) return;
+			surface?.classList.add("is-error");
+			surface?.setAttribute("aria-disabled", "true");
+		});
+	}
+}
+
+function openSupportMediaViewer(messageID) {
+	const message = supportMessageByID(messageID);
+	if (!message?.attachment) return;
+	state.supportMediaViewer = message;
+	haptic("light");
+	render({ preserveScroll: true });
+}
+
+async function downloadSupportMedia(messageID) {
+	const message = supportMessageByID(messageID) || state.supportMediaViewer;
+	if (!message?.attachment) return;
+	const url = await loadSupportMediaURL(messageID, { force: !previewMode });
+	const link = document.createElement("a");
+	link.href = previewMode ? url : `${url}${url.includes("?") ? "&" : "?"}download=1`;
+	link.download = String(message.attachment.name || (message.attachment.type === "video" ? "video" : "photo")).replace(/[\\/]+/g, "-");
+	document.body.appendChild(link);
+	link.click();
+	link.remove();
+	haptic("light");
+}
+
 async function refreshSupport({ silent = false } = {}) {
   if (!state.data) return;
   const previous = JSON.stringify(state.data.support || {});
@@ -11706,6 +11936,31 @@ async function refreshSupport({ silent = false } = {}) {
 
 async function openSupportTicket(ticketId, { silent = false } = {}) {
   if (!ticketId) return;
+	if (state.activeSupportTicketId && state.activeSupportTicketId !== ticketId) {
+		state.supportMediaViewer = null;
+		clearPendingSupportMedia();
+		clearSupportMediaCache();
+	}
+  if (previewMode) {
+		const support = state.data?.support || {};
+		const ticket = [...(support.openTickets || []), ...(support.historyTickets || [])].find((item) => Number(item.id) === Number(ticketId));
+		if (!ticket) return;
+		const now = new Date();
+		state.activeSupportTicketId = ticketId;
+		state.activeSupportThread = {
+			ticket,
+			canReply: ticket.status === "open",
+			canClose: Boolean(support.isAdmin && ticket.status === "open"),
+			messages: [
+				{ id: 1001, authorRole: "customer", body: "На iPhone не импортируется конфиг.", createdAt: new Date(now.getTime() - 180000).toISOString() },
+				{ id: 1002, authorRole: "customer", body: "Вот скриншот ошибки", createdAt: new Date(now.getTime() - 120000).toISOString(), attachment: { type: "image", mime: "image/webp", name: "screenshot.webp", sizeBytes: 248320, previewURL: "./assets/miniapp-bg-poster.webp" } },
+				{ id: 1003, authorRole: "admin", body: "Проверим запись экрана.", createdAt: now.toISOString(), attachment: { type: "video", mime: "video/mp4", name: "screen-recording.mp4", sizeBytes: 1843200, previewURL: "./assets/miniapp-bg-mobile.mp4" } },
+			],
+		};
+		state.supportThreadOpen = true;
+		render();
+		return;
+	}
   const shouldShowLoading = !silent && (!state.supportThreadOpen || state.activeSupportTicketId !== ticketId || !state.activeSupportThread);
   if (shouldShowLoading) {
     state.activeSupportTicketId = ticketId;
@@ -11756,7 +12011,9 @@ async function sendSupportMessage() {
   const scopy = supportText();
   if (state.supportBusy) return;
   const message = state.supportReplyDraft.trim();
-  if (!state.activeSupportTicketId || !message) return showToast(scopy.replyPlaceholder);
+	const media = state.supportPendingMedia;
+  if (!state.activeSupportTicketId || (!message && !media)) return showToast(scopy.replyPlaceholder);
+	if (media) return await sendSupportMediaMessage(media, message);
 
   const previousThread = cloneSupportThread(state.activeSupportThread);
   state.supportBusy = "send-support-message";
@@ -11780,6 +12037,34 @@ async function sendSupportMessage() {
     render();
     throw error;
   }
+}
+
+async function sendSupportMediaMessage(file, caption) {
+	const scopy = supportText();
+	const previousThread = cloneSupportThread(state.activeSupportThread);
+	const previousDraft = state.supportReplyDraft;
+	state.supportBusy = "send-support-media";
+	state.supportReplyDraft = "";
+	render();
+	try {
+		const form = new FormData();
+		form.append("ticketId", String(state.activeSupportTicketId));
+		form.append("caption", caption);
+		form.append("file", file, file.name || "media");
+		const response = await postForm("/api/mini-app/support/send-media", form);
+		state.supportBusy = "";
+		clearPendingSupportMedia();
+		state.activeSupportThread = response.data;
+		render();
+		void refreshSupport({ silent: true });
+		showToast(scopy.replySent, "success");
+	} catch (error) {
+		state.supportBusy = "";
+		state.activeSupportThread = previousThread;
+		state.supportReplyDraft = previousDraft;
+		render();
+		throw error;
+	}
 }
 
 async function closeSupportTicket() {
@@ -12707,10 +12992,7 @@ function moveToDashboard() {
   state.devicesModalOpen = false;
   state.deviceBusyHwid = "";
   state.supportComposeOpen = false;
-  state.supportThreadOpen = false;
-  state.activeSupportTicketId = 0;
-  state.activeSupportThread = null;
-  state.supportReplyDraft = "";
+	closeSupportThreadState();
   writeSetting(STORAGE_KEYS.page, state.currentPage);
   render({ preserveScroll: false, scrollTop: 0 });
 }
@@ -12763,7 +13045,7 @@ function setPage(page) {
   const samePage = nextPage === state.currentPage;
   rememberCurrentScroll();
 	if (samePage && nextPage === "admin" && state.adminSection !== "home") return closeAdminSection();
-	if (samePage && !state.sidebarOpen && !state.payModalOpen && !state.p2pMenuStep && !state.paymentLaunchModalOpen && !state.devicesModalOpen && !state.reviewComposeOpen && !state.reviewDetailOpen && !state.notificationPopoverOpen && !state.notificationPopoverClosing) return;
+	if (samePage && !state.sidebarOpen && !state.payModalOpen && !state.p2pMenuStep && !state.paymentLaunchModalOpen && !state.devicesModalOpen && !state.reviewComposeOpen && !state.reviewDetailOpen && !state.supportMediaViewer && !state.notificationPopoverOpen && !state.notificationPopoverClosing) return;
   state.animatePageEntry = !samePage;
   state.currentPage = nextPage;
   state.sidebarOpen = false;
@@ -12798,10 +13080,7 @@ function setPage(page) {
   }
   if (nextPage !== "support") {
     state.supportComposeOpen = false;
-    state.supportThreadOpen = false;
-    state.activeSupportTicketId = 0;
-    state.activeSupportThread = null;
-    state.supportReplyDraft = "";
+		closeSupportThreadState();
   }
   writeSetting(STORAGE_KEYS.page, state.currentPage);
   haptic("light");
@@ -12868,6 +13147,7 @@ function shouldShowNativeBackButton() {
 		state.adminLayoutEditing || state.adminPlanEditing || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminBannerEditorOpen || state.adminLayoutStyleEditorOpen || state.adminLayoutAddMenuOpen || state.notificationPopoverOpen || state.notificationPopoverClosing ||
 		state.giftReceiptOpen ||
 		state.p2pMenuStep ||
+    state.supportMediaViewer ||
     state.supportThreadOpen ||
     state.supportComposeOpen ||
     state.devicesModalOpen ||
@@ -12925,7 +13205,8 @@ function handleNativeBackButton() {
 	if (state.subscriptionEditorOpen) return closeSubscriptionEditor();
 	if (state.subscriptionMenuOpen || state.subscriptionMenuClosing) return requestSubscriptionMenuClose();
 	if (state.notificationPopoverOpen || state.notificationPopoverClosing) return requestNotificationPopoverClose();
-  if (state.supportThreadOpen) return requestModalClose("support-thread", () => { state.supportThreadOpen = false; state.activeSupportTicketId = 0; state.activeSupportThread = null; state.supportReplyDraft = ""; });
+  if (state.supportMediaViewer) return requestModalClose("support-media-viewer", () => { state.supportMediaViewer = null; });
+  if (state.supportThreadOpen) return requestModalClose("support-thread", closeSupportThreadState);
   if (state.supportComposeOpen) return requestModalClose("support-compose", () => { state.supportComposeOpen = false; state.supportDraftSubject = ""; state.supportDraftMessage = ""; });
   if (state.devicesModalOpen) return requestModalClose("devices", () => { state.devicesModalOpen = false; state.deviceBusyHwid = ""; });
   if (state.payModalOpen) return requestModalClose("pay", () => { state.payModalOpen = false; });
@@ -12951,6 +13232,7 @@ function getActiveModalName() {
 	if (state.adminPlanEditorModalOpen) return "admin-plan-editor";
 	if (state.subscriptionDeleteOpen) return "subscription-delete";
 	if (state.subscriptionEditorOpen) return "subscription-editor";
+  if (state.supportMediaViewer) return "support-media-viewer";
   if (state.supportThreadOpen) return "support-thread";
   if (state.supportComposeOpen) return "support-compose";
   if (state.devicesModalOpen) return "devices";
@@ -14233,6 +14515,8 @@ function icon(name) {
     dotsVertical: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="5" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="19" r="1.7" fill="currentColor"/></svg>`,
 		moreHorizontal: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="19" cy="12" r="1.7" fill="currentColor"/></svg>`,
     download: `<svg viewBox="0 0 24 24" fill="none"><path d="M12 4v10M8 10l4 4 4-4M5 16v2.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V16" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+		paperclip: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="m9 15 6-6m-4-3 .463-.536a5 5 0 0 1 7.071 7.072L18 13m-5 5-.397.534a5.07 5.07 0 0 1-7.127 0 4.97 4.97 0 0 1 0-7.071L6 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+		play: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M8.75 6.4c0-1.15 1.25-1.87 2.25-1.3l7.1 4.1a1.5 1.5 0 0 1 0 2.6l-7.1 4.1c-1 .58-2.25-.14-2.25-1.3V6.4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
 		qr: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h2v2h-2v-2Zm4 0h2v2h-2v-2Zm-4 4h2v2h-2v-2Zm3-1h3v3h-3v-3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`,
 		tv: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="13" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="m9 21 3-3 3 3M9 2l3 3 3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 		linux: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M8.2 10.2C7.5 8.4 7.8 4 12 4s4.5 4.4 3.8 6.2c1.7 1.6 2.7 4 2.2 6.2-.4 1.8-1.7 3.6-3.2 3.6-.9 0-1.5-.5-2.8-.5s-1.9.5-2.8.5c-1.5 0-2.8-1.8-3.2-3.6-.5-2.2.5-4.6 2.2-6.2Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 9.4h.01M14 9.4h.01M10.3 12.3c1 .8 2.4.8 3.4 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m7 18-2 2M17 18l2 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,

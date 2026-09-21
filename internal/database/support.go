@@ -44,12 +44,25 @@ type SupportTicket struct {
 }
 
 type SupportMessage struct {
-	ID               int64             `db:"id"`
-	TicketID         int64             `db:"ticket_id"`
-	AuthorRole       SupportAuthorRole `db:"author_role"`
-	AuthorTelegramID int64             `db:"author_telegram_id"`
-	Body             string            `db:"body"`
-	CreatedAt        time.Time         `db:"created_at"`
+	ID                int64             `db:"id"`
+	TicketID          int64             `db:"ticket_id"`
+	AuthorRole        SupportAuthorRole `db:"author_role"`
+	AuthorTelegramID  int64             `db:"author_telegram_id"`
+	Body              string            `db:"body"`
+	MediaType         string            `db:"media_type"`
+	MediaMIME         string            `db:"media_mime"`
+	MediaStorageName  string            `db:"media_storage_name"`
+	MediaOriginalName string            `db:"media_original_name"`
+	MediaSizeBytes    int64             `db:"media_size_bytes"`
+	CreatedAt         time.Time         `db:"created_at"`
+}
+
+type SupportAttachment struct {
+	Type         string
+	MIME         string
+	StorageName  string
+	OriginalName string
+	SizeBytes    int64
 }
 
 type SupportRepository struct {
@@ -257,7 +270,7 @@ func (r *SupportRepository) listTickets(ctx context.Context, query sq.SelectBuil
 }
 
 func (r *SupportRepository) ListMessagesByTicket(ctx context.Context, ticketID int64) ([]SupportMessage, error) {
-	query := sq.Select("id", "ticket_id", "author_role", "author_telegram_id", "body", "created_at").
+	query := sq.Select("id", "ticket_id", "author_role", "author_telegram_id", "body", "media_type", "media_mime", "media_storage_name", "media_original_name", "media_size_bytes", "created_at").
 		From("support_message").
 		Where(sq.Eq{"ticket_id": ticketID}).
 		OrderBy("created_at ASC", "id ASC").
@@ -283,6 +296,11 @@ func (r *SupportRepository) ListMessagesByTicket(ctx context.Context, ticketID i
 			&message.AuthorRole,
 			&message.AuthorTelegramID,
 			&message.Body,
+			&message.MediaType,
+			&message.MediaMIME,
+			&message.MediaStorageName,
+			&message.MediaOriginalName,
+			&message.MediaSizeBytes,
 			&message.CreatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan support message: %w", err)
@@ -297,8 +315,39 @@ func (r *SupportRepository) ListMessagesByTicket(ctx context.Context, ticketID i
 	return messages, nil
 }
 
+func (r *SupportRepository) FindMessageByID(ctx context.Context, messageID int64) (*SupportMessage, error) {
+	message := &SupportMessage{}
+	err := r.pool.QueryRow(
+		ctx,
+		`SELECT id, ticket_id, author_role, author_telegram_id, body,
+		        media_type, media_mime, media_storage_name, media_original_name, media_size_bytes, created_at
+		 FROM support_message
+		 WHERE id = $1`,
+		messageID,
+	).Scan(
+		&message.ID,
+		&message.TicketID,
+		&message.AuthorRole,
+		&message.AuthorTelegramID,
+		&message.Body,
+		&message.MediaType,
+		&message.MediaMIME,
+		&message.MediaStorageName,
+		&message.MediaOriginalName,
+		&message.MediaSizeBytes,
+		&message.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("query support message: %w", err)
+	}
+	return message, nil
+}
+
 func (r *SupportRepository) AddCustomerMessage(ctx context.Context, ticketID int64, telegramID int64, body, customerName, customerUsername, subscriptionLabel string) (*SupportMessage, error) {
-	return r.addMessage(ctx, ticketID, SupportAuthorRoleCustomer, telegramID, body, ticketUpdateMeta{
+	return r.addMessage(ctx, ticketID, SupportAuthorRoleCustomer, telegramID, body, nil, ticketUpdateMeta{
 		customerName:      customerName,
 		customerUsername:  customerUsername,
 		subscriptionLabel: subscriptionLabel,
@@ -306,7 +355,19 @@ func (r *SupportRepository) AddCustomerMessage(ctx context.Context, ticketID int
 }
 
 func (r *SupportRepository) AddAdminMessage(ctx context.Context, ticketID int64, telegramID int64, body string) (*SupportMessage, error) {
-	return r.addMessage(ctx, ticketID, SupportAuthorRoleAdmin, telegramID, body, ticketUpdateMeta{})
+	return r.addMessage(ctx, ticketID, SupportAuthorRoleAdmin, telegramID, body, nil, ticketUpdateMeta{})
+}
+
+func (r *SupportRepository) AddCustomerMediaMessage(ctx context.Context, ticketID int64, telegramID int64, body, customerName, customerUsername, subscriptionLabel string, attachment SupportAttachment) (*SupportMessage, error) {
+	return r.addMessage(ctx, ticketID, SupportAuthorRoleCustomer, telegramID, body, &attachment, ticketUpdateMeta{
+		customerName:      customerName,
+		customerUsername:  customerUsername,
+		subscriptionLabel: subscriptionLabel,
+	})
+}
+
+func (r *SupportRepository) AddAdminMediaMessage(ctx context.Context, ticketID int64, telegramID int64, body string, attachment SupportAttachment) (*SupportMessage, error) {
+	return r.addMessage(ctx, ticketID, SupportAuthorRoleAdmin, telegramID, body, &attachment, ticketUpdateMeta{})
 }
 
 type ticketUpdateMeta struct {
@@ -315,7 +376,7 @@ type ticketUpdateMeta struct {
 	subscriptionLabel string
 }
 
-func (r *SupportRepository) addMessage(ctx context.Context, ticketID int64, role SupportAuthorRole, telegramID int64, body string, meta ticketUpdateMeta) (*SupportMessage, error) {
+func (r *SupportRepository) addMessage(ctx context.Context, ticketID int64, role SupportAuthorRole, telegramID int64, body string, attachment *SupportAttachment, meta ticketUpdateMeta) (*SupportMessage, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
@@ -337,21 +398,38 @@ func (r *SupportRepository) addMessage(ctx context.Context, ticketID int64, role
 
 	now := time.Now().UTC()
 	cleanBody := strings.TrimSpace(body)
-	preview := supportPreview(cleanBody)
+	mediaType, mediaMIME, mediaStorageName, mediaOriginalName, mediaSizeBytes := "", "", "", "", int64(0)
+	if attachment != nil {
+		mediaType = strings.TrimSpace(attachment.Type)
+		mediaMIME = strings.TrimSpace(attachment.MIME)
+		mediaStorageName = strings.TrimSpace(attachment.StorageName)
+		mediaOriginalName = strings.TrimSpace(attachment.OriginalName)
+		mediaSizeBytes = attachment.SizeBytes
+	}
+	preview := supportMessagePreview(cleanBody, mediaType)
 
 	message := &SupportMessage{}
 	err = tx.QueryRow(
 		ctx,
-		`INSERT INTO support_message (ticket_id, author_role, author_telegram_id, body, created_at)
-		 VALUES ($1, $2, $3, $4, $5)
-		 RETURNING id, ticket_id, author_role, author_telegram_id, body, created_at`,
-		ticketID, role, telegramID, cleanBody, now,
+		`INSERT INTO support_message (
+			ticket_id, author_role, author_telegram_id, body,
+			media_type, media_mime, media_storage_name, media_original_name, media_size_bytes, created_at
+		 )
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		 RETURNING id, ticket_id, author_role, author_telegram_id, body,
+		           media_type, media_mime, media_storage_name, media_original_name, media_size_bytes, created_at`,
+		ticketID, role, telegramID, cleanBody, mediaType, mediaMIME, mediaStorageName, mediaOriginalName, mediaSizeBytes, now,
 	).Scan(
 		&message.ID,
 		&message.TicketID,
 		&message.AuthorRole,
 		&message.AuthorTelegramID,
 		&message.Body,
+		&message.MediaType,
+		&message.MediaMIME,
+		&message.MediaStorageName,
+		&message.MediaOriginalName,
+		&message.MediaSizeBytes,
 		&message.CreatedAt,
 	)
 	if err != nil {
@@ -564,4 +642,22 @@ func supportPreview(body string) string {
 		return string(runes[:120]) + "..."
 	}
 	return body
+}
+
+func supportMessagePreview(body, mediaType string) string {
+	body = strings.TrimSpace(body)
+	label := ""
+	switch strings.TrimSpace(mediaType) {
+	case "image":
+		label = "Фото"
+	case "video":
+		label = "Видео"
+	}
+	if label == "" {
+		return supportPreview(body)
+	}
+	if body == "" {
+		return label
+	}
+	return supportPreview(label + ": " + body)
 }

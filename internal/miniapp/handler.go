@@ -393,10 +393,18 @@ type supportTicketPayload struct {
 }
 
 type supportMessagePayload struct {
-	ID         int64  `json:"id"`
-	AuthorRole string `json:"authorRole"`
-	Body       string `json:"body"`
-	CreatedAt  string `json:"createdAt"`
+	ID         int64                     `json:"id"`
+	AuthorRole string                    `json:"authorRole"`
+	Body       string                    `json:"body"`
+	Attachment *supportAttachmentPayload `json:"attachment,omitempty"`
+	CreatedAt  string                    `json:"createdAt"`
+}
+
+type supportAttachmentPayload struct {
+	Type      string `json:"type"`
+	MIME      string `json:"mime"`
+	Name      string `json:"name"`
+	SizeBytes int64  `json:"sizeBytes"`
 }
 
 type supportThreadPayload struct {
@@ -692,6 +700,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/mini-app/google/callback", h.serveGoogleLinkCallback)
 	mux.HandleFunc("/mini-app/manifest.webmanifest", h.serveManifest)
 	mux.HandleFunc("/mini-app/uploads/", h.serveUploadedLogo)
+	mux.HandleFunc("/mini-app/support-media/", h.serveSupportMedia)
 	mux.HandleFunc("/mini-app/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/mini-app/" {
 			h.serveIndex(w, r)
@@ -767,6 +776,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/support/create", h.withSession(h.handleSupportCreate))
 	mux.HandleFunc("/api/mini-app/support/thread", h.withSession(h.handleSupportThread))
 	mux.HandleFunc("/api/mini-app/support/send", h.withSession(h.handleSupportSend))
+	mux.HandleFunc("/api/mini-app/support/send-media", h.withSession(h.handleSupportMediaUpload, "multipart/form-data"))
+	mux.HandleFunc("/api/mini-app/support/media-link", h.withSession(h.handleSupportMediaLink))
 	mux.HandleFunc("/api/mini-app/support/close", h.withSession(h.handleSupportClose))
 	mux.HandleFunc("/api/payments/webhook/", h.handlePaymentIntegrationWebhook)
 }
@@ -5374,12 +5385,21 @@ func (h *Handler) buildSupportTicketPayload(ticket database.SupportTicket, isAdm
 func buildSupportMessagePayloads(messages []database.SupportMessage) []supportMessagePayload {
 	payload := make([]supportMessagePayload, 0, len(messages))
 	for _, message := range messages {
-		payload = append(payload, supportMessagePayload{
+		item := supportMessagePayload{
 			ID:         message.ID,
 			AuthorRole: string(message.AuthorRole),
 			Body:       message.Body,
 			CreatedAt:  message.CreatedAt.UTC().Format(time.RFC3339),
-		})
+		}
+		if message.MediaType != "" && message.MediaStorageName != "" {
+			item.Attachment = &supportAttachmentPayload{
+				Type:      message.MediaType,
+				MIME:      message.MediaMIME,
+				Name:      message.MediaOriginalName,
+				SizeBytes: message.MediaSizeBytes,
+			}
+		}
+		payload = append(payload, item)
 	}
 	return payload
 }
