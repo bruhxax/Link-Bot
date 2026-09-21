@@ -303,38 +303,46 @@ docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > l
 <details>
 <summary><b>🔁 Переезд с Bedolaga Bot</b></summary>
 
-В релизе `2.1.1` есть отдельный одноразовый импортёр для базы
-[`remnawave-bedolaga-telegram-bot`](https://github.com/BEDOLAGA-DEV/remnawave-bedolaga-telegram-bot).
-Он переносит Telegram ID, username, действующие и триальные подписки, сроки,
-ссылки и идентификаторы Remnawave, текущий баланс и реферальные связи.
+Этот инструмент переносит базу
+[`remnawave-bedolaga-telegram-bot`](https://github.com/BEDOLAGA-DEV/remnawave-bedolaga-telegram-bot)
+в Link-Bot. Перенесутся пользователи, баланс, реферальные связи и действующие
+подписки с их сроком, ссылкой и Remnawave ID.
 
-Перед запуском остановите старый бот, чтобы во время переноса база не менялась,
-и сделайте резервную копию Link-Bot:
+**Перед началом:** новый Link-Bot должен быть подключён к той же панели
+Remnawave, что и Bedolaga. База Bedolaga должна быть доступна с VPS, где
+запущен Link-Bot.
 
-```bash
-cd /opt/Link-Bot
-docker compose up -d --build
-docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > link-bot-pre-bedolaga.sql
-```
+1. Остановите старый Bedolaga Bot и обновите Link-Bot:
 
-Передайте URL PostgreSQL старой установки только в переменной текущей shell-сессии
-(не сохраняйте его в Git или в `.env`):
+   ```bash
+   cd /opt/Link-Bot
+   docker compose up -d --build
+   ```
 
-```bash
-export BEDOLAGA_DATABASE_URL='postgres://USER:PASSWORD@BEDOLAGA_HOST:5432/DBNAME?sslmode=require'
-docker compose --profile tools run --rm migrate-bedolaga
-docker compose --profile tools run --rm migrate-bedolaga --apply
-unset BEDOLAGA_DATABASE_URL
-```
+2. Сделайте резервную копию базы Link-Bot:
 
-Первый запуск — dry-run: он ничего не меняет и показывает число записей. Второй
-запускает одну транзакцию и безопасен для повторного запуска: совпадения ищутся
-по Remnawave ID/UUID или ссылке, а баланс не начисляется повторно.
+   ```bash
+   docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > link-bot-pre-bedolaga.sql
+   ```
 
-Импортёр намеренно не переносит платежные реквизиты, историю платежей,
-отключённые/ограниченные/ожидающие подписки и настройки Bedolaga — у Link-Bot
-для них другая бизнес-модель. При конфликте идентичности или превышении лимита
-10 действующих подписок у одного клиента он завершается без частичного импорта.
+3. Укажите доступ к базе Bedolaga и запустите проверку. Она **ничего не меняет**:
+
+   ```bash
+   export BEDOLAGA_DATABASE_URL='postgres://USER:PASSWORD@BEDOLAGA_HOST:5432/DBNAME?sslmode=require'
+   docker compose --profile tools run --rm migrate-bedolaga
+   ```
+
+4. Если числа в выводе верные, запустите сам перенос:
+
+   ```bash
+   docker compose --profile tools run --rm migrate-bedolaga --apply
+   unset BEDOLAGA_DATABASE_URL
+   ```
+
+Импорт можно безопасно запустить повторно: баланс не зачислится дважды.
+Не переносятся платежные реквизиты и история платежей, настройки Bedolaga,
+а также отключённые, ограниченные и ожидающие подписки. При ошибке или
+конфликте ничего не будет перенесено частично.
 
 </details>
 
