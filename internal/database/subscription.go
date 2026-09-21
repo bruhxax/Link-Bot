@@ -12,7 +12,9 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
-const MaxCustomerSubscriptions = 3
+// MaxCustomerSubscriptions matches the Bedolaga multi-tariff limit and lets a
+// complete account move into Link-Bot without silently dropping subscriptions.
+const MaxCustomerSubscriptions = 10
 
 var (
 	ErrSubscriptionLimitReached     = errors.New("subscription limit reached")

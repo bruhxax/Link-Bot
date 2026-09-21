@@ -16,6 +16,20 @@ services:
       - ./assets:/assets:ro
       - link-bot-upload-data:/uploads
 
+  migrate-bedolaga:
+    build: .
+    image: link-bot:local
+    profiles: [ "tools" ]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
+      BEDOLAGA_DATABASE_URL: ${BEDOLAGA_DATABASE_URL:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: [ "/app/migrate-bedolaga" ]
+
   db:
     image: postgres:17
     container_name: link-bot-db

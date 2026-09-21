@@ -301,6 +301,44 @@ docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > l
 </details>
 
 <details>
+<summary><b>🔁 Переезд с Bedolaga Bot</b></summary>
+
+В релизе `2.1.1` есть отдельный одноразовый импортёр для базы
+[`remnawave-bedolaga-telegram-bot`](https://github.com/BEDOLAGA-DEV/remnawave-bedolaga-telegram-bot).
+Он переносит Telegram ID, username, действующие и триальные подписки, сроки,
+ссылки и идентификаторы Remnawave, текущий баланс и реферальные связи.
+
+Перед запуском остановите старый бот, чтобы во время переноса база не менялась,
+и сделайте резервную копию Link-Bot:
+
+```bash
+cd /opt/Link-Bot
+docker compose up -d --build
+docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > link-bot-pre-bedolaga.sql
+```
+
+Передайте URL PostgreSQL старой установки только в переменной текущей shell-сессии
+(не сохраняйте его в Git или в `.env`):
+
+```bash
+export BEDOLAGA_DATABASE_URL='postgres://USER:PASSWORD@BEDOLAGA_HOST:5432/DBNAME?sslmode=require'
+docker compose --profile tools run --rm migrate-bedolaga
+docker compose --profile tools run --rm migrate-bedolaga --apply
+unset BEDOLAGA_DATABASE_URL
+```
+
+Первый запуск — dry-run: он ничего не меняет и показывает число записей. Второй
+запускает одну транзакцию и безопасен для повторного запуска: совпадения ищутся
+по Remnawave ID/UUID или ссылке, а баланс не начисляется повторно.
+
+Импортёр намеренно не переносит платежные реквизиты, историю платежей,
+отключённые/ограниченные/ожидающие подписки и настройки Bedolaga — у Link-Bot
+для них другая бизнес-модель. При конфликте идентичности или превышении лимита
+10 действующих подписок у одного клиента он завершается без частичного импорта.
+
+</details>
+
+<details>
 <summary><b>📥 Восстановление базы</b></summary>
 
 ```bash

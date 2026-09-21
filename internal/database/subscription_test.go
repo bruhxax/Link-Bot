@@ -34,7 +34,8 @@ func TestFirstFreeSubscriptionPosition(t *testing.T) {
 	}{
 		{name: "first additional slot", positions: []int{1}, want: 2, ok: true},
 		{name: "gap is reused", positions: []int{1, 3}, want: 2, ok: true},
-		{name: "limit reached", positions: []int{1, 2, 3}, ok: false},
+		{name: "expanded limit keeps fourth slot", positions: []int{1, 2, 3}, want: 4, ok: true},
+		{name: "limit reached", positions: []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, ok: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

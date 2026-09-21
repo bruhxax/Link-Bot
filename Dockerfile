@@ -26,6 +26,10 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags="-w -s -X main.Version=${VERSION:-dev} -X main.Commit=${COMMIT:-none} -X main.BuildDate=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
     -o /bin/app ./cmd/app
 
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -ldflags="-w -s" \
+    -o /bin/migrate-bedolaga ./cmd/migrate-bedolaga
+
 FROM scratch
 
 ARG VERSION
@@ -41,6 +45,7 @@ COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 COPY --from=builder /bin/app /app/app
+COPY --from=builder /bin/migrate-bedolaga /app/migrate-bedolaga
 
 COPY --from=builder /app/db /db
 COPY --from=builder /app/translations /translations
