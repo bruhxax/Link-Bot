@@ -9,6 +9,7 @@ import {
 } from "./setup-apps.js";
 import { renderSVG as renderQRCodeSVG } from "./uqr.mjs";
 import { defaultSourceCrop, legacySourceCrop, cropMediaGeometry, zoomCrop, resizeCropCorner, resizeBannerProportionally } from "./banner-crop.mjs";
+import { tokenizeSupportMessage } from "./support-message.mjs";
 
 const app = document.getElementById("app");
 const toast = document.getElementById("toast");
@@ -7962,19 +7963,16 @@ function trimSupportMessageLink(rawURL) {
 }
 
 function renderSupportMessageBody(body) {
-	const source = String(body || "");
-	const pattern = /(?:https?:\/\/|www\.|(?:vless|vmess|trojan|ss|ssr|hysteria2?|hy2|tuic|wireguard):\/\/)[^\s<>"']+/giu;
-	let html = "";
-	let offset = 0;
-	for (const match of source.matchAll(pattern)) {
-		const start = Number(match.index || 0);
-		const { url, suffix } = trimSupportMessageLink(match[0]);
-		if (!url) continue;
-		html += escapeHtml(source.slice(offset, start));
-		html += `<button class="support-message__link" type="button" data-action="open-support-link" data-value="${escapeAttribute(normalizeSupportMessageLink(url))}" aria-label="${escapeAttribute(localizedText("Открыть ссылку", "Open link", "باز کردن پیوند"))}">${escapeHtml(url)}</button>${escapeHtml(suffix)}`;
-		offset = start + match[0].length;
-	}
-	return html + escapeHtml(source.slice(offset));
+	return tokenizeSupportMessage(body).map((token) => {
+		if (token.type === "text") return escapeHtml(token.value);
+		if (token.type === "username") {
+			const username = token.value.slice(1);
+			return `<button class="support-message__link support-message__username" type="button" data-action="open-support-username" data-value="${escapeAttribute(`https://t.me/${username}`)}" aria-label="${escapeAttribute(localizedText(`Открыть профиль @${username} в Telegram`, `Open @${username} in Telegram`, `باز کردن @${username} در تلگرام`))}">${escapeHtml(token.value)}</button>`;
+		}
+		const { url, suffix } = trimSupportMessageLink(token.value);
+		if (!url) return escapeHtml(token.value);
+		return `<button class="support-message__link" type="button" data-action="open-support-link" data-value="${escapeAttribute(normalizeSupportMessageLink(url))}" aria-label="${escapeAttribute(localizedText("Открыть ссылку", "Open link", "باز کردن پیوند"))}">${escapeHtml(url)}</button>${escapeHtml(suffix)}`;
+	}).join("");
 }
 
 function queueSelectionFeedback(action, value) {
@@ -8392,6 +8390,7 @@ function bindRootActions() {
       if (action === "share-referral") return state.data?.referral?.shareUrl ? openExternal(state.data.referral.shareUrl) : undefined;
       if (action === "copy-referral") return state.data?.referral?.inviteUrl ? copyToClipboard(state.data.referral.inviteUrl).then(() => showToast(t().copied)) : undefined;
 			if (action === "wallet-withdraw") return await submitWalletWithdrawal();
+			if (action === "open-support-username") return openExternal(value);
 			if (action === "open-support-link") return openSupportMessageLink(value);
       if (action === "open-link") return openExternal(value);
         if (action === "set-theme") { state.theme = value === "light" ? "light" : "dark"; writeSetting(STORAGE_KEYS.theme, state.theme); applyAppearance(); render(); return; }
