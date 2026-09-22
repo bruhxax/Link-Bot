@@ -3804,10 +3804,49 @@ function renderAdminPartnersPage() {
 	const partners = Array.isArray(data.partners) ? data.partners : [];
 	const busy = state.adminPartnersBusy;
 	return renderAdminEditorPage("Партнёры", `<div class="admin-partners">
-		<section class="admin-partners__create"><div class="admin-partners__section-title"><h3>Добавить партнёра</h3><span>Без заявки</span></div><div class="admin-partners__create-fields"><label><span>Telegram ID</span><input type="text" inputmode="numeric" data-input="admin-partner-telegram" value="${escapeAttribute(state.adminPartnerTelegramDraft)}" placeholder="123456789"></label><label><span>Процент, %</span><input type="number" min="0" max="100" inputmode="numeric" data-input="admin-partner-percent" value="${escapeAttribute(state.adminPartnerPercentDraft)}" placeholder="20"></label><button type="button" data-action="admin-partner-create" ${busy ? "disabled" : ""}>${icon("plus")}<span>Добавить</span></button></div></section>
+		<section class="admin-partners__create"><div class="admin-partners__section-title"><h3>Добавить партнёра</h3></div><div class="admin-partners__create-fields"><label><span>Telegram ID</span><input type="text" inputmode="numeric" data-input="admin-partner-telegram" value="${escapeAttribute(state.adminPartnerTelegramDraft)}" placeholder="123456789"></label><label><span>Процент, %</span><input type="number" min="0" max="100" inputmode="numeric" data-input="admin-partner-percent" value="${escapeAttribute(state.adminPartnerPercentDraft)}" placeholder="20"></label><button type="button" data-action="admin-partner-create" ${busy ? "disabled" : ""}>${icon("plus")}<span>Добавить</span></button></div></section>
 		<section class="admin-partners__section"><div class="admin-partners__heading"><h3>Заявки</h3><span>${applications.filter((item) => item.status === "pending").length} новых</span></div>${applications.length ? `<div class="admin-partners__list">${applications.map(renderAdminPartnerApplication).join("")}</div>` : `<p class="admin-partners__empty">Новых заявок нет.</p>`}</section>
 		<section class="admin-partners__section"><div class="admin-partners__heading"><h3>Партнёры</h3><span>${partners.filter((item) => item.isActive).length} активно</span></div>${partners.length ? `<div class="admin-partners__list">${partners.map(renderAdminPartnerRow).join("")}</div>` : `<p class="admin-partners__empty">Партнёров пока нет.</p>`}</section>
 	</div>`);
+}
+
+const adminPartnerEntryAnimations = new WeakMap();
+
+function toggleAdminPartnerEntry(entry) {
+	const content = entry.querySelector(".admin-partner-entry__details");
+	if (!content) return;
+	const expand = !entry.classList.contains("is-expanded");
+	const wasOpen = entry.open;
+	const currentHeight = wasOpen ? content.getBoundingClientRect().height : 0;
+	const currentStyle = wasOpen ? getComputedStyle(content) : null;
+	const currentOpacity = currentStyle?.opacity ?? "0";
+	const currentPaddingTop = currentStyle?.paddingTop ?? "0px";
+	const currentPaddingBottom = currentStyle?.paddingBottom ?? "0px";
+	adminPartnerEntryAnimations.get(entry)?.cancel();
+	adminPartnerEntryAnimations.delete(entry);
+	entry.open = true;
+	entry.classList.toggle("is-expanded", expand);
+	if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches || typeof content.animate !== "function") {
+		entry.open = expand;
+		content.style.overflow = "";
+		return;
+	}
+	const expandedStyle = getComputedStyle(content);
+	const expandedPaddingTop = expandedStyle.paddingTop;
+	const expandedPaddingBottom = expandedStyle.paddingBottom;
+	const animation = content.animate([
+		{ height: `${currentHeight}px`, opacity: currentOpacity, paddingTop: currentPaddingTop, paddingBottom: currentPaddingBottom },
+		{ height: `${expand ? content.scrollHeight : 0}px`, opacity: expand ? "1" : "0", paddingTop: expand ? expandedPaddingTop : "0px", paddingBottom: expand ? expandedPaddingBottom : "0px" },
+	], { duration: 300, easing: "cubic-bezier(.2,.75,.25,1)", fill: "forwards" });
+	content.style.overflow = "hidden";
+	adminPartnerEntryAnimations.set(entry, animation);
+	animation.onfinish = () => {
+		if (adminPartnerEntryAnimations.get(entry) !== animation) return;
+		adminPartnerEntryAnimations.delete(entry);
+		entry.open = expand;
+		animation.cancel();
+		content.style.overflow = "";
+	};
 }
 
 function renderAdminPartnerApplication(item, index) {
@@ -8187,6 +8226,12 @@ function bindRootActions() {
   bindRootActions.bound = true;
 
   app.addEventListener("click", async (event) => {
+		const partnerSummary = event.target.closest?.(".admin-partner-entry__summary");
+		if (partnerSummary) {
+			event.preventDefault();
+			toggleAdminPartnerEntry(partnerSummary.parentElement);
+			return;
+		}
     const target = event.target.closest("[data-action]");
     if (!target) {
 		if (state.adminLayoutAddMenuOpen && !event.target.closest(".admin-layout-more, .admin-layout-add-menu")) {
@@ -13265,7 +13310,11 @@ function setPage(page) {
   }
   writeSetting(STORAGE_KEYS.page, state.currentPage);
   haptic("light");
-	if (nextPage === "partner") state.partnerBusy = "load";
+	if (nextPage === "partner") {
+		state.partner = null;
+		state.partnerBusy = "load";
+		state.animatePageEntry = false;
+	}
   render({ preserveScroll: samePage, scrollTop: samePage ? state.scrollTopByPage[state.currentPage] ?? 0 : 0 });
 	if (nextPage === "partner") void refreshPartner({ loadingShown: true });
 }
