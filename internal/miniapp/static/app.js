@@ -3810,17 +3810,21 @@ function renderAdminPartnersPage() {
 	</div>`);
 }
 
-function renderAdminPartnerApplication(item) {
+function renderAdminPartnerApplication(item, index) {
 	const pending = item.status === "pending";
-	const user = item.username ? `@${item.username}` : String(item.telegramId || "—");
 	const status = item.status === "approved" ? "Принята" : item.status === "rejected" ? "Отклонена" : "На рассмотрении";
-	return `<details class="admin-partner-entry ${pending ? "is-pending" : ""}"><summary class="admin-partner-entry__summary"><span class="admin-partner-entry__avatar" aria-hidden="true">${icon("users")}</span><span class="admin-partner-entry__person"><strong>${escapeHtml(user)}</strong><small>${escapeHtml(formatShortDateLabel(item.createdAt, state.locale))}</small></span><span class="admin-partner-entry__status">${escapeHtml(status)}</span><i class="admin-partner-entry__chevron" aria-hidden="true"></i></summary><div class="admin-partner-entry__details"><a class="admin-partner-entry__resource" href="${escapeAttribute(item.resourceUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Открыть ресурс ${escapeAttribute(user)}"><span>Ресурс</span><strong>${escapeHtml(item.resourceUrl)}</strong></a><div class="admin-partner-entry__metrics" aria-label="Данные заявки"><span><small>Запрос</small><b>${formatNumber(item.requestedPercent || 0, state.locale)}%</b></span><span><small>Аудитория</small><b>${formatNumber(item.expectedMonthlyUsers || 0, state.locale)} / мес.</b></span></div>${pending ? `<div class="admin-partner-entry__actions admin-partner-entry__actions--decision"><label><span>Процент, %</span><input type="number" min="0" max="100" value="${escapeAttribute(String(item.requestedPercent || 0))}" data-admin-partner-row-percent></label><div class="admin-partner-entry__decision-buttons"><button class="admin-partner-action admin-partner-action--accept" type="button" data-action="admin-partner-review" data-value="${item.id}" data-approve="true" ${state.adminPartnersBusy ? "disabled" : ""}>Принять</button><button class="admin-partner-action admin-partner-action--reject" type="button" data-action="admin-partner-review" data-value="${item.id}" data-approve="false" ${state.adminPartnersBusy ? "disabled" : ""}>Отказать</button></div></div>` : ""}</div></details>`;
+	return `<details class="admin-partner-entry ${pending ? "is-pending" : ""}" style="--partner-index:${Math.min(index, 8)}">
+		<summary class="admin-partner-entry__summary">${adminUserAvatar(item)}<span class="admin-partner-entry__person"><strong>${escapeHtml(adminUserDisplayName(item))}</strong><small>Telegram ID: ${escapeHtml(String(item.telegramId || "—"))}</small></span><span class="admin-partner-entry__status">${escapeHtml(status)}</span>${icon("chevronRight")}</summary>
+		<div class="admin-partner-entry__details"><small class="admin-partner-entry__date">Заявка от ${escapeHtml(formatShortDateLabel(item.createdAt, state.locale))}</small><a class="admin-partner-entry__resource" href="${escapeAttribute(item.resourceUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Открыть ресурс ${escapeAttribute(adminUserDisplayName(item))}"><span>Ресурс</span><strong>${escapeHtml(item.resourceUrl)}</strong></a><div class="admin-partner-entry__metrics" aria-label="Данные заявки"><span><small>Запрос</small><b>${formatNumber(item.requestedPercent || 0, state.locale)}%</b></span><span><small>Аудитория</small><b>${formatNumber(item.expectedMonthlyUsers || 0, state.locale)} / мес.</b></span></div>${pending ? `<div class="admin-partner-entry__actions admin-partner-entry__actions--decision"><label><span>Процент, %</span><input type="number" min="0" max="100" value="${escapeAttribute(String(item.requestedPercent || 0))}" data-admin-partner-row-percent></label><div class="admin-partner-entry__decision-buttons"><button class="admin-partner-action admin-partner-action--accept" type="button" data-action="admin-partner-review" data-value="${item.id}" data-approve="true" ${state.adminPartnersBusy ? "disabled" : ""}>Принять</button><button class="admin-partner-action admin-partner-action--reject" type="button" data-action="admin-partner-review" data-value="${item.id}" data-approve="false" ${state.adminPartnersBusy ? "disabled" : ""}>Отказать</button></div></div>` : ""}</div>
+	</details>`;
 }
 
-function renderAdminPartnerRow(item) {
+function renderAdminPartnerRow(item, index) {
 	const stats = item.stats || {};
-	const user = item.username ? `@${item.username}` : String(item.telegramId || "—");
-	return `<details class="admin-partner-entry"><summary class="admin-partner-entry__summary"><span class="admin-partner-entry__avatar" aria-hidden="true">${icon("users")}</span><span class="admin-partner-entry__person"><strong>${escapeHtml(user)}</strong><small>Код ${escapeHtml(item.code || "—")}</small></span><span class="admin-partner-entry__status ${item.isActive ? "is-active" : ""}">${item.isActive ? "Активен" : "Отключён"}</span><i class="admin-partner-entry__chevron" aria-hidden="true"></i></summary><div class="admin-partner-entry__details"><a class="admin-partner-entry__resource" href="${escapeAttribute(item.inviteUrl || "")}" target="_blank" rel="noopener noreferrer" aria-label="Открыть партнёрскую ссылку ${escapeAttribute(user)}"><span>Ссылка</span><strong>${escapeHtml(item.inviteUrl || "Ссылка готовится")}</strong></a><div class="admin-partner-entry__metrics admin-partner-entry__metrics--four" aria-label="Статистика партнёра"><span><small>Пришло</small><b>${formatNumber(stats.visitors || 0, state.locale)}</b></span><span><small>Триалы</small><b>${formatNumber(stats.trialUsers || 0, state.locale)}</b></span><span><small>Купили</small><b>${formatNumber(stats.payingUsers || 0, state.locale)}</b></span><span><small>Оборот</small><b>${escapeHtml(formatFinanceRub(stats.revenue || 0))}</b></span></div><div class="admin-partner-entry__actions"><label><span>Процент, %</span><input type="number" min="0" max="100" value="${escapeAttribute(String(item.commissionPercent || 0))}" data-admin-partner-row-percent></label><button type="button" data-action="admin-partner-percent" data-value="${item.id}" ${state.adminPartnersBusy ? "disabled" : ""}>Сохранить</button><button class="admin-partner-action admin-partner-action--toggle" type="button" data-action="admin-partner-toggle" data-value="${item.id}" data-active="${item.isActive ? "false" : "true"}" ${state.adminPartnersBusy ? "disabled" : ""}>${item.isActive ? "Отключить" : "Включить"}</button></div></div></details>`;
+	return `<details class="admin-partner-entry" style="--partner-index:${Math.min(index, 8)}">
+		<summary class="admin-partner-entry__summary">${adminUserAvatar(item)}<span class="admin-partner-entry__person"><strong>${escapeHtml(adminUserDisplayName(item))}</strong><small>Telegram ID: ${escapeHtml(String(item.telegramId || "—"))}</small></span><span class="admin-partner-entry__status ${item.isActive ? "is-active" : ""}">${item.isActive ? "Активен" : "Отключён"}</span>${icon("chevronRight")}</summary>
+		<div class="admin-partner-entry__details"><a class="admin-partner-entry__resource" href="${escapeAttribute(item.inviteUrl || "")}" target="_blank" rel="noopener noreferrer" aria-label="Открыть партнёрскую ссылку ${escapeAttribute(adminUserDisplayName(item))}"><span>Ссылка</span><strong>${escapeHtml(item.inviteUrl || "Ссылка готовится")}</strong></a><div class="admin-partner-entry__metrics admin-partner-entry__metrics--four" aria-label="Статистика партнёра"><span><small>Пришло</small><b>${formatNumber(stats.visitors || 0, state.locale)}</b></span><span><small>Триалы</small><b>${formatNumber(stats.trialUsers || 0, state.locale)}</b></span><span><small>Купили</small><b>${formatNumber(stats.payingUsers || 0, state.locale)}</b></span><span><small>Оборот</small><b>${escapeHtml(formatFinanceRub(stats.revenue || 0))}</b></span></div><div class="admin-partner-entry__actions"><label><span>Процент, %</span><input type="number" min="0" max="100" value="${escapeAttribute(String(item.commissionPercent || 0))}" data-admin-partner-row-percent></label><button type="button" data-action="admin-partner-percent" data-value="${item.id}" ${state.adminPartnersBusy ? "disabled" : ""}>Сохранить</button><button class="admin-partner-action admin-partner-action--toggle" type="button" data-action="admin-partner-toggle" data-value="${item.id}" data-active="${item.isActive ? "false" : "true"}" ${state.adminPartnersBusy ? "disabled" : ""}>${item.isActive ? "Отключить" : "Включить"}</button></div></div>
+	</details>`;
 }
 
 async function refreshAdminFinance({ append = false } = {}) {
@@ -11842,15 +11846,19 @@ async function submitWalletWithdrawal() {
 	}
 }
 
-async function refreshPartner({ silent = false } = {}) {
-	if (state.partnerBusy === "load") return;
+async function refreshPartner({ silent = false, loadingShown = false } = {}) {
+	if (state.partnerBusy === "load" && !loadingShown) return;
 	if (previewMode) {
 		state.partner = { partner: { id: 1, customerId: 12, telegramId: 777777, username: "linkbot", code: "M8Q2K7PX", commissionPercent: 20, isActive: true, inviteUrl: "https://t.me/link_bot?startapp=partner_M8Q2K7PX", shareUrl: "https://t.me/share/url", stats: { visitors: 184, trialUsers: 57, payingUsers: 21, purchaseCount: 29, revenue: 18740, commission: 3748, currency: "RUB" } } };
-		if (!silent) render({ preserveScroll: true });
+		state.partnerBusy = "";
+		if (!silent) {
+			if (state.currentPage === "partner") state.animatePageEntry = true;
+			render({ preserveScroll: true });
+		}
 		return;
 	}
 	state.partnerBusy = "load";
-	if (!silent) render({ preserveScroll: true });
+	if (!silent && !loadingShown) render({ preserveScroll: true });
 	try {
 		const response = await post("/api/mini-app/partner/me", {});
 		state.partner = response.data || {};
@@ -11862,7 +11870,10 @@ async function refreshPartner({ silent = false } = {}) {
 		}
 	} finally {
 		state.partnerBusy = "";
-		if (!silent) render({ preserveScroll: true });
+		if (!silent) {
+			if (state.currentPage === "partner") state.animatePageEntry = true;
+			render({ preserveScroll: true });
+		}
 	}
 }
 
@@ -13254,8 +13265,9 @@ function setPage(page) {
   }
   writeSetting(STORAGE_KEYS.page, state.currentPage);
   haptic("light");
+	if (nextPage === "partner") state.partnerBusy = "load";
   render({ preserveScroll: samePage, scrollTop: samePage ? state.scrollTopByPage[state.currentPage] ?? 0 : 0 });
-	if (nextPage === "partner") void refreshPartner();
+	if (nextPage === "partner") void refreshPartner({ loadingShown: true });
 }
 
 function getCurrentScrollTop() {
@@ -13334,7 +13346,7 @@ function shouldShowNativeBackButton() {
 
 function getNativeBackTargetPage() {
   if (state.currentPage === "faq") return "support";
-  if (["gift", "servers", "referrals", "reviews", "media", "login-methods", "payments", "terms", "privacy", "custom-page"].includes(state.currentPage)) return "settings";
+  if (["gift", "servers", "referrals", "partner", "reviews", "media", "login-methods", "payments", "terms", "privacy", "custom-page"].includes(state.currentPage)) return "settings";
   if (["buy", "setup", "support", "settings", "admin"].includes(state.currentPage)) return "dashboard";
   return "dashboard";
 }
@@ -13602,6 +13614,7 @@ function getPageTitle(page, short = false) {
   const copy = t();
 	const customPageTitle = (getRuntimeSettings()?.content?.customLinks || []).find((entry) => String(entry.id) === String(state.activeCustomPageID))?.labelRu;
 	if (page === "admin" && !short && state.adminSection !== "home") {
+		if (state.adminSection === "partners") return localizedText("Партнёры", "Partners", "همکاران");
 		const labels = state.locale === "fa" ? {
 			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", push: "اعلان‌های پوش", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", users: "کاربران",
 		} : state.locale === "en" ? {
@@ -13622,6 +13635,7 @@ function getPageTitle(page, short = false) {
     faq: copy.pageFaq,
     reviews: copy.feedback,
     referrals: copy.pageReferrals,
+		partner: localizedText("Партнёрка", "Partners", "همکاری"),
     servers: copy.pageServers || copy.serverStatus,
     settings: short ? copy.navSettings : copy.pageSettings,
     media: mediaLabel(),
@@ -13637,7 +13651,7 @@ function getPageTitle(page, short = false) {
 
 function headerBackAction() {
   if (state.currentPage === "dashboard") return 'data-action="open-sidebar"';
-  if (["gift", "servers", "referrals", "reviews", "media", "login-methods", "payments", "terms", "privacy", "custom-page"].includes(state.currentPage)) return 'data-action="go-page" data-value="settings"';
+  if (["gift", "servers", "referrals", "partner", "reviews", "media", "login-methods", "payments", "terms", "privacy", "custom-page"].includes(state.currentPage)) return 'data-action="go-page" data-value="settings"';
   if (state.currentPage === "admin" && state.adminSection !== "home") return 'data-action="close-admin-section"';
   return 'data-action="go-home"';
 }
@@ -13649,7 +13663,7 @@ function bottomNavIcon(page) {
 function getBottomNavActivePage() {
   if (state.currentPage === "faq") return "support";
 	if (state.currentPage === "setup") return "dashboard";
-  if (["gift", "servers", "referrals", "reviews", "media", "login-methods", "payments", "terms", "privacy", "custom-page"].includes(state.currentPage)) return "settings";
+  if (["gift", "servers", "referrals", "partner", "reviews", "media", "login-methods", "payments", "terms", "privacy", "custom-page"].includes(state.currentPage)) return "settings";
   return state.currentPage;
 }
 

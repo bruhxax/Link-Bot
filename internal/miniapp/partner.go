@@ -58,6 +58,7 @@ type partnerPayload struct {
 	CustomerID        int64               `json:"customerId"`
 	TelegramID        int64               `json:"telegramId"`
 	Username          string              `json:"username"`
+	AvatarURL         string              `json:"avatarUrl,omitempty"`
 	Code              string              `json:"code"`
 	CommissionPercent int                 `json:"commissionPercent"`
 	IsActive          bool                `json:"isActive"`
@@ -82,6 +83,7 @@ type adminPartnerApplicationPayload struct {
 	CustomerID int64  `json:"customerId"`
 	TelegramID int64  `json:"telegramId"`
 	Username   string `json:"username"`
+	AvatarURL  string `json:"avatarUrl,omitempty"`
 }
 
 func partnerInviteURL(code string) string {
@@ -113,7 +115,7 @@ func (h *Handler) partnerPayload(r *http.Request, partner *database.Partner) (*p
 	if err != nil {
 		return nil, err
 	}
-	return &partnerPayload{ID: partner.ID, CustomerID: partner.CustomerID, TelegramID: partner.TelegramID, Username: partner.Username, Code: partner.Code, CommissionPercent: partner.CommissionPercent, IsActive: partner.IsActive, CreatedAt: partner.CreatedAt.UTC().Format(time.RFC3339), InviteURL: partnerInviteURL(partner.Code), ShareURL: partnerShareURL(partner.Code), Stats: partnerStatsPayload{Visitors: stats.Visitors, TrialUsers: stats.TrialUsers, PayingUsers: stats.PayingUsers, PurchaseCount: stats.PurchaseCount, Revenue: stats.Revenue, Commission: stats.Commission, Currency: stats.CommissionCurrency}}, nil
+	return &partnerPayload{ID: partner.ID, CustomerID: partner.CustomerID, TelegramID: partner.TelegramID, Username: partner.Username, AvatarURL: adminUserAvatarURL(partner.Username), Code: partner.Code, CommissionPercent: partner.CommissionPercent, IsActive: partner.IsActive, CreatedAt: partner.CreatedAt.UTC().Format(time.RFC3339), InviteURL: partnerInviteURL(partner.Code), ShareURL: partnerShareURL(partner.Code), Stats: partnerStatsPayload{Visitors: stats.Visitors, TrialUsers: stats.TrialUsers, PayingUsers: stats.PayingUsers, PurchaseCount: stats.PurchaseCount, Revenue: stats.Revenue, Commission: stats.Commission, Currency: stats.CommissionCurrency}}, nil
 }
 
 func (h *Handler) handlePartnerMe(w http.ResponseWriter, r *http.Request, _ *session, customer *database.Customer) {
@@ -212,7 +214,7 @@ func (h *Handler) handleAdminPartnersState(w http.ResponseWriter, r *http.Reques
 	payload := adminPartnersPayload{Applications: make([]adminPartnerApplicationPayload, 0, len(applications)), Partners: make([]partnerPayload, 0, len(partners))}
 	for _, application := range applications {
 		item := application
-		payload.Applications = append(payload.Applications, adminPartnerApplicationPayload{partnerApplicationPayload: *mapPartnerApplication(&item), CustomerID: item.CustomerID, TelegramID: item.TelegramID, Username: item.Username})
+		payload.Applications = append(payload.Applications, adminPartnerApplicationPayload{partnerApplicationPayload: *mapPartnerApplication(&item), CustomerID: item.CustomerID, TelegramID: item.TelegramID, Username: item.Username, AvatarURL: adminUserAvatarURL(item.Username)})
 	}
 	for _, partner := range partners {
 		item := partner
