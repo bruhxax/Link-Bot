@@ -1,6 +1,7 @@
 package miniapp
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -18,5 +19,19 @@ func TestPartnerInviteURLUsesSeparateMiniAppStartParameter(t *testing.T) {
 	}
 	if strings.Contains(inviteURL, "ref_") {
 		t.Fatalf("partner invite must not use the regular referral parameter: %q", inviteURL)
+	}
+}
+
+func TestPartnerPageIsOnlyVisibleWhenActive(t *testing.T) {
+	styles, err := os.ReadFile("static/styles.css")
+	if err != nil {
+		t.Fatalf("read partner styles: %v", err)
+	}
+	css := string(styles)
+	if !strings.Contains(css, ".page.partner-page { display: none; }") {
+		t.Fatal("inactive partner page must remain hidden")
+	}
+	if !strings.Contains(css, ".page.partner-page.active { display: grid;") {
+		t.Fatal("active partner page must use its grid layout")
 	}
 }
