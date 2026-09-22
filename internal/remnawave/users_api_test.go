@@ -226,6 +226,66 @@ func TestGetAndDeletePanelUserByNumericIdentity(t *testing.T) {
 	}
 }
 
+func TestCreateOrUpdateUserReclaimsExpiredUnboundUsernameAfterAdminDeletion(t *testing.T) {
+	const (
+		customerID = int64(15)
+		telegramID = int64(8544649953)
+		username   = "15_8544649953"
+	)
+	var createAttempts, reclaimAttempts, updateAttempts int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/users/stream" && r.URL.Query().Get("telegramId") == "8544649953":
+			_, _ = w.Write([]byte(`{"response":{"users":[],"nextCursor":null,"hasMore":false}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/users":
+			createAttempts++
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"errorCode":"A019","message":"User username already exists"}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/users/stream":
+			_, _ = w.Write([]byte(`{"response":{"users":[{"id":1190,"username":"15_8544649953","status":"EXPIRED","expireAt":"2026-08-04T22:24:02Z"}],"nextCursor":null,"hasMore":false}}`))
+		case r.Method == http.MethodPatch && r.URL.Path == "/api/users":
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatalf("decode PATCH body: %v", err)
+			}
+			if body["id"] != float64(1190) {
+				t.Fatalf("unexpected panel user ID: %#v", body)
+			}
+			if _, ok := body["telegramId"]; ok {
+				reclaimAttempts++
+				if body["telegramId"] != float64(telegramID) {
+					t.Fatalf("unexpected Telegram ID: %#v", body)
+				}
+				_, _ = w.Write([]byte(`{"response":{"id":1190,"username":"15_8544649953","status":"EXPIRED","telegramId":8544649953,"expireAt":"2026-08-04T22:24:02Z"}}`))
+				return
+			}
+			updateAttempts++
+			if body["trafficLimitBytes"] != float64(10737418240) || body["hwidDeviceLimit"] != float64(3) || body["status"] != "ACTIVE" {
+				t.Fatalf("purchase tariff was not applied exactly: %#v", body)
+			}
+			_, _ = w.Write([]byte(`{"response":{"id":1190,"username":"15_8544649953","status":"ACTIVE","telegramId":8544649953,"expireAt":"2026-10-22T08:11:35Z","subscriptionUrl":"https://example.com/sub"}}`))
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	user, err := NewClient(server.URL, "token", "remote").CreateOrUpdateUserWithOptions(
+		context.Background(), customerID, telegramID, 10737418240, 3, 30,
+		ProvisioningOptions{UsernameTemplate: "{{customer_id}}_{{telegram_id}}", InternalSquadsConfigured: true},
+	)
+	if err != nil {
+		t.Fatalf("CreateOrUpdateUserWithOptions() error = %v", err)
+	}
+	if user == nil || user.ID != 1190 || user.Username != username || user.TelegramID == nil || *user.TelegramID != telegramID {
+		t.Fatalf("unexpected reclaimed user: %#v", user)
+	}
+	if createAttempts != 2 || reclaimAttempts != 1 || updateAttempts != 1 {
+		t.Fatalf("attempts create/reclaim/update = %d/%d/%d, want 2/1/1", createAttempts, reclaimAttempts, updateAttempts)
+	}
+}
+
 func TestPickPanelTelegramUserPrefersPrimaryUsernameSuffix(t *testing.T) {
 	telegramID := int64(6402520205)
 	users := []PanelUser{

@@ -708,12 +708,71 @@ func (r *Client) CreateOrUpdateUserWithOptions(ctx context.Context, customerId i
 	existingUser, err := r.getPanelUserByTelegramID(ctx, telegramId)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			return r.createUserWithOptions(ctx, customerId, telegramId, trafficLimit, deviceLimit, days, options)
+			return r.createOrRecoverUserWithOptions(ctx, customerId, telegramId, trafficLimit, deviceLimit, days, options)
 		}
 		return nil, err
 	}
 
 	return r.updateUserWithOptions(ctx, existingUser, trafficLimit, deviceLimit, days, options)
+}
+
+// createOrRecoverUserWithOptions normally creates a new primary panel user.
+//
+// Some panel versions retain an expired record after an administrator deletes a
+// subscription, while removing its Telegram ID. The bot then has no identity
+// to update, but creating the deterministic username fails with A019. Reclaim
+// only that exact, expired and unbound record; this avoids treating another
+// customer's active panel account as the newly purchased subscription.
+func (r *Client) createOrRecoverUserWithOptions(ctx context.Context, customerID, telegramID int64, trafficLimit, deviceLimit, days int, options ProvisioningOptions) (*PanelUser, error) {
+	created, err := r.createUserWithOptions(ctx, customerID, telegramID, trafficLimit, deviceLimit, days, options)
+	if err == nil || !isUsernameAlreadyExistsError(err) {
+		return created, err
+	}
+
+	username := appendUsernameSuffix(generateUsername(options.UsernameTemplate, customerID, telegramID), options.UsernameSuffix)
+	orphan, recoverErr := r.findExpiredUnboundUserByUsername(ctx, username)
+	if recoverErr != nil {
+		return nil, errors.Join(err, recoverErr)
+	}
+	if orphan == nil {
+		return nil, err
+	}
+
+	reclaimed, recoverErr := r.patchPanelUser(ctx, orphan, map[string]any{"telegramId": telegramID})
+	if recoverErr != nil {
+		return nil, errors.Join(err, recoverErr)
+	}
+	return r.updateUserWithOptions(ctx, reclaimed, trafficLimit, deviceLimit, days, options)
+}
+
+func isUsernameAlreadyExistsError(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "username already exists")
+}
+
+func (r *Client) findExpiredUnboundUserByUsername(ctx context.Context, username string) (*PanelUser, error) {
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return nil, nil
+	}
+	users, err := r.GetUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range *users {
+		user := &(*users)[i]
+		if !strings.EqualFold(strings.TrimSpace(user.Username), username) {
+			continue
+		}
+		if user.TelegramID != nil && *user.TelegramID > 0 {
+			return nil, nil
+		}
+		status := strings.ToUpper(strings.TrimSpace(user.Status))
+		if status == "EXPIRED" || status == "DISABLED" {
+			return user, nil
+		}
+		return nil, nil
+	}
+	return nil, nil
 }
 
 func (r *Client) CreateOrUpdateUserForSubscription(ctx context.Context, customerID, telegramID, subscriptionID, userID int64, userUUID uuid.UUID, isPrimary bool, trafficLimit, deviceLimit, days int, options ProvisioningOptions) (*PanelUser, error) {
