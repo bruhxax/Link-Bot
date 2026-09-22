@@ -153,6 +153,7 @@ func (h Handler) PaymentCallbackHandler(ctx context.Context, b *bot.Bot, update 
 
 	ctxWithProfile := contextWithTelegramProfile(ctx2, update.CallbackQuery.From)
 	paymentURL, purchaseId, err := h.paymentService.CreatePurchaseWithOptions(ctxWithProfile, float64(price), plan.Months, customer, invoiceType, payment.CreatePurchaseOptions{
+		DurationDays:      plan.Days,
 		PlanID:            plan.ID,
 		TrafficLimitBytes: &plan.TrafficLimitBytes,
 		DeviceLimitCount:  &plan.DeviceLimitCount,
@@ -595,6 +596,17 @@ func (h Handler) botPlanButtonText(plan planbook.CheckoutPlan, langCode string) 
 	priceLabel := fmt.Sprintf("%d ₽", plan.PriceRub)
 	if strings.HasPrefix(strings.ToLower(langCode), "en") {
 		priceLabel = fmt.Sprintf("%d RUB", plan.PriceRub)
+	}
+	if plan.Days > 0 {
+		unit := "дн."
+		if strings.HasPrefix(strings.ToLower(langCode), "en") {
+			unit = "days"
+		}
+		prefix := ""
+		if plan.Variant == planbook.VariantUnlimited {
+			prefix = "∞ "
+		}
+		return fmt.Sprintf("%s%d %s | %s", prefix, plan.Days, unit, priceLabel)
 	}
 
 	if plan.Variant == planbook.VariantUnlimited {

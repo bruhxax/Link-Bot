@@ -66,6 +66,7 @@ func (s *PaymentService) SetAdminPushNotifier(notifier adminnotify.Notifier) {
 
 type CreatePurchaseOptions struct {
 	SubscriptionID          *int64
+	DurationDays            int
 	AgreementAccepted       bool
 	IsAutoPayment           bool
 	ParentPurchaseID        *int64
@@ -325,7 +326,7 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 		}
 	}
 	userID, userUUID := subscriptionPanelIdentity(subscription)
-	user, err := s.remnawaveClient.CreateOrUpdateUserForSubscription(ctx, customer.ID, customer.TelegramID, subscription.ID, userID, userUUID, subscription.IsPrimary, trafficLimit, deviceLimit, purchase.Month*config.DaysInMonth(), provisioning)
+	user, err := s.remnawaveClient.CreateOrUpdateUserForSubscription(ctx, customer.ID, customer.TelegramID, subscription.ID, userID, userUUID, subscription.IsPrimary, trafficLimit, deviceLimit, purchaseDurationDays(purchase), provisioning)
 	if err != nil {
 		return err
 	}
@@ -485,6 +486,23 @@ func referralBalanceRewardCents(settings runtimeconfig.ReferralRewardSettings, p
 		}
 	}
 	return 0
+}
+
+func purchaseDurationDays(purchase *database.Purchase) int {
+	if purchase == nil {
+		return 0
+	}
+	if purchase.Days > 0 {
+		return purchase.Days
+	}
+	return purchase.Month * config.DaysInMonth()
+}
+
+func paymentDurationDescription(months, days int) string {
+	if days > 0 {
+		return fmt.Sprintf("Подписка на %d дн.", days)
+	}
+	return fmt.Sprintf("Подписка на %d мес.", months)
 }
 
 func (s PaymentService) referralPurchaseAmountRub(purchase *database.Purchase) float64 {
@@ -713,7 +731,7 @@ func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount fl
 	case database.InvoiceTypeTelegram:
 		url, purchaseId, err = s.createTelegramInvoice(ctx, amount, months, customer, options)
 	case database.InvoiceTypeTribute:
-		url, purchaseId, err = s.createTributeInvoice(ctx, amount, months, customer)
+		url, purchaseId, err = s.createTributeInvoice(ctx, amount, months, customer, options)
 	case database.InvoiceTypeP2P:
 		url, purchaseId, err = s.createP2PInvoice(ctx, amount, months, customer, options)
 	case database.InvoiceTypeLava, database.InvoiceTypeWata, database.InvoiceTypePlatega, database.InvoiceTypeFreeKassa, database.InvoiceTypeHeleket, database.InvoiceTypePally, database.InvoiceTypeRollyPay, database.InvoiceTypeCisPay:
@@ -746,6 +764,7 @@ func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount fl
 			Details: map[string]interface{}{
 				"invoiceType": invoiceType,
 				"months":      months,
+				"days":        options.DurationDays,
 				"amount":      amount,
 			},
 		})
@@ -754,10 +773,14 @@ func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount fl
 }
 
 func validateFreePlanEligibility(oneTime, previouslyUsed bool, expireAt *time.Time, now time.Time) error {
+	return validateFreePlanEligibilityWindow(oneTime, previouslyUsed, expireAt, now, freePlanRenewalWindow)
+}
+
+func validateFreePlanEligibilityWindow(oneTime, previouslyUsed bool, expireAt *time.Time, now time.Time, window time.Duration) error {
 	if oneTime && previouslyUsed {
 		return ErrFreePlanAlreadyUsed
 	}
-	if expireAt != nil && expireAt.After(now.Add(freePlanRenewalWindow)) {
+	if expireAt != nil && expireAt.After(now.Add(window)) {
 		return ErrFreePlanTooEarly
 	}
 	return nil
@@ -776,7 +799,13 @@ func (s PaymentService) ValidateFreePlanEligibility(ctx context.Context, custome
 	if subscription != nil {
 		expireAt = subscription.ExpireAt
 	}
-	return validateFreePlanEligibility(oneTime, previouslyUsed, expireAt, time.Now())
+	window := freePlanRenewalWindow
+	if s.runtimeSettings != nil {
+		if plan, ok := s.runtimeSettings.CheckoutPlan(planID, 0); ok && plan.Days > 0 {
+			window = min(window, time.Duration(plan.Days)*24*time.Hour/4)
+		}
+	}
+	return validateFreePlanEligibilityWindow(oneTime, previouslyUsed, expireAt, time.Now(), window)
 }
 
 func (s PaymentService) createFreePlanPurchase(ctx context.Context, months int, customer *database.Customer, options CreatePurchaseOptions) (string, int64, error) {
@@ -788,6 +817,7 @@ func (s PaymentService) createFreePlanPurchase(ctx context.Context, months int, 
 		CustomerID:        customer.ID,
 		SubscriptionID:    options.SubscriptionID,
 		Month:             months,
+		Days:              options.DurationDays,
 		PlanID:            optionalTrimmedStringPointer(options.PlanID),
 		TrafficLimitBytes: options.TrafficLimitBytes,
 		DeviceLimitCount:  options.DeviceLimitCount,
@@ -821,6 +851,7 @@ func (s PaymentService) createBalancePurchase(ctx context.Context, amount float6
 		CustomerID:               customer.ID,
 		SubscriptionID:           options.SubscriptionID,
 		Month:                    months,
+		Days:                     options.DurationDays,
 		PlanID:                   optionalTrimmedStringPointer(options.PlanID),
 		TrafficLimitBytes:        options.TrafficLimitBytes,
 		DeviceLimitCount:         options.DeviceLimitCount,
@@ -878,7 +909,7 @@ func (s PaymentService) CancelTributePurchase(ctx context.Context, telegramId in
 	if err != nil {
 		return err
 	}
-	expireAt, err := s.remnawaveClient.DecreaseSubscription(ctx, telegramId, trafficLimit, deviceLimit, -tributePurchase.Month*config.DaysInMonth())
+	expireAt, err := s.remnawaveClient.DecreaseSubscription(ctx, telegramId, trafficLimit, deviceLimit, -purchaseDurationDays(tributePurchase))
 	if err != nil {
 		return err
 	}
@@ -915,6 +946,7 @@ func (s PaymentService) createCryptoInvoice(ctx context.Context, amount float64,
 		CustomerID:               customer.ID,
 		SubscriptionID:           options.SubscriptionID,
 		Month:                    months,
+		Days:                     options.DurationDays,
 		PlanID:                   optionalTrimmedStringPointer(options.PlanID),
 		TrafficLimitBytes:        options.TrafficLimitBytes,
 		DeviceLimitCount:         options.DeviceLimitCount,
@@ -947,7 +979,7 @@ func (s PaymentService) createCryptoInvoice(ctx context.Context, amount float64,
 		Amount:         fmt.Sprintf("%d", int(amount)),
 		AcceptedAssets: acceptedAssets,
 		Payload:        fmt.Sprintf("purchaseId=%d&username=%s", purchaseId, ctx.Value("username")),
-		Description:    fmt.Sprintf("Subscription on %d month", months),
+		Description:    paymentDurationDescription(months, options.DurationDays),
 		PaidBtnName:    "callback",
 		PaidBtnUrl:     config.BotURL(),
 	})
@@ -980,6 +1012,7 @@ func (s PaymentService) createYookasaInvoice(ctx context.Context, amount float64
 		CustomerID:               customer.ID,
 		SubscriptionID:           options.SubscriptionID,
 		Month:                    months,
+		Days:                     options.DurationDays,
 		PlanID:                   optionalTrimmedStringPointer(options.PlanID),
 		TrafficLimitBytes:        options.TrafficLimitBytes,
 		DeviceLimitCount:         options.DeviceLimitCount,
@@ -1006,7 +1039,7 @@ func (s PaymentService) createYookasaInvoice(ctx context.Context, amount float64
 	if yookasaClient == nil {
 		return "", 0, errors.New("YooKassa не настроена")
 	}
-	invoice, err := yookasaClient.CreateInvoice(ctx, int(amount), months, customer.ID, purchaseId, s.buildYookassaReturnURL(purchaseId, options.ReturnTarget))
+	invoice, err := yookasaClient.CreateInvoice(ctx, int(amount), months, options.DurationDays, customer.ID, purchaseId, s.buildYookassaReturnURL(purchaseId, options.ReturnTarget))
 	if err != nil {
 		slog.Error("Error creating invoice", "error", err)
 		return "", 0, err
@@ -1037,7 +1070,7 @@ func (s PaymentService) createExternalInvoice(ctx context.Context, amount float6
 	}
 	purchaseID, err := s.purchaseRepository.Create(ctx, &database.Purchase{
 		InvoiceType: invoiceType, Status: database.PurchaseStatusNew, Amount: amount, Currency: "RUB",
-		CustomerID: customer.ID, SubscriptionID: options.SubscriptionID, Month: months, PlanID: optionalTrimmedStringPointer(options.PlanID),
+		CustomerID: customer.ID, SubscriptionID: options.SubscriptionID, Month: months, Days: options.DurationDays, PlanID: optionalTrimmedStringPointer(options.PlanID),
 		TrafficLimitBytes: options.TrafficLimitBytes, DeviceLimitCount: options.DeviceLimitCount,
 		AgreementAccepted: options.AgreementAccepted, IsAutoPayment: options.IsAutoPayment,
 		ParentPurchaseID: options.ParentPurchaseID, PromoCodeID: options.PromoCodeID,
@@ -1057,7 +1090,7 @@ func (s PaymentService) createExternalInvoice(ctx context.Context, amount float6
 	username, _ := ctx.Value("username").(string)
 	created, err := s.integrationGateway.Create(ctx, integrations.CreatePaymentRequest{
 		Provider: provider, PurchaseID: purchaseID, Amount: amount, Currency: "RUB",
-		Description: fmt.Sprintf("Link-Bot: подписка на %d мес.", months), CustomerID: customer.ID,
+		Description: "Link-Bot: " + paymentDurationDescription(months, options.DurationDays), CustomerID: customer.ID,
 		Username: strings.TrimSpace(username), ReturnURL: s.buildYookassaReturnURL(purchaseID, options.ReturnTarget),
 	})
 	if err != nil {
@@ -1204,6 +1237,7 @@ func (s PaymentService) createTelegramInvoice(ctx context.Context, amount float6
 		CustomerID:               customer.ID,
 		SubscriptionID:           options.SubscriptionID,
 		Month:                    months,
+		Days:                     options.DurationDays,
 		PlanID:                   optionalTrimmedStringPointer(options.PlanID),
 		TrafficLimitBytes:        options.TrafficLimitBytes,
 		DeviceLimitCount:         options.DeviceLimitCount,
@@ -1548,6 +1582,9 @@ func maxInt64(value, fallback int64) int64 {
 }
 
 func (s PaymentService) buildAutoPaymentCustomerUpdates(customer *database.Customer, purchase *database.Purchase) map[string]interface{} {
+	if customer != nil && purchase != nil && purchase.Days > 0 {
+		return map[string]interface{}{"autopay_enabled": false, "autopay_plan_months": nil}
+	}
 	if !config.EnableAutoPayment() || customer == nil || purchase == nil || purchase.InvoiceType != database.InvoiceTypeYookasa {
 		return nil
 	}
@@ -1734,14 +1771,18 @@ func (s PaymentService) CancelYookassaPayment(purchaseId int64) error {
 	return nil
 }
 
-func (s PaymentService) createTributeInvoice(ctx context.Context, amount float64, months int, customer *database.Customer) (url string, purchaseId int64, err error) {
+func (s PaymentService) createTributeInvoice(ctx context.Context, amount float64, months int, customer *database.Customer, options CreatePurchaseOptions) (url string, purchaseId int64, err error) {
 	purchaseId, err = s.purchaseRepository.Create(ctx, &database.Purchase{
-		InvoiceType: database.InvoiceTypeTribute,
-		Status:      database.PurchaseStatusPending,
-		Amount:      amount,
-		Currency:    "RUB",
-		CustomerID:  customer.ID,
-		Month:       months,
+		InvoiceType:       database.InvoiceTypeTribute,
+		Status:            database.PurchaseStatusPending,
+		Amount:            amount,
+		Currency:          "RUB",
+		CustomerID:        customer.ID,
+		Month:             months,
+		Days:              options.DurationDays,
+		PlanID:            optionalTrimmedStringPointer(options.PlanID),
+		TrafficLimitBytes: options.TrafficLimitBytes,
+		DeviceLimitCount:  options.DeviceLimitCount,
 	})
 	if err != nil {
 		slog.Error("Error creating purchase", "error", err)

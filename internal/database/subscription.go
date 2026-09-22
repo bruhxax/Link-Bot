@@ -459,7 +459,7 @@ func (sr *SubscriptionRepository) TransferPanelSubscription(
 			WHERE customer_id = $1
 			  AND subscription_id = $2
 			  AND status = 'paid'
-			  AND month > 0
+			  AND (month > 0 OR days > 0)
 		)
 	`, targetCustomerID, destination.ID).Scan(&hasPaidTariff); err != nil {
 		return nil, fmt.Errorf("check transferred subscription tariff history: %w", err)

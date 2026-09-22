@@ -308,6 +308,7 @@ type PlanSettings struct {
 	ID                       string   `json:"id"`
 	Enabled                  bool     `json:"enabled"`
 	Months                   int      `json:"months"`
+	Days                     int      `json:"days,omitempty"`
 	TitleRU                  string   `json:"titleRu"`
 	TitleEN                  string   `json:"titleEn"`
 	TitleFA                  string   `json:"titleFa"`
@@ -2054,13 +2055,13 @@ func validatePlans(value *[]PlanSettings, defaults []PlanSettings) error {
 			return fmt.Errorf("duplicate plan %q", item.ID)
 		}
 		fallback := defaultByID[item.ID]
-		if item.Months == 0 {
+		if item.Months == 0 && item.Days == 0 {
 			item.Months = fallback.Months
 			if item.Months == 0 {
 				item.Months = inferPlanMonths(item.ID)
 			}
 		}
-		if item.Months < 0 || item.Months > 120 || (item.Enabled && item.Months == 0) {
+		if item.Months < 0 || item.Months > 120 || item.Days < 0 || item.Days > 3650 || (item.Months > 0 && item.Days > 0) || (item.Enabled && item.Months == 0 && item.Days == 0) {
 			return fmt.Errorf("invalid duration for plan %q", item.ID)
 		}
 		if item.PriceRub < 0 || item.PriceRub > 1000000 {
@@ -2077,21 +2078,33 @@ func validatePlans(value *[]PlanSettings, defaults []PlanSettings) error {
 		item.TitleEN = limit(strings.TrimSpace(item.TitleEN), 80)
 		item.TitleFA = limit(strings.TrimSpace(item.TitleFA), 80)
 		if item.TitleRU == "" {
-			item.TitleRU = fallback.TitleRU
-			if item.TitleRU == "" && item.Months > 0 {
-				item.TitleRU = planTitleRU(item.Months)
+			if item.Days > 0 {
+				item.TitleRU = planTitleDaysRU(item.Days)
+			} else {
+				item.TitleRU = fallback.TitleRU
+				if item.TitleRU == "" && item.Months > 0 {
+					item.TitleRU = planTitleRU(item.Months)
+				}
 			}
 		}
 		if item.TitleEN == "" {
-			item.TitleEN = fallback.TitleEN
-			if item.TitleEN == "" && item.Months > 0 {
-				item.TitleEN = planTitleEN(item.Months)
+			if item.Days > 0 {
+				item.TitleEN = planTitleDaysEN(item.Days)
+			} else {
+				item.TitleEN = fallback.TitleEN
+				if item.TitleEN == "" && item.Months > 0 {
+					item.TitleEN = planTitleEN(item.Months)
+				}
 			}
 		}
 		if item.TitleFA == "" {
-			item.TitleFA = fallback.TitleFA
-			if item.TitleFA == "" && item.Months > 0 {
-				item.TitleFA = planTitleFA(item.Months)
+			if item.Days > 0 {
+				item.TitleFA = planTitleDaysFA(item.Days)
+			} else {
+				item.TitleFA = fallback.TitleFA
+				if item.TitleFA == "" && item.Months > 0 {
+					item.TitleFA = planTitleFA(item.Months)
+				}
 			}
 		}
 		var err error
@@ -2319,6 +2332,27 @@ func planTitleEN(months int) string {
 
 func planTitleFA(months int) string {
 	return fmt.Sprintf("%d ماه", months)
+}
+
+func planTitleDaysRU(days int) string {
+	ending := "дней"
+	if days%10 == 1 && days%100 != 11 {
+		ending = "день"
+	} else if days%10 >= 2 && days%10 <= 4 && (days%100 < 12 || days%100 > 14) {
+		ending = "дня"
+	}
+	return fmt.Sprintf("%d %s", days, ending)
+}
+
+func planTitleDaysEN(days int) string {
+	if days == 1 {
+		return "1 day"
+	}
+	return fmt.Sprintf("%d days", days)
+}
+
+func planTitleDaysFA(days int) string {
+	return fmt.Sprintf("%d روز", days)
 }
 
 func cloneSettings(value Settings) Settings {

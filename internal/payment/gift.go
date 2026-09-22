@@ -124,7 +124,7 @@ func (s PaymentService) deliverGiftEntitlements(ctx context.Context, purchase *d
 		subscription.IsPrimary,
 		trafficLimit,
 		deviceLimit,
-		purchase.Month*config.DaysInMonth(),
+		purchaseDurationDays(purchase),
 		provisioning,
 	)
 	if err != nil {
@@ -293,6 +293,9 @@ func (s PaymentService) giftPlanLabel(purchase *database.Purchase) string {
 	months := 0
 	if purchase != nil {
 		months = purchase.Month
+		if purchase.Days > 0 {
+			return formatTariffDuration(0, purchase.Days)
+		}
 	}
 	return fmt.Sprintf("%d %s", months, russianMonthWord(months))
 }

@@ -178,6 +178,7 @@ type subscriptionPayload struct {
 	Status            string          `json:"status"`
 	DaysLeft          int             `json:"daysLeft"`
 	PlanMonths        int             `json:"planMonths,omitempty"`
+	PlanDays          int             `json:"planDays,omitempty"`
 	PlanLabel         string          `json:"planLabel,omitempty"`
 	IsTrial           bool            `json:"isTrial,omitempty"`
 	UserID            int64           `json:"userId,omitempty"`
@@ -338,6 +339,7 @@ type savedPaymentMethodPayload struct {
 type paymentHistoryPayload struct {
 	ID                 int64   `json:"id"`
 	Months             int     `json:"months"`
+	Days               int     `json:"days,omitempty"`
 	PlanLabel          string  `json:"planLabel"`
 	Amount             float64 `json:"amount"`
 	Currency           string  `json:"currency"`
@@ -418,6 +420,7 @@ type supportThreadPayload struct {
 type planPayload struct {
 	ID                string `json:"id"`
 	Months            int    `json:"months"`
+	Days              int    `json:"days,omitempty"`
 	PriceRub          int    `json:"priceRub"`
 	PriceStars        int    `json:"priceStars"`
 	FreeOneTime       bool   `json:"freeOneTime,omitempty"`
@@ -1639,6 +1642,7 @@ func (h *Handler) handleCreatePurchase(w http.ResponseWriter, r *http.Request, s
 
 	ctxWithProfile := contextWithSessionTelegramProfile(r.Context(), sess)
 	paymentURL, purchaseID, err := h.paymentService.CreatePurchaseWithOptions(ctxWithProfile, float64(price), plan.Months, customer, invoiceType, payment.CreatePurchaseOptions{
+		DurationDays:       plan.Days,
 		AgreementAccepted:  true,
 		PlanID:             plan.ID,
 		TrafficLimitBytes:  &plan.TrafficLimitBytes,
@@ -1693,6 +1697,7 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		deviceLimit    *int
 		trafficLimit   *int64
 		purchaseMonths int
+		purchaseDays   int
 		planID         string
 		isFreePlan     bool
 		freePlanOnce   bool
@@ -1734,6 +1739,7 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		isFreePlan = plan.PriceRub == 0 && plan.PriceStars == 0
 		freePlanOnce = isFreePlan && plan.FreeOneTime
 		purchaseMonths = plan.Months
+		purchaseDays = plan.Days
 		planID = plan.ID
 		trafficLimit = &plan.TrafficLimitBytes
 		combinedDeviceLimit := plan.DeviceLimitCount
@@ -1828,6 +1834,7 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 
 	ctxWithProfile := contextWithSessionTelegramProfile(r.Context(), sess)
 	paymentURL, purchaseID, err := h.paymentService.CreatePurchaseWithOptions(ctxWithProfile, float64(price), purchaseMonths, customer, invoiceType, payment.CreatePurchaseOptions{
+		DurationDays:         purchaseDays,
 		SubscriptionID:       &activeSubscription.ID,
 		AgreementAccepted:    true,
 		PlanID:               planID,
@@ -2045,6 +2052,7 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 	token := uuid.New()
 	ctxWithProfile := contextWithSessionTelegramProfile(r.Context(), sess)
 	paymentURL, purchaseID, err := h.paymentService.CreatePurchaseWithOptions(ctxWithProfile, float64(price), plan.Months, customer, invoiceType, payment.CreatePurchaseOptions{
+		DurationDays:            plan.Days,
 		AgreementAccepted:       true,
 		PlanID:                  plan.ID,
 		TrafficLimitBytes:       &plan.TrafficLimitBytes,
@@ -4265,7 +4273,10 @@ func (h *Handler) buildSubscriptionPayload(customer *database.Customer, highestP
 	payload.Status = "active"
 	payload.DaysLeft = daysLeft(*customer.ExpireAt)
 	payload.ExpiresAt = customer.ExpireAt.UTC().Format(time.RFC3339)
-	if resolvedPlanMonths > 0 {
+	if highestPurchase != nil && highestPurchase.Days > 0 {
+		payload.PlanDays = highestPurchase.Days
+		payload.PlanLabel = planLabelForPurchase(highestPurchase, 0, language)
+	} else if resolvedPlanMonths > 0 {
 		payload.PlanMonths = resolvedPlanMonths
 		payload.PlanLabel = planLabelForPurchase(highestPurchase, resolvedPlanMonths, language)
 	} else if h.isTrialSubscription(customer, panelState) {
@@ -4659,6 +4670,7 @@ func (h *Handler) buildPaymentsPayload(ctx context.Context, customer *database.C
 		history = append(history, paymentHistoryPayload{
 			ID:                 purchase.ID,
 			Months:             purchase.Month,
+			Days:               purchase.Days,
 			PlanLabel:          planLabelForPurchase(&purchase, purchase.Month, language),
 			Amount:             purchase.Amount,
 			Currency:           strings.TrimSpace(purchase.Currency),
@@ -5023,6 +5035,9 @@ func planLabelForMonths(months int, language string) string {
 
 func planLabelForPurchase(purchase *database.Purchase, months int, language string) string {
 	label := planLabelForMonths(months, language)
+	if purchase != nil && purchase.Days > 0 {
+		label = planLabelForDays(purchase.Days, language)
+	}
 	if purchase == nil || purchase.PlanID == nil || !strings.Contains(strings.ToLower(strings.TrimSpace(*purchase.PlanID)), planbook.VariantUnlimited) {
 		return label
 	}
@@ -5030,6 +5045,29 @@ func planLabelForPurchase(purchase *database.Purchase, months int, language stri
 		return label + " · Unlimited"
 	}
 	return label + " · Безлимит"
+}
+
+func planLabelForDays(days int, language string) string {
+	locale := strings.ToLower(strings.TrimSpace(language))
+	if strings.HasPrefix(locale, "fa") {
+		return fmt.Sprintf("%d روز", days)
+	}
+	if strings.HasPrefix(locale, "en") {
+		if days == 1 {
+			return "1 day"
+		}
+		return fmt.Sprintf("%d days", days)
+	}
+	word := "дней"
+	if days%100 < 11 || days%100 > 14 {
+		switch days % 10 {
+		case 1:
+			word = "день"
+		case 2, 3, 4:
+			word = "дня"
+		}
+	}
+	return fmt.Sprintf("%d %s", days, word)
 }
 
 func paymentMethodTitleForPurchase(purchase *database.Purchase, language string) string {
@@ -5454,6 +5492,9 @@ func (h *Handler) buildSubscriptionLabel(customer *database.Customer, highestPur
 		return "Нет подписки"
 	}
 
+	if highestPurchase != nil && highestPurchase.Days > 0 {
+		return planLabelForDays(highestPurchase.Days, "ru")
+	}
 	if highestPurchase != nil && highestPurchase.Month > 0 {
 		switch highestPurchase.Month {
 		case 1:
@@ -6051,6 +6092,7 @@ func (h *Handler) buildPlans() []planPayload {
 		plans = append(plans, planPayload{
 			ID:                plan.ID,
 			Months:            plan.Months,
+			Days:              plan.Days,
 			PriceRub:          plan.PriceRub,
 			PriceStars:        plan.PriceStars,
 			FreeOneTime:       plan.FreeOneTime,

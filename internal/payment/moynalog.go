@@ -114,9 +114,9 @@ func moyNalogReceiptItem(base string, purchase *database.Purchase) string {
 	case database.PurchaseKindExtraDevices:
 		result = fmt.Sprintf("%s — дополнительные устройства (%d)", base, purchase.ExtraDevices)
 	case database.PurchaseKindGift:
-		result = fmt.Sprintf("%s — подарок на %d мес.", base, purchase.Month)
+		result = fmt.Sprintf("%s — подарок на %s", base, formatTariffDuration(purchase.Month, purchase.Days))
 	default:
-		result = fmt.Sprintf("%s на %d мес.", base, purchase.Month)
+		result = fmt.Sprintf("%s на %s", base, formatTariffDuration(purchase.Month, purchase.Days))
 	}
 	runes := []rune(result)
 	if len(runes) > 120 {

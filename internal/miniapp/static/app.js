@@ -2162,6 +2162,7 @@ const state = {
 	adminPlanEditorModalOpen: false,
 	adminPlanEditingID: "",
 	adminPlanFormDraft: null,
+	adminPlanDurationUnit: "months",
 	adminPlanBaseline: null,
 	adminProfileEditorModalOpen: false,
 	adminProfileEditingID: "",
@@ -3254,10 +3255,12 @@ function mapApiErrorMessage(code, fallback) {
 
 function runtimePlanToPayload(plan, index = 0) {
 	const months = Math.max(0, Number(plan?.months || 0));
+	const days = Math.max(0, Number(plan?.days || 0));
 	const trafficGb = Math.max(0, Number(plan?.trafficGb || 0));
 	return {
 		id: String(plan?.id || `draft_${index}`),
 		months,
+		days,
 		priceRub: Math.max(0, Number(plan?.priceRub || 0)),
 		priceStars: Math.max(0, Number(plan?.priceStars || 0)),
 		freeOneTime: Boolean(plan?.freeOneTime),
@@ -5716,18 +5719,20 @@ function renderAdminPlanEditorModalLegacy() {
 
 function renderAdminPlanEditorModal() {
 	const plan = state.adminPlanFormDraft || {};
+	const durationUnit = state.adminPlanDurationUnit === "days" ? "days" : "months";
+	const durationValue = durationUnit === "days" ? plan.days : plan.months;
 	const stars = Math.max(0, Math.round(Number(plan.priceRub || 0) / 1.47));
 	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-close-plan-modal"></button><div class="modal__sheet modal__sheet--plan-editor">
 		<div class="modal__header"><div><div class="section-label">РЕДАКТОР ТАРИФА</div><div class="modal__title">Параметры тарифа</div></div><button class="header__btn" type="button" data-action="admin-close-plan-modal">${icon("close")}</button></div>
 		<div class="admin-plan-modal__body">
 		<div class="admin-plan-modal__grid">
-			<label class="admin-field"><span>Срок, месяцев</span><input class="admin-field__control" type="number" min="1" max="120" inputmode="numeric" data-input="admin-plan-months" value="${escapeAttribute(plan.months ?? 0)}"></label>
+			<div class="admin-plan-duration"><div class="admin-plan-duration__head"><span>Срок тарифа</span><div class="admin-plan-duration__switch ${durationUnit === "days" ? "is-days" : ""}" role="group" aria-label="Единица срока"><button type="button" data-action="admin-plan-duration-unit" data-value="months" aria-pressed="${durationUnit === "months"}">Месяцы</button><button type="button" data-action="admin-plan-duration-unit" data-value="days" aria-pressed="${durationUnit === "days"}">Дни</button></div></div><input class="admin-field__control admin-plan-duration__input" type="number" min="1" max="${durationUnit === "days" ? 3650 : 120}" inputmode="numeric" data-input="admin-plan-duration" aria-label="Срок тарифа, ${durationUnit === "days" ? "дни" : "месяцы"}" value="${escapeAttribute(durationValue || "")}" placeholder="${durationUnit === "days" ? "7" : "1"}"></div>
 			<label class="admin-field"><span>Цена, ₽</span><input class="admin-field__control" type="number" min="0" max="1000000" inputmode="numeric" data-input="admin-plan-price" value="${escapeAttribute(plan.priceRub ?? 0)}"></label>
 			<label class="admin-field"><span>Трафик, ГБ (0 = безлимит)</span><input class="admin-field__control" type="number" min="0" max="1000000" inputmode="numeric" data-input="admin-plan-traffic" value="${escapeAttribute(plan.trafficGb ?? 0)}"></label>
 			<label class="admin-field"><span>Устройства (0 = безлимит)</span><input class="admin-field__control" type="number" min="0" max="1000" inputmode="numeric" data-input="admin-plan-devices" value="${escapeAttribute(plan.deviceLimit ?? 0)}"></label>
 		</div>
 		<div class="admin-plan-stars"><span>Telegram Stars</span><strong>${escapeHtml(String(stars))}</strong><small>Автоматически: 1 ⭐ = 1,47 ₽</small></div>
-		<label class="admin-plan-free-rule" ${Number(plan.priceRub || 0) === 0 ? "" : "hidden"}><span><strong>Можно взять только 1 раз</strong><small>Если выключено, повторно получить тариф можно за 7 дней до окончания.</small></span><input data-input="admin-plan-free-once" type="checkbox" ${plan.freeOneTime ? "checked" : ""}></label>
+		<label class="admin-plan-free-rule" ${Number(plan.priceRub || 0) === 0 ? "" : "hidden"}><span><strong>Можно взять только 1 раз</strong><small>Если выключено, повторно получить тариф можно перед окончанием подписки.</small></span><input data-input="admin-plan-free-once" type="checkbox" ${plan.freeOneTime ? "checked" : ""}></label>
 		<section class="admin-squads"><h3>Внутренние сквады</h3>${renderInternalSquadSelector(plan.internalSquadUuids, "admin-plan-internal-squad", !plan.internalSquadsConfigured)}${renderExternalSquadSelector(plan.externalSquadUuid, "admin-plan-external-squad")}</section>
 		<button class="btn btn--green-filled admin-plan-modal__save" type="button" data-action="admin-apply-plan-edit">${icon("check")}Применить</button>
 		</div>
@@ -7596,9 +7601,22 @@ function getPlanCardTitle(months, locale) {
   }
 }
 
+function getPlanDurationTitle(months, days, locale) {
+	const count = Number(days || 0);
+	if (count > 0) {
+		if (locale === "fa") return `${count} روز`;
+		if (locale === "en") return `${count} ${count === 1 ? "day" : "days"}`;
+		const lastTwo = count % 100;
+		const last = count % 10;
+		const word = lastTwo >= 11 && lastTwo <= 14 ? "дней" : last === 1 ? "день" : last >= 2 && last <= 4 ? "дня" : "дней";
+		return `${count} ${word}`;
+	}
+	return getPlanCardTitle(months, locale);
+}
+
 function getPlanBaseTitle(plan, locale) {
 	const configuredTitle = locale === "fa" ? plan?.titleFa : locale === "en" ? plan?.titleEn : plan?.titleRu;
-	return String(configuredTitle || "").trim() || getPlanCardTitle(plan?.months, locale);
+	return String(configuredTitle || "").trim() || getPlanDurationTitle(plan?.months, plan?.days, locale);
 }
 
 function planHasUnlimitedTraffic(plan) {
@@ -7660,7 +7678,7 @@ function renderMetric(label, value) {
 function renderPlanCard(plan, selected) {
   const key = planKey(plan);
   const details = getPlanDetails(plan, state.locale);
-  const hasDuration = Number(plan?.months || 0) > 0;
+  const hasDuration = Number(plan?.months || 0) > 0 || Number(plan?.days || 0) > 0;
   const unlimited = hasDuration && planHasUnlimitedTraffic(plan);
 	const title = hasDuration ? getPlanBaseTitle(plan, state.locale) : localizedText("Новый тариф", "New plan", "تعرفه جدید");
 	const price = Number(plan?.priceRub || 0) > 0 ? formatCurrency(plan.priceRub, state.locale) : localizedText("Бесплатно", "Free", "رایگان");
@@ -7671,8 +7689,8 @@ function renderPlanCard(plan, selected) {
 			<div class="pricing-card__name">${escapeHtml(title)}</div>
 			${unlimited ? `<span class="pricing-card__unlimited-badge">${localizedText("Безлимит", "Unlimited", "نامحدود")}</span>` : ""}
           </div>
-		  <div class="pricing-card__spec">${escapeHtml(Number(plan?.months || 0) > 0 ? details.traffic : localizedText("Укажите трафик", "Set traffic", "ترافیک را مشخص کنید"))}</div>
-		  <div class="pricing-card__spec">${escapeHtml(Number(plan?.months || 0) > 0 ? details.devices : localizedText("Укажите устройства", "Set device limit", "تعداد دستگاه را مشخص کنید"))}</div>
+		  <div class="pricing-card__spec">${escapeHtml(hasDuration ? details.traffic : localizedText("Укажите трафик", "Set traffic", "ترافیک را مشخص کنید"))}</div>
+		  <div class="pricing-card__spec">${escapeHtml(hasDuration ? details.devices : localizedText("Укажите устройства", "Set device limit", "تعداد دستگاه را مشخص کنید"))}</div>
         </div>
         <div class="pricing-card__price-stack">
           <div class="pricing-card__price-row">
@@ -7693,7 +7711,7 @@ function renderPlanCard(plan, selected) {
 
 function renderPaymentHistoryItem(item) {
   const copy = t();
-  const planLabel = item.planLabel || getPlanCardTitle(item.months, state.locale);
+  const planLabel = item.planLabel || getPlanDurationTitle(item.months, item.days, state.locale);
   const amountLabel = formatPaymentAmount(item.amount, item.currency, item.invoiceType);
   const method = paymentHistoryMethodMeta(item, copy);
   const statusLabel = formatPaymentStatus(item.status);
@@ -8452,6 +8470,7 @@ function bindRootActions() {
 			if (action === "admin-edit-plan") return openAdminPlanEditor(value);
 			if (action === "admin-delete-plan") return deleteAdminPlan(value);
 			if (action === "admin-close-plan-modal") return closeAdminPlanEditorModal();
+			if (action === "admin-plan-duration-unit") return setAdminPlanDurationUnit(value);
 			if (action === "admin-apply-plan-edit") return applyAdminPlanEdit();
 			if (action === "admin-select-all-squads") return selectAllAdminSquads(value);
 			if (action === "admin-add-subpage-client") return addAdminSubPageClient();
@@ -8924,7 +8943,10 @@ function bindRootActions() {
 		}
 		if (inputKey.startsWith("admin-plan-") && state.adminPlanFormDraft) {
 			const numeric = Math.max(0, Number(target.value || 0));
-			if (inputKey === "admin-plan-months") state.adminPlanFormDraft.months = numeric;
+			if (inputKey === "admin-plan-duration") {
+				state.adminPlanFormDraft.months = state.adminPlanDurationUnit === "months" ? numeric : 0;
+				state.adminPlanFormDraft.days = state.adminPlanDurationUnit === "days" ? numeric : 0;
+			}
 			if (inputKey === "admin-plan-price") {
 				state.adminPlanFormDraft.priceRub = numeric;
 				if (numeric > 0) state.adminPlanFormDraft.freeOneTime = false;
@@ -10863,11 +10885,12 @@ function addAdminPlan() {
 	const plans = state.adminSettingsDraft?.plans;
 	if (!Array.isArray(plans)) return;
 	const id = `custom_${Date.now().toString(36)}`;
-	const plan = { id, enabled: false, months: 0, titleRu: "", titleEn: "", titleFa: "", priceRub: 0, priceStars: 0, freeOneTime: false, trafficGb: 0, unlimitedTraffic: true, deviceLimit: 0, wide: false, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" };
+	const plan = { id, enabled: false, months: 0, days: 0, titleRu: "", titleEn: "", titleFa: "", priceRub: 0, priceStars: 0, freeOneTime: false, trafficGb: 0, unlimitedTraffic: true, deviceLimit: 0, wide: false, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" };
 	plans.push(plan);
 	state.adminSettingsDirty = true;
 	state.adminPlanEditingID = id;
 	state.adminPlanFormDraft = deepClone(plan);
+	state.adminPlanDurationUnit = "months";
 	state.adminPlanEditorModalOpen = true;
 	ensureSelections();
 	haptic("light");
@@ -10879,6 +10902,7 @@ function openAdminPlanEditor(id) {
 	if (!plan) return;
 	state.adminPlanEditingID = id;
 	state.adminPlanFormDraft = deepClone(plan);
+	state.adminPlanDurationUnit = Number(plan.days || 0) > 0 ? "days" : "months";
 	state.adminPlanEditorModalOpen = true;
 	haptic("light");
 	render({ preserveScroll: true });
@@ -10891,31 +10915,51 @@ function closeAdminPlanEditorModal() {
 	render({ preserveScroll: true });
 }
 
+function setAdminPlanDurationUnit(unit) {
+	if (!state.adminPlanFormDraft || !["months", "days"].includes(unit) || unit === state.adminPlanDurationUnit) return;
+	const input = app.querySelector("[data-input='admin-plan-duration']");
+	const value = Math.max(0, Number(input?.value || 0));
+	state.adminPlanDurationUnit = unit;
+	state.adminPlanFormDraft.months = unit === "months" ? value : 0;
+	state.adminPlanFormDraft.days = unit === "days" ? value : 0;
+	const control = app.querySelector(".admin-plan-duration__switch");
+	control?.classList.toggle("is-days", unit === "days");
+	control?.querySelectorAll("button").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.value === unit)));
+	if (input) {
+		input.max = unit === "days" ? "3650" : "120";
+		input.placeholder = unit === "days" ? "7" : "1";
+		input.setAttribute("aria-label", `Срок тарифа, ${unit === "days" ? "дни" : "месяцы"}`);
+	}
+	haptic("light");
+}
+
 function applyAdminPlanEdit() {
 	const draft = state.adminPlanFormDraft;
 	const plans = state.adminSettingsDraft?.plans;
 	const index = plans?.findIndex((item) => item.id === state.adminPlanEditingID) ?? -1;
 	if (!draft || index < 0) return;
-	const months = Math.trunc(Number(draft.months || 0));
+	const months = Number(draft.months || 0);
+	const days = Number(draft.days || 0);
 	const priceRub = Math.trunc(Number(draft.priceRub || 0));
 	const trafficGb = Math.trunc(Number(draft.trafficGb || 0));
 	const deviceLimit = Math.trunc(Number(draft.deviceLimit || 0));
-	if (months < 1 || months > 120) return showToast(state.locale === "en" ? "Enter a duration from 1 to 120 months" : "Укажите срок от 1 до 120 месяцев", "danger");
+	if (state.adminPlanDurationUnit === "days" ? (!Number.isInteger(days) || days < 1 || days > 3650) : (!Number.isInteger(months) || months < 1 || months > 120)) return showToast(state.locale === "en" ? "Enter a valid duration" : "Укажите срок: 1–120 месяцев или 1–3650 дней", "danger");
 	if (priceRub < 0 || priceRub > 1000000) return showToast(state.locale === "en" ? "Enter a valid price" : "Укажите корректную цену", "danger");
 	if (trafficGb < 0 || trafficGb > 1000000 || deviceLimit < 0 || deviceLimit > 1000) return showToast(state.locale === "en" ? "Check the plan limits" : "Проверьте лимиты тарифа", "danger");
 	const current = plans[index];
 	plans[index] = {
 		...current,
 		enabled: true,
-		months,
+		months: state.adminPlanDurationUnit === "months" ? months : 0,
+		days: state.adminPlanDurationUnit === "days" ? days : 0,
 		priceRub,
 		freeOneTime: priceRub === 0 && Boolean(draft.freeOneTime),
 		trafficGb,
 		unlimitedTraffic: trafficGb === 0,
 		deviceLimit,
-		titleRu: getPlanCardTitle(months, "ru"),
-		titleEn: getPlanCardTitle(months, "en"),
-		titleFa: getPlanCardTitle(months, "fa"),
+		titleRu: getPlanDurationTitle(months, days, "ru"),
+		titleEn: getPlanDurationTitle(months, days, "en"),
+		titleFa: getPlanDurationTitle(months, days, "fa"),
 		priceStars: Math.max(0, Math.round(priceRub / 1.47)),
 		internalSquadUuids: Array.isArray(draft.internalSquadUuids) ? [...draft.internalSquadUuids] : [],
 		internalSquadsConfigured: Boolean(draft.internalSquadsConfigured),
@@ -13851,7 +13895,7 @@ function getSelectedPlan() {
 }
 
 function getGiftPlans() {
-	return (state.data?.plans || []).filter((plan) => plan && plan.enabled !== false && Number(plan.months || 0) > 0 && (Number(plan.priceRub || 0) > 0 || Number(plan.priceStars || 0) > 0));
+	return (state.data?.plans || []).filter((plan) => plan && plan.enabled !== false && (Number(plan.months || 0) > 0 || Number(plan.days || 0) > 0) && (Number(plan.priceRub || 0) > 0 || Number(plan.priceStars || 0) > 0));
 }
 
 function getSelectedGiftPlan() {

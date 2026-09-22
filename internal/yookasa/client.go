@@ -7,11 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"link-bot/internal/config"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"link-bot/internal/config"
 	"strconv"
 	"strings"
 	"time"
@@ -71,13 +71,13 @@ func newHTTPClient() *http.Client {
 	}
 }
 
-func (c *Client) CreateInvoice(ctx context.Context, amount int, month int, customerId int64, purchaseId int64, returnURL string) (*Payment, error) {
+func (c *Client) CreateInvoice(ctx context.Context, amount int, month int, days int, customerId int64, purchaseId int64, returnURL string) (*Payment, error) {
 	rub := Amount{
 		Value:    strconv.Itoa(amount),
 		Currency: "RUB",
 	}
 
-	description := formatSubscriptionDescription(month)
+	description := formatSubscriptionDurationDescription(month, days)
 	receipt := &Receipt{
 		Customer: &Customer{
 			Email: c.email,
@@ -314,4 +314,11 @@ func formatSubscriptionDescription(month int) string {
 	default:
 		return fmt.Sprintf("Подписка на %d мес.", month)
 	}
+}
+
+func formatSubscriptionDurationDescription(month, days int) string {
+	if days > 0 {
+		return fmt.Sprintf("Подписка на %d дн.", days)
+	}
+	return formatSubscriptionDescription(month)
 }

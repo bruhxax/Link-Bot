@@ -57,6 +57,7 @@ type Purchase struct {
 	SubscriptionID            *int64         `db:"subscription_id"`
 	CreatedAt                 time.Time      `db:"created_at"`
 	Month                     int            `db:"month"`
+	Days                      int            `db:"days"`
 	PlanID                    *string        `db:"plan_id"`
 	TrafficLimitBytes         *int64         `db:"traffic_limit_bytes"`
 	DeviceLimitCount          *int           `db:"device_limit_count"`
@@ -195,6 +196,7 @@ var purchaseSelectColumns = []string{
 	"subscription_id",
 	"created_at",
 	"month",
+	"days",
 	"plan_id",
 	"traffic_limit_bytes",
 	"device_limit_count",
@@ -240,6 +242,7 @@ func scanPurchase(scanner interface {
 		&purchase.SubscriptionID,
 		&purchase.CreatedAt,
 		&purchase.Month,
+		&purchase.Days,
 		&purchase.PlanID,
 		&purchase.TrafficLimitBytes,
 		&purchase.DeviceLimitCount,
@@ -286,6 +289,7 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 			"customer_id",
 			"subscription_id",
 			"month",
+			"days",
 			"plan_id",
 			"traffic_limit_bytes",
 			"device_limit_count",
@@ -324,6 +328,7 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 			purchase.CustomerID,
 			purchase.SubscriptionID,
 			purchase.Month,
+			purchase.Days,
 			purchase.PlanID,
 			purchase.TrafficLimitBytes,
 			purchase.DeviceLimitCount,
@@ -797,9 +802,9 @@ func (pr *PurchaseRepository) FindHighestSuccessfulPurchaseByCustomer(ctx contex
 		Where(sq.And{
 			sq.Eq{"customer_id": customerID},
 			sq.Eq{"status": PurchaseStatusPaid},
-			sq.Gt{"month": 0},
+			sq.Or{sq.Gt{"month": 0}, sq.Gt{"days": 0}},
 		}).
-		OrderBy("month DESC", "paid_at DESC NULLS LAST", "created_at DESC").
+		OrderBy("(month * 30 + days) DESC", "paid_at DESC NULLS LAST", "created_at DESC").
 		Limit(1).
 		PlaceholderFormat(sq.Dollar)
 
@@ -830,7 +835,7 @@ func (pr *PurchaseRepository) FindLatestSuccessfulPurchaseBySubscription(ctx con
 			sq.Eq{"customer_id": customerID},
 			sq.Eq{"subscription_id": subscriptionID},
 			sq.Eq{"status": PurchaseStatusPaid},
-			sq.Gt{"month": 0},
+			sq.Or{sq.Gt{"month": 0}, sq.Gt{"days": 0}},
 		}).
 		OrderBy("paid_at DESC NULLS LAST", "created_at DESC", "id DESC").
 		Limit(1).

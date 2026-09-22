@@ -34,7 +34,7 @@ func (s PaymentService) createP2PInvoice(ctx context.Context, amount float64, mo
 
 	purchaseID, err := s.purchaseRepository.Create(ctx, &database.Purchase{
 		InvoiceType: database.InvoiceTypeP2P, Status: database.PurchaseStatusPending, Amount: amount, Currency: "RUB",
-		CustomerID: customer.ID, SubscriptionID: options.SubscriptionID, Month: months, PlanID: optionalTrimmedStringPointer(options.PlanID),
+		CustomerID: customer.ID, SubscriptionID: options.SubscriptionID, Month: months, Days: options.DurationDays, PlanID: optionalTrimmedStringPointer(options.PlanID),
 		TrafficLimitBytes: options.TrafficLimitBytes, DeviceLimitCount: options.DeviceLimitCount,
 		AgreementAccepted: options.AgreementAccepted, IsAutoPayment: options.IsAutoPayment,
 		ParentPurchaseID: options.ParentPurchaseID, PromoCodeID: options.PromoCodeID,

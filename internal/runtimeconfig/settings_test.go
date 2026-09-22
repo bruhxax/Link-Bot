@@ -297,6 +297,28 @@ func TestNormalizeAndValidateAllowsCustomPlanAndDeletion(t *testing.T) {
 	}
 }
 
+func TestDailyPlanKeepsDaysAndGeneratesTitles(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Plans = []PlanSettings{{ID: "custom_7d", Enabled: true, Days: 7, PriceRub: 99, TrafficGB: 20, DeviceLimit: 2}}
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	plan := settings.Plans[0]
+	if plan.Months != 0 || plan.Days != 7 || plan.TitleRU != "7 дней" || plan.TitleEN != "7 days" || plan.TitleFA != "7 روز" {
+		t.Fatalf("unexpected daily plan: %+v", plan)
+	}
+	service := &Service{}
+	service.value.Store(settings)
+	checkout, ok := service.CheckoutPlan(plan.ID, 0)
+	if !ok || checkout.Months != 0 || checkout.Days != 7 || checkout.PriceRub != 99 {
+		t.Fatalf("unexpected checkout daily plan: %+v, ok=%v", checkout, ok)
+	}
+	settings.Plans[0].Months = 1
+	if err := NormalizeAndValidate(&settings); err == nil {
+		t.Fatal("expected an error when both months and days are set")
+	}
+}
+
 func TestCheckoutPlansIncludesCustomPlan(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Plans = []PlanSettings{

@@ -142,8 +142,8 @@ func (s PaymentService) notifyAdminAboutPaymentByPush(purchase *database.Purchas
 		identity = "@" + identity
 	}
 	description := "Покупка"
-	if purchase.Month > 0 {
-		description = formatTariff(purchase.Month)
+	if purchase.Month > 0 || purchase.Days > 0 {
+		description = formatTariffDuration(purchase.Month, purchase.Days)
 	}
 	if purchase.PurchaseKind == database.PurchaseKindExtraDevices && purchase.ExtraDevices > 0 {
 		description = fmt.Sprintf("+%d устройств", purchase.ExtraDevices)
@@ -267,8 +267,8 @@ func buildPaymentNotificationMessageWithTemplate(
 	}
 
 	subscriptionText := ""
-	if purchase.PurchaseKind != database.PurchaseKindExtraDevices && purchase.Month > 0 {
-		subscriptionText = formatTariff(purchase.Month)
+	if purchase.PurchaseKind != database.PurchaseKindExtraDevices && (purchase.Month > 0 || purchase.Days > 0) {
+		subscriptionText = formatTariffDuration(purchase.Month, purchase.Days)
 	}
 	deviceText := ""
 	if purchase.ExtraDevices > 0 {
@@ -317,6 +317,23 @@ func formatTariff(months int) string {
 	}
 
 	return fmt.Sprintf("%d %s", months, word)
+}
+
+func formatTariffDuration(months, days int) string {
+	if days > 0 {
+		word := "дней"
+		lastTwo, last := days%100, days%10
+		if lastTwo < 11 || lastTwo > 14 {
+			switch last {
+			case 1:
+				word = "день"
+			case 2, 3, 4:
+				word = "дня"
+			}
+		}
+		return fmt.Sprintf("%d %s", days, word)
+	}
+	return formatTariff(months)
 }
 
 func formatPurchaseAmount(purchase *database.Purchase) string {

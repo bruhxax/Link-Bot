@@ -12,12 +12,13 @@ func (s *Service) CheckoutPlans() []planbook.CheckoutPlan {
 	settings := s.Snapshot()
 	result := make([]planbook.CheckoutPlan, 0, len(settings.Plans))
 	for _, item := range settings.Plans {
-		if !item.Enabled || item.Months <= 0 {
+		if !item.Enabled || (item.Months <= 0 && item.Days <= 0) {
 			continue
 		}
 		plan := planbook.CheckoutPlan{
 			ID:                       item.ID,
 			Months:                   item.Months,
+			Days:                     item.Days,
 			PriceRub:                 item.PriceRub,
 			PriceStars:               planbook.StarsForRub(item.PriceRub),
 			FreeOneTime:              item.FreeOneTime,

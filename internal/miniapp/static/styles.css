@@ -8808,6 +8808,17 @@ body.is-plan-editing .page-scroll {
   gap: 10px;
 }
 
+.admin-plan-duration { grid-column: 1 / -1; display: grid; gap: 9px; }
+.admin-plan-duration__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text); font-size: 12px; font-weight: 700; }
+.admin-plan-duration__switch { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 164px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--control-bg); }
+.admin-plan-duration__switch::before { position: absolute; inset: 3px auto 3px 3px; width: calc((100% - 6px) / 2); border-radius: 5px; background: var(--surface); content: ""; transition: transform 280ms cubic-bezier(.2,.75,.25,1); }
+.admin-plan-duration__switch.is-days::before { transform: translateX(100%); }
+.admin-plan-duration__switch button { position: relative; z-index: 1; min-height: 36px; padding: 0 4px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; transition: color 220ms ease; }
+.admin-plan-duration__switch button[aria-pressed="true"] { color: var(--text); }
+.admin-plan-duration__switch button:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; border-radius: 5px; }
+.admin-plan-duration__input { width: 100%; }
+@media (prefers-reduced-motion: reduce) { .admin-plan-duration__switch::before, .admin-plan-duration__switch button { transition: none; } }
+
 .admin-plan-modal__save {
   width: 100%;
   margin-top: 14px;

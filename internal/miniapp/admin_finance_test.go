@@ -61,6 +61,11 @@ func TestAdminFinancePresentationLabels(t *testing.T) {
 			provider: "СБП", plan: "Подписка на 3 месяца", status: "paid",
 		},
 		{
+			name:     "daily subscription",
+			payment:  database.AdminFinancePayment{InvoiceType: database.InvoiceTypeYookasa, Days: 7, PurchaseKind: database.PurchaseKindSubscription, Status: database.PurchaseStatusPaid, WasPaid: true},
+			provider: "YooKassa", plan: "Подписка на 7 дн.", status: "paid",
+		},
+		{
 			name:     "stars devices",
 			payment:  database.AdminFinancePayment{InvoiceType: database.InvoiceTypeTelegram, ExtraDevices: 2, PurchaseKind: database.PurchaseKindExtraDevices, Status: database.PurchaseStatusPaid, WasPaid: true},
 			provider: "Telegram Stars", plan: "Дополнительные устройства · 2", status: "paid",

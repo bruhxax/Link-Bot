@@ -136,10 +136,17 @@ func adminFinancePlan(item database.AdminFinancePayment) string {
 		}
 		return fmt.Sprintf("Дополнительные устройства · %d", count)
 	case database.PurchaseKindGift:
-		return fmt.Sprintf("Подарок · %s", adminFinanceMonthLabel(item.Month))
+		return fmt.Sprintf("Подарок · %s", adminFinanceDurationLabel(item.Month, item.Days))
 	default:
-		return "Подписка на " + adminFinanceMonthLabel(item.Month)
+		return "Подписка на " + adminFinanceDurationLabel(item.Month, item.Days)
 	}
+}
+
+func adminFinanceDurationLabel(months, days int) string {
+	if days > 0 {
+		return fmt.Sprintf("%d дн.", days)
+	}
+	return adminFinanceMonthLabel(months)
 }
 
 func adminFinanceMonthLabel(months int) string {

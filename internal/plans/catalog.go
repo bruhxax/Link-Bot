@@ -30,6 +30,7 @@ const (
 type CheckoutPlan struct {
 	ID                       string
 	Months                   int
+	Days                     int
 	PriceRub                 int
 	PriceStars               int
 	FreeOneTime              bool

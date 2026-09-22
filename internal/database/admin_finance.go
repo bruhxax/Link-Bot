@@ -33,6 +33,7 @@ type AdminFinancePayment struct {
 	Status                    PurchaseStatus
 	InvoiceType               InvoiceType
 	Month                     int
+	Days                      int
 	PurchaseKind              PurchaseKind
 	ExtraDevices              int
 	TelegramID                int64
@@ -126,7 +127,7 @@ func (pr *PurchaseRepository) LoadAdminFinance(ctx context.Context, from, to tim
 
 	rows, err = pr.pool.Query(ctx, `
 		SELECT p.id, p.amount, COALESCE(NULLIF(p.currency, ''), 'RUB'), p.status, p.invoice_type,
-		       p.month, p.purchase_kind, p.extra_devices, c.telegram_id,
+		       p.month, p.days, p.purchase_kind, p.extra_devices, c.telegram_id,
 		       COALESCE(c.telegram_username, ''), COALESCE(p.yookasa_payment_method_title, ''),
 		       COALESCE(p.paid_at, p.created_at), p.paid_at IS NOT NULL
 		FROM purchase p
@@ -149,6 +150,7 @@ func (pr *PurchaseRepository) LoadAdminFinance(ctx context.Context, from, to tim
 			&item.Status,
 			&item.InvoiceType,
 			&item.Month,
+			&item.Days,
 			&item.PurchaseKind,
 			&item.ExtraDevices,
 			&item.TelegramID,
