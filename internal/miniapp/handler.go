@@ -3231,7 +3231,7 @@ func (h *Handler) handleDeleteDeviceExact(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	highestPurchase, err := h.purchaseRepository.FindHighestSuccessfulPurchaseBySubscription(r.Context(), customer.ID, activeSubscription.ID)
+	highestPurchase, err := h.purchaseRepository.FindLatestSuccessfulPurchaseBySubscription(r.Context(), customer.ID, activeSubscription.ID)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "device_delete_failed", "Не удалось обновить подписку")
 		return
@@ -3968,7 +3968,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		return nil, err
 	}
 
-	highestPurchase, err := h.purchaseRepository.FindHighestSuccessfulPurchaseBySubscription(ctx, customer.ID, activeSubscription.ID)
+	highestPurchase, err := h.purchaseRepository.FindLatestSuccessfulPurchaseBySubscription(ctx, customer.ID, activeSubscription.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -4176,9 +4176,9 @@ func (h *Handler) syncSubscriptionTrafficLimit(ctx context.Context, customer *da
 	switch {
 	case expectedLimitBytes == 0 && currentLimitBytes > 0:
 		needsTrafficRepair = true
-	case expectedLimitBytes > 0 && currentLimitBytes > 0 && currentLimitBytes < expectedLimitBytes:
+	case expectedLimitBytes > 0 && currentLimitBytes <= 0:
 		needsTrafficRepair = true
-	case expectedLimitBytes > 0 && currentLimitBytes < 0:
+	case expectedLimitBytes > 0 && currentLimitBytes < expectedLimitBytes:
 		needsTrafficRepair = true
 	}
 
@@ -4186,9 +4186,9 @@ func (h *Handler) syncSubscriptionTrafficLimit(ctx context.Context, customer *da
 	switch {
 	case expectedDeviceLimit == 0 && currentDeviceLimit > 0:
 		needsDeviceRepair = true
-	case expectedDeviceLimit > 0 && currentDeviceLimit > 0 && currentDeviceLimit < expectedDeviceLimit:
+	case expectedDeviceLimit > 0 && currentDeviceLimit <= 0:
 		needsDeviceRepair = true
-	case expectedDeviceLimit > 0 && currentDeviceLimit < 0:
+	case expectedDeviceLimit > 0 && currentDeviceLimit < expectedDeviceLimit:
 		needsDeviceRepair = true
 	}
 

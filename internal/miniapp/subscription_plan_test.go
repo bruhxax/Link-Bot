@@ -58,18 +58,18 @@ func initMiniAppTestConfig() {
 	})
 }
 
-func TestResolveSubscriptionPlanMonthsPrefersHighestPurchase(t *testing.T) {
+func TestResolveSubscriptionPlanMonthsPrefersLatestPurchase(t *testing.T) {
 	initMiniAppTestConfig()
 
-	highestPurchase := &database.Purchase{Month: 3}
+	latestPurchase := &database.Purchase{Month: 3}
 	panelState := &remnawave.UserState{
 		Exists:            true,
 		TrafficLimitBytes: 1000 * 1024 * 1024 * 1024,
 		DeviceLimit:       10,
 	}
 
-	if got := resolveSubscriptionPlanMonths(highestPurchase, panelState); got != 3 {
-		t.Fatalf("expected highest purchase months to win, got %d", got)
+	if got := resolveSubscriptionPlanMonths(latestPurchase, panelState); got != 3 {
+		t.Fatalf("expected latest purchase months to win, got %d", got)
 	}
 }
 

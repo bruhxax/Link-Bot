@@ -819,7 +819,11 @@ func (pr *PurchaseRepository) FindHighestSuccessfulPurchaseByCustomer(ctx contex
 	return p, nil
 }
 
-func (pr *PurchaseRepository) FindHighestSuccessfulPurchaseBySubscription(ctx context.Context, customerID, subscriptionID int64) (*Purchase, error) {
+// FindLatestSuccessfulPurchaseBySubscription returns the tariff that currently
+// defines the subscription. A customer can buy a shorter or limited tariff
+// after an administrator has annulled a previous annual/unlimited one, so the
+// largest historical duration must not win here.
+func (pr *PurchaseRepository) FindLatestSuccessfulPurchaseBySubscription(ctx context.Context, customerID, subscriptionID int64) (*Purchase, error) {
 	query := sq.Select(purchaseSelectColumns...).
 		From("purchase").
 		Where(sq.And{
@@ -828,7 +832,7 @@ func (pr *PurchaseRepository) FindHighestSuccessfulPurchaseBySubscription(ctx co
 			sq.Eq{"status": PurchaseStatusPaid},
 			sq.Gt{"month": 0},
 		}).
-		OrderBy("month DESC", "paid_at DESC NULLS LAST", "created_at DESC").
+		OrderBy("paid_at DESC NULLS LAST", "created_at DESC", "id DESC").
 		Limit(1).
 		PlaceholderFormat(sq.Dollar)
 
