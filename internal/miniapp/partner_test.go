@@ -35,3 +35,21 @@ func TestPartnerPageIsOnlyVisibleWhenActive(t *testing.T) {
 		t.Fatal("active partner page must use its grid layout")
 	}
 }
+
+func TestPartnerFrontendUsesReferralLayoutAndExpandableAdminEntries(t *testing.T) {
+	script, err := os.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read partner script: %v", err)
+	}
+	frontend := string(script)
+	for _, expected := range []string{
+		"referral-metrics partner-referral-metrics",
+		"referral-invite-card partner-invite-card",
+		"<details class=\"admin-partner-entry",
+		"admin-partner-entry__details",
+	} {
+		if !strings.Contains(frontend, expected) {
+			t.Fatalf("partner frontend must include %q", expected)
+		}
+	}
+}
