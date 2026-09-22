@@ -62,6 +62,7 @@ type Handler struct {
 	subscriptionRepository *database.SubscriptionRepository
 	promoCodeRepository    *database.PromoCodeRepository
 	referralRepository     *database.ReferralRepository
+	partnerRepository      *database.PartnerRepository
 	walletRepository       *database.WalletRepository
 	supportRepository      *database.SupportRepository
 	reviewRepository       *database.ReviewRepository
@@ -632,6 +633,7 @@ func NewHandler(
 	purchaseRepository *database.PurchaseRepository,
 	promoCodeRepository *database.PromoCodeRepository,
 	referralRepository *database.ReferralRepository,
+	partnerRepository *database.PartnerRepository,
 	walletRepository *database.WalletRepository,
 	supportRepository *database.SupportRepository,
 	reviewRepository *database.ReviewRepository,
@@ -662,6 +664,7 @@ func NewHandler(
 		subscriptionRepository: subscriptionRepository,
 		promoCodeRepository:    promoCodeRepository,
 		referralRepository:     referralRepository,
+		partnerRepository:      partnerRepository,
 		walletRepository:       walletRepository,
 		supportRepository:      supportRepository,
 		reviewRepository:       reviewRepository,
@@ -725,6 +728,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/auth/google/link", h.withSession(h.handleLinkGoogle))
 	mux.HandleFunc("/api/mini-app/trial/activate", h.withSession(h.handleActivateTrial))
 	mux.HandleFunc("/api/mini-app/purchase", h.withSession(h.handleCreatePurchaseV2))
+	mux.HandleFunc("/api/mini-app/partner/me", h.withSession(h.handlePartnerMe))
+	mux.HandleFunc("/api/mini-app/partner/apply", h.withSession(h.handlePartnerApply))
 	mux.HandleFunc("/api/mini-app/wallet/withdraw", h.withSession(h.handleWalletWithdraw))
 	mux.HandleFunc("/api/mini-app/gifts/purchase", h.withSession(h.handleCreateGiftPurchase))
 	mux.HandleFunc("/api/mini-app/gifts/seen", h.withSession(h.handleGiftSeen))
@@ -756,6 +761,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/moynalog/test", h.withSession(h.handleAdminMoyNalogTest))
 	mux.HandleFunc("/api/mini-app/admin/moynalog/retry", h.withSession(h.handleAdminMoyNalogRetry))
 	mux.HandleFunc("/api/mini-app/admin/finance", h.withSession(h.handleAdminFinance))
+	mux.HandleFunc("/api/mini-app/admin/partners/state", h.withSession(h.handleAdminPartnersState))
+	mux.HandleFunc("/api/mini-app/admin/partners/review", h.withSession(h.handleAdminPartnerReview))
+	mux.HandleFunc("/api/mini-app/admin/partners/create", h.withSession(h.handleAdminPartnerCreate))
+	mux.HandleFunc("/api/mini-app/admin/partners/update", h.withSession(h.handleAdminPartnerUpdate))
 	mux.HandleFunc("/api/mini-app/admin/push/state", h.withSession(h.handleAdminWebPushState))
 	mux.HandleFunc("/api/mini-app/admin/push/subscribe", h.withSession(h.handleAdminWebPushSubscribe))
 	mux.HandleFunc("/api/mini-app/admin/push/unsubscribe", h.withSession(h.handleAdminWebPushUnsubscribe))
@@ -5842,6 +5851,9 @@ func (h *Handler) ensureCustomer(ctx context.Context, sess *session) (*database.
 		if err := h.tryAttachReferral(ctx, sess, customer); err != nil {
 			slog.Warn("mini app: attach referral", "error", err)
 		}
+		if err := h.tryAttachPartner(ctx, sess, customer); err != nil {
+			slog.Warn("mini app: attach partner", "error", err)
+		}
 
 		if err := h.customerRepository.UpdateTelegramUsername(ctx, customer.ID, sess.User.Username); err != nil {
 			return nil, err
@@ -5898,6 +5910,18 @@ func (h *Handler) tryAttachReferral(ctx context.Context, sess *session, customer
 
 	_, err = h.referralRepository.Create(ctx, referrerID, customer.TelegramID)
 	return err
+}
+
+func (h *Handler) tryAttachPartner(ctx context.Context, sess *session, customer *database.Customer) error {
+	if h.partnerRepository == nil || customer == nil || !strings.HasPrefix(strings.ToLower(strings.TrimSpace(sess.StartParam)), "partner_") {
+		return nil
+	}
+	code := strings.TrimSpace(sess.StartParam[len("partner_"):])
+	partner, err := h.partnerRepository.FindActiveByCode(ctx, code)
+	if err != nil || partner == nil || partner.CustomerID == customer.ID {
+		return err
+	}
+	return h.partnerRepository.AttachReferral(ctx, partner.ID, customer.ID)
 }
 
 func (h *Handler) availablePaymentMethods(ctx context.Context, customer *database.Customer) (map[string]bool, error) {

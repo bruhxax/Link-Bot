@@ -72,6 +72,7 @@ func main() {
 	subscriptionRepository := database.NewSubscriptionRepository(pool)
 	promoCodeRepository := database.NewPromoCodeRepository(pool)
 	referralRepository := database.NewReferralRepository(pool)
+	partnerRepository := database.NewPartnerRepository(pool)
 	walletRepository := database.NewWalletRepository(pool)
 	supportRepository := database.NewSupportRepository(pool)
 	reviewRepository := database.NewReviewRepository(pool)
@@ -113,7 +114,7 @@ func main() {
 		slog.Warn("broadcast recovery failed", "error", err)
 	}
 
-	paymentService := payment.NewPaymentService(tm, purchaseRepository, promoCodeRepository, remnawaveClient, customerRepository, b, cryptoPayClient, yookasaClient, referralRepository, walletRepository, cache, moynalogReceiptRepository, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository)
+	paymentService := payment.NewPaymentService(tm, purchaseRepository, promoCodeRepository, remnawaveClient, customerRepository, b, cryptoPayClient, yookasaClient, referralRepository, partnerRepository, walletRepository, cache, moynalogReceiptRepository, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository)
 	paymentService.SetAdminPushNotifier(webPushService)
 
 	cronScheduler := setupInvoiceChecker(customerRepository, purchaseRepository, paymentService)
@@ -132,7 +133,7 @@ func main() {
 
 	webLogin := webauth.NewService(webauth.DefaultTTL)
 	h := handler.NewHandler(syncService, paymentService, tm, customerRepository, purchaseRepository, cryptoPayClient, yookasaClient, referralRepository, cache, runtimeSettings, errorReporter, webLogin)
-	miniAppHandler := miniapp.NewHandler(customerRepository, purchaseRepository, promoCodeRepository, referralRepository, walletRepository, supportRepository, reviewRepository, paymentService, remnawaveClient, b, broadcastService, subService, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository, tm, webLogin)
+	miniAppHandler := miniapp.NewHandler(customerRepository, purchaseRepository, promoCodeRepository, referralRepository, partnerRepository, walletRepository, supportRepository, reviewRepository, paymentService, remnawaveClient, b, broadcastService, subService, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository, tm, webLogin)
 	miniAppHandler.SetWebPushService(webPushService)
 	miniAppHandler.StartSupportAutoCloser(ctx)
 	operations.StartHealthMonitor(ctx, pool, remnawaveClient, errorReporter)

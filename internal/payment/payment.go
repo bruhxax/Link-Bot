@@ -47,6 +47,7 @@ type PaymentService struct {
 	cryptoPayClient           *cryptopay.Client
 	yookasaClient             *yookasa.Client
 	referralRepository        *database.ReferralRepository
+	partnerRepository         *database.PartnerRepository
 	walletRepository          *database.WalletRepository
 	cache                     *cache.Cache
 	moynalogReceiptRepository *database.MoyNalogReceiptRepository
@@ -128,6 +129,7 @@ func NewPaymentService(
 	cryptoPayClient *cryptopay.Client,
 	yookasaClient *yookasa.Client,
 	referralRepository *database.ReferralRepository,
+	partnerRepository *database.PartnerRepository,
 	walletRepository *database.WalletRepository,
 	cache *cache.Cache,
 	moynalogReceiptRepository *database.MoyNalogReceiptRepository,
@@ -151,6 +153,7 @@ func NewPaymentService(
 		cryptoPayClient:           cryptoPayClient,
 		yookasaClient:             yookasaClient,
 		referralRepository:        referralRepository,
+		partnerRepository:         partnerRepository,
 		walletRepository:          walletRepository,
 		cache:                     cache,
 		moynalogReceiptRepository: moynalogReceiptRepository,
@@ -180,6 +183,11 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 		return fmt.Errorf("purchase with crypto invoice id %s not found", utils.MaskHalfInt64(purchaseId))
 	}
 	if purchase.Status == database.PurchaseStatusPaid {
+		if s.partnerRepository != nil {
+			if commissionErr := s.partnerRepository.AccrueCommission(context.Background(), purchase); commissionErr != nil {
+				slog.Error("payment: recover partner commission failed", "error", commissionErr, "purchase_id", utils.MaskHalfInt64(purchase.ID))
+			}
+		}
 		slog.Info("payment: duplicate purchase processing skipped", "purchaseId", utils.MaskHalfInt64(purchaseId))
 		return nil
 	}
@@ -261,6 +269,11 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 			return err
 		}
 		purchase.Status = database.PurchaseStatusPaid
+		if s.partnerRepository != nil {
+			if commissionErr := s.partnerRepository.AccrueCommission(context.Background(), purchase); commissionErr != nil {
+				slog.Error("payment: accrue partner commission failed", "error", commissionErr, "purchase_id", utils.MaskHalfInt64(purchase.ID))
+			}
+		}
 		s.queueMoyNalogReceipt(purchase)
 		if err := s.persistSubscriptionPanelState(ctx, customer, subscription, user); err != nil {
 			return err
@@ -322,6 +335,11 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 		return err
 	}
 	purchase.Status = database.PurchaseStatusPaid
+	if s.partnerRepository != nil {
+		if commissionErr := s.partnerRepository.AccrueCommission(context.Background(), purchase); commissionErr != nil {
+			slog.Error("payment: accrue partner commission failed", "error", commissionErr, "purchase_id", utils.MaskHalfInt64(purchase.ID))
+		}
+	}
 	s.queueMoyNalogReceipt(purchase)
 	if s.subscriptionRepository != nil {
 		if err = s.subscriptionRepository.ClearManualControl(ctx, subscription.ID); err != nil {

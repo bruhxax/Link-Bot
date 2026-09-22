@@ -881,7 +881,7 @@ const PAYMENT_LOGO_URLS = Object.freeze({
 	p2p: "/mini-app/assets/payment-card.png",
 });
 
-const PAGES = ["dashboard", "buy", "gift", "setup", "support", "faq", "reviews", "referrals", "servers", "settings", "media", "login-methods", "payments", "terms", "privacy", "custom-page", "admin"];
+const PAGES = ["dashboard", "buy", "gift", "setup", "support", "faq", "reviews", "referrals", "partner", "servers", "settings", "media", "login-methods", "payments", "terms", "privacy", "custom-page", "admin"];
 const BANNER_PAGE_TARGETS = ["reviews", "promo", "buy", "servers", "support", "referrals", "payments", "gift"];
 const BOTTOM_NAV = ["dashboard", "buy", "support", "settings", "admin"];
 const SUPPORT_TABS = ["open", "history"];
@@ -1580,7 +1580,7 @@ const PROFILE_GROUP_ORDER = ["main", "purchases", "programs", "help", "account"]
 const PROFILE_DEFAULT_GROUPS = {
 	server_status: "main", media: "main", news: "main",
 	gift: "purchases", payments: "purchases",
-	referrals: "programs", reviews: "programs",
+	referrals: "programs", partner: "programs", reviews: "programs",
 	terms: "help", privacy: "help",
 	login_methods: "account", web_version: "account", pwa_install: "account",
 };
@@ -1641,7 +1641,7 @@ const ADMIN_LAYOUT_DEFAULTS = [
 	["support", "faq", 11, 100, 64, false, "left"],
 	["support", "tabs_detail", 12, 100, 44, false, "left"],
 	["support", "tickets_detail", 13, 100, 220, false, "left"],
-	...["server_status", "gift", "payments", "referrals", "reviews", "media", "login_methods", "news", "web_version", "pwa_install", "terms", "privacy"].map((id, order) => ["profile", id, order, 100, 48, true, "left", PROFILE_DEFAULT_GROUPS[id]]),
+	...["server_status", "gift", "payments", "referrals", "partner", "reviews", "media", "login_methods", "news", "web_version", "pwa_install", "terms", "privacy"].map((id, order) => ["profile", id, order, 100, 48, true, "left", PROFILE_DEFAULT_GROUPS[id]]),
 	...["main", "purchases", "programs", "help", "account"].map((id, order) => ["profile", `group_${id}`, 20 + order, 100, 28, false, "left"]),
 	...["dashboard", "buy", "support", "settings", "admin"].map((id, order) => ["navigation", id, order, 44, 38, true, "center"]),
 ].map(([area, id, order, width, height, framed, align, group]) => ({ area, id, order, visible: true, width, height, framed, align, offsetX: 0, offsetY: 0, ...(area === "dashboard" ? { cornerRadius: id === "subscription_switcher" ? 15 : (["primary_action", "secondary_action", "traffic", "devices"].includes(id) ? 22 : 0), textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 } : {}), ...(group ? { group } : {}) }));
@@ -2147,8 +2147,13 @@ const state = {
   reviewBusy: "",
   walletWithdrawalAmount: "",
   walletPayoutDetails: "",
-  walletBusy: "",
-  adminSection: "home",
+	walletBusy: "",
+	partner: null,
+	partnerBusy: "",
+	partnerResourceDraft: "",
+	partnerPercentDraft: "",
+	partnerMonthlyUsersDraft: "",
+	adminSection: "home",
 	adminLayoutEditing: false,
 	adminLayoutBaseline: null,
 	adminLayoutBaselineDirty: false,
@@ -2211,6 +2216,10 @@ const state = {
 	adminUsers: { items: [], total: 0, limit: 30, offset: 0 },
 	adminUsersQuery: "",
 	adminUsersBusy: "",
+	adminPartners: null,
+	adminPartnersBusy: "",
+	adminPartnerTelegramDraft: "",
+	adminPartnerPercentDraft: "20",
 	adminUserDetail: null,
 	adminUserPending: null,
 	adminUserDetailSettled: false,
@@ -2956,7 +2965,7 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 		state.adminUserPreviewDetail = deepClone(state.adminUserDetail);
 		if (urlParams.get("detail") !== "1") state.adminUserDetail = null;
 		const previewSection = String(urlParams.get("section") || "");
-		if (["integrations", "referrals", "moynalog", "finance", "push", "users"].includes(previewSection)) {
+		if (["integrations", "referrals", "partners", "moynalog", "finance", "push", "users"].includes(previewSection)) {
 			state.currentPage = "admin";
 			state.adminSection = previewSection;
 			state.adminLayoutEditing = false;
@@ -3557,6 +3566,7 @@ function renderPages() {
     renderFaqPage(),
     renderReviewsPage(),
     renderReferralsPage(),
+		renderPartnerPage(),
     renderServersPage(),
     renderSettingsPage(),
     renderMediaPage(),
@@ -3590,6 +3600,7 @@ function renderAdminPage() {
 	if (state.adminSection === "integrations") return renderAdminIntegrationsPage();
 	if (state.adminSection === "moynalog") return renderAdminMoyNalogPage();
 	if (state.adminSection === "finance") return renderAdminFinancePage();
+	if (state.adminSection === "partners") return renderAdminPartnersPage();
 	if (state.adminSection === "push") return renderAdminPushPage();
 	if (state.adminSection === "users") return renderAdminUsersPage();
 	return `
@@ -3617,6 +3628,7 @@ function renderAdminPage() {
 				[localizedText("Пользователи", "Users", "کاربران"), "", "users", "users"],
 				[localizedText("Финансы", "Finance", "امور مالی"), "", "finance", "chartLine"],
 				[localizedText("Рефералы и баланс", "Referrals and balance", "دعوت و موجودی"), "", "referrals", "users"],
+				[localizedText("Партнёры", "Partners", "همکاران"), "", "partners", "users"],
 				[localizedText("Рассылка", "Broadcast", "ارسال همگانی"), "", "broadcast", "adminBroadcast"],
 				[localizedText("Промокоды", "Promo codes", "کدهای تخفیف"), "", "promocodes", "adminPromocodes"],
 			])}
@@ -3784,6 +3796,30 @@ function renderAdminFinancePage() {
 		</section>
 		<section class="admin-finance__history" aria-labelledby="admin-finance-history-title"><div class="admin-finance__section-head"><div><span>ОПЕРАЦИИ</span><h3 id="admin-finance-history-title">История платежей</h3></div><strong>${Number(data.paymentTotal || 0).toLocaleString("ru-RU")}</strong></div><div class="admin-finance-history__surface"><div class="admin-finance-history__list">${renderAdminFinanceHistory(payments)}</div>${hasMore ? `<button class="admin-finance__more" type="button" data-action="admin-finance-more" ${state.adminFinanceBusy ? "disabled" : ""}>${state.adminFinanceBusy === "more" ? icon("refresh") : icon("arrowDown")}<span>Показать ещё</span></button>` : ""}</div></section>
 	</div></section>`;
+}
+
+function renderAdminPartnersPage() {
+	const data = state.adminPartners || { applications: [], partners: [] };
+	const applications = Array.isArray(data.applications) ? data.applications : [];
+	const partners = Array.isArray(data.partners) ? data.partners : [];
+	const busy = state.adminPartnersBusy;
+	return renderAdminEditorPage("Партнёры", `<div class="admin-partners">
+		<section class="admin-partners__create"><div><h3>Добавить без заявки</h3><p>Пользователь уже должен хотя бы раз открыть бота.</p></div><div class="admin-partners__create-fields"><label><span>Telegram ID</span><input type="text" inputmode="numeric" data-input="admin-partner-telegram" value="${escapeAttribute(state.adminPartnerTelegramDraft)}" placeholder="123456789"></label><label><span>Процент</span><input type="number" min="0" max="100" inputmode="numeric" data-input="admin-partner-percent" value="${escapeAttribute(state.adminPartnerPercentDraft)}"></label><button type="button" data-action="admin-partner-create" ${busy ? "disabled" : ""}>${icon("plus")}<span>Добавить</span></button></div></section>
+		<section class="admin-partners__section"><div class="admin-partners__heading"><h3>Заявки</h3><span>${applications.filter((item) => item.status === "pending").length} новых</span></div>${applications.length ? `<div class="admin-partners__list">${applications.map(renderAdminPartnerApplication).join("")}</div>` : `<p class="admin-partners__empty">Новых заявок нет.</p>`}</section>
+		<section class="admin-partners__section"><div class="admin-partners__heading"><h3>Действующие партнёры</h3><span>${partners.filter((item) => item.isActive).length} активно</span></div>${partners.length ? `<div class="admin-partners__list">${partners.map(renderAdminPartnerRow).join("")}</div>` : `<p class="admin-partners__empty">Партнёров пока нет.</p>`}</section>
+	</div>`);
+}
+
+function renderAdminPartnerApplication(item) {
+	const pending = item.status === "pending";
+	const user = item.username ? `@${item.username}` : String(item.telegramId || "—");
+	return `<article class="admin-partner-row ${pending ? "is-pending" : ""}"><div class="admin-partner-row__head"><div><strong>${escapeHtml(user)}</strong><small>${escapeHtml(formatShortDateLabel(item.createdAt, state.locale))}</small></div><span>${escapeHtml(item.status === "approved" ? "Принята" : item.status === "rejected" ? "Отклонена" : "На рассмотрении")}</span></div><a href="${escapeAttribute(item.resourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.resourceUrl)}</a><div class="admin-partner-row__request"><span>Запросил ${formatNumber(item.requestedPercent || 0, state.locale)}%</span><span>Ожидает ${formatNumber(item.expectedMonthlyUsers || 0, state.locale)} / мес.</span></div>${pending ? `<div class="admin-partner-row__actions"><label><span>Утвердить, %</span><input type="number" min="0" max="100" value="${escapeAttribute(String(item.requestedPercent || 0))}" data-admin-partner-row-percent></label><button type="button" data-action="admin-partner-review" data-value="${item.id}" data-approve="true" ${state.adminPartnersBusy ? "disabled" : ""}>Принять</button><button type="button" data-action="admin-partner-review" data-value="${item.id}" data-approve="false" ${state.adminPartnersBusy ? "disabled" : ""}>Отказать</button></div>` : ""}</article>`;
+}
+
+function renderAdminPartnerRow(item) {
+	const stats = item.stats || {};
+	const user = item.username ? `@${item.username}` : String(item.telegramId || "—");
+	return `<article class="admin-partner-row"><div class="admin-partner-row__head"><div><strong>${escapeHtml(user)}</strong><small>Код: ${escapeHtml(item.code || "—")}</small></div><span class="${item.isActive ? "is-active" : ""}">${item.isActive ? "Активен" : "Отключён"}</span></div><div class="admin-partner-stats"><span><b>${formatNumber(stats.visitors || 0, state.locale)}</b> пришло</span><span><b>${formatNumber(stats.trialUsers || 0, state.locale)}</b> триалы</span><span><b>${formatNumber(stats.payingUsers || 0, state.locale)}</b> купили</span><span><b>${escapeHtml(formatFinanceRub(stats.revenue || 0))}</b> оборот</span></div><div class="admin-partner-row__actions"><label><span>Процент</span><input type="number" min="0" max="100" value="${escapeAttribute(String(item.commissionPercent || 0))}" data-admin-partner-row-percent></label><button type="button" data-action="admin-partner-percent" data-value="${item.id}" ${state.adminPartnersBusy ? "disabled" : ""}>Сохранить</button><button type="button" data-action="admin-partner-toggle" data-value="${item.id}" data-active="${item.isActive ? "false" : "true"}" ${state.adminPartnersBusy ? "disabled" : ""}>${item.isActive ? "Отключить" : "Включить"}</button></div></article>`;
 }
 
 async function refreshAdminFinance({ append = false } = {}) {
@@ -6669,6 +6705,44 @@ function renderReferralsPage() {
   `;
 }
 
+function renderPartnerPage() {
+	const data = state.partner;
+	const application = data?.application;
+	const partner = data?.partner;
+	if (!data && state.partnerBusy === "load") return `<section class="page partner-page ${pageClass("partner")}" id="page-partner"><div class="partner-loading" role="status">${icon("refresh")}<span>Загружаем партнёрскую программу…</span></div></section>`;
+	if (partner) return renderPartnerCabinetPage(partner);
+	if (application) return `<section class="page partner-page ${pageClass("partner")}" id="page-partner">
+		<div class="partner-hero"><span class="partner-hero__icon">${icon("users")}</span><div><p>Партнёрская программа</p><h1>${application.status === "rejected" ? "Заявка отклонена" : "Заявка на рассмотрении"}</h1><span>${application.status === "rejected" ? "Обновите данные и подайте заявку снова." : "Мы проверим ресурс и сообщим о решении."}</span></div></div>
+		<div class="partner-application-summary"><div><span>Ваш ресурс</span><a href="${escapeAttribute(application.resourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(application.resourceUrl)}</a></div><div><span>Желаемый процент</span><strong>${formatNumber(application.requestedPercent || 0, state.locale)}%</strong></div><div><span>Аудитория в месяц</span><strong>${formatNumber(application.expectedMonthlyUsers || 0, state.locale)}</strong></div></div>
+		${application.status === "rejected" ? renderPartnerApplicationForm("Отправить новую заявку") : ""}
+	</section>`;
+	return `<section class="page partner-page ${pageClass("partner")}" id="page-partner">
+		<div class="partner-hero"><span class="partner-hero__icon">${icon("users")}</span><div><p>Партнёрская программа</p><h1>Рекламируйте сервис — получайте процент</h1><span>Отдельная ссылка и прозрачная статистика по приглашениям, триалам и покупкам.</span></div></div>
+		${renderPartnerApplicationForm("Оставить заявку")}
+	</section>`;
+}
+
+function renderPartnerApplicationForm(buttonLabel) {
+	const busy = state.partnerBusy === "apply";
+	return `<form class="partner-form" data-partner-form>
+		<label><span>Ссылка на сайт или медиа-ресурс</span><small>Например: YouTube, TikTok, Telegram-канал или сайт.</small><input type="url" required maxlength="1000" inputmode="url" autocomplete="url" placeholder="https://t.me/your_channel" data-input="partner-resource" value="${escapeAttribute(state.partnerResourceDraft)}"></label>
+		<div class="partner-form__grid"><label><span>Желаемый процент</span><input type="number" required min="0" max="100" inputmode="numeric" placeholder="20" data-input="partner-percent" value="${escapeAttribute(state.partnerPercentDraft)}"><small>% от покупок</small></label><label><span>Пользователей в месяц</span><input type="number" required min="0" max="10000000" inputmode="numeric" placeholder="100" data-input="partner-monthly-users" value="${escapeAttribute(state.partnerMonthlyUsersDraft)}"><small>Ожидаемый поток</small></label></div>
+		<button class="btn partner-form__submit" type="button" data-action="submit-partner-application" ${busy ? "disabled" : ""}>${icon(busy ? "refresh" : "send")}<span>${busy ? "Отправляем…" : buttonLabel}</span></button>
+	</form>`;
+}
+
+function renderPartnerCabinetPage(partner) {
+	const inviteURL = String(partner.inviteUrl || "");
+	let qrCode = "";
+	try { qrCode = renderQRCodeSVG(inviteURL, { border: 4, ecc: "H", pixelSize: 8, rounded: 0.5, moduleScale: 0.96, finderRadius: 1.45, whiteColor: "#fff", blackColor: "#050505" }).replace("<svg ", '<svg data-preserve-color="true" aria-hidden="true" '); } catch { qrCode = icon("qr"); }
+	const stats = partner.stats || {};
+	return `<section class="page partner-page ${pageClass("partner")}" id="page-partner">
+		<div class="partner-hero partner-hero--active"><span class="partner-hero__icon">${icon("chartLine")}</span><div><p>Партнёрская программа</p><h1>${partner.isActive ? "Ваш партнёрский кабинет" : "Партнёрство приостановлено"}</h1><span>${partner.isActive ? `Ваш процент с покупок: ${formatNumber(partner.commissionPercent || 0, state.locale)}%` : "Новые переходы по ссылке временно не учитываются."}</span></div></div>
+		<div class="partner-metrics" role="group" aria-label="Статистика партнёрской программы"><div><strong>${formatNumber(stats.visitors || 0, state.locale)}</strong><span>Пришло</span></div><div><strong>${formatNumber(stats.trialUsers || 0, state.locale)}</strong><span>Триалы</span></div><div><strong>${formatNumber(stats.payingUsers || 0, state.locale)}</strong><span>Купили</span></div><div><strong>${escapeHtml(formatFinanceRub(stats.commission || 0))}</strong><span>Начислено</span></div></div>
+		<section class="partner-link-card" aria-labelledby="partner-link-title"><div class="partner-link-card__qr" role="img" aria-label="QR-код партнёрской ссылки">${qrCode}</div><div><p id="partner-link-title">Ваша партнёрская ссылка</p><code>${escapeHtml(inviteURL || "Ссылка готовится")}</code><small>Отличается от обычной рефералки. По ней считаются переходы, триалы и покупки.</small><div class="partner-link-card__actions"><button class="btn" type="button" data-action="share-partner" ${partner.shareUrl ? "" : "disabled"}>${icon("share")}<span>Поделиться</span></button><button class="btn" type="button" data-action="copy-partner" ${inviteURL ? "" : "disabled"}>${icon("copy")}<span>Копировать</span></button></div></div></section>
+	</section>`;
+}
+
 function renderReferralInviteCard(referral, copy) {
 	const inviteURL = String(referral?.inviteUrl || "").trim();
 	const shareURL = String(referral?.shareUrl || "").trim();
@@ -6766,6 +6840,7 @@ function getProfileItems() {
 		news: { group: "main", label: copy.channel, hint: linkHint(links.channel), action: "open-link", value: links.channel, icon: "profileLetter", feature: "news" },
 		payments: { group: "purchases", label: copy.paymentsTitle || "Payments", hint: copy.paymentsHint || "", action: "go-page", value: "payments", icon: "profileCard", feature: "payments_history" },
 		referrals: { group: "programs", label: copy.referralSystem, hint: copy.referralsHint, action: "go-page", value: "referrals", icon: "users", feature: "referrals" },
+		partner: { group: "programs", label: localizedText("Партнёрка", "Partners", "همکاری"), hint: localizedText("Зарабатывайте на покупках приглашённых", "Earn from invited users' purchases", "از خریدهای کاربران دعوت‌شده درآمد کسب کنید"), action: "go-page", value: "partner", icon: "users" },
 		reviews: { group: "programs", label: copy.feedback, hint: reviewsSummaryHint(), action: "go-page", value: "reviews", icon: "profileStar", feature: "reviews" },
 		login_methods: { group: "account", label: loginMethodsLabel(), hint: loginMethodsHint(), action: "go-page", value: "login-methods", icon: "profileKey", feature: "login_methods" },
 		web_version: { group: "account", label: webVersionLabel(), hint: webVersionHint(), action: "open-web-version", value: "", icon: "profileExternal", feature: "web_version" },
@@ -6802,10 +6877,14 @@ function getProfileItems() {
 	}
 	const configured = getLayoutElements("profile");
 	const configuredIDs = new Set(configured.map((item) => item.id));
+	const missingBuiltIns = ["partner"]
+		.filter((id) => !configuredIDs.has(id))
+		.map((id) => deepClone(ADMIN_LAYOUT_DEFAULTS.find((item) => item.area === "profile" && item.id === id)))
+		.filter(Boolean);
 	const missingCustom = Object.keys(definitions)
 		.filter((id) => id.startsWith("custom.") && !configuredIDs.has(id))
 		.map((id, index) => ({ id, order: configured.length + index, visible: true, width: 100, height: 48, framed: true, group: "main" }));
-	const order = configured.length ? [...configured, ...missingCustom] : Object.keys(definitions).map((id, index) => ({ id, order: index, visible: true, width: 100, height: 48, framed: true }));
+	const order = configured.length ? [...configured, ...missingBuiltIns, ...missingCustom] : Object.keys(definitions).map((id, index) => ({ id, order: index, visible: true, width: 100, height: 48, framed: true }));
 	const items = order.map((layout) => {
 		const item = definitions[layout.id];
 		if (!item || ((!item.value && item.action === "open-link") || (item.feature && !featureEnabled(item.feature)))) return null;
@@ -8207,7 +8286,7 @@ function bindRootActions() {
 		if (action === "delete-subscription") return openSubscriptionDelete();
 		if (action === "close-subscription-delete") return closeSubscriptionDelete();
 		if (action === "confirm-subscription-delete") return await deleteActiveSubscription();
-      if (action === "open-admin-section") {
+		if (action === "open-admin-section") {
 		if (value === "layout") return enterAdminLayoutEditor();
 		if (value === "plans") return enterAdminPlanEditor();
 		state.adminSection = value || "home";
@@ -8218,6 +8297,7 @@ function bindRootActions() {
 		if (value === "finance") void refreshAdminFinance();
 		if (value === "push") void refreshAdminPush().catch((error) => showToast(error?.message || "Не удалось загрузить уведомления", "danger"));
 		if (value === "users") void refreshAdminUsers();
+		if (value === "partners") void refreshAdminPartners();
 		return;
 	  }
 	  if (action === "admin-background-mode") {
@@ -8346,7 +8426,7 @@ function bindRootActions() {
 			if (action === "admin-add-legal-section") return addAdminLegalSection();
 			if (action === "admin-remove-legal-section") return removeAdminLegalSection(Number(value));
       if (action === "go-home") return setPage("dashboard");
-		if (action === "go-page") return setPage(value);
+	  if (action === "go-page") return setPage(value);
 		if (action === "open-banner") return openDashboardBanner(value);
 		if (action === "open-promo-widget-checkout") return await openPromoWidgetCheckout(value);
 		if (action === "open-notification-widget") return toggleNotificationPopover(target);
@@ -8506,6 +8586,13 @@ function bindRootActions() {
       if (action === "copy-access") return state.data?.subscription?.subscriptionLink ? copyToClipboard(state.data.subscription.subscriptionLink).then(() => showToast(t().copied)) : showToast(t().noAccess);
       if (action === "share-referral") return state.data?.referral?.shareUrl ? openExternal(state.data.referral.shareUrl) : undefined;
       if (action === "copy-referral") return state.data?.referral?.inviteUrl ? copyToClipboard(state.data.referral.inviteUrl).then(() => showToast(t().copied)) : undefined;
+			if (action === "share-partner") return state.partner?.partner?.shareUrl ? openExternal(state.partner.partner.shareUrl) : undefined;
+			if (action === "copy-partner") return state.partner?.partner?.inviteUrl ? copyToClipboard(state.partner.partner.inviteUrl).then(() => showToast(t().copied)) : undefined;
+			if (action === "submit-partner-application") return await submitPartnerApplication();
+			if (action === "admin-partner-review") return await reviewAdminPartner(Number(value), target.dataset.approve === "true", Number(target.closest(".admin-partner-row")?.querySelector("[data-admin-partner-row-percent]")?.value || 0));
+			if (action === "admin-partner-create") return await createAdminPartner();
+			if (action === "admin-partner-toggle") return await updateAdminPartner(Number(value), { active: target.dataset.active === "true" });
+			if (action === "admin-partner-percent") return await updateAdminPartner(Number(value), { percent: Number(target.closest(".admin-partner-row")?.querySelector("[data-admin-partner-row-percent]")?.value || 0) });
 			if (action === "wallet-withdraw") return await submitWalletWithdrawal();
 			if (action === "open-support-username") return openExternal(value);
 			if (action === "open-support-link") return openSupportMessageLink(value);
@@ -8881,6 +8968,11 @@ function bindRootActions() {
 		}
 		if (inputKey === "wallet-withdrawal-amount") { state.walletWithdrawalAmount = target.value; return; }
 		if (inputKey === "wallet-payout-details") { state.walletPayoutDetails = target.value; return; }
+		if (inputKey === "partner-resource") { state.partnerResourceDraft = String(target.value || "").slice(0, 1000); return; }
+		if (inputKey === "partner-percent") { state.partnerPercentDraft = String(target.value || "").slice(0, 3); return; }
+		if (inputKey === "partner-monthly-users") { state.partnerMonthlyUsersDraft = String(target.value || "").slice(0, 8); return; }
+		if (inputKey === "admin-partner-telegram") { state.adminPartnerTelegramDraft = String(target.value || "").replace(/\D+/g, "").slice(0, 19); if (target.value !== state.adminPartnerTelegramDraft) target.value = state.adminPartnerTelegramDraft; return; }
+		if (inputKey === "admin-partner-percent") { state.adminPartnerPercentDraft = String(target.value || "").slice(0, 3); return; }
       if (inputKey === "promo-code") {
         state.promoCodeDraft = target.value;
         if (state.appliedPromo && normalizePromoCodeValue(target.value) !== state.appliedPromo.code) {
@@ -11752,6 +11844,84 @@ async function submitWalletWithdrawal() {
 	}
 }
 
+async function refreshPartner({ silent = false } = {}) {
+	if (state.partnerBusy === "load") return;
+	if (previewMode) {
+		state.partner = { partner: { id: 1, customerId: 12, telegramId: 777777, username: "linkbot", code: "M8Q2K7PX", commissionPercent: 20, isActive: true, inviteUrl: "https://t.me/link_bot?startapp=partner_M8Q2K7PX", shareUrl: "https://t.me/share/url", stats: { visitors: 184, trialUsers: 57, payingUsers: 21, purchaseCount: 29, revenue: 18740, commission: 3748, currency: "RUB" } } };
+		if (!silent) render({ preserveScroll: true });
+		return;
+	}
+	state.partnerBusy = "load";
+	if (!silent) render({ preserveScroll: true });
+	try {
+		const response = await post("/api/mini-app/partner/me", {});
+		state.partner = response.data || {};
+		const application = state.partner.application;
+		if (application && !state.partnerResourceDraft) {
+			state.partnerResourceDraft = application.resourceUrl || "";
+			state.partnerPercentDraft = String(application.requestedPercent ?? "");
+			state.partnerMonthlyUsersDraft = String(application.expectedMonthlyUsers ?? "");
+		}
+	} finally {
+		state.partnerBusy = "";
+		if (!silent) render({ preserveScroll: true });
+	}
+}
+
+async function submitPartnerApplication() {
+	if (state.partnerBusy) return;
+	const resourceUrl = String(state.partnerResourceDraft || "").trim();
+	const requestedPercent = Number(state.partnerPercentDraft);
+	const expectedMonthlyUsers = Number(state.partnerMonthlyUsersDraft);
+	if (!resourceUrl || !Number.isInteger(requestedPercent) || requestedPercent < 0 || requestedPercent > 100 || !Number.isInteger(expectedMonthlyUsers) || expectedMonthlyUsers < 0) return showToast("Заполните ссылку, процент и ожидаемую аудиторию", "danger");
+	state.partnerBusy = "apply";
+	render({ preserveScroll: true });
+	try {
+		const response = await post("/api/mini-app/partner/apply", { resourceUrl, requestedPercent, expectedMonthlyUsers });
+		state.partner = response.data || state.partner;
+		showToast("Заявка отправлена", "success");
+	} finally { state.partnerBusy = ""; render({ preserveScroll: true }); }
+}
+
+async function refreshAdminPartners() {
+	if (state.adminPartnersBusy === "load") return;
+	if (previewMode) {
+		state.adminPartners = { applications: [{ id: 31, customerId: 66, telegramId: 6456789012, username: "vpn_creator", resourceUrl: "https://t.me/vpn_creator", requestedPercent: 25, expectedMonthlyUsers: 300, status: "pending", createdAt: new Date().toISOString() }], partners: [{ id: 1, customerId: 12, telegramId: 777777, username: "linkbot", code: "M8Q2K7PX", commissionPercent: 20, isActive: true, stats: { visitors: 184, trialUsers: 57, payingUsers: 21, revenue: 18740 } }] };
+		render({ preserveScroll: true });
+		return;
+	}
+	state.adminPartnersBusy = "load";
+	render({ preserveScroll: true });
+	try { const response = await post("/api/mini-app/admin/partners/state", {}); state.adminPartners = response.data || { applications: [], partners: [] }; }
+	finally { state.adminPartnersBusy = ""; render({ preserveScroll: true }); }
+}
+
+async function reviewAdminPartner(applicationId, approve, percent) {
+	if (!applicationId || state.adminPartnersBusy) return;
+	if (approve && (!Number.isInteger(percent) || percent < 0 || percent > 100)) return showToast("Введите процент от 0 до 100", "danger");
+	state.adminPartnersBusy = `review-${applicationId}`; render({ preserveScroll: true });
+	try { await post("/api/mini-app/admin/partners/review", { applicationId, approve, percent }); await refreshAdminPartners(); showToast(approve ? "Партнёр принят" : "Заявка отклонена", "success"); }
+	finally { if (state.adminPartnersBusy !== "load") { state.adminPartnersBusy = ""; render({ preserveScroll: true }); } }
+}
+
+async function createAdminPartner() {
+	if (state.adminPartnersBusy) return;
+	const telegramId = Number(state.adminPartnerTelegramDraft), percent = Number(state.adminPartnerPercentDraft);
+	if (!Number.isSafeInteger(telegramId) || telegramId <= 0 || !Number.isInteger(percent) || percent < 0 || percent > 100) return showToast("Укажите Telegram ID и процент от 0 до 100", "danger");
+	state.adminPartnersBusy = "create"; render({ preserveScroll: true });
+	try { await post("/api/mini-app/admin/partners/create", { telegramId, percent }); state.adminPartnerTelegramDraft = ""; await refreshAdminPartners(); showToast("Партнёр добавлен", "success"); }
+	finally { if (state.adminPartnersBusy !== "load") { state.adminPartnersBusy = ""; render({ preserveScroll: true }); } }
+}
+
+async function updateAdminPartner(partnerId, update) {
+	if (!partnerId || state.adminPartnersBusy) return;
+	const percent = update.percent;
+	if (percent !== undefined && (!Number.isInteger(percent) || percent < 0 || percent > 100)) return showToast("Введите процент от 0 до 100", "danger");
+	state.adminPartnersBusy = `update-${partnerId}`; render({ preserveScroll: true });
+	try { await post("/api/mini-app/admin/partners/update", { partnerId, action: percent === undefined ? "active" : "percent", percent: percent || 0, active: Boolean(update.active) }); await refreshAdminPartners(); showToast("Партнёр обновлён", "success"); }
+	finally { if (state.adminPartnersBusy !== "load") { state.adminPartnersBusy = ""; render({ preserveScroll: true }); } }
+}
+
 async function resolveAdminWithdrawal(id, approve) {
 	if (!id || state.adminBusy) return;
 	state.adminBusy = `withdrawal-${id}`;
@@ -13087,6 +13257,7 @@ function setPage(page) {
   writeSetting(STORAGE_KEYS.page, state.currentPage);
   haptic("light");
   render({ preserveScroll: samePage, scrollTop: samePage ? state.scrollTopByPage[state.currentPage] ?? 0 : 0 });
+	if (nextPage === "partner") void refreshPartner();
 }
 
 function getCurrentScrollTop() {
