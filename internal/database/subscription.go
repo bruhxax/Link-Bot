@@ -447,6 +447,35 @@ func (sr *SubscriptionRepository) TransferPanelSubscription(
 		}
 	}
 
+	// A profile brought in through the admin rebind flow can be maintained in
+	// the panel independently from Link-Bot. If no paid tariff snapshot moved
+	// with it, record that fact so dashboard refreshes never replace its limits
+	// with a default bot tariff.
+	var hasPaidTariff bool
+	if err := tx.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM purchase
+			WHERE customer_id = $1
+			  AND subscription_id = $2
+			  AND status = 'paid'
+			  AND month > 0
+		)
+	`, targetCustomerID, destination.ID).Scan(&hasPaidTariff); err != nil {
+		return nil, fmt.Errorf("check transferred subscription tariff history: %w", err)
+	}
+	if hasPaidTariff {
+		if _, err := tx.Exec(ctx, `DELETE FROM customer_subscription_manual_control WHERE subscription_id = $1`, destination.ID); err != nil {
+			return nil, fmt.Errorf("clear transferred manual subscription control: %w", err)
+		}
+	} else if _, err := tx.Exec(ctx, `
+		INSERT INTO customer_subscription_manual_control (subscription_id, marked_at)
+		VALUES ($1, NOW())
+		ON CONFLICT (subscription_id) DO UPDATE SET marked_at = EXCLUDED.marked_at
+	`, destination.ID); err != nil {
+		return nil, fmt.Errorf("mark transferred manual subscription control: %w", err)
+	}
+
 	for customerID := range affectedCustomers {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO customer_subscription_selection (customer_id, subscription_id, updated_at)
@@ -688,6 +717,35 @@ func (sr *SubscriptionRepository) UpdatePanelState(ctx context.Context, subscrip
 	}
 	expire := expireAt.UTC()
 	return sr.UpdatePanelAccess(ctx, subscription, panelUserID, panelUserUUID, linkValue, &expire)
+}
+
+// IsManuallyControlled reports whether a panel profile was attached by an
+// administrator and has not subsequently been provisioned by a bot purchase.
+func (sr *SubscriptionRepository) IsManuallyControlled(ctx context.Context, subscriptionID int64) (bool, error) {
+	if subscriptionID <= 0 {
+		return false, nil
+	}
+	var exists bool
+	if err := sr.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM customer_subscription_manual_control WHERE subscription_id = $1
+		)
+	`, subscriptionID).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check manual subscription control: %w", err)
+	}
+	return exists, nil
+}
+
+// ClearManualControl hands a manually attached panel profile back to the bot
+// after a customer successfully buys a tariff for that subscription.
+func (sr *SubscriptionRepository) ClearManualControl(ctx context.Context, subscriptionID int64) error {
+	if subscriptionID <= 0 {
+		return nil
+	}
+	if _, err := sr.pool.Exec(ctx, `DELETE FROM customer_subscription_manual_control WHERE subscription_id = $1`, subscriptionID); err != nil {
+		return fmt.Errorf("clear manual subscription control: %w", err)
+	}
+	return nil
 }
 
 func (sr *SubscriptionRepository) UpdatePanelAccess(ctx context.Context, subscription *CustomerSubscription, panelUserID int64, panelUserUUID uuid.UUID, subscriptionLink *string, expireAt *time.Time) error {

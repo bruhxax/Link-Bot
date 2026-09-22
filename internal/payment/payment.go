@@ -323,6 +323,11 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	}
 	purchase.Status = database.PurchaseStatusPaid
 	s.queueMoyNalogReceipt(purchase)
+	if s.subscriptionRepository != nil {
+		if err = s.subscriptionRepository.ClearManualControl(ctx, subscription.ID); err != nil {
+			return err
+		}
+	}
 
 	if err = s.persistSubscriptionPanelState(ctx, customer, subscription, user); err != nil {
 		return err

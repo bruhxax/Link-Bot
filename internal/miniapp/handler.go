@@ -4134,6 +4134,18 @@ func (h *Handler) syncSubscriptionTrafficLimit(ctx context.Context, customer *da
 	if h.remnawaveClient == nil || customer == nil || panelState == nil || !panelState.Exists {
 		return panelState, nil
 	}
+	if subscription != nil && h.subscriptionRepository != nil {
+		manual, err := h.subscriptionRepository.IsManuallyControlled(ctx, subscription.ID)
+		if err != nil {
+			// A failed ownership check must never result in an unrequested panel
+			// update. Preserve the current limits and try again next refresh.
+			slog.Warn("mini app: check manual subscription control failed", "error", err, "subscriptionId", subscription.ID)
+			return panelState, nil
+		}
+		if manual {
+			return panelState, nil
+		}
+	}
 
 	if customer.ExpireAt == nil || !customer.ExpireAt.After(time.Now().UTC()) {
 		return panelState, nil
