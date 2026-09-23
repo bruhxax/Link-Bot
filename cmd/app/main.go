@@ -347,14 +347,64 @@ func startPaymentNotificationBot(ctx context.Context, settings *integrations.Ser
 	if settings == nil {
 		return
 	}
-	notificationConfig, ok := settings.Config(integrations.ProviderNotificationBot)
-	if !ok {
-		return
-	}
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		var runningConfigKey string
+		var stop context.CancelFunc
+		var stopped <-chan struct{}
+		defer func() {
+			if stop != nil {
+				stop()
+				<-stopped
+			}
+		}()
+		for {
+			// A token can be saved or replaced while the main application is running.
+			cfg, _ := settings.StoredConfig(integrations.ProviderNotificationBot)
+			token := strings.TrimSpace(cfg["token"])
+			configKey := ""
+			if token != "" {
+				configKey = token + "\x00" + strings.TrimSpace(cfg["chatId"]) + "\x00" + strings.TrimSpace(cfg["timezone"])
+			}
+			if configKey != runningConfigKey {
+				if stop != nil {
+					stop()
+					<-stopped
+					stop = nil
+					stopped = nil
+				}
+				runningConfigKey = ""
+				if token != "" {
+					botCtx, cancel := context.WithCancel(ctx)
+					if done, ok := runPaymentNotificationBot(botCtx, settings, paymentService, cfg); ok {
+						runningConfigKey, stop, stopped = configKey, cancel, done
+					} else {
+						cancel()
+					}
+				}
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-stopped:
+				runningConfigKey, stop, stopped = "", nil, nil
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+			case <-ticker.C:
+			}
+		}
+	}()
+}
 
+func runPaymentNotificationBot(ctx context.Context, settings *integrations.Service, paymentService *payment.PaymentService, notificationConfig map[string]string) (<-chan struct{}, bool) {
+	// Keep the bot responsive to setup commands even when payment delivery is disabled.
 	token := strings.TrimSpace(notificationConfig["token"])
 	if token == "" {
-		return
+		return nil, false
 	}
 	allowedChatID, _ := strconv.ParseInt(strings.TrimSpace(notificationConfig["chatId"]), 10, 64)
 	if allowedChatID == 0 {
@@ -365,22 +415,22 @@ func startPaymentNotificationBot(ctx context.Context, settings *integrations.Ser
 		timezone = "Europe/Moscow"
 	}
 
-	manager := &paymentNotificationGroupManager{settings: settings, adminID: config.GetAdminTelegramId()}
-	notificationBot, err := bot.New(token, bot.WithWorkers(1),
+	manager := &paymentNotificationGroupManager{settings: settings, adminID: config.GetAdminTelegramId(), chatID: allowedChatID}
+	notificationBot, err := bot.New(token, bot.WithWorkers(1), bot.WithSkipGetMe(),
 		bot.WithDefaultHandler(manager.handle),
 		bot.WithAllowedUpdates(bot.AllowedUpdates{models.AllowedUpdateMessage, models.AllowedUpdateCallbackQuery, models.AllowedUpdateMyChatMember}),
 	)
 	if err != nil {
 		slog.Error("payment notification bot initialization failed", "error", err)
-		return
+		return nil, false
 	}
 
 	me, err := notificationBot.GetMe(ctx)
 	if err != nil {
-		slog.Error("payment notification bot identity lookup failed", "error", err)
-		return
+		slog.Warn("payment notification bot identity lookup failed; setup commands remain available", "error", err)
+	} else {
+		manager.username = me.Username
 	}
-	manager.username = me.Username
 	_, err = notificationBot.DeleteWebhook(ctx, &bot.DeleteWebhookParams{DropPendingUpdates: false})
 	if err != nil {
 		slog.Warn("payment notification bot webhook cleanup failed", "error", err)
@@ -410,11 +460,14 @@ func startPaymentNotificationBot(ctx context.Context, settings *integrations.Ser
 		paymentService.RegisterP2PNotificationHandlers(notificationBot, allowedChatID)
 	}
 
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		slog.Info("Payment notification bot is starting")
 		notificationBot.Start(ctx)
 		slog.Info("Payment notification bot stopped")
 	}()
+	return done, true
 }
 
 func paymentNotificationPingHandler(ctx context.Context, b *bot.Bot, update *models.Update, allowedChatID int64, timezone string) {

@@ -13,10 +13,21 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
+type notificationGroupSettings interface {
+	StoredConfig(provider string) (map[string]string, bool)
+	SaveNotificationGroup(context.Context, integrations.NotificationGroup) error
+	RemoveNotificationGroup(context.Context, int64) error
+}
+
 type paymentNotificationGroupManager struct {
-	settings *integrations.Service
+	settings notificationGroupSettings
 	adminID  int64
+	chatID   int64
 	username string
+}
+
+func (m *paymentNotificationGroupManager) isOwner(userID int64) bool {
+	return userID != 0 && (userID == m.adminID || (m.chatID > 0 && userID == m.chatID))
 }
 
 func (m *paymentNotificationGroupManager) handle(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -28,24 +39,45 @@ func (m *paymentNotificationGroupManager) handle(ctx context.Context, b *bot.Bot
 		return
 	}
 	message := update.Message
-	if message == nil || message.From == nil || message.From.ID != m.adminID {
+	if message == nil || message.From == nil {
 		return
 	}
 	command := strings.Fields(strings.TrimSpace(message.Text))
 	if message.Chat.Type != models.ChatTypePrivate {
-		if len(command) > 0 && (commandName(command[0]) == "/connectgroup" || commandName(command[0]) == "/topic") {
-			if commandName(command[0]) == "/topic" && message.MessageThreadID > 0 {
+		if len(command) == 0 {
+			return
+		}
+		switch m.commandName(command[0]) {
+		case "/start", "/connectgroup", "/topic":
+			if !m.isOwner(message.From.ID) {
+				m.send(ctx, b, message.Chat.ID, message.MessageThreadID, "Подключить группу может владелец бота уведомлений. Попросите его отправить /connectgroup здесь или /start боту в личном чате.", nil)
+				return
+			}
+			if m.commandName(command[0]) == "/topic" {
+				if !message.Chat.IsForum || message.MessageThreadID <= 0 {
+					m.send(ctx, b, message.Chat.ID, message.MessageThreadID, "Отправьте /topic внутри нужного топика группы.", nil)
+					return
+				}
+				if _, ok := m.findGroup(message.Chat.ID); !ok {
+					m.connectGroup(ctx, b, message.Chat)
+				}
 				m.configureTopic(ctx, b, message.Chat.ID, message.MessageThreadID, message.Chat.ID, message.MessageThreadID)
-			} else if commandName(command[0]) == "/connectgroup" {
+			} else {
 				m.connectGroup(ctx, b, message.Chat)
 			}
+		}
+		return
+	}
+	if !m.isOwner(message.From.ID) {
+		if len(command) > 0 && strings.HasPrefix(m.commandName(command[0]), "/") {
+			m.send(ctx, b, message.Chat.ID, 0, "Настройка уведомлений доступна владельцу бота.", nil)
 		}
 		return
 	}
 	if len(command) == 0 {
 		return
 	}
-	switch commandName(command[0]) {
+	switch m.commandName(command[0]) {
 	case "/start", "/groups":
 		m.sendMenu(ctx, b, message.Chat.ID)
 	case "/topic":
@@ -90,8 +122,11 @@ func (m *paymentNotificationGroupManager) handle(ctx context.Context, b *bot.Bot
 	}
 }
 
-func commandName(raw string) string {
-	name, _, _ := strings.Cut(raw, "@")
+func (m *paymentNotificationGroupManager) commandName(raw string) string {
+	name, mentionedBot, mentioned := strings.Cut(raw, "@")
+	if mentioned && m.username != "" && !strings.EqualFold(mentionedBot, m.username) {
+		return ""
+	}
 	return name
 }
 
@@ -109,7 +144,11 @@ func (m *paymentNotificationGroupManager) handleMembership(ctx context.Context, 
 		}
 		return
 	}
-	if active(change.OldChatMember) || change.From.ID != m.adminID {
+	if !m.isOwner(change.From.ID) {
+		m.send(ctx, b, change.Chat.ID, 0, "Бот добавлен. Владелец бота уведомлений должен отправить /connectgroup в этой группе, чтобы включить уведомления об оплате.", nil)
+		return
+	}
+	if _, ok := m.findGroup(change.Chat.ID); ok {
 		return
 	}
 	m.connectGroup(ctx, b, change.Chat)
@@ -120,7 +159,14 @@ func (m *paymentNotificationGroupManager) connectGroup(ctx context.Context, b *b
 		return
 	}
 	group := integrations.NotificationGroup{ChatID: chat.ID, Title: chat.Title, IsForum: chat.IsForum}
+	if existing, ok := m.findGroup(chat.ID); ok && existing.IsForum == chat.IsForum {
+		group.ThreadID = existing.ThreadID
+	}
 	if chat.IsForum {
+		if group.ThreadID > 0 {
+			m.send(ctx, b, chat.ID, 0, fmt.Sprintf("Группа уже подключена. Уведомления приходят в топик %d. Чтобы сменить топик, отправьте /topic в нужном топике.", group.ThreadID), nil)
+			return
+		}
 		if err := m.settings.SaveNotificationGroup(ctx, group); err != nil {
 			slog.Error("notification forum registration failed", "error", err, "chat_id", chat.ID)
 			m.send(ctx, b, chat.ID, 0, "Не удалось подключить группу. Попробуйте /connectgroup ещё раз.", nil)
@@ -161,7 +207,7 @@ func (m *paymentNotificationGroupManager) configureTopic(ctx context.Context, b 
 }
 
 func (m *paymentNotificationGroupManager) findGroup(chatID int64) (integrations.NotificationGroup, bool) {
-	cfg, ok := m.settings.Config(integrations.ProviderNotificationBot)
+	cfg, ok := m.settings.StoredConfig(integrations.ProviderNotificationBot)
 	if !ok {
 		return integrations.NotificationGroup{}, false
 	}
@@ -174,7 +220,7 @@ func (m *paymentNotificationGroupManager) findGroup(chatID int64) (integrations.
 }
 
 func (m *paymentNotificationGroupManager) pendingForumGroups() []integrations.NotificationGroup {
-	cfg, ok := m.settings.Config(integrations.ProviderNotificationBot)
+	cfg, ok := m.settings.StoredConfig(integrations.ProviderNotificationBot)
 	if !ok {
 		return nil
 	}
@@ -188,7 +234,7 @@ func (m *paymentNotificationGroupManager) pendingForumGroups() []integrations.No
 }
 
 func (m *paymentNotificationGroupManager) sendMenu(ctx context.Context, b *bot.Bot, chatID int64) {
-	cfg, _ := m.settings.Config(integrations.ProviderNotificationBot)
+	cfg, _ := m.settings.StoredConfig(integrations.ProviderNotificationBot)
 	lines := []string{"Уведомления об оплате", "Добавьте бота в группу кнопкой ниже. Обычная группа подключится сразу; в группе с топиками бот попросит ID топика."}
 	for _, group := range integrations.ParseNotificationGroups(cfg) {
 		status := "подключена"
@@ -202,6 +248,11 @@ func (m *paymentNotificationGroupManager) sendMenu(ctx context.Context, b *bot.B
 	}
 	lines = append(lines, "Для удаления: /remove ID_группы")
 	var keyboard *models.InlineKeyboardMarkup
+	if m.username == "" {
+		if me, err := b.GetMe(ctx); err == nil {
+			m.username = me.Username
+		}
+	}
 	if m.username != "" {
 		keyboard = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{Text: "Добавить в группу", URL: "https://t.me/" + m.username + "?startgroup=payments"}}}}
 	}
