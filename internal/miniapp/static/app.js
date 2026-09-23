@@ -2137,6 +2137,7 @@ const state = {
   paymentAgreementAccepted: false,
   promoCodeDraft: "",
 	profilePromoOpen: false,
+	profilePromoClosing: false,
 	profilePromoDraft: "",
 	profilePromoValidation: null,
 	profilePromoStage: "form",
@@ -2298,6 +2299,7 @@ let promoApplyTimer = 0;
 let promoApplySeq = 0;
 let profilePromoCheckTimer = 0;
 let profilePromoCloseTimer = 0;
+let profilePromoExitTimer = 0;
 let profilePromoCheckSeq = 0;
 let adminLayoutPointer = null;
 let adminLayoutPointerFrame = 0;
@@ -3441,7 +3443,6 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
       ${isModalVisible("support-media-viewer", Boolean(state.supportMediaViewer)) ? renderSupportMediaViewerModal() : ""}
       ${isModalVisible("devices", state.devicesModalOpen) ? renderDevicesModal() : ""}
       ${isModalVisible("pay", state.payModalOpen) ? renderPayModal() : ""}
-		${isModalVisible("profile-promo", state.profilePromoOpen) ? renderProfilePromoModal() : ""}
 		${state.p2pMenuStep ? renderP2PMenu() : ""}
 		${isModalVisible("subscription-editor", state.subscriptionEditorOpen) ? renderSubscriptionEditorModal() : ""}
 		${isModalVisible("subscription-delete", state.subscriptionDeleteOpen) ? renderSubscriptionDeleteModal() : ""}
@@ -6361,17 +6362,21 @@ function renderProfilePromoModal() {
 	const valid = state.profilePromoValidation?.type === "success";
 	const status = state.profilePromoValidation;
 	const success = state.profilePromoStage === "success";
-	return `<div class="modal profile-promo-modal open ${modalStateClass("profile-promo")}" role="dialog" aria-modal="true" aria-labelledby="profile-promo-title">
+	return `<div class="modal profile-promo-modal open modal--animate" role="dialog" aria-modal="true" aria-labelledby="profile-promo-title" tabindex="-1">
 		<button class="modal__backdrop" type="button" data-action="close-profile-promo" aria-label="${escapeAttribute(close)}" ${state.profilePromoBusy ? "disabled" : ""}></button>
 		<div class="modal__sheet profile-promo-sheet">
 			<div class="modal__header"><div class="modal__title" id="profile-promo-title">${escapeHtml(title)}</div><button class="header__btn" type="button" data-action="close-profile-promo" aria-label="${escapeAttribute(close)}" ${state.profilePromoBusy ? "disabled" : ""}>${icon("close")}</button></div>
-			${success ? `<div class="profile-promo-success" role="status" aria-live="polite" tabindex="-1"><span class="profile-promo-success__mark">${icon("check")}</span><strong>${escapeHtml(localizedText("Промокод применён", "Promo code activated", "کد فعال شد"))}</strong></div>` : `<div class="profile-promo-form">
+			${success ? renderProfilePromoSuccess() : `<div class="profile-promo-form">
 				<label class="support-field" for="profile-promo-code"><span class="support-field__label">${escapeHtml(localizedText("Введите промокод", "Enter promo code", "کد را وارد کنید"))}</span><input class="support-field__input profile-promo-input" id="profile-promo-code" type="text" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" value="${escapeAttribute(state.profilePromoDraft)}" data-input="profile-promo-code" aria-describedby="profile-promo-status" ${state.profilePromoBusy ? "disabled" : ""}></label>
 				<div class="profile-promo-status profile-promo-status--${status?.type || "empty"}" id="profile-promo-status" role="status" aria-live="polite">${escapeHtml(status?.message || "")}</div>
 				<button class="btn btn--green-filled profile-promo-submit" type="button" data-action="apply-profile-promo" ${!valid || state.profilePromoBusy ? "disabled" : ""}>${icon(state.profilePromoBusy ? "refresh" : "check")}${escapeHtml(localizedText("Применить", "Apply", "اعمال"))}</button>
 			</div>`}
 		</div>
 	</div>`;
+}
+
+function renderProfilePromoSuccess() {
+	return `<div class="profile-promo-success" role="status" aria-live="polite" tabindex="-1"><span class="profile-promo-success__mark">${icon("check")}</span><strong>${escapeHtml(localizedText("Промокод применён", "Promo code activated", "کد فعال شد"))}</strong></div>`;
 }
 
 function renderSubscriptionEditorModal() {
@@ -8416,8 +8421,6 @@ function bindRootActions() {
       if (action === "google-link-login") return await startGoogleLogin("link", target);
       if (action === "open-sidebar") { state.sidebarOpen = true; render(); return; }
 		if (action === "open-profile-promo") return openProfilePromo();
-		if (action === "close-profile-promo") return closeProfilePromo();
-		if (action === "apply-profile-promo") return await applyProfilePromo();
       if (action === "close-sidebar") { state.sidebarOpen = false; render(); return; }
 		if (action === "toggle-subscription-menu") {
 			if (state.subscriptionMenuOpen) return requestSubscriptionMenuClose();
@@ -9155,11 +9158,6 @@ function bindRootActions() {
         schedulePromoAutoApply();
         return;
       }
-		if (inputKey === "profile-promo-code") {
-			state.profilePromoDraft = String(target.value || "").slice(0, 32);
-			scheduleProfilePromoCheck();
-			return;
-		}
       if (inputKey === "admin-promo-code") { state.adminPromoCodeDraft = target.value.toUpperCase(); return; }
       if (inputKey === "admin-promo-discount") { state.adminPromoDiscountDraft = target.value; return; }
 		if (inputKey === "admin-promo-balance") { state.adminPromoBalanceDraft = target.value; return; }
@@ -9199,16 +9197,6 @@ function bindRootActions() {
 	app.addEventListener("pointerdown", beginAdminPlanPointer);
 	app.addEventListener("pointerdown", beginAdminLayoutPointer);
 	app.addEventListener("keydown", (event) => {
-		if (state.profilePromoOpen && event.key === "Escape") { event.preventDefault(); closeProfilePromo(); return; }
-		if (state.profilePromoOpen && event.key === "Tab") {
-			const controls = [...app.querySelectorAll(".profile-promo-sheet button:not(:disabled), .profile-promo-sheet input:not(:disabled)")];
-			if (controls.length && (event.shiftKey && document.activeElement === controls[0] || !event.shiftKey && document.activeElement === controls[controls.length - 1] || !controls.includes(document.activeElement))) {
-				event.preventDefault();
-				controls[event.shiftKey ? controls.length - 1 : 0].focus();
-			}
-			return;
-		}
-		if (state.profilePromoOpen && event.key === "Enter" && event.target.closest?.('[data-input="profile-promo-code"]') && !event.isComposing) { event.preventDefault(); void applyProfilePromo(); return; }
 		if (state.payModalOpen && event.key === "Escape") {
 			event.preventDefault();
 			closePayModal();
@@ -12752,40 +12740,77 @@ function getPromoStatus() {
 }
 
 function openProfilePromo() {
+	if (state.profilePromoOpen || state.profilePromoClosing) return;
 	window.clearTimeout(profilePromoCheckTimer);
 	window.clearTimeout(profilePromoCloseTimer);
+	window.clearTimeout(profilePromoExitTimer);
 	profilePromoCheckSeq += 1;
 	state.profilePromoDraft = "";
 	state.profilePromoValidation = null;
 	state.profilePromoStage = "form";
 	state.profilePromoBusy = false;
 	state.profilePromoOpen = true;
+	state.profilePromoClosing = false;
 	haptic("light");
-	render({ preserveScroll: true });
-	queueMicrotask(() => app.querySelector("#profile-promo-code")?.focus());
+	document.body.classList.add("has-open-modal");
+	document.body.insertAdjacentHTML("beforeend", renderProfilePromoModal());
+	const modal = document.querySelector(".profile-promo-modal");
+	modal?.addEventListener("click", (event) => {
+		const action = event.target.closest?.("[data-action]")?.dataset.action;
+		if (action === "close-profile-promo") closeProfilePromo();
+		if (action === "apply-profile-promo") void applyProfilePromo();
+	});
+	modal?.addEventListener("input", (event) => {
+		if (event.target?.dataset?.input !== "profile-promo-code") return;
+		state.profilePromoDraft = String(event.target.value || "").slice(0, 32);
+		scheduleProfilePromoCheck();
+	});
+	modal?.addEventListener("keydown", (event) => {
+		if (event.key === "Escape") { event.preventDefault(); closeProfilePromo(); return; }
+		if (event.key === "Enter" && event.target.closest?.('[data-input="profile-promo-code"]') && !event.isComposing) { event.preventDefault(); void applyProfilePromo(); return; }
+		if (event.key !== "Tab") return;
+		const controls = [...modal.querySelectorAll(".profile-promo-sheet button:not(:disabled), .profile-promo-sheet input:not(:disabled)")];
+		if (controls.length && (event.shiftKey && document.activeElement === controls[0] || !event.shiftKey && document.activeElement === controls[controls.length - 1] || !controls.includes(document.activeElement))) {
+			event.preventDefault();
+			controls[event.shiftKey ? controls.length - 1 : 0].focus();
+		}
+	});
+	syncNativeBackButton();
+	modal?.focus();
 }
 
 function closeProfilePromo() {
-	if (!state.profilePromoOpen || state.profilePromoBusy) return;
+	if (!state.profilePromoOpen || state.profilePromoBusy || state.profilePromoClosing) return;
 	window.clearTimeout(profilePromoCheckTimer);
 	window.clearTimeout(profilePromoCloseTimer);
 	profilePromoCheckSeq += 1;
-	requestModalClose("profile-promo", () => {
+	state.profilePromoClosing = true;
+	const modal = document.querySelector(".profile-promo-modal");
+	modal?.classList.remove("modal--animate");
+	modal?.classList.add("modal--closing");
+	const redeemed = state.profilePromoStage === "success";
+	profilePromoExitTimer = window.setTimeout(() => {
+		modal?.remove();
 		state.profilePromoOpen = false;
+		state.profilePromoClosing = false;
 		state.profilePromoValidation = null;
 		state.profilePromoDraft = "";
 		state.profilePromoStage = "form";
+		document.body.classList.remove("has-open-modal");
+		syncNativeBackButton();
 		queueMicrotask(() => app.querySelector('[data-action="open-profile-promo"]')?.focus());
-	});
+		if (redeemed) void safeRefresh().catch(() => {});
+	}, reducedMotionMedia?.matches || !modal ? 0 : MODAL_CLOSE_MS);
 }
 
 function syncProfilePromoValidation() {
-	const status = app.querySelector("#profile-promo-status");
+	const modal = document.querySelector(".profile-promo-modal");
+	const status = modal?.querySelector("#profile-promo-status");
 	if (status) {
 		status.textContent = state.profilePromoValidation?.message || "";
 		status.className = `profile-promo-status profile-promo-status--${state.profilePromoValidation?.type || "empty"}`;
 	}
-	const button = app.querySelector('[data-action="apply-profile-promo"]');
+	const button = modal?.querySelector('[data-action="apply-profile-promo"]');
 	if (button) button.disabled = state.profilePromoBusy || state.profilePromoValidation?.type !== "success";
 }
 
@@ -12821,13 +12846,11 @@ async function applyProfilePromo() {
 		await post("/api/mini-app/promocode/redeem", { code });
 		state.profilePromoBusy = false;
 		state.profilePromoStage = "success";
-		render({ preserveScroll: true });
-		queueMicrotask(() => app.querySelector(".profile-promo-success")?.focus());
+		const form = document.querySelector(".profile-promo-modal .profile-promo-form");
+		if (form) form.outerHTML = renderProfilePromoSuccess();
+		document.querySelector(".profile-promo-modal .profile-promo-success")?.focus();
 		haptic("success");
-		profilePromoCloseTimer = window.setTimeout(() => {
-			closeProfilePromo();
-			void safeRefresh().catch(() => {});
-		}, 1000);
+		profilePromoCloseTimer = window.setTimeout(closeProfilePromo, 1000);
 	} catch (error) {
 		state.profilePromoBusy = false;
 		state.profilePromoValidation = { type: "error", message: error?.message || localizedText("Не удалось применить промокод", "Could not activate promo code", "فعال‌سازی کد انجام نشد") };
