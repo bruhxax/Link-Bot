@@ -8675,8 +8675,21 @@ body.is-layout-editing .home-widget:active {
 }
 
 .page-buy--admin-editor .card--checkout {
-  pointer-events: none;
+  opacity: 1;
+}
+
+.page-buy--admin-editor .checkout-summary,
+.page-buy--admin-editor .checkout-promo {
   opacity: .58;
+}
+
+.page-buy--admin-editor .checkout-payment {
+  cursor: pointer;
+}
+
+.page-buy--admin-editor .checkout-payment:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
 }
 
 .pricing-list--admin .pricing-card {

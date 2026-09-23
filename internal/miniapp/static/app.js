@@ -6369,7 +6369,7 @@ function renderBuyPage() {
         ${featureEnabled("promocodes") && !freeCheckout ? `<div class="promo-box checkout-promo">
           <span class="support-field__label">${escapeHtml(copy.promoCode || "Promo code")}</span>
           <div class="promo-box__row">
-            <input class="support-field__input promo-box__input" type="text" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" aria-describedby="promo-status" placeholder="${escapeAttribute(copy.promoCodePlaceholder || "")}" value="${escapeAttribute(state.promoCodeDraft)}" data-input="promo-code">
+            <input class="support-field__input promo-box__input" type="text" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" aria-describedby="promo-status" placeholder="${escapeAttribute(copy.promoCodePlaceholder || "")}" value="${escapeAttribute(state.promoCodeDraft)}" data-input="promo-code" ${state.adminPlanEditing ? "disabled" : ""}>
           </div>
           <div class="promo-box__status ${promoStatus ? `promo-box__status--${escapeAttribute(promoStatus.type)}` : "promo-box__status--empty"}" id="promo-status" data-promo-status role="status" aria-live="polite">${promoStatus ? escapeHtml(promoStatus.message) : ""}</div>
         </div>` : ""}
