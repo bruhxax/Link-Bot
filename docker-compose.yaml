@@ -52,6 +52,7 @@ services:
 
   caddy:
     image: caddy:2.10-alpine
+    profiles: [ "standalone" ]
     container_name: link-bot-caddy
     restart: unless-stopped
     depends_on:

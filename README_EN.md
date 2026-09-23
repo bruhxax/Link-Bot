@@ -158,7 +158,7 @@ openssl rand -hex 24
 ### 5. Start the bot
 
 ```bash
-docker compose up -d --build
+docker compose --profile standalone up -d --build
 ```
 
 Caddy will automatically obtain a TLS certificate. Check the deployment:
@@ -167,6 +167,10 @@ Caddy will automatically obtain a TLS certificate. Check the deployment:
 docker compose ps
 curl https://bot.example.com/healthcheck
 ```
+
+If the server already has a shared Caddy or another HTTPS proxy, start only
+the bot and PostgreSQL: `docker compose up -d --build bot`. The Compose
+`caddy` service is enabled only with the `standalone` profile.
 
 ### 6. Complete the first launch
 
@@ -284,10 +288,12 @@ docker compose start
 ```bash
 cd /opt/Link-Bot
 git pull --ff-only
-docker compose up -d --build --force-recreate --remove-orphans
+docker compose up -d --build bot
 ```
 
-These commands are used for the first and every subsequent update. Updating preserves the database and admin panel settings. Existing plans, appearance settings, and integrations are not reset to new default values.
+If this project manages Caddy itself, use
+`docker compose --profile standalone up -d --build`.
+Updating preserves the database and admin panel settings. Existing plans, appearance settings, and integrations are not reset to new default values.
 
 </details>
 

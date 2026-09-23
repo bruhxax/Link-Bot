@@ -185,7 +185,7 @@ openssl rand -hex 24
 ### 5. Запустите бота
 
 ```bash
-docker compose up -d --build
+docker compose --profile standalone up -d --build
 ```
 
 Caddy автоматически получит TLS-сертификат. Проверка:
@@ -194,6 +194,10 @@ Caddy автоматически получит TLS-сертификат. Про
 docker compose ps
 curl https://bot.example.com/healthcheck
 ```
+
+Если на сервере уже работает общий Caddy или другой HTTPS-прокси, запускайте
+только бота и PostgreSQL: `docker compose up -d --build bot`. Сервис `caddy`
+в Compose включается только профилем `standalone`.
 
 ### 6. Выполните первый запуск
 
@@ -317,10 +321,12 @@ docker compose start
 ```bash
 cd /opt/Link-Bot
 git pull --ff-only
-docker compose up -d --build --force-recreate --remove-orphans
+docker compose up -d --build bot
 ```
 
-Эта команда используется для первого и всех последующих обновлений. Обновление сохраняет базу данных и настройки из админки. Уже созданные тарифы, оформление и интеграции не сбрасываются на новые значения по умолчанию.
+Если этот проект сам управляет Caddy, используйте
+`docker compose --profile standalone up -d --build`.
+Обновление сохраняет базу данных и настройки из админки. Уже созданные тарифы, оформление и интеграции не сбрасываются на новые значения по умолчанию.
 
 </details>
 
@@ -349,7 +355,7 @@ Remnawave, что и Bedolaga. База Bedolaga должна быть дост�
 
    ```bash
    cd /opt/Link-Bot
-   docker compose up -d --build
+   docker compose up -d --build bot
    ```
 
 2. Сделайте резервную копию базы Link-Bot:
