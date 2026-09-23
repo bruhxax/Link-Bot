@@ -3,16 +3,55 @@ package payment
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"link-bot/internal/adminnotify"
 	"link-bot/internal/database"
+	"link-bot/internal/integrations"
 	"link-bot/internal/runtimeconfig"
 )
+
+func TestPaymentNotificationsUseGroupsInsteadOfPrivateChat(t *testing.T) {
+	ordinary := integrations.NotificationGroup{ChatID: -1001, Title: "Payments"}
+	forum := integrations.NotificationGroup{ChatID: -1002, Title: "Forum", IsForum: true, ThreadID: 42}
+	pending := integrations.NotificationGroup{ChatID: -1003, Title: "Pending", IsForum: true}
+	tests := []struct {
+		name       string
+		groups     []integrations.NotificationGroup
+		failedChat int64
+		want       []string
+	}{
+		{name: "no group", want: []string{"123:0"}},
+		{name: "forum awaiting topic", groups: []integrations.NotificationGroup{pending}, want: []string{"123:0"}},
+		{name: "ordinary group", groups: []integrations.NotificationGroup{ordinary}, want: []string{"-1001:0"}},
+		{name: "selected topic", groups: []integrations.NotificationGroup{forum}, want: []string{"-1002:42"}},
+		{name: "two groups", groups: []integrations.NotificationGroup{ordinary, forum}, want: []string{"-1001:0", "-1002:42"}},
+		{name: "group removed", want: []string{"123:0"}},
+		{name: "group failed", groups: []integrations.NotificationGroup{forum}, failedChat: forum.ChatID, want: []string{"-1002:42", "123:0"}},
+		{name: "another group succeeded", groups: []integrations.NotificationGroup{ordinary, forum}, failedChat: ordinary.ChatID, want: []string{"-1001:0", "-1002:42"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var sent []string
+			deliverPaymentNotification(123, tt.groups, func(chatID int64, threadID int) error {
+				sent = append(sent, fmt.Sprintf("%d:%d", chatID, threadID))
+				if chatID == tt.failedChat {
+					return errors.New("Telegram rejected message")
+				}
+				return nil
+			}, func(int64, error) {})
+			if !reflect.DeepEqual(sent, tt.want) {
+				t.Fatalf("destinations = %v, want %v", sent, tt.want)
+			}
+		})
+	}
+}
 
 type recordingPaymentPushNotifier struct {
 	events chan adminnotify.Event

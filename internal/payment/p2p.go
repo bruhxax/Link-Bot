@@ -15,6 +15,7 @@ import (
 
 	"link-bot/internal/config"
 	"link-bot/internal/database"
+	"link-bot/internal/integrations"
 	"link-bot/utils"
 )
 
@@ -83,8 +84,8 @@ func (s PaymentService) createP2PInvoice(ctx context.Context, amount float64, mo
 }
 
 func (s PaymentService) sendP2PReviewNotification(ctx context.Context, purchase *database.Purchase, customer *database.Customer, request *database.P2PPaymentRequest) (int64, int64, error) {
-	token, chatID, timezone := s.paymentNotificationConfig()
-	if token == "" || chatID == 0 {
+	token, privateChatID, timezone := s.paymentNotificationConfig()
+	if token == "" || privateChatID == 0 {
 		return 0, 0, errors.New("бот уведомлений для проверки P2P-платежей не настроен")
 	}
 	orderNumber := purchase.ID
@@ -109,13 +110,31 @@ func (s PaymentService) sendP2PReviewNotification(ctx context.Context, purchase 
 		{Text: "✅ Принять", CallbackData: fmt.Sprintf("%sapprove:%d", p2PCallbackPrefix, purchase.ID), Style: "success"},
 		{Text: "❌ Отклонить", CallbackData: fmt.Sprintf("%sreject:%d", p2PCallbackPrefix, purchase.ID), Style: "danger"},
 	}}}
-	notifyCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	messageID, err := sendTelegramNotificationMessage(notifyCtx, token, chatID, message, keyboard)
+	chatID, messageID, err := deliverP2PReviewNotification(privateChatID, s.paymentNotificationGroups(), func(destinationID int64, threadID int) (int64, error) {
+		deliveryCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		return sendTelegramNotificationMessageToThread(deliveryCtx, token, destinationID, threadID, message, keyboard)
+	}, func(destinationID int64, sendErr error) {
+		slog.Warn("payment: P2P review group delivery failed", "chat_id", destinationID, "error", sendErr)
+	})
 	if err != nil {
 		return 0, 0, fmt.Errorf("отправить P2P-платёж на проверку: %w", err)
 	}
 	return chatID, messageID, nil
+}
+
+// A P2P review has one actionable message stored in the database. Try ready
+// groups in order and use the private chat only when none accepts the message.
+func deliverP2PReviewNotification(privateChatID int64, groups []integrations.NotificationGroup, sendTo func(int64, int) (int64, error), reportFailure func(int64, error)) (int64, int64, error) {
+	for _, group := range readyPaymentNotificationGroups(groups) {
+		messageID, err := sendTo(group.ChatID, group.ThreadID)
+		if err == nil {
+			return group.ChatID, messageID, nil
+		}
+		reportFailure(group.ChatID, err)
+	}
+	messageID, err := sendTo(privateChatID, 0)
+	return privateChatID, messageID, err
 }
 
 func buildP2PReviewNotificationMessage(base string, request *database.P2PPaymentRequest) string {
@@ -150,13 +169,17 @@ func (s *PaymentService) handleP2PReviewCallback(ctx context.Context, b *bot.Bot
 	}
 	callback := update.CallbackQuery
 	message := callback.Message.Message
-	if message == nil || message.Chat.ID != allowedChatID || callback.From.ID != config.GetAdminTelegramId() {
+	if message == nil || callback.From.ID != config.GetAdminTelegramId() {
 		_, _ = b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: callback.ID, Text: "Недостаточно прав", ShowAlert: true})
 		return
 	}
 	action, purchaseID, ok := parseP2PCallback(callback.Data)
 	if !ok {
 		_, _ = b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: callback.ID, Text: "Некорректная заявка", ShowAlert: true})
+		return
+	}
+	if !s.p2pReviewChatAllowed(ctx, allowedChatID, message.Chat.ID, message.ID, purchaseID) {
+		_, _ = b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: callback.ID, Text: "Недостаточно прав", ShowAlert: true})
 		return
 	}
 	decisionCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
@@ -187,6 +210,27 @@ func (s *PaymentService) handleP2PReviewCallback(ctx context.Context, b *bot.Bot
 		answer = "Платёж отклонён"
 	}
 	_, _ = b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: callback.ID, Text: answer})
+}
+
+func (s *PaymentService) p2pReviewChatAllowed(ctx context.Context, privateChatID, chatID int64, messageID int, purchaseID int64) bool {
+	if chatID == privateChatID {
+		return true
+	}
+	for _, group := range readyPaymentNotificationGroups(s.paymentNotificationGroups()) {
+		if group.ChatID == chatID {
+			return true
+		}
+	}
+	if s.purchaseRepository == nil {
+		return false
+	}
+	request, err := s.purchaseRepository.FindP2PPaymentRequest(ctx, purchaseID)
+	if err != nil {
+		slog.Warn("payment: P2P review destination lookup failed", "purchase_id", utils.MaskHalfInt64(purchaseID), "error", err)
+		return false
+	}
+	return request != nil && request.NotificationChatID != nil && request.NotificationMessageID != nil &&
+		*request.NotificationChatID == chatID && *request.NotificationMessageID == int64(messageID)
 }
 
 func parseP2PCallback(raw string) (string, int64, bool) {

@@ -121,21 +121,54 @@ func (s PaymentService) notifyAdminAboutPayment(ctx context.Context, purchase *d
 		return sendPaymentNotificationDestination(deliveryCtx, token, destinationID, threadID, message, keyboard, settings, panelUserID, profileUsername)
 	}
 
-	if err := sendTo(chatID, 0); err != nil {
-		slog.Error("failed to send payment notification", "error", err, "purchase_id", purchase.ID)
-	}
-	if s.integrationSettings != nil {
-		if cfg, ok := s.integrationSettings.Config(integrations.ProviderNotificationBot); ok {
-			for _, group := range integrations.ParseNotificationGroups(cfg) {
-				if group.ChatID >= 0 || (group.IsForum && group.ThreadID == 0) {
-					continue
-				}
-				if err := sendTo(group.ChatID, group.ThreadID); err != nil {
-					slog.Error("failed to send group payment notification", "error", err, "purchase_id", purchase.ID, "chat_id", group.ChatID)
-				}
-			}
+	deliverPaymentNotification(chatID, s.paymentNotificationGroups(), sendTo, func(destinationID int64, err error) {
+		slog.Error("failed to send payment notification", "error", err, "purchase_id", purchase.ID, "chat_id", destinationID)
+	})
+}
+
+// Deliver to every ready group. The private chat is the fallback when there is
+// no ready group or all group sends fail, so a successful group send is never
+// duplicated in the private chat.
+func deliverPaymentNotification(privateChatID int64, groups []integrations.NotificationGroup, sendTo func(int64, int) error, reportFailure func(int64, error)) error {
+	groupDelivered := false
+	for _, group := range readyPaymentNotificationGroups(groups) {
+		if err := sendTo(group.ChatID, group.ThreadID); err != nil {
+			reportFailure(group.ChatID, err)
+		} else {
+			groupDelivered = true
 		}
 	}
+	if groupDelivered {
+		return nil
+	}
+	if privateChatID != 0 {
+		if err := sendTo(privateChatID, 0); err != nil {
+			reportFailure(privateChatID, err)
+			return err
+		}
+	}
+	return nil
+}
+
+func readyPaymentNotificationGroups(groups []integrations.NotificationGroup) []integrations.NotificationGroup {
+	ready := make([]integrations.NotificationGroup, 0, len(groups))
+	for _, group := range groups {
+		if group.ChatID < 0 && (!group.IsForum || group.ThreadID > 0) {
+			ready = append(ready, group)
+		}
+	}
+	return ready
+}
+
+func (s PaymentService) paymentNotificationGroups() []integrations.NotificationGroup {
+	if s.integrationSettings == nil {
+		return nil
+	}
+	cfg, ok := s.integrationSettings.Config(integrations.ProviderNotificationBot)
+	if !ok {
+		return nil
+	}
+	return integrations.ParseNotificationGroups(cfg)
 }
 
 func sendPaymentNotificationDestination(ctx context.Context, token string, chatID int64, threadID int, message string, keyboard *telegramInlineKeyboardMarkup, settings runtimeconfig.TelegramPaymentNotificationSettings, panelUserID int64, profileUsername string) error {
@@ -523,16 +556,11 @@ func (s PaymentService) SendPaymentNotificationPreview(ctx context.Context, opti
 	)
 	panelUserID := s.paymentNotificationPanelUserID(previewCtx, nil, options.Customer)
 	keyboard := buildPaymentNotificationKeyboard(options.Settings, panelUserID, username)
-	return sendTelegramNotification(previewCtx, token, chatID, message, keyboard)
-}
-
-func sendTelegramNotification(ctx context.Context, token string, chatID int64, text string, keyboard ...*telegramInlineKeyboardMarkup) error {
-	_, err := sendTelegramNotificationMessage(ctx, token, chatID, text, keyboard...)
-	return err
-}
-
-func sendTelegramNotificationMessage(ctx context.Context, token string, chatID int64, text string, keyboard ...*telegramInlineKeyboardMarkup) (int64, error) {
-	return sendTelegramNotificationMessageToThread(ctx, token, chatID, 0, text, keyboard...)
+	return deliverPaymentNotification(chatID, s.paymentNotificationGroups(), func(destinationID int64, threadID int) error {
+		return sendTelegramNotificationToThread(previewCtx, token, destinationID, threadID, message, keyboard)
+	}, func(destinationID int64, err error) {
+		slog.Warn("payment notification preview delivery failed", "error", err, "chat_id", destinationID)
+	})
 }
 
 func sendTelegramNotificationToThread(ctx context.Context, token string, chatID int64, threadID int, text string, keyboard ...*telegramInlineKeyboardMarkup) error {
