@@ -322,6 +322,9 @@ type promoCodePayload struct {
 	ID              int64  `json:"id"`
 	Code            string `json:"code"`
 	DiscountPercent int    `json:"discountPercent"`
+	RewardType      string `json:"rewardType"`
+	RewardValue     int    `json:"rewardValue"`
+	RewardTrafficGB int    `json:"rewardTrafficGb"`
 	ExpiresAt       string `json:"expiresAt,omitempty"`
 	MaxRedemptions  int    `json:"maxRedemptions,omitempty"`
 	RedemptionCount int    `json:"redemptionCount"`
@@ -547,6 +550,9 @@ type promoCodeApplyRequest struct {
 type promoCodeCreateRequest struct {
 	Code            string `json:"code"`
 	DiscountPercent int    `json:"discountPercent"`
+	RewardType      string `json:"rewardType"`
+	RewardValue     int    `json:"rewardValue"`
+	RewardTrafficGB int    `json:"rewardTrafficGb"`
 	ExpiresAt       string `json:"expiresAt"`
 	MaxRedemptions  int    `json:"maxRedemptions"`
 }
@@ -738,6 +744,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/gifts/seen", h.withSession(h.handleGiftSeen))
 	mux.HandleFunc("/api/mini-app/purchase/cancel", h.withSession(h.handleCancelPurchase))
 	mux.HandleFunc("/api/mini-app/promocode/apply", h.withSession(h.handleApplyPromoCode))
+	mux.HandleFunc("/api/mini-app/promocode/redeem", h.withSession(h.handleRedeemPromoCode))
 	mux.HandleFunc("/api/mini-app/payments/autopay", h.withSession(h.handleToggleAutoPayment))
 	mux.HandleFunc("/api/mini-app/payments/remove-method", h.withSession(h.handleRemovePaymentMethod))
 	mux.HandleFunc("/api/mini-app/devices/delete", h.withSession(h.handleDeleteDeviceExact))
@@ -1633,9 +1640,13 @@ func (h *Handler) handleCreatePurchase(w http.ResponseWriter, r *http.Request, s
 		return
 	}
 	if req.PromoCode != "" {
-		_, _, _, err := h.resolvePromoCode(r.Context(), customer.ID, req.PromoCode)
+		promo, _, promoErrCode, err := h.resolvePromoCode(r.Context(), customer.ID, req.PromoCode)
 		if err != nil {
 			h.writeError(w, http.StatusBadRequest, "unsupported_plan", "Оплата в Stars для этого тарифа отключена")
+			return
+		}
+		if promoErrCode != "" || promo == nil || promo.RewardType != "discount" {
+			h.writeError(w, http.StatusBadRequest, "promo_reward_requires_activation", promoErrorMessage("promo_reward_requires_activation"))
 			return
 		}
 	}
@@ -1825,6 +1836,10 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		}
 		if promoErrCode != "" {
 			h.writeError(w, http.StatusBadRequest, promoErrCode, promoErrorMessage(promoErrCode))
+			return
+		}
+		if promo.RewardType != "discount" {
+			h.writeError(w, http.StatusBadRequest, "promo_reward_requires_activation", promoErrorMessage("promo_reward_requires_activation"))
 			return
 		}
 
@@ -2032,6 +2047,10 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 			h.writeError(w, http.StatusBadRequest, promoErrCode, promoErrorMessage(promoErrCode))
 			return
 		}
+		if promo.RewardType != "discount" {
+			h.writeError(w, http.StatusBadRequest, "promo_reward_requires_activation", promoErrorMessage("promo_reward_requires_activation"))
+			return
+		}
 
 		req.PromoCode = normalizedCode
 		price = applyDiscount(price, promo.DiscountPercent)
@@ -2128,6 +2147,9 @@ func (h *Handler) handleApplyPromoCode(w http.ResponseWriter, r *http.Request, s
 			ID:              promo.ID,
 			Code:            normalizedCode,
 			DiscountPercent: promo.DiscountPercent,
+			RewardType:      promo.RewardType,
+			RewardValue:     promo.RewardValue,
+			RewardTrafficGB: promo.RewardTrafficGB,
 			ExpiresAt:       formatOptionalTime(timeOrNil(promo.ExpiresAt)),
 			MaxRedemptions:  optionalIntValue(promo.MaxRedemptions),
 			RedemptionCount: promo.RedemptionCount,
@@ -2162,8 +2184,9 @@ func (h *Handler) handleAdminCreatePromoCode(w http.ResponseWriter, r *http.Requ
 		h.writeError(w, http.StatusBadRequest, "promo_invalid_format", promoErrorMessage("promo_invalid_format"))
 		return
 	}
-	if req.DiscountPercent <= 0 || req.DiscountPercent >= 100 {
-		h.writeError(w, http.StatusBadRequest, "promo_invalid_discount", promoErrorMessage("promo_invalid_discount"))
+	reward := &database.PromoCode{DiscountPercent: req.DiscountPercent, RewardType: req.RewardType, RewardValue: req.RewardValue, RewardTrafficGB: req.RewardTrafficGB}
+	if err := database.NormalizePromoReward(reward); err != nil {
+		h.writeError(w, http.StatusBadRequest, "promo_invalid_reward", promoErrorMessage("promo_invalid_reward"))
 		return
 	}
 	if req.MaxRedemptions < 0 {
@@ -2185,6 +2208,9 @@ func (h *Handler) handleAdminCreatePromoCode(w http.ResponseWriter, r *http.Requ
 	_, err = h.promoCodeRepository.Create(r.Context(), &database.PromoCode{
 		Code:                code,
 		DiscountPercent:     req.DiscountPercent,
+		RewardType:          reward.RewardType,
+		RewardValue:         reward.RewardValue,
+		RewardTrafficGB:     reward.RewardTrafficGB,
 		IsActive:            true,
 		ExpiresAt:           expiresAt,
 		MaxRedemptions:      maxRedemptions,
@@ -2248,6 +2274,9 @@ func (h *Handler) handleAdminValidatePromoCode(w http.ResponseWriter, r *http.Re
 			ID:              promo.ID,
 			Code:            normalizedCode,
 			DiscountPercent: promo.DiscountPercent,
+			RewardType:      promo.RewardType,
+			RewardValue:     promo.RewardValue,
+			RewardTrafficGB: promo.RewardTrafficGB,
 			ExpiresAt:       formatOptionalTime(timeOrNil(promo.ExpiresAt)),
 			MaxRedemptions:  optionalIntValue(promo.MaxRedemptions),
 			RedemptionCount: promo.RedemptionCount,
@@ -2278,6 +2307,10 @@ func (h *Handler) handleAdminDeletePromoCode(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := h.promoCodeRepository.Delete(r.Context(), req.ID); err != nil {
+		if errors.Is(err, database.ErrPromoCodePendingReward) {
+			h.writeError(w, http.StatusConflict, "promo_pending_reward", promoErrorMessage("promo_pending_reward"))
+			return
+		}
 		slog.Error("mini app: delete promo code", "error", err, "telegramId", utils.MaskHalfInt64(sess.User.ID), "promoId", req.ID)
 		h.writeError(w, http.StatusInternalServerError, "promo_delete_failed", promoErrorMessage("promo_delete_failed"))
 		return
@@ -4771,6 +4804,9 @@ func (h *Handler) buildAdminPayload(ctx context.Context) (*adminPayload, error) 
 				ID:              item.ID,
 				Code:            item.Code,
 				DiscountPercent: item.DiscountPercent,
+				RewardType:      item.RewardType,
+				RewardValue:     item.RewardValue,
+				RewardTrafficGB: item.RewardTrafficGB,
 				ExpiresAt:       formatOptionalTime(timeOrNil(item.ExpiresAt)),
 				MaxRedemptions:  optionalIntValue(item.MaxRedemptions),
 				RedemptionCount: item.RedemptionCount,
@@ -4849,6 +4885,15 @@ func (h *Handler) resolvePromoCode(ctx context.Context, customerID int64, rawCod
 	}
 	if promo == nil {
 		return nil, code, "promo_not_found", nil
+	}
+	if customerID > 0 && promo.RewardType != "discount" {
+		redemption, err := h.promoCodeRepository.FindRewardRedemption(ctx, promo.ID, customerID)
+		if err != nil {
+			return nil, "", "", err
+		}
+		if redemption != nil && redemption.Status == "pending" {
+			return promo, code, "", nil
+		}
 	}
 	if !promo.IsActive {
 		return nil, code, "promo_inactive", nil
@@ -4957,6 +5002,22 @@ func promoErrorMessage(code string) string {
 		return "Promo code is already attached to a pending purchase"
 	case "promo_invalid_discount":
 		return "Discount percent is invalid"
+	case "promo_invalid_reward":
+		return "Promo reward is invalid"
+	case "promo_reward_requires_activation":
+		return "Activate this reward separately from checkout"
+	case "promo_discount_checkout_only":
+		return "Discount codes are applied at checkout"
+	case "promo_subscription_unavailable":
+		return "Select an existing subscription before activating this reward"
+	case "promo_traffic_unlimited":
+		return "This subscription already has unlimited traffic"
+	case "promo_wallet_unavailable":
+		return "Balance is temporarily unavailable"
+	case "promo_reward_failed":
+		return "Reward could not be activated. Please try again"
+	case "promo_pending_reward":
+		return "A reward is still being activated. Try deleting the code later"
 	case "promo_invalid_expiry":
 		return "Promo expiry date is invalid"
 	case "promo_invalid_limit":

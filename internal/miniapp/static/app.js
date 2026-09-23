@@ -1579,7 +1579,7 @@ const ADMIN_LAYOUT_CATEGORIES = [
 const PROFILE_GROUP_ORDER = ["main", "purchases", "programs", "help", "account"];
 const PROFILE_DEFAULT_GROUPS = {
 	server_status: "main", media: "main", news: "main",
-	gift: "purchases", payments: "purchases",
+	gift: "purchases", payments: "purchases", promo_code: "purchases",
 	referrals: "programs", partner: "programs", reviews: "programs",
 	terms: "help", privacy: "help",
 	login_methods: "account", web_version: "account", pwa_install: "account",
@@ -1603,6 +1603,7 @@ const ADMIN_LAYOUT_META = {
 	"profile:referrals": ["\u0420\u0435\u0444\u0435\u0440\u0430\u043b\u044c\u043d\u0430\u044f \u0441\u0438\u0441\u0442\u0435\u043c\u0430", "users"],
 	"profile:reviews": ["\u041e\u0442\u0437\u044b\u0432\u044b", "profileStar"],
 	"profile:payments": ["\u041f\u043b\u0430\u0442\u0435\u0436\u0438", "profileCard"],
+	"profile:promo_code": ["Промокод", "gift"],
 	"profile:media": ["\u041c\u0435\u0434\u0438\u0430", "youtube"],
 	"profile:login_methods": ["\u0421\u043f\u043e\u0441\u043e\u0431 \u0432\u0445\u043e\u0434\u0430", "profileKey"],
 	"profile:news": ["\u041d\u043e\u0432\u043e\u0441\u0442\u0438", "profileLetter"],
@@ -1641,7 +1642,7 @@ const ADMIN_LAYOUT_DEFAULTS = [
 	["support", "faq", 11, 100, 64, false, "left"],
 	["support", "tabs_detail", 12, 100, 44, false, "left"],
 	["support", "tickets_detail", 13, 100, 220, false, "left"],
-	...["server_status", "gift", "payments", "referrals", "partner", "reviews", "media", "login_methods", "news", "web_version", "pwa_install", "terms", "privacy"].map((id, order) => ["profile", id, order, 100, 48, true, "left", PROFILE_DEFAULT_GROUPS[id]]),
+	...["server_status", "gift", "payments", "promo_code", "referrals", "partner", "reviews", "media", "login_methods", "news", "web_version", "pwa_install", "terms", "privacy"].map((id, order) => ["profile", id, order, 100, 48, true, "left", PROFILE_DEFAULT_GROUPS[id]]),
 	...["main", "purchases", "programs", "help", "account"].map((id, order) => ["profile", `group_${id}`, 20 + order, 100, 28, false, "left"]),
 	...["dashboard", "buy", "support", "settings", "admin"].map((id, order) => ["navigation", id, order, 44, 38, true, "center"]),
 ].map(([area, id, order, width, height, framed, align, group]) => ({ area, id, order, visible: true, width, height, framed, align, offsetX: 0, offsetY: 0, ...(area === "dashboard" ? { cornerRadius: id === "subscription_switcher" ? 15 : (["primary_action", "secondary_action", "traffic", "devices"].includes(id) ? 22 : 0), textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 } : {}), ...(group ? { group } : {}) }));
@@ -2135,6 +2136,11 @@ const state = {
   supportMediaViewer: null,
   paymentAgreementAccepted: false,
   promoCodeDraft: "",
+	profilePromoOpen: false,
+	profilePromoDraft: "",
+	profilePromoValidation: null,
+	profilePromoStage: "form",
+	profilePromoBusy: false,
   appliedPromo: null,
   promoValidation: null,
   promoBusy: "",
@@ -2187,6 +2193,13 @@ const state = {
 	notificationPopoverAlign: "center",
 	activeCustomPageID: "",
   adminPromoCodeDraft: "",
+	adminPromoTypeDraft: "discount",
+	adminPromoSubscriptionUnitDraft: "days",
+	adminPromoBalanceDraft: "",
+	adminPromoDaysDraft: "",
+	adminPromoTrafficDraft: "",
+	adminPromoCombinedTrafficDraft: "",
+	adminPromoSwitchAnimating: false,
   adminPromoDiscountDraft: "",
   adminPromoLimitDraft: "",
   adminPromoExpiresDraft: "",
@@ -2283,6 +2296,9 @@ let previousBottomNavIndex = -1;
 let pendingBottomNavAnimation = null;
 let promoApplyTimer = 0;
 let promoApplySeq = 0;
+let profilePromoCheckTimer = 0;
+let profilePromoCloseTimer = 0;
+let profilePromoCheckSeq = 0;
 let adminLayoutPointer = null;
 let adminLayoutPointerFrame = 0;
 let adminLayoutPendingPoint = null;
@@ -3126,6 +3142,7 @@ function requestTimeoutForURL(url) {
   const path = String(url || "");
   if (path.includes("/api/mini-app/bootstrap")) return 30000;
   if (path.includes("/api/mini-app/purchase")) return 45000;
+	if (path.includes("/api/mini-app/promocode/redeem")) return 30000;
   if (path.includes("/api/mini-app/support/send-media")) return 90000;
   if (path.includes("/api/mini-app/support/media-link")) return 30000;
   return 15000;
@@ -3228,6 +3245,14 @@ function mapApiErrorMessage(code, fallback) {
     promo_pending: copy.promoPending,
     promo_invalid_format: copy.promoInvalidFormat,
     promo_invalid_discount: copy.promoInvalidDiscount,
+	promo_invalid_reward: localizedText("Укажите корректное значение бонуса", "Enter a valid reward amount", "مقدار معتبر وارد کنید"),
+	promo_reward_requires_activation: localizedText("Активируйте бонус отдельно от покупки", "Activate this reward separately", "پاداش را جداگانه فعال کنید"),
+	promo_discount_checkout_only: localizedText("Скидка действует при покупке", "Discounts apply at checkout", "تخفیف هنگام خرید اعمال می‌شود"),
+	promo_subscription_unavailable: localizedText("Для этого бонуса нужна существующая подписка", "An existing subscription is required", "اشتراک موجود لازم است"),
+	promo_traffic_unlimited: localizedText("У этой подписки уже безлимитный трафик", "This subscription already has unlimited traffic", "ترافیک این اشتراک نامحدود است"),
+	promo_wallet_unavailable: localizedText("Баланс временно недоступен", "Balance is temporarily unavailable", "موجودی موقتاً در دسترس نیست"),
+	promo_reward_failed: localizedText("Не удалось начислить бонус. Попробуйте ещё раз", "Could not activate the reward. Try again", "پاداش فعال نشد؛ دوباره تلاش کنید"),
+	promo_pending_reward: localizedText("По этому коду ещё начисляется бонус. Попробуйте удалить позже", "A reward is still being activated. Try deleting the code later", "پاداش این کد هنوز در حال فعال‌سازی است"),
     promo_invalid_expiry: copy.promoInvalidExpiry,
     promo_invalid_limit: copy.promoInvalidLimit,
     promo_already_exists: copy.promoAlreadyExists,
@@ -3354,7 +3379,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-	const modalOpen = Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.supportComposeOpen || state.supportThreadOpen || state.supportMediaViewer || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminBannerEditorOpen || state.adminLayoutStyleEditorOpen;
+	const modalOpen = Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.profilePromoOpen || state.supportComposeOpen || state.supportThreadOpen || state.supportMediaViewer || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminBannerEditorOpen || state.adminLayoutStyleEditorOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -3416,6 +3441,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
       ${isModalVisible("support-media-viewer", Boolean(state.supportMediaViewer)) ? renderSupportMediaViewerModal() : ""}
       ${isModalVisible("devices", state.devicesModalOpen) ? renderDevicesModal() : ""}
       ${isModalVisible("pay", state.payModalOpen) ? renderPayModal() : ""}
+		${isModalVisible("profile-promo", state.profilePromoOpen) ? renderProfilePromoModal() : ""}
 		${state.p2pMenuStep ? renderP2PMenu() : ""}
 		${isModalVisible("subscription-editor", state.subscriptionEditorOpen) ? renderSubscriptionEditorModal() : ""}
 		${isModalVisible("subscription-delete", state.subscriptionDeleteOpen) ? renderSubscriptionDeleteModal() : ""}
@@ -6108,26 +6134,41 @@ function renderAdminPromocodesPage() {
   const copy = t();
   const admin = state.data?.admin || { promoCodes: [] };
   const items = Array.isArray(admin.promoCodes) ? admin.promoCodes : [];
+	const type = state.adminPromoTypeDraft;
+	const rewardType = type === "subscription" ? state.adminPromoSubscriptionUnitDraft : type;
+	const rewardFields = {
+		discount: [copy.adminPromoDiscountLabel || "Скидка, %", "admin-promo-discount", state.adminPromoDiscountDraft, "20", 99],
+		balance: [localizedText("На баланс, ₽", "Balance credit, ₽", "اعتبار، ₽"), "admin-promo-balance", state.adminPromoBalanceDraft, "100", 1000000],
+		days: [localizedText("Дней к подписке", "Days to subscription", "روز اشتراک"), "admin-promo-days", state.adminPromoDaysDraft, "30", 3650],
+		traffic: [localizedText("ГБ к подписке", "GB to subscription", "گیگابایت اشتراک"), "admin-promo-traffic", state.adminPromoTrafficDraft, "10", 1000000],
+		days_traffic: [localizedText("Дней к подписке", "Days to subscription", "روز اشتراک"), "admin-promo-days", state.adminPromoDaysDraft, "30", 3650],
+	};
+	const [rewardLabel, rewardInput, rewardValue, rewardPlaceholder, rewardMax] = rewardFields[rewardType];
   return `
     <section class="page ${pageClass("admin")}" id="page-admin">
       <div class="admin-editor admin-promo-admin">
       <section class="admin-editor__section admin-promo-panel admin-promo-panel--form">
         <div class="admin-editor__section-head"><h3>${escapeHtml(copy.adminPromoTitle || "Promo codes")}</h3></div>
         <div class="admin-promo-form">
+			<div class="admin-promo-type-switch" role="group" aria-label="${escapeAttribute(localizedText("Тип промокода", "Promo code type", "نوع کد تخفیف"))}">
+				${[["discount", localizedText("Скидка", "Discount", "تخفیف")], ["balance", localizedText("Баланс", "Balance", "موجودی")], ["subscription", localizedText("Подписка", "Subscription", "اشتراک")]].map(([id, label]) => `<button type="button" data-action="admin-promo-type" data-value="${id}" class="${type === id ? "is-active" : ""}" aria-pressed="${type === id}">${escapeHtml(label)}</button>`).join("")}
+			</div>
           <label class="admin-field">
             <span>${escapeHtml(copy.adminPromoCodeLabel || copy.promoCode)}</span>
             <input class="admin-field__control" type="text" maxlength="32" placeholder="${escapeAttribute(copy.promoCodePlaceholder || "")}" value="${escapeAttribute(state.adminPromoCodeDraft)}" data-input="admin-promo-code">
           </label>
-          <div class="admin-promo-grid">
+			${type === "subscription" ? `<div class="admin-promo-unit-switch" role="group" aria-label="${escapeAttribute(localizedText("Бонус к подписке", "Subscription reward", "پاداش اشتراک"))}">${[["days", localizedText("Дни", "Days", "روز")], ["traffic", localizedText("ГБ", "GB", "گیگابایت")], ["days_traffic", localizedText("Дни + ГБ", "Days + GB", "روز + گیگابایت")]].map(([id, label]) => `<button type="button" data-action="admin-promo-unit" data-value="${id}" class="${state.adminPromoSubscriptionUnitDraft === id ? "is-active" : ""}" aria-pressed="${state.adminPromoSubscriptionUnitDraft === id}">${escapeHtml(label)}</button>`).join("")}</div>` : ""}
+		  <div class="admin-promo-grid admin-promo-value-stage ${state.adminPromoSwitchAnimating ? "is-switching" : ""}">
             <label class="admin-field">
-              <span>${escapeHtml(copy.adminPromoDiscountLabel || "Discount, %")}</span>
-              <input class="admin-field__control" type="number" min="1" max="99" inputmode="numeric" placeholder="20" value="${escapeAttribute(state.adminPromoDiscountDraft)}" data-input="admin-promo-discount">
+              <span>${escapeHtml(rewardLabel)}</span>
+              <input class="admin-field__control" type="number" min="1" max="${rewardMax}" inputmode="numeric" placeholder="${rewardPlaceholder}" value="${escapeAttribute(rewardValue)}" data-input="${rewardInput}">
             </label>
-            <label class="admin-field">
+            ${rewardType === "days_traffic" ? `<label class="admin-field"><span>${escapeHtml(localizedText("ГБ к подписке", "GB to subscription", "گیگابایت اشتراک"))}</span><input class="admin-field__control" type="number" min="1" max="1000000" inputmode="numeric" placeholder="10" value="${escapeAttribute(state.adminPromoCombinedTrafficDraft)}" data-input="admin-promo-combined-traffic"></label>` : `<label class="admin-field">
               <span>${escapeHtml(copy.adminPromoLimitLabel || "User limit")}</span>
               <input class="admin-field__control" type="number" min="0" inputmode="numeric" placeholder="${escapeAttribute(copy.adminPromoLimitPlaceholder || "")}" value="${escapeAttribute(state.adminPromoLimitDraft)}" data-input="admin-promo-limit">
-            </label>
+            </label>`}
           </div>
+          ${rewardType === "days_traffic" ? `<label class="admin-field"><span>${escapeHtml(copy.adminPromoLimitLabel || "User limit")}</span><input class="admin-field__control" type="number" min="0" inputmode="numeric" placeholder="${escapeAttribute(copy.adminPromoLimitPlaceholder || "")}" value="${escapeAttribute(state.adminPromoLimitDraft)}" data-input="admin-promo-limit"></label>` : ""}
           <label class="admin-field">
             <span>${escapeHtml(copy.adminPromoExpiresLabel || "Valid until")}</span>
             <input class="admin-field__control" type="datetime-local" value="${escapeAttribute(state.adminPromoExpiresDraft)}" data-input="admin-promo-expires">
@@ -6314,6 +6355,25 @@ function renderSubscriptionSwitcher() {
 	return `<div class="subscription-switcher ${menuVisible ? "is-expanded" : ""}"><button class="subscription-switcher__trigger" type="button" data-action="toggle-subscription-menu" aria-haspopup="menu" aria-expanded="${Boolean(state.subscriptionMenuOpen)}"><span>${escapeHtml(active?.name || copy.primary)}</span><span class="subscription-switcher__chevron">${icon("arrowDown")}</span></button>${menu}</div>`;
 }
 
+function renderProfilePromoModal() {
+	const title = localizedText("Промокод", "Promo code", "کد تخفیف");
+	const close = localizedText("Закрыть", "Close", "بستن");
+	const valid = state.profilePromoValidation?.type === "success";
+	const status = state.profilePromoValidation;
+	const success = state.profilePromoStage === "success";
+	return `<div class="modal profile-promo-modal open ${modalStateClass("profile-promo")}" role="dialog" aria-modal="true" aria-labelledby="profile-promo-title">
+		<button class="modal__backdrop" type="button" data-action="close-profile-promo" aria-label="${escapeAttribute(close)}" ${state.profilePromoBusy ? "disabled" : ""}></button>
+		<div class="modal__sheet profile-promo-sheet">
+			<div class="modal__header"><div class="modal__title" id="profile-promo-title">${escapeHtml(title)}</div><button class="header__btn" type="button" data-action="close-profile-promo" aria-label="${escapeAttribute(close)}" ${state.profilePromoBusy ? "disabled" : ""}>${icon("close")}</button></div>
+			${success ? `<div class="profile-promo-success" role="status" aria-live="polite" tabindex="-1"><span class="profile-promo-success__mark">${icon("check")}</span><strong>${escapeHtml(localizedText("Промокод применён", "Promo code activated", "کد فعال شد"))}</strong></div>` : `<div class="profile-promo-form">
+				<label class="support-field" for="profile-promo-code"><span class="support-field__label">${escapeHtml(localizedText("Введите промокод", "Enter promo code", "کد را وارد کنید"))}</span><input class="support-field__input profile-promo-input" id="profile-promo-code" type="text" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" value="${escapeAttribute(state.profilePromoDraft)}" data-input="profile-promo-code" aria-describedby="profile-promo-status" ${state.profilePromoBusy ? "disabled" : ""}></label>
+				<div class="profile-promo-status profile-promo-status--${status?.type || "empty"}" id="profile-promo-status" role="status" aria-live="polite">${escapeHtml(status?.message || "")}</div>
+				<button class="btn btn--green-filled profile-promo-submit" type="button" data-action="apply-profile-promo" ${!valid || state.profilePromoBusy ? "disabled" : ""}>${icon(state.profilePromoBusy ? "refresh" : "check")}${escapeHtml(localizedText("Применить", "Apply", "اعمال"))}</button>
+			</div>`}
+		</div>
+	</div>`;
+}
+
 function renderSubscriptionEditorModal() {
 	const createMode = state.subscriptionEditorMode === "create";
 	const title = createMode ? localizedText("Создать подписку", "Create subscription", "ایجاد اشتراک") : localizedText("Переименовать подписку", "Rename subscription", "تغییر نام اشتراک");
@@ -6372,6 +6432,7 @@ function renderBuyPage() {
             <input class="support-field__input promo-box__input" type="text" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" aria-describedby="promo-status" placeholder="${escapeAttribute(copy.promoCodePlaceholder || "")}" value="${escapeAttribute(state.promoCodeDraft)}" data-input="promo-code" ${state.adminPlanEditing ? "disabled" : ""}>
           </div>
           <div class="promo-box__status ${promoStatus ? `promo-box__status--${escapeAttribute(promoStatus.type)}` : "promo-box__status--empty"}" id="promo-status" data-promo-status role="status" aria-live="polite">${promoStatus ? escapeHtml(promoStatus.message) : ""}</div>
+		  <div data-promo-reward-action>${renderPromoRewardAction()}</div>
         </div>` : ""}
 		${state.data.meta?.starsNeedPriorPurchase && !freeCheckout ? `<div class="note">${copy.starsNeedPriorPurchase}</div>` : ""}
 		<button class="btn btn--green-filled buy-action" type="button" data-action="pay-selected" ${checkoutDisabled ? "disabled aria-disabled=\"true\"" : ""}>${icon(state.busyMethod ? "refresh" : "cart")}${payLabel}</button>
@@ -6889,6 +6950,7 @@ function getProfileItems() {
 		media: { group: "main", label: mediaLabel(), hint: mediaHint(), action: "go-page", value: "media", icon: "youtube", feature: "media" },
 		news: { group: "main", label: copy.channel, hint: linkHint(links.channel), action: "open-link", value: links.channel, icon: "profileLetter", feature: "news" },
 		payments: { group: "purchases", label: copy.paymentsTitle || "Payments", hint: copy.paymentsHint || "", action: "go-page", value: "payments", icon: "profileCard", feature: "payments_history" },
+		promo_code: { group: "purchases", label: localizedText("Промокод", "Promo code", "کد تخفیف"), hint: localizedText("Баланс, дни или ГБ", "Balance, days or GB", "موجودی، روز یا گیگابایت"), action: "open-profile-promo", icon: "gift" },
 		referrals: { group: "programs", label: copy.referralSystem, hint: copy.referralsHint, action: "go-page", value: "referrals", icon: "users", feature: "referrals" },
 		partner: { group: "programs", label: localizedText("Партнёрка", "Partners", "همکاری"), hint: localizedText("Зарабатывайте на покупках приглашённых", "Earn from invited users' purchases", "از خریدهای کاربران دعوت‌شده درآمد کسب کنید"), action: "go-page", value: "partner", icon: "users" },
 		reviews: { group: "programs", label: copy.feedback, hint: reviewsSummaryHint(), action: "go-page", value: "reviews", icon: "profileStar", feature: "reviews" },
@@ -6927,7 +6989,7 @@ function getProfileItems() {
 	}
 	const configured = getLayoutElements("profile");
 	const configuredIDs = new Set(configured.map((item) => item.id));
-	const missingBuiltIns = ["partner"]
+	const missingBuiltIns = ["partner", "promo_code"]
 		.filter((id) => !configuredIDs.has(id))
 		.map((id) => deepClone(ADMIN_LAYOUT_DEFAULTS.find((item) => item.area === "profile" && item.id === id)))
 		.filter(Boolean);
@@ -7090,6 +7152,7 @@ function renderGiftPage() {
 				<label class="support-field__label" id="gift-promo-label" for="gift-promo-code">${escapeHtml(copy.promoCode || "Промокод")}</label>
 				<div class="promo-box__row"><input class="support-field__input promo-box__input" id="gift-promo-code" type="text" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" aria-describedby="gift-promo-status" placeholder="${escapeAttribute(copy.promoCodePlaceholder || "")}" value="${escapeAttribute(state.promoCodeDraft)}" data-input="promo-code"></div>
 				<div class="promo-box__status ${promoStatus ? `promo-box__status--${escapeAttribute(promoStatus.type)}` : "promo-box__status--empty"}" id="gift-promo-status" data-promo-status role="status" aria-live="polite">${promoStatus ? escapeHtml(promoStatus.message) : ""}</div>
+				<div data-promo-reward-action>${renderPromoRewardAction()}</div>
 			</section>` : ""}
 
 			<section class="gift-checkout" aria-label="${escapeAttribute(copy.paymentMethod)}">
@@ -7763,6 +7826,15 @@ function paymentHistoryMethodMeta(item, copy) {
 
 function renderAdminPromoRow(item) {
   const copy = t();
+	const reward = item?.rewardType === "balance"
+		? localizedText(`+${formatNumber(item.rewardValue || 0, state.locale)} ₽ на баланс`, `+${formatNumber(item.rewardValue || 0, state.locale)} ₽ balance`, `+${formatNumber(item.rewardValue || 0, state.locale)} ₽ موجودی`)
+		: item?.rewardType === "days"
+			? localizedText(`+${formatNumber(item.rewardValue || 0, state.locale)} дн.`, `+${formatNumber(item.rewardValue || 0, state.locale)} days`, `+${formatNumber(item.rewardValue || 0, state.locale)} روز`)
+			: item?.rewardType === "traffic"
+				? localizedText(`+${formatNumber(item.rewardValue || 0, state.locale)} ГБ`, `+${formatNumber(item.rewardValue || 0, state.locale)} GB`, `+${formatNumber(item.rewardValue || 0, state.locale)} گیگابایت`)
+				: item?.rewardType === "days_traffic"
+					? localizedText(`+${formatNumber(item.rewardValue || 0, state.locale)} дн. · +${formatNumber(item.rewardTrafficGb || 0, state.locale)} ГБ`, `+${formatNumber(item.rewardValue || 0, state.locale)} days · +${formatNumber(item.rewardTrafficGb || 0, state.locale)} GB`, `+${formatNumber(item.rewardValue || 0, state.locale)} روز · +${formatNumber(item.rewardTrafficGb || 0, state.locale)} گیگابایت`)
+				: `−${formatNumber(item?.discountPercent || 0, state.locale)}%`;
   const statusKey = item?.status === "expired"
     ? "adminPromoStatusExpired"
     : item?.status === "inactive"
@@ -7785,7 +7857,7 @@ function renderAdminPromoRow(item) {
           <span class="admin-promo-row__status">${escapeHtml(copy[statusKey] || item?.status || "Active")}</span>
         </div>
         <div class="admin-promo-row__meta">
-          <span>-${formatNumber(item?.discountPercent || 0, state.locale)}%</span>
+          <span>${escapeHtml(reward)}</span>
           <span>${escapeHtml(typeof copy.adminPromoUsage === "function" ? copy.adminPromoUsage(used, limit) : `${used}/${limit || "∞"}`)}</span>
           ${!limit ? `<span>${escapeHtml(copy.adminPromoUnlimited || "Unlimited")}</span>` : ""}
           <span>${escapeHtml(expiresLabel)}</span>
@@ -8343,6 +8415,9 @@ function bindRootActions() {
       if (action === "google-browser-login") return await startGoogleLogin("login", target);
       if (action === "google-link-login") return await startGoogleLogin("link", target);
       if (action === "open-sidebar") { state.sidebarOpen = true; render(); return; }
+		if (action === "open-profile-promo") return openProfilePromo();
+		if (action === "close-profile-promo") return closeProfilePromo();
+		if (action === "apply-profile-promo") return await applyProfilePromo();
       if (action === "close-sidebar") { state.sidebarOpen = false; render(); return; }
 		if (action === "toggle-subscription-menu") {
 			if (state.subscriptionMenuOpen) return requestSubscriptionMenuClose();
@@ -8585,11 +8660,28 @@ function bindRootActions() {
 		if (action === "confirm-p2p-transfer") { state.p2pMenuStep = "sender"; state.p2pMenuAnimation = "swap"; haptic("light"); render({ preserveScroll: true }); queueMicrotask(() => { state.p2pMenuAnimation = ""; app.querySelector("#p2p-sender-reference")?.focus(); }); return; }
 		if (action === "submit-p2p-payment") return await submitP2PPayment();
       if (action === "apply-promo") return await applyPromoCode();
+		if (action === "redeem-promo-reward") return await redeemPromoReward();
       if (action === "pay-selected") return await startPayment();
 		if (action === "start-gift-payment") return await startGiftPayment();
 		if (action === "copy-gift-link") return state.data?.giftReceipt?.shareUrl ? copyToClipboard(state.data.giftReceipt.shareUrl).then(() => showToast(t().giftCopied, "success")) : undefined;
 		if (action === "close-gift-receipt") return closeGiftReceipt();
       if (action === "admin-create-promo") return await createAdminPromoCode();
+		if (action === "admin-promo-type" && ["discount", "balance", "subscription"].includes(value)) {
+			state.adminPromoTypeDraft = value;
+			state.adminPromoSwitchAnimating = true;
+			haptic("light");
+			render({ preserveScroll: true });
+			queueMicrotask(() => { state.adminPromoSwitchAnimating = false; app.querySelector(`[data-action="admin-promo-type"][data-value="${value}"]`)?.focus(); });
+			return;
+		}
+		if (action === "admin-promo-unit" && ["days", "traffic", "days_traffic"].includes(value)) {
+			state.adminPromoSubscriptionUnitDraft = value;
+			state.adminPromoSwitchAnimating = true;
+			haptic("light");
+			render({ preserveScroll: true });
+			queueMicrotask(() => { state.adminPromoSwitchAnimating = false; app.querySelector(`[data-action="admin-promo-unit"][data-value="${value}"]`)?.focus(); });
+			return;
+		}
       if (action === "admin-delete-promo") return await deleteAdminPromoCode(Number(value));
       if (action === "admin-find-subscription") return await findAdminSubscription();
       if (action === "admin-load-subscription-target") return await loadAdminSubscriptionTarget();
@@ -9053,7 +9145,7 @@ function bindRootActions() {
 		if (inputKey === "partner-monthly-users") { state.partnerMonthlyUsersDraft = String(target.value || "").slice(0, 8); return; }
 		if (inputKey === "admin-partner-telegram") { state.adminPartnerTelegramDraft = String(target.value || "").replace(/\D+/g, "").slice(0, 19); if (target.value !== state.adminPartnerTelegramDraft) target.value = state.adminPartnerTelegramDraft; return; }
 		if (inputKey === "admin-partner-percent") { state.adminPartnerPercentDraft = String(target.value || "").slice(0, 3); return; }
-      if (inputKey === "promo-code") {
+		if (inputKey === "promo-code") {
         state.promoCodeDraft = target.value;
         if (state.appliedPromo && normalizePromoCodeValue(target.value) !== state.appliedPromo.code) {
           state.appliedPromo = null;
@@ -9063,8 +9155,17 @@ function bindRootActions() {
         schedulePromoAutoApply();
         return;
       }
+		if (inputKey === "profile-promo-code") {
+			state.profilePromoDraft = String(target.value || "").slice(0, 32);
+			scheduleProfilePromoCheck();
+			return;
+		}
       if (inputKey === "admin-promo-code") { state.adminPromoCodeDraft = target.value.toUpperCase(); return; }
       if (inputKey === "admin-promo-discount") { state.adminPromoDiscountDraft = target.value; return; }
+		if (inputKey === "admin-promo-balance") { state.adminPromoBalanceDraft = target.value; return; }
+		if (inputKey === "admin-promo-days") { state.adminPromoDaysDraft = target.value; return; }
+		if (inputKey === "admin-promo-traffic") { state.adminPromoTrafficDraft = target.value; return; }
+		if (inputKey === "admin-promo-combined-traffic") { state.adminPromoCombinedTrafficDraft = target.value; return; }
       if (inputKey === "admin-promo-limit") { state.adminPromoLimitDraft = target.value; return; }
       if (inputKey === "admin-promo-expires") { state.adminPromoExpiresDraft = target.value; return; }
       if (inputKey === "admin-subscription-query") {
@@ -9098,6 +9199,16 @@ function bindRootActions() {
 	app.addEventListener("pointerdown", beginAdminPlanPointer);
 	app.addEventListener("pointerdown", beginAdminLayoutPointer);
 	app.addEventListener("keydown", (event) => {
+		if (state.profilePromoOpen && event.key === "Escape") { event.preventDefault(); closeProfilePromo(); return; }
+		if (state.profilePromoOpen && event.key === "Tab") {
+			const controls = [...app.querySelectorAll(".profile-promo-sheet button:not(:disabled), .profile-promo-sheet input:not(:disabled)")];
+			if (controls.length && (event.shiftKey && document.activeElement === controls[0] || !event.shiftKey && document.activeElement === controls[controls.length - 1] || !controls.includes(document.activeElement))) {
+				event.preventDefault();
+				controls[event.shiftKey ? controls.length - 1 : 0].focus();
+			}
+			return;
+		}
+		if (state.profilePromoOpen && event.key === "Enter" && event.target.closest?.('[data-input="profile-promo-code"]') && !event.isComposing) { event.preventDefault(); void applyProfilePromo(); return; }
 		if (state.payModalOpen && event.key === "Escape") {
 			event.preventDefault();
 			closePayModal();
@@ -12640,12 +12751,124 @@ function getPromoStatus() {
   } : null);
 }
 
+function openProfilePromo() {
+	window.clearTimeout(profilePromoCheckTimer);
+	window.clearTimeout(profilePromoCloseTimer);
+	profilePromoCheckSeq += 1;
+	state.profilePromoDraft = "";
+	state.profilePromoValidation = null;
+	state.profilePromoStage = "form";
+	state.profilePromoBusy = false;
+	state.profilePromoOpen = true;
+	haptic("light");
+	render({ preserveScroll: true });
+	queueMicrotask(() => app.querySelector("#profile-promo-code")?.focus());
+}
+
+function closeProfilePromo() {
+	if (!state.profilePromoOpen || state.profilePromoBusy) return;
+	window.clearTimeout(profilePromoCheckTimer);
+	window.clearTimeout(profilePromoCloseTimer);
+	profilePromoCheckSeq += 1;
+	requestModalClose("profile-promo", () => {
+		state.profilePromoOpen = false;
+		state.profilePromoValidation = null;
+		state.profilePromoDraft = "";
+		state.profilePromoStage = "form";
+		queueMicrotask(() => app.querySelector('[data-action="open-profile-promo"]')?.focus());
+	});
+}
+
+function syncProfilePromoValidation() {
+	const status = app.querySelector("#profile-promo-status");
+	if (status) {
+		status.textContent = state.profilePromoValidation?.message || "";
+		status.className = `profile-promo-status profile-promo-status--${state.profilePromoValidation?.type || "empty"}`;
+	}
+	const button = app.querySelector('[data-action="apply-profile-promo"]');
+	if (button) button.disabled = state.profilePromoBusy || state.profilePromoValidation?.type !== "success";
+}
+
+function scheduleProfilePromoCheck() {
+	window.clearTimeout(profilePromoCheckTimer);
+	const code = normalizePromoCodeValue(state.profilePromoDraft);
+	const seq = ++profilePromoCheckSeq;
+	state.profilePromoValidation = code ? { type: "pending", message: localizedText("Проверяем промокод…", "Checking promo code…", "در حال بررسی کد…") } : null;
+	syncProfilePromoValidation();
+	if (!code) return;
+	profilePromoCheckTimer = window.setTimeout(async () => {
+		try {
+			const response = await post("/api/mini-app/promocode/apply", { code });
+			if (!state.profilePromoOpen || seq !== profilePromoCheckSeq) return;
+			state.profilePromoValidation = response.data?.rewardType === "discount"
+				? { type: "error", message: localizedText("Это промокод скидки, введите его при оплате", "This is a discount code. Enter it at checkout", "این کد تخفیف است؛ هنگام پرداخت وارد کنید") }
+				: { type: "success", message: localizedText("Промокод существует", "Promo code exists", "کد معتبر است") };
+		} catch (error) {
+			if (!state.profilePromoOpen || seq !== profilePromoCheckSeq) return;
+			state.profilePromoValidation = { type: "error", message: error?.code === "promo_not_found" ? localizedText("Промокод не найден", "Promo code not found", "کد پیدا نشد") : (error?.message || localizedText("Не удалось проверить промокод", "Could not check the promo code", "بررسی کد انجام نشد")) };
+		}
+		syncProfilePromoValidation();
+	}, 500);
+}
+
+async function applyProfilePromo() {
+	if (!state.profilePromoOpen || state.profilePromoBusy || state.profilePromoValidation?.type !== "success") return;
+	const code = normalizePromoCodeValue(state.profilePromoDraft);
+	if (!code) return;
+	state.profilePromoBusy = true;
+	syncProfilePromoValidation();
+	try {
+		await post("/api/mini-app/promocode/redeem", { code });
+		state.profilePromoBusy = false;
+		state.profilePromoStage = "success";
+		render({ preserveScroll: true });
+		queueMicrotask(() => app.querySelector(".profile-promo-success")?.focus());
+		haptic("success");
+		profilePromoCloseTimer = window.setTimeout(() => {
+			closeProfilePromo();
+			void safeRefresh().catch(() => {});
+		}, 1000);
+	} catch (error) {
+		state.profilePromoBusy = false;
+		state.profilePromoValidation = { type: "error", message: error?.message || localizedText("Не удалось применить промокод", "Could not activate promo code", "فعال‌سازی کد انجام نشد") };
+		syncProfilePromoValidation();
+	}
+}
+
+function promoRewardDescription(promo) {
+	const value = formatNumber(Number(promo?.rewardValue || 0), state.locale);
+	switch (promo?.rewardType) {
+		case "balance": return localizedText(`${value} ₽ на баланс`, `${value} ₽ to balance`, `${value} ₽ به موجودی`);
+		case "days": return localizedText(`${value} дн. к выбранной подписке`, `${value} days to the selected subscription`, `${value} روز به اشتراک انتخاب‌شده`);
+		case "traffic": return localizedText(`${value} ГБ к выбранной подписке`, `${value} GB to the selected subscription`, `${value} گیگابایت به اشتراک انتخاب‌شده`);
+		case "days_traffic": {
+			const traffic = formatNumber(Number(promo?.rewardTrafficGb || 0), state.locale);
+			return localizedText(`${value} дн. и ${traffic} ГБ к подписке`, `${value} days and ${traffic} GB to the subscription`, `${value} روز و ${traffic} گیگابایت به اشتراک`);
+		}
+		default: return "";
+	}
+}
+
+function getRewardPromo() {
+	const promo = state.appliedPromo;
+	if (!promo?.code || promo.rewardType === "discount" || !["balance", "days", "traffic", "days_traffic"].includes(promo.rewardType)) return null;
+	return normalizePromoCodeValue(state.promoCodeDraft) === promo.code ? promo : null;
+}
+
+function renderPromoRewardAction() {
+	const promo = getRewardPromo();
+	if (!promo) return "";
+	const label = localizedText("Активировать бонус", "Activate reward", "فعال‌سازی پاداش");
+	return `<button class="promo-reward-action" type="button" data-action="redeem-promo-reward" ${state.promoBusy === "redeem" ? "disabled" : ""}>${icon(state.promoBusy === "redeem" ? "refresh" : "check")}${escapeHtml(label)}</button>`;
+}
+
 function updatePromoStatusDom() {
 	const status = getPromoStatus();
 	app.querySelectorAll("[data-promo-status]").forEach((statusNode) => {
 		statusNode.textContent = status?.message || "";
 		statusNode.className = `promo-box__status ${status ? `promo-box__status--${status.type}` : "promo-box__status--empty"}`;
 	});
+	app.querySelectorAll("[data-promo-reward-action]").forEach((node) => { node.innerHTML = renderPromoRewardAction(); });
 }
 
 function updateCheckoutPriceDom() {
@@ -12728,11 +12951,11 @@ async function applyPromoCode(options = {}) {
     state.promoBusy = "";
     state.promoValidation = {
       type: "success",
-		  message: localizedText("Промокод применен", "Promo code applied", "کد تخفیف اعمال شد"),
+		  message: getRewardPromo() ? promoRewardDescription(response.data) : localizedText("Промокод применен", "Promo code applied", "کد تخفیف اعمال شد"),
     };
     if (silent) syncPromoCheckoutDom({ price: true });
     else render();
-    if (!silent) showToast(t().promoApplied || "Promo code applied", "success");
+    if (!silent) showToast(getRewardPromo() ? localizedText("Бонус готов к активации", "Reward ready to activate", "پاداش آماده فعال‌سازی است") : (t().promoApplied || "Promo code applied"), "success");
   } catch (error) {
     if (seq !== promoApplySeq || normalizePromoCodeValue(state.promoCodeDraft) !== code) return;
     state.promoBusy = "";
@@ -12745,6 +12968,27 @@ async function applyPromoCode(options = {}) {
     else render();
     if (!silent) showToast(state.promoValidation.message, "danger");
   }
+}
+
+async function redeemPromoReward() {
+	const promo = getRewardPromo();
+	if (!promo || state.promoBusy === "redeem") return;
+	state.promoBusy = "redeem";
+	render({ preserveScroll: true });
+	try {
+		await post("/api/mini-app/promocode/redeem", { code: promo.code });
+		state.appliedPromo = null;
+		state.promoCodeDraft = "";
+		state.promoValidation = null;
+		state.promoBusy = "";
+		render({ preserveScroll: true });
+		showToast(localizedText("Бонус начислен", "Reward activated", "پاداش فعال شد"), "success");
+		try { await safeRefresh(); } catch { /* The reward is already applied; the next refresh will update the display. */ }
+	} catch (error) {
+		state.promoBusy = "";
+		render({ preserveScroll: true });
+		throw error;
+	}
 }
 
 function openP2PMenu(context) {
@@ -13010,7 +13254,12 @@ function closeGiftReceipt() {
 
 async function createAdminPromoCode() {
   const code = normalizePromoCodeValue(state.adminPromoCodeDraft);
-  const discountPercent = Number.parseInt(String(state.adminPromoDiscountDraft || "").trim(), 10);
+	const rewardType = state.adminPromoTypeDraft === "subscription" ? state.adminPromoSubscriptionUnitDraft : state.adminPromoTypeDraft;
+	const rawReward = rewardType === "discount" ? state.adminPromoDiscountDraft : rewardType === "balance" ? state.adminPromoBalanceDraft : ["days", "days_traffic"].includes(rewardType) ? state.adminPromoDaysDraft : state.adminPromoTrafficDraft;
+	const rewardValue = Number.parseInt(String(rawReward || "").trim(), 10);
+	const rewardMax = rewardType === "discount" ? 99 : ["days", "days_traffic"].includes(rewardType) ? 3650 : 1000000;
+	const trafficRaw = String(state.adminPromoCombinedTrafficDraft || "").trim();
+	const rewardTrafficGb = Number.parseInt(trafficRaw, 10);
   const maxRedemptions = Number.parseInt(String(state.adminPromoLimitDraft || "").trim(), 10);
   const expiresAt = String(state.adminPromoExpiresDraft || "").trim();
   const expiresDate = expiresAt ? new Date(expiresAt) : null;
@@ -13021,13 +13270,22 @@ async function createAdminPromoCode() {
   if (String(state.adminPromoLimitDraft || "").trim() && (!Number.isFinite(maxRedemptions) || maxRedemptions < 0)) {
     return showToast(t().promoInvalidLimit || "Enter a valid user limit");
   }
+	if (!Number.isInteger(rewardValue) || rewardValue < 1 || rewardValue > rewardMax || String(rewardValue) !== String(rawReward).trim()) {
+		return showToast(localizedText("Укажите корректное значение бонуса", "Enter a valid reward amount", "مقدار معتبر وارد کنید"), "danger");
+	}
+	if (rewardType === "days_traffic" && (!Number.isInteger(rewardTrafficGb) || rewardTrafficGb < 1 || rewardTrafficGb > 1000000 || String(rewardTrafficGb) !== trafficRaw)) {
+		return showToast(localizedText("Укажите количество ГБ", "Enter a valid GB amount", "مقدار گیگابایت را وارد کنید"), "danger");
+	}
 
   state.adminBusy = "create-promo";
   render();
   try {
     const payload = {
       code,
-      discountPercent,
+	  rewardType,
+	  rewardValue: rewardType === "discount" ? 0 : rewardValue,
+	  rewardTrafficGb: rewardType === "days_traffic" ? rewardTrafficGb : 0,
+	  discountPercent: rewardType === "discount" ? rewardValue : 0,
       expiresAt: expiresDate ? expiresDate.toISOString() : "",
       maxRedemptions: Number.isFinite(maxRedemptions) && maxRedemptions > 0 ? maxRedemptions : 0,
     };
@@ -13035,6 +13293,10 @@ async function createAdminPromoCode() {
     state.data.admin = response.data;
     state.adminPromoCodeDraft = "";
     state.adminPromoDiscountDraft = "";
+	state.adminPromoBalanceDraft = "";
+	state.adminPromoDaysDraft = "";
+	state.adminPromoTrafficDraft = "";
+	state.adminPromoCombinedTrafficDraft = "";
     state.adminPromoLimitDraft = "";
     state.adminPromoExpiresDraft = "";
     state.adminBusy = "";
@@ -13373,6 +13635,10 @@ function setPage(page) {
     state.adminBusy = "";
     state.adminPromoCodeDraft = "";
     state.adminPromoDiscountDraft = "";
+		state.adminPromoBalanceDraft = "";
+		state.adminPromoDaysDraft = "";
+		state.adminPromoTrafficDraft = "";
+		state.adminPromoCombinedTrafficDraft = "";
     state.adminPromoLimitDraft = "";
     state.adminPromoExpiresDraft = "";
     state.adminSubscriptionQuery = "";
@@ -13454,7 +13720,7 @@ function syncNativeBackButton() {
 function shouldShowNativeBackButton() {
 	return Boolean(
 		state.adminLayoutEditing || state.adminPlanEditing || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminBannerEditorOpen || state.adminLayoutStyleEditorOpen || state.adminLayoutAddMenuOpen || state.notificationPopoverOpen || state.notificationPopoverClosing ||
-		state.giftReceiptOpen ||
+		state.giftReceiptOpen || state.profilePromoOpen ||
 		state.p2pMenuStep ||
     state.supportMediaViewer ||
     state.supportThreadOpen ||
@@ -13478,6 +13744,7 @@ function getNativeBackTargetPage() {
 }
 
 function handleNativeBackButton() {
+	if (state.profilePromoOpen) return closeProfilePromo();
 	if (state.adminBannerEditorOpen) return closeAdminBannerEditor();
 	if (state.adminLayoutStyleEditorOpen) return closeAdminLayoutStyleEditor();
 	if (state.adminLayoutAddMenuOpen) {
@@ -13532,6 +13799,7 @@ function handleNativeBackButton() {
 }
 
 function getActiveModalName() {
+	if (state.profilePromoOpen) return "profile-promo";
 	if (state.p2pMenuStep) return "p2p";
 	if (state.giftReceiptOpen) return "gift-receipt";
 	if (state.adminBannerEditorOpen) return "admin-banner";
@@ -14530,7 +14798,7 @@ function normalizePromoCodeValue(value) {
 }
 
 function getActivePromo() {
-  if (!state.appliedPromo?.code) return null;
+  if (!state.appliedPromo?.code || (state.appliedPromo.rewardType && state.appliedPromo.rewardType !== "discount")) return null;
   return normalizePromoCodeValue(state.promoCodeDraft) === state.appliedPromo.code ? state.appliedPromo : null;
 }
 

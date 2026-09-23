@@ -3521,6 +3521,13 @@ body:not(.is-layout-editing) .runtime-layout-item[data-runtime-id="subscription_
   opacity: .7;
 }
 
+[data-promo-reward-action]:empty { display: none; }
+.promo-reward-action { width: 100%; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--control-bg); color: var(--text); font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; transition: background-color .22s ease, border-color .22s ease; }
+.promo-reward-action svg { width: 17px; height: 17px; }
+.promo-reward-action:disabled { opacity: .55; cursor: wait; }
+.promo-reward-action:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+@media (hover: hover) { .promo-reward-action:not(:disabled):hover { border-color: var(--text); } }
+
 .promo-box__hint,
 .promo-box__applied {
   display: grid;
@@ -3554,6 +3561,72 @@ body:not(.is-layout-editing) .runtime-layout-item[data-runtime-id="subscription_
   display: grid;
   gap: 12px;
 }
+
+.admin-promo-type-switch {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--control-bg);
+}
+
+.admin-promo-type-switch button,
+.admin-promo-unit-switch button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color .24s ease, color .24s ease;
+}
+
+.admin-promo-type-switch button.is-active,
+.admin-promo-unit-switch button.is-active {
+  background: var(--surface-strong);
+  color: var(--text);
+}
+
+.admin-promo-type-switch button:focus-visible,
+.admin-promo-unit-switch button:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+
+.admin-promo-unit-switch { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.admin-promo-unit-switch button { min-height: 38px; border-bottom: 1px solid var(--line-soft); border-radius: 0; }
+.admin-promo-unit-switch button.is-active { border-bottom-color: var(--text); background: transparent; }
+.profile-promo-sheet {
+  max-height: min(72dvh, 420px);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+}
+.profile-promo-sheet .modal__title { font-size: 17px; }
+.profile-promo-form { display: grid; gap: 12px; }
+.profile-promo-input { min-height: 48px; text-transform: uppercase; }
+.profile-promo-status { min-height: 20px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.profile-promo-status--success { color: #8bd5a9; }
+.profile-promo-status--error { color: #f39b9b; }
+:root[data-theme="light"] .profile-promo-status--success { color: #176d3b; }
+:root[data-theme="light"] .profile-promo-status--error { color: #a92722; }
+.profile-promo-submit { width: 100%; min-height: 46px; }
+.profile-promo-submit:disabled { opacity: .48; cursor: not-allowed; }
+.profile-promo-input:focus-visible, .profile-promo-submit:focus-visible, .profile-promo-sheet .header__btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.profile-promo-success { min-height: 142px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; animation: profilePromoSuccessIn .36s cubic-bezier(.22, 1, .36, 1) both; }
+.profile-promo-success__mark { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 50%; background: #286c4a; color: #fff; }
+.profile-promo-success__mark svg { width: 28px; height: 28px; stroke-width: 2.5; }
+.profile-promo-success strong { font-size: 14px; }
+@keyframes profilePromoSuccessIn { from { opacity: 0; transform: translateY(7px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .profile-promo-success { animation: none; } }
+.admin-promo-value-stage.is-switching { animation: adminPromoValueIn .28s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes adminPromoValueIn { from { opacity: .5; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .admin-promo-value-stage.is-switching { animation: none; } .admin-promo-type-switch button, .admin-promo-unit-switch button { transition: none; } }
 
 .admin-promo-grid {
   display: grid;
@@ -12343,3 +12416,19 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 	border-color: var(--line) !important;
 	border-top-color: var(--text) !important;
 }
+
+/* The promo sheet intentionally keeps the subscription menu's translucent feel. */
+.modal__sheet.profile-promo-sheet {
+	width: min(100%, 360px);
+	margin: 0;
+	padding: 16px;
+	border: 1px solid var(--line);
+	border-radius: 15px;
+	background: color-mix(in srgb, var(--bg) 78%, transparent);
+}
+.profile-promo-modal { align-items: center; justify-content: center; padding: 16px; }
+.modal--animate .profile-promo-sheet { transform: translateY(8px) scale(.98); animation: profilePromoPanelIn .32s cubic-bezier(.22, 1, .36, 1) forwards; }
+.modal--closing .profile-promo-sheet { animation: profilePromoPanelOut .22s ease-in forwards; }
+@keyframes profilePromoPanelIn { to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes profilePromoPanelOut { to { opacity: 0; transform: translateY(5px) scale(.98); } }
+@media (prefers-reduced-motion: reduce) { .modal--animate .profile-promo-sheet, .modal--closing .profile-promo-sheet { animation-duration: 1ms; } }

@@ -34,6 +34,32 @@ func (r *Client) AdjustUserAccess(ctx context.Context, userID int64, userUUID uu
 	return r.patchPanelUser(ctx, user, fields)
 }
 
+// ApplyUserAccessTarget retries a promo reward without adding the same days or
+// traffic twice. A newer, greater limit is never reduced by a retry.
+func (r *Client) ApplyUserAccessTarget(ctx context.Context, userID int64, userUUID uuid.UUID, expireAt *time.Time, trafficLimitBytes *int64) (*PanelUser, error) {
+	user, err := r.getPanelUserByIdentity(ctx, userID, userUUID)
+	if err != nil {
+		return nil, err
+	}
+	fields := map[string]any{}
+	if expireAt != nil && user.ExpireAt.Before(*expireAt) {
+		fields["expireAt"] = expireAt.UTC()
+		fields["status"] = "ACTIVE"
+	}
+	if trafficLimitBytes != nil {
+		if user.TrafficLimitBytes <= 0 {
+			return nil, errors.New("unlimited traffic cannot be increased")
+		}
+		if user.TrafficLimitBytes < *trafficLimitBytes {
+			fields["trafficLimitBytes"] = *trafficLimitBytes
+		}
+	}
+	if len(fields) == 0 {
+		return user, nil
+	}
+	return r.patchPanelUser(ctx, user, fields)
+}
+
 func (r *Client) SetUserBlocked(ctx context.Context, userID int64, userUUID uuid.UUID, blocked bool) (*PanelUser, error) {
 	user, err := r.getPanelUserByIdentity(ctx, userID, userUUID)
 	if err != nil {
