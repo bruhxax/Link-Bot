@@ -365,18 +365,33 @@ func startPaymentNotificationBot(ctx context.Context, settings *integrations.Ser
 		timezone = "Europe/Moscow"
 	}
 
-	notificationBot, err := bot.New(token, bot.WithWorkers(1))
+	manager := &paymentNotificationGroupManager{settings: settings, adminID: config.GetAdminTelegramId()}
+	notificationBot, err := bot.New(token, bot.WithWorkers(1),
+		bot.WithDefaultHandler(manager.handle),
+		bot.WithAllowedUpdates(bot.AllowedUpdates{models.AllowedUpdateMessage, models.AllowedUpdateCallbackQuery, models.AllowedUpdateMyChatMember}),
+	)
 	if err != nil {
 		slog.Error("payment notification bot initialization failed", "error", err)
 		return
 	}
 
-	_, err = notificationBot.DeleteWebhook(ctx, &bot.DeleteWebhookParams{DropPendingUpdates: true})
+	me, err := notificationBot.GetMe(ctx)
+	if err != nil {
+		slog.Error("payment notification bot identity lookup failed", "error", err)
+		return
+	}
+	manager.username = me.Username
+	_, err = notificationBot.DeleteWebhook(ctx, &bot.DeleteWebhookParams{DropPendingUpdates: false})
 	if err != nil {
 		slog.Warn("payment notification bot webhook cleanup failed", "error", err)
 	}
 
 	commands := []models.BotCommand{
+		{Command: "start", Description: "Настроить уведомления"},
+		{Command: "groups", Description: "Группы для уведомлений"},
+		{Command: "topic", Description: "Указать топик для группы"},
+		{Command: "connectgroup", Description: "Подключить текущую группу"},
+		{Command: "remove", Description: "Отключить группу"},
 		{Command: "ping", Description: "Проверить уведомления"},
 	}
 	if _, err = notificationBot.SetMyCommands(ctx, &bot.SetMyCommandsParams{Commands: commands}); err != nil {

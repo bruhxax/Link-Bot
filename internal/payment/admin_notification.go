@@ -25,10 +25,11 @@ import (
 const adminPaymentPushTimeout = 20 * time.Second
 
 type telegramSendMessageRequest struct {
-	ChatID      int64                         `json:"chat_id"`
-	Text        string                        `json:"text"`
-	ParseMode   string                        `json:"parse_mode,omitempty"`
-	ReplyMarkup *telegramInlineKeyboardMarkup `json:"reply_markup,omitempty"`
+	ChatID          int64                         `json:"chat_id"`
+	MessageThreadID int                           `json:"message_thread_id,omitempty"`
+	Text            string                        `json:"text"`
+	ParseMode       string                        `json:"parse_mode,omitempty"`
+	ReplyMarkup     *telegramInlineKeyboardMarkup `json:"reply_markup,omitempty"`
 }
 
 type telegramInlineKeyboardMarkup struct {
@@ -114,21 +115,42 @@ func (s PaymentService) notifyAdminAboutPayment(ctx context.Context, purchase *d
 	message := buildPaymentNotificationMessageWithTemplate(settings.Text, purchase, username, method, time.Now(), orderNumber, timezone)
 	panelUserID := s.paymentNotificationPanelUserID(notifyCtx, purchase, customer)
 	keyboard := buildPaymentNotificationKeyboard(settings, panelUserID, profileUsername)
+	sendTo := func(destinationID int64, threadID int) error {
+		deliveryCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		return sendPaymentNotificationDestination(deliveryCtx, token, destinationID, threadID, message, keyboard, settings, panelUserID, profileUsername)
+	}
 
-	if err := sendTelegramNotification(notifyCtx, token, chatID, message, keyboard); err != nil {
-		if isTelegramButtonUserInvalid(err) && paymentNotificationProfileURL(profileUsername) != "" {
-			fallbackSettings := settings
-			fallbackSettings.ProfileButton.Enabled = false
-			fallbackKeyboard := buildPaymentNotificationKeyboard(fallbackSettings, panelUserID, "")
-			slog.Warn("payment notification profile button rejected; retrying without it", "error", err, "purchase_id", purchase.ID)
-			if fallbackErr := sendTelegramNotification(notifyCtx, token, chatID, message, fallbackKeyboard); fallbackErr == nil {
-				return
-			} else {
-				err = fmt.Errorf("profile button rejected (%v); fallback delivery failed: %w", err, fallbackErr)
-			}
-		}
+	if err := sendTo(chatID, 0); err != nil {
 		slog.Error("failed to send payment notification", "error", err, "purchase_id", purchase.ID)
 	}
+	if s.integrationSettings != nil {
+		if cfg, ok := s.integrationSettings.Config(integrations.ProviderNotificationBot); ok {
+			for _, group := range integrations.ParseNotificationGroups(cfg) {
+				if group.ChatID >= 0 || (group.IsForum && group.ThreadID == 0) {
+					continue
+				}
+				if err := sendTo(group.ChatID, group.ThreadID); err != nil {
+					slog.Error("failed to send group payment notification", "error", err, "purchase_id", purchase.ID, "chat_id", group.ChatID)
+				}
+			}
+		}
+	}
+}
+
+func sendPaymentNotificationDestination(ctx context.Context, token string, chatID int64, threadID int, message string, keyboard *telegramInlineKeyboardMarkup, settings runtimeconfig.TelegramPaymentNotificationSettings, panelUserID int64, profileUsername string) error {
+	err := sendTelegramNotificationToThread(ctx, token, chatID, threadID, message, keyboard)
+	if err == nil || !isTelegramButtonUserInvalid(err) || paymentNotificationProfileURL(profileUsername) == "" {
+		return err
+	}
+	fallbackSettings := settings
+	fallbackSettings.ProfileButton.Enabled = false
+	fallbackKeyboard := buildPaymentNotificationKeyboard(fallbackSettings, panelUserID, "")
+	slog.Warn("payment notification profile button rejected; retrying without it", "error", err, "chat_id", chatID)
+	if fallbackErr := sendTelegramNotificationToThread(ctx, token, chatID, threadID, message, fallbackKeyboard); fallbackErr != nil {
+		return fmt.Errorf("profile button rejected (%v); fallback delivery failed: %w", err, fallbackErr)
+	}
+	return nil
 }
 
 func (s PaymentService) notifyAdminAboutPaymentByPush(purchase *database.Purchase, username, method string) {
@@ -510,10 +532,20 @@ func sendTelegramNotification(ctx context.Context, token string, chatID int64, t
 }
 
 func sendTelegramNotificationMessage(ctx context.Context, token string, chatID int64, text string, keyboard ...*telegramInlineKeyboardMarkup) (int64, error) {
+	return sendTelegramNotificationMessageToThread(ctx, token, chatID, 0, text, keyboard...)
+}
+
+func sendTelegramNotificationToThread(ctx context.Context, token string, chatID int64, threadID int, text string, keyboard ...*telegramInlineKeyboardMarkup) error {
+	_, err := sendTelegramNotificationMessageToThread(ctx, token, chatID, threadID, text, keyboard...)
+	return err
+}
+
+func sendTelegramNotificationMessageToThread(ctx context.Context, token string, chatID int64, threadID int, text string, keyboard ...*telegramInlineKeyboardMarkup) (int64, error) {
 	request := telegramSendMessageRequest{
-		ChatID:    chatID,
-		Text:      text,
-		ParseMode: "HTML",
+		ChatID:          chatID,
+		MessageThreadID: threadID,
+		Text:            text,
+		ParseMode:       "HTML",
 	}
 	if len(keyboard) > 0 {
 		request.ReplyMarkup = keyboard[0]

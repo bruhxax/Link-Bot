@@ -121,6 +121,93 @@ type UpdateInput struct {
 	Fields  map[string]string `json:"fields"`
 }
 
+// NotificationGroup is a destination for completed payment notifications.
+// A forum group with ThreadID == 0 is waiting for topic selection.
+type NotificationGroup struct {
+	ChatID   int64  `json:"chatId"`
+	Title    string `json:"title"`
+	IsForum  bool   `json:"isForum"`
+	ThreadID int    `json:"threadId,omitempty"`
+}
+
+func ParseNotificationGroups(cfg map[string]string) []NotificationGroup {
+	var groups []NotificationGroup
+	if err := json.Unmarshal([]byte(cfg["groups"]), &groups); err != nil {
+		return nil
+	}
+	return groups
+}
+
+// SaveNotificationGroup updates only the bot-owned destination list, so an
+// administrator saving integration fields cannot overwrite a concurrent join.
+func (s *Service) SaveNotificationGroup(ctx context.Context, group NotificationGroup) error {
+	if group.ChatID >= 0 || (group.IsForum && group.ThreadID < 0) || (!group.IsForum && group.ThreadID != 0) {
+		return errors.New("invalid notification group")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rec, ok := s.records[ProviderNotificationBot]
+	if !ok {
+		return errors.New("notification bot integration is unavailable")
+	}
+	groups := ParseNotificationGroups(rec.Config)
+	replaced := false
+	for i := range groups {
+		if groups[i].ChatID == group.ChatID {
+			groups[i] = group
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		groups = append(groups, group)
+	}
+	return s.saveNotificationGroupsLocked(ctx, rec, groups)
+}
+
+func (s *Service) RemoveNotificationGroup(ctx context.Context, chatID int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rec, ok := s.records[ProviderNotificationBot]
+	if !ok {
+		return nil
+	}
+	groups := ParseNotificationGroups(rec.Config)
+	filtered := make([]NotificationGroup, 0, len(groups))
+	for _, group := range groups {
+		if group.ChatID != chatID {
+			filtered = append(filtered, group)
+		}
+	}
+	if len(filtered) == len(groups) {
+		return nil
+	}
+	return s.saveNotificationGroupsLocked(ctx, rec, filtered)
+}
+
+func (s *Service) saveNotificationGroupsLocked(ctx context.Context, rec record, groups []NotificationGroup) error {
+	raw, err := json.Marshal(groups)
+	if err != nil {
+		return err
+	}
+	configCopy := make(map[string]string, len(rec.Config)+1)
+	for key, value := range rec.Config {
+		configCopy[key] = value
+	}
+	configCopy["groups"] = string(raw)
+	encrypted, err := s.encrypt(configCopy)
+	if err != nil {
+		return err
+	}
+	if err := s.repository.Upsert(ctx, database.PaymentIntegration{Provider: ProviderNotificationBot, Enabled: rec.Enabled, EncryptedConfig: encrypted, WebhookToken: rec.WebhookToken}); err != nil {
+		return err
+	}
+	rec.Config = configCopy
+	rec.UpdatedAt = time.Now().UTC()
+	s.records[ProviderNotificationBot] = rec
+	return nil
+}
+
 type record struct {
 	Enabled      bool
 	Config       map[string]string
