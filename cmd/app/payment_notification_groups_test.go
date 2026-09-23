@@ -61,6 +61,11 @@ func newNotificationTestBot(t *testing.T) (*bot.Bot, *[]sentTelegramMessage) {
 			mu.Lock()
 			messages = append(messages, message)
 			mu.Unlock()
+			if message.ReplyMarkup == "null" {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"ok":false,"error_code":400,"description":"Bad Request: object expected as reply markup"}`))
+				return
+			}
 			_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":1,"date":1,"chat":{"id":-10042,"type":"supergroup"}}}`))
 			return
 		}

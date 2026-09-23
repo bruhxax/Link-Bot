@@ -263,7 +263,11 @@ func (m *paymentNotificationGroupManager) send(ctx context.Context, b *bot.Bot, 
 	if chatID == 0 {
 		return false
 	}
-	_, err := b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, MessageThreadID: threadID, Text: text, ReplyMarkup: keyboard})
+	params := &bot.SendMessageParams{ChatID: chatID, MessageThreadID: threadID, Text: text}
+	if keyboard != nil {
+		params.ReplyMarkup = keyboard
+	}
+	_, err := b.SendMessage(ctx, params)
 	if err != nil {
 		slog.Warn("notification bot message failed", "error", err, "chat_id", chatID, "thread_id", threadID)
 		return false
