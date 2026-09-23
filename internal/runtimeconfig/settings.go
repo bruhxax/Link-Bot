@@ -61,21 +61,28 @@ var featureOrder = []string{
 
 var setupPlatformOrder = []string{"ios", "android", "macos", "windows", "android-tv", "apple-tv"}
 
+var defaultPaymentMethodOrder = []string{"balance", "sbp", "card", "p2p", "stars", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay"}
+
+func DefaultPaymentMethodOrder() []string {
+	return append([]string(nil), defaultPaymentMethodOrder...)
+}
+
 type Settings struct {
-	Version      int                  `json:"version"`
-	Localization LocalizationSettings `json:"localization"`
-	Maintenance  MaintenanceSettings  `json:"maintenance"`
-	Features     map[string]bool      `json:"features"`
-	Content      ContentSettings      `json:"content"`
-	Appearance   AppearanceSettings   `json:"appearance"`
-	Layout       LayoutSettings       `json:"layout"`
-	SubPage      SubPageSettings      `json:"subPage"`
-	Plans        []PlanSettings       `json:"plans"`
-	DevicePacks  []DevicePackSettings `json:"devicePacks"`
-	Trial        TrialSettings        `json:"trial"`
-	Referrals    ReferralSettings     `json:"referrals"`
-	Grace        GraceSettings        `json:"grace"`
-	Panel        PanelSettings        `json:"panel"`
+	Version            int                  `json:"version"`
+	Localization       LocalizationSettings `json:"localization"`
+	Maintenance        MaintenanceSettings  `json:"maintenance"`
+	Features           map[string]bool      `json:"features"`
+	Content            ContentSettings      `json:"content"`
+	Appearance         AppearanceSettings   `json:"appearance"`
+	Layout             LayoutSettings       `json:"layout"`
+	SubPage            SubPageSettings      `json:"subPage"`
+	Plans              []PlanSettings       `json:"plans"`
+	DevicePacks        []DevicePackSettings `json:"devicePacks"`
+	PaymentMethodOrder []string             `json:"paymentMethodOrder"`
+	Trial              TrialSettings        `json:"trial"`
+	Referrals          ReferralSettings     `json:"referrals"`
+	Grace              GraceSettings        `json:"grace"`
+	Panel              PanelSettings        `json:"panel"`
 }
 
 type LocalizationSettings struct {
@@ -424,7 +431,8 @@ func DefaultSettings() Settings {
 	}
 
 	settings := Settings{
-		Version: CurrentVersion,
+		Version:            CurrentVersion,
+		PaymentMethodOrder: DefaultPaymentMethodOrder(),
 		Localization: LocalizationSettings{
 			Language:   language,
 			FontFamily: fontFamily,
@@ -1039,6 +1047,7 @@ func NormalizeAndValidate(settings *Settings) error {
 	defaults := DefaultSettings()
 	previousVersion := settings.Version
 	settings.Version = CurrentVersion
+	settings.PaymentMethodOrder = normalizePaymentMethodOrder(settings.PaymentMethodOrder)
 
 	if settings.Features == nil {
 		settings.Features = map[string]bool{}
@@ -1098,6 +1107,19 @@ func NormalizeAndValidate(settings *Settings) error {
 		return err
 	}
 	return nil
+}
+
+func normalizePaymentMethodOrder(order []string) []string {
+	seen := make(map[string]bool, len(defaultPaymentMethodOrder))
+	normalized := make([]string, 0, len(defaultPaymentMethodOrder))
+	for _, method := range append(append([]string(nil), order...), defaultPaymentMethodOrder...) {
+		method = strings.ToLower(strings.TrimSpace(method))
+		if contains(defaultPaymentMethodOrder, method) && !seen[method] {
+			seen[method] = true
+			normalized = append(normalized, method)
+		}
+	}
+	return normalized
 }
 
 func validateLocalization(value *LocalizationSettings, defaults LocalizationSettings) error {

@@ -4130,7 +4130,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		GiftReceipt:    giftReceiptData,
 		Admin:          adminData,
 		Plans:          h.buildPlans(),
-		PaymentMethods: mapPaymentMethods(allowedMethods),
+		PaymentMethods: mapPaymentMethods(allowedMethods, settings.PaymentMethodOrder),
 		P2P:            h.buildP2PPaymentPayload(allowedMethods["p2p"]),
 		Links: linksPayload{
 			Support: h.runtimeLink("support", config.SupportURL()),
@@ -6172,12 +6172,14 @@ func runtimeFeatureForPath(path string) string {
 	}
 }
 
-func mapPaymentMethods(methods map[string]bool) []paymentMethodPayload {
-	order := []string{"balance", "sbp", "card", "p2p", "stars", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay"}
+func mapPaymentMethods(methods map[string]bool, order []string) []paymentMethodPayload {
+	order = append(append([]string(nil), order...), runtimeconfig.DefaultPaymentMethodOrder()...)
 	payload := make([]paymentMethodPayload, 0, len(order))
+	seen := make(map[string]bool, len(order))
 	for _, method := range order {
-		if methods[method] {
+		if methods[method] && !seen[method] {
 			payload = append(payload, paymentMethodPayload{ID: method})
+			seen[method] = true
 		}
 	}
 	return payload

@@ -12291,6 +12291,21 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 @media (max-width: 380px) { .admin-partner-entry__summary { grid-template-columns: 42px minmax(0, 1fr) 17px; } .admin-partner-entry__status { display: none; } }
 @media (prefers-reduced-motion: reduce) { .partner-loading svg, .page.partner-page.active.page--animate, .admin-partner-entry { animation: none; } .admin-partner-entry__summary > svg { transition: none; } }
 
+/* Payment order editor reuses the checkout marks with compact, touch-sized controls. */
+.pay-order-sheet { max-height: min(82dvh, 680px); overflow-y: auto; }
+.pay-order-sheet__hint { margin: 0 0 14px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.pay-order-list { border-top: 1px solid var(--line-soft); }
+.pay-order-row { min-height: 62px; display: grid; grid-template-columns: 21px 38px minmax(0, 1fr) auto; align-items: center; gap: 10px; border-bottom: 1px solid var(--line-soft); }
+.pay-order-row__number { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; text-align: center; }
+.pay-order-row__name { overflow: hidden; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.pay-order-row__actions { display: flex; gap: 2px; }
+.pay-order-row__actions button { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; }
+.pay-order-row__actions button svg { width: 19px; height: 19px; }
+.pay-order-row__actions button:disabled { color: var(--muted); opacity: .35; cursor: default; }
+.pay-order-row__actions button:focus-visible { outline: 2px solid var(--text); outline-offset: -3px; }
+.pay-order-sheet__footer { padding-top: 14px; color: var(--muted); font-size: 11px; text-align: center; }
+@media (hover: hover) { .pay-order-row__actions button:not(:disabled):hover { background: var(--control-bg); } }
+
 /* Keep this rule last: theme sections above may restore component borders.
    Transparent borders preserve layout while the global frame setting is off. */
 :root[data-frames="off"] body,

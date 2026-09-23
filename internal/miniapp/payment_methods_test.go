@@ -15,7 +15,7 @@ func TestMapPaymentMethodsKeepsCheckoutOrder(t *testing.T) {
 		"crypto": true,
 	}
 
-	got := mapPaymentMethods(methods)
+	got := mapPaymentMethods(methods, nil)
 	ids := make([]string, 0, len(got))
 	for _, method := range got {
 		ids = append(ids, method.ID)
@@ -23,6 +23,18 @@ func TestMapPaymentMethodsKeepsCheckoutOrder(t *testing.T) {
 
 	want := []string{"sbp", "card", "stars", "crypto"}
 	if !reflect.DeepEqual(ids, want) {
+		t.Fatalf("payment method order = %v, want %v", ids, want)
+	}
+}
+
+func TestMapPaymentMethodsUsesConfiguredOrderAndSkipsUnavailable(t *testing.T) {
+	methods := map[string]bool{"sbp": true, "card": true, "stars": true}
+	got := mapPaymentMethods(methods, []string{"stars", "missing", "card", "stars"})
+	ids := make([]string, 0, len(got))
+	for _, method := range got {
+		ids = append(ids, method.ID)
+	}
+	if want := []string{"stars", "card", "sbp"}; !reflect.DeepEqual(ids, want) {
 		t.Fatalf("payment method order = %v, want %v", ids, want)
 	}
 }

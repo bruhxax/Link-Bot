@@ -2164,6 +2164,8 @@ const state = {
 	adminPlanFormDraft: null,
 	adminPlanDurationUnit: "months",
 	adminPlanBaseline: null,
+	adminPlanBaselinePaymentOrder: null,
+	adminPaymentOrderAnnouncement: "",
 	adminProfileEditorModalOpen: false,
 	adminProfileEditingID: "",
 	adminProfileFormDraft: null,
@@ -6355,13 +6357,15 @@ function renderBuyPage() {
     ? renderDevicePackAdminTrigger(true)
     : devicePacks.length ? renderDevicePackTrigger(devicePack) : "";
   const planList = displayedPlans.length ? `<div class="pricing-list ${state.adminPlanEditing ? "pricing-list--admin" : ""}" style="--plan-columns:${Math.max(1, Math.min(2, Number(getRuntimeSettings()?.layout?.planColumns || 2)))}">${displayedPlans.map((item) => renderPlanCard(item, planKey(item) === planKey(plan))).join("")}</div>` : `<div class="commerce-empty commerce-empty--compact"><div class="commerce-empty__title">${escapeHtml(copy.noPlansTitle)}</div></div>`;
-  const methodTitle = method?.label || copy.noPaymentMethodsTitle;
-  const methodHint = method?.hint || copy.noPaymentMethodsHint;
+  const methodTitle = state.adminPlanEditing ? localizedText("Способ оплаты", "Payment methods", "روش‌های پرداخت") : method?.label || copy.noPaymentMethodsTitle;
+  const methodHint = state.adminPlanEditing
+	? localizedText(`Порядок отображения · ${getAdminPaymentMethods().length}`, `Display order · ${getAdminPaymentMethods().length}`, `ترتیب نمایش · ${getAdminPaymentMethods().length}`)
+	: method?.hint || copy.noPaymentMethodsHint;
   const checkoutDisabled = !plan || (!freeCheckout && !method) || state.busyMethod || state.adminPlanEditing;
   const checkout = `<div class="card card--checkout">
 		<div class="summary-row checkout-summary"><div><div class="summary-row__title">${copy.selectedPlan}</div><div class="summary-row__value">${plan ? getPlanDisplayTitle(plan, state.locale) : "—"}</div></div>${plan?.recommended ? `<span class="badge badge--inline">${copy.best}</span>` : plan?.savingsPercent ? `<span class="badge badge--inline">${copy.savings(plan.savingsPercent)}</span>` : ""}</div>
         <div class="payment-stack">
-		${freeCheckout ? `<div class="checkout-free-note"><span>${icon("check")}</span><div><strong>${escapeHtml(freeLabel)}</strong><small>${localizedText("Способ оплаты не нужен — тариф активируется сразу.", "No payment method or redirect is required.", "نیازی به روش پرداخت نیست؛ تعرفه فوراً فعال می‌شود.")}</small></div></div>` : `<button class="pay-selector checkout-payment ${method ? "" : "checkout-payment--empty"}" type="button" data-action="open-pay-modal" ${method ? "" : "disabled aria-disabled=\"true\""}><span class="pay-selector__icon ${method ? "pay-selector__icon--brand" : ""}">${method ? renderPaymentMethodLogo(method) : icon("wallet")}</span><span class="pay-selector__copy"><strong>${escapeHtml(methodTitle)}</strong><span>${escapeHtml(methodHint)}</span></span><span class="pay-selector__tail">${method ? icon("checkoutEdit") : ""}</span></button>`}
+		${freeCheckout && !state.adminPlanEditing ? `<div class="checkout-free-note"><span>${icon("check")}</span><div><strong>${escapeHtml(freeLabel)}</strong><small>${localizedText("Способ оплаты не нужен — тариф активируется сразу.", "No payment method or redirect is required.", "نیازی به روش پرداخت نیست؛ تعرفه فوراً فعال می‌شود.")}</small></div></div>` : `<button class="pay-selector checkout-payment ${method ? "" : "checkout-payment--empty"}" type="button" data-action="open-pay-modal" ${method || state.adminPlanEditing ? "" : "disabled aria-disabled=\"true\""}><span class="pay-selector__icon ${method ? "pay-selector__icon--brand" : ""}">${method ? renderPaymentMethodLogo(method) : icon("wallet")}</span><span class="pay-selector__copy"><strong>${escapeHtml(methodTitle)}</strong><span>${escapeHtml(methodHint)}</span></span><span class="pay-selector__tail">${icon("checkoutEdit")}</span></button>`}
         ${featureEnabled("promocodes") && !freeCheckout ? `<div class="promo-box checkout-promo">
           <span class="support-field__label">${escapeHtml(copy.promoCode || "Promo code")}</span>
           <div class="promo-box__row">
@@ -7797,6 +7801,11 @@ function renderAdminPromoRow(item) {
 
 function renderPayModal() {
   const copy = t();
+	if (state.adminPlanEditing) {
+		const methods = getAdminPaymentMethods();
+		const closeLabel = localizedText("Закрыть порядок оплаты", "Close payment order", "بستن ترتیب پرداخت");
+		return `<div class="modal open ${modalStateClass("pay")}" role="dialog" aria-modal="true" aria-labelledby="pay-order-title"><button class="modal__backdrop" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}"></button><div class="modal__sheet pay-order-sheet"><div class="modal__header"><div class="modal__title" id="pay-order-title">${localizedText("Способы оплаты", "Payment methods", "روش‌های پرداخت")}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button></div><p class="pay-order-sheet__hint">${localizedText("Порядок показа при оплате. Перемещайте способы стрелками.", "Order shown at checkout. Use the arrows to move methods.", "ترتیب نمایش در پرداخت را با پیکان‌ها تغییر دهید.")}</p><span class="sr-only" role="status" aria-live="polite">${escapeHtml(state.adminPaymentOrderAnnouncement)}</span><div class="pay-order-list">${methods.map((method, index) => `<div class="pay-order-row" data-pay-order-id="${escapeAttribute(method.id)}"><span class="pay-order-row__number">${index + 1}</span><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-order-row__name">${escapeHtml(method.label)}</span><span class="pay-order-row__actions"><button type="button" data-action="move-pay-method-up" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Поднять ${method.label}`, `Move ${method.label} up`, `انتقال ${method.label} به بالا`))}" ${index === 0 ? "disabled" : ""}>${icon("arrowUp")}</button><button type="button" data-action="move-pay-method-down" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Опустить ${method.label}`, `Move ${method.label} down`, `انتقال ${method.label} به پایین`))}" ${index === methods.length - 1 ? "disabled" : ""}>${icon("arrowDown")}</button></span></div>`).join("") || `<div class="note">${localizedText("Добавьте способ оплаты, чтобы настроить порядок.", "Add a payment method to set its order.", "برای تنظیم ترتیب، روش پرداخت اضافه کنید.")}</div>`}</div><div class="pay-order-sheet__footer">${localizedText("Закройте окно и сохраните изменения в тарифах", "Close this panel and save your plan settings", "پنجره را ببندید و تنظیمات را ذخیره کنید")}</div></div></div>`;
+	}
 	const plan = state.currentPage === "gift" ? getSelectedGiftPlan() : getSelectedPlan();
 	return `<div class="modal open ${modalStateClass("pay")}"><button class="modal__backdrop" type="button" data-action="close-pay-modal"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title">${copy.choosePaymentMethod}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${localizedText("Закрыть способы оплаты", "Close payment methods", "بستن روش‌های پرداخت")}">${icon("close")}</button></div><div class="menu-list">${getAvailableMethods(plan).map((method) => `<button class="pay-row ${state.paymentMethod === method.id ? "selected" : ""}" type="button" data-action="select-pay-method" data-value="${method.id}" data-selection-feedback aria-pressed="${state.paymentMethod === method.id}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(method.label)}</strong><span>${escapeHtml(method.hint)}</span></span><span class="pay-row__check">${state.paymentMethod === method.id ? icon("check") : ""}</span></button>`).join("") || `<div class="note">${copy.paymentUnavailable}</div>`}</div></div></div>`;
 }
@@ -8558,8 +8567,10 @@ function bindRootActions() {
 			render({ preserveScroll: true });
 			return;
 		}
-      if (action === "open-pay-modal") { state.payModalOpen = true; render(); return; }
-      if (action === "close-pay-modal") return requestModalClose("pay", () => { state.payModalOpen = false; });
+      if (action === "open-pay-modal") { state.payModalOpen = true; render(); if (state.adminPlanEditing) queueMicrotask(() => app.querySelector('.pay-order-sheet [data-action="close-pay-modal"]')?.focus()); return; }
+      if (action === "move-pay-method-up") return moveAdminPaymentMethod(value, -1);
+      if (action === "move-pay-method-down") return moveAdminPaymentMethod(value, 1);
+      if (action === "close-pay-modal") return closePayModal();
       if (action === "close-payment-launch") return requestModalClose("payment-launch", () => { state.paymentLaunchModalOpen = false; state.paymentLaunchURL = ""; state.paymentLaunchPurchaseId = 0; });
       if (action === "launch-payment-browser") return openPreparedPaymentInBrowser();
       if (action === "select-pay-method") {
@@ -9087,6 +9098,19 @@ function bindRootActions() {
 	app.addEventListener("pointerdown", beginAdminPlanPointer);
 	app.addEventListener("pointerdown", beginAdminLayoutPointer);
 	app.addEventListener("keydown", (event) => {
+		if (state.payModalOpen && event.key === "Escape") {
+			event.preventDefault();
+			closePayModal();
+			return;
+		}
+		if (state.payModalOpen && state.adminPlanEditing && event.key === "Tab") {
+			const buttons = [...app.querySelectorAll('.pay-order-sheet button:not(:disabled)')];
+			if (buttons.length && (event.shiftKey && document.activeElement === buttons[0] || !event.shiftKey && document.activeElement === buttons[buttons.length - 1])) {
+				event.preventDefault();
+				buttons[event.shiftKey ? buttons.length - 1 : 0].focus();
+			}
+			return;
+		}
 		if (state.adminLayoutAddMenuOpen && event.target.closest?.(".admin-layout-add-menu [role=menuitem]") && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
 			event.preventDefault();
 			const options = [...app.querySelectorAll(".admin-layout-add-menu [role=menuitem]")];
@@ -9406,6 +9430,7 @@ async function saveAdminSettings() {
 		}
 		if (state.adminPlanEditing) {
 			state.adminPlanBaseline = deepClone(response.data.plans || []);
+			state.adminPlanBaselinePaymentOrder = deepClone(response.data.paymentMethodOrder || []);
 			state.adminPlanBaselineDirty = false;
 			if (state.data) state.data.plans = (response.data.plans || []).filter((plan) => plan.enabled !== false).map(runtimePlanToPayload);
 			ensureSelections();
@@ -10785,11 +10810,14 @@ function enterAdminPlanEditor() {
 	syncAdminSettingsDraft();
 	if (!state.adminSettingsDraft) return;
 	state.adminPlanBaseline = deepClone(state.adminSettingsDraft.plans || []);
+	state.adminPlanBaselinePaymentOrder = deepClone(state.adminSettingsDraft.paymentMethodOrder || []);
 	state.adminPlanBaselineDirty = state.adminSettingsDirty;
 	state.adminLayoutAddMenuOpen = false;
 	state.adminPlanEditing = true;
 	state.adminLayoutEditing = false;
 	state.adminPlanEditorModalOpen = false;
+	state.payModalOpen = false;
+	state.adminPaymentOrderAnnouncement = "";
 	state.adminPlanEditingID = "";
 	state.adminPlanFormDraft = null;
 	state.adminSection = "plans";
@@ -10805,14 +10833,18 @@ function exitAdminPlanEditor() {
 	finishAdminPlanPointer();
 	if (state.adminPlanBaseline && state.adminSettingsDraft) {
 		state.adminSettingsDraft.plans = deepClone(state.adminPlanBaseline);
+		state.adminSettingsDraft.paymentMethodOrder = deepClone(state.adminPlanBaselinePaymentOrder || []);
 		state.adminSettingsDirty = Boolean(state.adminPlanBaselineDirty);
 	}
 	state.adminPlanEditing = false;
 	state.adminLayoutAddMenuOpen = false;
 	state.adminPlanEditorModalOpen = false;
+	state.payModalOpen = false;
+	state.adminPaymentOrderAnnouncement = "";
 	state.adminPlanEditingID = "";
 	state.adminPlanFormDraft = null;
 	state.adminPlanBaseline = null;
+	state.adminPlanBaselinePaymentOrder = null;
 	state.adminPlanBaselineDirty = false;
 	state.currentPage = "admin";
 	state.adminSection = "home";
@@ -10999,6 +11031,7 @@ function toggleAdminPlanWide(id) {
 function resetAdminPlans() {
 	if (!state.adminSettingsDraft || !Array.isArray(state.adminPlanBaseline)) return;
 	state.adminSettingsDraft.plans = deepClone(state.adminPlanBaseline);
+	state.adminSettingsDraft.paymentMethodOrder = deepClone(state.adminPlanBaselinePaymentOrder || []);
 	state.adminSettingsDirty = true;
 	state.adminPlanEditorModalOpen = false;
 	state.adminPlanEditingID = "";
@@ -13475,6 +13508,7 @@ function handleNativeBackButton() {
 	if (state.adminPromoWidgetEditorOpen) return closeAdminPromoWidgetEditor();
 	if (state.adminProfileEditorModalOpen) return closeAdminProfileEditorModal();
 	if (state.adminPlanEditorModalOpen) return closeAdminPlanEditorModal();
+	if (state.payModalOpen && state.adminPlanEditing) return closePayModal();
 	if (state.adminPlanEditing) return exitAdminPlanEditor();
 	if (state.adminLayoutEditing) return exitAdminLayoutEditor();
 	if (state.subscriptionDeleteOpen) return closeSubscriptionDelete();
@@ -13485,7 +13519,7 @@ function handleNativeBackButton() {
   if (state.supportThreadOpen) return requestModalClose("support-thread", closeSupportThreadState);
   if (state.supportComposeOpen) return requestModalClose("support-compose", () => { state.supportComposeOpen = false; state.supportDraftSubject = ""; state.supportDraftMessage = ""; });
   if (state.devicesModalOpen) return requestModalClose("devices", () => { state.devicesModalOpen = false; state.deviceBusyHwid = ""; });
-  if (state.payModalOpen) return requestModalClose("pay", () => { state.payModalOpen = false; });
+  if (state.payModalOpen) return closePayModal();
   if (state.devicePackModalOpen) return requestModalClose("device-packs", () => { state.devicePackModalOpen = false; });
   if (state.paymentLaunchModalOpen) return requestModalClose("payment-launch", () => { state.paymentLaunchModalOpen = false; state.paymentLaunchURL = ""; state.paymentLaunchPurchaseId = 0; });
   if (state.reviewComposeOpen) return requestModalClose("review-compose", () => { state.reviewComposeOpen = false; state.reviewDraftRating = 0; state.reviewDraftComment = ""; state.reviewBusy = ""; });
@@ -13541,6 +13575,13 @@ function requestModalClose(name, onClosed) {
     onClosed();
     render();
   }, reducedMotionMedia?.matches ? 0 : MODAL_CLOSE_MS);
+}
+
+function closePayModal() {
+	return requestModalClose("pay", () => {
+		state.payModalOpen = false;
+		queueMicrotask(() => app.querySelector('[data-action="open-pay-modal"]')?.focus());
+	});
 }
 
 function applyAppearance() {
@@ -13926,12 +13967,63 @@ function formatGiftPlanPrice(plan) {
 }
 
 function getAvailableMethods(plan = getSelectedPlan()) {
-	const pack = getSelectedDevicePack();
-  return (state.data?.paymentMethods || [])
-    .map((item) => paymentMethodMeta(item.id))
-    .filter(Boolean)
+  const pack = getSelectedDevicePack();
+	return getConfiguredPaymentMethods()
 		.filter((method) => state.currentPage !== "gift" || method.id !== "balance")
     .filter((method) => method.id !== "stars" || Number(plan?.priceStars || 0) + Number(pack?.priceStars || 0) > 0);
+}
+
+function getConfiguredPaymentMethods() {
+	return sortConfiguredPaymentMethods((state.data?.paymentMethods || []));
+}
+
+function getAdminPaymentMethods() {
+	const integrations = state.data?.admin?.integrations;
+	if (previewMode || !Array.isArray(integrations) || integrations.length === 0) return getConfiguredPaymentMethods();
+	const enabled = new Set(integrations.filter((item) => item.enabled && item.configured).map((item) => item.id));
+	const methods = [];
+	if (getRuntimeSettings()?.referrals?.balancePaymentsEnabled) methods.push("balance");
+	if (enabled.has("yookassa")) methods.push("sbp", "card");
+	if (enabled.has("p2p") && enabled.has("notification_bot")) methods.push("p2p");
+	if (getRuntimeSettings()?.features?.stars !== false) methods.push("stars");
+	if (enabled.has("cryptopay")) methods.push("crypto");
+	for (const id of ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay"]) {
+		if (enabled.has(id)) methods.push(id);
+	}
+	return sortConfiguredPaymentMethods(methods.map((id) => ({ id })));
+}
+
+function sortConfiguredPaymentMethods(items) {
+	const order = getRuntimeSettings()?.paymentMethodOrder || [];
+	const positions = new Map(order.map((id, index) => [id, index]));
+	return items
+		.map((item) => paymentMethodMeta(item.id))
+		.filter(Boolean)
+		.sort((a, b) => (positions.get(a.id) ?? 999) - (positions.get(b.id) ?? 999));
+}
+
+function moveAdminPaymentMethod(id, direction) {
+	if (!state.adminPlanEditing || !state.adminSettingsDraft || state.adminBusy) return;
+	const visible = getAdminPaymentMethods().map((method) => method.id);
+	const index = visible.indexOf(id);
+	const other = visible[index + direction];
+	if (index < 0 || !other) return;
+	const configured = Array.isArray(state.adminSettingsDraft.paymentMethodOrder) ? [...state.adminSettingsDraft.paymentMethodOrder] : [];
+	const fullOrder = [...new Set([...configured, ...visible])];
+	const a = fullOrder.indexOf(id);
+	const b = fullOrder.indexOf(other);
+	[fullOrder[a], fullOrder[b]] = [fullOrder[b], fullOrder[a]];
+	state.adminSettingsDraft.paymentMethodOrder = fullOrder;
+	state.adminSettingsDirty = true;
+	const methodLabel = paymentMethodMeta(id)?.label || id;
+	state.adminPaymentOrderAnnouncement = localizedText(`${methodLabel}: позиция ${index + direction + 1}`, `${methodLabel}: position ${index + direction + 1}`, `${methodLabel}: جایگاه ${index + direction + 1}`);
+	haptic("light");
+	render({ preserveScroll: true });
+	queueMicrotask(() => {
+		const row = [...app.querySelectorAll("[data-pay-order-id]")].find((item) => item.dataset.payOrderId === id);
+		if (row && !reducedMotionMedia?.matches) row.animate?.([{ transform: `translateY(${direction < 0 ? 9 : -9}px)`, opacity: .72 }, { transform: "translateY(0)", opacity: 1 }], { duration: 210, easing: "cubic-bezier(.2,.75,.25,1)" });
+		(row?.querySelector(`[data-action="move-pay-method-${direction < 0 ? "up" : "down"}"]:not(:disabled)`) || row?.querySelector("button:not(:disabled)"))?.focus();
+	});
 }
 
 function getSelectedPaymentMethod() {

@@ -3,11 +3,34 @@ package runtimeconfig
 import (
 	"encoding/json"
 	"math"
+	"reflect"
 	"strings"
 	"testing"
 
 	"link-bot/internal/database"
 )
+
+func TestNormalizeAndValidatePaymentMethodOrder(t *testing.T) {
+	settings := DefaultSettings()
+	settings.PaymentMethodOrder = []string{"stars", "CARD", "stars", "unknown", "sbp"}
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if want := []string{"stars", "card", "sbp", "balance", "p2p", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay"}; !reflect.DeepEqual(settings.PaymentMethodOrder, want) {
+		t.Fatalf("payment method order = %v, want %v", settings.PaymentMethodOrder, want)
+	}
+}
+
+func TestNormalizeAndValidateMissingPaymentMethodOrderUsesDefault(t *testing.T) {
+	settings := DefaultSettings()
+	settings.PaymentMethodOrder = nil
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if want := DefaultPaymentMethodOrder(); !reflect.DeepEqual(settings.PaymentMethodOrder, want) {
+		t.Fatalf("payment method order = %v, want %v", settings.PaymentMethodOrder, want)
+	}
+}
 
 func TestNormalizeAndValidatePreservesPlanOrder(t *testing.T) {
 	settings := DefaultSettings()
