@@ -83,6 +83,7 @@ type Handler struct {
 	webLogin               *webauth.Service
 	webPush                *webpush.Service
 	webPushNotifier        adminnotify.Notifier
+	realtime               *realtimeHub
 }
 
 func lockPromoPurchase(code string) func() {
@@ -692,6 +693,7 @@ func NewHandler(
 		translation:            translationManager,
 		logoUploadDir:          config.MediaUploadDir(),
 		webLogin:               webLogin,
+		realtime:               newRealtimeHub(),
 	}
 }
 
@@ -728,6 +730,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/auth/telegram/qr/start", h.handleStartTelegramQRLogin)
 	mux.HandleFunc("/api/mini-app/auth/telegram/qr/status", h.handleTelegramQRLoginStatus)
 	mux.HandleFunc("/api/mini-app/bootstrap", h.withSession(h.handleBootstrap))
+	mux.HandleFunc("/api/mini-app/realtime", h.withSession(h.handleRealtime))
 	mux.HandleFunc("/api/mini-app/subscriptions/select", h.withSession(h.handleSelectSubscription))
 	mux.HandleFunc("/api/mini-app/subscriptions/create", h.withSession(h.handleCreateSubscription))
 	mux.HandleFunc("/api/mini-app/subscriptions/rename", h.withSession(h.handleRenameSubscription))
@@ -1010,6 +1013,7 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		setAPIHeaders(w)
+		realtimeRequest := r.URL.Path == "/api/mini-app/realtime"
 
 		if r.Method != http.MethodPost {
 			h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
@@ -1102,11 +1106,11 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 		}
 		if h.runtimeSettings != nil {
 			maintenance := runtimeconfig.LocalizeMaintenanceDefaults(h.runtimeSettings.Maintenance(), h.runtimeSettings.Language())
-			if maintenance.Enabled && !h.isAdmin(sess.User.ID) {
+			if maintenance.Enabled && !h.isAdmin(sess.User.ID) && !realtimeRequest {
 				h.writeErrorWithMeta(w, http.StatusServiceUnavailable, "maintenance", "Service is under maintenance", maintenance)
 				return
 			}
-			if !h.runtimeSettings.FeatureEnabled("mini_app") && !h.isAdmin(sess.User.ID) {
+			if !h.runtimeSettings.FeatureEnabled("mini_app") && !h.isAdmin(sess.User.ID) && !realtimeRequest {
 				h.writeError(w, http.StatusServiceUnavailable, "feature_disabled", "Mini app is temporarily unavailable")
 				return
 			}
@@ -1128,7 +1132,7 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 				return
 			}
 		}
-		if customer.IsBlocked && !h.isAdmin(sess.User.ID) {
+		if customer.IsBlocked && !h.isAdmin(sess.User.ID) && !realtimeRequest {
 			reason := ""
 			if customer.BlockedReason != nil && strings.TrimSpace(*customer.BlockedReason) != "" {
 				reason = strings.TrimSpace(*customer.BlockedReason)
@@ -1137,7 +1141,10 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 			return
 		}
 		forceChannelCheck := strings.TrimSpace(r.Header.Get("X-Force-Channel-Check")) == "1"
-		verified, err := h.verifyRequiredChannelSubscription(r.Context(), customer, forceChannelCheck)
+		verified := true
+		if !realtimeRequest {
+			verified, err = h.verifyRequiredChannelSubscription(r.Context(), customer, forceChannelCheck)
+		}
 		if err != nil {
 			slog.Error("mini app: required channel verification failed", "error", err, "telegramId", utils.MaskHalfInt64(sess.User.ID))
 			h.writeErrorWithMeta(w, http.StatusForbidden, "channel_subscription_check_failed", "Не удалось проверить подписку", h.requiredChannelSubscriptionMeta())
@@ -2701,6 +2708,9 @@ func (h *Handler) handleAdminSettingsUpdate(w http.ResponseWriter, r *http.Reque
 		slog.Warn("mini app: invalid runtime settings", "error", err, "telegramId", utils.MaskHalfInt64(sess.User.ID))
 		h.writeError(w, http.StatusBadRequest, "invalid_settings", err.Error())
 		return
+	}
+	if h.realtime != nil {
+		h.realtime.publish()
 	}
 	if h.translation != nil {
 		h.translation.SetActiveLanguage(settings.Localization.Language)

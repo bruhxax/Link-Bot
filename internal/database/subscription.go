@@ -781,6 +781,8 @@ func (sr *SubscriptionRepository) UpdatePanelAccess(ctx context.Context, subscri
 		    expire_at = $5,
 		    updated_at = NOW()
 		WHERE id = $1
+		  AND (panel_user_id, panel_user_uuid, subscription_link, expire_at)
+		      IS DISTINCT FROM (COALESCE(NULLIF($2, 0), panel_user_id), $3, $4, $5)
 	`, subscription.ID, panelUserID, uuidValue, linkValue, expireValue); err != nil {
 		return fmt.Errorf("update customer subscription state: %w", err)
 	}
@@ -789,6 +791,7 @@ func (sr *SubscriptionRepository) UpdatePanelAccess(ctx context.Context, subscri
 			UPDATE customer
 			SET subscription_link = NULLIF($2, ''), expire_at = $3
 			WHERE id = $1
+			  AND (subscription_link, expire_at) IS DISTINCT FROM (NULLIF($2, ''), $3)
 		`, subscription.CustomerID, linkValue, expireValue); err != nil {
 			return fmt.Errorf("update primary subscription cache: %w", err)
 		}

@@ -237,6 +237,7 @@ function readBrowserTelegramIDToken() {
 function clearBrowserTelegramAuth() {
   writeSessionSetting(STORAGE_KEYS.telegramIDToken, "");
   writeSessionSetting(STORAGE_KEYS.telegramLogin, "");
+	if (!hasAuth()) realtimeAbortController?.abort();
 }
 
 function hasTelegramAuth() {
@@ -249,6 +250,7 @@ function readGoogleAuth() {
 
 function clearGoogleAuth() {
   writeSessionSetting(STORAGE_KEYS.googleLogin, "");
+	if (!hasAuth()) realtimeAbortController?.abort();
 }
 
 function hasAuth() {
@@ -2887,7 +2889,173 @@ async function handlePostBootstrapFlow() {
 	}
 }
 
+let realtimeStarted = false;
+let realtimeConnected = false;
+let realtimeAbortController = null;
+let realtimeRefreshTimer = 0;
+let realtimeRefreshQueuedAt = 0;
+let realtimeRefreshRunning = false;
+let realtimeRefreshPending = false;
+let realtimeLastRefresh = 0;
+
+function queueRealtimeRefresh(delay = 350) {
+	if (previewMode || !hasAuth() || document.hidden) return;
+	const now = Date.now();
+	if (!realtimeRefreshQueuedAt) realtimeRefreshQueuedAt = now;
+	window.clearTimeout(realtimeRefreshTimer);
+	const wait = Math.min(Math.max(delay, 1500 - (now - realtimeLastRefresh)), Math.max(0, 3000 - (now - realtimeRefreshQueuedAt)));
+	realtimeRefreshTimer = window.setTimeout(() => {
+		realtimeRefreshQueuedAt = 0;
+		void refreshRealtimeData();
+	}, wait);
+}
+
+function captureRealtimeFocus() {
+	const active = document.activeElement;
+	if (!app.contains(active) || !active?.matches?.("input, textarea, select, [contenteditable='true']")) return null;
+	const controls = [...app.querySelectorAll("input, textarea, select, [contenteditable='true']")];
+	const key = active.getAttribute("data-input") || active.id || active.getAttribute("name") || "";
+	const matching = key ? controls.filter((element) => (element.getAttribute("data-input") || element.id || element.getAttribute("name") || "") === key) : controls;
+	let selection = null;
+	try { selection = { start: active.selectionStart, end: active.selectionEnd, direction: active.selectionDirection }; } catch (_) {}
+	return { key, index: matching.indexOf(active), tag: active.tagName, value: active.value, selection, page: state.currentPage, section: state.adminSection };
+}
+
+function restoreRealtimeFocus(snapshot) {
+	if (!snapshot || snapshot.page !== state.currentPage || snapshot.section !== state.adminSection) return;
+	const controls = [...app.querySelectorAll("input, textarea, select, [contenteditable='true']")];
+	const matching = snapshot.key ? controls.filter((element) => (element.getAttribute("data-input") || element.id || element.getAttribute("name") || "") === snapshot.key) : controls;
+	const target = matching[snapshot.index];
+	if (!target || target.tagName !== snapshot.tag || target.disabled) return;
+	if (typeof snapshot.value === "string" && target.value !== snapshot.value) target.value = snapshot.value;
+	target.focus({ preventScroll: true });
+	if (snapshot.selection) {
+		try { target.setSelectionRange(snapshot.selection.start, snapshot.selection.end, snapshot.selection.direction); } catch (_) {}
+	}
+}
+
+async function refreshRealtimeData() {
+	if (realtimeRefreshRunning) { realtimeRefreshPending = true; return; }
+	if (!hasAuth() || previewMode || document.hidden) return;
+	realtimeRefreshRunning = true;
+	try {
+		await refreshDashboard({ silent: true });
+		if (!state.data) return;
+		if (state.currentPage === "support") {
+			if (state.supportThreadOpen && state.activeSupportTicketId) await openSupportTicket(state.activeSupportTicketId, { silent: true });
+			else await refreshSupport({ silent: true });
+		} else if (state.currentPage === "partner") {
+			await refreshPartner({ silent: true });
+			render({ preserveScroll: true });
+		} else if (state.currentPage === "admin" && isAdminUser()) {
+			switch (state.adminSection) {
+				case "finance": await refreshAdminFinance({ live: true }); break;
+				case "partners": await refreshAdminPartners(); break;
+				case "moynalog": await refreshAdminMoyNalog({ silent: true }); break;
+				case "broadcast": await refreshAdminBroadcast({ silent: true }); break;
+				case "push": await refreshAdminPush({ live: true }); break;
+				case "users":
+					if (state.adminUserDetail?.customerId) {
+						const customerId = state.adminUserDetail.customerId;
+						const response = await post("/api/mini-app/admin/users/detail", { customerId });
+						if (state.adminSection === "users" && state.adminUserDetail?.customerId === customerId) {
+							state.adminUserDetail = response.data || null;
+							render({ preserveScroll: true });
+						}
+					} else await refreshAdminUsers({ silent: true });
+					break;
+				case "subscriptions":
+					if (state.adminSubscriptionResult && state.adminSubscriptionQuery.trim()) {
+						const found = await post("/api/mini-app/admin/subscriptions/find", { query: state.adminSubscriptionQuery.trim() });
+						if (state.adminSection === "subscriptions") {
+							state.adminSubscriptionResult = found.data || null;
+							if (state.adminSubscriptionTargetResult && state.adminSubscriptionTargetTelegramID && found.data) {
+								const target = await post("/api/mini-app/admin/subscriptions/target", {
+									userId: Number(found.data.id || 0),
+									userUuid: String(found.data.userUuid || ""),
+									subscriptionLink: String(found.data.subscriptionLink || ""),
+									targetTelegramId: Number(state.adminSubscriptionTargetTelegramID),
+								});
+								state.adminSubscriptionTargetResult = target.data || null;
+							}
+							render({ preserveScroll: true });
+						}
+					}
+					break;
+			}
+		}
+	} catch (error) {
+		// A transient request failure should not tear down the live connection.
+		console.warn("Mini App live refresh failed", error);
+	} finally {
+		realtimeLastRefresh = Date.now();
+		realtimeRefreshRunning = false;
+		if (realtimeRefreshPending) {
+			realtimeRefreshPending = false;
+			queueRealtimeRefresh(500);
+		}
+	}
+}
+
+async function startRealtimeSync() {
+	if (realtimeStarted || previewMode || !hasAuth()) return;
+	realtimeStarted = true;
+	// Also reconcile panel state and any notifications lost across network gaps.
+	window.setInterval(() => queueRealtimeRefresh(0), 30000);
+	let retryDelay = 1000;
+	while (hasAuth()) {
+		try {
+			realtimeAbortController = new AbortController();
+			const response = await fetch("/api/mini-app/realtime", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"X-Telegram-Init-Data": tg?.initData || "",
+					...(tg?.initData ? {} : await getBrowserAuthHeaders()),
+				},
+				body: "{}",
+				cache: "no-store",
+				signal: realtimeAbortController.signal,
+			});
+			persistBrowserSessionFromResponse(response);
+			if (!response.ok || !response.body) throw new Error(`Realtime HTTP ${response.status}`);
+			const reader = response.body.getReader();
+			const decoder = new TextDecoder();
+			let buffer = "";
+			realtimeConnected = true;
+			retryDelay = 1000;
+			syncSupportPolling();
+			syncAdminBroadcastPolling();
+			queueRealtimeRefresh(0);
+			while (hasAuth()) {
+				const { value, done } = await reader.read();
+				if (done) break;
+				buffer = (buffer + decoder.decode(value, { stream: true })).replace(/\r\n/g, "\n");
+				let boundary;
+				while ((boundary = buffer.indexOf("\n\n")) !== -1) {
+					const message = buffer.slice(0, boundary);
+					buffer = buffer.slice(boundary + 2);
+					if (message.includes("event: change")) queueRealtimeRefresh();
+				}
+			}
+			reader.releaseLock();
+		} catch (error) {
+			console.warn("Mini App realtime reconnecting", error);
+		} finally {
+			realtimeAbortController = null;
+			realtimeConnected = false;
+			syncSupportPolling();
+			syncAdminBroadcastPolling();
+		}
+		if (!hasAuth()) break;
+		await new Promise((resolve) => window.setTimeout(resolve, retryDelay));
+		retryDelay = Math.min(retryDelay * 2, 15000);
+	}
+	realtimeStarted = false;
+}
+
 async function refreshDashboard({ initial = false, silent = false, forceSubscriptionCheck = false } = {}) {
+	const previousView = silent && realtimeRefreshRunning ? realtimeViewSignature() : null;
   if (!silent) {
     if (!state.data || initial) state.loading = true;
     else state.refreshing = true;
@@ -3056,6 +3224,19 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 			state.maintenance = error?.meta || getRuntimeSettings()?.maintenance || {};
 			return;
 		}
+		if (error?.code === "feature_disabled") {
+			state.data = null;
+			state.error = "";
+			state.blocked = null;
+			state.subscriptionGate = null;
+			state.maintenance = {
+				enabled: true,
+				titleRu: localizedText("Мини-приложение временно недоступно", "Mini App temporarily unavailable", "مینی‌اپ موقتاً در دسترس نیست"),
+				textRu: localizedText("Попробуйте немного позже.", "Please try again later.", "لطفاً کمی بعد دوباره تلاش کنید."),
+				reasonRu: localizedText("Сервис отключён", "Service disabled", "سرویس غیرفعال است"),
+			};
+			return;
+		}
 
 		if (error?.code === "user_blocked") {
 			state.data = null;
@@ -3073,8 +3254,14 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
   } finally {
     state.loading = false;
     state.refreshing = false;
-    render();
+		if (previousView === null || previousView !== realtimeViewSignature()) render();
+		if (!realtimeStarted && hasAuth() && !previewMode) void startRealtimeSync();
   }
+}
+
+function realtimeViewSignature() {
+	const data = state.data ? { ...state.data, meta: { ...(state.data.meta || {}), now: "" } } : null;
+	return JSON.stringify({ data, maintenance: state.maintenance, blocked: state.blocked, subscriptionGate: state.subscriptionGate, error: state.error });
 }
 
 function browserDeviceSeed() {
@@ -3373,6 +3560,10 @@ function getBottomDockMode() {
 }
 
 function render({ preserveScroll = true, scrollTop = null } = {}) {
+	const realtimeFocus = realtimeRefreshRunning ? captureRealtimeFocus() : null;
+	const realtimeDetails = realtimeRefreshRunning
+		? [...app.querySelectorAll("details")].flatMap((element, index) => element.open ? [{ index, label: element.querySelector("summary")?.textContent || "" }] : [])
+		: [];
   bannerMediaResizeObserver?.disconnect();
   adminBannerCropPointers.clear();
   adminBannerCropGesture = null;
@@ -3474,6 +3665,16 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   syncSupportPolling();
 	syncAdminBroadcastPolling();
   mountGoogleLoginWidgets();
+	if (realtimeDetails.length) {
+		const details = [...app.querySelectorAll("details")];
+		for (const saved of realtimeDetails) {
+			const match = details[saved.index]?.querySelector("summary")?.textContent === saved.label
+				? details[saved.index]
+				: details.find((element) => element.querySelector("summary")?.textContent === saved.label);
+			if (match) match.open = true;
+		}
+	}
+	restoreRealtimeFocus(realtimeFocus);
   pageAnimationEnabled = false;
 	subscriptionSwitchAnimation = "";
 }
@@ -3898,14 +4099,14 @@ function renderAdminPartnerRow(item, index) {
 	</details>`;
 }
 
-async function refreshAdminFinance({ append = false } = {}) {
+async function refreshAdminFinance({ append = false, live = false } = {}) {
 	if ((previewMode && state.adminFinance) || state.adminFinanceBusy) return;
 	const offset = append ? Number(state.adminFinance?.payments?.length || 0) : 0;
 	const requestID = ++adminFinanceRequestID;
 	state.adminFinanceBusy = append ? "more" : "refresh";
-	state.adminFinancePeriodMenuOpen = false;
+	if (!live) state.adminFinancePeriodMenuOpen = false;
 	state.adminFinanceAnimate = false;
-	if (!append) render({ preserveScroll: true });
+	if (!append && !live) render({ preserveScroll: true });
 	try {
 		const response = await post("/api/mini-app/admin/finance", { period: state.adminFinancePeriod, from: state.adminFinanceFrom, to: state.adminFinanceTo, limit: 30, offset });
 		if (requestID !== adminFinanceRequestID || state.adminSection !== "finance") return;
@@ -3915,9 +4116,9 @@ async function refreshAdminFinance({ append = false } = {}) {
 		state.adminFinanceFrom = String(next.from || state.adminFinanceFrom || "");
 		state.adminFinanceTo = String(next.to || state.adminFinanceTo || "");
 		state.adminFinanceBusy = "";
-		state.adminFinanceAnimate = !append;
-		render({ preserveScroll: append });
-		if (!append) {
+		state.adminFinanceAnimate = !append && !live;
+		render({ preserveScroll: append || live });
+		if (!append && !live) {
 			requestAnimationFrame(() => app.querySelector(".admin-finance-card")?.addEventListener("animationend", () => { state.adminFinanceAnimate = false; }, { once: true }));
 			window.setTimeout(() => { state.adminFinanceAnimate = false; }, 420);
 		}
@@ -4031,7 +4232,7 @@ function adminPushErrorMessage(error) {
 	return error?.message || "Не удалось подключить уведомления. Нажмите «Повторить».";
 }
 
-async function refreshAdminPush() {
+async function refreshAdminPush({ live = false } = {}) {
 	if (state.adminPushBusy) return;
 	if (previewMode) {
 		state.adminPush = { available: true, publicKey: "preview", subscriptionCount: 1, subscribed: true, permission: "granted" };
@@ -4048,7 +4249,9 @@ async function refreshAdminPush() {
 		let subscription = null;
 		if (environment.supported && !environment.insideTelegram && !environment.installRequired) {
 			subscription = await currentAdminPushSubscription();
-			if (subscription) remoteState = await syncAdminPushSubscription(subscription);
+			if (!live) {
+				if (subscription) remoteState = await syncAdminPushSubscription(subscription);
+			}
 		}
 		state.adminPush = {
 			...remoteState,
@@ -4274,7 +4477,7 @@ async function refreshAdminUsers({ append = false, silent = false } = {}) {
 		};
 		state.adminUsersBusy = "";
 		const searchFocus = captureAdminUsersSearchFocus();
-		render({ preserveScroll: append });
+		render({ preserveScroll: append || silent });
 		restoreAdminUsersSearchFocus(searchFocus);
 	} catch (error) {
 		if (requestID !== adminUsersSearchRequestID) return;
@@ -9335,8 +9538,7 @@ function bindRootActions() {
     if (document.visibilityState === "visible") {
 		if ("clearAppBadge" in navigator) navigator.clearAppBadge().catch(() => {});
 		navigator.serviceWorker?.controller?.postMessage({ type: "CLEAR_APP_BADGE" });
-		if (hasAuth()) safeRefresh().catch(() => {});
-		if (isAdminUser() && state.adminSection === "push") refreshAdminPush().catch(() => {});
+		if (hasAuth()) queueRealtimeRefresh(0);
 	}
   });
 
@@ -9828,7 +10030,7 @@ async function resetAdminBroadcast() {
 }
 
 function syncAdminBroadcastPolling() {
-	const active = state.currentPage === "admin" && state.adminSection === "broadcast" && ["awaiting_message", "running"].includes(state.adminBroadcast?.status);
+	const active = !realtimeConnected && state.currentPage === "admin" && state.adminSection === "broadcast" && ["awaiting_message", "running"].includes(state.adminBroadcast?.status);
 	if (!active) {
 		if (adminBroadcastPollTimer) clearInterval(adminBroadcastPollTimer);
 		adminBroadcastPollTimer = 0;
@@ -12533,7 +12735,7 @@ function syncSupportPolling() {
   supportListPollTimer = 0;
   supportThreadPollTimer = 0;
 
-  if (state.currentPage !== "support" || !hasAuth() || previewMode) return;
+	if (realtimeConnected || state.currentPage !== "support" || !hasAuth() || previewMode) return;
 
   if (state.supportThreadOpen && state.activeSupportTicketId) {
     supportThreadPollTimer = window.setInterval(() => {

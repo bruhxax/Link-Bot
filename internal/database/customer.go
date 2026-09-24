@@ -390,7 +390,7 @@ func (cr *CustomerRepository) UpdateTelegramUsername(ctx context.Context, custom
 	if username != "" {
 		value = username
 	}
-	if _, err = tx.Exec(ctx, `UPDATE customer SET telegram_username = $2 WHERE id = $1`, customerID, value); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE customer SET telegram_username = $2 WHERE id = $1 AND telegram_username IS DISTINCT FROM $2`, customerID, value); err != nil {
 		return fmt.Errorf("update Telegram username: %w", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
