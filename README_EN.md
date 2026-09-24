@@ -298,6 +298,21 @@ Updating preserves the database and admin panel settings. Existing plans, appear
 </details>
 
 <details>
+<summary><b>↩️ Roll back to the previous release</b></summary>
+
+```bash
+cd /opt/Link-Bot
+bash ./rollback.sh --dry-run  # show the target without changing containers or DB
+bash ./rollback.sh            # run the previous release
+```
+
+To select a specific older release, use `bash ./rollback.sh --to v2.1.7` with the desired tag. The command builds the older image separately, backs up PostgreSQL, and replaces **only the bot container**. If the container fails immediately after startup, it restores the previous image. The source checkout stays on `main`; run the update command above to return to the latest version.
+
+The database is not downgraded automatically. Already-applied migrations are included in the older image. If older code cannot use newer data, restore the working version and inspect the logs. The command prints the backup path.
+
+</details>
+
+<details>
 <summary><b>💾 Database backup</b></summary>
 
 ```bash
