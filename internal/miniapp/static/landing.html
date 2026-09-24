@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090a0d">
+  <meta name="description" content="__PAGE_DESCRIPTION__">
+  <title>__BRAND_NAME__ — интернет без ограничений</title>
+  <link rel="icon" href="__FAVICON_URL__">
+  <link rel="stylesheet" href="/mini-app/landing.css?v=__ASSET_VERSION__">
+  <script defer src="/mini-app/landing.js?v=__ASSET_VERSION__"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">К содержимому</a>
+  <header class="site-header">
+    <nav class="nav-shell" aria-label="Основная навигация">
+      <a class="brand" href="#top" aria-label="На главную">
+        <span class="brand__mark"><img id="brand-logo" src="/mini-app/assets/brand-mark.png" alt="" width="31" height="31"></span>
+        <span class="brand__name" id="brand-name">__BRAND_NAME__</span>
+      </a>
+      <div class="nav-links">
+        <a href="#servers">Сервера</a>
+        <a href="#plans">Тарифы</a>
+        <a href="#support">Поддержка</a>
+      </div>
+      <a class="button button--small button--primary nav-cabinet" href="/mini-app/?cabinet=1">Кабинет <span aria-hidden="true">↗</span></a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero container" id="top" aria-labelledby="hero-title">
+      <div class="hero__content">
+        <span class="eyebrow"><span class="eyebrow__dot" aria-hidden="true"></span> ПРОСТОЕ ПОДКЛЮЧЕНИЕ</span>
+        <h1 id="hero-title">Интернет без<br>ограничений <span>в один клик</span></h1>
+        <p class="hero__lead">Стабильное соединение для работы, общения и всего, что важно. Выберите тариф и подключайтесь в личном кабинете.</p>
+        <div class="hero__actions">
+          <a class="button button--primary" href="/mini-app/?cabinet=1">Кабинет <span aria-hidden="true">↗</span></a>
+          <a class="button button--ghost" href="#servers">Сервера <span aria-hidden="true">↓</span></a>
+        </div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="hero-art__halo"></div>
+        <div class="hero-art__ring hero-art__ring--outer"></div>
+        <div class="hero-art__ring hero-art__ring--inner"></div>
+        <div class="hero-art__core"><span></span></div>
+        <span class="hero-art__line hero-art__line--one"></span>
+        <span class="hero-art__line hero-art__line--two"></span>
+      </div>
+      <div class="hero__foot" aria-hidden="true"><span>01 / 03</span><span class="hero__foot-line"></span><span>СЕТЬ • ТАРИФЫ • ПОДДЕРЖКА</span></div>
+    </section>
+
+    <section class="section container" id="servers" aria-labelledby="servers-title">
+      <div class="section-heading">
+        <div><span class="section-kicker">01 — СЕТЬ</span><h2 id="servers-title">Наши сервера</h2><p>Актуальное состояние каждого узла.</p></div>
+        <div class="section-heading__aside" id="servers-count" aria-live="polite"></div>
+      </div>
+      <div class="server-grid" id="servers-list" aria-live="polite"><div class="empty-state">Загружаем серверы…</div></div>
+      <p class="section-note" id="servers-updated"></p>
+    </section>
+
+    <section class="section container" id="plans" aria-labelledby="plans-title">
+      <div class="section-heading">
+        <div><span class="section-kicker">02 — ТАРИФЫ</span><h2 id="plans-title">Выберите свой срок</h2><p>Все доступные тарифы, от коротких к длительным.</p></div>
+      </div>
+      <div class="plans-grid" id="plans-list" aria-live="polite"><div class="empty-state">Загружаем тарифы…</div></div>
+    </section>
+
+    <section class="section section--support container" id="support" aria-labelledby="support-title">
+      <div class="section-heading">
+        <div><span class="section-kicker">03 — СВЯЗЬ</span><h2 id="support-title">Всегда на связи</h2><p>Поможем с подключением и ответим на вопросы.</p></div>
+      </div>
+      <div class="contact-grid" id="contacts-list" aria-live="polite"><div class="empty-state">Загружаем контакты…</div></div>
+    </section>
+  </main>
+
+  <footer class="footer container">
+    <span id="footer-brand">__BRAND_NAME__</span>
+    <span>Интернет на вашей стороне.</span>
+    <a href="/mini-app/?cabinet=1">В кабинет <span aria-hidden="true">↗</span></a>
+  </footer>
+</body>
+</html>

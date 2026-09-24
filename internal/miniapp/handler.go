@@ -84,6 +84,10 @@ type Handler struct {
 	webPush                *webpush.Service
 	webPushNotifier        adminnotify.Notifier
 	realtime               *realtimeHub
+	landingNodesMu         sync.Mutex
+	landingNodes           []landingNodePayload
+	landingNodesCheckedAt  time.Time
+	landingNodesAvailable  bool
 }
 
 func lockPromoPurchase(code string) func() {
@@ -726,6 +730,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 		fileServer.ServeHTTP(w, r)
 	})
 
+	mux.HandleFunc("/api/site/landing", h.handleLandingData)
 	mux.HandleFunc("/api/mini-app/public-config", h.handlePublicConfig)
 	mux.HandleFunc("/api/mini-app/auth/telegram/qr/start", h.handleStartTelegramQRLogin)
 	mux.HandleFunc("/api/mini-app/auth/telegram/qr/status", h.handleTelegramQRLoginStatus)
@@ -823,8 +828,7 @@ func (h *Handler) serveRoot(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-
-	http.Redirect(w, r, "/mini-app/", http.StatusFound)
+	h.serveLanding(w, r)
 }
 
 func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
