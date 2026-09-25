@@ -296,14 +296,14 @@ var definitions = []ProviderDefinition{
 		},
 	},
 	{
-		ID: ProviderRollyPay, Name: "RollyPay", Description: "Платёжная форма RollyPay", Logo: "/mini-app/assets/payment-card.png", Kind: "payment",
+		ID: ProviderRollyPay, Name: "RollyPay", Description: "Платёжная форма RollyPay", Logo: "/mini-app/assets/payment-rollypay.png", Kind: "payment",
 		Fields: []FieldDefinition{
 			{Key: "apiKey", Label: "API key", Required: true, Secret: true, Placeholder: "rpk_..."},
 			{Key: "signingSecret", Label: "Webhook signing secret", Required: true, Secret: true, Help: "Секрет подписи вебхуков из настроек кассы RollyPay"},
 		},
 	},
 	{
-		ID: ProviderCisPay, Name: "cisPay", Description: "Карты или СБП через cisPay", Logo: "/mini-app/assets/payment-card.png", Kind: "payment",
+		ID: ProviderCisPay, Name: "cisPay", Description: "Карты или СБП через cisPay", Logo: "/mini-app/assets/payment-cispay.png", Kind: "payment",
 		Fields: []FieldDefinition{
 			{Key: "shopId", Label: "Shop ID", Required: true, Placeholder: "UUID магазина"},
 			{Key: "apiKey", Label: "API key", Required: true, Secret: true, Placeholder: "cis_sec_..."},
@@ -311,7 +311,7 @@ var definitions = []ProviderDefinition{
 		},
 	},
 	{
-		ID: ProviderP2P, Name: "P2P перевод", Description: "Ручная проверка перевода администратором", Logo: "/mini-app/assets/payment-card.png", Kind: "payment",
+		ID: ProviderP2P, Name: "P2P перевод", Description: "Ручная проверка перевода администратором", Logo: "/mini-app/assets/payment-p2p.png", Kind: "payment",
 		Fields: []FieldDefinition{
 			{Key: "destinations", Label: "Реквизиты", Required: true, Help: "Добавьте хотя бы один способ перевода"},
 			{Key: "footerText", Label: "Текст под реквизитами", Placeholder: DefaultP2PFooterText},

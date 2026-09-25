@@ -900,9 +900,9 @@ const PAYMENT_LOGO_URLS = Object.freeze({
   freekassa: "/mini-app/assets/payment-freekassa.png",
   heleket: "/mini-app/assets/payment-heleket.png",
   pally: "/mini-app/assets/payment-pally.png",
-	rollypay: "/mini-app/assets/payment-card.png",
-	cispay: "/mini-app/assets/payment-card.png",
-	p2p: "/mini-app/assets/payment-card.png",
+	rollypay: "/mini-app/assets/payment-rollypay.png",
+	cispay: "/mini-app/assets/payment-cispay.png",
+	p2p: "/mini-app/assets/payment-p2p.png",
 });
 
 const PAGES = ["dashboard", "buy", "gift", "setup", "support", "faq", "reviews", "referrals", "partner", "servers", "settings", "media", "login-methods", "payments", "terms", "privacy", "custom-page", "admin"];
