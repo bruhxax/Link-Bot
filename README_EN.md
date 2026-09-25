@@ -289,11 +289,10 @@ docker compose start
 
 ```bash
 cd /opt/Link-Bot
-git pull --ff-only
 bash ./update.sh
 ```
 
-The script detects whether Caddy is bundled or shared. Use `bash ./update.sh --standalone` for the first start of bundled Caddy. It also adds `CABINET_SUBDOMAIN=` to an existing `.env` if missing, without overwriting a configured value.
+When moving from `v2.1.13`, first run `cd /opt/Link-Bot && git pull --ff-only && bash ./update.sh` once. After that, the command above pulls updates and applies `.env` changes. When changing domains, set both `PUBLIC_HOST=new.example.com` and `PUBLIC_BASE_URL=https://new.example.com` in `.env`. The script recreates the bot and the existing bundled Caddy using Caddy's original Compose project, or starts bundled Caddy if none exists. It updates the cabinet host in an accessible external Caddyfile and checks both HTTPS endpoints. It also adds `CABINET_SUBDOMAIN=` to an existing `.env` if missing, without overwriting a configured value.
 Updating preserves the database and admin panel settings. Existing plans, appearance settings, and integrations are not reset to new default values.
 
 </details>
