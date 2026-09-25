@@ -65,7 +65,23 @@ func TestBrowserAndTelegramLayoutSurfaces(t *testing.T) {
   margin-inline: auto;
 }`
 	if !strings.Contains(styles, dashboardCoordinatePlane) {
-		t.Fatal("dashboard must use the same 360px coordinate plane in browser and Telegram clients")
+		t.Fatal("narrow browsers and Telegram must retain the 360px dashboard coordinate plane")
+	}
+	for _, fragment := range []string{
+		`:root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard.page.active {`,
+		`width: min(100%, 860px);`,
+		`grid-template-columns: repeat(2, minmax(0, 1fr));`,
+		`.subscription-switcher__create`,
+	} {
+		if !strings.Contains(styles, fragment) {
+			t.Fatalf("wide browser dashboard layout is missing %q", fragment)
+		}
+	}
+	if !strings.Contains(appJS, `if (state.currentPage === "dashboard" && (!isWideBrowserCabinet() || state.adminLayoutEditing))`) {
+		t.Fatal("wide browser dashboard must use its fluid layout while the editor keeps saved coordinates")
+	}
+	if strings.Contains(appJS, `desktop-page-heading`) || strings.Contains(styles, `.desktop-page-heading`) {
+		t.Fatal("the extra desktop page heading must be removed")
 	}
 	if strings.Contains(styles, `:root[data-client="telegram"] #page-dashboard`) {
 		t.Fatal("wide browser layout must not override the Telegram dashboard")

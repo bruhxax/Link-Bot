@@ -3798,10 +3798,6 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
     <div class="app-shell ${state.adminLayoutEditing ? "app-shell--layout-editor" : ""}">
       ${renderDesktopSidebar()}
       <div class="page-scroll">
-        ${state.currentPage === "admin" && state.adminSection !== "home" ? "" : `<header class="desktop-page-heading">
-          <span>${escapeHtml(state.data.brand.name)}</span>
-          <h1>${escapeHtml(getPageTitle(state.currentPage))}</h1>
-        </header>`}
         ${renderPages()}
       </div>
       ${renderBottomNav(dockMode, dockModeChanged)}
@@ -3969,6 +3965,11 @@ function renderDesktopSidebar() {
 	const copy = t();
 	const links = state.data?.links || {};
 	const profileItems = getProfileItems();
+	const profileItem = (id, fallbackAction, iconName, label) => {
+		const item = profileItems.find((entry) => entry.id === id);
+		if (item?.layout?.visible === false) return "";
+		return actionItem(item?.action || fallbackAction, iconName, label, item?.value || "");
+	};
 	const pageItem = (page, iconName, label = getPageTitle(page)) => {
 		if (!pageFeatureEnabled(page) || (page === "admin" && !isAdminUser())) return "";
 		const active = state.currentPage === page;
@@ -3976,8 +3977,9 @@ function renderDesktopSidebar() {
 	};
 	const actionItem = (action, iconName, label, value = "") => `<button class="desktop-sidebar__item" type="button" data-action="${escapeAttribute(action)}" ${value ? `data-value="${escapeAttribute(value)}"` : ""}><span class="desktop-sidebar__icon" aria-hidden="true">${icon(iconName)}</span><span>${escapeHtml(label)}</span></button>`;
 	const extraProfileItems = profileItems.filter((item) => item.id.startsWith("custom.") && item.layout?.visible !== false).map((item) => `<button class="desktop-sidebar__item" type="button" data-action="${escapeAttribute(item.action)}" data-value="${escapeAttribute(item.value || "")}"><span class="desktop-sidebar__icon" aria-hidden="true">${icon(item.icon || "external")}</span><span>${escapeHtml(item.label || "")}</span></button>`);
-	const installProfileItem = profileItems.find((item) => item.id === "pwa_install" && item.layout?.visible !== false);
-	const installItem = installProfileItem ? actionItem(installProfileItem.action, installProfileItem.icon, installProfileItem.label, installProfileItem.value) : "";
+	const newsItem = links.channel
+		? actionItem("open-link", "broadcast", localizedText("Новости", "News", "اخبار"), links.channel)
+		: `<button class="desktop-sidebar__item" type="button" disabled title="${escapeAttribute(localizedText("Новости пока недоступны", "News is not available yet", "اخبار هنوز در دسترس نیست"))}"><span class="desktop-sidebar__icon" aria-hidden="true">${icon("broadcast")}</span><span>${escapeHtml(localizedText("Новости", "News", "اخبار"))}</span></button>`;
 	const group = (label, items) => {
 		const content = items.filter(Boolean).join("");
 		return content ? `<div class="desktop-sidebar__group"><div class="desktop-sidebar__label">${escapeHtml(label)}</div>${content}</div>` : "";
@@ -3985,15 +3987,14 @@ function renderDesktopSidebar() {
 	return `<aside class="desktop-sidebar" aria-label="${escapeAttribute(localizedText("Меню кабинета", "Account menu", "فهرست حساب"))}">
 		<div class="desktop-sidebar__brand"><img src="${escapeAttribute(resolveBrandMarkURL(state.data.brand.logoUrl))}" data-brand-logo alt="" aria-hidden="true"><strong>${escapeHtml(state.data.brand.name)}</strong></div>
 		<nav class="desktop-sidebar__nav" aria-label="${escapeAttribute(localizedText("Разделы кабинета", "Account sections", "بخش های حساب"))}">
-			${group(localizedText("Главная", "Home", "خانه"), [pageItem("dashboard", "houseLine"), pageItem("buy", "shop"), pageItem("setup", "shield")])}
-			${group(localizedText("Помощь", "Help", "راهنما"), [pageItem("support", "sms"), pageItem("faq", "question")])}
-			${group(localizedText("Покупки и бонусы", "Purchases and rewards", "خرید و پاداش"), [pageItem("gift", "gift"), pageItem("payments", "wallet"), actionItem("open-profile-promo", "profileDiscount", localizedText("Применить промокод", "Apply promo code", "استفاده از کد تخفیف"))])}
-			${group(localizedText("Программы", "Programs", "برنامه ها"), [pageItem("referrals", "users"), pageItem("partner", "profileUsersGroup"), pageItem("reviews", "star")])}
-			${group(localizedText("Аккаунт", "Account", "حساب"), [pageItem("login-methods", "profileKey"), pageItem("servers", "server"), pageItem("media", "youtube"), installItem, pageItem("admin", "grid", copy.pageAdmin)])}
+			${group(localizedText("Главная", "Home", "خانه"), [pageItem("dashboard", "houseLine"), pageItem("buy", "shop")])}
+			${group(localizedText("Статус", "Status", "وضعیت"), [pageItem("servers", "server")])}
+			${group(localizedText("Помощь", "Help", "راهنما"), [pageItem("support", "sms"), pageItem("faq", "question"), pageItem("privacy", "shield", localizedText("Политика", "Privacy policy", "حریم خصوصی")), pageItem("terms", "doc", localizedText("Соглашение", "Terms", "توافق‌نامه")), newsItem])}
+			${group(localizedText("Бонусы", "Bonuses", "پاداش‌ها"), [pageItem("payments", "wallet"), pageItem("reviews", "star"), actionItem("open-profile-promo", "profileDiscount", localizedText("Промокод", "Promo code", "کد تخفیف")), pageItem("gift", "gift")])}
+			${group(localizedText("Программы", "Programs", "برنامه ها"), [pageItem("referrals", "users", localizedText("Реф. система", "Referrals", "دعوت دوستان")), pageItem("partner", "profileUsersGroup", localizedText("Партнерка", "Partners", "همکاری"))])}
+			${group(localizedText("Аккаунт", "Account", "حساب"), [pageItem("login-methods", "profileKey", localizedText("Способы входа", "Sign-in methods", "روش‌های ورود")), profileItem("web_version", "open-web-version", "external", localizedText("Веб версия", "Web version", "نسخه وب")), profileItem("pwa_install", "open-install-guide", "profileDownload", localizedText("Рабочий стол", "Home screen", "صفحه اصلی")), pageItem("admin", "grid", copy.pageAdmin)])}
 			${group(localizedText("Дополнительно", "More", "بیشتر"), extraProfileItems)}
-			${group(localizedText("Ссылки", "Links", "پیوندها"), [links.channel ? `<button class="desktop-sidebar__item" type="button" data-action="open-link" data-value="${escapeAttribute(links.channel)}"><span class="desktop-sidebar__icon" aria-hidden="true">${icon("broadcast")}</span><span>${escapeHtml(copy.channel)}</span><span class="desktop-sidebar__external" aria-hidden="true">${icon("external")}</span></button>` : "", pageItem("terms", "doc"), pageItem("privacy", "shield")])}
 		</nav>
-		<div class="desktop-sidebar__footer">${escapeHtml(localizedText("Веб-кабинет", "Web account", "حساب وب"))}</div>
 	</aside>`;
 }
 
@@ -6649,7 +6650,7 @@ function renderDashboardPage() {
 		blocks[item.id] = renderDashboardBanner(item);
 	});
 	const switchAnimationClass = subscriptionSwitchAnimation ? `subscription-switch--${subscriptionSwitchAnimation}` : "";
-	const layoutPendingClass = getLayoutElements("dashboard").some((item) => item?.visible !== false && hasStoredLayoutPosition(item))
+	const layoutPendingClass = (!isWideBrowserCabinet() || state.adminLayoutEditing) && getLayoutElements("dashboard").some((item) => item?.visible !== false && hasStoredLayoutPosition(item))
 		? "layout-runtime-pending"
 		: "";
 	return `<section class="page ${pageClass("dashboard")} ${switchAnimationClass} ${layoutPendingClass}" id="page-dashboard">${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
@@ -6768,7 +6769,8 @@ function renderSubscriptionSwitcher() {
 			<button class="subscription-switcher__delete" type="button" role="menuitem" data-action="delete-subscription" ${active?.isPrimary || state.subscriptionBusy ? `disabled aria-label="${escapeAttribute(copy.primaryDelete)}"` : ""}>${icon("trash")}<span>${copy.remove}</span></button>
 		</div>
 	</div>` : "";
-	return `<div class="subscription-switcher ${menuVisible ? "is-expanded" : ""}"><button class="subscription-switcher__trigger" type="button" data-action="toggle-subscription-menu" aria-haspopup="menu" aria-expanded="${Boolean(state.subscriptionMenuOpen)}"><span>${escapeHtml(active?.name || copy.primary)}</span><span class="subscription-switcher__chevron">${icon("arrowDown")}</span></button>${menu}</div>`;
+	const createButton = canCreate ? `<button class="subscription-switcher__create" type="button" data-action="open-subscription-create" ${state.subscriptionBusy ? "disabled" : ""}>${icon("plus")}<span>${escapeHtml(localizedText("Добавить подписку", "Add subscription", "افزودن اشتراک"))}</span></button>` : "";
+	return `<div class="subscription-switcher ${menuVisible ? "is-expanded" : ""}"><button class="subscription-switcher__trigger" type="button" data-action="toggle-subscription-menu" aria-haspopup="menu" aria-expanded="${Boolean(state.subscriptionMenuOpen)}"><span>${escapeHtml(active?.name || copy.primary)}</span><span class="subscription-switcher__chevron">${icon("arrowDown")}</span></button>${createButton}${menu}</div>`;
 }
 
 function renderProfilePromoModal() {
@@ -11865,7 +11867,7 @@ function mountRuntimeLayoutSurface(surface, kind) {
 }
 
 function mountRuntimeLayout() {
-	if (state.currentPage === "dashboard") {
+	if (state.currentPage === "dashboard" && (!isWideBrowserCabinet() || state.adminLayoutEditing)) {
 		mountRuntimeLayoutSurface(app.querySelector("#page-dashboard.page.active"), "page");
 	}
 }
