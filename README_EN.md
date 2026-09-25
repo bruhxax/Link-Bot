@@ -155,6 +155,8 @@ openssl rand -hex 24
 > Do not include `https://` in `PUBLIC_HOST`.  
 > `PUBLIC_BASE_URL`, on the other hand, must contain the full HTTPS URL.
 
+To host the cabinet at `my.bot.example.com`, set `CABINET_SUBDOMAIN=my` and point a DNS A record for `my` to the same IP as `PUBLIC_HOST`. Leave it empty to keep the cabinet on the main domain. The update command below configures either the bundled Caddy or an existing `link-bot-caddy` container with a host-mounted Caddyfile. It validates and reloads the shared config while preserving its other sites.
+
 ### 5. Start the bot
 
 ```bash
@@ -288,11 +290,10 @@ docker compose start
 ```bash
 cd /opt/Link-Bot
 git pull --ff-only
-docker compose up -d --build bot
+bash ./update.sh
 ```
 
-If this project manages Caddy itself, use
-`docker compose --profile standalone up -d --build`.
+The script detects whether Caddy is bundled or shared. Use `bash ./update.sh --standalone` for the first start of bundled Caddy. It also adds `CABINET_SUBDOMAIN=` to an existing `.env` if missing, without overwriting a configured value.
 Updating preserves the database and admin panel settings. Existing plans, appearance settings, and integrations are not reset to new default values.
 
 </details>
