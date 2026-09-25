@@ -29,8 +29,11 @@ func TestLandingServesPublicPage(t *testing.T) {
 			t.Errorf("landing page missing %q", want)
 		}
 	}
-	if strings.Contains(body, "__ASSET_VERSION__") || strings.Contains(body, "__BRAND_NAME__") || strings.Contains(body, "__INITIAL_THEME__") || strings.Contains(body, "__THEME_COLOR__") {
+	if strings.Contains(body, "__ASSET_VERSION__") || strings.Contains(body, "__BRAND_NAME__") || strings.Contains(body, "__INITIAL_THEME__") || strings.Contains(body, "__THEME_COLOR__") || strings.Contains(body, "__GLASS_MODE__") {
 		t.Error("landing page contains unresolved placeholders")
+	}
+	if !strings.Contains(body, `data-glass="off"`) {
+		t.Error("landing page must start with the default glass setting")
 	}
 	if !strings.Contains(body, `<style id="landing-initial-theme">:root{`) || !strings.Contains(body, `--accent:#ba173d;`) {
 		t.Error("landing page must render its theme before JavaScript loads")
@@ -98,6 +101,9 @@ func TestLandingAPIHidesNodeAddressesAndSortsPlans(t *testing.T) {
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
+	}
+	if result.Data.Glass {
+		t.Fatal("landing API must leave glass disabled by default")
 	}
 	if !result.Data.NodesAvailable || len(result.Data.Nodes) != 2 || result.Data.Nodes[1].Name != "Сервер 1" {
 		t.Fatalf("unexpected sanitized nodes: %+v", result.Data.Nodes)

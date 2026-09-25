@@ -237,6 +237,7 @@ type AppearanceSettings struct {
 	BackgroundMotion map[string]BackgroundMotionSettings `json:"backgroundMotion"`
 	Compact          bool                                `json:"compact"`
 	ShowFrames       bool                                `json:"showFrames"`
+	Glass            bool                                `json:"glass"`
 }
 
 type LiquidBackgroundSettings struct {

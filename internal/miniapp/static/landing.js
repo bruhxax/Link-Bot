@@ -212,6 +212,7 @@
       if (!payload?.ok || !payload.data) throw new Error("Invalid site data");
       const data = payload.data;
       setColors(data.colors);
+      document.documentElement.dataset.glass = data.glass === true ? "on" : "off";
       setBrand(data.brand);
       renderNodes(data.nodes, Boolean(data.nodesAvailable));
       renderPlans(data.plans);

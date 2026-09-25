@@ -912,6 +912,28 @@ func TestNormalizeAndValidateGrid2Appearance(t *testing.T) {
 	}
 }
 
+func TestGlassAppearanceSurvivesSettingsRoundTrip(t *testing.T) {
+	settings := DefaultSettings()
+	if settings.Appearance.Glass {
+		t.Fatal("glass must be disabled by default")
+	}
+	settings.Appearance.Glass = true
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	encoded, err := json.Marshal(settings)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	var restored Settings
+	if err := json.Unmarshal(encoded, &restored); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if !restored.Appearance.Glass {
+		t.Fatal("glass setting was lost after JSON round trip")
+	}
+}
+
 func TestNormalizeAndValidateMorphicBackgroundAppearance(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Appearance.BackgroundMode = "morphic"

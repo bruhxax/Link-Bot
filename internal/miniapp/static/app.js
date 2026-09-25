@@ -2097,7 +2097,7 @@ function buildPreviewRuntimeSettings() {
 			},
 			paymentNotification: { text: "💳 <b>Оплата:</b> <b>{{price}}</b>\n\n▦ <b>Тариф:</b> <b>{{sub}}</b>\n▦ <b>Доп. устройства:</b> <b>{{device}}</b>\n✈ <b>Telegram:</b> <b>{{username}}</b>\n◷ <b>Время:</b> <b>{{data}}</b>\n⚙ <b>Способ:</b> <b>{{integration}}</b>\n🏷 <b>Промокод:</b> <b>{{promo}}</b>\n▣ <b>Заказ:</b> <code>{{number}}</code>", openUserButton: { enabled: true, text: "Открыть пользователя в панели", iconCustomEmojiId: "", style: "primary" }, profileButton: { enabled: true, text: "Профиль", iconCustomEmojiId: "", style: "" } },
 		},
-		appearance: { backgroundMode: "animated", compact: true, showFrames: true, liquid: deepClone(DEFAULT_LIQUID_BACKGROUNDS), backgroundMotion: deepClone(DEFAULT_BACKGROUND_MOTION), colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", morphicBackground: "#000000", morphicBall: "#ff69b4", twinkleBackground: "#000000", twinkleStar: "#ffffff", waveBackground: "#000000", waveDot: "#ebebeb" } },
+		appearance: { backgroundMode: "animated", compact: true, showFrames: true, glass: urlParams.get("glass") === "1", liquid: deepClone(DEFAULT_LIQUID_BACKGROUNDS), backgroundMotion: deepClone(DEFAULT_BACKGROUND_MOTION), colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", morphicBackground: "#000000", morphicBall: "#ff69b4", twinkleBackground: "#000000", twinkleStar: "#ffffff", waveBackground: "#000000", waveDot: "#ebebeb" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
 		subPage: { includeBuiltIns: true, clients: [] },
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, titleFa: `${plan.months} \u0645\u0627\u0647`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
@@ -2349,7 +2349,7 @@ function t() {
 }
 
 function getRuntimeSettings() {
-	if ((state.adminLayoutEditing || state.adminPlanEditing || state.adminSection === "appearance") && state.adminSettingsDraft) return state.adminSettingsDraft;
+	if ((state.adminLayoutEditing || state.adminPlanEditing || state.adminSection === "appearance" || state.adminSection === "glass") && state.adminSettingsDraft) return state.adminSettingsDraft;
 	return state.data?.runtime || state.publicSettings || state.adminSettingsDraft || null;
 }
 
@@ -3245,7 +3245,7 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 		state.adminUserPreviewDetail = deepClone(state.adminUserDetail);
 		if (urlParams.get("detail") !== "1") state.adminUserDetail = null;
 		const previewSection = String(urlParams.get("section") || "");
-		if (["integrations", "referrals", "partners", "moynalog", "finance", "push", "users"].includes(previewSection)) {
+		if (["integrations", "referrals", "partners", "moynalog", "finance", "push", "users", "glass"].includes(previewSection)) {
 			state.currentPage = "admin";
 			state.adminSection = previewSection;
 			state.adminLayoutEditing = false;
@@ -3641,7 +3641,7 @@ function getBottomNavPages() {
 	return pages.filter((page) => PAGES.includes(page) && (page !== "admin" || isAdminUser()) && pageFeatureEnabled(page));
 }
 
-const ADMIN_SAVE_SECTIONS = new Set(["localization", "maintenance", "features", "subpage", "content", "appearance", "layout", "plans", "trial", "referrals", "grace"]);
+const ADMIN_SAVE_SECTIONS = new Set(["localization", "maintenance", "features", "subpage", "content", "appearance", "glass", "layout", "plans", "trial", "referrals", "grace"]);
 let lastBottomDockMode = "navigation";
 
 function getBottomDockMode() {
@@ -4033,6 +4033,7 @@ function renderAdminPage() {
 	if (state.adminSection === "subpage") return renderAdminSubPagePage();
 	if (state.adminSection === "content") return renderAdminContentPage();
 	if (state.adminSection === "appearance") return renderAdminAppearancePage();
+	if (state.adminSection === "glass") return renderAdminGlassPage();
 	if (state.adminSection === "layout") return renderAdminLayoutPage();
 	if (state.adminSection === "plans") return renderAdminPlansPage();
 	if (state.adminSection === "trial") return renderAdminTrialPage();
@@ -4063,6 +4064,7 @@ function renderAdminPage() {
 				[localizedText("Редактор контента", "Content", "ویرایشگر محتوا"), "", "content", "adminContent"],
 				["Sub page", "", "subpage", "adminSubscriptions"],
 				[localizedText("Оформление", "Appearance", "ظاهر"), "", "appearance", "adminAppearance"],
+				[localizedText("Стекло", "Glass", "شیشه"), "", "glass", "adminAppearance"],
 				[localizedText("Конструктор UI", "UI builder", "سازنده رابط"), "", "layout", "grid"],
 				[localizedText("Тарифы", "Plans", "تعرفه‌ها"), "", "plans", "cartShopping"],
 			])}
@@ -5730,6 +5732,18 @@ function renderAdminAppearancePage() {
 		${renderAdminAppearancePresets()}
 		<div class="admin-appearance-groups">${groups.map(([title, colors]) => `<section class="admin-editor__section admin-appearance-group"><h3>${escapeHtml(title)}</h3><div class="admin-color-grid">${colors.map(([key, label]) => renderAdminColorField(label, `appearance.colors.${key}`)).join("")}</div></section>`).join("")}</div>
 	`);
+}
+
+function renderAdminGlassPage() {
+	const title = localizedText("Стекло", "Glass", "شیشه");
+	const hint = localizedText("Полупрозрачные карточки и кнопки с мягким размытием, как верхнее меню лендинга. Изменение видно сразу; сохраните его кнопкой внизу.", "Translucent cards and buttons with a soft blur, like the landing page menu. Preview the change instantly, then save below.", "کارت‌ها و دکمه‌های نیمه‌شفاف با تاری ملایم، مانند منوی بالای صفحه اصلی. تغییر را فوری ببینید و سپس ذخیره کنید.");
+	const toggleLabel = localizedText("Включить стекло", "Enable glass", "فعال کردن شیشه");
+	const toggleHint = localizedText("Для карточек и кнопок Mini App", "For Mini App cards and buttons", "برای کارت‌ها و دکمه‌های مینی‌اپ");
+	return renderAdminEditorPage(title, `<div class="admin-glass-settings">
+		<p class="admin-glass-settings__hint">${escapeHtml(hint)}</p>
+		<div class="admin-toggle-list">${renderAdminFeatureToggle(toggleLabel, toggleHint, "appearance.glass")}</div>
+		<div class="admin-glass-preview" aria-hidden="true"><div class="admin-glass-preview__card card"><strong>${escapeHtml(localizedText("Пример карточки", "Sample card", "نمونه کارت"))}</strong><span>${escapeHtml(localizedText("Содержимое остаётся читаемым", "Content stays readable", "محتوا خوانا می‌ماند"))}</span><span class="btn">${escapeHtml(localizedText("Пример кнопки", "Sample button", "نمونه دکمه"))}</span></div></div>
+	</div>`);
 }
 
 function renderAdminLayoutPage() {
@@ -14331,6 +14345,7 @@ function applyAppearance() {
 	document.documentElement.dataset.background = backgroundMode;
 	document.documentElement.dataset.frames = appearance.showFrames === false ? "off" : "on";
 	document.documentElement.dataset.compact = appearance.compact === false ? "off" : "on";
+	document.documentElement.dataset.glass = appearance.glass === true ? "on" : "off";
 	const variables = {
 		"--bg": colors.background,
 		"--surface": colors.surface,
@@ -14470,13 +14485,13 @@ function getPageTitle(page, short = false) {
 	if (page === "admin" && !short && state.adminSection !== "home") {
 		if (state.adminSection === "partners") return localizedText("Партнёры", "Partners", "همکاران");
 		const labels = state.locale === "fa" ? {
-			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", push: "اعلان‌های پوش", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", users: "کاربران",
+			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", push: "اعلان‌های پوش", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", glass: "شیشه", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", users: "کاربران",
 		} : state.locale === "en" ? {
 			localization: "Language and font",
-			maintenance: "Maintenance", diagnostics: "Diagnostics", push: "Push notifications", features: "Functions", subpage: "Sub page", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", users: "Users",
+			maintenance: "Maintenance", diagnostics: "Diagnostics", push: "Push notifications", features: "Functions", subpage: "Sub page", content: "Content", appearance: "Appearance", glass: "Glass", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", users: "Users",
 		} : {
 			localization: "Язык и шрифт",
-			maintenance: "Режим аварии", diagnostics: "Диагностика", push: "Push-уведомления", features: "Функции", subpage: "Sub page", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", users: "Пользователи",
+			maintenance: "Режим аварии", diagnostics: "Диагностика", push: "Push-уведомления", features: "Функции", subpage: "Sub page", content: "Контент", appearance: "Оформление", glass: "Стекло", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", users: "Пользователи",
 		};
 		return labels[state.adminSection] || copy.pageAdmin || "Admin panel";
 	}

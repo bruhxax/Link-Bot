@@ -33,6 +33,7 @@ type landingContactPayload struct {
 type landingPayload struct {
 	Brand          brandPayload            `json:"brand"`
 	Colors         map[string]string       `json:"colors"`
+	Glass          bool                    `json:"glass"`
 	Plans          []planPayload           `json:"plans"`
 	Nodes          []landingNodePayload    `json:"nodes"`
 	NodesAvailable bool                    `json:"nodesAvailable"`
@@ -118,6 +119,11 @@ func (h *Handler) serveLanding(w http.ResponseWriter, r *http.Request) {
 	data = bytes.ReplaceAll(data, []byte("__ASSET_VERSION__"), []byte(h.assetVersion))
 	data = bytes.ReplaceAll(data, []byte("__INITIAL_THEME__"), []byte(initialTheme))
 	data = bytes.ReplaceAll(data, []byte("__THEME_COLOR__"), []byte(background))
+	glassMode := "off"
+	if settings.Appearance.Glass {
+		glassMode = "on"
+	}
+	data = bytes.ReplaceAll(data, []byte("__GLASS_MODE__"), []byte(glassMode))
 	setHTMLSecurityHeaders(w)
 	w.Header().Set("X-Robots-Tag", "index, follow")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -160,6 +166,7 @@ func (h *Handler) handleLandingData(w http.ResponseWriter, r *http.Request) {
 				LogoURL: settings.Content.LogoURL,
 			},
 			Colors:         colors,
+			Glass:          settings.Appearance.Glass,
 			Plans:          plans,
 			Nodes:          nodes,
 			NodesAvailable: nodesAvailable,
