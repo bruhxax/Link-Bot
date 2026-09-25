@@ -29,11 +29,31 @@ func TestLandingServesPublicPage(t *testing.T) {
 			t.Errorf("landing page missing %q", want)
 		}
 	}
-	if strings.Contains(body, "__ASSET_VERSION__") || strings.Contains(body, "__BRAND_NAME__") {
+	if strings.Contains(body, "__ASSET_VERSION__") || strings.Contains(body, "__BRAND_NAME__") || strings.Contains(body, "__INITIAL_THEME__") || strings.Contains(body, "__THEME_COLOR__") {
 		t.Error("landing page contains unresolved placeholders")
+	}
+	if !strings.Contains(body, `<style id="landing-initial-theme">:root{`) || !strings.Contains(body, `--accent:#ba173d;`) {
+		t.Error("landing page must render its theme before JavaScript loads")
+	}
+	if strings.Contains(body, "Интернет на вашей стороне.") || strings.Contains(body, ">В кабинет</a>") {
+		t.Error("landing page contains the removed footer content")
 	}
 	if response.Header().Get("Cache-Control") != "no-store" {
 		t.Error("landing page must not cache dynamic branding")
+	}
+}
+
+func TestLandingInitialThemeUsesSavedColorsSafely(t *testing.T) {
+	css, background := landingInitialTheme(map[string]string{
+		"background": "#010203",
+		"accent":     "#B8FF48",
+		"text":       `#ffffff;}</style><script>`,
+	})
+	if background != "#010203" || !strings.Contains(css, "--bg:#010203;") || !strings.Contains(css, "--accent:#B8FF48;") || !strings.Contains(css, "--accent-ink:#111217;") {
+		t.Fatalf("landing initial theme does not match saved colors: %q / %q", css, background)
+	}
+	if strings.Contains(css, "</style>") || strings.Contains(css, "--text:") {
+		t.Fatalf("unsafe theme color was included in HTML: %q", css)
 	}
 }
 

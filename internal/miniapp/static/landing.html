@@ -3,11 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#090a0d">
+  <meta name="theme-color" content="__THEME_COLOR__">
   <meta name="description" content="__PAGE_DESCRIPTION__">
   <title>__BRAND_NAME__ — интернет без ограничений</title>
   <link rel="icon" href="__FAVICON_URL__">
   <link rel="stylesheet" href="/mini-app/landing.css?v=__ASSET_VERSION__">
+  <style id="landing-initial-theme">__INITIAL_THEME__</style>
   <script defer src="/mini-app/landing.js?v=__ASSET_VERSION__"></script>
 </head>
 <body data-cabinet-base="__CABINET_BASE__">
@@ -63,9 +64,10 @@
     </section>
   </main>
 
-  <footer class="footer container">
-    <span>Интернет на вашей стороне.</span>
-    <a href="__CABINET_BASE__/mini-app/?cabinet=1">В кабинет</a>
-  </footer>
+  <div class="cabinet-transition" id="cabinet-transition" role="status" aria-live="polite" hidden>
+    <span class="cabinet-transition__brand" id="cabinet-transition-brand">__BRAND_NAME__</span>
+    <span class="cabinet-transition__label">Открываем кабинет</span>
+    <span class="cabinet-transition__track" aria-hidden="true"><span></span></span>
+  </div>
 </body>
 </html>

@@ -6,6 +6,7 @@ import (
 	"html"
 	"io/fs"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -39,6 +40,55 @@ type landingPayload struct {
 }
 
 var landingTelegramUsername = regexp.MustCompile(`(?i)^[a-z0-9_]{5,32}$`)
+var landingHexColor = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+var landingCSSColors = []struct {
+	name, property string
+}{
+	{"background", "--bg"}, {"surface", "--surface"}, {"surfaceStrong", "--surface-strong"},
+	{"text", "--text"}, {"muted", "--muted"}, {"border", "--border"},
+	{"accent", "--accent"}, {"success", "--success"}, {"danger", "--danger"},
+}
+
+func landingInitialTheme(colors map[string]string) (string, string) {
+	var css strings.Builder
+	css.WriteString(":root{")
+	for _, entry := range landingCSSColors {
+		color := colors[entry.name]
+		if !landingHexColor.MatchString(color) {
+			continue
+		}
+		css.WriteString(entry.property)
+		css.WriteByte(':')
+		css.WriteString(color)
+		css.WriteByte(';')
+	}
+	if accent := colors["accent"]; landingHexColor.MatchString(accent) {
+		linear := func(component uint64) float64 {
+			value := float64(component) / 255
+			if value <= .04045 {
+				return value / 12.92
+			}
+			return math.Pow((value+.055)/1.055, 2.4)
+		}
+		red, _ := strconv.ParseUint(accent[1:3], 16, 8)
+		green, _ := strconv.ParseUint(accent[3:5], 16, 8)
+		blue, _ := strconv.ParseUint(accent[5:7], 16, 8)
+		ink := "#ffffff"
+		if .2126*linear(red)+.7152*linear(green)+.0722*linear(blue) > .35 {
+			ink = "#111217"
+		}
+		css.WriteString("--accent-ink:")
+		css.WriteString(ink)
+		css.WriteByte(';')
+	}
+	css.WriteByte('}')
+	background := colors["background"]
+	if !landingHexColor.MatchString(background) {
+		background = "#080808"
+	}
+	return css.String(), background
+}
 
 func (h *Handler) serveLanding(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -60,11 +110,14 @@ func (h *Handler) serveLanding(w http.ResponseWriter, r *http.Request) {
 	if faviconURL == "/mini-app/assets/brand-mark.png" {
 		faviconURL += "?v=" + h.assetVersion
 	}
+	initialTheme, background := landingInitialTheme(settings.Appearance.Colors)
 	data = bytes.ReplaceAll(data, []byte("__BRAND_NAME__"), []byte(html.EscapeString(brandName)))
 	data = bytes.ReplaceAll(data, []byte("__PAGE_DESCRIPTION__"), []byte(html.EscapeString(settings.Content.WebPage.Description)))
 	data = bytes.ReplaceAll(data, []byte("__FAVICON_URL__"), []byte(html.EscapeString(faviconURL)))
 	data = bytes.ReplaceAll(data, []byte("__CABINET_BASE__"), []byte(html.EscapeString(h.cabinetBaseURL)))
 	data = bytes.ReplaceAll(data, []byte("__ASSET_VERSION__"), []byte(h.assetVersion))
+	data = bytes.ReplaceAll(data, []byte("__INITIAL_THEME__"), []byte(initialTheme))
+	data = bytes.ReplaceAll(data, []byte("__THEME_COLOR__"), []byte(background))
 	setHTMLSecurityHeaders(w)
 	w.Header().Set("X-Robots-Tag", "index, follow")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
