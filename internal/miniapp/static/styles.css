@@ -325,7 +325,7 @@ select:focus-visible {
 .state-screen.state-screen--access {
   position: relative;
   min-height: var(--app-viewport-height, 100dvh);
-  padding: 24px 24px calc(64px + var(--safe-bottom));
+  padding: 24px 24px calc(24px + var(--safe-bottom));
   background: var(--surface);
   color: var(--text);
   text-align: center;
@@ -350,7 +350,6 @@ select:focus-visible {
 .access-state__text { margin: 12px auto 0; color: var(--muted); font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
 .access-state__reason { margin: 15px auto 0; color: var(--muted); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
 .access-state__reason span { color: var(--text); font-weight: 700; }
-.access-state__footer { position: absolute; right: 12px; bottom: max(13px, var(--safe-bottom)); left: 12px; color: var(--muted); font-size: 12px; line-height: 1.4; }
 
 .profile-page { padding-top: 4px; }
 .profile-group + .profile-group { margin-top: 18px; }

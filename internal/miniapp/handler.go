@@ -862,7 +862,6 @@ func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
 	if faviconURL == "/mini-app/assets/brand-mark.png" {
 		faviconURL += "?v=" + h.assetVersion
 	}
-	data = bytes.ReplaceAll(data, []byte("__TELEGRAM_BOT_USERNAME__"), []byte(html.EscapeString(telegramBotUsername())))
 	data = bytes.ReplaceAll(data, []byte("__TELEGRAM_BOT_ID__"), []byte(html.EscapeString(telegramBotID())))
 	data = bytes.ReplaceAll(data, []byte("__GOOGLE_CLIENT_ID__"), []byte(html.EscapeString(config.GoogleClientID())))
 	data = bytes.ReplaceAll(data, []byte("__PUBLIC_BASE_URL__"), []byte(html.EscapeString(h.publicBaseURL)))

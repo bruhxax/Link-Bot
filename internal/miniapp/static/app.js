@@ -21,7 +21,6 @@ const standaloneWebApp = clientSurface === "browser" && Boolean(
 );
 document.documentElement.dataset.client = clientSurface;
 document.documentElement.dataset.displayMode = standaloneWebApp ? "standalone" : "browser";
-const telegramBotUsername = document.querySelector('meta[name="telegram-bot-username"]')?.content?.trim() || "";
 const telegramBotID = document.querySelector('meta[name="telegram-bot-id"]')?.content?.trim() || "";
 const googleMetaClientID = document.querySelector('meta[name="google-client-id"]')?.content?.trim() || "";
 const urlParams = new URLSearchParams(window.location.search);
@@ -7663,7 +7662,6 @@ function renderStateScreen(kind, message = "", meta = null) {
 					<h1 class="access-state__title" id="access-state-title">${title}</h1>
 					<p class="access-state__text">${escapeHtml(text)}</p>
 				</section>
-				${renderAccessStateFooter()}
 			</div>
 		`;
 	}
@@ -7782,14 +7780,9 @@ function renderStateScreen(kind, message = "", meta = null) {
 	if (kind === "blocked") {
 		const reason = String(meta?.reason || "").trim() || localizedText("Не указана", "Not specified", "مشخص نشده");
 		const brandName = getRuntimeSettings()?.content?.brandName || "Link-Bot";
-		return `<div class="state-screen state-screen--access state-screen--blocked"><section class="access-state" aria-labelledby="access-state-title"><div class="access-state__icon" aria-hidden="true">${icon("accessLink")}</div><h1 class="access-state__title" id="access-state-title">${escapeHtml(brandName)}</h1><p class="access-state__text">${escapeHtml(localizedText("Доступ ограничен", "Access restricted", "دسترسی محدود است"))}</p><p class="access-state__reason"><span>${escapeHtml(localizedText("Причина:", "Reason:", "دلیل:"))}</span> ${escapeHtml(reason)}</p></section>${renderAccessStateFooter()}</div>`;
+		return `<div class="state-screen state-screen--access state-screen--blocked"><section class="access-state" aria-labelledby="access-state-title"><div class="access-state__icon" aria-hidden="true">${icon("accessLink")}</div><h1 class="access-state__title" id="access-state-title">${escapeHtml(brandName)}</h1><p class="access-state__text">${escapeHtml(localizedText("Доступ ограничен", "Access restricted", "دسترسی محدود است"))}</p><p class="access-state__reason"><span>${escapeHtml(localizedText("Причина:", "Reason:", "دلیل:"))}</span> ${escapeHtml(reason)}</p></section></div>`;
 	}
   return `<div class="state-screen"><div class="state-card"><div class="state-card__eyebrow">${escapeHtml(t().appName)}</div><div class="state-card__title">${escapeHtml(t().errorTitle)}</div><div class="state-card__text">${escapeHtml(message)}</div><button class="btn mt-16" type="button" data-action="refresh">${icon("refresh")}${escapeHtml(t().retry)}</button></div></div>`;
-}
-
-function renderAccessStateFooter() {
-	const username = telegramBotUsername.replace(/^@/, "");
-	return username ? `<div class="access-state__footer">@${escapeHtml(username)}</div>` : "";
 }
 
 function renderEditorScreenSwitches(entering = false) {
