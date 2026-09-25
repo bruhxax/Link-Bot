@@ -121,7 +121,7 @@ if [[ $mode == shared && -n $cabinet_subdomain ]]; then
   fi
 fi
 
-docker compose up -d db
+docker compose up -d --no-recreate db
 docker compose up -d --build --force-recreate --no-deps bot
 
 if [[ $mode == managed ]]; then
