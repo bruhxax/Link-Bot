@@ -69,13 +69,16 @@ func TestBrowserAndTelegramLayoutSurfaces(t *testing.T) {
 	}
 	for _, fragment := range []string{
 		`:root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard.page.active {`,
-		`width: min(100%, 860px);`,
-		`grid-template-columns: repeat(2, minmax(0, 1fr));`,
-		`.subscription-switcher__create`,
+		`width: min(100%, clamp(480px, 35vw, 680px));`,
+		`grid-template-columns: minmax(0, 1fr);`,
+		`width: clamp(180px, 15vw, 240px) !important;`,
 	} {
 		if !strings.Contains(styles, fragment) {
 			t.Fatalf("wide browser dashboard layout is missing %q", fragment)
 		}
+	}
+	if strings.Contains(appJS, `subscription-switcher__create`) || strings.Contains(styles, `.subscription-switcher__create`) {
+		t.Fatal("the unsolicited add-subscription button must not appear above the dashboard")
 	}
 	if !strings.Contains(appJS, `if (state.currentPage === "dashboard" && (!isWideBrowserCabinet() || state.adminLayoutEditing))`) {
 		t.Fatal("wide browser dashboard must use its fluid layout while the editor keeps saved coordinates")

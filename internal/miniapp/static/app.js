@@ -6769,8 +6769,7 @@ function renderSubscriptionSwitcher() {
 			<button class="subscription-switcher__delete" type="button" role="menuitem" data-action="delete-subscription" ${active?.isPrimary || state.subscriptionBusy ? `disabled aria-label="${escapeAttribute(copy.primaryDelete)}"` : ""}>${icon("trash")}<span>${copy.remove}</span></button>
 		</div>
 	</div>` : "";
-	const createButton = canCreate ? `<button class="subscription-switcher__create" type="button" data-action="open-subscription-create" ${state.subscriptionBusy ? "disabled" : ""}>${icon("plus")}<span>${escapeHtml(localizedText("Добавить подписку", "Add subscription", "افزودن اشتراک"))}</span></button>` : "";
-	return `<div class="subscription-switcher ${menuVisible ? "is-expanded" : ""}"><button class="subscription-switcher__trigger" type="button" data-action="toggle-subscription-menu" aria-haspopup="menu" aria-expanded="${Boolean(state.subscriptionMenuOpen)}"><span>${escapeHtml(active?.name || copy.primary)}</span><span class="subscription-switcher__chevron">${icon("arrowDown")}</span></button>${createButton}${menu}</div>`;
+	return `<div class="subscription-switcher ${menuVisible ? "is-expanded" : ""}"><button class="subscription-switcher__trigger" type="button" data-action="toggle-subscription-menu" aria-haspopup="menu" aria-expanded="${Boolean(state.subscriptionMenuOpen)}"><span>${escapeHtml(active?.name || copy.primary)}</span><span class="subscription-switcher__chevron">${icon("arrowDown")}</span></button>${menu}</div>`;
 }
 
 function renderProfilePromoModal() {
