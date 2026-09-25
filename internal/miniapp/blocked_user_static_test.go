@@ -14,7 +14,7 @@ func TestBlockedUserHasDedicatedStateScreen(t *testing.T) {
 	for _, expected := range []string{
 		`error?.code === "user_blocked"`,
 		`renderStateScreen("blocked", "", state.blocked)`,
-		`localizedText("Заблокирован", "Blocked"`,
+		`localizedText("Доступ ограничен", "Access restricted"`,
 		`localizedText("Причина:", "Reason:"`,
 	} {
 		if !strings.Contains(app, expected) {

@@ -3673,6 +3673,8 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
 		? state.subscriptionSwitchAnimation
 		: "";
 	state.subscriptionSwitchAnimation = "";
+	const publicMaintenance = !hasAuth() && Boolean(getRuntimeSettings()?.maintenance?.enabled) ? getRuntimeSettings().maintenance : null;
+	document.documentElement.dataset.accessScreen = !state.loading && !state.data && Boolean(state.maintenance || publicMaintenance || state.blocked) ? "on" : "off";
   applyAppearance();
   if (isInstallGuideMode()) {
     app.innerHTML = renderInstallGuidePage();
@@ -3680,7 +3682,6 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
     return;
   }
   if (state.loading && !state.data) return void (app.innerHTML = renderStateScreen("loading"));
-	const publicMaintenance = !hasAuth() && Boolean(getRuntimeSettings()?.maintenance?.enabled) ? getRuntimeSettings().maintenance : null;
 	if (!state.data && (state.maintenance || publicMaintenance)) {
 		app.innerHTML = renderStateScreen("maintenance", "", state.maintenance || publicMaintenance);
 		return bindRootActions();
@@ -5020,9 +5021,7 @@ function broadcastKindLabel(kind, english) {
 function renderAdminMaintenancePage() {
 	return renderAdminEditorPage("Режим аварии", `
 		${renderAdminToggle("Технические работы включены", "maintenance.enabled")}
-		${renderAdminSettingField("Заголовок", "maintenance.titleRu")}
-		${renderAdminSettingField("Текст", "maintenance.textRu", { textarea: true, rows: 3 })}
-		${renderAdminSettingField("Причина", "maintenance.reasonRu")}
+		${renderAdminSettingField("Текст под заголовком «Технические работы»", "maintenance.textRu", { textarea: true, rows: 3 })}
 	`);
 }
 
@@ -7655,19 +7654,16 @@ function renderBrowserAuthQR() {
 
 function renderStateScreen(kind, message = "", meta = null) {
 	if (kind === "maintenance") {
-		const title = meta?.titleRu || localizedText("Технические работы", "Maintenance", "تعمیرات فنی");
+		const title = "Технические работы";
 		const text = meta?.textRu || localizedText("Сервис временно недоступен. Попробуйте немного позже.", "The service is temporarily unavailable. Please try again later.", "سرویس موقتاً در دسترس نیست. کمی بعد دوباره تلاش کنید.");
-		const reason = meta?.reasonRu || localizedText("Плановые работы", "Scheduled maintenance", "تعمیرات برنامه‌ریزی‌شده");
 		return `
-			<div class="state-screen state-screen--maintenance">
-				<section class="maintenance-card" aria-labelledby="maintenance-title">
-					<div class="maintenance-card__icon">${icon("maintenanceKey")}</div>
-					<div class="maintenance-card__eyebrow">${escapeHtml(getRuntimeSettings()?.content?.brandName || "Link-Bot")}</div>
-					<h1 class="maintenance-card__title" id="maintenance-title">${escapeHtml(title)}</h1>
-					<p class="maintenance-card__text">${escapeHtml(text)}</p>
-					<div class="maintenance-card__reason"><span>${localizedText("Причина", "Reason", "دلیل")}</span><strong>${escapeHtml(reason)}</strong></div>
-					<div class="maintenance-card__waiting" role="status" aria-label="${escapeAttribute(title)}"><span></span><span></span><span></span></div>
+			<div class="state-screen state-screen--access state-screen--maintenance">
+				<section class="access-state" aria-labelledby="access-state-title">
+					<div class="access-state__icon" aria-hidden="true">${icon("accessAlert")}</div>
+					<h1 class="access-state__title" id="access-state-title">${title}</h1>
+					<p class="access-state__text">${escapeHtml(text)}</p>
 				</section>
+				${renderAccessStateFooter()}
 			</div>
 		`;
 	}
@@ -7785,9 +7781,15 @@ function renderStateScreen(kind, message = "", meta = null) {
   }
 	if (kind === "blocked") {
 		const reason = String(meta?.reason || "").trim() || localizedText("Не указана", "Not specified", "مشخص نشده");
-		return `<div class="state-screen"><div class="state-card state-card--blocked" role="status"><div class="state-card__eyebrow">${escapeHtml(t().appName)}</div><div class="state-card__title">${escapeHtml(localizedText("Заблокирован", "Blocked", "مسدود شده"))}</div><div class="state-card__text state-card__blocked-reason"><span>${escapeHtml(localizedText("Причина:", "Reason:", "دلیل:"))}</span><strong>${escapeHtml(reason)}</strong></div></div></div>`;
+		const brandName = getRuntimeSettings()?.content?.brandName || "Link-Bot";
+		return `<div class="state-screen state-screen--access state-screen--blocked"><section class="access-state" aria-labelledby="access-state-title"><div class="access-state__icon" aria-hidden="true">${icon("accessLink")}</div><h1 class="access-state__title" id="access-state-title">${escapeHtml(brandName)}</h1><p class="access-state__text">${escapeHtml(localizedText("Доступ ограничен", "Access restricted", "دسترسی محدود است"))}</p><p class="access-state__reason"><span>${escapeHtml(localizedText("Причина:", "Reason:", "دلیل:"))}</span> ${escapeHtml(reason)}</p></section>${renderAccessStateFooter()}</div>`;
 	}
   return `<div class="state-screen"><div class="state-card"><div class="state-card__eyebrow">${escapeHtml(t().appName)}</div><div class="state-card__title">${escapeHtml(t().errorTitle)}</div><div class="state-card__text">${escapeHtml(message)}</div><button class="btn mt-16" type="button" data-action="refresh">${icon("refresh")}${escapeHtml(t().retry)}</button></div></div>`;
+}
+
+function renderAccessStateFooter() {
+	const username = telegramBotUsername.replace(/^@/, "");
+	return username ? `<div class="access-state__footer">@${escapeHtml(username)}</div>` : "";
 }
 
 function renderEditorScreenSwitches(entering = false) {
@@ -14271,9 +14273,10 @@ function applyAppearance() {
 	window.__linkBotMorphic?.setConfig({ color: colors.morphicBall || "#ff69b4", speed: backgroundSpeed });
 	window.__linkBotTwinkle?.setConfig({ color: colors.twinkleStar || "#ffffff", speed: backgroundSpeed });
 	window.__linkBotLiquid?.setConfig({ variant: backgroundMode, colors: liquidColors, speed: backgroundSpeed });
-  if (themeMeta) themeMeta.setAttribute("content", PALETTE.themeColor.dark);
+	const telegramBackground = document.documentElement.dataset.accessScreen === "on" ? (colors.surface || "#08090c") : PALETTE.themeColor.dark;
+	if (themeMeta) themeMeta.setAttribute("content", telegramBackground);
 	if (tg) {
-    const color = PALETTE.themeColor.dark;
+    const color = telegramBackground;
     if (typeof tg.setHeaderColor === "function") tg.setHeaderColor(color);
     if (typeof tg.setBackgroundColor === "function") tg.setBackgroundColor(color);
   }
@@ -15467,7 +15470,8 @@ function icon(name) {
 		clock: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 		language: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 12h17M12 3c2.2 2.5 3.3 5.5 3.3 9S14.2 18.5 12 21M12 3C9.8 5.5 8.7 8.5 8.7 12s1.1 6.5 3.3 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
 		wrench: `<svg viewBox="0 0 24 24" fill="none"><path d="M14.7 6.2a4.8 4.8 0 0 0-6.1 6.1L3.8 17a2.1 2.1 0 1 0 3 3l4.8-4.8a4.8 4.8 0 0 0 6.1-6.1l-2.8 2.8-2.8-.7-.7-2.8 3.3-2.2Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-		maintenanceKey: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12 8v5m0 3h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+		accessAlert: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 1.67c.955 0 1.845.467 2.39 1.247l.105.16l8.114 13.548a2.914 2.914 0 0 1-2.307 4.363l-.195.008H3.882a2.914 2.914 0 0 1-2.582-4.2l.099-.185l8.11-13.538A2.91 2.91 0 0 1 12 1.67M12.01 15l-.127.007a1 1 0 0 0 0 1.986L12 17l.127-.007a1 1 0 0 0 0-1.986zM12 8a1 1 0 0 0-.993.883L11 9v4l.007.117a1 1 0 0 0 1.986 0L13 13V9l-.007-.117A1 1 0 0 0 12 8"/></svg>`,
+		accessLink: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 15l6-6m-4-3l.463-.536a5 5 0 0 1 7.071 7.072L18 13m-5 5l-.397.534a5.07 5.07 0 0 1-7.127 0a4.97 4.97 0 0 1 0-7.071L6 11"/></svg>`,
 		alert: `<svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 17h.01M10.3 4.9 3.4 17a2 2 0 0 0 1.7 3h13.8a2 2 0 0 0 1.7-3L13.7 4.9a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 		sliders: `<svg viewBox="0 0 24 24" fill="none"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M10 14v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="16" cy="7" r="2" stroke="currentColor" stroke-width="1.8"/><circle cx="8" cy="17" r="2" stroke="currentColor" stroke-width="1.8"/></svg>`,
 		palette: `<svg viewBox="0 0 24 24" fill="none"><path d="M12 3a9 9 0 0 0 0 18h1.2a1.8 1.8 0 0 0 1.2-3.1 1.8 1.8 0 0 1 1.2-3.1H18A3 3 0 0 0 21 12 9 9 0 0 0 12 3Z" stroke="currentColor" stroke-width="1.8"/><circle cx="7.5" cy="10" r="1" fill="currentColor"/><circle cx="10" cy="6.8" r="1" fill="currentColor"/><circle cx="14.3" cy="6.8" r="1" fill="currentColor"/><circle cx="17" cy="10" r="1" fill="currentColor"/></svg>`,

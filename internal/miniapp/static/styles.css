@@ -319,59 +319,38 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
-.state-screen--maintenance {
-  padding: 20px;
-  background: transparent;
-}
+:root[data-access-screen="on"] body { background: var(--surface); }
+:root[data-access-screen="on"] .bg-media { display: none; }
 
-.maintenance-card {
-  width: min(100%, 390px);
-  padding: 30px 26px 26px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface-strong);
+.state-screen.state-screen--access {
+  position: relative;
+  min-height: var(--app-viewport-height, 100dvh);
+  padding: 24px 24px calc(64px + var(--safe-bottom));
+  background: var(--surface);
+  color: var(--text);
   text-align: center;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, .42);
 }
 
-.maintenance-card__icon {
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 18px;
-  display: grid;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--icon-color) 42%, transparent);
-  border-radius: 50%;
-  color: var(--icon-color);
-  background: color-mix(in srgb, var(--icon-color) 10%, var(--surface-strong));
+.access-state {
+  width: min(100%, 340px);
+  margin: 0 auto;
 }
 
-.maintenance-card__icon svg { width: 24px; height: 24px; display: block; }
-.maintenance-card__eyebrow { color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
-.maintenance-card__title { margin: 10px 0 0; font-size: 24px; line-height: 1.15; letter-spacing: 0; }
-.maintenance-card__text { max-width: 310px; margin: 12px auto 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.state-screen--blocked .access-state { transform: translateY(18px); }
 
-.maintenance-card__reason {
-  margin-top: 22px;
-  padding: 13px 14px;
-  display: grid;
-  gap: 4px;
-  border-top: 1px solid var(--line-soft);
-  border-bottom: 1px solid var(--line-soft);
-  text-align: left;
+.access-state__icon {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 16px;
+  color: #f47775;
 }
 
-.maintenance-card__reason span { color: var(--muted); font-size: 10px; text-transform: uppercase; }
-.maintenance-card__reason strong { font-size: 13px; }
-.maintenance-card__waiting { min-height: 8px; margin-top: 22px; display: flex; align-items: center; justify-content: center; gap: 7px; }
-.maintenance-card__waiting span { width: 6px; height: 6px; border-radius: 50%; background: var(--icon-color); animation: maintenance-dot 1.25s ease-in-out infinite; }
-.maintenance-card__waiting span:nth-child(2) { animation-delay: .14s; }
-.maintenance-card__waiting span:nth-child(3) { animation-delay: .28s; }
-
-@keyframes maintenance-dot {
-  0%, 70%, 100% { opacity: .3; transform: translateY(0); }
-  35% { opacity: 1; transform: translateY(-3px); }
-}
+.access-state__icon svg { display: block; width: 100%; height: 100%; }
+.access-state__title { margin: 0; font-size: 20px; font-weight: 800; line-height: 1.25; }
+.access-state__text { margin: 12px auto 0; color: var(--muted); font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
+.access-state__reason { margin: 15px auto 0; color: var(--muted); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.access-state__reason span { color: var(--text); font-weight: 700; }
+.access-state__footer { position: absolute; right: 12px; bottom: max(13px, var(--safe-bottom)); left: 12px; color: var(--muted); font-size: 12px; line-height: 1.4; }
 
 .profile-page { padding-top: 4px; }
 .profile-group + .profile-group { margin-top: 18px; }
@@ -1792,10 +1771,6 @@ select:focus-visible {
 	.admin-finance-period__menu,
 	.admin-finance-period__trigger > i,
 	.admin-finance-period-option { transition-duration: 1ms !important; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .maintenance-card__waiting span { animation: none; opacity: .8; }
 }
 
 :root[data-theme="light"] {
@@ -5984,10 +5959,6 @@ button.rating-star {
 .state-card__eyebrow { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
 .state-card__title { margin-top: 14px; font-size: 22px; font-weight: 800; line-height: 1.1; letter-spacing: -.04em; }
 .state-card__text { margin-top: 10px; color: var(--muted); line-height: 1.5; }
-.state-card__blocked-reason { display: grid; gap: 4px; }
-.state-card__blocked-reason span { font-size: 12px; font-weight: 700; }
-.state-card__blocked-reason strong { overflow-wrap: anywhere; color: var(--text); font-size: 14px; }
-
 .state-screen--browser-auth {
   align-content: center;
   min-height: 100%;

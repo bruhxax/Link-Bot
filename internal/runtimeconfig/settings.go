@@ -758,7 +758,7 @@ func LocalizeMaintenanceDefaults(settings MaintenanceSettings, language string) 
 		}
 		return ru
 	}
-	settings.TitleRU = localized(settings.TitleRU, "Технические работы", "Maintenance", "تعمیرات فنی")
+	settings.TitleRU = "Технические работы"
 	settings.TextRU = localized(settings.TextRU, "Сервис временно недоступен. Попробуйте немного позже.", "The service is temporarily unavailable. Please try again later.", "سرویس موقتاً در دسترس نیست. کمی بعد دوباره تلاش کنید.")
 	settings.ReasonRU = localized(settings.ReasonRU, "Плановые работы", "Scheduled maintenance", "تعمیرات برنامه‌ریزی‌شده")
 	return settings
@@ -1187,16 +1187,13 @@ func ensureCustomProfileLayout(layout *LayoutSettings, links []CustomLink) {
 }
 
 func normalizeMaintenance(value *MaintenanceSettings, defaults MaintenanceSettings) {
-	if strings.TrimSpace(value.TitleRU) == "" {
-		value.TitleRU = defaults.TitleRU
-	}
+	value.TitleRU = "Технические работы"
 	if strings.TrimSpace(value.TextRU) == "" {
 		value.TextRU = defaults.TextRU
 	}
 	if strings.TrimSpace(value.ReasonRU) == "" {
 		value.ReasonRU = defaults.ReasonRU
 	}
-	value.TitleRU = limit(value.TitleRU, 100)
 	value.TextRU = limit(value.TextRU, 600)
 	value.ReasonRU = limit(value.ReasonRU, 180)
 }
