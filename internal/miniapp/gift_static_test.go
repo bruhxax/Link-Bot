@@ -15,7 +15,7 @@ func TestGiftMiniAppWiresProfileCheckoutReceiptAndEditor(t *testing.T) {
 	content := string(appJS)
 	for _, expected := range []string{
 		`pageGift: "Подарить"`,
-		`value: "gift", icon: "gift", feature: "gifts"`,
+		`value: "gift", icon: "profileGift", feature: "gifts"`,
 		`data-input="gift-username"`,
 		`data-action="select-gift-plan"`,
 		`data-action="start-gift-payment"`,

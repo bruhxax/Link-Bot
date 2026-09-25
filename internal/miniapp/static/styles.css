@@ -406,8 +406,12 @@ select:focus-visible {
   mask: var(--profile-icon) center / contain no-repeat;
 }
 .profile-svg-icon--layers { --profile-icon: url("./assets/profile-layers.svg"); }
+.profile-svg-icon--gift { --profile-icon: url("./assets/profile-gift.svg"); }
 .profile-svg-icon--card { --profile-icon: url("./assets/profile-card.svg"); }
 .profile-svg-icon--star { --profile-icon: url("./assets/profile-star.svg"); }
+.profile-svg-icon--discount { --profile-icon: url("./assets/profile-discount.svg"); }
+.profile-svg-icon--users { --profile-icon: url("./assets/profile-users.svg"); }
+.profile-svg-icon--users-group { --profile-icon: url("./assets/profile-users-group.svg"); }
 .profile-svg-icon--checklist { --profile-icon: url("./assets/profile-checklist.svg"); }
 .profile-svg-icon--letter { --profile-icon: url("./assets/profile-letter.svg"); }
 .profile-svg-icon--key { --profile-icon: url("./assets/profile-key.svg"); }
