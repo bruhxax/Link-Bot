@@ -33,6 +33,11 @@ func TestBrowserAndTelegramLayoutSurfaces(t *testing.T) {
 	for _, fragment := range []string{
 		`:root[data-client="browser"] #app`,
 		`width: min(100%, 430px);`,
+		`@media (min-width: 760px)`,
+		`:root[data-client="browser"] .app-shell`,
+		`grid-template-columns: clamp(224px, 20vw, 292px) minmax(0, 1fr);`,
+		`:root[data-client="browser"] .desktop-sidebar`,
+		`:root[data-client="browser"] .bottom-nav:not(.bottom-nav--editor) { display: none; }`,
 		`:root[data-client="browser"][data-display-mode="standalone"] .page-scroll`,
 		`padding-top: calc(12px + var(--safe-top));`,
 		`height: 100vh;`,
@@ -43,8 +48,11 @@ func TestBrowserAndTelegramLayoutSurfaces(t *testing.T) {
 		`max-width: 430px;`,
 	} {
 		if !strings.Contains(styles, fragment) {
-			t.Fatalf("centered browser layout fragment is missing: %q", fragment)
+			t.Fatalf("browser layout fragment is missing: %q", fragment)
 		}
+	}
+	if !strings.Contains(appJS, `${renderDesktopSidebar()}`) || !strings.Contains(appJS, `function renderDesktopSidebar()`) {
+		t.Fatal("wide browser navigation must be rendered in the app shell")
 	}
 
 	if strings.Contains(styles, `:root[data-client="telegram"] #app`) ||
@@ -59,9 +67,8 @@ func TestBrowserAndTelegramLayoutSurfaces(t *testing.T) {
 	if !strings.Contains(styles, dashboardCoordinatePlane) {
 		t.Fatal("dashboard must use the same 360px coordinate plane in browser and Telegram clients")
 	}
-	if strings.Contains(styles, `:root[data-client="browser"] #page-dashboard`) ||
-		strings.Contains(styles, `:root[data-client="telegram"] #page-dashboard`) {
-		t.Fatal("dashboard coordinate plane must not differ between browser and Telegram clients")
+	if strings.Contains(styles, `:root[data-client="telegram"] #page-dashboard`) {
+		t.Fatal("wide browser layout must not override the Telegram dashboard")
 	}
 
 	if !strings.Contains(styles, ".modal__sheet--thread {\n  margin-inline: auto;\n}") {

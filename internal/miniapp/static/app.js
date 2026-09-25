@@ -3716,7 +3716,14 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
 	const dockModeChanged = dockMode !== lastBottomDockMode;
 	app.innerHTML = `
     <div class="app-shell ${state.adminLayoutEditing ? "app-shell--layout-editor" : ""}">
-      <div class="page-scroll">${renderPages()}</div>
+      ${renderDesktopSidebar()}
+      <div class="page-scroll">
+        ${state.currentPage === "admin" && state.adminSection !== "home" ? "" : `<header class="desktop-page-heading">
+          <span>${escapeHtml(state.data.brand.name)}</span>
+          <h1>${escapeHtml(getPageTitle(state.currentPage))}</h1>
+        </header>`}
+        ${renderPages()}
+      </div>
       ${renderBottomNav(dockMode, dockModeChanged)}
       ${isModalVisible("support-compose", state.supportComposeOpen) ? renderSupportComposerModal() : ""}
       ${isModalVisible("support-thread", state.supportThreadOpen) ? renderSupportThreadModal() : ""}
@@ -3876,6 +3883,33 @@ function renderSidebar() {
       </div>
     ` : ""}
   `;
+}
+
+function renderDesktopSidebar() {
+	const copy = t();
+	const links = state.data?.links || {};
+	const pageItem = (page, iconName, label = getPageTitle(page)) => {
+		if (!pageFeatureEnabled(page) || (page === "admin" && !isAdminUser())) return "";
+		const active = state.currentPage === page;
+		return `<button class="desktop-sidebar__item ${active ? "is-active" : ""}" type="button" data-action="go-page" data-value="${escapeAttribute(page)}" ${active ? 'aria-current="page"' : ""}><span class="desktop-sidebar__icon" aria-hidden="true">${icon(iconName)}</span><span>${escapeHtml(label)}</span></button>`;
+	};
+	const actionItem = (action, iconName, label) => `<button class="desktop-sidebar__item" type="button" data-action="${escapeAttribute(action)}"><span class="desktop-sidebar__icon" aria-hidden="true">${icon(iconName)}</span><span>${escapeHtml(label)}</span></button>`;
+	const group = (label, items) => {
+		const content = items.filter(Boolean).join("");
+		return content ? `<div class="desktop-sidebar__group"><div class="desktop-sidebar__label">${escapeHtml(label)}</div>${content}</div>` : "";
+	};
+	return `<aside class="desktop-sidebar" aria-label="${escapeAttribute(localizedText("Меню кабинета", "Account menu", "فهرست حساب"))}">
+		<div class="desktop-sidebar__brand"><img src="${escapeAttribute(resolveBrandMarkURL(state.data.brand.logoUrl))}" data-brand-logo alt="" aria-hidden="true"><strong>${escapeHtml(state.data.brand.name)}</strong></div>
+		<nav class="desktop-sidebar__nav" aria-label="${escapeAttribute(localizedText("Разделы кабинета", "Account sections", "بخش های حساب"))}">
+			${group(localizedText("Главная", "Home", "خانه"), [pageItem("dashboard", "houseLine"), pageItem("buy", "shop"), pageItem("setup", "shield")])}
+			${group(localizedText("Помощь", "Help", "راهنما"), [pageItem("support", "sms"), pageItem("faq", "question")])}
+			${group(localizedText("Покупки и бонусы", "Purchases and rewards", "خرید و پاداش"), [pageItem("gift", "gift"), pageItem("payments", "wallet"), actionItem("open-profile-promo", "profileDiscount", localizedText("Применить промокод", "Apply promo code", "استفاده از کد تخفیف"))])}
+			${group(localizedText("Программы", "Programs", "برنامه ها"), [pageItem("referrals", "users"), pageItem("partner", "profileUsersGroup"), pageItem("reviews", "star")])}
+			${group(localizedText("Аккаунт", "Account", "حساب"), [pageItem("settings", "userAlt"), pageItem("login-methods", "profileKey"), pageItem("servers", "server"), pageItem("media", "youtube"), pageItem("admin", "grid")])}
+			${group(localizedText("Ссылки", "Links", "پیوندها"), [links.channel ? `<button class="desktop-sidebar__item" type="button" data-action="open-link" data-value="${escapeAttribute(links.channel)}"><span class="desktop-sidebar__icon" aria-hidden="true">${icon("broadcast")}</span><span>${escapeHtml(copy.channel)}</span><span class="desktop-sidebar__external" aria-hidden="true">${icon("external")}</span></button>` : "", pageItem("terms", "doc"), pageItem("privacy", "shield")])}
+		</nav>
+		<div class="desktop-sidebar__footer">${escapeHtml(localizedText("Веб-кабинет", "Web account", "حساب وب"))}</div>
+	</aside>`;
 }
 
 function renderPages() {

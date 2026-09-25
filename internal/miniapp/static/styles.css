@@ -10228,8 +10228,8 @@ body.has-open-modal .admin-save-bar {
   }
 }
 
-/* Keep the standalone browser cabinet as compact as the Telegram Mini App.
-   Telegram sessions are intentionally excluded so their existing layout stays unchanged. */
+/* Narrow browsers retain the Mini App width. Wide browser rules below
+   expand the cabinet without changing Telegram sessions. */
 :root[data-client="browser"] #app {
   width: min(100%, 430px);
   max-width: 430px;
@@ -12407,3 +12407,210 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 @keyframes profilePromoPanelIn { to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes profilePromoPanelOut { to { opacity: 0; transform: translateY(5px) scale(.98); } }
 @media (prefers-reduced-motion: reduce) { .modal--animate .profile-promo-sheet, .modal--closing .profile-promo-sheet { animation-duration: 1ms; } }
+
+/* The wide web cabinet has its own navigation. Telegram and narrow browsers
+   keep their existing single-column Mini App layout. */
+.desktop-sidebar,
+.desktop-page-heading { display: none; }
+
+@media (min-width: 760px) {
+  :root[data-client="browser"] #app {
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    margin: 0;
+  }
+
+  :root[data-client="browser"] .app-shell {
+    display: grid;
+    grid-template-columns: clamp(224px, 20vw, 292px) minmax(0, 1fr);
+    height: 100%;
+    min-height: 0;
+  }
+
+  :root[data-client="browser"] .desktop-sidebar {
+    min-width: 0;
+    min-height: 0;
+    margin: 12px 0 12px 12px;
+    padding: 20px 14px 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--surface-strong);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, .16);
+  }
+
+  :root[data-client="browser"] .desktop-sidebar__brand {
+    min-height: 48px;
+    padding: 0 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  :root[data-client="browser"] .desktop-sidebar__brand img {
+    width: 29px;
+    height: 29px;
+    flex: 0 0 29px;
+    object-fit: contain;
+  }
+
+  :root[data-client="browser"] .desktop-sidebar__brand strong {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text);
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :root[data-client="browser"] .desktop-sidebar__nav {
+    min-height: 0;
+    padding: 8px 2px 18px;
+    display: block;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+  }
+
+  :root[data-client="browser"] .desktop-sidebar__group {
+    padding: 12px 2px 13px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  :root[data-client="browser"] .desktop-sidebar__group:last-child { border-bottom: 0; }
+
+  :root[data-client="browser"] .desktop-sidebar__label {
+    margin: 0 10px 7px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .12em;
+    line-height: 1.4;
+    text-transform: uppercase;
+  }
+
+  :root[data-client="browser"] .desktop-sidebar__item {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.35;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color .16s ease, color .16s ease;
+  }
+
+  :root[data-client="browser"] .desktop-sidebar__item:hover { background: var(--control-bg); }
+  :root[data-client="browser"] .desktop-sidebar__item.is-active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 11%, var(--surface-strong));
+  }
+  :root[data-client="browser"] .desktop-sidebar__item:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  :root[data-client="browser"] .desktop-sidebar__icon {
+    width: 19px;
+    height: 19px;
+    flex: 0 0 19px;
+    display: grid;
+    place-items: center;
+    color: currentColor;
+  }
+
+  :root[data-client="browser"] .desktop-sidebar__icon svg,
+  :root[data-client="browser"] .desktop-sidebar__external svg { width: 18px; height: 18px; }
+  :root[data-client="browser"] .desktop-sidebar__external { margin-left: auto; color: var(--muted); }
+
+  :root[data-client="browser"] .desktop-sidebar__footer {
+    padding: 12px 10px 2px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  :root[data-client="browser"] .page-scroll,
+  :root[data-client="browser"][data-display-mode="standalone"] .page-scroll {
+    min-width: 0;
+    min-height: 0;
+    padding: 28px clamp(24px, 3.2vw, 56px) 48px;
+  }
+
+  :root[data-client="browser"] .desktop-page-heading {
+    max-width: 1200px;
+    margin: 0 auto 25px;
+    padding-bottom: 16px;
+    display: block;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  :root[data-client="browser"] .desktop-page-heading span {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+  }
+
+  :root[data-client="browser"] .desktop-page-heading h1 {
+    margin: 6px 0 0;
+    color: var(--text);
+    font-size: clamp(23px, 2.4vw, 34px);
+    font-weight: 800;
+    line-height: 1.18;
+    letter-spacing: -.035em;
+  }
+
+  :root[data-client="browser"] .page.active:not(#page-dashboard) {
+    width: 100%;
+    max-width: 1200px;
+    margin-inline: auto;
+  }
+
+  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard.page.active {
+    zoom: 1.2;
+  }
+
+  :root[data-client="browser"] .bottom-nav:not(.bottom-nav--editor) { display: none; }
+  :root[data-client="browser"] .page-support .support-top-grid .menu-card {
+    min-height: 74px !important;
+    padding: 15px 20px !important;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 14px !important;
+  }
+  :root[data-client="browser"] .page-support .support-top-grid .menu-card .menu-card__title { font-size: 15px !important; }
+  :root[data-client="browser"] .page-support .support-top-grid .menu-card .menu-card__hint { font-size: 12px !important; line-height: 1.35 !important; }
+  :root[data-client="browser"] .page-support .support-ticket-card { min-height: 118px; padding: 20px 24px !important; }
+  :root[data-client="browser"] .page-buy .pricing-list { gap: 14px; }
+  :root[data-client="browser"] .page-buy .pricing-card { min-height: 120px; }
+  :root[data-client="browser"] .profile-page.active:not(.profile-page--sorting) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-content: start; }
+  :root[data-client="browser"] .profile-page.active .profile-group { min-width: 0; }
+  :root[data-client="browser"] .profile-page.active .profile-group + .profile-group { margin-top: 0; }
+  :root[data-client="browser"] #page-admin.active:has(> .admin-menu-group) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-content: start; }
+  :root[data-client="browser"] #page-admin.active > .admin-menu-group { min-width: 0; margin-top: 0; }
+  :root[data-client="browser"] .app-shell--layout-editor { grid-template-columns: minmax(0, 1fr); }
+  :root[data-client="browser"] .app-shell--layout-editor .desktop-sidebar,
+  :root[data-client="browser"] .app-shell--layout-editor .desktop-page-heading { display: none; }
+}
+
+@media (min-width: 1200px) {
+  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard.page.active { zoom: 1.42; }
+  :root[data-client="browser"] .page-support .support-top-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :root[data-client="browser"] .page-buy .pricing-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
