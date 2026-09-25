@@ -12550,7 +12550,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     margin: clamp(16px, 3vh, 32px) auto 0;
   }
   :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-layout-area--dashboard {
-    gap: clamp(18px, 2.8vh, 28px);
+    gap: clamp(12px, 1.6vh, 18px);
   }
   :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-layout-area--dashboard > .runtime-layout-item {
     width: 100% !important;
@@ -12578,12 +12578,13 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__trigger {
     width: 100%;
     min-height: 44px;
-    padding: 0 16px;
-    justify-content: space-between;
-    border-radius: 10px;
-    font-size: 14px;
-    text-align: left;
+    padding: 0 36px;
+    position: relative;
+    justify-content: center;
+    text-align: center;
   }
+  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__trigger > span:first-child { max-width: 100%; text-align: center; }
+  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__chevron { position: absolute; right: 14px; }
   :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__chevron,
   :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__chevron svg { width: 16px; height: 16px; }
   :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__menu { width: 100%; }
@@ -12595,10 +12596,11 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   }
   :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-detail-item--logo {
     width: clamp(300px, 31vw, 420px) !important;
-    height: clamp(270px, 40vh, 360px) !important;
+    height: clamp(220px, 29vh, 280px) !important;
     margin-inline: auto;
   }
   :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-detail-item--logo > .hero-brand { height: 100%; }
+  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-detail-item--logo img { transform: scale(1.3); }
   :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .hero-handle {
     max-width: none;
     font-size: 15px;
