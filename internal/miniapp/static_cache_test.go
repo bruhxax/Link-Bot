@@ -93,6 +93,20 @@ func TestServeIndexInjectsAssetVersion(t *testing.T) {
 	}
 }
 
+func TestServeIndexExposesPublicLandingOrigin(t *testing.T) {
+	handler := &Handler{
+		staticFS: fstest.MapFS{
+			"index.html": &fstest.MapFile{Data: []byte(`<meta name="public-base-url" content="__PUBLIC_BASE_URL__">`)},
+		},
+		publicBaseURL: "https://example.com",
+	}
+	response := httptest.NewRecorder()
+	handler.serveIndex(response, httptest.NewRequest("GET", "https://my.example.com/mini-app/", nil))
+	if got := response.Body.String(); got != `<meta name="public-base-url" content="https://example.com">` {
+		t.Fatalf("public landing origin = %q", got)
+	}
+}
+
 func TestStaticHeadersOnlyMakeCurrentVersionImmutable(t *testing.T) {
 	currentRequest := httptest.NewRequest("GET", "/mini-app/app.js?v=current", nil)
 	currentResponse := httptest.NewRecorder()

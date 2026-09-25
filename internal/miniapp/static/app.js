@@ -261,7 +261,7 @@ function isInstallGuideMode() {
   return installGuideMode;
 }
 
-function getWebVersionURL() {
+function getMiniAppBrowserURL() {
   if (/^https?:\/\//i.test(window.location.origin || "")) {
     return `${window.location.origin}/mini-app/`;
   }
@@ -281,8 +281,31 @@ function getWebVersionURL() {
   return `${window.location.origin}/mini-app/`;
 }
 
+function getWebVersionURL() {
+  const configured = document.querySelector('meta[name="public-base-url"]')?.content?.trim();
+  try {
+    return new URL("/", configured || window.location.origin).href;
+  } catch {
+    return `${window.location.origin}/`;
+  }
+}
+
+function resolveWebVersionOverrideURL(value) {
+  const configured = String(value || "").trim();
+  if (!configured) return "";
+  try {
+    const url = new URL(configured);
+    const miniApp = new URL(getMiniAppBrowserURL());
+    if (url.origin === miniApp.origin && ["/mini-app", "/mini-app/"].includes(url.pathname) &&
+        (!url.search || url.search === "?cabinet=1") && !url.hash) {
+      return getWebVersionURL();
+    }
+  } catch { /* Preserve a custom link for the existing validation flow. */ }
+  return configured;
+}
+
 function getInstallGuideURL() {
-  const url = new URL(getWebVersionURL());
+  const url = new URL(getMiniAppBrowserURL());
   url.searchParams.set("install", "desktop");
   return url.toString();
 }
@@ -298,7 +321,7 @@ function webVersionLabel() {
 }
 
 function webVersionHint() {
-	return localizedText("Браузерная версия кабинета", "Browser dashboard", "حساب کاربری در مرورگر");
+	return localizedText("Сайт и вход в кабинет", "Website and dashboard sign-in", "وب‌سایت و ورود به حساب کاربری");
 }
 
 function addToHomeLabel() {
@@ -5034,7 +5057,7 @@ function renderAdminFeaturesPage() {
 				["terms", "Пользовательское соглашение", "Условия использования сервиса"],
 				["news", "Новости", "Новости и обновления"],
 				["login_methods", "Способ входа", "Telegram и Gmail"],
-				["web_version", "Открыть веб-версию", "Браузерная версия кабинета"],
+				["web_version", "Открыть веб-версию", "Сайт и вход в кабинет"],
 				["pwa_install", "Добавить на рабочий стол", "Инструкция для iOS и Android"],
 			],
 		},
@@ -7248,7 +7271,7 @@ function getProfileItems() {
 		if (override.hintRu) item.hint = override.hintRu;
 		if (override.url && id === "web_version") {
 			item.action = "open-link";
-			item.value = override.url;
+			item.value = resolveWebVersionOverrideURL(override.url);
 		}
 		if (override.url && id === "pwa_install") {
 			item.action = "open-link";
@@ -10137,7 +10160,7 @@ function getBuiltInProfileDefaults(id) {
 		news: ["Новости", "Новости и обновления сервиса"],
 		terms: ["Пользовательское соглашение", "Условия использования сервиса"],
 		privacy: ["Политика конфиденциальности", "Как сервис обрабатывает данные"],
-		web_version: ["Открыть веб-версию", "Браузерная версия кабинета"],
+		web_version: ["Открыть веб-версию", "Сайт и вход в кабинет"],
 		pwa_install: ["Добавить на рабочий стол", "Инструкция для iOS и Android"],
 	};
 	return values[id] || [id, ""];
@@ -10187,7 +10210,7 @@ function openAdminProfileEditor(id, { create = false } = {}) {
 			isNew: false,
 			labelRu: source.labelRu || label,
 			hintRu: source.hintRu || hint,
-			url: source.url || defaultProfileButtonURL(id),
+			url: id === "web_version" ? resolveWebVersionOverrideURL(source.url) || defaultProfileButtonURL(id) : source.url || defaultProfileButtonURL(id),
 			document: document ? deepClone(document) : null,
 		};
 	}

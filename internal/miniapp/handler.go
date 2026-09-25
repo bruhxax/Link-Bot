@@ -71,6 +71,7 @@ type Handler struct {
 	telegramBot            *bot.Bot
 	staticFS               fs.FS
 	assetVersion           string
+	publicBaseURL          string
 	cabinetBaseURL         string
 	rateLimiter            *requestRateLimiter
 	channelSubCache        *cache.Cache
@@ -690,6 +691,7 @@ func NewHandler(
 		subscriptionService:    subscriptionService,
 		staticFS:               staticFS,
 		assetVersion:           assetVersion,
+		publicBaseURL:          config.PublicBaseURL(),
 		cabinetBaseURL:         config.CabinetBaseURL(),
 		rateLimiter:            newRequestRateLimiter(),
 		channelSubCache:        cache.NewCache(30 * time.Minute),
@@ -863,6 +865,7 @@ func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
 	data = bytes.ReplaceAll(data, []byte("__TELEGRAM_BOT_USERNAME__"), []byte(html.EscapeString(telegramBotUsername())))
 	data = bytes.ReplaceAll(data, []byte("__TELEGRAM_BOT_ID__"), []byte(html.EscapeString(telegramBotID())))
 	data = bytes.ReplaceAll(data, []byte("__GOOGLE_CLIENT_ID__"), []byte(html.EscapeString(config.GoogleClientID())))
+	data = bytes.ReplaceAll(data, []byte("__PUBLIC_BASE_URL__"), []byte(html.EscapeString(h.publicBaseURL)))
 	data = bytes.ReplaceAll(data, []byte("__PAGE_TITLE__"), []byte(html.EscapeString(page.Title)))
 	data = bytes.ReplaceAll(data, []byte("__PAGE_DESCRIPTION__"), []byte(html.EscapeString(page.Description)))
 	data = bytes.ReplaceAll(data, []byte("__FAVICON_URL__"), []byte(html.EscapeString(faviconURL)))

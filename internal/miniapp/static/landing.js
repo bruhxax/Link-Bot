@@ -257,10 +257,17 @@
   observeReveals();
   if ("IntersectionObserver" in window) {
     const sectionLinks = [...document.querySelectorAll('.nav-links a[href^="#"]')];
+    const setActiveSection = (id) => sectionLinks.forEach((link) => {
+      const active = link.getAttribute("href") === `#${id}`;
+      link.classList.toggle("active", active);
+      if (active) link.setAttribute("aria-current", "location");
+      else link.removeAttribute("aria-current");
+    });
+    sectionLinks.forEach((link) => link.addEventListener("click", () => setActiveSection(link.hash.slice(1))));
     const navObserver = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (!entry.isIntersecting) return;
-        sectionLinks.forEach((link) => link.classList.toggle("active", link.getAttribute("href") === `#${entry.target.id}`));
+        setActiveSection(entry.target.id);
       });
     }, { rootMargin: "-20% 0px -65% 0px" });
     document.querySelectorAll("main .section[id]").forEach((section) => navObserver.observe(section));
