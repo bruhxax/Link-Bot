@@ -2843,6 +2843,12 @@ function initTelegram() {
     window.addEventListener("resize", syncAppViewportHeight, { passive: true });
     initTelegram.viewportResizeBound = true;
   }
+	if (clientSurface === "browser" && !initTelegram.cabinetBreakpointBound) {
+		window.matchMedia("(min-width: 760px)").addEventListener("change", () => {
+			if (state.data) render({ preserveScroll: false, scrollTop: 0 });
+		});
+		initTelegram.cabinetBreakpointBound = true;
+	}
   if (!tg) return;
   tg.ready();
   tg.expand();
@@ -3645,9 +3651,84 @@ function getBottomDockMode() {
 	return "navigation";
 }
 
+function isWideBrowserCabinet() {
+	return clientSurface === "browser" && window.matchMedia("(min-width: 760px)").matches;
+}
+
+function desktopSidebarContent(sidebar) {
+	const nav = sidebar?.querySelector(".desktop-sidebar__nav");
+	if (!nav) return "";
+	const copy = nav.cloneNode(true);
+	copy.querySelectorAll(".desktop-sidebar__item").forEach((item) => {
+		item.classList.remove("is-active");
+		item.removeAttribute("aria-current");
+	});
+	return copy.innerHTML;
+}
+
+function syncDesktopSidebar(current, next) {
+	if (!current || !next) return;
+	const currentNav = current.querySelector(".desktop-sidebar__nav");
+	const nextNav = next.querySelector(".desktop-sidebar__nav");
+	if (desktopSidebarContent(current) !== desktopSidebarContent(next)) {
+		const scrollTop = currentNav?.scrollTop || 0;
+		current.replaceWith(next);
+		if (nextNav) nextNav.scrollTop = scrollTop;
+		return;
+	}
+	const nextBrand = next.querySelector(".desktop-sidebar__brand");
+	const currentBrand = current.querySelector(".desktop-sidebar__brand");
+	if (currentBrand && nextBrand && currentBrand.innerHTML !== nextBrand.innerHTML) currentBrand.innerHTML = nextBrand.innerHTML;
+	const nextFooter = next.querySelector(".desktop-sidebar__footer");
+	const currentFooter = current.querySelector(".desktop-sidebar__footer");
+	if (currentFooter && nextFooter) currentFooter.textContent = nextFooter.textContent;
+	const currentItems = currentNav.querySelectorAll(".desktop-sidebar__item");
+	const nextItems = nextNav.querySelectorAll(".desktop-sidebar__item");
+	currentItems.forEach((item, index) => {
+		const active = nextItems[index].classList.contains("is-active");
+		item.classList.toggle("is-active", active);
+		if (active) item.setAttribute("aria-current", "page");
+		else item.removeAttribute("aria-current");
+	});
+}
+
+function mountCabinetShell(markup) {
+	const currentShell = app.firstElementChild;
+	if (!isWideBrowserCabinet() || !currentShell?.classList.contains("app-shell") || state.adminLayoutEditing || currentShell.classList.contains("app-shell--layout-editor")) {
+		app.innerHTML = markup;
+		return;
+	}
+	const template = document.createElement("template");
+	template.innerHTML = markup.trim();
+	const nextShell = template.content.firstElementChild;
+	const currentSidebar = currentShell.querySelector(":scope > .desktop-sidebar");
+	const nextSidebar = nextShell.querySelector(":scope > .desktop-sidebar");
+	if (!currentSidebar || !nextSidebar) {
+		app.innerHTML = markup;
+		return;
+	}
+	currentShell.className = nextShell.className;
+	syncDesktopSidebar(currentSidebar, nextSidebar);
+	const sidebar = currentShell.querySelector(":scope > .desktop-sidebar");
+	let sibling = sidebar.nextSibling;
+	while (sibling) {
+		const following = sibling.nextSibling;
+		sibling.remove();
+		sibling = following;
+	}
+	if (nextSidebar.parentNode === nextShell) nextSidebar.remove();
+	currentShell.append(...nextShell.childNodes);
+}
+
 function render({ preserveScroll = true, scrollTop = null } = {}) {
 	realtimeRenderPending = false;
 	window.clearTimeout(realtimeRenderTimer);
+	if (state.data && isWideBrowserCabinet() && !state.adminLayoutEditing && state.currentPage === "settings") {
+		state.currentPage = "dashboard";
+		writeSetting(STORAGE_KEYS.page, state.currentPage);
+		preserveScroll = false;
+		scrollTop = 0;
+	}
 	const realtimeFocus = realtimeRefreshRunning ? captureRealtimeFocus() : null;
 	const realtimeDetails = realtimeRefreshRunning
 		? [...app.querySelectorAll("details")].flatMap((element, index) => element.open ? [{ index, label: element.querySelector("summary")?.textContent || "" }] : [])
@@ -3711,10 +3792,9 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
     mountGoogleLoginWidgets();
     return;
   }
-
 	const dockMode = getBottomDockMode();
 	const dockModeChanged = dockMode !== lastBottomDockMode;
-	app.innerHTML = `
+	mountCabinetShell(`
     <div class="app-shell ${state.adminLayoutEditing ? "app-shell--layout-editor" : ""}">
       ${renderDesktopSidebar()}
       <div class="page-scroll">
@@ -3746,7 +3826,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
 		${isModalVisible("admin-banner", state.adminBannerEditorOpen) ? renderAdminBannerModal() : ""}
 		${isModalVisible("admin-layout-style", state.adminLayoutStyleEditorOpen) ? renderAdminLayoutStyleModal() : ""}
     </div>
-  `;
+  `);
 	lastBottomDockMode = dockMode;
   bindRootActions();
   mountAdminContentTabs();
@@ -3888,12 +3968,16 @@ function renderSidebar() {
 function renderDesktopSidebar() {
 	const copy = t();
 	const links = state.data?.links || {};
+	const profileItems = getProfileItems();
 	const pageItem = (page, iconName, label = getPageTitle(page)) => {
 		if (!pageFeatureEnabled(page) || (page === "admin" && !isAdminUser())) return "";
 		const active = state.currentPage === page;
 		return `<button class="desktop-sidebar__item ${active ? "is-active" : ""}" type="button" data-action="go-page" data-value="${escapeAttribute(page)}" ${active ? 'aria-current="page"' : ""}><span class="desktop-sidebar__icon" aria-hidden="true">${icon(iconName)}</span><span>${escapeHtml(label)}</span></button>`;
 	};
-	const actionItem = (action, iconName, label) => `<button class="desktop-sidebar__item" type="button" data-action="${escapeAttribute(action)}"><span class="desktop-sidebar__icon" aria-hidden="true">${icon(iconName)}</span><span>${escapeHtml(label)}</span></button>`;
+	const actionItem = (action, iconName, label, value = "") => `<button class="desktop-sidebar__item" type="button" data-action="${escapeAttribute(action)}" ${value ? `data-value="${escapeAttribute(value)}"` : ""}><span class="desktop-sidebar__icon" aria-hidden="true">${icon(iconName)}</span><span>${escapeHtml(label)}</span></button>`;
+	const extraProfileItems = profileItems.filter((item) => item.id.startsWith("custom.") && item.layout?.visible !== false).map((item) => `<button class="desktop-sidebar__item" type="button" data-action="${escapeAttribute(item.action)}" data-value="${escapeAttribute(item.value || "")}"><span class="desktop-sidebar__icon" aria-hidden="true">${icon(item.icon || "external")}</span><span>${escapeHtml(item.label || "")}</span></button>`);
+	const installProfileItem = profileItems.find((item) => item.id === "pwa_install" && item.layout?.visible !== false);
+	const installItem = installProfileItem ? actionItem(installProfileItem.action, installProfileItem.icon, installProfileItem.label, installProfileItem.value) : "";
 	const group = (label, items) => {
 		const content = items.filter(Boolean).join("");
 		return content ? `<div class="desktop-sidebar__group"><div class="desktop-sidebar__label">${escapeHtml(label)}</div>${content}</div>` : "";
@@ -3905,7 +3989,8 @@ function renderDesktopSidebar() {
 			${group(localizedText("Помощь", "Help", "راهنما"), [pageItem("support", "sms"), pageItem("faq", "question")])}
 			${group(localizedText("Покупки и бонусы", "Purchases and rewards", "خرید و پاداش"), [pageItem("gift", "gift"), pageItem("payments", "wallet"), actionItem("open-profile-promo", "profileDiscount", localizedText("Применить промокод", "Apply promo code", "استفاده از کد تخفیف"))])}
 			${group(localizedText("Программы", "Programs", "برنامه ها"), [pageItem("referrals", "users"), pageItem("partner", "profileUsersGroup"), pageItem("reviews", "star")])}
-			${group(localizedText("Аккаунт", "Account", "حساب"), [pageItem("settings", "userAlt"), pageItem("login-methods", "profileKey"), pageItem("servers", "server"), pageItem("media", "youtube"), pageItem("admin", "grid")])}
+			${group(localizedText("Аккаунт", "Account", "حساب"), [pageItem("login-methods", "profileKey"), pageItem("servers", "server"), pageItem("media", "youtube"), installItem, pageItem("admin", "grid", copy.pageAdmin)])}
+			${group(localizedText("Дополнительно", "More", "بیشتر"), extraProfileItems)}
 			${group(localizedText("Ссылки", "Links", "پیوندها"), [links.channel ? `<button class="desktop-sidebar__item" type="button" data-action="open-link" data-value="${escapeAttribute(links.channel)}"><span class="desktop-sidebar__icon" aria-hidden="true">${icon("broadcast")}</span><span>${escapeHtml(copy.channel)}</span><span class="desktop-sidebar__external" aria-hidden="true">${icon("external")}</span></button>` : "", pageItem("terms", "doc"), pageItem("privacy", "shield")])}
 		</nav>
 		<div class="desktop-sidebar__footer">${escapeHtml(localizedText("Веб-кабинет", "Web account", "حساب وب"))}</div>
@@ -13952,7 +14037,8 @@ function closeAdminSection() {
 }
 
 function setPage(page) {
-  const nextPage = normalizePage(page);
+	const normalizedPage = normalizePage(page);
+	const nextPage = normalizedPage === "settings" && isWideBrowserCabinet() && !state.adminLayoutEditing ? "dashboard" : normalizedPage;
 	if (state.adminPlanEditing) {
 		if (nextPage !== "buy") return;
 		state.currentPage = "buy";

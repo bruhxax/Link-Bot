@@ -12476,6 +12476,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     flex: 1 1 auto;
     overflow-y: auto;
     overflow-x: hidden;
+	overscroll-behavior: contain;
     scrollbar-width: thin;
     scrollbar-color: var(--line) transparent;
   }
@@ -12499,14 +12500,14 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 
   :root[data-client="browser"] .desktop-sidebar__item {
     width: 100%;
-    min-height: 40px;
+	min-height: 42px;
     padding: 8px 10px;
     display: flex;
     align-items: center;
     gap: 12px;
     border-radius: 8px;
     color: var(--text);
-    font-size: 12px;
+	font-size: 13px;
     font-weight: 600;
     line-height: 1.35;
     text-align: left;
@@ -12550,6 +12551,8 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     min-width: 0;
     min-height: 0;
     padding: 28px clamp(24px, 3.2vw, 56px) 48px;
+	scrollbar-gutter: stable;
+	overscroll-behavior: contain;
   }
 
   :root[data-client="browser"] .desktop-page-heading {
@@ -12577,15 +12580,25 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     letter-spacing: -.035em;
   }
 
+	:root[data-client="browser"] .desktop-page-heading:has(+ #page-dashboard.active) {
+		max-width: 360px;
+	}
+
   :root[data-client="browser"] .page.active:not(#page-dashboard) {
     width: 100%;
     max-width: 1200px;
     margin-inline: auto;
   }
-
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard.page.active {
-    zoom: 1.2;
-  }
+	:root[data-client="browser"] #page-admin.active:has(.admin-content-nav) { max-width: 960px; }
+	:root[data-client="browser"] #page-admin .admin-content-tabs button { min-height: 40px; padding-inline: 12px; font-size: 12px; }
+	:root[data-client="browser"] #page-admin .admin-content-panel .admin-editor__section h3 { font-size: 14px; }
+	:root[data-client="browser"] #page-admin .admin-content-panel .admin-field > span,
+	:root[data-client="browser"] #page-admin .admin-content-panel .admin-telegram-button summary span { font-size: 12px; }
+	:root[data-client="browser"] #page-admin .admin-content-panel .admin-field__control,
+	:root[data-client="browser"] #page-admin .admin-content-panel .admin-telegram-button summary strong { font-size: 13px; }
+	:root[data-client="browser"] #page-admin .admin-content-panel .admin-field__code { font-size: 12px; }
+	:root[data-client="browser"] #page-admin .admin-content-panel .admin-empty-line,
+	:root[data-client="browser"] #page-admin .admin-content-panel small { font-size: 11px; }
 
   :root[data-client="browser"] .bottom-nav:not(.bottom-nav--editor) { display: none; }
   :root[data-client="browser"] .page-support .support-top-grid .menu-card {
@@ -12610,7 +12623,6 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 }
 
 @media (min-width: 1200px) {
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard.page.active { zoom: 1.42; }
   :root[data-client="browser"] .page-support .support-top-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   :root[data-client="browser"] .page-buy .pricing-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
