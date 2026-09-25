@@ -12435,7 +12435,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     overflow: hidden;
     border: 1px solid var(--line);
     border-radius: 16px;
-    background: var(--surface-strong);
+    background: var(--control-bg);
     box-shadow: 0 16px 40px rgba(0, 0, 0, .16);
   }
 
@@ -12605,12 +12605,15 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   }
   :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .dashboard-compact { width: 100%; }
   :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar--status { gap: 12px; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; justify-items: center; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__row > .runtime-detail-item--status { justify-content: center; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__name { font-size: clamp(24px, 2.4vw, 34px); text-align: center; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__date { margin-left: 0; justify-content: center; font-size: 15px; }
+  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; justify-items: stretch; }
+  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard [data-runtime-layout-key="dashboard:plan_name"] { grid-column: 1; justify-content: flex-start; }
+  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard [data-runtime-layout-key="dashboard:expires"] { grid-column: 2; justify-content: flex-end; }
+  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__name { font-size: clamp(24px, 2.4vw, 34px); text-align: left; }
+  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__date { margin-left: 0; justify-content: flex-end; font-size: 15px; }
   :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__row--pills { gap: 18px; }
   :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__row--pills .runtime-detail-item--pill { width: auto !important; flex: 0 0 auto; margin-inline: 0; }
+  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard [data-runtime-layout-key="dashboard:traffic"] { grid-column: 1; justify-self: start; }
+  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard [data-runtime-layout-key="dashboard:devices"] { grid-column: 2; justify-self: end; }
   :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-pill { min-height: 38px; padding-inline: 15px; font-size: 14px; }
   :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .action-stack--dashboard {
     grid-template-columns: minmax(0, 1fr);
