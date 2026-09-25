@@ -327,11 +327,13 @@ docker compose start
 ```bash
 cd /opt/Link-Bot
 git pull --ff-only
-docker compose up -d --build bot
+bash ./update.sh
 ```
 
 Если этот проект сам управляет Caddy, используйте
-`docker compose --profile standalone up -d --build`.
+`bash ./update.sh --standalone` вместо последней команды.
+Скрипт обновления добавляет `CABINET_SUBDOMAIN=` в существующий `.env`, если строки ещё нет.
+Уже заданное значение он не изменяет. Сам `git pull` не обновляет `.env`, так как файл исключён из Git.
 Обновление сохраняет базу данных и настройки из админки. Уже созданные тарифы, оформление и интеграции не сбрасываются на новые значения по умолчанию.
 
 </details>
