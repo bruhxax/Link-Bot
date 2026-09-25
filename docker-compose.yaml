@@ -62,8 +62,11 @@ services:
       - "443:443"
     environment:
       PUBLIC_HOST: ${PUBLIC_HOST}
+      CABINET_SUBDOMAIN: ${CABINET_SUBDOMAIN:-}
+    entrypoint: [ "/bin/sh", "/etc/caddy/start-link-bot.sh" ]
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy-start.sh:/etc/caddy/start-link-bot.sh:ro
       - caddy-data:/data
       - caddy-config:/config
 

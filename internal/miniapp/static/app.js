@@ -2897,6 +2897,60 @@ let realtimeRefreshQueuedAt = 0;
 let realtimeRefreshRunning = false;
 let realtimeRefreshPending = false;
 let realtimeLastRefresh = 0;
+let realtimeRenderPending = false;
+let realtimeRenderTimer = 0;
+let realtimeLastInteraction = 0;
+let realtimeBatching = false;
+let realtimeBatchRenderRequested = false;
+
+function patchRealtimeSupportMessages() {
+	if (!state.supportThreadOpen || !state.activeSupportThread) return;
+	const list = app.querySelector("#support-thread-messages");
+	if (!list) return;
+	const incoming = state.activeSupportThread.messages || [];
+	const displayed = [...list.querySelectorAll(":scope > .support-message")];
+	const shared = Math.min(displayed.length, incoming.length);
+	let matchingPrefix = true;
+	for (let index = 0; index < shared; index++) {
+		if (displayed[index].dataset.messageId !== String(incoming[index].id || 0)) { matchingPrefix = false; break; }
+	}
+	if (matchingPrefix && displayed.length === incoming.length) return;
+	const distanceFromBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
+	if (matchingPrefix && incoming.length > displayed.length) {
+		list.insertAdjacentHTML("beforeend", incoming.slice(displayed.length).map((message) => renderSupportMessage(message)).join(""));
+	} else {
+		list.innerHTML = incoming.map((message) => renderSupportMessage(message)).join("");
+	}
+	if (distanceFromBottom < 72) list.scrollTop = list.scrollHeight;
+	else list.scrollTop = Math.min(list.scrollTop, list.scrollHeight);
+	hydrateSupportMedia();
+}
+
+function renderRealtime() {
+	if (realtimeBatching) { realtimeBatchRenderRequested = true; return; }
+	if (!state.data || state.maintenance || state.blocked || state.subscriptionGate || !app.querySelector(".app-shell")) {
+		realtimeRenderPending = false;
+		render();
+		return;
+	}
+	patchRealtimeSupportMessages();
+	const active = document.activeElement;
+	const editing = app.contains(active) && active?.matches?.("input, textarea, select, [contenteditable='true']");
+	const menuOpen = state.subscriptionMenuOpen || state.subscriptionMenuClosing || state.notificationPopoverOpen || state.notificationPopoverClosing || state.setupPlatformMenuOpen || state.adminFinancePeriodMenuOpen || state.adminLayoutAddMenuOpen;
+	if (document.body.classList.contains("has-open-modal") || menuOpen || app.querySelector("details[open]") || editing) {
+		realtimeRenderPending = true;
+		return;
+	}
+	if (Date.now() - realtimeLastInteraction < 900) {
+		realtimeRenderPending = true;
+		window.clearTimeout(realtimeRenderTimer);
+		realtimeRenderTimer = window.setTimeout(() => { if (realtimeRenderPending) renderRealtime(); }, 950);
+		return;
+	}
+	realtimeRenderPending = false;
+	window.clearTimeout(realtimeRenderTimer);
+	render();
+}
 
 function queueRealtimeRefresh(delay = 350) {
 	if (previewMode || !hasAuth() || document.hidden) return;
@@ -2938,6 +2992,7 @@ async function refreshRealtimeData() {
 	if (realtimeRefreshRunning) { realtimeRefreshPending = true; return; }
 	if (!hasAuth() || previewMode || document.hidden) return;
 	realtimeRefreshRunning = true;
+	realtimeBatching = true;
 	try {
 		await refreshDashboard({ silent: true });
 		if (!state.data) return;
@@ -2945,27 +3000,30 @@ async function refreshRealtimeData() {
 			if (state.supportThreadOpen && state.activeSupportTicketId) await openSupportTicket(state.activeSupportTicketId, { silent: true });
 			else await refreshSupport({ silent: true });
 		} else if (state.currentPage === "partner") {
+			const previous = JSON.stringify(state.partner || {});
 			await refreshPartner({ silent: true });
-			render({ preserveScroll: true });
+			if (previous !== JSON.stringify(state.partner || {})) renderRealtime();
 		} else if (state.currentPage === "admin" && isAdminUser()) {
 			switch (state.adminSection) {
 				case "finance": await refreshAdminFinance({ live: true }); break;
-				case "partners": await refreshAdminPartners(); break;
+				case "partners": await refreshAdminPartners({ silent: true }); break;
 				case "moynalog": await refreshAdminMoyNalog({ silent: true }); break;
 				case "broadcast": await refreshAdminBroadcast({ silent: true }); break;
 				case "push": await refreshAdminPush({ live: true }); break;
 				case "users":
 					if (state.adminUserDetail?.customerId) {
 						const customerId = state.adminUserDetail.customerId;
+						const previous = JSON.stringify(state.adminUserDetail);
 						const response = await post("/api/mini-app/admin/users/detail", { customerId });
 						if (state.adminSection === "users" && state.adminUserDetail?.customerId === customerId) {
 							state.adminUserDetail = response.data || null;
-							render({ preserveScroll: true });
+							if (previous !== JSON.stringify(state.adminUserDetail)) renderRealtime();
 						}
 					} else await refreshAdminUsers({ silent: true });
 					break;
 				case "subscriptions":
 					if (state.adminSubscriptionResult && state.adminSubscriptionQuery.trim()) {
+						const previous = JSON.stringify([state.adminSubscriptionResult, state.adminSubscriptionTargetResult]);
 						const found = await post("/api/mini-app/admin/subscriptions/find", { query: state.adminSubscriptionQuery.trim() });
 						if (state.adminSection === "subscriptions") {
 							state.adminSubscriptionResult = found.data || null;
@@ -2978,7 +3036,7 @@ async function refreshRealtimeData() {
 								});
 								state.adminSubscriptionTargetResult = target.data || null;
 							}
-							render({ preserveScroll: true });
+							if (previous !== JSON.stringify([state.adminSubscriptionResult, state.adminSubscriptionTargetResult])) renderRealtime();
 						}
 					}
 					break;
@@ -2988,6 +3046,11 @@ async function refreshRealtimeData() {
 		// A transient request failure should not tear down the live connection.
 		console.warn("Mini App live refresh failed", error);
 	} finally {
+		realtimeBatching = false;
+		if (realtimeBatchRenderRequested) {
+			realtimeBatchRenderRequested = false;
+			renderRealtime();
+		}
 		realtimeLastRefresh = Date.now();
 		realtimeRefreshRunning = false;
 		if (realtimeRefreshPending) {
@@ -3254,7 +3317,8 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
   } finally {
     state.loading = false;
     state.refreshing = false;
-		if (previousView === null || previousView !== realtimeViewSignature()) render();
+		if (previousView === null) render();
+		else if (previousView !== realtimeViewSignature()) renderRealtime();
 		if (!realtimeStarted && hasAuth() && !previewMode) void startRealtimeSync();
   }
 }
@@ -3560,6 +3624,8 @@ function getBottomDockMode() {
 }
 
 function render({ preserveScroll = true, scrollTop = null } = {}) {
+	realtimeRenderPending = false;
+	window.clearTimeout(realtimeRenderTimer);
 	const realtimeFocus = realtimeRefreshRunning ? captureRealtimeFocus() : null;
 	const realtimeDetails = realtimeRefreshRunning
 		? [...app.querySelectorAll("details")].flatMap((element, index) => element.open ? [{ index, label: element.querySelector("summary")?.textContent || "" }] : [])
@@ -4101,6 +4167,7 @@ function renderAdminPartnerRow(item, index) {
 
 async function refreshAdminFinance({ append = false, live = false } = {}) {
 	if ((previewMode && state.adminFinance) || state.adminFinanceBusy) return;
+	const previous = live ? JSON.stringify(state.adminFinance || {}) : "";
 	const offset = append ? Number(state.adminFinance?.payments?.length || 0) : 0;
 	const requestID = ++adminFinanceRequestID;
 	state.adminFinanceBusy = append ? "more" : "refresh";
@@ -4117,7 +4184,8 @@ async function refreshAdminFinance({ append = false, live = false } = {}) {
 		state.adminFinanceTo = String(next.to || state.adminFinanceTo || "");
 		state.adminFinanceBusy = "";
 		state.adminFinanceAnimate = !append && !live;
-		render({ preserveScroll: append || live });
+		if (live) { if (previous !== JSON.stringify(state.adminFinance || {})) renderRealtime(); }
+		else render({ preserveScroll: append });
 		if (!append && !live) {
 			requestAnimationFrame(() => app.querySelector(".admin-finance-card")?.addEventListener("animationend", () => { state.adminFinanceAnimate = false; }, { once: true }));
 			window.setTimeout(() => { state.adminFinanceAnimate = false; }, 420);
@@ -4234,6 +4302,7 @@ function adminPushErrorMessage(error) {
 
 async function refreshAdminPush({ live = false } = {}) {
 	if (state.adminPushBusy) return;
+	const previous = live ? JSON.stringify(state.adminPush || {}) : "";
 	if (previewMode) {
 		state.adminPush = { available: true, publicKey: "preview", subscriptionCount: 1, subscribed: true, permission: "granted" };
 		render({ preserveScroll: true });
@@ -4241,7 +4310,7 @@ async function refreshAdminPush({ live = false } = {}) {
 	}
 	state.adminPushBusy = "state";
 	state.adminPushError = "";
-	render({ preserveScroll: true });
+	if (!live) render({ preserveScroll: true });
 	try {
 		const response = await post("/api/mini-app/admin/push/state", {});
 		let remoteState = response.data || {};
@@ -4263,7 +4332,8 @@ async function refreshAdminPush({ live = false } = {}) {
 		throw error;
 	} finally {
 		state.adminPushBusy = "";
-		render({ preserveScroll: true });
+		if (live) { if (previous !== JSON.stringify(state.adminPush || {})) renderRealtime(); }
+		else render({ preserveScroll: true });
 	}
 }
 
@@ -4462,6 +4532,7 @@ function renderAdminUserSubscription(item) {
 
 async function refreshAdminUsers({ append = false, silent = false } = {}) {
 	if (previewMode || (append && state.adminUsersBusy) || (!silent && state.adminUsersBusy && state.adminUsersBusy !== "search")) return;
+	const previous = silent ? JSON.stringify(state.adminUsers || {}) : "";
 	const offset = append ? Number(state.adminUsers?.items?.length || 0) : 0;
 	const query = String(state.adminUsersQuery || "");
 	const requestID = ++adminUsersSearchRequestID;
@@ -4477,7 +4548,8 @@ async function refreshAdminUsers({ append = false, silent = false } = {}) {
 		};
 		state.adminUsersBusy = "";
 		const searchFocus = captureAdminUsersSearchFocus();
-		render({ preserveScroll: append || silent });
+		if (silent) { if (previous !== JSON.stringify(state.adminUsers || {})) renderRealtime(); }
+		else render({ preserveScroll: append });
 		restoreAdminUsersSearchFocus(searchFocus);
 	} catch (error) {
 		if (requestID !== adminUsersSearchRequestID) return;
@@ -8425,7 +8497,7 @@ function renderSupportMessage(message) {
 	const body = String(message.body || "");
 	const hasAttachment = Boolean(message.attachment?.type);
   return `
-    <div class="support-message ${isMine ? "support-message--mine" : "support-message--peer"} ${fromAdmin ? "support-message--admin-author" : "support-message--customer-author"} ${message.pending ? "support-message--pending" : ""}">
+    <div class="support-message ${isMine ? "support-message--mine" : "support-message--peer"} ${fromAdmin ? "support-message--admin-author" : "support-message--customer-author"} ${message.pending ? "support-message--pending" : ""}" data-message-id="${Number(message.id || 0)}">
       <div class="support-message__bubble ${hasAttachment ? "support-message__bubble--media" : ""}">
         <span class="support-message__author">${escapeHtml(authorLabel)}</span>
 		${hasAttachment ? renderSupportMessageAttachment(message) : ""}
@@ -8531,6 +8603,15 @@ function queueSelectionFeedback(action, value) {
 function bindRootActions() {
   if (bindRootActions.bound) return;
   bindRootActions.bound = true;
+	for (const eventName of ["pointerdown", "touchmove", "wheel", "scroll"]) {
+		app.addEventListener(eventName, () => { realtimeLastInteraction = Date.now(); }, { passive: true, capture: true });
+	}
+	app.addEventListener("focusout", () => {
+		if (realtimeRenderPending) window.setTimeout(() => { if (realtimeRenderPending) renderRealtime(); }, 0);
+	});
+	app.addEventListener("toggle", () => {
+		if (realtimeRenderPending) window.setTimeout(() => { if (realtimeRenderPending) renderRealtime(); }, 0);
+	}, true);
 
   app.addEventListener("click", async (event) => {
 		const partnerSummary = event.target.closest?.(".admin-partner-entry__summary");
@@ -9895,6 +9976,7 @@ function setAdminBroadcastDraft(draft, { forceButtons = false } = {}) {
 
 async function refreshAdminBroadcast({ silent = false, forceButtons = false } = {}) {
 	if (state.adminSection !== "broadcast" || state.adminBroadcastBusy === "state") return;
+	const previous = silent ? JSON.stringify(state.adminBroadcast || {}) : "";
 	if (!silent) {
 		state.adminBroadcastBusy = "state";
 		render({ preserveScroll: true });
@@ -9903,7 +9985,8 @@ async function refreshAdminBroadcast({ silent = false, forceButtons = false } = 
 		const response = await post("/api/mini-app/admin/broadcast/state", {});
 		setAdminBroadcastDraft(response.data, { forceButtons });
 		state.adminBroadcastBusy = "";
-		render({ preserveScroll: true });
+		if (silent) { if (previous !== JSON.stringify(state.adminBroadcast || {})) renderRealtime(); }
+		else render({ preserveScroll: true });
 	} catch (error) {
 		state.adminBroadcastBusy = "";
 		if (!silent) throw error;
@@ -12315,17 +12398,18 @@ async function submitPartnerApplication() {
 	} finally { state.partnerBusy = ""; render({ preserveScroll: true }); }
 }
 
-async function refreshAdminPartners() {
+async function refreshAdminPartners({ silent = false } = {}) {
 	if (state.adminPartnersBusy === "load") return;
+	const previous = silent ? JSON.stringify(state.adminPartners || {}) : "";
 	if (previewMode) {
 		state.adminPartners = { applications: [{ id: 31, customerId: 66, telegramId: 6456789012, username: "vpn_creator", resourceUrl: "https://t.me/vpn_creator", requestedPercent: 25, expectedMonthlyUsers: 300, status: "pending", createdAt: new Date().toISOString() }], partners: [{ id: 1, customerId: 12, telegramId: 777777, username: "linkbot", code: "M8Q2K7PX", commissionPercent: 20, isActive: true, stats: { visitors: 184, trialUsers: 57, payingUsers: 21, revenue: 18740 } }] };
 		render({ preserveScroll: true });
 		return;
 	}
 	state.adminPartnersBusy = "load";
-	render({ preserveScroll: true });
+	if (!silent) render({ preserveScroll: true });
 	try { const response = await post("/api/mini-app/admin/partners/state", {}); state.adminPartners = response.data || { applications: [], partners: [] }; }
-	finally { state.adminPartnersBusy = ""; render({ preserveScroll: true }); }
+	finally { state.adminPartnersBusy = ""; if (silent) { if (previous !== JSON.stringify(state.adminPartners || {})) renderRealtime(); } else render({ preserveScroll: true }); }
 }
 
 async function reviewAdminPartner(applicationId, approve, percent) {
@@ -12535,7 +12619,8 @@ async function refreshSupport({ silent = false } = {}) {
   const response = await post("/api/mini-app/support/refresh");
   state.data.support = response.data;
   const changed = previous !== JSON.stringify(state.data.support || {});
-  if (!silent || (changed && !state.supportThreadOpen && !state.supportComposeOpen)) render();
+  if (!silent) render();
+  else if (changed && !state.supportThreadOpen && !state.supportComposeOpen) renderRealtime();
 }
 
 async function openSupportTicket(ticketId, { silent = false } = {}) {
@@ -12578,7 +12663,8 @@ async function openSupportTicket(ticketId, { silent = false } = {}) {
   state.activeSupportThread = response.data;
   state.supportThreadOpen = true;
   const changed = previous !== JSON.stringify(response.data || {});
-  if (!silent || changed) render();
+  if (!silent) render();
+  else if (changed) renderRealtime();
   void refreshSupport({ silent: true });
 }
 
@@ -13590,6 +13676,7 @@ async function saveAdminIntegration(provider) {
 
 async function refreshAdminMoyNalog({ silent = false } = {}) {
 	if (state.adminMoyNalogBusy && !silent) return;
+	const previous = silent ? JSON.stringify(state.adminMoyNalog || {}) : "";
 	if (!silent) {
 		state.adminMoyNalogBusy = "state";
 		render({ preserveScroll: true });
@@ -13603,10 +13690,10 @@ async function refreshAdminMoyNalog({ silent = false } = {}) {
 			if (index >= 0) integrations[index] = response.data.integration;
 		}
 		state.adminMoyNalogBusy = "";
-		if (state.adminSection === "moynalog") render({ preserveScroll: true });
+		if (state.adminSection === "moynalog") { if (silent) { if (previous !== JSON.stringify(state.adminMoyNalog || {})) renderRealtime(); } else render({ preserveScroll: true }); }
 	} catch (error) {
 		state.adminMoyNalogBusy = "";
-		if (state.adminSection === "moynalog") render({ preserveScroll: true });
+		if (state.adminSection === "moynalog" && !silent) render({ preserveScroll: true });
 		if (!silent) throw error;
 	}
 }

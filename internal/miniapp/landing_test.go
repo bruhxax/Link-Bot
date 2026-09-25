@@ -37,6 +37,24 @@ func TestLandingServesPublicPage(t *testing.T) {
 	}
 }
 
+func TestLandingLinksToOptionalCabinetHost(t *testing.T) {
+	staticFS, err := fs.Sub(embeddedStatic, "static")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := &Handler{staticFS: staticFS, cabinetBaseURL: "https://my.example.com"}
+	landing := httptest.NewRecorder()
+	handler.serveRoot(landing, httptest.NewRequest(http.MethodGet, "https://example.com/", nil))
+	if landing.Code != http.StatusOK || !strings.Contains(landing.Body.String(), `href="https://my.example.com/mini-app/?cabinet=1"`) || !strings.Contains(landing.Body.String(), `data-cabinet-base="https://my.example.com"`) {
+		t.Fatalf("landing does not link to cabinet host: status=%d", landing.Code)
+	}
+	cabinet := httptest.NewRecorder()
+	handler.serveRoot(cabinet, httptest.NewRequest(http.MethodGet, "https://my.example.com/", nil))
+	if cabinet.Code != http.StatusFound || cabinet.Header().Get("Location") != "/mini-app/?cabinet=1" {
+		t.Fatalf("cabinet root redirect = %d %q", cabinet.Code, cabinet.Header().Get("Location"))
+	}
+}
+
 func TestLandingAPIHidesNodeAddressesAndSortsPlans(t *testing.T) {
 	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/nodes" {

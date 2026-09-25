@@ -71,6 +71,7 @@ type Handler struct {
 	telegramBot            *bot.Bot
 	staticFS               fs.FS
 	assetVersion           string
+	cabinetBaseURL         string
 	rateLimiter            *requestRateLimiter
 	channelSubCache        *cache.Cache
 	runtimeSettings        *runtimeconfig.Service
@@ -689,6 +690,7 @@ func NewHandler(
 		subscriptionService:    subscriptionService,
 		staticFS:               staticFS,
 		assetVersion:           assetVersion,
+		cabinetBaseURL:         config.CabinetBaseURL(),
 		rateLimiter:            newRequestRateLimiter(),
 		channelSubCache:        cache.NewCache(30 * time.Minute),
 		runtimeSettings:        runtimeSettings,
@@ -826,6 +828,10 @@ func (h *Handler) handlePublicConfig(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) serveRoot(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
+		return
+	}
+	if h.cabinetBaseURL != "" && strings.EqualFold(r.Host, strings.TrimPrefix(h.cabinetBaseURL, "https://")) {
+		http.Redirect(w, r, "/mini-app/?cabinet=1", http.StatusFound)
 		return
 	}
 	h.serveLanding(w, r)

@@ -132,6 +132,8 @@ POSTGRES_DB=linkbot
 
 PUBLIC_HOST=bot.example.com
 PUBLIC_BASE_URL=https://bot.example.com
+# Оставьте пустым для кабинета на основном домене, или укажите my для my.bot.example.com
+CABINET_SUBDOMAIN=
 
 REFERRAL_DAYS=0
 
@@ -181,6 +183,8 @@ openssl rand -hex 24
 > [!IMPORTANT]
 > Не добавляйте `https://` в `PUBLIC_HOST`.  
 > В `PUBLIC_BASE_URL`, наоборот, нужен полный HTTPS-адрес.
+
+Если нужен отдельный адрес кабинета, установите `CABINET_SUBDOMAIN=my` и создайте DNS-запись `A` для `my` с тем же IP, что у `PUBLIC_HOST`. Лендинг останется на основном домене, а кнопки «Кабинет» и ссылки на тарифы и поддержку откроют `https://my.bot.example.com/mini-app/`. При пустом значении кабинет остаётся на основном домене. В режиме `standalone` Caddy сам добавит сайт и получит сертификат после перезапуска Compose; при общем внешнем прокси добавьте тот же хост в его конфигурацию. Для входа через Telegram в браузере разрешите новый домен у BotFather. Если включён вход через Google, добавьте новый HTTPS-адрес в разрешённые источники и адреса перенаправления OAuth. Заполненный `CABINET_SUBDOMAIN` имеет приоритет над `MINI_APP_URL`.
 
 ### 5. Запустите бота
 

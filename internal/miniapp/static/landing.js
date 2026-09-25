@@ -2,8 +2,10 @@
   "use strict";
 
   const $ = (id) => document.getElementById(id);
-  const supportURL = "/mini-app/?page=support";
-  const buyURL = "/mini-app/?page=buy";
+  const cabinetBase = document.body.dataset.cabinetBase || window.location.origin;
+  const assetVersion = new URL(document.currentScript?.src || window.location.href).searchParams.get("v") || "";
+  const supportURL = new URL("/mini-app/?page=support", cabinetBase).href;
+  const buyURL = new URL("/mini-app/?page=buy", cabinetBase).href;
   const colorVars = {
     background: "--bg", surface: "--surface", surfaceStrong: "--surface-strong",
     text: "--text", muted: "--muted", border: "--border", accent: "--accent",
@@ -68,7 +70,6 @@
   function setBrand(brand) {
     const name = String(brand?.name || "").trim() || "Link-Bot";
     $("brand-name").textContent = name;
-    $("footer-brand").textContent = name;
     document.title = `${name} — интернет без ограничений`;
     const logo = $("brand-logo");
     const url = safeURL(brand?.logoUrl, true);
@@ -98,6 +99,12 @@
     catch { return value; }
   }
 
+  function countryFlag(code) {
+    const value = String(code || "").trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(value) || value === "XX") return "";
+    return `<img class="server-card__flag" src="/mini-app/assets/flags/${value.toLowerCase()}.svg${assetVersion ? `?v=${encodeURIComponent(assetVersion)}` : ""}" alt="" width="24" height="18" loading="lazy">`;
+  }
+
   function renderNodes(nodes, available) {
     const fingerprint = JSON.stringify({ nodes, available });
     if (fingerprint === previousNodes) return;
@@ -111,6 +118,7 @@
         const status = available ? (node.online ? "Работает" : "Неактивен") : "Нет данных";
         const statusClass = available ? (node.online ? "status-dot--online" : "") : "status-dot--unknown";
         return `<article class="server-card reveal" style="--delay:${Math.min(index % 3, 2) * 140}ms">
+          ${countryFlag(node.countryCode)}
           <div class="server-card__info"><span class="server-card__name">${escapeHTML(node.name || "Сервер")}</span><span class="server-card__country">${escapeHTML(countryName(node.countryCode))}</span></div>
           <span class="server-card__status"><span class="status-dot ${statusClass}" aria-hidden="true"></span>${status}</span>
         </article>`;
@@ -168,7 +176,7 @@
     const safeContacts = Array.isArray(contacts) ? contacts : [];
     const cards = [`<article class="contact-card reveal">
       <h3>Написать обращение</h3><p>Создайте обращение в кабинете и следите за ответом в переписке.</p>
-      <a href="${supportURL}">Написать обращение в кабинете</a>
+      <a class="button button--ghost contact-card__action" href="${supportURL}">Написать обращение в кабинете</a>
     </article>`];
     safeContacts.forEach((contact) => {
       const href = safeURL(contact.url);
@@ -177,7 +185,7 @@
       const label = String(contact.label || "Связаться с нами");
       cards.push(`<article class="contact-card reveal" style="--delay:${Math.min(cards.length, 2) * 140}ms">
         <h3>${escapeHTML(label)}</h3><p>${telegram ? "Напишите нам напрямую в Telegram." : "Свяжитесь с нами удобным способом."}</p>
-        <a href="${escapeHTML(href)}" target="_blank" rel="noopener noreferrer">${telegram ? "Перейти в Telegram" : "Открыть контакт"}</a>
+        <a class="button button--ghost contact-card__action" href="${escapeHTML(href)}" target="_blank" rel="noopener noreferrer">${telegram ? "Перейти в Telegram" : "Открыть контакт"}</a>
       </article>`);
     });
     $("contacts-list").innerHTML = cards.join("");
@@ -211,6 +219,9 @@
   $("brand-logo").addEventListener("error", () => {
     if (!$("brand-logo").src.endsWith("/mini-app/assets/brand-mark.png")) $("brand-logo").src = "/mini-app/assets/brand-mark.png";
   });
+  $("servers-list").addEventListener("error", (event) => {
+    if (event.target?.classList?.contains("server-card__flag")) event.target.remove();
+  }, true);
   if (revealObserver) document.documentElement.classList.add("motion-ready");
   observeReveals();
   if ("IntersectionObserver" in window) {

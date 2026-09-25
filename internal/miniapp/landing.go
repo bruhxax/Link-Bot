@@ -63,6 +63,7 @@ func (h *Handler) serveLanding(w http.ResponseWriter, r *http.Request) {
 	data = bytes.ReplaceAll(data, []byte("__BRAND_NAME__"), []byte(html.EscapeString(brandName)))
 	data = bytes.ReplaceAll(data, []byte("__PAGE_DESCRIPTION__"), []byte(html.EscapeString(settings.Content.WebPage.Description)))
 	data = bytes.ReplaceAll(data, []byte("__FAVICON_URL__"), []byte(html.EscapeString(faviconURL)))
+	data = bytes.ReplaceAll(data, []byte("__CABINET_BASE__"), []byte(html.EscapeString(h.cabinetBaseURL)))
 	data = bytes.ReplaceAll(data, []byte("__ASSET_VERSION__"), []byte(h.assetVersion))
 	setHTMLSecurityHeaders(w)
 	w.Header().Set("X-Robots-Tag", "index, follow")

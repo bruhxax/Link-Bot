@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/mini-app/landing.css?v=__ASSET_VERSION__">
   <script defer src="/mini-app/landing.js?v=__ASSET_VERSION__"></script>
 </head>
-<body>
+<body data-cabinet-base="__CABINET_BASE__">
   <a class="skip-link" href="#main">К содержимому</a>
   <header class="site-header">
     <nav class="nav-shell" aria-label="Основная навигация">
@@ -23,18 +23,17 @@
         <a href="#plans">Тарифы</a>
         <a href="#support">Поддержка</a>
       </div>
-      <a class="button button--small button--primary nav-cabinet" href="/mini-app/?cabinet=1">Кабинет</a>
+      <a class="button button--small button--primary nav-cabinet" href="__CABINET_BASE__/mini-app/?cabinet=1">Кабинет</a>
     </nav>
   </header>
 
   <main id="main">
     <section class="hero container" id="top" aria-labelledby="hero-title">
       <div class="hero__content">
-        <span class="hero__eyebrow reveal" style="--delay:0ms">ПРОСТОЕ ПОДКЛЮЧЕНИЕ</span>
-        <h1 class="reveal" style="--delay:140ms" id="hero-title">Интернет без ограничений<br><span>в один клик</span></h1>
-        <p class="hero__lead reveal" style="--delay:280ms">Стабильное соединение для работы, общения и всего, что важно. Выберите тариф и подключайтесь в личном кабинете.</p>
-        <div class="hero__actions reveal" style="--delay:420ms">
-          <a class="button button--primary" href="/mini-app/?cabinet=1">Кабинет</a>
+        <h1 class="reveal" style="--delay:0ms" id="hero-title">Интернет без ограничений<br><span>в один клик</span></h1>
+        <p class="hero__lead reveal" style="--delay:140ms">Стабильное соединение для работы, общения и всего, что важно. Выберите тариф и подключайтесь в личном кабинете.</p>
+        <div class="hero__actions reveal" style="--delay:280ms">
+          <a class="button button--primary" href="__CABINET_BASE__/mini-app/?cabinet=1">Кабинет</a>
           <a class="button button--ghost" href="#servers">Сервера</a>
         </div>
       </div>
@@ -65,9 +64,8 @@
   </main>
 
   <footer class="footer container">
-    <span id="footer-brand">__BRAND_NAME__</span>
     <span>Интернет на вашей стороне.</span>
-    <a href="/mini-app/?cabinet=1">В кабинет</a>
+    <a href="__CABINET_BASE__/mini-app/?cabinet=1">В кабинет</a>
   </footer>
 </body>
 </html>

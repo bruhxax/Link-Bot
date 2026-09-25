@@ -58,6 +58,7 @@ type config struct {
 	referralTrafficLimit                                      int
 	miniApp                                                   string
 	publicBaseURL                                             string
+	cabinetBaseURL                                            string
 	mediaUploadDir                                            string
 	enableAutoPayment                                         bool
 	paymentMethodDemoEnabled                                  bool
@@ -144,6 +145,30 @@ func versionedMiniAppURL(rawURL, version string) string {
 
 func PublicBaseURL() string {
 	return conf.publicBaseURL
+}
+
+func CabinetBaseURL() string {
+	return conf.cabinetBaseURL
+}
+
+func cabinetBaseURL(publicBaseURL, subdomain string) (string, error) {
+	subdomain = strings.TrimSpace(subdomain)
+	if subdomain == "" {
+		return "", nil
+	}
+	if len(subdomain) > 63 || strings.HasPrefix(subdomain, "-") || strings.HasSuffix(subdomain, "-") {
+		return "", fmt.Errorf("CABINET_SUBDOMAIN must be a single DNS label")
+	}
+	for _, character := range subdomain {
+		if (character < 'a' || character > 'z') && (character < 'A' || character > 'Z') && (character < '0' || character > '9') && character != '-' {
+			return "", fmt.Errorf("CABINET_SUBDOMAIN must be a single DNS label")
+		}
+	}
+	parsed, err := url.Parse(publicBaseURL)
+	if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" || parsed.Port() != "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", fmt.Errorf("CABINET_SUBDOMAIN requires PUBLIC_BASE_URL to be an HTTPS domain origin")
+	}
+	return "https://" + strings.ToLower(subdomain) + "." + parsed.Hostname(), nil
 }
 
 func MediaUploadDir() string {
@@ -556,8 +581,14 @@ func InitConfig() {
 			panic("PUBLIC_BASE_URL must be a valid HTTPS origin")
 		}
 	}
+	conf.cabinetBaseURL, err = cabinetBaseURL(conf.publicBaseURL, os.Getenv("CABINET_SUBDOMAIN"))
+	if err != nil {
+		panic(err)
+	}
 	conf.miniApp = strings.TrimSpace(os.Getenv("MINI_APP_URL"))
-	if conf.miniApp == "" && conf.publicBaseURL != "" {
+	if conf.cabinetBaseURL != "" {
+		conf.miniApp = conf.cabinetBaseURL + "/mini-app/"
+	} else if conf.miniApp == "" && conf.publicBaseURL != "" {
 		conf.miniApp = conf.publicBaseURL + "/mini-app/"
 	}
 	conf.mediaUploadDir = strings.TrimSpace(envStringDefault("MEDIA_UPLOAD_DIR", "/uploads"))
