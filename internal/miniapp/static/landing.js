@@ -13,6 +13,23 @@
   let previousNodes = "";
   let previousPlans = "";
   let previousContacts = "";
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const revealObserver = "IntersectionObserver" in window && !reducedMotion.matches
+    ? new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("visible");
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: .12, rootMargin: "0px 0px -40px 0px" }) : null;
+
+  function observeReveals(root = document) {
+    root.querySelectorAll(".reveal:not(.visible)").forEach((element) => {
+      if (revealObserver) revealObserver.observe(element);
+      else element.classList.add("visible");
+    });
+  }
 
   function escapeHTML(value) {
     return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -81,12 +98,6 @@
     catch { return value; }
   }
 
-  function countryFlag(code) {
-    const value = String(code || "").trim().toUpperCase();
-    if (!/^[A-Z]{2}$/.test(value)) return "◎";
-    return String.fromCodePoint(...[...value].map((letter) => 127397 + letter.charCodeAt(0)));
-  }
-
   function renderNodes(nodes, available) {
     const fingerprint = JSON.stringify({ nodes, available });
     if (fingerprint === previousNodes) return;
@@ -96,11 +107,10 @@
     if (!safeNodes.length) {
       list.innerHTML = `<div class="empty-state">${available ? "Серверы пока не опубликованы." : "Статус серверов временно недоступен. Попробуйте позже."}</div>`;
     } else {
-      list.innerHTML = safeNodes.map((node) => {
+      list.innerHTML = safeNodes.map((node, index) => {
         const status = available ? (node.online ? "Работает" : "Неактивен") : "Нет данных";
         const statusClass = available ? (node.online ? "status-dot--online" : "") : "status-dot--unknown";
-        return `<article class="server-card">
-          <span class="server-card__flag" aria-hidden="true">${countryFlag(node.countryCode)}</span>
+        return `<article class="server-card reveal" style="--delay:${Math.min(index % 3, 2) * 140}ms">
           <div class="server-card__info"><span class="server-card__name">${escapeHTML(node.name || "Сервер")}</span><span class="server-card__country">${escapeHTML(countryName(node.countryCode))}</span></div>
           <span class="server-card__status"><span class="status-dot ${statusClass}" aria-hidden="true"></span>${status}</span>
         </article>`;
@@ -109,6 +119,7 @@
     const online = available ? safeNodes.filter((node) => node.online).length : 0;
     $("servers-count").textContent = safeNodes.length ? `${safeNodes.length} ${plural(safeNodes.length, "сервер", "сервера", "серверов")}${available ? ` · ${online} онлайн` : ""}` : "";
     $("servers-updated").textContent = available ? "Статус обновляется автоматически." : "Не удалось получить актуальный статус серверов.";
+    observeReveals(list);
   }
 
   function formatTraffic(bytes) {
@@ -129,7 +140,7 @@
       list.innerHTML = '<div class="empty-state">Доступные тарифы появятся здесь.</div>';
       return;
     }
-    list.innerHTML = safePlans.map((plan) => {
+    list.innerHTML = safePlans.map((plan, index) => {
       const planDuration = duration(plan);
       const rawTitle = String(plan.titleRu || "").trim() || `На ${planDuration}`;
       const title = escapeHTML(rawTitle);
@@ -140,13 +151,14 @@
         ? `${new Intl.NumberFormat("ru").format(priceRub)} ₽` : priceStars > 0 ? `${priceStars} Stars` : "Уточняйте";
       const deviceLimit = Number(plan.deviceLimitCount) || 0;
       const badge = plan.recommended ? "Популярный" : Number(plan.savingsPercent) > 0 ? `Выгода ${Number(plan.savingsPercent)}%` : "";
-      return `<article class="plan-card${plan.recommended ? " plan-card--recommended" : ""}">
+      return `<article class="plan-card reveal${plan.recommended ? " plan-card--recommended" : ""}" style="--delay:${Math.min(index % 3, 2) * 140}ms">
         <div class="plan-card__top"><div><div class="plan-card__title">${title}</div>${durationNote}</div>${badge ? `<span class="plan-card__badge">${escapeHTML(badge)}</span>` : ""}</div>
         <div class="plan-card__price">${escapeHTML(price)}${priceRub > 0 ? `<small>за ${escapeHTML(planDuration)}</small>` : ""}</div>
         <ul class="plan-card__features"><li>${escapeHTML(formatTraffic(plan.trafficLimitBytes))}</li><li>${deviceLimit > 0 ? `До ${deviceLimit} ${plural(deviceLimit, "устройства", "устройств", "устройств")}` : "Устройства по условиям тарифа"}</li><li>Подключение после оформления</li></ul>
-        <a class="button ${plan.recommended ? "button--primary" : "button--ghost"} plan-card__action" href="${buyURL}">Выбрать тариф <span aria-hidden="true">↗</span></a>
+        <a class="button ${plan.recommended ? "button--primary" : "button--ghost"} plan-card__action" href="${buyURL}">Выбрать тариф</a>
       </article>`;
     }).join("");
+    observeReveals(list);
   }
 
   function renderContacts(contacts) {
@@ -154,23 +166,22 @@
     if (fingerprint === previousContacts) return;
     previousContacts = fingerprint;
     const safeContacts = Array.isArray(contacts) ? contacts : [];
-    const cards = [`<article class="contact-card contact-card--primary">
-      <span class="contact-card__icon" aria-hidden="true">✳</span>
+    const cards = [`<article class="contact-card reveal">
       <h3>Написать обращение</h3><p>Создайте обращение в кабинете и следите за ответом в переписке.</p>
-      <a href="${supportURL}">Написать обращение в кабинете <span aria-hidden="true">↗</span></a>
+      <a href="${supportURL}">Написать обращение в кабинете</a>
     </article>`];
     safeContacts.forEach((contact) => {
       const href = safeURL(contact.url);
       if (!href) return;
       const telegram = /^(t\.me|telegram\.me)$/i.test(new URL(href).hostname);
       const label = String(contact.label || "Связаться с нами");
-      cards.push(`<article class="contact-card">
-        <span class="contact-card__icon" aria-hidden="true">${telegram ? "↗" : "⌁"}</span>
+      cards.push(`<article class="contact-card reveal" style="--delay:${Math.min(cards.length, 2) * 140}ms">
         <h3>${escapeHTML(label)}</h3><p>${telegram ? "Напишите нам напрямую в Telegram." : "Свяжитесь с нами удобным способом."}</p>
-        <a href="${escapeHTML(href)}" target="_blank" rel="noopener noreferrer">${telegram ? "Перейти в Telegram" : "Открыть контакт"} <span aria-hidden="true">↗</span></a>
+        <a href="${escapeHTML(href)}" target="_blank" rel="noopener noreferrer">${telegram ? "Перейти в Telegram" : "Открыть контакт"}</a>
       </article>`);
     });
     $("contacts-list").innerHTML = cards.join("");
+    observeReveals($("contacts-list"));
   }
 
   async function loadLanding() {
@@ -200,6 +211,18 @@
   $("brand-logo").addEventListener("error", () => {
     if (!$("brand-logo").src.endsWith("/mini-app/assets/brand-mark.png")) $("brand-logo").src = "/mini-app/assets/brand-mark.png";
   });
+  if (revealObserver) document.documentElement.classList.add("motion-ready");
+  observeReveals();
+  if ("IntersectionObserver" in window) {
+    const sectionLinks = [...document.querySelectorAll('.nav-links a[href^="#"]')];
+    const navObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        sectionLinks.forEach((link) => link.classList.toggle("active", link.getAttribute("href") === `#${entry.target.id}`));
+      });
+    }, { rootMargin: "-20% 0px -65% 0px" });
+    document.querySelectorAll("main .section[id]").forEach((section) => navObserver.observe(section));
+  }
   loadLanding();
   window.setInterval(() => { if (!document.hidden) loadLanding(); }, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) loadLanding(); });

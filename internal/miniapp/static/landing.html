@@ -15,7 +15,7 @@
   <header class="site-header">
     <nav class="nav-shell" aria-label="Основная навигация">
       <a class="brand" href="#top" aria-label="На главную">
-        <span class="brand__mark"><img id="brand-logo" src="/mini-app/assets/brand-mark.png" alt="" width="31" height="31"></span>
+        <img class="brand__logo" id="brand-logo" src="/mini-app/assets/brand-mark.png" alt="" width="27" height="27">
         <span class="brand__name" id="brand-name">__BRAND_NAME__</span>
       </a>
       <div class="nav-links">
@@ -23,34 +23,25 @@
         <a href="#plans">Тарифы</a>
         <a href="#support">Поддержка</a>
       </div>
-      <a class="button button--small button--primary nav-cabinet" href="/mini-app/?cabinet=1">Кабинет <span aria-hidden="true">↗</span></a>
+      <a class="button button--small button--primary nav-cabinet" href="/mini-app/?cabinet=1">Кабинет</a>
     </nav>
   </header>
 
   <main id="main">
     <section class="hero container" id="top" aria-labelledby="hero-title">
       <div class="hero__content">
-        <span class="eyebrow"><span class="eyebrow__dot" aria-hidden="true"></span> ПРОСТОЕ ПОДКЛЮЧЕНИЕ</span>
-        <h1 id="hero-title">Интернет без<br>ограничений <span>в один клик</span></h1>
-        <p class="hero__lead">Стабильное соединение для работы, общения и всего, что важно. Выберите тариф и подключайтесь в личном кабинете.</p>
-        <div class="hero__actions">
-          <a class="button button--primary" href="/mini-app/?cabinet=1">Кабинет <span aria-hidden="true">↗</span></a>
-          <a class="button button--ghost" href="#servers">Сервера <span aria-hidden="true">↓</span></a>
+        <span class="hero__eyebrow reveal" style="--delay:0ms">ПРОСТОЕ ПОДКЛЮЧЕНИЕ</span>
+        <h1 class="reveal" style="--delay:140ms" id="hero-title">Интернет без ограничений<br><span>в один клик</span></h1>
+        <p class="hero__lead reveal" style="--delay:280ms">Стабильное соединение для работы, общения и всего, что важно. Выберите тариф и подключайтесь в личном кабинете.</p>
+        <div class="hero__actions reveal" style="--delay:420ms">
+          <a class="button button--primary" href="/mini-app/?cabinet=1">Кабинет</a>
+          <a class="button button--ghost" href="#servers">Сервера</a>
         </div>
       </div>
-      <div class="hero-art" aria-hidden="true">
-        <div class="hero-art__halo"></div>
-        <div class="hero-art__ring hero-art__ring--outer"></div>
-        <div class="hero-art__ring hero-art__ring--inner"></div>
-        <div class="hero-art__core"><span></span></div>
-        <span class="hero-art__line hero-art__line--one"></span>
-        <span class="hero-art__line hero-art__line--two"></span>
-      </div>
-      <div class="hero__foot" aria-hidden="true"><span>01 / 03</span><span class="hero__foot-line"></span><span>СЕТЬ • ТАРИФЫ • ПОДДЕРЖКА</span></div>
     </section>
 
     <section class="section container" id="servers" aria-labelledby="servers-title">
-      <div class="section-heading">
+      <div class="section-heading reveal">
         <div><span class="section-kicker">01 — СЕТЬ</span><h2 id="servers-title">Наши сервера</h2><p>Актуальное состояние каждого узла.</p></div>
         <div class="section-heading__aside" id="servers-count" aria-live="polite"></div>
       </div>
@@ -59,14 +50,14 @@
     </section>
 
     <section class="section container" id="plans" aria-labelledby="plans-title">
-      <div class="section-heading">
+      <div class="section-heading reveal">
         <div><span class="section-kicker">02 — ТАРИФЫ</span><h2 id="plans-title">Выберите свой срок</h2><p>Все доступные тарифы, от коротких к длительным.</p></div>
       </div>
       <div class="plans-grid" id="plans-list" aria-live="polite"><div class="empty-state">Загружаем тарифы…</div></div>
     </section>
 
     <section class="section section--support container" id="support" aria-labelledby="support-title">
-      <div class="section-heading">
+      <div class="section-heading reveal">
         <div><span class="section-kicker">03 — СВЯЗЬ</span><h2 id="support-title">Всегда на связи</h2><p>Поможем с подключением и ответим на вопросы.</p></div>
       </div>
       <div class="contact-grid" id="contacts-list" aria-live="polite"><div class="empty-state">Загружаем контакты…</div></div>
@@ -76,7 +67,7 @@
   <footer class="footer container">
     <span id="footer-brand">__BRAND_NAME__</span>
     <span>Интернет на вашей стороне.</span>
-    <a href="/mini-app/?cabinet=1">В кабинет <span aria-hidden="true">↗</span></a>
+    <a href="/mini-app/?cabinet=1">В кабинет</a>
   </footer>
 </body>
 </html>
