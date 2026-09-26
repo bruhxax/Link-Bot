@@ -12876,63 +12876,51 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .device-access-settings__body p, .device-access-settings__body small { color: var(--muted); font-size: 10px; line-height: 1.5; }
 .device-pack-pay-hint { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
 
-/* Keep the dashboard's delayed panel fields hidden until the full bootstrap arrives. */
-.state-screen--dashboard-skeleton {
-  min-height: var(--app-viewport-height, 100dvh);
-  background: var(--bg);
-}
-.dashboard-skeleton {
-  width: min(100%, 390px);
-  margin: 0 auto;
-  padding: 18px;
-  color: var(--text);
-}
-.dashboard-skeleton__brand {
-  display: grid;
-  justify-items: center;
-  gap: 12px;
-  padding: 0 0 24px;
-}
-.dashboard-skeleton__card {
-  display: grid;
-  gap: 12px;
-  padding: 17px;
-  border: 1px solid var(--line-soft);
-  border-radius: 28px;
-  background: var(--surface-strong);
-  box-shadow: var(--shadow);
-}
-.dashboard-skeleton__row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.dashboard-skeleton__logo,
-.dashboard-skeleton__username,
-.dashboard-skeleton__line {
+/* Dashboard placeholders share the real layout and leave the configured background visible. */
+.app-shell--dashboard-loading .bottom-nav { pointer-events: none; }
+.dashboard-skeleton { width: 100%; }
+.dashboard-skeleton__shape {
   position: relative;
   display: block;
   overflow: hidden;
-  flex: 0 0 auto;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--text) 9%, transparent);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
 }
-.dashboard-skeleton__logo { width: 84px; height: 84px; border-radius: 24px; }
-.dashboard-skeleton__username { width: 96px; height: 12px; }
-.dashboard-skeleton__line { height: 15px; }
-.dashboard-skeleton__line--plan { width: 40%; }
-.dashboard-skeleton__line--date { width: 27%; }
-.dashboard-skeleton__line--pill { width: 43%; height: 27px; }
-.dashboard-skeleton__line--action { width: 100%; height: 38px; }
-.dashboard-skeleton__logo::after,
-.dashboard-skeleton__username::after,
-.dashboard-skeleton__line::after {
+.dashboard-skeleton__switcher { width: min(100%, 132px); height: 32px; margin: 0 auto; }
+.dashboard-skeleton__logo { width: 96px; height: 96px; border-radius: 24px; }
+.dashboard-skeleton__username { width: 94px; height: 12px; margin: 0 auto; }
+.dashboard-skeleton__plan { width: 92px; height: 17px; }
+.dashboard-skeleton__date { width: 86px; height: 12px; margin-left: auto; }
+.dashboard-skeleton__pill { width: 116px; max-width: 100%; height: 26px; }
+.dashboard-skeleton__action { width: 100%; height: 38px; }
+.dashboard-skeleton__widget { width: 100%; height: 72px; border-radius: 12px; }
+.dashboard-skeleton__sidebar-brand { width: 75%; height: 32px; margin-bottom: 28px; }
+.dashboard-skeleton__sidebar-row { width: 90%; height: 38px; margin: 10px 0; }
+.dashboard-skeleton__shape::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(105deg, transparent 15%, color-mix(in srgb, var(--text) 8%, transparent) 50%, transparent 85%);
+  background: linear-gradient(105deg, transparent 15%, color-mix(in srgb, var(--text) 9%, transparent) 50%, transparent 85%);
   transform: translateX(-100%);
   animation: dashboard-skeleton-shimmer 1.6s ease-in-out infinite;
 }
 @keyframes dashboard-skeleton-shimmer { to { transform: translateX(100%); } }
+#page-dashboard.dashboard-reveal .runtime-detail-item,
+#page-dashboard.dashboard-reveal .runtime-layout-item[data-runtime-layout-key] {
+  animation: dashboard-content-reveal .4s cubic-bezier(.2,.75,.25,1) both;
+}
+#page-dashboard.dashboard-reveal [data-runtime-layout-key="dashboard:plan_name"],
+#page-dashboard.dashboard-reveal [data-runtime-layout-key="dashboard:expires"],
+#page-dashboard.dashboard-reveal [data-runtime-layout-key="dashboard:traffic"],
+#page-dashboard.dashboard-reveal [data-runtime-layout-key="dashboard:devices"] { animation-delay: .07s; }
+#page-dashboard.dashboard-reveal [data-runtime-layout-key="dashboard:primary_action"],
+#page-dashboard.dashboard-reveal [data-runtime-layout-key="dashboard:secondary_action"] { animation-delay: .14s; }
+@keyframes dashboard-content-reveal {
+  from { opacity: 0; filter: blur(5px); clip-path: inset(0 0 28% 0 round 8px); }
+  to { opacity: 1; filter: blur(0); clip-path: inset(0 0 0 0 round 8px); }
+}
 @media (prefers-reduced-motion: reduce) {
-  .dashboard-skeleton__logo::after,
-  .dashboard-skeleton__username::after,
-  .dashboard-skeleton__line::after { animation: none; }
+  .dashboard-skeleton__shape::after,
+  #page-dashboard.dashboard-reveal .runtime-detail-item,
+  #page-dashboard.dashboard-reveal .runtime-layout-item[data-runtime-layout-key] { animation: none; }
 }

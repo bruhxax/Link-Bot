@@ -2120,6 +2120,7 @@ const state = {
 	maintenance: null,
   loading: true,
   dashboardHydrating: false,
+  dashboardRevealPending: false,
   refreshing: false,
   subscriptionGate: null,
 	blocked: null,
@@ -3792,7 +3793,20 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
     bindRootActions();
     return;
   }
-  if (state.loading && !state.data) return void (app.innerHTML = renderStateScreen("loading"));
+  if (state.loading && !state.data) {
+		if (state.currentPage === "dashboard" && hasAuth()) {
+			state.dashboardRevealPending = true;
+			app.innerHTML = `<div class="app-shell app-shell--dashboard-loading">
+				<aside class="desktop-sidebar dashboard-loading-sidebar" aria-hidden="true"><span class="dashboard-skeleton__shape dashboard-skeleton__sidebar-brand"></span><span class="dashboard-skeleton__shape dashboard-skeleton__sidebar-row"></span><span class="dashboard-skeleton__shape dashboard-skeleton__sidebar-row"></span></aside>
+				<div class="page-scroll"><section class="page active dashboard-loading" id="page-dashboard">${renderDashboardSkeleton()}</section></div>
+				${renderBottomNav()}
+			</div>`;
+			mountRuntimeLayout();
+			syncBottomNavIndicator();
+			return;
+		}
+		return void (app.innerHTML = renderStateScreen("loading"));
+	}
 	if (!state.data && (state.maintenance || publicMaintenance)) {
 		app.innerHTML = renderStateScreen("maintenance", "", state.maintenance || publicMaintenance);
 		return bindRootActions();
@@ -6646,19 +6660,25 @@ function renderAdminPromocodesPage() {
 }
 
 function renderDashboardSkeleton() {
-	return `<div class="dashboard-skeleton" role="status" aria-busy="true" aria-label="${escapeAttribute(localizedText("Загружаем главную страницу", "Loading dashboard", "در حال بارگذاری صفحه اصلی"))}">
-		<div class="dashboard-skeleton__brand" aria-hidden="true"><span class="dashboard-skeleton__logo"></span><span class="dashboard-skeleton__username"></span></div>
-		<div class="dashboard-skeleton__card" aria-hidden="true">
-			<div class="dashboard-skeleton__row"><span class="dashboard-skeleton__line dashboard-skeleton__line--plan"></span><span class="dashboard-skeleton__line dashboard-skeleton__line--date"></span></div>
-			<div class="dashboard-skeleton__row"><span class="dashboard-skeleton__line dashboard-skeleton__line--pill"></span><span class="dashboard-skeleton__line dashboard-skeleton__line--pill"></span></div>
-			<span class="dashboard-skeleton__line dashboard-skeleton__line--action"></span>
-			<span class="dashboard-skeleton__line dashboard-skeleton__line--action"></span>
-		</div>
-	</div>`;
+	const shape = (name) => `<span class="dashboard-skeleton__shape dashboard-skeleton__${name}" aria-hidden="true"></span>`;
+	const logoWidth = Math.max(48, Math.min(220, Number(getRuntimeSettings()?.layout?.logoWidth || 188)));
+	const blocks = {
+		...(featureEnabled("additional_subscriptions") ? { subscription_switcher: `<div class="subscription-switcher">${shape("switcher")}</div>` } : {}),
+		brand: `<div class="hero-center hero-center--brand">${renderLayoutDetail("dashboard", "logo", `<div class="hero-brand" style="--runtime-logo-width:${logoWidth}px">${shape("logo")}</div>`, "runtime-detail-item--logo")}${renderLayoutDetail("dashboard", "username", shape("username"), "runtime-detail-item--username")}</div>`,
+		subscription: `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", shape("plan"), "runtime-detail-item--status runtime-detail-item--plan")}${renderLayoutDetail("dashboard", "expires", shape("date"), "runtime-detail-item--status")}</div><div class="sub-bar__row sub-bar__row--pills">${renderLayoutDetail("dashboard", "traffic", shape("pill"), "runtime-detail-item--pill")}${renderLayoutDetail("dashboard", "devices", shape("pill"), "runtime-detail-item--pill")}</div></div></div></div>`,
+		actions: `<div class="dashboard-compact"><div class="action-stack action-stack--dashboard">${renderLayoutDetail("dashboard", "primary_action", shape("action"), "runtime-detail-item--action")}${renderLayoutDetail("dashboard", "secondary_action", shape("action"), "runtime-detail-item--action")}</div></div>`,
+	};
+	for (const item of getLayoutElements("dashboard")) {
+		if (["promo_widget", "notification_widget"].includes(item.id) || (isBannerLayoutID(item.id) && item.bannerUrl)) blocks[item.id] = shape("widget");
+	}
+	return `<div class="dashboard-skeleton" role="status" aria-busy="true" aria-label="${escapeAttribute(localizedText("Загружаем главную страницу", "Loading dashboard", "در حال بارگذاری صفحه اصلی"))}">${renderRuntimeLayoutArea("dashboard", blocks)}</div>`;
 }
 
 function renderDashboardPage() {
-	if (state.dashboardHydrating) return `<section class="page ${pageClass("dashboard")}" id="page-dashboard">${renderDashboardSkeleton()}</section>`;
+	if (state.dashboardHydrating) {
+		if (state.currentPage === "dashboard") state.dashboardRevealPending = true;
+		return `<section class="page ${pageClass("dashboard")} dashboard-loading" id="page-dashboard">${renderDashboardSkeleton()}</section>`;
+	}
   const copy = t();
   const active = isSubscriptionActive();
   const trialEligible = state.data.trial.enabled && state.data.trial.eligible;
@@ -6700,7 +6720,9 @@ function renderDashboardPage() {
 	const layoutPendingClass = (!isWideBrowserCabinet() || state.adminLayoutEditing) && getLayoutElements("dashboard").some((item) => item?.visible !== false && hasStoredLayoutPosition(item))
 		? "layout-runtime-pending"
 		: "";
-	return `<section class="page ${pageClass("dashboard")} ${switchAnimationClass} ${layoutPendingClass}" id="page-dashboard">${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
+	const revealClass = state.dashboardRevealPending && state.currentPage === "dashboard" ? "dashboard-reveal" : "";
+	if (revealClass) state.dashboardRevealPending = false;
+	return `<section class="page ${pageClass("dashboard")} ${switchAnimationClass} ${layoutPendingClass} ${revealClass}" id="page-dashboard">${renderRuntimeLayoutArea("dashboard", blocks)}</section>`;
 }
 
 function renderPromoGiftWidget(item) {
@@ -7972,7 +7994,6 @@ function renderStateScreen(kind, message = "", meta = null) {
 			</div>
 		`;
 	}
-  if (kind === "loading" && state.currentPage === "dashboard" && hasAuth()) return `<div class="state-screen state-screen--dashboard-skeleton">${renderDashboardSkeleton()}</div>`;
   if (kind === "loading") return `
     <div class="state-screen state-screen--loader">
       <div class="loader" aria-label="${escapeAttribute(t().appName)} loading">
