@@ -460,7 +460,9 @@ type metaPayload struct {
 type purchaseRequest struct {
 	PlanID             string `json:"planId,omitempty"`
 	DevicePackID       string `json:"devicePackId,omitempty"`
+	TrafficPackID      string `json:"trafficPackId,omitempty"`
 	DeviceOnly         bool   `json:"deviceOnly,omitempty"`
+	TrafficOnly        bool   `json:"trafficOnly,omitempty"`
 	Months             int    `json:"months"`
 	PaymentMethod      string `json:"paymentMethod"`
 	AgreementAccepted  bool   `json:"agreementAccepted"`
@@ -1721,25 +1723,40 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 	}
 
 	var (
-		plan            checkoutPlan
-		price           int
-		purchaseKind    = database.PurchaseKindSubscription
-		extraDevices    int
-		deviceExpiresAt *time.Time
-		deviceLimit     *int
-		trafficLimit    *int64
-		purchaseMonths  int
-		purchaseDays    int
-		planID          string
-		isFreePlan      bool
-		freePlanOnce    bool
-		invoiceType     database.InvoiceType
-		p2pDestination  database.P2PDestinationSnapshot
+		plan                  checkoutPlan
+		price                 int
+		purchaseKind          = database.PurchaseKindSubscription
+		extraDevices          int
+		extraTrafficBytes     int64
+		extraTrafficUnlimited bool
+		deviceExpiresAt       *time.Time
+		deviceLimit           *int
+		trafficLimit          *int64
+		purchaseMonths        int
+		purchaseDays          int
+		planID                string
+		isFreePlan            bool
+		freePlanOnce          bool
+		invoiceType           database.InvoiceType
+		p2pDestination        database.P2PDestinationSnapshot
 	)
 
 	pack, hasPack := h.devicePackForRequest(req.DevicePackID)
+	trafficPack, hasTrafficPack := h.trafficPackForRequest(req.TrafficPackID)
 	if strings.TrimSpace(req.DevicePackID) != "" && !hasPack {
 		h.writeError(w, http.StatusBadRequest, "unsupported_device_pack", "Пакет устройств недоступен")
+		return
+	}
+	if strings.TrimSpace(req.TrafficPackID) != "" && !hasTrafficPack {
+		h.writeError(w, http.StatusBadRequest, "unsupported_traffic_pack", "Пакет трафика недоступен")
+		return
+	}
+	if req.DeviceOnly && req.TrafficOnly {
+		h.writeError(w, http.StatusBadRequest, "invalid_purchase", "Выберите один тип докупки")
+		return
+	}
+	if (req.DeviceOnly && hasTrafficPack) || (req.TrafficOnly && hasPack) {
+		h.writeError(w, http.StatusBadRequest, "invalid_purchase", "Дополнения вместе с подпиской оплачиваются в общем заказе")
 		return
 	}
 	if req.DeviceOnly {
@@ -1766,6 +1783,21 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 			h.writeError(w, http.StatusBadRequest, "active_subscription_required", "Срок подписки истёк")
 			return
 		}
+	} else if req.TrafficOnly {
+		if !hasTrafficPack {
+			h.writeError(w, http.StatusBadRequest, "traffic_pack_required", "Выберите пакет трафика")
+			return
+		}
+		panelState, stateErr := h.panelStateForCustomerSubscription(r.Context(), customer, activeSubscription)
+		if stateErr != nil || panelState == nil || !panelState.Active {
+			h.writeError(w, http.StatusBadRequest, "active_subscription_required", "Докупка доступна только для активной подписки")
+			return
+		}
+		if panelState.TrafficLimitBytes <= 0 {
+			h.writeError(w, http.StatusBadRequest, "unlimited_traffic", "У подписки уже безлимитный трафик")
+			return
+		}
+		purchaseKind = database.PurchaseKindExtraTraffic
 	} else {
 		var ok bool
 		plan, ok = h.checkoutPlanForRequest(req.PlanID, req.Months)
@@ -1779,6 +1811,21 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		purchaseDays = plan.Days
 		planID = plan.ID
 		trafficLimit = &plan.TrafficLimitBytes
+		if hasTrafficPack && plan.TrafficLimitBytes <= 0 {
+			h.writeError(w, http.StatusBadRequest, "unlimited_traffic", "Для этого тарифа трафик уже безлимитный")
+			return
+		}
+		if hasTrafficPack {
+			panelState, stateErr := h.panelStateForCustomerSubscription(r.Context(), customer, activeSubscription)
+			if stateErr != nil {
+				h.writeError(w, http.StatusServiceUnavailable, "panel_unavailable", "Не удалось проверить текущий трафик")
+				return
+			}
+			if panelState != nil && panelState.Active && panelState.TrafficLimitBytes <= 0 {
+				h.writeError(w, http.StatusBadRequest, "unlimited_traffic", "У подписки уже безлимитный трафик")
+				return
+			}
+		}
 		combinedDeviceLimit := plan.DeviceLimitCount
 		if hasPack {
 			if combinedDeviceLimit <= 0 {
@@ -1812,7 +1859,7 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		}
 	}
 
-	needsPayment := req.DeviceOnly || hasPack || !isFreePlan
+	needsPayment := req.DeviceOnly || req.TrafficOnly || hasPack || hasTrafficPack || !isFreePlan
 	if needsPayment {
 		invoiceType, err = mapPaymentMethod(req.PaymentMethod)
 		if err != nil {
@@ -1844,7 +1891,18 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 				price = payment.DevicePackAmount(pack.PriceRub, deviceExpiresAt.Sub(time.Now().UTC()))
 			}
 		}
-		if !req.DeviceOnly && !isFreePlan {
+		if hasTrafficPack {
+			extraTrafficUnlimited = trafficPack.TrafficGB == 0
+			if !extraTrafficUnlimited {
+				extraTrafficBytes = int64(trafficPack.TrafficGB) * 1024 * 1024 * 1024
+			}
+			if invoiceType == database.InvoiceTypeTelegram {
+				price += trafficPack.PriceStars
+			} else {
+				price += trafficPack.PriceRub
+			}
+		}
+		if !req.DeviceOnly && !req.TrafficOnly && !isFreePlan {
 			planPrice, amountOK := checkoutAmountForPlan(plan, invoiceType)
 			if !amountOK {
 				h.writeError(w, http.StatusBadRequest, "unsupported_plan", "Unsupported plan")
@@ -1856,7 +1914,7 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		invoiceType = database.InvoiceTypeFree
 	}
 
-	if isFreePlan {
+	if isFreePlan && !req.TrafficOnly && !req.DeviceOnly {
 		if eligibilityErr := h.paymentService.ValidateFreePlanEligibility(r.Context(), customer.ID, plan.ID, freePlanOnce, activeSubscription); eligibilityErr != nil {
 			switch {
 			case errors.Is(eligibilityErr, payment.ErrFreePlanAlreadyUsed):
@@ -1897,23 +1955,25 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 
 	ctxWithProfile := contextWithSessionTelegramProfile(r.Context(), sess)
 	paymentURL, purchaseID, err := h.paymentService.CreatePurchaseWithOptions(ctxWithProfile, float64(price), purchaseMonths, customer, invoiceType, payment.CreatePurchaseOptions{
-		DurationDays:         purchaseDays,
-		SubscriptionID:       &activeSubscription.ID,
-		AgreementAccepted:    true,
-		PlanID:               planID,
-		TrafficLimitBytes:    trafficLimit,
-		DeviceLimitCount:     deviceLimit,
-		PurchaseKind:         purchaseKind,
-		ExtraDevices:         extraDevices,
-		DeviceExpiresAt:      deviceExpiresAt,
-		IsFreePlan:           isFreePlan,
-		FreePlanOneTime:      freePlanOnce,
-		PromoCodeID:          promoCodeIDOrNil(promo),
-		PromoCodeCode:        req.PromoCode,
-		PromoDiscountPercent: promoDiscountPercentOrZero(promo),
-		P2PSenderReference:   strings.TrimSpace(req.P2PSenderReference),
-		P2PDestination:       p2pDestination,
-		ReturnTarget:         req.ReturnTarget,
+		DurationDays:          purchaseDays,
+		SubscriptionID:        &activeSubscription.ID,
+		AgreementAccepted:     true,
+		PlanID:                planID,
+		TrafficLimitBytes:     trafficLimit,
+		DeviceLimitCount:      deviceLimit,
+		PurchaseKind:          purchaseKind,
+		ExtraDevices:          extraDevices,
+		ExtraTrafficBytes:     extraTrafficBytes,
+		ExtraTrafficUnlimited: extraTrafficUnlimited,
+		DeviceExpiresAt:       deviceExpiresAt,
+		IsFreePlan:            isFreePlan,
+		FreePlanOneTime:       freePlanOnce,
+		PromoCodeID:           promoCodeIDOrNil(promo),
+		PromoCodeCode:         req.PromoCode,
+		PromoDiscountPercent:  promoDiscountPercentOrZero(promo),
+		P2PSenderReference:    strings.TrimSpace(req.P2PSenderReference),
+		P2PDestination:        p2pDestination,
+		ReturnTarget:          req.ReturnTarget,
 	})
 	if err != nil {
 		if errors.Is(err, payment.ErrFreePlanAlreadyUsed) {
@@ -4912,6 +4972,19 @@ func (h *Handler) devicePackForRequest(packID string) (runtimeconfig.DevicePackS
 		}
 	}
 	return runtimeconfig.DevicePackSettings{}, false
+}
+
+func (h *Handler) trafficPackForRequest(packID string) (runtimeconfig.TrafficPackSettings, bool) {
+	packID = strings.TrimSpace(packID)
+	if packID == "" || h.runtimeSettings == nil {
+		return runtimeconfig.TrafficPackSettings{}, false
+	}
+	for _, pack := range h.runtimeSettings.Snapshot().TrafficPacks {
+		if pack.Enabled && pack.ID == packID {
+			return pack, true
+		}
+	}
+	return runtimeconfig.TrafficPackSettings{}, false
 }
 
 func checkoutAmountForPlan(plan checkoutPlan, invoiceType database.InvoiceType) (int, bool) {

@@ -113,6 +113,8 @@ func moyNalogReceiptItem(base string, purchase *database.Purchase) string {
 	switch purchase.PurchaseKind {
 	case database.PurchaseKindExtraDevices:
 		result = fmt.Sprintf("%s — дополнительные устройства (%d)", base, purchase.ExtraDevices)
+	case database.PurchaseKindExtraTraffic:
+		result = fmt.Sprintf("%s — дополнительный трафик (%s)", base, purchaseTrafficDescription(purchase))
 	case database.PurchaseKindGift:
 		result = fmt.Sprintf("%s — подарок на %s", base, formatTariffDuration(purchase.Month, purchase.Days))
 	default:

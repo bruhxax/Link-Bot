@@ -94,16 +94,17 @@ func (s PaymentService) deliverGiftEntitlements(ctx context.Context, purchase *d
 		return err
 	}
 	defer releaseDevices()
-	trafficLimit := purchaseTrafficLimit(purchase)
 	deviceLimit := purchaseDeviceLimit(purchase)
 	panelState, stateErr := s.panelStateForSubscription(ctx, recipient, subscription)
 	if stateErr != nil {
 		slog.Warn("payment: load gift recipient panel state failed", "error", stateErr, "customerId", utils.MaskHalfInt64(recipient.ID))
-	} else if shouldAccumulateEntitlements(customerForSubscription(recipient, subscription), panelState) {
-		trafficLimit = mergeTrafficLimits(int(maxInt64(panelState.TrafficLimitBytes, 0)), trafficLimit)
 	}
 	if stateErr != nil {
 		return stateErr
+	}
+	baseTrafficLimit, trafficLimit, err := s.prepareSubscriptionTraffic(ctx, recipient, subscription, purchase, panelState)
+	if err != nil {
+		return err
 	}
 	baseDeviceLimit, deviceLimit, err := s.prepareSubscriptionDevices(ctx, recipient, subscription, purchase, panelState)
 	if err != nil {
@@ -124,6 +125,11 @@ func (s PaymentService) deliverGiftEntitlements(ctx context.Context, purchase *d
 			}
 		}
 	}
+	if _, extra, unlimited, stateErr := s.purchaseRepository.TrafficLimitState(ctx, subscription.ID, 0); stateErr != nil {
+		return stateErr
+	} else if extra > 0 || unlimited {
+		provisioning.TrafficResetStrategy = "NO_RESET"
+	}
 	userID, userUUID := subscriptionPanelIdentity(subscription)
 	user, err := s.remnawaveClient.CreateOrUpdateUserForSubscription(
 		ctx,
@@ -133,7 +139,7 @@ func (s PaymentService) deliverGiftEntitlements(ctx context.Context, purchase *d
 		userID,
 		userUUID,
 		subscription.IsPrimary,
-		trafficLimit,
+		int(trafficLimit),
 		deviceLimit,
 		purchaseDurationDays(purchase),
 		provisioning,
@@ -142,6 +148,9 @@ func (s PaymentService) deliverGiftEntitlements(ctx context.Context, purchase *d
 		return err
 	}
 	if err := s.purchaseRepository.SetDeviceBase(ctx, subscription.ID, baseDeviceLimit); err != nil {
+		return err
+	}
+	if err := s.purchaseRepository.SetTrafficBase(ctx, subscription.ID, baseTrafficLimit); err != nil {
 		return err
 	}
 	return s.persistSubscriptionPanelState(ctx, recipient, subscription, user)

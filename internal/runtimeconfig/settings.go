@@ -23,7 +23,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 24
+const CurrentVersion = 25
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -68,22 +68,23 @@ func DefaultPaymentMethodOrder() []string {
 }
 
 type Settings struct {
-	Version            int                  `json:"version"`
-	Localization       LocalizationSettings `json:"localization"`
-	Maintenance        MaintenanceSettings  `json:"maintenance"`
-	Features           map[string]bool      `json:"features"`
-	Content            ContentSettings      `json:"content"`
-	Appearance         AppearanceSettings   `json:"appearance"`
-	Layout             LayoutSettings       `json:"layout"`
-	SubPage            SubPageSettings      `json:"subPage"`
-	Plans              []PlanSettings       `json:"plans"`
-	DevicePacks        []DevicePackSettings `json:"devicePacks"`
-	DeviceAccess       DeviceAccessSettings `json:"deviceAccess"`
-	PaymentMethodOrder []string             `json:"paymentMethodOrder"`
-	Trial              TrialSettings        `json:"trial"`
-	Referrals          ReferralSettings     `json:"referrals"`
-	Grace              GraceSettings        `json:"grace"`
-	Panel              PanelSettings        `json:"panel"`
+	Version            int                   `json:"version"`
+	Localization       LocalizationSettings  `json:"localization"`
+	Maintenance        MaintenanceSettings   `json:"maintenance"`
+	Features           map[string]bool       `json:"features"`
+	Content            ContentSettings       `json:"content"`
+	Appearance         AppearanceSettings    `json:"appearance"`
+	Layout             LayoutSettings        `json:"layout"`
+	SubPage            SubPageSettings       `json:"subPage"`
+	Plans              []PlanSettings        `json:"plans"`
+	DevicePacks        []DevicePackSettings  `json:"devicePacks"`
+	TrafficPacks       []TrafficPackSettings `json:"trafficPacks"`
+	DeviceAccess       DeviceAccessSettings  `json:"deviceAccess"`
+	PaymentMethodOrder []string              `json:"paymentMethodOrder"`
+	Trial              TrialSettings         `json:"trial"`
+	Referrals          ReferralSettings      `json:"referrals"`
+	Grace              GraceSettings         `json:"grace"`
+	Panel              PanelSettings         `json:"panel"`
 }
 
 type LocalizationSettings struct {
@@ -337,6 +338,15 @@ type DevicePackSettings struct {
 	ID         string `json:"id"`
 	Enabled    bool   `json:"enabled"`
 	Devices    int    `json:"devices"`
+	PriceRub   int    `json:"priceRub"`
+	PriceStars int    `json:"priceStars"`
+	Wide       bool   `json:"wide"`
+}
+
+type TrafficPackSettings struct {
+	ID         string `json:"id"`
+	Enabled    bool   `json:"enabled"`
+	TrafficGB  int    `json:"trafficGb"`
 	PriceRub   int    `json:"priceRub"`
 	PriceStars int    `json:"priceStars"`
 	Wide       bool   `json:"wide"`
@@ -655,6 +665,7 @@ func DefaultSettings() Settings {
 		},
 		Plans:        defaultPlans(),
 		DevicePacks:  defaultDevicePacks(),
+		TrafficPacks: []TrafficPackSettings{},
 		DeviceAccess: DefaultDeviceAccess(),
 		Trial: TrialSettings{
 			Enabled:                  config.TrialDays() > 0,
@@ -791,6 +802,7 @@ func premiumPaymentNotificationTemplate() string {
 
 <tg-emoji emoji-id="5226513232549664618">☺️</tg-emoji> <b>Тариф:</b> <b>{{sub}}</b>
 <tg-emoji emoji-id="5226513232549664618">☺️</tg-emoji> <b>Доп. устройства:</b> <b>{{device}}</b>
+<b>Доп. трафик:</b> <b>{{traffic}}</b>
 <tg-emoji emoji-id="5258073068852485953">☺️</tg-emoji> <b>Telegram:</b> <b>{{username}}</b>
 <tg-emoji emoji-id="5258419835922030550">☺️</tg-emoji> <b>Время:</b> <b>{{data}}</b>
 <tg-emoji emoji-id="5258096772776991776">☺️</tg-emoji> <b>Способ:</b> <b>{{integration}}</b>
@@ -1111,6 +1123,9 @@ func NormalizeAndValidate(settings *Settings) error {
 		settings.DevicePacks = append([]DevicePackSettings(nil), defaults.DevicePacks...)
 	}
 	if err := validateDevicePacks(&settings.DevicePacks); err != nil {
+		return err
+	}
+	if err := validateTrafficPacks(&settings.TrafficPacks); err != nil {
 		return err
 	}
 	if previousVersion < 24 && settings.DeviceAccess == (DeviceAccessSettings{}) {
@@ -2205,6 +2220,35 @@ func validateDevicePacks(value *[]DevicePackSettings) error {
 		return errors.New("too many device packs")
 	}
 	*value = result
+	return nil
+}
+
+func validateTrafficPacks(value *[]TrafficPackSettings) error {
+	if *value == nil {
+		*value = []TrafficPackSettings{}
+	}
+	seen := map[string]struct{}{}
+	for i := range *value {
+		item := &(*value)[i]
+		item.ID = strings.ToLower(strings.TrimSpace(item.ID))
+		if !elementIDPattern.MatchString(item.ID) {
+			return fmt.Errorf("invalid traffic pack %q", item.ID)
+		}
+		if _, exists := seen[item.ID]; exists {
+			return fmt.Errorf("duplicate traffic pack %q", item.ID)
+		}
+		if item.TrafficGB < 0 || item.TrafficGB > 1000000 {
+			return fmt.Errorf("invalid traffic amount for pack %q", item.ID)
+		}
+		if item.PriceRub < 1 || item.PriceRub > 1000000 {
+			return fmt.Errorf("invalid price for traffic pack %q", item.ID)
+		}
+		item.PriceStars = planbook.StarsForRub(item.PriceRub)
+		seen[item.ID] = struct{}{}
+	}
+	if len(*value) > 100 {
+		return errors.New("too many traffic packs")
+	}
 	return nil
 }
 

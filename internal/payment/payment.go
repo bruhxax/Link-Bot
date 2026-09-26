@@ -78,6 +78,8 @@ type CreatePurchaseOptions struct {
 	PromoDiscountPercent    int
 	PurchaseKind            database.PurchaseKind
 	ExtraDevices            int
+	ExtraTrafficBytes       int64
+	ExtraTrafficUnlimited   bool
 	DeviceExpiresAt         *time.Time
 	IsFreePlan              bool
 	FreePlanOneTime         bool
@@ -245,6 +247,8 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 			// fulfilled first. In that edge case, fulfill only the paid devices.
 			if purchase.ExtraDevices > 0 && purchase.Amount > 0 {
 				purchase.PurchaseKind = database.PurchaseKindExtraDevices
+			} else if (purchase.ExtraTrafficBytes > 0 || purchase.ExtraTrafficUnlimited) && purchase.Amount > 0 {
+				purchase.PurchaseKind = database.PurchaseKindExtraTraffic
 			} else {
 				return eligibilityErr
 			}
@@ -295,7 +299,19 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 		if err != nil {
 			return err
 		}
-		if err := s.purchaseRepository.MarkPaidWithDeviceBase(ctx, purchase.ID, subscription.ID, base); err != nil {
+		if purchase.ExtraTrafficBytes > 0 || purchase.ExtraTrafficUnlimited {
+			trafficBase, trafficLimit, trafficErr := s.prepareSubscriptionTraffic(ctx, customer, subscription, purchase, panelState)
+			if trafficErr != nil {
+				return trafficErr
+			}
+			user, err = s.applySubscriptionTrafficLimit(ctx, customer, subscription, trafficLimit)
+			if err != nil {
+				return err
+			}
+			if err := s.purchaseRepository.MarkPaidWithEntitlementBases(ctx, purchase.ID, subscription.ID, base, trafficBase); err != nil {
+				return err
+			}
+		} else if err := s.purchaseRepository.MarkPaidWithDeviceBase(ctx, purchase.ID, subscription.ID, base); err != nil {
 			return err
 		}
 		purchase.Status = database.PurchaseStatusPaid
@@ -331,15 +347,65 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 		}
 		return nil
 	}
+	if purchase.PurchaseKind == database.PurchaseKindExtraTraffic {
+		panelState, stateErr := s.panelStateForSubscription(ctx, customer, subscription)
+		if stateErr != nil {
+			return stateErr
+		}
+		if panelState == nil || !panelState.Active || (panelState.TrafficLimitBytes <= 0 && !purchase.ExtraTrafficUnlimited) {
+			return errors.New("cannot add traffic to an unlimited or inactive subscription")
+		}
+		if err := s.purchaseRepository.EnsureDeviceBase(ctx, subscription.ID, maxInt(panelState.DeviceLimit, 0)); err != nil {
+			return err
+		}
+		deviceBase, _, err := s.purchaseRepository.DeviceLimitState(ctx, subscription.ID, 0, time.Now().UTC())
+		if err != nil {
+			return err
+		}
+		trafficBase, trafficLimit, err := s.prepareSubscriptionTraffic(ctx, customer, subscription, purchase, panelState)
+		if err != nil {
+			return err
+		}
+		user, err := s.applySubscriptionTrafficLimit(ctx, customer, subscription, trafficLimit)
+		if err != nil {
+			return err
+		}
+		if err := s.purchaseRepository.MarkPaidWithEntitlementBases(ctx, purchase.ID, subscription.ID, deviceBase, trafficBase); err != nil {
+			return err
+		}
+		purchase.Status = database.PurchaseStatusPaid
+		if s.partnerRepository != nil {
+			if commissionErr := s.partnerRepository.AccrueCommission(context.Background(), purchase); commissionErr != nil {
+				slog.Error("payment: accrue partner commission failed", "error", commissionErr, "purchase_id", utils.MaskHalfInt64(purchase.ID))
+			}
+		}
+		s.queueMoyNalogReceipt(purchase)
+		if err := s.persistSubscriptionPanelState(ctx, customer, subscription, user); err != nil {
+			return err
+		}
+		s.notifyAdminAboutPayment(ctx, purchase, customer)
+		trafficText := fmt.Sprintf("%d ГБ", purchase.ExtraTrafficBytes/(1024*1024*1024))
+		if purchase.ExtraTrafficUnlimited {
+			trafficText = "безлимитный трафик"
+		}
+		if _, sendErr := s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: customer.TelegramID, ParseMode: models.ParseModeHTML,
+			Text: "<b>Трафик добавлен</b>\n\nК подписке добавлен " + trafficText + ". Купленный трафик не сбрасывается при продлении.",
+		}); sendErr != nil {
+			slog.Error("payment: extra traffic customer notification failed", "error", sendErr)
+		}
+		return nil
+	}
 
-	trafficLimit := purchaseTrafficLimit(purchase)
 	deviceLimit := purchaseDeviceLimit(purchase)
 	panelState, err := s.panelStateForSubscription(ctx, customer, subscription)
 	if err != nil {
 		slog.Warn("payment: load panel state before purchase update failed", "error", err, "customerId", utils.MaskHalfInt64(customer.ID))
-	} else if shouldAccumulateEntitlements(customerForSubscription(customer, subscription), panelState) {
-		trafficLimit = mergeTrafficLimits(int(maxInt64(panelState.TrafficLimitBytes, 0)), trafficLimit)
 	}
+	if err != nil {
+		return err
+	}
+	baseTrafficLimit, trafficLimit, err := s.prepareSubscriptionTraffic(ctx, customer, subscription, purchase, panelState)
 	if err != nil {
 		return err
 	}
@@ -370,12 +436,17 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 			provisioning.ApplySquads = true
 		}
 	}
+	if _, extra, unlimited, stateErr := s.purchaseRepository.TrafficLimitState(ctx, subscription.ID, purchase.ID); stateErr != nil {
+		return stateErr
+	} else if extra > 0 || unlimited {
+		provisioning.TrafficResetStrategy = "NO_RESET"
+	}
 	userID, userUUID := subscriptionPanelIdentity(subscription)
-	user, err := s.remnawaveClient.CreateOrUpdateUserForSubscription(ctx, customer.ID, customer.TelegramID, subscription.ID, userID, userUUID, subscription.IsPrimary, trafficLimit, deviceLimit, purchaseDurationDays(purchase), provisioning)
+	user, err := s.remnawaveClient.CreateOrUpdateUserForSubscription(ctx, customer.ID, customer.TelegramID, subscription.ID, userID, userUUID, subscription.IsPrimary, int(trafficLimit), deviceLimit, purchaseDurationDays(purchase), provisioning)
 	if err != nil {
 		return err
 	}
-	err = s.purchaseRepository.MarkPaidWithDeviceBase(ctx, purchase.ID, subscription.ID, baseDeviceLimit)
+	err = s.purchaseRepository.MarkPaidWithEntitlementBases(ctx, purchase.ID, subscription.ID, baseDeviceLimit, baseTrafficLimit)
 	if err != nil {
 		return err
 	}
@@ -857,21 +928,24 @@ func (s PaymentService) ValidateFreePlanEligibility(ctx context.Context, custome
 
 func (s PaymentService) createFreePlanPurchase(ctx context.Context, months int, customer *database.Customer, options CreatePurchaseOptions) (string, int64, error) {
 	purchaseID, err := s.purchaseRepository.Create(ctx, &database.Purchase{
-		InvoiceType:       database.InvoiceTypeFree,
-		Status:            database.PurchaseStatusNew,
-		Amount:            0,
-		Currency:          "RUB",
-		CustomerID:        customer.ID,
-		SubscriptionID:    options.SubscriptionID,
-		Month:             months,
-		Days:              options.DurationDays,
-		PlanID:            optionalTrimmedStringPointer(options.PlanID),
-		TrafficLimitBytes: options.TrafficLimitBytes,
-		DeviceLimitCount:  options.DeviceLimitCount,
-		AgreementAccepted: options.AgreementAccepted,
-		PurchaseKind:      options.PurchaseKind,
-		IsFreePlan:        true,
-		FreePlanOneTime:   options.FreePlanOneTime,
+		InvoiceType:           database.InvoiceTypeFree,
+		Status:                database.PurchaseStatusNew,
+		Amount:                0,
+		Currency:              "RUB",
+		CustomerID:            customer.ID,
+		SubscriptionID:        options.SubscriptionID,
+		Month:                 months,
+		Days:                  options.DurationDays,
+		PlanID:                optionalTrimmedStringPointer(options.PlanID),
+		TrafficLimitBytes:     options.TrafficLimitBytes,
+		DeviceLimitCount:      options.DeviceLimitCount,
+		ExtraDevices:          options.ExtraDevices,
+		ExtraTrafficBytes:     options.ExtraTrafficBytes,
+		ExtraTrafficUnlimited: options.ExtraTrafficUnlimited,
+		AgreementAccepted:     options.AgreementAccepted,
+		PurchaseKind:          options.PurchaseKind,
+		IsFreePlan:            true,
+		FreePlanOneTime:       options.FreePlanOneTime,
 	})
 	if err != nil {
 		return "", 0, err
@@ -905,6 +979,8 @@ func (s PaymentService) createBalancePurchase(ctx context.Context, amount float6
 		AgreementAccepted:        options.AgreementAccepted,
 		PurchaseKind:             options.PurchaseKind,
 		ExtraDevices:             options.ExtraDevices,
+		ExtraTrafficBytes:        options.ExtraTrafficBytes,
+		ExtraTrafficUnlimited:    options.ExtraTrafficUnlimited,
 		DeviceExpiresAt:          options.DeviceExpiresAt,
 		IsFreePlan:               options.IsFreePlan,
 		FreePlanOneTime:          options.FreePlanOneTime,
@@ -1006,6 +1082,8 @@ func (s PaymentService) createCryptoInvoice(ctx context.Context, amount float64,
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
 		PurchaseKind:             options.PurchaseKind,
 		ExtraDevices:             options.ExtraDevices,
+		ExtraTrafficBytes:        options.ExtraTrafficBytes,
+		ExtraTrafficUnlimited:    options.ExtraTrafficUnlimited,
 		DeviceExpiresAt:          options.DeviceExpiresAt,
 		IsFreePlan:               options.IsFreePlan,
 		FreePlanOneTime:          options.FreePlanOneTime,
@@ -1073,6 +1151,8 @@ func (s PaymentService) createYookasaInvoice(ctx context.Context, amount float64
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
 		PurchaseKind:             options.PurchaseKind,
 		ExtraDevices:             options.ExtraDevices,
+		ExtraTrafficBytes:        options.ExtraTrafficBytes,
+		ExtraTrafficUnlimited:    options.ExtraTrafficUnlimited,
 		DeviceExpiresAt:          options.DeviceExpiresAt,
 		IsFreePlan:               options.IsFreePlan,
 		FreePlanOneTime:          options.FreePlanOneTime,
@@ -1128,6 +1208,8 @@ func (s PaymentService) createExternalInvoice(ctx context.Context, amount float6
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
 		PurchaseKind:             options.PurchaseKind,
 		ExtraDevices:             options.ExtraDevices,
+		ExtraTrafficBytes:        options.ExtraTrafficBytes,
+		ExtraTrafficUnlimited:    options.ExtraTrafficUnlimited,
 		DeviceExpiresAt:          options.DeviceExpiresAt,
 		IsFreePlan:               options.IsFreePlan,
 		FreePlanOneTime:          options.FreePlanOneTime,
@@ -1298,6 +1380,8 @@ func (s PaymentService) createTelegramInvoice(ctx context.Context, amount float6
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
 		PurchaseKind:             options.PurchaseKind,
 		ExtraDevices:             options.ExtraDevices,
+		ExtraTrafficBytes:        options.ExtraTrafficBytes,
+		ExtraTrafficUnlimited:    options.ExtraTrafficUnlimited,
 		DeviceExpiresAt:          options.DeviceExpiresAt,
 		IsFreePlan:               options.IsFreePlan,
 		FreePlanOneTime:          options.FreePlanOneTime,
@@ -1825,16 +1909,21 @@ func (s PaymentService) CancelYookassaPayment(purchaseId int64) error {
 
 func (s PaymentService) createTributeInvoice(ctx context.Context, amount float64, months int, customer *database.Customer, options CreatePurchaseOptions) (url string, purchaseId int64, err error) {
 	purchaseId, err = s.purchaseRepository.Create(ctx, &database.Purchase{
-		InvoiceType:       database.InvoiceTypeTribute,
-		Status:            database.PurchaseStatusPending,
-		Amount:            amount,
-		Currency:          "RUB",
-		CustomerID:        customer.ID,
-		Month:             months,
-		Days:              options.DurationDays,
-		PlanID:            optionalTrimmedStringPointer(options.PlanID),
-		TrafficLimitBytes: options.TrafficLimitBytes,
-		DeviceLimitCount:  options.DeviceLimitCount,
+		InvoiceType:           database.InvoiceTypeTribute,
+		Status:                database.PurchaseStatusPending,
+		Amount:                amount,
+		Currency:              "RUB",
+		CustomerID:            customer.ID,
+		Month:                 months,
+		Days:                  options.DurationDays,
+		PlanID:                optionalTrimmedStringPointer(options.PlanID),
+		TrafficLimitBytes:     options.TrafficLimitBytes,
+		DeviceLimitCount:      options.DeviceLimitCount,
+		SubscriptionID:        options.SubscriptionID,
+		PurchaseKind:          options.PurchaseKind,
+		ExtraDevices:          options.ExtraDevices,
+		ExtraTrafficBytes:     options.ExtraTrafficBytes,
+		ExtraTrafficUnlimited: options.ExtraTrafficUnlimited,
 	})
 	if err != nil {
 		slog.Error("Error creating purchase", "error", err)

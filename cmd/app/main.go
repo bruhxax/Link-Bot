@@ -136,6 +136,9 @@ func main() {
 		if err := paymentService.ProcessDeviceExpirations(checkCtx); err != nil {
 			slog.Error("device expiry check failed", "error", err)
 		}
+		if err := paymentService.ProcessTrafficEntitlements(checkCtx); err != nil {
+			slog.Error("traffic entitlement check failed", "error", err)
+		}
 	}
 	if _, err := deviceAccessScheduler.AddFunc("0 * * * * *", checkDeviceAccess); err != nil {
 		panic(err)

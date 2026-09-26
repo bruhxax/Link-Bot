@@ -202,8 +202,13 @@ func (s PaymentService) notifyAdminAboutPaymentByPush(purchase *database.Purchas
 	}
 	if purchase.PurchaseKind == database.PurchaseKindExtraDevices && purchase.ExtraDevices > 0 {
 		description = fmt.Sprintf("+%d устройств", purchase.ExtraDevices)
+	} else if purchase.PurchaseKind == database.PurchaseKindExtraTraffic {
+		description = purchaseTrafficDescription(purchase)
 	} else if purchase.PurchaseKind == database.PurchaseKindGift {
 		description = "Подарок · " + description
+	}
+	if purchase.PurchaseKind == database.PurchaseKindSubscription && (purchase.ExtraTrafficBytes > 0 || purchase.ExtraTrafficUnlimited) {
+		description += " · " + purchaseTrafficDescription(purchase)
 	}
 
 	event := adminnotify.Event{
@@ -322,12 +327,16 @@ func buildPaymentNotificationMessageWithTemplate(
 	}
 
 	subscriptionText := ""
-	if purchase.PurchaseKind != database.PurchaseKindExtraDevices && (purchase.Month > 0 || purchase.Days > 0) {
+	if purchase.PurchaseKind != database.PurchaseKindExtraDevices && purchase.PurchaseKind != database.PurchaseKindExtraTraffic && (purchase.Month > 0 || purchase.Days > 0) {
 		subscriptionText = formatTariffDuration(purchase.Month, purchase.Days)
 	}
 	deviceText := ""
 	if purchase.ExtraDevices > 0 {
 		deviceText = fmt.Sprintf("+%d", purchase.ExtraDevices)
+	}
+	trafficText := ""
+	if purchase.ExtraTrafficBytes > 0 || purchase.ExtraTrafficUnlimited {
+		trafficText = purchaseTrafficDescription(purchase)
 	}
 
 	values := map[string]string{
@@ -339,6 +348,7 @@ func buildPaymentNotificationMessageWithTemplate(
 		"number":      strconv.FormatInt(orderNumber, 10),
 		"price":       formatPurchaseAmount(purchase),
 		"device":      deviceText,
+		"traffic":     trafficText,
 	}
 	template = strings.ReplaceAll(template, "\r\n", "\n")
 	lines := strings.Split(template, "\n")
@@ -346,6 +356,7 @@ func buildPaymentNotificationMessageWithTemplate(
 	for _, line := range lines {
 		if (values["promo"] == "" && strings.Contains(line, "{{promo}}")) ||
 			(values["device"] == "" && strings.Contains(line, "{{device}}")) ||
+			(values["traffic"] == "" && strings.Contains(line, "{{traffic}}")) ||
 			(values["sub"] == "" && strings.Contains(line, "{{sub}}")) {
 			continue
 		}
@@ -354,7 +365,18 @@ func buildPaymentNotificationMessageWithTemplate(
 		}
 		clean = append(clean, line)
 	}
-	return strings.TrimSpace(strings.Join(clean, "\n"))
+	message := strings.TrimSpace(strings.Join(clean, "\n"))
+	if trafficText != "" && !strings.Contains(template, "{{traffic}}") {
+		message += "\n<b>Доп. трафик:</b> <b>" + html.EscapeString(trafficText) + "</b>"
+	}
+	return message
+}
+
+func purchaseTrafficDescription(purchase *database.Purchase) string {
+	if purchase.ExtraTrafficUnlimited {
+		return "безлимитный трафик"
+	}
+	return fmt.Sprintf("+%d ГБ", purchase.ExtraTrafficBytes/(1024*1024*1024))
 }
 
 func formatTariff(months int) string {

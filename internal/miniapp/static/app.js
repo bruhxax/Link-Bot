@@ -2104,6 +2104,7 @@ function buildPreviewRuntimeSettings() {
 		subPage: { includeBuiltIns: true, clients: [] },
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, titleFa: `${plan.months} \u0645\u0627\u0647`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
 		devicePacks: [],
+		trafficPacks: [],
 		deviceAccess: defaultDeviceAccessSettings(),
 		trial: { enabled: true, days: 3, trafficGb: 10, unlimitedTraffic: false, deviceLimit: 5, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "", trafficResetStrategy: "MONTH", tag: "" },
 		referrals: { trial: deepClone(previewPayload.referral.trialReward), purchase: deepClone(previewPayload.referral.purchaseReward), rewardEveryPurchase: false, balancePaymentsEnabled: true, withdrawalsEnabled: true, minimumWithdrawalRub: 500 },
@@ -2141,9 +2142,14 @@ const state = {
 	subscriptionSwitchAnimation: "",
 	devicePackModalOpen: false,
 	selectedDevicePackId: "",
+	trafficPackModalOpen: false,
+	selectedTrafficPackId: "",
 	adminDevicePackEditorOpen: false,
 	adminDevicePackEditingID: "",
 	adminDevicePackFormDraft: null,
+	adminTrafficPackEditorOpen: false,
+	adminTrafficPackEditingID: "",
+	adminTrafficPackFormDraft: null,
 	adminCommerceMenu: null,
   paymentLaunchModalOpen: false,
   paymentLaunchURL: "",
@@ -3763,7 +3769,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-	const modalOpen = Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.profilePromoOpen || state.supportComposeOpen || state.supportThreadOpen || state.supportMediaViewer || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.adminCommerceMenu || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminBannerEditorOpen || state.adminLayoutStyleEditorOpen;
+	const modalOpen = Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.profilePromoOpen || state.supportComposeOpen || state.supportThreadOpen || state.supportMediaViewer || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.trafficPackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.adminTrafficPackEditorOpen || state.adminCommerceMenu || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminBannerEditorOpen || state.adminLayoutStyleEditorOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -3832,7 +3838,9 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
 		${isModalVisible("subscription-editor", state.subscriptionEditorOpen) ? renderSubscriptionEditorModal() : ""}
 		${isModalVisible("subscription-delete", state.subscriptionDeleteOpen) ? renderSubscriptionDeleteModal() : ""}
 		${isModalVisible("device-packs", state.devicePackModalOpen) ? renderDevicePackModal() : ""}
+		${isModalVisible("traffic-packs", state.trafficPackModalOpen) ? renderTrafficPackModal() : ""}
 		${isModalVisible("admin-device-packs", state.adminDevicePackEditorOpen) ? renderAdminDevicePackModal() : ""}
+		${isModalVisible("admin-traffic-packs", state.adminTrafficPackEditorOpen) ? renderAdminTrafficPackModal() : ""}
 		${state.adminCommerceMenu ? renderAdminCommerceMenu() : ""}
       ${isModalVisible("payment-launch", state.paymentLaunchModalOpen) ? renderPaymentLaunchModal() : ""}
       ${isModalVisible("review-compose", state.reviewComposeOpen) ? renderReviewComposerModal() : ""}
@@ -5913,7 +5921,7 @@ function renderAdminHiddenLayoutItems(area, hidden) {
 
 function renderAdminPlansPage() {
 	const plans = state.adminSettingsDraft?.plans || [];
-	return renderAdminEditorPage(state.locale === "en" ? "Plans" : "Тарифы", `${renderDevicePackAdminTrigger()}<div class="admin-plan-editor">${plans.map((plan, index) => renderAdminPlanEditor(plan, index)).join("")}</div>`);
+	return renderAdminEditorPage(state.locale === "en" ? "Plans" : "Тарифы", `${renderDevicePackAdminTrigger()}${renderTrafficPackAdminTrigger()}<div class="admin-plan-editor">${plans.map((plan, index) => renderAdminPlanEditor(plan, index)).join("")}</div>`);
 }
 
 function adminSquads() {
@@ -6842,13 +6850,15 @@ function renderBuyPage() {
   const plan = getSelectedPlan();
   const method = getSelectedPaymentMethod();
   const devicePack = getSelectedDevicePack();
+  const trafficPack = getSelectedTrafficPack();
   const promoStatus = getPromoStatus();
-  const freeCheckout = Boolean(plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !devicePack);
+  const freeCheckout = Boolean(plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !devicePack && !trafficPack);
 	const freeLabel = localizedText("Получить бесплатно", "Get for free", "دریافت رایگان");
   const payLabel = freeCheckout ? freeLabel : (plan && method ? `${copy.pay} ${formatCheckoutPrice(plan, devicePack, method.id)}` : copy.paymentUnavailable);
   const displayedPlans = getDisplayedPlans();
   const devicePacks = getDevicePacks();
-  if (!state.adminPlanEditing && !displayedPlans.length && !devicePacks.length) {
+  const trafficPacks = getTrafficPacks();
+  if (!state.adminPlanEditing && !displayedPlans.length && !devicePacks.length && !trafficPacks.length) {
     return `<section class="page page-buy--empty ${state.adminPlanEditing ? "page-buy--admin-editor" : ""} ${pageClass("buy")}" id="page-buy">
       <div class="commerce-empty" role="status">
         <div class="commerce-empty__icon">${icon("cartShopping")}</div>
@@ -6860,6 +6870,9 @@ function renderBuyPage() {
   const devicePackTrigger = state.adminPlanEditing
     ? renderDevicePackAdminTrigger(true)
     : devicePacks.length ? renderDevicePackTrigger(devicePack) : "";
+  const trafficPackTrigger = state.adminPlanEditing
+    ? renderTrafficPackAdminTrigger(true)
+    : trafficPacks.length ? renderTrafficPackTrigger(trafficPack) : "";
   const planList = displayedPlans.length ? `<div class="pricing-list ${state.adminPlanEditing ? "pricing-list--admin" : ""}" style="--plan-columns:${Math.max(1, Math.min(2, Number(getRuntimeSettings()?.layout?.planColumns || 2)))}">${displayedPlans.map((item) => renderPlanCard(item, planKey(item) === planKey(plan))).join("")}</div>` : `<div class="commerce-empty commerce-empty--compact"><div class="commerce-empty__title">${escapeHtml(copy.noPlansTitle)}</div></div>`;
   const methodTitle = state.adminPlanEditing ? localizedText("Способ оплаты", "Payment methods", "روش‌های پرداخت") : method?.label || copy.noPaymentMethodsTitle;
   const methodHint = state.adminPlanEditing
@@ -6868,6 +6881,8 @@ function renderBuyPage() {
   const checkoutDisabled = !plan || (!freeCheckout && !method) || state.busyMethod || state.adminPlanEditing;
   const checkout = `<div class="card card--checkout">
 		<div class="summary-row checkout-summary"><div><div class="summary-row__title">${copy.selectedPlan}</div><div class="summary-row__value">${plan ? getPlanDisplayTitle(plan, state.locale) : "—"}</div></div>${plan?.recommended ? `<span class="badge badge--inline">${copy.best}</span>` : plan?.savingsPercent ? `<span class="badge badge--inline">${copy.savings(plan.savingsPercent)}</span>` : ""}</div>
+		${devicePack ? `<div class="summary-row checkout-summary"><div><div class="summary-row__title">Устройства</div><div class="summary-row__value">${escapeHtml(devicePackTitle(devicePack.devices))}</div></div></div>` : ""}
+		${trafficPack ? `<div class="summary-row checkout-summary"><div><div class="summary-row__title">Трафик</div><div class="summary-row__value">${escapeHtml(trafficPackTitle(trafficPack.trafficGb))}</div></div></div>` : ""}
         <div class="payment-stack">
 		${freeCheckout && !state.adminPlanEditing ? `<div class="checkout-free-note"><span>${icon("check")}</span><div><strong>${escapeHtml(freeLabel)}</strong><small>${localizedText("Способ оплаты не нужен — тариф активируется сразу.", "No payment method or redirect is required.", "نیازی به روش پرداخت نیست؛ تعرفه فوراً فعال می‌شود.")}</small></div></div>` : `<button class="pay-selector checkout-payment ${method ? "" : "checkout-payment--empty"}" type="button" data-action="open-pay-modal" ${method || state.adminPlanEditing ? "" : "disabled aria-disabled=\"true\""}><span class="pay-selector__icon ${method ? "pay-selector__icon--brand" : ""}">${method ? renderPaymentMethodLogo(method) : icon("wallet")}</span><span class="pay-selector__copy"><strong>${escapeHtml(methodTitle)}</strong><span>${escapeHtml(methodHint)}</span></span><span class="pay-selector__tail">${icon("checkoutEdit")}</span></button>`}
         ${featureEnabled("promocodes") && !freeCheckout ? `<div class="promo-box checkout-promo">
@@ -6882,7 +6897,7 @@ function renderBuyPage() {
 		<button class="btn btn--green-filled buy-action" type="button" data-action="pay-selected" ${checkoutDisabled ? "disabled aria-disabled=\"true\"" : ""}>${icon(state.busyMethod ? "refresh" : "cart")}${payLabel}</button>
         </div>
       </div>`;
-	return `<section class="page ${state.adminPlanEditing ? "page-buy--admin-editor" : ""} ${pageClass("buy")}" id="page-buy">${devicePackTrigger}${planList}${displayedPlans.length ? checkout : ""}</section>`;
+	return `<section class="page ${state.adminPlanEditing ? "page-buy--admin-editor" : ""} ${pageClass("buy")}" id="page-buy">${devicePackTrigger}${trafficPackTrigger}${planList}${displayedPlans.length ? checkout : ""}</section>`;
 }
 
 function getDevicePacks(settings = getRuntimeSettings()) {
@@ -6910,7 +6925,7 @@ function devicePackPrice(pack, methodID, plan = null) {
 
 function formatCheckoutPrice(plan, pack, methodID) {
 	const planPrice = methodID === "stars" ? Number(plan?.priceStars || 0) : Number(plan?.priceRub || 0);
-	const basePrice = Math.max(0, planPrice) + Math.max(0, devicePackPrice(pack, methodID, plan));
+	const basePrice = Math.max(0, planPrice) + Math.max(0, devicePackPrice(pack, methodID, plan)) + trafficPackPrice(getSelectedTrafficPack(), methodID);
 	const promo = getActivePromo();
 	const amount = basePrice > 0 && promo?.discountPercent
 		? Math.max(1, Math.round(basePrice * (100 - promo.discountPercent) / 100))
@@ -7001,6 +7016,70 @@ function openDevicePackPaymentMethods() {
 	queueMicrotask(() => app.querySelector('.modal[aria-labelledby="pay-modal-title"] .pay-row')?.focus());
 }
 
+function getTrafficPacks(settings = getRuntimeSettings()) {
+	return (settings?.trafficPacks || []).filter((pack) => pack && pack.enabled !== false && Number(pack.trafficGb) >= 0 && Number(pack.priceRub || 0) > 0);
+}
+
+function getSelectedTrafficPack() {
+	return getTrafficPacks().find((pack) => String(pack.id) === String(state.selectedTrafficPackId || "")) || null;
+}
+
+function trafficPackTitle(gb) {
+	return Number(gb) === 0 ? "Безлимитный трафик" : `+${formatNumber(Number(gb), state.locale)} ГБ`;
+}
+
+function trafficPackPrice(pack, methodID) {
+	if (!pack) return 0;
+	return Math.max(0, Number(methodID === "stars" ? pack.priceStars : pack.priceRub) || 0);
+}
+
+function renderTrafficPackTrigger(pack) {
+	return `<div class="device-pack-trigger-row ${pack ? "has-selection" : ""}"><button class="device-pack-trigger__main" type="button" data-action="open-traffic-packs"><span class="device-pack-trigger__icon">${icon("chartLine")}</span><span class="device-pack-trigger__copy"><strong>Докупить трафик</strong>${pack ? `<small>${escapeHtml(trafficPackTitle(pack.trafficGb))}</small>` : ""}</span><span class="device-pack-trigger__tail">${icon("chevronRight")}</span></button>${pack ? `<button class="device-pack-trigger__cancel" type="button" data-action="clear-traffic-pack" aria-label="Отменить выбранный пакет">Отмена</button>` : ""}</div>`;
+}
+
+function renderTrafficPackAdminTrigger(editor = false) {
+	const packs = state.adminSettingsDraft?.trafficPacks || [];
+	return `<button class="profile-row device-pack-admin-trigger ${editor ? "device-pack-admin-trigger--editor" : ""}" type="button" data-action="admin-open-traffic-packs"><span class="profile-row__icon">${icon("chartLine")}</span><span class="profile-row__body"><strong>Пакеты трафика</strong><span>${escapeHtml(packs.length ? `${packs.length} настроено` : "Добавьте первый пакет")}</span></span><span class="profile-row__tail">${icon("chevronRight")}</span></button>`;
+}
+
+function renderTrafficPackCard(pack, selected = false) {
+	return `<button class="pricing-card device-pack-card ${selected ? "selected" : ""} ${pack.wide ? "is-wide" : ""}" type="button" data-action="select-traffic-pack" data-value="${escapeAttribute(pack.id)}" data-selection-feedback aria-pressed="${selected}"><div class="pricing-card__content"><div class="pricing-card__copy"><div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(trafficPackTitle(pack.trafficGb))}</div></div><div class="pricing-card__spec">Без сброса</div></div><div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong>${escapeHtml(formatCurrency(pack.priceRub, state.locale))}</strong></div></div></div></div></button>`;
+}
+
+function renderTrafficPackModal() {
+	const packs = getTrafficPacks();
+	const selected = getSelectedTrafficPack();
+	const list = packs.length ? `<div class="device-pack-grid">${packs.map((pack) => renderTrafficPackCard(pack, String(pack.id) === String(selected?.id))).join("")}</div>` : `<div class="device-pack-empty" role="status"><strong>Пакеты трафика пока не настроены</strong><span>Администратор может добавить их в разделе «Тарифы».</span></div>`;
+	return `<div class="modal open ${modalStateClass("traffic-packs")}" role="dialog" aria-modal="true" aria-labelledby="traffic-pack-modal-title"><button class="modal__backdrop" type="button" data-action="close-traffic-packs" aria-label="Закрыть выбор трафика"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-purchase"><div class="modal__header"><div><div class="section-label">ТРАФИК</div><div class="modal__title" id="traffic-pack-modal-title">Докупить трафик</div></div><button class="header__btn" type="button" data-action="close-traffic-packs" aria-label="Закрыть выбор трафика">${icon("close")}</button></div><div class="device-pack-modal__scroll">${list}</div><div class="device-pack-modal__footer"><div class="device-pack-modal__actions"><button class="btn btn--green-filled" type="button" data-action="buy-traffic-pack">${icon("cart")}Докупить</button><button class="btn" type="button" data-action="continue-traffic-pack" ${selected ? "" : "disabled"}>Продолжить</button></div></div></div></div>`;
+}
+
+function openTrafficPackPaymentMethods() {
+	if (!getSelectedTrafficPack()) return showToast("Выберите пакет трафика", "danger");
+	if (!isSubscriptionActive()) return showToast("Докупка доступна только при активной подписке", "danger");
+	if (Number(state.data?.subscription?.trafficLimitBytes || 0) <= 0) return showToast("У подписки уже безлимитный трафик", "danger");
+	if (!getAvailableMethods(null).length) return showToast(t().paymentUnavailable, "danger");
+	window.clearTimeout(closingModalTimer);
+	closingModalName = "";
+	state.trafficPackModalOpen = false;
+	state.payModalContext = "traffic-pack";
+	state.payModalOpen = true;
+	haptic("light");
+	render({ preserveScroll: true });
+	queueMicrotask(() => app.querySelector('.modal[aria-labelledby="pay-modal-title"] .pay-row')?.focus());
+}
+
+function renderAdminTrafficPackCard(pack) {
+	return `<article class="pricing-card pricing-card--admin device-pack-card device-pack-card--admin ${pack.wide ? "is-wide" : ""}" data-admin-traffic-id="${escapeAttribute(pack.id)}"><div class="pricing-card__content"><div class="pricing-card__copy"><div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(trafficPackTitle(pack.trafficGb))}</div></div><div class="pricing-card__spec">Без сброса</div></div><div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong>${escapeHtml(formatCurrency(pack.priceRub, state.locale))}</strong></div></div></div></div>${renderAdminCommerceControls("traffic", pack)}</article>`;
+}
+
+function renderAdminTrafficPackModal() {
+	const packs = state.adminSettingsDraft?.trafficPacks || [];
+	const draft = state.adminTrafficPackFormDraft;
+	const editor = draft ? `<div class="device-pack-form"><div class="admin-editor__grid"><label class="admin-field"><span>Трафик, ГБ (0 — безлимит)</span><input class="admin-field__control" data-input="admin-traffic-pack-gb" type="number" min="0" max="1000000" value="${escapeAttribute(draft.trafficGb)}"></label><label class="admin-field"><span>Фиксированная цена, ₽</span><input class="admin-field__control" data-input="admin-traffic-pack-price" type="number" min="1" max="1000000" value="${escapeAttribute(draft.priceRub)}"></label></div><label class="admin-toggle-row"><span>На всю ширину</span><input data-input="admin-traffic-pack-wide" type="checkbox" ${draft.wide ? "checked" : ""}></label><div class="device-pack-form__actions"><button class="btn" type="button" data-action="admin-cancel-traffic-pack">Отмена</button><button class="btn btn--green-filled" type="button" data-action="admin-save-traffic-pack">${icon("check")}Применить</button></div></div>` : `<button class="device-pack-add" type="button" data-action="admin-add-traffic-pack">${icon("plus")}Добавить пакет</button>`;
+	const cards = packs.length ? packs.map(renderAdminTrafficPackCard).join("") : `<div class="device-pack-empty"><strong>Пакетов пока нет</strong><span>Добавьте первый пакет трафика.</span></div>`;
+	return `<div class="modal open" role="dialog" aria-modal="true" aria-labelledby="admin-traffic-pack-title"><button class="modal__backdrop" type="button" data-action="admin-close-traffic-packs" aria-label="Закрыть пакеты трафика"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-admin"><div class="modal__header"><div><div class="section-label">ТРАФИК</div><div class="modal__title" id="admin-traffic-pack-title">${draft ? "Редактировать пакет" : "Пакеты трафика"}</div></div><button class="header__btn" type="button" data-action="admin-close-traffic-packs" aria-label="Закрыть пакеты трафика">${icon("close")}</button></div>${editor}${draft ? "" : `<div class="device-pack-admin-list">${cards}</div>`}</div></div>`;
+}
+
 function defaultDeviceAccessSettings() {
     return {
         purchaseNotification: true, reminderNotification: true, expiryNotification: true, reminderDays: 1,
@@ -7035,27 +7114,28 @@ function renderAdminDevicePackModal() {
 }
 
 function renderAdminCommerceControls(kind, item) {
-    const pack = kind === "pack";
+    const pack = kind === "pack" || kind === "traffic";
     const move = pack ? "Переместить пакет" : "Переместить тариф";
     const menu = pack ? "Управление пакетом" : "Управление тарифом";
-    return `<div class="pricing-card__admin-actions"><button class="pricing-card__admin-drag" type="button" ${pack ? "data-admin-pack-drag" : "data-admin-plan-drag"} aria-label="${move}" title="${move}">${icon("move")}</button><button type="button" data-action="admin-commerce-menu" data-kind="${kind}" data-value="${escapeAttribute(item.id)}" aria-label="${menu}" aria-haspopup="dialog">${icon("more")}</button></div>`;
+    return `<div class="pricing-card__admin-actions"><button class="pricing-card__admin-drag" type="button" ${kind === "traffic" ? "data-admin-traffic-drag" : pack ? "data-admin-pack-drag" : "data-admin-plan-drag"} aria-label="${move}" title="${move}">${icon("move")}</button><button type="button" data-action="admin-commerce-menu" data-kind="${kind}" data-value="${escapeAttribute(item.id)}" aria-label="${menu}" aria-haspopup="dialog">${icon("more")}</button></div>`;
 }
 
 function renderAdminCommerceMenu() {
     const menu = state.adminCommerceMenu;
     const pack = menu?.kind === "pack";
-    const items = pack ? state.adminSettingsDraft?.devicePacks : state.adminSettingsDraft?.plans;
+    const traffic = menu?.kind === "traffic";
+    const items = traffic ? state.adminSettingsDraft?.trafficPacks : pack ? state.adminSettingsDraft?.devicePacks : state.adminSettingsDraft?.plans;
     const index = (items || []).findIndex(item => String(item.id) === String(menu?.id));
     const item = items?.[index];
     if (!item) return "";
-    const title = pack ? devicePackTitle(item.devices) : getPlanDisplayTitle(item, state.locale);
+    const title = traffic ? trafficPackTitle(item.trafficGb) : pack ? devicePackTitle(item.devices) : getPlanDisplayTitle(item, state.locale);
     const row = (action, label, symbol, extras = "") => `<button type="button" data-action="${action}" data-value="${escapeAttribute(item.id)}" ${extras}>${icon(symbol)}<span>${label}</span></button>`;
     return `<div class="modal open modal--commerce" role="dialog" aria-modal="true" aria-labelledby="commerce-menu-title"><button class="modal__backdrop" type="button" data-action="admin-commerce-close" aria-label="Закрыть управление"></button><div class="modal__sheet commerce-menu"><div class="modal__header"><strong id="commerce-menu-title">${escapeHtml(title)}</strong><button class="header__btn" type="button" data-action="admin-commerce-close" aria-label="Закрыть управление">${icon("close")}</button></div><div class="commerce-menu__actions">
-        ${row(pack ? "admin-edit-device-pack" : "admin-edit-plan", "Редактировать", "pencil")}
-        ${row(pack ? "admin-toggle-device-pack-wide" : "admin-toggle-plan-wide", item.wide ? "Обычная ширина" : "На всю ширину", "resize")}
+        ${row(traffic ? "admin-edit-traffic-pack" : pack ? "admin-edit-device-pack" : "admin-edit-plan", "Редактировать", "pencil")}
+        ${row(traffic ? "admin-toggle-traffic-pack-wide" : pack ? "admin-toggle-device-pack-wide" : "admin-toggle-plan-wide", item.wide ? "Обычная ширина" : "На всю ширину", "resize")}
         ${row("admin-commerce-move", "Переместить выше", "arrowUp", `data-direction="-1" ${index === 0 ? "disabled" : ""}`)}
         ${row("admin-commerce-move", "Переместить ниже", "arrowDown", `data-direction="1" ${index === items.length - 1 ? "disabled" : ""}`)}
-        ${row(pack ? "admin-delete-device-pack" : "admin-delete-plan", "Удалить", "trash")}
+        ${row(traffic ? "admin-delete-traffic-pack" : pack ? "admin-delete-device-pack" : "admin-delete-plan", "Удалить", "trash")}
     </div></div></div>`;
 }
 
@@ -8388,11 +8468,13 @@ function renderPayModal() {
 		return `<div class="modal open ${modalStateClass("pay")}" role="dialog" aria-modal="true" aria-labelledby="pay-order-title"><button class="modal__backdrop" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}"></button><div class="modal__sheet pay-order-sheet"><div class="modal__header"><div class="modal__title" id="pay-order-title">${localizedText("Способы оплаты", "Payment methods", "روش‌های پرداخت")}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button></div><p class="pay-order-sheet__hint">${localizedText("Порядок показа при оплате. Перемещайте способы стрелками.", "Order shown at checkout. Use the arrows to move methods.", "ترتیب نمایش در پرداخت را با پیکان‌ها تغییر دهید.")}</p><span class="sr-only" role="status" aria-live="polite">${escapeHtml(state.adminPaymentOrderAnnouncement)}</span><div class="pay-order-list">${methods.map((method, index) => `<div class="pay-order-row" data-pay-order-id="${escapeAttribute(method.id)}"><span class="pay-order-row__number">${index + 1}</span><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-order-row__name">${escapeHtml(method.label)}</span><span class="pay-order-row__actions"><button type="button" data-action="move-pay-method-up" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Поднять ${method.label}`, `Move ${method.label} up`, `انتقال ${method.label} به بالا`))}" ${index === 0 ? "disabled" : ""}>${icon("arrowUp")}</button><button type="button" data-action="move-pay-method-down" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Опустить ${method.label}`, `Move ${method.label} down`, `انتقال ${method.label} به پایین`))}" ${index === methods.length - 1 ? "disabled" : ""}>${icon("arrowDown")}</button></span></div>`).join("") || `<div class="note">${localizedText("Добавьте способ оплаты, чтобы настроить порядок.", "Add a payment method to set its order.", "برای تنظیم ترتیب، روش پرداخت اضافه کنید.")}</div>`}</div><div class="pay-order-sheet__footer">${localizedText("Закройте окно и сохраните изменения в тарифах", "Close this panel and save your plan settings", "پنجره را ببندید و تنظیمات را ذخیره کنید")}</div></div></div>`;
 	}
 	const deviceOnly = state.payModalContext === "device-pack";
-	const plan = deviceOnly ? null : (state.currentPage === "gift" ? getSelectedGiftPlan() : getSelectedPlan());
+	const trafficOnly = state.payModalContext === "traffic-pack";
+	const plan = deviceOnly || trafficOnly ? null : (state.currentPage === "gift" ? getSelectedGiftPlan() : getSelectedPlan());
 	const pack = deviceOnly ? getSelectedDevicePack() : null;
+	const trafficPack = trafficOnly ? getSelectedTrafficPack() : null;
 	const closeLabel = localizedText("Закрыть способы оплаты", "Close payment methods", "بستن روش‌های پرداخت");
-	const packHint = pack ? `<p class="device-pack-pay-hint">${escapeHtml(devicePackTitle(pack.devices))} · ${escapeHtml(formatShortDateLabel(new Date(devicePackExpiry()).toISOString(), state.locale))}</p>` : "";
-	return `<div class="modal open ${modalStateClass("pay")}" role="dialog" aria-modal="true" aria-labelledby="pay-modal-title"><button class="modal__backdrop" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title" id="pay-modal-title">${copy.choosePaymentMethod}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button></div>${packHint}<div class="menu-list">${getAvailableMethods(plan).map((method) => `<button class="pay-row ${state.paymentMethod === method.id ? "selected" : ""}" type="button" data-action="select-pay-method" data-value="${method.id}" data-selection-feedback aria-pressed="${state.paymentMethod === method.id}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(method.label)}</strong><span>${escapeHtml(deviceOnly ? `${method.hint} · ${method.id === "stars" ? `${formatNumber(devicePackPrice(pack, method.id), state.locale)} Stars` : formatCurrency(devicePackPrice(pack, method.id), state.locale)}` : method.hint)}</span></span><span class="pay-row__check">${state.paymentMethod === method.id ? icon("check") : ""}</span></button>`).join("") || `<div class="note">${copy.paymentUnavailable}</div>`}</div></div></div>`;
+	const packHint = pack ? `<p class="device-pack-pay-hint">${escapeHtml(devicePackTitle(pack.devices))} · ${escapeHtml(formatShortDateLabel(new Date(devicePackExpiry()).toISOString(), state.locale))}</p>` : trafficPack ? `<p class="device-pack-pay-hint">${escapeHtml(trafficPackTitle(trafficPack.trafficGb))} · Без сброса</p>` : "";
+	return `<div class="modal open ${modalStateClass("pay")}" role="dialog" aria-modal="true" aria-labelledby="pay-modal-title"><button class="modal__backdrop" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title" id="pay-modal-title">${copy.choosePaymentMethod}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button></div>${packHint}<div class="menu-list">${getAvailableMethods(plan).map((method) => `<button class="pay-row ${state.paymentMethod === method.id ? "selected" : ""}" type="button" data-action="select-pay-method" data-value="${method.id}" data-selection-feedback aria-pressed="${state.paymentMethod === method.id}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(method.label)}</strong><span>${escapeHtml(deviceOnly || trafficOnly ? `${method.hint} · ${method.id === "stars" ? `${formatNumber(deviceOnly ? devicePackPrice(pack, method.id) : trafficPackPrice(trafficPack, method.id), state.locale)} Stars` : formatCurrency(deviceOnly ? devicePackPrice(pack, method.id) : trafficPackPrice(trafficPack, method.id), state.locale)}` : method.hint)}</span></span><span class="pay-row__check">${state.paymentMethod === method.id ? icon("check") : ""}</span></button>`).join("") || `<div class="note">${copy.paymentUnavailable}</div>`}</div></div></div>`;
 }
 
 function renderP2PMenu() {
@@ -8403,15 +8485,20 @@ function renderP2PMenu() {
 	const giftMode = context.mode === "gift";
 	const plan = giftMode ? getSelectedGiftPlan() : getSelectedPlan();
 	const pack = giftMode ? null : getSelectedDevicePack();
+	const trafficPack = giftMode ? null : getSelectedTrafficPack();
 	const amount = giftMode
 		? formatGiftPlanPrice(plan)
 		: context.deviceOnly
 			? formatCurrency(devicePackPrice(pack, "p2p"), state.locale)
+			: context.trafficOnly
+				? formatCurrency(trafficPackPrice(trafficPack, "p2p"), state.locale)
 			: formatCheckoutPrice(plan, pack, "p2p");
 	const planTitle = giftMode
 		? localizedText(`Подарок: ${getGiftPlanTitle(plan, state.locale)}`, `Gift: ${getGiftPlanTitle(plan, state.locale)}`, `هدیه: ${getGiftPlanTitle(plan, state.locale)}`)
 		: context.deviceOnly
 			? devicePackTitle(pack?.devices || 0)
+			: context.trafficOnly
+				? trafficPackTitle(trafficPack?.trafficGb || 0)
 			: getPlanDisplayTitle(plan, state.locale);
 	const closeLabel = localizedText("Закрыть меню", "Close menu", "بستن منو");
 	const senderLabel = String(settings.senderLabel || localizedText("ФИО / номер счёта отправителя", "Sender name / account number", "نام / شماره حساب فرستنده"));
@@ -9056,8 +9143,16 @@ function bindRootActions() {
 			if (action === "clear-device-pack") { state.selectedDevicePackId = ""; render({ preserveScroll: true }); return; }
 			if (action === "continue-device-pack") return requestModalClose("device-packs", () => { state.devicePackModalOpen = false; });
 			if (action === "buy-device-pack") return openDevicePackPaymentMethods();
+			if (action === "open-traffic-packs") { state.trafficPackModalOpen = true; render({ preserveScroll: true }); return; }
+			if (action === "close-traffic-packs") return requestModalClose("traffic-packs", () => { state.trafficPackModalOpen = false; });
+			if (action === "select-traffic-pack") { state.selectedTrafficPackId = value; haptic("light"); render({ preserveScroll: true }); return; }
+			if (action === "clear-traffic-pack") { state.selectedTrafficPackId = ""; render({ preserveScroll: true }); return; }
+			if (action === "continue-traffic-pack") return requestModalClose("traffic-packs", () => { state.trafficPackModalOpen = false; });
+			if (action === "buy-traffic-pack") return openTrafficPackPaymentMethods();
 			if (action === "admin-open-device-packs") { state.adminSettingsDraft.deviceAccess ||= defaultDeviceAccessSettings(); state.adminDevicePackEditorOpen = true; state.adminDevicePackFormDraft = null; render({ preserveScroll: true }); return; }
 			if (action === "admin-close-device-packs") { state.adminDevicePackEditorOpen = false; state.adminDevicePackFormDraft = null; render({ preserveScroll: true }); return; }
+			if (action === "admin-open-traffic-packs") { state.adminSettingsDraft.trafficPacks ||= []; state.adminTrafficPackEditorOpen = true; state.adminTrafficPackFormDraft = null; render({ preserveScroll: true }); return; }
+			if (action === "admin-close-traffic-packs") { state.adminTrafficPackEditorOpen = false; state.adminTrafficPackFormDraft = null; render({ preserveScroll: true }); return; }
 			if (action === "admin-commerce-menu") {
                 state.adminCommerceMenu = { kind: target.dataset.kind, id: value };
                 render({ preserveScroll: true });
@@ -9067,11 +9162,12 @@ function bindRootActions() {
             if (action === "admin-commerce-close") { state.adminCommerceMenu = null; render({ preserveScroll: true }); return; }
             if (action === "admin-commerce-move") {
                 const menu = state.adminCommerceMenu;
-                const items = menu?.kind === "pack" ? state.adminSettingsDraft.devicePacks : state.adminSettingsDraft.plans;
+                const items = menu?.kind === "traffic" ? state.adminSettingsDraft.trafficPacks : menu?.kind === "pack" ? state.adminSettingsDraft.devicePacks : state.adminSettingsDraft.plans;
                 const index = items.findIndex(item => String(item.id) === String(value));
                 const direction = Number(target.dataset.direction || 0);
                 state.adminCommerceMenu = null;
                 if (menu?.kind === "pack") return moveAdminDevicePack(index, direction);
+                if (menu?.kind === "traffic") return moveAdminTrafficPack(index, direction);
                 return moveAdminPlan(index, direction);
             }
             if (state.adminCommerceMenu && /^(?:admin-edit-|admin-delete-|admin-toggle-)/.test(action)) { state.adminCommerceMenu = null; render({ preserveScroll: true }); }
@@ -9082,6 +9178,12 @@ function bindRootActions() {
 			if (action === "admin-delete-device-pack") return deleteAdminDevicePack(value);
 			if (action === "admin-move-device-pack") return moveAdminDevicePack(Number(value), Number(target.dataset.direction || 0));
 			if (action === "admin-toggle-device-pack-wide") return toggleAdminDevicePackWide(value);
+			if (action === "admin-add-traffic-pack") return addAdminTrafficPack();
+			if (action === "admin-edit-traffic-pack") return editAdminTrafficPack(value);
+			if (action === "admin-cancel-traffic-pack") { state.adminTrafficPackFormDraft = null; state.adminTrafficPackEditingID = ""; render({ preserveScroll: true }); return; }
+			if (action === "admin-save-traffic-pack") return saveAdminTrafficPack();
+			if (action === "admin-delete-traffic-pack") return deleteAdminTrafficPack(value);
+			if (action === "admin-toggle-traffic-pack-wide") return toggleAdminTrafficPackWide(value);
 			if (action === "admin-add-plan") return addAdminPlan();
 			if (action === "admin-reset-plans") return resetAdminPlans();
 			if (action === "admin-toggle-plan-wide") return toggleAdminPlanWide(value);
@@ -9184,7 +9286,8 @@ function bindRootActions() {
       if (action === "launch-payment-browser") return openPreparedPaymentInBrowser();
       if (action === "select-pay-method") {
 		const deviceOnly = state.payModalContext === "device-pack";
-		const plan = deviceOnly ? null : (state.currentPage === "gift" ? getSelectedGiftPlan() : getSelectedPlan());
+		const trafficOnly = state.payModalContext === "traffic-pack";
+		const plan = deviceOnly || trafficOnly ? null : (state.currentPage === "gift" ? getSelectedGiftPlan() : getSelectedPlan());
 		if (!getAvailableMethods(plan).some((method) => method.id === value)) return;
         state.paymentMethod = value;
         writeSetting(STORAGE_KEYS.payMethod, value);
@@ -9192,6 +9295,7 @@ function bindRootActions() {
 			state.payModalOpen = false;
 			state.payModalContext = "";
 			if (deviceOnly) void startPayment({ deviceOnly: true });
+			if (trafficOnly) void startPayment({ trafficOnly: true });
 		});
       }
 		if (action === "close-p2p-menu") return closeP2PMenu();
@@ -9565,6 +9669,9 @@ function bindRootActions() {
 		if (inputKey === "admin-device-pack-devices" && state.adminDevicePackFormDraft) { state.adminDevicePackFormDraft.devices = Number(target.value || 0); return; }
 		if (inputKey === "admin-device-pack-price" && state.adminDevicePackFormDraft) { const priceRub = Number(target.value || 0); state.adminDevicePackFormDraft.priceRub = priceRub; state.adminDevicePackFormDraft.priceStars = Math.max(0, Math.round(priceRub / 1.47)); return; }
 		if (inputKey === "admin-device-pack-wide" && state.adminDevicePackFormDraft) { state.adminDevicePackFormDraft.wide = Boolean(target.checked); return; }
+		if (inputKey === "admin-traffic-pack-gb" && state.adminTrafficPackFormDraft) { state.adminTrafficPackFormDraft.trafficGb = Number(target.value); return; }
+		if (inputKey === "admin-traffic-pack-price" && state.adminTrafficPackFormDraft) { state.adminTrafficPackFormDraft.priceRub = Number(target.value); return; }
+		if (inputKey === "admin-traffic-pack-wide" && state.adminTrafficPackFormDraft) { state.adminTrafficPackFormDraft.wide = Boolean(target.checked); return; }
 		if (inputKey === "admin-plan-external-squad" && state.adminPlanFormDraft) {
 			state.adminPlanFormDraft.externalSquadUuid = target.value;
 			return;
@@ -9848,13 +9955,19 @@ function bindRootActions() {
 			void sendSupportMessage().catch((error) => showToast(error?.message || localizedText("Не удалось отправить сообщение", "Failed to send message", "ارسال پیام انجام نشد")));
 			return;
 		}
-		const planHandle = event.target.closest?.("[data-admin-plan-drag], [data-admin-pack-drag]");
-		if ((state.adminPlanEditing || state.adminDevicePackEditorOpen) && planHandle && ["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"].includes(event.key)) {
+		const planHandle = event.target.closest?.("[data-admin-plan-drag], [data-admin-pack-drag], [data-admin-traffic-drag]");
+		if ((state.adminPlanEditing || state.adminDevicePackEditorOpen || state.adminTrafficPackEditorOpen) && planHandle && ["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"].includes(event.key)) {
 			event.preventDefault();
 			if (planHandle.hasAttribute("data-admin-pack-drag")) {
                 const node = planHandle.closest("[data-admin-pack-id]");
                 const index = state.adminSettingsDraft.devicePacks.findIndex(item => String(item.id) === node?.dataset.adminPackId);
                 moveAdminDevicePack(index, ["ArrowLeft", "ArrowUp"].includes(event.key) ? -1 : 1);
+                return;
+            }
+            if (planHandle.hasAttribute("data-admin-traffic-drag")) {
+                const node = planHandle.closest("[data-admin-traffic-id]");
+                const index = state.adminSettingsDraft.trafficPacks.findIndex(item => String(item.id) === node?.dataset.adminTrafficId);
+                moveAdminTrafficPack(index, ["ArrowLeft", "ArrowUp"].includes(event.key) ? -1 : 1);
                 return;
             }
             const node = planHandle.closest("[data-admin-plan-id]");
@@ -11571,6 +11684,65 @@ function toggleAdminDevicePackWide(id) {
 	render({ preserveScroll: true });
 }
 
+function addAdminTrafficPack() {
+	const id = `traffic_${Date.now().toString(36)}`;
+	state.adminTrafficPackEditingID = id;
+	state.adminTrafficPackFormDraft = { id, enabled: true, trafficGb: 1, priceRub: 1, priceStars: 1, wide: false };
+	render({ preserveScroll: true });
+}
+
+function editAdminTrafficPack(id) {
+	const pack = state.adminSettingsDraft?.trafficPacks?.find((item) => String(item.id) === String(id));
+	if (!pack) return;
+	state.adminTrafficPackEditingID = id;
+	state.adminTrafficPackFormDraft = deepClone(pack);
+	render({ preserveScroll: true });
+}
+
+function saveAdminTrafficPack() {
+	const draft = state.adminTrafficPackFormDraft;
+	if (!draft) return;
+	const trafficGb = Math.trunc(Number(draft.trafficGb));
+	const priceRub = Math.trunc(Number(draft.priceRub));
+	if (!Number.isFinite(trafficGb) || trafficGb < 0 || trafficGb > 1000000) return showToast("Укажите от 0 до 1 000 000 ГБ", "danger");
+	if (!Number.isFinite(priceRub) || priceRub < 1 || priceRub > 1000000) return showToast("Укажите корректную цену", "danger");
+	const packs = state.adminSettingsDraft.trafficPacks ||= [];
+	const next = { ...draft, enabled: true, trafficGb, priceRub, priceStars: Math.max(1, Math.round(priceRub / 1.47)), wide: Boolean(draft.wide) };
+	const index = packs.findIndex((item) => String(item.id) === String(state.adminTrafficPackEditingID));
+	if (index >= 0) packs[index] = next; else packs.push(next);
+	state.adminSettingsDirty = true;
+	state.adminTrafficPackFormDraft = null;
+	state.adminTrafficPackEditingID = "";
+	render({ preserveScroll: true });
+}
+
+function deleteAdminTrafficPack(id) {
+	const packs = state.adminSettingsDraft?.trafficPacks;
+	if (!Array.isArray(packs)) return;
+	const index = packs.findIndex((item) => String(item.id) === String(id));
+	if (index < 0 || !window.confirm("Удалить этот пакет трафика?")) return;
+	packs.splice(index, 1);
+	state.adminSettingsDirty = true;
+	render({ preserveScroll: true });
+}
+
+function moveAdminTrafficPack(index, direction) {
+	const packs = state.adminSettingsDraft?.trafficPacks;
+	const next = index + Math.sign(direction);
+	if (!Array.isArray(packs) || index < 0 || next < 0 || index >= packs.length || next >= packs.length) return;
+	[packs[index], packs[next]] = [packs[next], packs[index]];
+	state.adminSettingsDirty = true;
+	render({ preserveScroll: true });
+}
+
+function toggleAdminTrafficPackWide(id) {
+	const pack = state.adminSettingsDraft?.trafficPacks?.find((item) => String(item.id) === String(id));
+	if (!pack) return;
+	pack.wide = !pack.wide;
+	state.adminSettingsDirty = true;
+	render({ preserveScroll: true });
+}
+
 function addAdminPlan() {
 	const plans = state.adminSettingsDraft?.plans;
 	if (!Array.isArray(plans)) return;
@@ -12458,16 +12630,17 @@ function moveAdminProfileItem(source, group, targetID) {
 }
 
 function beginAdminPlanPointer(event) {
-	if ((!state.adminPlanEditing && !state.adminDevicePackEditorOpen) || adminPlanPointer || (event.pointerType === "mouse" && event.button !== 0)) return;
-	const handle = event.target.closest?.("[data-admin-plan-drag], [data-admin-pack-drag]");
+	if ((!state.adminPlanEditing && !state.adminDevicePackEditorOpen && !state.adminTrafficPackEditorOpen) || adminPlanPointer || (event.pointerType === "mouse" && event.button !== 0)) return;
+	const handle = event.target.closest?.("[data-admin-plan-drag], [data-admin-pack-drag], [data-admin-traffic-drag]");
     const pack = Boolean(handle?.hasAttribute("data-admin-pack-drag"));
-    const selector = pack ? "[data-admin-pack-id]" : "[data-admin-plan-id]";
+    const traffic = Boolean(handle?.hasAttribute("data-admin-traffic-drag"));
+    const selector = traffic ? "[data-admin-traffic-id]" : pack ? "[data-admin-pack-id]" : "[data-admin-plan-id]";
     const node = handle?.closest?.(selector);
-    const sourceID = String(pack ? node?.dataset?.adminPackId || "" : node?.dataset?.adminPlanId || "");
+    const sourceID = String(traffic ? node?.dataset?.adminTrafficId || "" : pack ? node?.dataset?.adminPackId || "" : node?.dataset?.adminPlanId || "");
 	if (!handle || !node || !sourceID) return;
 	event.preventDefault();
 	adminPlanPointer = {
-		pack, selector,
+		pack, traffic, selector,
 		pointerId: event.pointerId,
 		startX: event.clientX,
 		startY: event.clientY,
@@ -12510,9 +12683,14 @@ function endAdminPlanPointer(event) {
 	if (pointer.moved) {
 		const hit = document.elementFromPoint(pointer.clientX, pointer.clientY);
 		const target = hit?.closest?.(pointer.selector);
-		const targetID = String(pointer.pack ? target?.dataset?.adminPackId || "" : target?.dataset?.adminPlanId || "");
+		const targetID = String(pointer.traffic ? target?.dataset?.adminTrafficId || "" : pointer.pack ? target?.dataset?.adminPackId || "" : target?.dataset?.adminPlanId || "");
         if (targetID && targetID !== pointer.sourceID) {
-            if (pointer.pack) {
+			if (pointer.traffic) {
+				const packs = state.adminSettingsDraft.trafficPacks;
+				const from = packs.findIndex(item => String(item.id) === pointer.sourceID);
+				const to = packs.findIndex(item => String(item.id) === targetID);
+				if (from >= 0 && to >= 0) { const [item] = packs.splice(from, 1); packs.splice(to, 0, item); changed = true; }
+			} else if (pointer.pack) {
                 const packs = state.adminSettingsDraft.devicePacks;
                 const from = packs.findIndex(item => String(item.id) === pointer.sourceID);
                 const to = packs.findIndex(item => String(item.id) === targetID);
@@ -13478,8 +13656,9 @@ function updateCheckoutPriceDom() {
   if (!action) return;
   const plan = getSelectedPlan();
   const pack = getSelectedDevicePack();
+  const trafficPack = getSelectedTrafficPack();
   const method = getSelectedPaymentMethod();
-  const freeCheckout = Boolean(plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !pack);
+  const freeCheckout = Boolean(plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !pack && !trafficPack);
 	const payLabel = freeCheckout
 		? localizedText("Получить бесплатно", "Get for free", "دریافت رایگان")
     : plan ? `${t().pay} ${formatCheckoutPrice(plan, pack, method?.id)}` : t().pay;
@@ -13589,7 +13768,7 @@ async function redeemPromoReward() {
 function openP2PMenu(context) {
 	const destinations = Array.isArray(state.data?.p2p?.destinations) ? state.data.p2p.destinations : [];
 	if (!destinations.length) return showToast(localizedText("P2P-переводы временно недоступны", "P2P transfers are unavailable", "انتقال P2P در دسترس نیست"), "danger");
-	state.p2pContext = { mode: context?.mode === "gift" ? "gift" : "purchase", deviceOnly: Boolean(context?.deviceOnly) };
+	state.p2pContext = { mode: context?.mode === "gift" ? "gift" : "purchase", deviceOnly: Boolean(context?.deviceOnly), trafficOnly: Boolean(context?.trafficOnly) };
 	state.p2pDestinationId = destinations.some((item) => String(item.id) === String(state.p2pDestinationId)) ? state.p2pDestinationId : String(destinations[0].id || "");
 	state.p2pSenderReference = "";
 	state.p2pBusy = false;
@@ -13632,7 +13811,8 @@ async function submitP2PPayment() {
 	const giftMode = context.mode === "gift";
 	const plan = giftMode ? getSelectedGiftPlan() : getSelectedPlan();
 	const devicePack = giftMode ? null : getSelectedDevicePack();
-	if (!plan && !context.deviceOnly) return;
+	const trafficPack = giftMode ? null : getSelectedTrafficPack();
+	if (!plan && !context.deviceOnly && !context.trafficOnly) return;
 	state.p2pBusy = true;
 	render({ preserveScroll: true });
 	queueMicrotask(() => app.querySelector("#p2p-sender-reference")?.focus());
@@ -13651,9 +13831,11 @@ async function submitP2PPayment() {
 			months: plan?.months || 0,
 			paymentMethod: "p2p",
 			agreementAccepted: true,
-			promoCode: context.deviceOnly ? "" : (getActivePromo()?.code || ""),
-			devicePackId: devicePack?.id || "",
+			promoCode: context.deviceOnly || context.trafficOnly ? "" : (getActivePromo()?.code || ""),
+			devicePackId: context.trafficOnly ? "" : (devicePack?.id || ""),
+			trafficPackId: context.deviceOnly ? "" : (trafficPack?.id || ""),
 			deviceOnly: Boolean(context.deviceOnly),
+			trafficOnly: Boolean(context.trafficOnly),
 			p2pDestinationId: state.p2pDestinationId,
 			p2pSenderReference: state.p2pSenderReference.trim(),
 			returnTarget: paymentReturnTarget,
@@ -13673,13 +13855,15 @@ async function submitP2PPayment() {
 	}
 }
 
-async function startPayment({ deviceOnly = false } = {}) {
+async function startPayment({ deviceOnly = false, trafficOnly = false } = {}) {
   const plan = getSelectedPlan();
   const devicePack = getSelectedDevicePack();
+  const trafficPack = getSelectedTrafficPack();
+	if (!deviceOnly && !trafficOnly && trafficPack && Number(plan?.trafficLimitBytes || 0) <= 0) return showToast("В этом тарифе трафик уже безлимитный", "danger");
   const method = getSelectedPaymentMethod()?.id || "";
-  const freeCheckout = Boolean(!deviceOnly && plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !devicePack);
-  if ((!deviceOnly && !plan) || (deviceOnly && !devicePack) || (!freeCheckout && !method)) return showToast(t().paymentUnavailable);
-	if (method === "p2p") return openP2PMenu({ mode: "purchase", deviceOnly });
+  const freeCheckout = Boolean(!deviceOnly && !trafficOnly && plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !devicePack && !trafficPack);
+  if ((!deviceOnly && !trafficOnly && !plan) || (deviceOnly && !devicePack) || (trafficOnly && !trafficPack) || (!freeCheckout && !method)) return showToast(t().paymentUnavailable);
+	if (method === "p2p") return openP2PMenu({ mode: "purchase", deviceOnly, trafficOnly });
 
   state.busyMethod = freeCheckout ? "free" : method;
   render();
@@ -13690,9 +13874,11 @@ async function startPayment({ deviceOnly = false } = {}) {
       months: plan?.months || 0,
       paymentMethod: freeCheckout ? "" : method,
       agreementAccepted: true,
-      promoCode: deviceOnly ? "" : (getActivePromo()?.code || ""),
-	  devicePackId: devicePack?.id || "",
+	  promoCode: deviceOnly || trafficOnly ? "" : (getActivePromo()?.code || ""),
+	  devicePackId: trafficOnly ? "" : (devicePack?.id || ""),
+	  trafficPackId: deviceOnly ? "" : (trafficPack?.id || ""),
 	  deviceOnly,
+	  trafficOnly,
 	  returnTarget: paymentReturnTarget,
     });
     const { action, url, purchaseId } = response.data;
@@ -14325,6 +14511,7 @@ function shouldShowNativeBackButton() {
     state.devicesModalOpen ||
     state.payModalOpen ||
     state.devicePackModalOpen ||
+    state.trafficPackModalOpen ||
     state.paymentLaunchModalOpen ||
     state.reviewComposeOpen ||
     state.reviewDetailOpen ||
@@ -14385,6 +14572,7 @@ function handleNativeBackButton() {
   if (state.devicesModalOpen) return requestModalClose("devices", () => { state.devicesModalOpen = false; state.deviceBusyHwid = ""; });
   if (state.payModalOpen) return closePayModal();
   if (state.devicePackModalOpen) return requestModalClose("device-packs", () => { state.devicePackModalOpen = false; });
+  if (state.trafficPackModalOpen) return requestModalClose("traffic-packs", () => { state.trafficPackModalOpen = false; });
   if (state.paymentLaunchModalOpen) return requestModalClose("payment-launch", () => { state.paymentLaunchModalOpen = false; state.paymentLaunchURL = ""; state.paymentLaunchPurchaseId = 0; });
   if (state.reviewComposeOpen) return requestModalClose("review-compose", () => { state.reviewComposeOpen = false; state.reviewDraftRating = 0; state.reviewDraftComment = ""; state.reviewBusy = ""; });
   if (state.reviewDetailOpen) return requestModalClose("review-detail", () => { state.activeReviewId = 0; state.reviewDetailOpen = false; });
@@ -14414,6 +14602,7 @@ function getActiveModalName() {
   if (state.devicesModalOpen) return "devices";
   if (state.payModalOpen) return "pay";
   if (state.devicePackModalOpen) return "device-packs";
+  if (state.trafficPackModalOpen) return "traffic-packs";
   if (state.paymentLaunchModalOpen) return "payment-launch";
   if (state.reviewComposeOpen) return "review-compose";
   if (state.reviewDetailOpen) return "review-detail";
@@ -14838,9 +15027,10 @@ function formatGiftPlanPrice(plan) {
 
 function getAvailableMethods(plan = getSelectedPlan()) {
   const pack = getSelectedDevicePack();
+	const trafficPack = getSelectedTrafficPack();
 	return getConfiguredPaymentMethods()
 		.filter((method) => state.currentPage !== "gift" || method.id !== "balance")
-    .filter((method) => method.id !== "stars" || Number(plan?.priceStars || 0) + Number(pack?.priceStars || 0) > 0);
+    .filter((method) => method.id !== "stars" || Number(plan?.priceStars || 0) + Number(pack?.priceStars || 0) + Number(trafficPack?.priceStars || 0) > 0);
 }
 
 function getConfiguredPaymentMethods() {

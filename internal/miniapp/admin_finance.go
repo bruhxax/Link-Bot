@@ -135,6 +135,11 @@ func adminFinancePlan(item database.AdminFinancePayment) string {
 			count = 1
 		}
 		return fmt.Sprintf("Дополнительные устройства · %d", count)
+	case database.PurchaseKindExtraTraffic:
+		if item.ExtraTrafficUnlimited {
+			return "Дополнительный трафик · безлимит"
+		}
+		return fmt.Sprintf("Дополнительный трафик · %d ГБ", item.ExtraTrafficBytes/(1024*1024*1024))
 	case database.PurchaseKindGift:
 		return fmt.Sprintf("Подарок · %s", adminFinanceDurationLabel(item.Month, item.Days))
 	default:

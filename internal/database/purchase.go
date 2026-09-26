@@ -40,6 +40,7 @@ type PurchaseKind string
 const (
 	PurchaseKindSubscription PurchaseKind = "subscription"
 	PurchaseKindExtraDevices PurchaseKind = "extra_devices"
+	PurchaseKindExtraTraffic PurchaseKind = "extra_traffic"
 	PurchaseKindGift         PurchaseKind = "gift"
 )
 
@@ -63,6 +64,8 @@ type Purchase struct {
 	DeviceLimitCount          *int           `db:"device_limit_count"`
 	PurchaseKind              PurchaseKind   `db:"purchase_kind"`
 	ExtraDevices              int            `db:"extra_devices"`
+	ExtraTrafficBytes         int64          `db:"extra_traffic_bytes"`
+	ExtraTrafficUnlimited     bool           `db:"extra_traffic_unlimited"`
 	DeviceExpiresAt           *time.Time     `db:"device_expires_at"`
 	IsFreePlan                bool           `db:"is_free_plan"`
 	FreePlanOneTime           bool           `db:"free_plan_one_time"`
@@ -203,6 +206,8 @@ var purchaseSelectColumns = []string{
 	"device_limit_count",
 	"purchase_kind",
 	"extra_devices",
+	"extra_traffic_bytes",
+	"extra_traffic_unlimited",
 	"device_expires_at",
 	"is_free_plan",
 	"free_plan_one_time",
@@ -250,6 +255,8 @@ func scanPurchase(scanner interface {
 		&purchase.DeviceLimitCount,
 		&purchase.PurchaseKind,
 		&purchase.ExtraDevices,
+		&purchase.ExtraTrafficBytes,
+		&purchase.ExtraTrafficUnlimited,
 		&purchase.DeviceExpiresAt,
 		&purchase.IsFreePlan,
 		&purchase.FreePlanOneTime,
@@ -298,6 +305,8 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 			"device_limit_count",
 			"purchase_kind",
 			"extra_devices",
+			"extra_traffic_bytes",
+			"extra_traffic_unlimited",
 			"device_expires_at",
 			"is_free_plan",
 			"free_plan_one_time",
@@ -338,6 +347,8 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 			purchase.DeviceLimitCount,
 			purchase.PurchaseKind,
 			purchase.ExtraDevices,
+			purchase.ExtraTrafficBytes,
+			purchase.ExtraTrafficUnlimited,
 			purchase.DeviceExpiresAt,
 			purchase.IsFreePlan,
 			purchase.FreePlanOneTime,

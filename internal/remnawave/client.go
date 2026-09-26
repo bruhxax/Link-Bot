@@ -59,18 +59,19 @@ type ProvisioningOptions struct {
 }
 
 type UserState struct {
-	Exists            bool
-	Active            bool
-	ExpireAt          *time.Time
-	SubscriptionLink  *string
-	PanelUsername     string
-	UserID            int64
-	UserUUID          uuid.UUID
-	TrafficLimitBytes int64
-	UsedTrafficBytes  int64
-	DeviceLimit       int
-	UsedDevices       int
-	Devices           []UserDevice
+	Exists               bool
+	Active               bool
+	ExpireAt             *time.Time
+	SubscriptionLink     *string
+	PanelUsername        string
+	UserID               int64
+	UserUUID             uuid.UUID
+	TrafficLimitBytes    int64
+	TrafficLimitStrategy string
+	UsedTrafficBytes     int64
+	DeviceLimit          int
+	UsedDevices          int
+	Devices              []UserDevice
 }
 
 var ErrAdminSubscriptionNotFound = errors.New("subscription not found")
@@ -486,18 +487,19 @@ func (r *Client) userStateFromPanelUser(ctx context.Context, user *PanelUser, lo
 
 	expireAt := user.ExpireAt.UTC()
 	return &UserState{
-		Exists:            true,
-		Active:            true,
-		ExpireAt:          &expireAt,
-		SubscriptionLink:  subscriptionLink,
-		PanelUsername:     panelUsername,
-		UserID:            user.ID,
-		UserUUID:          user.UUID,
-		TrafficLimitBytes: user.TrafficLimitBytes,
-		UsedTrafficBytes:  user.UserTraffic.UsedTrafficBytes,
-		DeviceLimit:       deviceLimit,
-		UsedDevices:       usedDevices,
-		Devices:           devices,
+		Exists:               true,
+		Active:               true,
+		ExpireAt:             &expireAt,
+		SubscriptionLink:     subscriptionLink,
+		PanelUsername:        panelUsername,
+		UserID:               user.ID,
+		UserUUID:             user.UUID,
+		TrafficLimitBytes:    user.TrafficLimitBytes,
+		TrafficLimitStrategy: user.TrafficLimitStrategy,
+		UsedTrafficBytes:     user.UserTraffic.UsedTrafficBytes,
+		DeviceLimit:          deviceLimit,
+		UsedDevices:          usedDevices,
+		Devices:              devices,
 	}, nil
 }
 
@@ -534,6 +536,29 @@ func (r *Client) SetDeviceLimit(ctx context.Context, telegramID, userID int64, u
 		return user, nil
 	}
 	return r.patchPanelUser(ctx, user, map[string]any{"hwidDeviceLimit": limit})
+}
+
+func (r *Client) SetTrafficLimit(ctx context.Context, telegramID, userID int64, userUUID uuid.UUID, limit int64) (*PanelUser, error) {
+	if limit < 0 {
+		return nil, errors.New("invalid traffic limit")
+	}
+	var user *PanelUser
+	var err error
+	if userID > 0 || userUUID != uuid.Nil {
+		user, err = r.getPanelUserByIdentity(ctx, userID, userUUID)
+	} else {
+		user, err = r.getPanelUserByTelegramID(ctx, telegramID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("subscription not found")
+	}
+	if user.TrafficLimitBytes == limit && user.TrafficLimitStrategy == "NO_RESET" {
+		return user, nil
+	}
+	return r.patchPanelUser(ctx, user, map[string]any{"trafficLimitBytes": limit, "trafficLimitStrategy": "NO_RESET"})
 }
 
 func (r *Client) AddDeviceLimitByIdentity(ctx context.Context, userID int64, userUUID uuid.UUID, extraDevices int) (*PanelUser, error) {

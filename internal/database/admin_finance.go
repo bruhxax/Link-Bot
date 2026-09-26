@@ -36,6 +36,8 @@ type AdminFinancePayment struct {
 	Days                      int
 	PurchaseKind              PurchaseKind
 	ExtraDevices              int
+	ExtraTrafficBytes         int64
+	ExtraTrafficUnlimited     bool
 	TelegramID                int64
 	TelegramUsername          string
 	YookasaPaymentMethodTitle string
@@ -127,7 +129,7 @@ func (pr *PurchaseRepository) LoadAdminFinance(ctx context.Context, from, to tim
 
 	rows, err = pr.pool.Query(ctx, `
 		SELECT p.id, p.amount, COALESCE(NULLIF(p.currency, ''), 'RUB'), p.status, p.invoice_type,
-		       p.month, p.days, p.purchase_kind, p.extra_devices, c.telegram_id,
+		       p.month, p.days, p.purchase_kind, p.extra_devices, p.extra_traffic_bytes, p.extra_traffic_unlimited, c.telegram_id,
 		       COALESCE(c.telegram_username, ''), COALESCE(p.yookasa_payment_method_title, ''),
 		       COALESCE(p.paid_at, p.created_at), p.paid_at IS NOT NULL
 		FROM purchase p
@@ -153,6 +155,8 @@ func (pr *PurchaseRepository) LoadAdminFinance(ctx context.Context, from, to tim
 			&item.Days,
 			&item.PurchaseKind,
 			&item.ExtraDevices,
+			&item.ExtraTrafficBytes,
+			&item.ExtraTrafficUnlimited,
 			&item.TelegramID,
 			&item.TelegramUsername,
 			&item.YookasaPaymentMethodTitle,
