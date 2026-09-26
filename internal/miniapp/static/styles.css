@@ -12671,11 +12671,13 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   :root[data-client="browser"] .page-buy .pricing-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
-/* Optional glass surfaces use the same restrained tint and blur as the landing navigation. */
+/* Glass material copied from the reference landing nav (soslaxx.html).
+   Component geometry stays intact; every surface shares the exact same material. */
 :root[data-glass="on"] {
-  --glass-card-background: color-mix(in srgb, var(--surface) 76%, transparent);
-  --glass-button-background: color-mix(in srgb, var(--control-bg) 76%, transparent);
-  --glass-backdrop: blur(16px) saturate(1.08);
+  --glass-background: rgba(8, 8, 8, .82);
+  --glass-border: hsl(0 0% 12%);
+  --glass-surface-shadow: 0 12px 42px rgba(0, 0, 0, .42);
+  --glass-backdrop: blur(16px);
 }
 
 :root[data-glass="on"] :where(
@@ -12688,11 +12690,11 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   .server-summary-panel, .review-card, .review-detail__comment, .login-method-card,
   .media-empty-card, .empty-design-card, .partner-application-card,
   .admin-users__list, .admin-user-subscriptions__list, .admin-partner-entry,
-  .admin-push__surface, .modal__sheet
+  .admin-push__surface, .modal__sheet, .desktop-sidebar
 ) {
-  background: var(--glass-card-background) !important;
-  border-color: color-mix(in srgb, var(--text) 14%, transparent) !important;
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 9%, transparent), 0 10px 34px rgba(0, 0, 0, .2) !important;
+  background: var(--glass-background) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: var(--glass-surface-shadow) !important;
   backdrop-filter: var(--glass-backdrop) !important;
   -webkit-backdrop-filter: var(--glass-backdrop) !important;
 }
@@ -12705,62 +12707,33 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   .device-pack-trigger-row, .setup-link-button, .browser-auth__qr-button,
   .admin-banner-crop-controls button, .admin-profile-modal__delete
 ) {
-  background: var(--glass-button-background) !important;
-  border-color: color-mix(in srgb, var(--text) 15%, transparent) !important;
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 10%, transparent), 0 8px 24px rgba(0, 0, 0, .18) !important;
+  background: var(--glass-background) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: var(--glass-surface-shadow) !important;
   backdrop-filter: var(--glass-backdrop) !important;
   -webkit-backdrop-filter: var(--glass-backdrop) !important;
 }
 
-:root[data-glass="on"] :where(.btn, .sub-pill, .header__btn, .chip, .tab, .segment, .menu-row, .profile-row, .pricing-card, .pay-row, .platform-btn, .setup-link-button, .subscription-switcher__trigger):hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--text) 27%, transparent) !important;
-}
-
 :root[data-glass="on"] :where(.pricing-card.selected, .pay-row.selected, .platform-btn.selected, .tab.active, .segment.active) {
-  background: color-mix(in srgb, var(--surface-strong) 88%, transparent) !important;
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--text)) !important;
+  border-color: var(--accent) !important;
 }
-
-:root[data-glass="on"][data-frames="off"] :where(.card:not(.card--status), .pricing-card, .menu-row, .profile-row, .bottom-nav) {
-  border-color: transparent !important;
-}
-
-/* Keep the switcher preview representative without adding a decorative wrapper to the app. */
-.admin-glass-settings { display: grid; gap: 18px; }
-.admin-glass-settings__hint { max-width: 540px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
-.admin-glass-preview {
-  min-height: 220px;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  border: 1px solid var(--line-soft);
-  border-radius: 12px;
-  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--text) 7%, transparent) 0 1px, transparent 1px 28px), var(--bg);
-}
-.admin-glass-preview__card.card { width: min(100%, 290px); margin: 0; display: grid; gap: 10px; }
-.admin-glass-preview__card strong { font-size: 14px; }
-.admin-glass-preview__card > span:not(.btn) { color: var(--muted); font-size: 11px; line-height: 1.4; }
-.admin-glass-preview__card .btn { width: max-content; min-height: 38px; padding-inline: 15px; font-size: 11px; }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root[data-glass="on"] {
-    --glass-card-background: color-mix(in srgb, var(--surface) 94%, transparent);
-    --glass-button-background: color-mix(in srgb, var(--control-bg) 94%, transparent);
+    --glass-background: #080808;
     --glass-backdrop: none;
   }
 }
 
 @media (prefers-reduced-transparency: reduce) {
   :root[data-glass="on"] {
-    --glass-card-background: var(--surface);
-    --glass-button-background: var(--control-bg);
+    --glass-background: #080808;
     --glass-backdrop: none;
   }
 }
 
 :root[data-glass="on"][data-performance="low"],
 :root[data-glass="on"][data-performance="reduced"] {
-  --glass-card-background: color-mix(in srgb, var(--surface) 92%, transparent);
-  --glass-button-background: color-mix(in srgb, var(--control-bg) 92%, transparent);
+  --glass-background: rgba(8, 8, 8, .92);
   --glass-backdrop: none;
 }

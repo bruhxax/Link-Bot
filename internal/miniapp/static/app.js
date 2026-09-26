@@ -2349,7 +2349,7 @@ function t() {
 }
 
 function getRuntimeSettings() {
-	if ((state.adminLayoutEditing || state.adminPlanEditing || state.adminSection === "appearance" || state.adminSection === "glass") && state.adminSettingsDraft) return state.adminSettingsDraft;
+	if ((state.adminLayoutEditing || state.adminPlanEditing || state.adminSection === "appearance") && state.adminSettingsDraft) return state.adminSettingsDraft;
 	return state.data?.runtime || state.publicSettings || state.adminSettingsDraft || null;
 }
 
@@ -3245,7 +3245,7 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 		state.adminUserPreviewDetail = deepClone(state.adminUserDetail);
 		if (urlParams.get("detail") !== "1") state.adminUserDetail = null;
 		const previewSection = String(urlParams.get("section") || "");
-		if (["integrations", "referrals", "partners", "moynalog", "finance", "push", "users", "glass"].includes(previewSection)) {
+		if (["integrations", "referrals", "partners", "moynalog", "finance", "push", "users", "appearance"].includes(previewSection)) {
 			state.currentPage = "admin";
 			state.adminSection = previewSection;
 			state.adminLayoutEditing = false;
@@ -3641,7 +3641,7 @@ function getBottomNavPages() {
 	return pages.filter((page) => PAGES.includes(page) && (page !== "admin" || isAdminUser()) && pageFeatureEnabled(page));
 }
 
-const ADMIN_SAVE_SECTIONS = new Set(["localization", "maintenance", "features", "subpage", "content", "appearance", "glass", "layout", "plans", "trial", "referrals", "grace"]);
+const ADMIN_SAVE_SECTIONS = new Set(["localization", "maintenance", "features", "subpage", "content", "appearance", "layout", "plans", "trial", "referrals", "grace"]);
 let lastBottomDockMode = "navigation";
 
 function getBottomDockMode() {
@@ -4033,7 +4033,6 @@ function renderAdminPage() {
 	if (state.adminSection === "subpage") return renderAdminSubPagePage();
 	if (state.adminSection === "content") return renderAdminContentPage();
 	if (state.adminSection === "appearance") return renderAdminAppearancePage();
-	if (state.adminSection === "glass") return renderAdminGlassPage();
 	if (state.adminSection === "layout") return renderAdminLayoutPage();
 	if (state.adminSection === "plans") return renderAdminPlansPage();
 	if (state.adminSection === "trial") return renderAdminTrialPage();
@@ -4064,7 +4063,6 @@ function renderAdminPage() {
 				[localizedText("Редактор контента", "Content", "ویرایشگر محتوا"), "", "content", "adminContent"],
 				["Sub page", "", "subpage", "adminSubscriptions"],
 				[localizedText("Оформление", "Appearance", "ظاهر"), "", "appearance", "adminAppearance"],
-				[localizedText("Стекло", "Glass", "شیشه"), "", "glass", "adminAppearance"],
 				[localizedText("Конструктор UI", "UI builder", "سازنده رابط"), "", "layout", "grid"],
 				[localizedText("Тарифы", "Plans", "تعرفه‌ها"), "", "plans", "cartShopping"],
 			])}
@@ -5728,22 +5726,10 @@ function renderAdminAppearancePage() {
 	return renderAdminEditorPage(state.locale === "en" ? "Appearance" : "Оформление", `
 		${renderAdminBackgroundOptions(currentMode)}
 		${renderAdminBackgroundControls(currentMode)}
-		<div class="admin-toggle-list">${renderAdminToggle("Компактный режим", "appearance.compact")}${renderAdminToggle("Показывать рамки", "appearance.showFrames")}</div>
+		<div class="admin-toggle-list">${renderAdminToggle("Компактный режим", "appearance.compact")}${renderAdminToggle("Показывать рамки", "appearance.showFrames")}${renderAdminToggle(localizedText("Стекло", "Glass", "شیشه"), "appearance.glass")}</div>
 		${renderAdminAppearancePresets()}
 		<div class="admin-appearance-groups">${groups.map(([title, colors]) => `<section class="admin-editor__section admin-appearance-group"><h3>${escapeHtml(title)}</h3><div class="admin-color-grid">${colors.map(([key, label]) => renderAdminColorField(label, `appearance.colors.${key}`)).join("")}</div></section>`).join("")}</div>
 	`);
-}
-
-function renderAdminGlassPage() {
-	const title = localizedText("Стекло", "Glass", "شیشه");
-	const hint = localizedText("Полупрозрачные карточки и кнопки с мягким размытием, как верхнее меню лендинга. Изменение видно сразу; сохраните его кнопкой внизу.", "Translucent cards and buttons with a soft blur, like the landing page menu. Preview the change instantly, then save below.", "کارت‌ها و دکمه‌های نیمه‌شفاف با تاری ملایم، مانند منوی بالای صفحه اصلی. تغییر را فوری ببینید و سپس ذخیره کنید.");
-	const toggleLabel = localizedText("Включить стекло", "Enable glass", "فعال کردن شیشه");
-	const toggleHint = localizedText("Для карточек и кнопок Mini App", "For Mini App cards and buttons", "برای کارت‌ها و دکمه‌های مینی‌اپ");
-	return renderAdminEditorPage(title, `<div class="admin-glass-settings">
-		<p class="admin-glass-settings__hint">${escapeHtml(hint)}</p>
-		<div class="admin-toggle-list">${renderAdminFeatureToggle(toggleLabel, toggleHint, "appearance.glass")}</div>
-		<div class="admin-glass-preview" aria-hidden="true"><div class="admin-glass-preview__card card"><strong>${escapeHtml(localizedText("Пример карточки", "Sample card", "نمونه کارت"))}</strong><span>${escapeHtml(localizedText("Содержимое остаётся читаемым", "Content stays readable", "محتوا خوانا می‌ماند"))}</span><span class="btn">${escapeHtml(localizedText("Пример кнопки", "Sample button", "نمونه دکمه"))}</span></div></div>
-	</div>`);
 }
 
 function renderAdminLayoutPage() {
@@ -14485,13 +14471,13 @@ function getPageTitle(page, short = false) {
 	if (page === "admin" && !short && state.adminSection !== "home") {
 		if (state.adminSection === "partners") return localizedText("Партнёры", "Partners", "همکاران");
 		const labels = state.locale === "fa" ? {
-			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", push: "اعلان‌های پوش", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", glass: "شیشه", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", users: "کاربران",
+			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", push: "اعلان‌های پوش", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", users: "کاربران",
 		} : state.locale === "en" ? {
 			localization: "Language and font",
-			maintenance: "Maintenance", diagnostics: "Diagnostics", push: "Push notifications", features: "Functions", subpage: "Sub page", content: "Content", appearance: "Appearance", glass: "Glass", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", users: "Users",
+			maintenance: "Maintenance", diagnostics: "Diagnostics", push: "Push notifications", features: "Functions", subpage: "Sub page", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", users: "Users",
 		} : {
 			localization: "Язык и шрифт",
-			maintenance: "Режим аварии", diagnostics: "Диагностика", push: "Push-уведомления", features: "Функции", subpage: "Sub page", content: "Контент", appearance: "Оформление", glass: "Стекло", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", users: "Пользователи",
+			maintenance: "Режим аварии", diagnostics: "Диагностика", push: "Push-уведомления", features: "Функции", subpage: "Sub page", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", users: "Пользователи",
 		};
 		return labels[state.adminSection] || copy.pageAdmin || "Admin panel";
 	}
