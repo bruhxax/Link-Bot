@@ -2119,6 +2119,7 @@ const state = {
 	publicSettings: null,
 	maintenance: null,
   loading: true,
+  dashboardHydrating: false,
   refreshing: false,
   subscriptionGate: null,
 	blocked: null,
@@ -3290,10 +3291,12 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
     }
 
     const bootstrapHeaders = {};
-    if (initial) bootstrapHeaders["X-Bootstrap-Mode"] = "fast";
+    const fastBootstrap = initial && state.currentPage !== "dashboard";
+    if (fastBootstrap) bootstrapHeaders["X-Bootstrap-Mode"] = "fast";
     if (forceSubscriptionCheck) bootstrapHeaders["X-Force-Channel-Check"] = "1";
     const response = await post("/api/mini-app/bootstrap", null, bootstrapHeaders);
     state.data = response.data;
+		state.dashboardHydrating = fastBootstrap;
 		syncGiftReceiptState();
 		state.publicSettings = response.data?.runtime || state.publicSettings;
 		state.maintenance = null;
@@ -3303,7 +3306,7 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
     state.subscriptionGate = null;
 		state.blocked = null;
     state.error = "";
-    if (initial) scheduleDashboardHydration();
+    if (fastBootstrap) scheduleDashboardHydration();
   } catch (error) {
     if (error?.code === "unauthorized" && !tg?.initData) {
       clearBrowserTelegramAuth();
@@ -6642,7 +6645,20 @@ function renderAdminPromocodesPage() {
   `;
 }
 
+function renderDashboardSkeleton() {
+	return `<div class="dashboard-skeleton" role="status" aria-busy="true" aria-label="${escapeAttribute(localizedText("Загружаем главную страницу", "Loading dashboard", "در حال بارگذاری صفحه اصلی"))}">
+		<div class="dashboard-skeleton__brand" aria-hidden="true"><span class="dashboard-skeleton__logo"></span><span class="dashboard-skeleton__username"></span></div>
+		<div class="dashboard-skeleton__card" aria-hidden="true">
+			<div class="dashboard-skeleton__row"><span class="dashboard-skeleton__line dashboard-skeleton__line--plan"></span><span class="dashboard-skeleton__line dashboard-skeleton__line--date"></span></div>
+			<div class="dashboard-skeleton__row"><span class="dashboard-skeleton__line dashboard-skeleton__line--pill"></span><span class="dashboard-skeleton__line dashboard-skeleton__line--pill"></span></div>
+			<span class="dashboard-skeleton__line dashboard-skeleton__line--action"></span>
+			<span class="dashboard-skeleton__line dashboard-skeleton__line--action"></span>
+		</div>
+	</div>`;
+}
+
 function renderDashboardPage() {
+	if (state.dashboardHydrating) return `<section class="page ${pageClass("dashboard")}" id="page-dashboard">${renderDashboardSkeleton()}</section>`;
   const copy = t();
   const active = isSubscriptionActive();
   const trialEligible = state.data.trial.enabled && state.data.trial.eligible;
@@ -7956,6 +7972,7 @@ function renderStateScreen(kind, message = "", meta = null) {
 			</div>
 		`;
 	}
+  if (kind === "loading" && state.currentPage === "dashboard" && hasAuth()) return `<div class="state-screen state-screen--dashboard-skeleton">${renderDashboardSkeleton()}</div>`;
   if (kind === "loading") return `
     <div class="state-screen state-screen--loader">
       <div class="loader" aria-label="${escapeAttribute(t().appName)} loading">
