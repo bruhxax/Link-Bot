@@ -91,7 +91,7 @@ h2{margin:0 0 9px;font-size:clamp(26px,4vw,40px);line-height:1.2;font-weight:700
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}.motion-ready .reveal{opacity:1;transform:none}}
 
 /* The same translucent, subtly grained material as the cabinet. */
-:root[data-glass="on"] :where(.nav-shell,.server-card,.plan-card,.contact-card,.empty-state,.button){background:color-mix(in srgb,var(--surface) 28%,transparent);background-image:url("./assets/glass-grain.svg"),linear-gradient(135deg,rgba(255,255,255,.075),rgba(255,255,255,.015));background-size:128px 128px,100% 100%;border:1px solid color-mix(in srgb,var(--text) 14%,transparent);box-shadow:0 8px 24px rgba(0,0,0,.18);backdrop-filter:blur(16px) saturate(1.12);-webkit-backdrop-filter:blur(16px) saturate(1.12)}
+:root[data-glass="on"] :where(.nav-shell,.server-card,.plan-card,.contact-card,.empty-state,.button){background:color-mix(in srgb,var(--surface) 38%,transparent);background-image:url("./assets/glass-grain.svg?v=2"),linear-gradient(135deg,rgba(255,255,255,.045),rgba(255,255,255,.008));background-size:128px 128px,100% 100%;border:1px solid color-mix(in srgb,var(--text) 14%,transparent);box-shadow:0 8px 24px rgba(0,0,0,.18);backdrop-filter:blur(18px) saturate(1.08);-webkit-backdrop-filter:blur(18px) saturate(1.08)}
 :root[data-glass="on"] .plan-card--recommended{border-color:var(--accent)}
 :root[data-glass="on"] .button--primary{color:var(--accent)}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){:root[data-glass="on"] :where(.nav-shell,.server-card,.plan-card,.contact-card,.empty-state,.button){background:var(--surface)}}

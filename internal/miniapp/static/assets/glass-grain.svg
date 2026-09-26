@@ -3,7 +3,7 @@
     <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="3" seed="7" stitchTiles="stitch"/>
     <feColorMatrix type="saturate" values="0"/>
     <feComponentTransfer>
-      <feFuncA type="linear" slope=".075"/>
+      <feFuncA type="linear" slope=".014"/>
     </feComponentTransfer>
   </filter>
   <rect width="100%" height="100%" filter="url(#grain)"/>

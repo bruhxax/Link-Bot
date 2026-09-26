@@ -439,7 +439,7 @@ select:focus-visible {
 .app-svg-icon--push { --app-icon: url("./assets/admin-push.svg"); }
 .app-svg-icon--checkout-edit { --app-icon: url("./assets/checkout-edit.svg"); }
 .checkout-payment .pay-selector__tail {
-  color: #ffffff !important;
+  color: var(--icon-color) !important;
 }
 .checkout-payment .app-svg-icon--checkout-edit {
   width: 18px;
@@ -464,7 +464,7 @@ select:focus-visible {
 .admin-menu-group .menu-row__body { display: flex; align-items: center; }
 .admin-menu-group .menu-row__body strong { font-size: 13px; line-height: 1.15; }
 .admin-menu-group .menu-row__icon,
-.admin-menu-group .menu-row__tail { color: #ffffff !important; }
+.admin-menu-group .menu-row__tail { color: var(--icon-color) !important; }
 .admin-menu-group .menu-row__icon,
 .admin-menu-group .menu-row__icon .app-svg-icon { width: 19px; height: 19px; }
 
@@ -2469,7 +2469,7 @@ img { display: block; max-width: 100%; }
 }
 
 .terms-article__eyebrow {
-  color: rgba(255, 255, 255, 0.54);
+  color: var(--muted);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .18em;
@@ -2478,7 +2478,7 @@ img { display: block; max-width: 100%; }
 
 .terms-article__title {
   margin: 14px 0 0;
-  color: #ffffff;
+  color: var(--text);
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(28px, 6vw, 42px);
   font-weight: 700;
@@ -2488,7 +2488,7 @@ img { display: block; max-width: 100%; }
 
 .terms-article__meta {
   margin-top: 12px;
-  color: rgba(255, 255, 255, 0.54);
+  color: var(--muted);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -2496,7 +2496,7 @@ img { display: block; max-width: 100%; }
 .terms-article__lead,
 .terms-article__paragraph {
   margin: 16px 0 0;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text);
   font-size: 16px;
   line-height: 1.72;
   letter-spacing: -.01em;
@@ -2506,7 +2506,7 @@ img { display: block; max-width: 100%; }
   width: min(100%, 340px);
   height: 1px;
   margin: 34px 0 0;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0));
+  background: linear-gradient(90deg, transparent, var(--line), transparent);
 }
 
 .terms-article__section {
@@ -2515,7 +2515,7 @@ img { display: block; max-width: 100%; }
 
 .terms-article__section-title {
   margin: 0 0 14px;
-  color: #ffffff;
+  color: var(--text);
   font-size: clamp(22px, 4.8vw, 30px);
   font-weight: 800;
   line-height: 1.12;
@@ -2527,20 +2527,20 @@ img { display: block; max-width: 100%; }
   padding-left: 20px;
   display: grid;
   gap: 10px;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text);
   font-size: 16px;
   line-height: 1.72;
 }
 
 .terms-article__list li::marker {
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text);
 }
 
 .terms-article__footer {
   margin-top: 34px;
   padding-top: 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.5);
+  border-top: 1px solid var(--line-soft);
+  color: var(--muted);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -12674,11 +12674,11 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 /* Translucent frosted glass: the page remains visible under a static grain tile.
    Keep noise in the background so it cannot cover text or intercept clicks. */
 :root[data-glass="on"] {
-  --glass-background: color-mix(in srgb, var(--surface) 28%, transparent);
+  --glass-background: color-mix(in srgb, var(--surface) 38%, transparent);
   --glass-border: color-mix(in srgb, var(--text) 14%, transparent);
   --glass-surface-shadow: 0 8px 24px rgba(0, 0, 0, .18);
-  --glass-backdrop: blur(16px) saturate(1.12);
-  --glass-texture: url("./assets/glass-grain.svg"), linear-gradient(135deg, rgba(255, 255, 255, .075), rgba(255, 255, 255, .015));
+  --glass-backdrop: blur(18px) saturate(1.08);
+  --glass-texture: url("./assets/glass-grain.svg?v=2"), linear-gradient(135deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .008));
 }
 
 :root[data-glass="on"] :where(
@@ -12736,7 +12736,32 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 
 /* Reduced motion does not imply reduced transparency. Keep the static blur. */
 :root[data-glass="on"]:where([data-performance="low"], [data-performance="reduced"]) {
-  --glass-backdrop: blur(8px);
+  --glass-backdrop: blur(12px);
+}
+
+/* Opacity animations on an ancestor create a backdrop root. Retaining their
+   last frame traps the glass blur inside a transparent page/group forever.
+   Slide glass pages without animating opacity, then release the transform. */
+:root[data-glass="on"] .page.active.page--animate,
+:root[data-glass="on"] .page.admin-page.active.page--animate > :not(.admin-save-bar) {
+  animation: glassPageIn .28s ease;
+}
+
+:root[data-glass="on"] .page.admin-page.active.page--animate,
+:root[data-glass="on"] #page-dashboard.page--animate {
+  animation: none;
+}
+
+@keyframes glassPageIn {
+  from { transform: translateY(10px); }
+  to { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-glass="on"] .page.active.page--animate,
+  :root[data-glass="on"] .page.admin-page.active.page--animate > :not(.admin-save-bar) {
+    animation: none;
+  }
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -12753,4 +12778,18 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     --glass-texture: none;
     --glass-backdrop: none;
   }
+}
+
+/* Every icon produced by icon() follows the configured icon color, including
+   masked SVG assets and controls whose parent has a different text color. */
+#app [data-app-icon] {
+  color: var(--icon-color) !important;
+}
+
+#app svg[data-app-icon] [stroke]:not([stroke="none"]) {
+  stroke: currentColor !important;
+}
+
+#app svg[data-app-icon] [fill]:not([fill="none"]) {
+  fill: currentColor !important;
 }

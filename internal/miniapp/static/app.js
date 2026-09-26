@@ -15576,10 +15576,10 @@ const ADMIN_ICON_CLASSES = {
 
 function icon(name) {
 	if (PROFILE_ICON_CLASSES[name]) {
-		return `<span class="profile-svg-icon profile-svg-icon--${PROFILE_ICON_CLASSES[name]}" aria-hidden="true"></span>`;
+		return `<span class="profile-svg-icon profile-svg-icon--${PROFILE_ICON_CLASSES[name]}" data-app-icon aria-hidden="true"></span>`;
 	}
 	if (ADMIN_ICON_CLASSES[name]) {
-		return `<span class="app-svg-icon app-svg-icon--${ADMIN_ICON_CLASSES[name]}" aria-hidden="true"></span>`;
+		return `<span class="app-svg-icon app-svg-icon--${ADMIN_ICON_CLASSES[name]}" data-app-icon aria-hidden="true"></span>`;
 	}
   const icons = {
 		search: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="m16.2 16.2 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
@@ -15677,7 +15677,7 @@ function icon(name) {
     openTickets: `<svg viewBox="0 0 24 24" fill="none"><path d="M20 11.5c0 4.7-3.8 8.5-8.5 8.5-1.3 0-2.6-.3-3.7-.8L4 20l1-3.5A8.4 8.4 0 0 1 3 11.5C3 6.8 6.8 3 11.5 3S20 6.8 20 11.5Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>`,
     historyTickets: `<svg viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 3-6.7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 4v4h4M12 7.5V12l3 1.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   };
-  return icons[name] || icons.arrow;
+  return (icons[name] || icons.arrow).replace("<svg ", "<svg data-app-icon ");
 }
 
 document.addEventListener("visibilitychange", refreshAfterPossibleGoogleLink);
