@@ -6980,11 +6980,25 @@ function renderAdminDevicePackCard(pack, index) {
 function renderDevicePackModal() {
 	const packs = getDevicePacks();
 	const selected = getSelectedDevicePack();
-	const canBuyNow = isSubscriptionActive() && Number(state.data?.subscription?.deviceLimitCount || 0) > 0;
 	const packList = packs.length
 		? `<div class="device-pack-grid">${packs.map((pack) => renderDevicePackCard(pack, String(pack.id) === String(selected?.id))).join("")}</div>`
 		: `<div class="device-pack-empty" role="status"><strong>Пакеты устройств пока не настроены</strong><span>Администратор может добавить их в разделе «Тарифы».</span></div>`;
-	return `<div class="modal open ${modalStateClass("device-packs")}" role="dialog" aria-modal="true" aria-labelledby="device-pack-modal-title"><button class="modal__backdrop" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-purchase"><div class="modal__header"><div><div class="section-label">УСТРОЙСТВА</div><div class="modal__title" id="device-pack-modal-title">Докупить устройства</div></div><button class="header__btn" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств">${icon("close")}</button></div><div class="device-pack-modal__scroll">${packList}</div><div class="device-pack-modal__footer"><div class="device-pack-modal__actions"><button class="btn btn--green-filled" type="button" data-action="buy-device-pack" ${selected && canBuyNow ? "" : "disabled"}>${icon("cart")}Докупить</button><button class="btn" type="button" data-action="continue-device-pack" ${selected ? "" : "disabled"}>Продолжить</button></div></div></div></div>`;
+	return `<div class="modal open ${modalStateClass("device-packs")}" role="dialog" aria-modal="true" aria-labelledby="device-pack-modal-title"><button class="modal__backdrop" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-purchase"><div class="modal__header"><div><div class="section-label">УСТРОЙСТВА</div><div class="modal__title" id="device-pack-modal-title">Докупить устройства</div></div><button class="header__btn" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств">${icon("close")}</button></div><div class="device-pack-modal__scroll">${packList}</div><div class="device-pack-modal__footer"><div class="device-pack-modal__actions"><button class="btn btn--green-filled" type="button" data-action="buy-device-pack">${icon("cart")}Докупить</button><button class="btn" type="button" data-action="continue-device-pack" ${selected ? "" : "disabled"}>Продолжить</button></div></div></div></div>`;
+}
+
+function openDevicePackPaymentMethods() {
+	if (!getSelectedDevicePack()) return showToast(localizedText("Выберите пакет устройств", "Choose a device pack", "بسته دستگاه را انتخاب کنید"), "danger");
+	if (!isSubscriptionActive()) return showToast(localizedText("Докупка доступна только при активной подписке", "An active subscription is required", "اشتراک فعال لازم است"), "danger");
+	if (Number(state.data?.subscription?.deviceLimitCount || 0) <= 0) return showToast(localizedText("У подписки уже нет ограничения по устройствам", "This subscription already has unlimited devices", "این اشتراک محدودیت دستگاه ندارد"), "danger");
+	if (!getAvailableMethods(null).length) return showToast(t().paymentUnavailable, "danger");
+	window.clearTimeout(closingModalTimer);
+	closingModalName = "";
+	state.devicePackModalOpen = false;
+	state.payModalContext = "device-pack";
+	state.payModalOpen = true;
+	haptic("light");
+	render({ preserveScroll: true });
+	queueMicrotask(() => app.querySelector('.modal[aria-labelledby="pay-modal-title"] .pay-row')?.focus());
 }
 
 function defaultDeviceAccessSettings() {
@@ -9041,12 +9055,7 @@ function bindRootActions() {
 			if (action === "select-device-pack") { state.selectedDevicePackId = value; haptic("light"); render({ preserveScroll: true }); return; }
 			if (action === "clear-device-pack") { state.selectedDevicePackId = ""; render({ preserveScroll: true }); return; }
 			if (action === "continue-device-pack") return requestModalClose("device-packs", () => { state.devicePackModalOpen = false; });
-			if (action === "buy-device-pack") return requestModalClose("device-packs", () => {
-				state.devicePackModalOpen = false;
-				state.payModalContext = "device-pack";
-				state.payModalOpen = true;
-				queueMicrotask(() => app.querySelector('.modal[aria-labelledby="pay-modal-title"] .pay-row')?.focus());
-			});
+			if (action === "buy-device-pack") return openDevicePackPaymentMethods();
 			if (action === "admin-open-device-packs") { state.adminSettingsDraft.deviceAccess ||= defaultDeviceAccessSettings(); state.adminDevicePackEditorOpen = true; state.adminDevicePackFormDraft = null; render({ preserveScroll: true }); return; }
 			if (action === "admin-close-device-packs") { state.adminDevicePackEditorOpen = false; state.adminDevicePackFormDraft = null; render({ preserveScroll: true }); return; }
 			if (action === "admin-commerce-menu") {
