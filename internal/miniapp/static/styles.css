@@ -12907,17 +12907,15 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 @keyframes dashboard-skeleton-shimmer { to { transform: translateX(100%); } }
 #page-dashboard.dashboard-reveal .runtime-detail-item,
 #page-dashboard.dashboard-reveal .runtime-layout-item[data-runtime-layout-key] {
-  animation: dashboard-content-reveal .4s cubic-bezier(.2,.75,.25,1) both;
+  animation: dashboard-content-reveal .28s cubic-bezier(.2,.75,.25,1) both;
 }
 #page-dashboard.dashboard-reveal [data-runtime-layout-key="dashboard:plan_name"],
 #page-dashboard.dashboard-reveal [data-runtime-layout-key="dashboard:expires"],
 #page-dashboard.dashboard-reveal [data-runtime-layout-key="dashboard:traffic"],
 #page-dashboard.dashboard-reveal [data-runtime-layout-key="dashboard:devices"] { animation-delay: .07s; }
-#page-dashboard.dashboard-reveal [data-runtime-layout-key="dashboard:primary_action"],
-#page-dashboard.dashboard-reveal [data-runtime-layout-key="dashboard:secondary_action"] { animation-delay: .14s; }
 @keyframes dashboard-content-reveal {
-  from { opacity: 0; filter: blur(5px); clip-path: inset(0 0 28% 0 round 8px); }
-  to { opacity: 1; filter: blur(0); clip-path: inset(0 0 0 0 round 8px); }
+  from { opacity: 0; filter: blur(4px); }
+  to { opacity: 1; filter: blur(0); }
 }
 @media (prefers-reduced-motion: reduce) {
   .dashboard-skeleton__shape::after,
