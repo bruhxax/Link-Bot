@@ -2295,6 +2295,7 @@ const state = {
 	giftBusy: "",
 	giftReceiptOpen: false,
   paymentMethod: readSetting(STORAGE_KEYS.payMethod, ""),
+  payModalContext: "",
   serverFilter: "all",
   installGuidePlatform: getDefaultInstallPlatform(),
   busyMethod: "",
@@ -8372,8 +8373,12 @@ function renderPayModal() {
 		const closeLabel = localizedText("Закрыть порядок оплаты", "Close payment order", "بستن ترتیب پرداخت");
 		return `<div class="modal open ${modalStateClass("pay")}" role="dialog" aria-modal="true" aria-labelledby="pay-order-title"><button class="modal__backdrop" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}"></button><div class="modal__sheet pay-order-sheet"><div class="modal__header"><div class="modal__title" id="pay-order-title">${localizedText("Способы оплаты", "Payment methods", "روش‌های پرداخت")}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button></div><p class="pay-order-sheet__hint">${localizedText("Порядок показа при оплате. Перемещайте способы стрелками.", "Order shown at checkout. Use the arrows to move methods.", "ترتیب نمایش در پرداخت را با پیکان‌ها تغییر دهید.")}</p><span class="sr-only" role="status" aria-live="polite">${escapeHtml(state.adminPaymentOrderAnnouncement)}</span><div class="pay-order-list">${methods.map((method, index) => `<div class="pay-order-row" data-pay-order-id="${escapeAttribute(method.id)}"><span class="pay-order-row__number">${index + 1}</span><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-order-row__name">${escapeHtml(method.label)}</span><span class="pay-order-row__actions"><button type="button" data-action="move-pay-method-up" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Поднять ${method.label}`, `Move ${method.label} up`, `انتقال ${method.label} به بالا`))}" ${index === 0 ? "disabled" : ""}>${icon("arrowUp")}</button><button type="button" data-action="move-pay-method-down" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Опустить ${method.label}`, `Move ${method.label} down`, `انتقال ${method.label} به پایین`))}" ${index === methods.length - 1 ? "disabled" : ""}>${icon("arrowDown")}</button></span></div>`).join("") || `<div class="note">${localizedText("Добавьте способ оплаты, чтобы настроить порядок.", "Add a payment method to set its order.", "برای تنظیم ترتیب، روش پرداخت اضافه کنید.")}</div>`}</div><div class="pay-order-sheet__footer">${localizedText("Закройте окно и сохраните изменения в тарифах", "Close this panel and save your plan settings", "پنجره را ببندید و تنظیمات را ذخیره کنید")}</div></div></div>`;
 	}
-	const plan = state.currentPage === "gift" ? getSelectedGiftPlan() : getSelectedPlan();
-	return `<div class="modal open ${modalStateClass("pay")}"><button class="modal__backdrop" type="button" data-action="close-pay-modal"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title">${copy.choosePaymentMethod}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${localizedText("Закрыть способы оплаты", "Close payment methods", "بستن روش‌های پرداخت")}">${icon("close")}</button></div><div class="menu-list">${getAvailableMethods(plan).map((method) => `<button class="pay-row ${state.paymentMethod === method.id ? "selected" : ""}" type="button" data-action="select-pay-method" data-value="${method.id}" data-selection-feedback aria-pressed="${state.paymentMethod === method.id}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(method.label)}</strong><span>${escapeHtml(method.hint)}</span></span><span class="pay-row__check">${state.paymentMethod === method.id ? icon("check") : ""}</span></button>`).join("") || `<div class="note">${copy.paymentUnavailable}</div>`}</div></div></div>`;
+	const deviceOnly = state.payModalContext === "device-pack";
+	const plan = deviceOnly ? null : (state.currentPage === "gift" ? getSelectedGiftPlan() : getSelectedPlan());
+	const pack = deviceOnly ? getSelectedDevicePack() : null;
+	const closeLabel = localizedText("Закрыть способы оплаты", "Close payment methods", "بستن روش‌های پرداخت");
+	const packHint = pack ? `<p class="device-pack-pay-hint">${escapeHtml(devicePackTitle(pack.devices))} · ${escapeHtml(formatShortDateLabel(new Date(devicePackExpiry()).toISOString(), state.locale))}</p>` : "";
+	return `<div class="modal open ${modalStateClass("pay")}" role="dialog" aria-modal="true" aria-labelledby="pay-modal-title"><button class="modal__backdrop" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title" id="pay-modal-title">${copy.choosePaymentMethod}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button></div>${packHint}<div class="menu-list">${getAvailableMethods(plan).map((method) => `<button class="pay-row ${state.paymentMethod === method.id ? "selected" : ""}" type="button" data-action="select-pay-method" data-value="${method.id}" data-selection-feedback aria-pressed="${state.paymentMethod === method.id}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(method.label)}</strong><span>${escapeHtml(deviceOnly ? `${method.hint} · ${method.id === "stars" ? `${formatNumber(devicePackPrice(pack, method.id), state.locale)} Stars` : formatCurrency(devicePackPrice(pack, method.id), state.locale)}` : method.hint)}</span></span><span class="pay-row__check">${state.paymentMethod === method.id ? icon("check") : ""}</span></button>`).join("") || `<div class="note">${copy.paymentUnavailable}</div>`}</div></div></div>`;
 }
 
 function renderP2PMenu() {
@@ -9038,7 +9043,9 @@ function bindRootActions() {
 			if (action === "continue-device-pack") return requestModalClose("device-packs", () => { state.devicePackModalOpen = false; });
 			if (action === "buy-device-pack") return requestModalClose("device-packs", () => {
 				state.devicePackModalOpen = false;
-				void startPayment({ deviceOnly: true });
+				state.payModalContext = "device-pack";
+				state.payModalOpen = true;
+				queueMicrotask(() => app.querySelector('.modal[aria-labelledby="pay-modal-title"] .pay-row')?.focus());
 			});
 			if (action === "admin-open-device-packs") { state.adminSettingsDraft.deviceAccess ||= defaultDeviceAccessSettings(); state.adminDevicePackEditorOpen = true; state.adminDevicePackFormDraft = null; render({ preserveScroll: true }); return; }
 			if (action === "admin-close-device-packs") { state.adminDevicePackEditorOpen = false; state.adminDevicePackFormDraft = null; render({ preserveScroll: true }); return; }
@@ -9160,16 +9167,23 @@ function bindRootActions() {
 			render({ preserveScroll: true });
 			return;
 		}
-      if (action === "open-pay-modal") { state.payModalOpen = true; render(); if (state.adminPlanEditing) queueMicrotask(() => app.querySelector('.pay-order-sheet [data-action="close-pay-modal"]')?.focus()); return; }
+      if (action === "open-pay-modal") { state.payModalContext = ""; state.payModalOpen = true; render(); if (state.adminPlanEditing) queueMicrotask(() => app.querySelector('.pay-order-sheet [data-action="close-pay-modal"]')?.focus()); return; }
       if (action === "move-pay-method-up") return moveAdminPaymentMethod(value, -1);
       if (action === "move-pay-method-down") return moveAdminPaymentMethod(value, 1);
       if (action === "close-pay-modal") return closePayModal();
       if (action === "close-payment-launch") return requestModalClose("payment-launch", () => { state.paymentLaunchModalOpen = false; state.paymentLaunchURL = ""; state.paymentLaunchPurchaseId = 0; });
       if (action === "launch-payment-browser") return openPreparedPaymentInBrowser();
       if (action === "select-pay-method") {
+		const deviceOnly = state.payModalContext === "device-pack";
+		const plan = deviceOnly ? null : (state.currentPage === "gift" ? getSelectedGiftPlan() : getSelectedPlan());
+		if (!getAvailableMethods(plan).some((method) => method.id === value)) return;
         state.paymentMethod = value;
         writeSetting(STORAGE_KEYS.payMethod, value);
-        return requestModalClose("pay", () => { state.payModalOpen = false; });
+		return requestModalClose("pay", () => {
+			state.payModalOpen = false;
+			state.payModalContext = "";
+			if (deviceOnly) void startPayment({ deviceOnly: true });
+		});
       }
 		if (action === "close-p2p-menu") return closeP2PMenu();
 		if (action === "select-p2p-destination") { state.p2pDestinationId = value; state.p2pMenuAnimation = "swap"; haptic("light"); render({ preserveScroll: true }); queueMicrotask(() => { state.p2pMenuAnimation = ""; }); return; }
@@ -14423,7 +14437,9 @@ function requestModalClose(name, onClosed) {
 function closePayModal() {
 	return requestModalClose("pay", () => {
 		state.payModalOpen = false;
-		queueMicrotask(() => app.querySelector('[data-action="open-pay-modal"]')?.focus());
+		const deviceOnly = state.payModalContext === "device-pack";
+		state.payModalContext = "";
+		if (!deviceOnly) queueMicrotask(() => app.querySelector('[data-action="open-pay-modal"]')?.focus());
 	});
 }
 

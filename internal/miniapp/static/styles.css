@@ -12874,3 +12874,4 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .device-access-settings summary { padding: 10px 0; color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer; }
 .device-access-settings__body { display: grid; gap: 10px; }
 .device-access-settings__body p, .device-access-settings__body small { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.device-pack-pay-hint { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
