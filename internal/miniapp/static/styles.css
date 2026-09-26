@@ -12671,13 +12671,14 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   :root[data-client="browser"] .page-buy .pricing-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
-/* Glass material copied from the reference landing nav (soslaxx.html).
-   Component geometry stays intact; every surface shares the exact same material. */
+/* Translucent frosted glass: the page remains visible under a static grain tile.
+   Keep noise in the background so it cannot cover text or intercept clicks. */
 :root[data-glass="on"] {
-  --glass-background: rgba(8, 8, 8, .82);
-  --glass-border: hsl(0 0% 12%);
-  --glass-surface-shadow: 0 12px 42px rgba(0, 0, 0, .42);
-  --glass-backdrop: blur(16px);
+  --glass-background: color-mix(in srgb, var(--surface) 28%, transparent);
+  --glass-border: color-mix(in srgb, var(--text) 14%, transparent);
+  --glass-surface-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+  --glass-backdrop: blur(16px) saturate(1.12);
+  --glass-texture: url("./assets/glass-grain.svg"), linear-gradient(135deg, rgba(255, 255, 255, .075), rgba(255, 255, 255, .015));
 }
 
 :root[data-glass="on"] :where(
@@ -12690,9 +12691,12 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   .server-summary-panel, .review-card, .review-detail__comment, .login-method-card,
   .media-empty-card, .empty-design-card, .partner-application-card,
   .admin-users__list, .admin-user-subscriptions__list, .admin-partner-entry,
-  .admin-push__surface, .modal__sheet, .desktop-sidebar
+  .admin-push__surface, .modal__sheet, .desktop-sidebar,
+  .subscription-switcher__menu, .notification-popover
 ) {
   background: var(--glass-background) !important;
+  background-image: var(--glass-texture) !important;
+  background-size: 128px 128px, 100% 100% !important;
   border: 1px solid var(--glass-border) !important;
   box-shadow: var(--glass-surface-shadow) !important;
   backdrop-filter: var(--glass-backdrop) !important;
@@ -12703,37 +12707,50 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   .btn, .sub-pill, .header__btn, .chip, .tab, .segment, .tabs,
   .bottom-nav, .admin-save-bar__save, .admin-save-bar__close,
   .admin-finance__more, .admin-icon-button, .admin-withdrawal__actions button,
-  .subscription-switcher__trigger, .subscription-switcher__item,
+  .subscription-switcher__trigger,
   .device-pack-trigger-row, .setup-link-button, .browser-auth__qr-button,
   .admin-banner-crop-controls button, .admin-profile-modal__delete
 ) {
   background: var(--glass-background) !important;
+  background-image: var(--glass-texture) !important;
+  background-size: 128px 128px, 100% 100% !important;
   border: 1px solid var(--glass-border) !important;
   box-shadow: var(--glass-surface-shadow) !important;
   backdrop-filter: var(--glass-backdrop) !important;
   -webkit-backdrop-filter: var(--glass-backdrop) !important;
 }
 
+/* The popover supplies the glass; another pane on each row would stack tints. */
+:root[data-glass="on"] :where(.subscription-switcher__item, .subscription-switcher__actions button) {
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-glass="on"] :where(.subscription-switcher__item.is-active, .subscription-switcher__item.is-switching, .subscription-switcher__item:hover, .subscription-switcher__actions button:hover:not(:disabled)) {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+
 :root[data-glass="on"] :where(.pricing-card.selected, .pay-row.selected, .platform-btn.selected, .tab.active, .segment.active) {
   border-color: var(--accent) !important;
 }
 
+/* Reduced motion does not imply reduced transparency. Keep the static blur. */
+:root[data-glass="on"]:where([data-performance="low"], [data-performance="reduced"]) {
+  --glass-backdrop: blur(8px);
+}
+
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root[data-glass="on"] {
-    --glass-background: #080808;
+    --glass-background: var(--surface);
+    --glass-texture: none;
     --glass-backdrop: none;
   }
 }
 
 @media (prefers-reduced-transparency: reduce) {
   :root[data-glass="on"] {
-    --glass-background: #080808;
+    --glass-background: var(--surface);
+    --glass-texture: none;
     --glass-backdrop: none;
   }
-}
-
-:root[data-glass="on"][data-performance="low"],
-:root[data-glass="on"][data-performance="reduced"] {
-  --glass-background: rgba(8, 8, 8, .92);
-  --glass-backdrop: none;
 }
