@@ -8,10 +8,74 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"link-bot/internal/config"
 	"link-bot/internal/webauth"
 )
+
+func TestTelegramQRLoginPollsDoNotShareBudgetBehindNAT(t *testing.T) {
+	handler := &Handler{webLogin: webauth.NewService(webauth.DefaultTTL), rateLimiter: newRequestRateLimiter()}
+	first, _ := handler.webLogin.Create(time.Now().UTC())
+	second, _ := handler.webLogin.Create(time.Now().UTC())
+	poll := func(challenge webauth.Challenge) int {
+		body, _ := json.Marshal(telegramQRLoginStatusRequest{ID: challenge.ID, Secret: challenge.Secret})
+		request := httptest.NewRequest(http.MethodPost, "/api/mini-app/auth/telegram/qr/status", bytes.NewReader(body))
+		request.Header.Set("Content-Type", "application/json")
+		request.RemoteAddr = "192.0.2.1:12345"
+		response := httptest.NewRecorder()
+		handler.handleTelegramQRLoginStatus(response, request)
+		return response.Code
+	}
+	for i := 0; i < 90; i++ {
+		if status := poll(first); status != http.StatusOK {
+			t.Fatalf("first browser poll %d: %d", i, status)
+		}
+	}
+	if status := poll(first); status != http.StatusTooManyRequests {
+		t.Fatalf("poll flood status=%d", status)
+	}
+	for i := 0; i < 90; i++ {
+		if status := poll(second); status != http.StatusOK {
+			t.Fatalf("other browser shares budget at poll %d: %d", i, status)
+		}
+	}
+}
+
+func TestTelegramQRLoginReloadReusesPendingChallenge(t *testing.T) {
+	previousBotURL := config.BotURL()
+	config.SetBotURL("https://t.me/link_bot")
+	defer config.SetBotURL(previousBotURL)
+	handler := &Handler{webLogin: webauth.NewService(webauth.DefaultTTL), rateLimiter: newRequestRateLimiter()}
+	var cookie *http.Cookie
+	var firstID string
+	for i := 0; i < 75; i++ {
+		request := httptest.NewRequest(http.MethodPost, "/api/mini-app/auth/telegram/qr/start", bytes.NewBufferString(`{}`))
+		request.Header.Set("Content-Type", "application/json")
+		if cookie != nil {
+			request.AddCookie(cookie)
+		}
+		response := httptest.NewRecorder()
+		handler.handleStartTelegramQRLogin(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("reload %d: status %d", i, response.Code)
+		}
+		var payload struct {
+			Data struct {
+				ID string `json:"id"`
+			}
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			firstID = payload.Data.ID
+			cookie = response.Result().Cookies()[0]
+		} else if payload.Data.ID != firstID {
+			t.Fatal("reload created a different challenge")
+		}
+	}
+}
 
 func TestTelegramQRLoginStartKeepsBrowserSecretOutOfQRCode(t *testing.T) {
 	previousBotURL := config.BotURL()

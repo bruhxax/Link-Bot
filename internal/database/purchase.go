@@ -63,6 +63,7 @@ type Purchase struct {
 	DeviceLimitCount          *int           `db:"device_limit_count"`
 	PurchaseKind              PurchaseKind   `db:"purchase_kind"`
 	ExtraDevices              int            `db:"extra_devices"`
+	DeviceExpiresAt           *time.Time     `db:"device_expires_at"`
 	IsFreePlan                bool           `db:"is_free_plan"`
 	FreePlanOneTime           bool           `db:"free_plan_one_time"`
 	PaidAt                    *time.Time     `db:"paid_at"`
@@ -202,6 +203,7 @@ var purchaseSelectColumns = []string{
 	"device_limit_count",
 	"purchase_kind",
 	"extra_devices",
+	"device_expires_at",
 	"is_free_plan",
 	"free_plan_one_time",
 	"paid_at",
@@ -248,6 +250,7 @@ func scanPurchase(scanner interface {
 		&purchase.DeviceLimitCount,
 		&purchase.PurchaseKind,
 		&purchase.ExtraDevices,
+		&purchase.DeviceExpiresAt,
 		&purchase.IsFreePlan,
 		&purchase.FreePlanOneTime,
 		&purchase.PaidAt,
@@ -295,6 +298,7 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 			"device_limit_count",
 			"purchase_kind",
 			"extra_devices",
+			"device_expires_at",
 			"is_free_plan",
 			"free_plan_one_time",
 			"currency",
@@ -334,6 +338,7 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 			purchase.DeviceLimitCount,
 			purchase.PurchaseKind,
 			purchase.ExtraDevices,
+			purchase.DeviceExpiresAt,
 			purchase.IsFreePlan,
 			purchase.FreePlanOneTime,
 			purchase.Currency,

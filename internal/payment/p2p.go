@@ -43,6 +43,7 @@ func (s PaymentService) createP2PInvoice(ctx context.Context, amount float64, mo
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
 		PurchaseKind:             options.PurchaseKind,
 		ExtraDevices:             options.ExtraDevices,
+		DeviceExpiresAt:          options.DeviceExpiresAt,
 		IsFreePlan:               options.IsFreePlan,
 		FreePlanOneTime:          options.FreePlanOneTime,
 		GiftRecipientUsername:    optionalTrimmedStringPointer(options.GiftRecipientUsername),

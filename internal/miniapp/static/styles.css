@@ -12681,6 +12681,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   --glass-border: color-mix(in srgb, var(--text) 14%, transparent);
   --glass-surface-shadow: 0 8px 24px rgba(0, 0, 0, .18);
   --glass-backdrop: blur(2.5px) saturate(1.08);
+  --glass-menu-backdrop: blur(8px) saturate(1.08);
   --glass-texture: url("./assets/glass-grain.svg?v=2"), linear-gradient(135deg, rgba(255, 255, 255, .025), rgba(255, 255, 255, .006));
 }
 
@@ -12752,6 +12753,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 /* Reduced motion does not imply reduced transparency. Keep the static blur. */
 :root[data-glass="on"]:where([data-performance="low"], [data-performance="reduced"]) {
   --glass-backdrop: blur(2px);
+  --glass-menu-backdrop: blur(5px);
 }
 
 /* Opacity animations on an ancestor create a backdrop root. Retaining their
@@ -12784,6 +12786,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     --glass-background: var(--surface);
     --glass-texture: none;
     --glass-backdrop: none;
+    --glass-menu-backdrop: none;
   }
 }
 
@@ -12792,6 +12795,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     --glass-background: var(--surface);
     --glass-texture: none;
     --glass-backdrop: none;
+    --glass-menu-backdrop: none;
   }
 }
 
@@ -12812,3 +12816,61 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 #app svg[data-app-icon] [fill]:not([fill="none"]) {
   fill: currentColor !important;
 }
+
+/* Menus need more separation from the content behind them than regular cards. */
+:root[data-glass="on"] :where(.modal__sheet, .subscription-switcher__menu, .notification-popover) {
+  backdrop-filter: var(--glass-menu-backdrop) !important;
+  -webkit-backdrop-filter: var(--glass-menu-backdrop) !important;
+}
+
+/* Keep a full touch target, with only the close glyph visible. */
+:root .modal button:has(> [data-app-icon="close"]),
+:root .p2p-menu__close {
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.pricing-card.pricing-card--admin {
+  padding-bottom: 8px !important;
+  flex-direction: column;
+  align-items: stretch;
+}
+.pricing-card--admin .pricing-card__content { width: 100%; flex: 1; }
+.pricing-card__admin-actions {
+  position: static;
+  width: 100%;
+  margin-top: 6px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 32px;
+}
+.pricing-card__admin-actions button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+.pricing-card__admin-actions button:not(:disabled):hover { background: color-mix(in srgb, var(--icon-color) 10%, transparent); }
+.pricing-card__admin-actions button:focus-visible { outline-offset: -2px; }
+.pricing-card__admin-actions button svg { width: 18px; height: 18px; }
+.pricing-card__admin-actions button:last-child { color: var(--icon-color); }
+.modal.modal--commerce { z-index: 1600; display: flex; justify-content: center; align-items: center; padding: 12px; }
+.modal__sheet.commerce-menu { width: min(320px, 100%); margin: 0; padding: 12px; border-radius: 16px; }
+.commerce-menu .modal__header { gap: 12px; margin-bottom: 6px; }
+.commerce-menu .modal__header strong { color: var(--text); font-size: 14px; }
+.commerce-menu__actions { display: grid; }
+.commerce-menu__actions button { display: grid; grid-template-columns: 20px 1fr; gap: 12px; align-items: center; min-height: 44px; padding: 10px 12px; color: var(--text); text-align: left; border: 0; background: transparent; border-radius: 8px; font-size: 12px; font-weight: 700; }
+.commerce-menu__actions button svg { width: 18px; height: 18px; }
+.commerce-menu__actions button:not(:disabled):hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.commerce-menu__actions button:focus-visible { outline-offset: -2px; }
+.commerce-menu__actions button:last-child { margin-top: 6px; color: #f85149; }
+.device-access-settings { margin-top: 16px; }
+.device-access-settings summary { padding: 10px 0; color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer; }
+.device-access-settings__body { display: grid; gap: 10px; }
+.device-access-settings__body p, .device-access-settings__body small { color: var(--muted); font-size: 10px; line-height: 1.5; }

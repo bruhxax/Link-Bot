@@ -513,6 +513,29 @@ func (r *Client) AddDeviceLimit(ctx context.Context, telegramID int64, extraDevi
 	return r.addDeviceLimitForUser(ctx, user, extraDevices)
 }
 
+func (r *Client) SetDeviceLimit(ctx context.Context, telegramID, userID int64, userUUID uuid.UUID, limit int) (*PanelUser, error) {
+	if limit < 0 || limit > 10000 {
+		return nil, errors.New("invalid device limit")
+	}
+	var user *PanelUser
+	var err error
+	if userID > 0 || userUUID != uuid.Nil {
+		user, err = r.getPanelUserByIdentity(ctx, userID, userUUID)
+	} else {
+		user, err = r.getPanelUserByTelegramID(ctx, telegramID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("subscription not found")
+	}
+	if user.HwidDeviceLimit != nil && *user.HwidDeviceLimit == limit {
+		return user, nil
+	}
+	return r.patchPanelUser(ctx, user, map[string]any{"hwidDeviceLimit": limit})
+}
+
 func (r *Client) AddDeviceLimitByIdentity(ctx context.Context, userID int64, userUUID uuid.UUID, extraDevices int) (*PanelUser, error) {
 	if extraDevices <= 0 {
 		return nil, errors.New("extra device count must be positive")

@@ -23,7 +23,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 23
+const CurrentVersion = 24
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -78,6 +78,7 @@ type Settings struct {
 	SubPage            SubPageSettings      `json:"subPage"`
 	Plans              []PlanSettings       `json:"plans"`
 	DevicePacks        []DevicePackSettings `json:"devicePacks"`
+	DeviceAccess       DeviceAccessSettings `json:"deviceAccess"`
 	PaymentMethodOrder []string             `json:"paymentMethodOrder"`
 	Trial              TrialSettings        `json:"trial"`
 	Referrals          ReferralSettings     `json:"referrals"`
@@ -339,6 +340,25 @@ type DevicePackSettings struct {
 	PriceRub   int    `json:"priceRub"`
 	PriceStars int    `json:"priceStars"`
 	Wide       bool   `json:"wide"`
+}
+
+type DeviceAccessSettings struct {
+	PurchaseNotification bool   `json:"purchaseNotification"`
+	ReminderNotification bool   `json:"reminderNotification"`
+	ExpiryNotification   bool   `json:"expiryNotification"`
+	ReminderDays         int    `json:"reminderDays"`
+	PurchaseTemplate     string `json:"purchaseTemplate"`
+	ReminderTemplate     string `json:"reminderTemplate"`
+	ExpiryTemplate       string `json:"expiryTemplate"`
+}
+
+func DefaultDeviceAccess() DeviceAccessSettings {
+	return DeviceAccessSettings{
+		PurchaseNotification: true, ReminderNotification: true, ExpiryNotification: true, ReminderDays: 1,
+		PurchaseTemplate: "<b>Дополнительные устройства оплачены</b>\n\nПодписка: {subscription}\nДобавлено: <b>{devices}</b>\nЛимит: <b>{limit}</b>\nДействуют до: <b>{expires}</b>\nПродление подписки не продлевает срок дополнительных устройств.",
+		ReminderTemplate: "<b>Срок дополнительных устройств заканчивается</b>\n\nПодписка: {subscription}\nДополнительных устройств: <b>{devices}</b>\nДействуют до: <b>{expires}</b>\nПосле окончания оплаченного срока лимит уменьшится.",
+		ExpiryTemplate:   "<b>Срок дополнительных устройств истёк</b>\n\nПодписка: {subscription}\nУбрано: <b>{devices}</b>\nТекущий лимит: <b>{limit}</b>\nДоступ по подписке сохраняется до её даты окончания.",
+	}
 }
 
 type TrialSettings struct {
@@ -633,8 +653,9 @@ func DefaultSettings() Settings {
 			IncludeBuiltIns: true,
 			Clients:         []SubPageClientSettings{},
 		},
-		Plans:       defaultPlans(),
-		DevicePacks: defaultDevicePacks(),
+		Plans:        defaultPlans(),
+		DevicePacks:  defaultDevicePacks(),
+		DeviceAccess: DefaultDeviceAccess(),
 		Trial: TrialSettings{
 			Enabled:                  config.TrialDays() > 0,
 			Days:                     config.TrialDays(),
@@ -1092,6 +1113,15 @@ func NormalizeAndValidate(settings *Settings) error {
 	if err := validateDevicePacks(&settings.DevicePacks); err != nil {
 		return err
 	}
+	if previousVersion < 24 && settings.DeviceAccess == (DeviceAccessSettings{}) {
+		settings.DeviceAccess = defaults.DeviceAccess
+	}
+	if settings.DeviceAccess.ReminderDays < 0 || settings.DeviceAccess.ReminderDays > 30 {
+		return errors.New("device reminder days must be between 0 and 30")
+	}
+	settings.DeviceAccess.PurchaseTemplate = normalizedRequiredText(settings.DeviceAccess.PurchaseTemplate, defaults.DeviceAccess.PurchaseTemplate, 3500)
+	settings.DeviceAccess.ReminderTemplate = normalizedRequiredText(settings.DeviceAccess.ReminderTemplate, defaults.DeviceAccess.ReminderTemplate, 3500)
+	settings.DeviceAccess.ExpiryTemplate = normalizedRequiredText(settings.DeviceAccess.ExpiryTemplate, defaults.DeviceAccess.ExpiryTemplate, 3500)
 	if err := validateTrial(&settings.Trial, defaults.Trial, previousVersion < CurrentVersion); err != nil {
 		return err
 	}
@@ -1613,6 +1643,7 @@ func normalizedRequiredText(value, fallback string, max int) string {
 }
 
 func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings, migrating bool) error {
+	value.Compact = true
 	value.BackgroundMode = strings.ToLower(strings.TrimSpace(value.BackgroundMode))
 	if value.BackgroundMode == "" {
 		value.BackgroundMode = defaults.BackgroundMode

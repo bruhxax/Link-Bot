@@ -37,23 +37,35 @@ func (h *Handler) handleStartTelegramQRLogin(w http.ResponseWriter, r *http.Requ
 		h.writeError(w, http.StatusServiceUnavailable, "qr_login_unavailable", "Telegram QR login is unavailable")
 		return
 	}
-	if !h.rateLimiter.Allow("telegram-qr-start:"+publicRequestIP(r), rateLimitRule{Limit: 12, Window: time.Minute}, time.Now().UTC()) {
-		h.writeError(w, http.StatusTooManyRequests, "too_many_requests", "Too many requests")
-		return
-	}
-
 	botURL, err := telegramQRBotURL()
 	if err != nil {
 		h.writeError(w, http.StatusServiceUnavailable, "qr_login_unavailable", "Telegram QR login is unavailable")
 		return
 	}
-	challenge, err := h.webLogin.Create(time.Now().UTC())
+	now := time.Now().UTC()
+	var challenge webauth.Challenge
+	if cookie, cookieErr := r.Cookie("link_bot_qr"); cookieErr == nil {
+		if parts := strings.SplitN(cookie.Value, ".", 2); len(parts) == 2 {
+			challenge, _ = h.webLogin.Resume(parts[0], parts[1], now)
+		}
+	}
+	if challenge.ID == "" {
+		if !h.rateLimiter.Allow("telegram-qr-start:"+publicRequestIP(r), rateLimitRule{Limit: 60, Window: time.Minute}, now) {
+			w.Header().Set("Retry-After", "60")
+			h.writeError(w, http.StatusTooManyRequests, "too_many_requests", "Too many requests")
+			return
+		}
+		challenge, err = h.webLogin.Create(now)
+	}
 	if err != nil {
 		slog.Error("create Telegram QR login challenge failed", "error", err)
 		h.writeError(w, http.StatusServiceUnavailable, "qr_login_unavailable", "Telegram QR login is unavailable")
 		return
 	}
 	query := botURL.Query()
+	http.SetCookie(w, &http.Cookie{Name: "link_bot_qr", Value: challenge.ID + "." + challenge.Secret,
+		Path: "/api/mini-app/auth/telegram/qr/", HttpOnly: true, Secure: r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https"),
+		SameSite: http.SameSiteLaxMode, MaxAge: int(time.Until(challenge.ExpiresAt).Seconds())})
 	query.Set("start", webauth.StartParameter(challenge.ApprovalToken))
 	botURL.RawQuery = query.Encode()
 
@@ -82,14 +94,23 @@ func (h *Handler) handleTelegramQRLoginStatus(w http.ResponseWriter, r *http.Req
 		h.writeError(w, http.StatusServiceUnavailable, "qr_login_unavailable", "Telegram QR login is unavailable")
 		return
 	}
-	if !h.rateLimiter.Allow("telegram-qr-status:"+publicRequestIP(r), rateLimitRule{Limit: 150, Window: time.Minute}, time.Now().UTC()) {
-		h.writeError(w, http.StatusTooManyRequests, "too_many_requests", "Too many requests")
-		return
-	}
-
 	var request telegramQRLoginStatusRequest
 	if err := h.decodeJSONRequest(w, r, 4096, &request); err != nil || strings.TrimSpace(request.ID) == "" || strings.TrimSpace(request.Secret) == "" {
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "Invalid request")
+		return
+	}
+	// Valid browser challenges have independent poll budgets. Visitors sharing a
+	// NAT or reverse proxy must not consume each other's login allowance.
+	now := time.Now().UTC()
+	if _, resumeErr := h.webLogin.Resume(request.ID, request.Secret, now); resumeErr == nil {
+		if !h.rateLimiter.Allow("telegram-qr-status:"+request.ID, rateLimitRule{Limit: 90, Window: time.Minute}, now) {
+			w.Header().Set("Retry-After", "60")
+			h.writeError(w, http.StatusTooManyRequests, "too_many_requests", "Too many requests")
+			return
+		}
+	} else if !h.rateLimiter.Allow("telegram-qr-invalid:"+publicRequestIP(r), rateLimitRule{Limit: 120, Window: time.Minute}, now) {
+		w.Header().Set("Retry-After", "60")
+		h.writeError(w, http.StatusTooManyRequests, "too_many_requests", "Too many requests")
 		return
 	}
 

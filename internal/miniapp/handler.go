@@ -1132,6 +1132,7 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 			}
 		}
 		if !h.rateLimiter.Allow(rateLimitKey(r.URL.Path, sess.User.ID), miniAppRateLimitRule(r.URL.Path), time.Now().UTC()) {
+			w.Header().Set("Retry-After", "60")
 			h.writeError(w, http.StatusTooManyRequests, "too_many_requests", "Слишком много запросов, попробуйте чуть позже")
 			return
 		}
@@ -1720,19 +1721,20 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 	}
 
 	var (
-		plan           checkoutPlan
-		price          int
-		purchaseKind   = database.PurchaseKindSubscription
-		extraDevices   int
-		deviceLimit    *int
-		trafficLimit   *int64
-		purchaseMonths int
-		purchaseDays   int
-		planID         string
-		isFreePlan     bool
-		freePlanOnce   bool
-		invoiceType    database.InvoiceType
-		p2pDestination database.P2PDestinationSnapshot
+		plan            checkoutPlan
+		price           int
+		purchaseKind    = database.PurchaseKindSubscription
+		extraDevices    int
+		deviceExpiresAt *time.Time
+		deviceLimit     *int
+		trafficLimit    *int64
+		purchaseMonths  int
+		purchaseDays    int
+		planID          string
+		isFreePlan      bool
+		freePlanOnce    bool
+		invoiceType     database.InvoiceType
+		p2pDestination  database.P2PDestinationSnapshot
 	)
 
 	pack, hasPack := h.devicePackForRequest(req.DevicePackID)
@@ -1759,6 +1761,11 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 			return
 		}
 		purchaseKind = database.PurchaseKindExtraDevices
+		deviceExpiresAt = panelState.ExpireAt
+		if deviceExpiresAt == nil || !deviceExpiresAt.After(time.Now().UTC()) {
+			h.writeError(w, http.StatusBadRequest, "active_subscription_required", "Срок подписки истёк")
+			return
+		}
 	} else {
 		var ok bool
 		plan, ok = h.checkoutPlanForRequest(req.PlanID, req.Months)
@@ -1778,9 +1785,31 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 				h.writeError(w, http.StatusBadRequest, "unlimited_devices", "Для этого тарифа устройства уже безлимитны")
 				return
 			}
-			combinedDeviceLimit += pack.Devices
+			// Devices are a separate, expiring entitlement; the plan keeps its base limit.
 		}
 		deviceLimit = &combinedDeviceLimit
+		if hasPack {
+			now := time.Now().UTC()
+			start := now
+			panelState, stateErr := h.panelStateForCustomerSubscription(r.Context(), customer, activeSubscription)
+			if stateErr != nil {
+				h.writeError(w, http.StatusServiceUnavailable, "panel_unavailable", "Не удалось рассчитать срок устройств")
+				return
+			}
+			if panelState != nil && panelState.Active && panelState.DeviceLimit <= 0 {
+				h.writeError(w, http.StatusBadRequest, "unlimited_devices", "У подписки уже нет ограничения по устройствам")
+				return
+			}
+			if panelState != nil && panelState.ExpireAt != nil && panelState.ExpireAt.After(start) {
+				start = *panelState.ExpireAt
+			}
+			days := plan.Days
+			if days <= 0 {
+				days = plan.Months * 30
+			}
+			end := start.Add(time.Duration(days) * 24 * time.Hour)
+			deviceExpiresAt = &end
+		}
 	}
 
 	needsPayment := req.DeviceOnly || hasPack || !isFreePlan
@@ -1810,9 +1839,9 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		if hasPack {
 			extraDevices = pack.Devices
 			if invoiceType == database.InvoiceTypeTelegram {
-				price = pack.PriceStars
+				price = payment.DevicePackAmount(pack.PriceStars, deviceExpiresAt.Sub(time.Now().UTC()))
 			} else {
-				price = pack.PriceRub
+				price = payment.DevicePackAmount(pack.PriceRub, deviceExpiresAt.Sub(time.Now().UTC()))
 			}
 		}
 		if !req.DeviceOnly && !isFreePlan {
@@ -1876,6 +1905,7 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		DeviceLimitCount:     deviceLimit,
 		PurchaseKind:         purchaseKind,
 		ExtraDevices:         extraDevices,
+		DeviceExpiresAt:      deviceExpiresAt,
 		IsFreePlan:           isFreePlan,
 		FreePlanOneTime:      freePlanOnce,
 		PromoCodeID:          promoCodeIDOrNil(promo),

@@ -95,6 +95,8 @@ let googleAuthMode = "login";
 let googleLoginPendingMode = "";
 let googleLinkRefreshTimer = null;
 let dashboardHydrationTimer = null;
+let dashboardRefreshPromise = null;
+let dashboardRetryAt = 0;
 let adminLogoPreviewTimer = null;
 let adminFaviconPreviewTimer = null;
 let adminUsersSearchTimer = null;
@@ -473,7 +475,7 @@ async function pollTelegramQRLogin() {
 			render();
 			return;
 		}
-		scheduleTelegramQRLoginPoll(error?.code === "too_many_requests" ? 5000 : 2600);
+		scheduleTelegramQRLoginPoll(error?.code === "too_many_requests" ? (error.retryAfterMs || 60000) : 2600);
 	} finally {
 		telegramQRLoginPollBusy = false;
 	}
@@ -488,7 +490,7 @@ function mountTelegramQRLogin() {
 		scheduleTelegramQRLoginPoll(telegramQRLoginPollTimer ? 1600 : 900);
 		return;
 	}
-	if (telegramQRLoginCreatePromise) return;
+	if (telegramQRLoginCreatePromise || telegramQRLoginRetryTimer) return;
 
 	telegramQRLoginCreatePromise = post("/api/mini-app/auth/telegram/qr/start")
 		.then((response) => {
@@ -503,7 +505,7 @@ function mountTelegramQRLogin() {
 			};
 			render();
 		})
-		.catch(() => {
+		.catch((error) => {
 			if (hasAuth()) return;
 			telegramQRLogin = { error: true };
 			render();
@@ -511,7 +513,7 @@ function mountTelegramQRLogin() {
 				telegramQRLoginRetryTimer = null;
 				telegramQRLogin = null;
 				render();
-			}, 5000);
+			}, error?.code === "too_many_requests" ? (error.retryAfterMs || 60000) : 5000);
 		})
 		.finally(() => {
 			telegramQRLoginCreatePromise = null;
@@ -2102,6 +2104,7 @@ function buildPreviewRuntimeSettings() {
 		subPage: { includeBuiltIns: true, clients: [] },
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, titleFa: `${plan.months} \u0645\u0627\u0647`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
 		devicePacks: [],
+		deviceAccess: defaultDeviceAccessSettings(),
 		trial: { enabled: true, days: 3, trafficGb: 10, unlimitedTraffic: false, deviceLimit: 5, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "", trafficResetStrategy: "MONTH", tag: "" },
 		referrals: { trial: deepClone(previewPayload.referral.trialReward), purchase: deepClone(previewPayload.referral.purchaseReward), rewardEveryPurchase: false, balancePaymentsEnabled: true, withdrawalsEnabled: true, minimumWithdrawalRub: 500 },
 		grace: { enabled: false, days: 1, internalSquadUuids: [] },
@@ -2141,6 +2144,7 @@ const state = {
 	adminDevicePackEditorOpen: false,
 	adminDevicePackEditingID: "",
 	adminDevicePackFormDraft: null,
+	adminCommerceMenu: null,
   paymentLaunchModalOpen: false,
   paymentLaunchURL: "",
   paymentLaunchPurchaseId: 0,
@@ -3145,7 +3149,14 @@ async function startRealtimeSync() {
 	realtimeStarted = false;
 }
 
-async function refreshDashboard({ initial = false, silent = false, forceSubscriptionCheck = false } = {}) {
+async function refreshDashboard(options = {}) {
+    if (dashboardRefreshPromise) return dashboardRefreshPromise;
+    if (Date.now() < dashboardRetryAt) return;
+    dashboardRefreshPromise = loadDashboard(options).finally(() => { dashboardRefreshPromise = null; });
+    return dashboardRefreshPromise;
+}
+
+async function loadDashboard({ initial = false, silent = false, forceSubscriptionCheck = false } = {}) {
 	const previousView = silent && realtimeRefreshRunning ? realtimeViewSignature() : null;
   if (!silent) {
     if (!state.data || initial) state.loading = true;
@@ -3339,9 +3350,17 @@ async function refreshDashboard({ initial = false, silent = false, forceSubscrip
 		}
 
     const message = error?.message || t().errorTitle;
+		if (error?.code === "too_many_requests") {
+            dashboardRetryAt = Date.now() + (error.retryAfterMs || 60000);
+            window.clearTimeout(dashboardHydrationTimer);
+            dashboardHydrationTimer = window.setTimeout(() => {
+                dashboardHydrationTimer = null;
+                void refreshDashboard({ silent: true });
+            }, error.retryAfterMs || 60000);
+        }
 		state.blocked = null;
     if (!state.data || initial) state.error = message;
-    else showToast(message);
+    else if (!silent) showToast(message);
   } finally {
     state.loading = false;
     state.refreshing = false;
@@ -3451,6 +3470,8 @@ async function post(url, body, extraHeaders = null) {
       err.code = payload?.error?.code || "";
       err.meta = payload?.error?.meta || null;
       err.rawMessage = payload?.error?.message || "";
+      const retrySeconds = Number(response.headers.get("Retry-After"));
+      err.retryAfterMs = Number.isFinite(retrySeconds) && retrySeconds > 0 ? Math.min(600000, retrySeconds * 1000) : 0;
       throw err;
     }
     return payload;
@@ -3741,7 +3762,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-	const modalOpen = Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.profilePromoOpen || state.supportComposeOpen || state.supportThreadOpen || state.supportMediaViewer || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminBannerEditorOpen || state.adminLayoutStyleEditorOpen;
+	const modalOpen = Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.profilePromoOpen || state.supportComposeOpen || state.supportThreadOpen || state.supportMediaViewer || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.adminCommerceMenu || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminBannerEditorOpen || state.adminLayoutStyleEditorOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -3811,6 +3832,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
 		${isModalVisible("subscription-delete", state.subscriptionDeleteOpen) ? renderSubscriptionDeleteModal() : ""}
 		${isModalVisible("device-packs", state.devicePackModalOpen) ? renderDevicePackModal() : ""}
 		${isModalVisible("admin-device-packs", state.adminDevicePackEditorOpen) ? renderAdminDevicePackModal() : ""}
+		${state.adminCommerceMenu ? renderAdminCommerceMenu() : ""}
       ${isModalVisible("payment-launch", state.paymentLaunchModalOpen) ? renderPaymentLaunchModal() : ""}
       ${isModalVisible("review-compose", state.reviewComposeOpen) ? renderReviewComposerModal() : ""}
 		${isModalVisible("review-detail", state.reviewDetailOpen) ? renderReviewDetailModal() : ""}
@@ -5726,7 +5748,7 @@ function renderAdminAppearancePage() {
 	return renderAdminEditorPage(state.locale === "en" ? "Appearance" : "Оформление", `
 		${renderAdminBackgroundOptions(currentMode)}
 		${renderAdminBackgroundControls(currentMode)}
-		<div class="admin-toggle-list">${renderAdminToggle("Компактный режим", "appearance.compact")}${renderAdminToggle("Показывать рамки", "appearance.showFrames")}${renderAdminToggle(localizedText("Стекло", "Glass", "شیشه"), "appearance.glass")}</div>
+		<div class="admin-toggle-list">${renderAdminToggle("Показывать рамки", "appearance.showFrames")}${renderAdminToggle(localizedText("Стекло", "Glass", "شیشه"), "appearance.glass")}</div>
 		${renderAdminAppearancePresets()}
 		<div class="admin-appearance-groups">${groups.map(([title, colors]) => `<section class="admin-editor__section admin-appearance-group"><h3>${escapeHtml(title)}</h3><div class="admin-color-grid">${colors.map(([key, label]) => renderAdminColorField(label, `appearance.colors.${key}`)).join("")}</div></section>`).join("")}</div>
 	`);
@@ -6870,14 +6892,24 @@ function getSelectedDevicePack() {
 	return getDevicePacks().find((pack) => String(pack.id) === String(state.selectedDevicePackId || "")) || null;
 }
 
-function devicePackPrice(pack, methodID) {
-	if (!pack) return 0;
-	return methodID === "stars" ? Number(pack.priceStars || Math.round(Number(pack.priceRub || 0) / 1.47)) : Number(pack.priceRub || 0);
+function devicePackExpiry(plan = null) {
+    const now = Date.now();
+    const expiry = Date.parse(state.data?.subscription?.expiresAt || "");
+    const currentEnd = Number.isFinite(expiry) ? Math.max(now, expiry) : now;
+    const days = plan ? Math.max(0, Number(plan.days || Number(plan.months || 0) * 30)) : 0;
+    return currentEnd + days * 86400000;
+}
+
+function devicePackPrice(pack, methodID, plan = null) {
+    if (!pack) return 0;
+    const monthly = methodID === "stars" ? Number(pack.priceStars || Math.round(Number(pack.priceRub || 0) / 1.47)) : Number(pack.priceRub || 0);
+    const remaining = Math.max(0, devicePackExpiry(plan) - Date.now());
+    return remaining > 0 && monthly > 0 ? Math.max(1, Math.round(monthly * remaining / (30 * 86400000))) : 0;
 }
 
 function formatCheckoutPrice(plan, pack, methodID) {
 	const planPrice = methodID === "stars" ? Number(plan?.priceStars || 0) : Number(plan?.priceRub || 0);
-	const basePrice = Math.max(0, planPrice) + Math.max(0, devicePackPrice(pack, methodID));
+	const basePrice = Math.max(0, planPrice) + Math.max(0, devicePackPrice(pack, methodID, plan));
 	const promo = getActivePromo();
 	const amount = basePrice > 0 && promo?.discountPercent
 		? Math.max(1, Math.round(basePrice * (100 - promo.discountPercent) / 100))
@@ -6916,12 +6948,12 @@ function renderDevicePackAdminTrigger(editor = false) {
 }
 
 function renderDevicePackCard(pack, selected = false) {
-	const price = `${formatNumber(pack.priceRub, state.locale)} ₽`;
+	const price = `${formatNumber(devicePackPrice(pack, "rub"), state.locale)} ₽`;
 	return `<button class="pricing-card device-pack-card ${selected ? "selected" : ""} ${pack.wide ? "is-wide" : ""}" type="button" data-action="select-device-pack" data-value="${escapeAttribute(pack.id)}" data-selection-feedback aria-pressed="${selected}">
 		<div class="pricing-card__content">
 			<div class="pricing-card__copy">
 				<div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(devicePackTitle(pack.devices))}</div></div>
-				<div class="pricing-card__spec">К текущему лимиту</div>
+				<div class="pricing-card__spec">До ${escapeHtml(formatShortDateLabel(new Date(devicePackExpiry()).toISOString(), state.locale))}</div>
 			</div>
 			<div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong>${escapeHtml(price)}</strong></div></div></div>
 		</div>
@@ -6932,21 +6964,15 @@ function renderAdminDevicePackCard(pack, index) {
 	const id = escapeAttribute(pack.id);
 	const price = `${formatNumber(pack.priceRub, state.locale)} ₽`;
 	const widthLabel = pack.wide ? "Сделать пакет узким" : "Растянуть пакет";
-	return `<article class="pricing-card pricing-card--admin device-pack-card device-pack-card--admin ${pack.wide ? "is-wide" : ""}">
+	return `<article class="pricing-card pricing-card--admin device-pack-card device-pack-card--admin ${pack.wide ? "is-wide" : ""}" data-admin-pack-id="${id}">
 		<div class="pricing-card__content">
 			<div class="pricing-card__copy">
 				<div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(devicePackTitle(pack.devices))}</div></div>
-				<div class="pricing-card__spec">К текущему лимиту</div>
+				<div class="pricing-card__spec">За 30 дней</div>
 			</div>
 			<div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong>${escapeHtml(price)}</strong></div></div></div>
 		</div>
-		<div class="pricing-card__admin-actions device-pack-card__admin-actions">
-			<button type="button" data-action="admin-move-device-pack" data-value="${index}" data-direction="-1" aria-label="Переместить пакет вверх">${icon("arrowUp")}</button>
-			<button type="button" data-action="admin-move-device-pack" data-value="${index}" data-direction="1" aria-label="Переместить пакет вниз">${icon("arrowDown")}</button>
-			<button type="button" data-action="admin-toggle-device-pack-wide" data-value="${id}" aria-label="${escapeAttribute(widthLabel)}" aria-pressed="${Boolean(pack.wide)}">${icon("resize")}</button>
-			<button type="button" data-action="admin-edit-device-pack" data-value="${id}" aria-label="Редактировать пакет">${icon("pencil")}</button>
-			<button type="button" data-action="admin-delete-device-pack" data-value="${id}" aria-label="Удалить пакет">${icon("trash")}</button>
-		</div>
+		${renderAdminCommerceControls("pack", pack)}
 	</article>`;
 }
 
@@ -6960,12 +6986,62 @@ function renderDevicePackModal() {
 	return `<div class="modal open ${modalStateClass("device-packs")}" role="dialog" aria-modal="true" aria-labelledby="device-pack-modal-title"><button class="modal__backdrop" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-purchase"><div class="modal__header"><div><div class="section-label">УСТРОЙСТВА</div><div class="modal__title" id="device-pack-modal-title">Докупить устройства</div></div><button class="header__btn" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств">${icon("close")}</button></div><div class="device-pack-modal__scroll">${packList}</div><div class="device-pack-modal__footer"><div class="device-pack-modal__actions"><button class="btn btn--green-filled" type="button" data-action="buy-device-pack" ${selected && canBuyNow ? "" : "disabled"}>${icon("cart")}Докупить</button><button class="btn" type="button" data-action="continue-device-pack" ${selected ? "" : "disabled"}>Продолжить</button></div></div></div></div>`;
 }
 
+function defaultDeviceAccessSettings() {
+    return {
+        purchaseNotification: true, reminderNotification: true, expiryNotification: true, reminderDays: 1,
+        purchaseTemplate: "<b>Дополнительные устройства оплачены</b>\n\nПодписка: {subscription}\nДобавлено: <b>{devices}</b>\nЛимит: <b>{limit}</b>\nДействуют до: <b>{expires}</b>\nПродление подписки не продлевает срок дополнительных устройств.",
+        reminderTemplate: "<b>Срок дополнительных устройств заканчивается</b>\n\nПодписка: {subscription}\nДополнительных устройств: <b>{devices}</b>\nДействуют до: <b>{expires}</b>\nПосле окончания оплаченного срока лимит уменьшится.",
+        expiryTemplate: "<b>Срок дополнительных устройств истёк</b>\n\nПодписка: {subscription}\nУбрано: <b>{devices}</b>\nТекущий лимит: <b>{limit}</b>\nДоступ по подписке сохраняется до её даты окончания.",
+    };
+}
+
+function renderDeviceAccessSettings() {
+    return `<details class="device-access-settings"><summary>Уведомления об устройствах</summary><div class="device-access-settings__body">
+        <p>Цена пакета задаётся за 30 дней. Стоимость рассчитывается по сроку подписки. При продлении подписки срок уже оплаченных устройств не меняется.</p>
+        <div class="admin-toggle-list">${renderAdminToggle("Уведомлять о покупке", "deviceAccess.purchaseNotification")}${renderAdminToggle("Напоминать об окончании", "deviceAccess.reminderNotification")}${renderAdminToggle("Уведомлять о снятии устройств", "deviceAccess.expiryNotification")}</div>
+        ${renderAdminSettingField("Напомнить за сколько дней", "deviceAccess.reminderDays", { type: "number", min: 0, max: 30 })}
+        ${renderAdminSettingField("Покупка устройств", "deviceAccess.purchaseTemplate", { textarea: true, rows: 5 })}
+        ${renderAdminSettingField("Скорое окончание", "deviceAccess.reminderTemplate", { textarea: true, rows: 5 })}
+        ${renderAdminSettingField("Срок устройств истёк", "deviceAccess.expiryTemplate", { textarea: true, rows: 5 })}
+        <small>Переменные: {subscription}, {devices}, {limit}, {expires}, {days}. Дата окончания — по Москве.</small>
+    </div></details>`;
+}
+
 function renderAdminDevicePackModal() {
-	const packs = state.adminSettingsDraft?.devicePacks || [];
-	const draft = state.adminDevicePackFormDraft;
-	const editor = draft ? `<div class="device-pack-form"><div class="admin-editor__grid"><label class="admin-field"><span>Устройств</span><input class="admin-field__control" data-input="admin-device-pack-devices" type="number" min="1" value="${escapeAttribute(draft.devices || 1)}"></label><label class="admin-field"><span>Цена, ₽</span><input class="admin-field__control" data-input="admin-device-pack-price" type="number" min="1" value="${escapeAttribute(draft.priceRub || 1)}"></label></div><label class="admin-toggle-row"><span>На всю ширину</span><input data-input="admin-device-pack-wide" type="checkbox" ${draft.wide ? "checked" : ""}></label><div class="device-pack-form__actions"><button class="btn" type="button" data-action="admin-cancel-device-pack">Отмена</button><button class="btn btn--green-filled" type="button" data-action="admin-save-device-pack">${icon("check")}Применить</button></div></div>` : `<button class="device-pack-add" type="button" data-action="admin-add-device-pack">${icon("plus")}Добавить пакет</button>`;
-	const cards = packs.length ? packs.map((pack, index) => renderAdminDevicePackCard(pack, index)).join("") : `<div class="device-pack-empty"><strong>Пакетов пока нет</strong><span>Добавьте первый пакет устройств.</span></div>`;
-	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-close-device-packs"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-admin"><div class="modal__header"><div><div class="section-label">ТАРИФЫ</div><div class="modal__title">Пакеты устройств</div></div><button class="header__btn" type="button" data-action="admin-close-device-packs">${icon("close")}</button></div>${editor}<div class="device-pack-admin-list">${cards}</div></div></div>`;
+    const packs = state.adminSettingsDraft?.devicePacks || [];
+    const draft = state.adminDevicePackFormDraft;
+    const editor = draft ? `<div class="device-pack-form"><div class="admin-editor__grid">
+        <label class="admin-field"><span>Устройств</span><input class="admin-field__control" data-input="admin-device-pack-devices" type="number" min="1" max="1000" value="${escapeAttribute(draft.devices || 1)}"></label>
+        <label class="admin-field"><span>Цена за 30 дней, ₽</span><input class="admin-field__control" data-input="admin-device-pack-price" type="number" min="1" max="1000000" value="${escapeAttribute(draft.priceRub || 1)}"></label>
+        </div><label class="admin-toggle-row"><span>На всю ширину</span><input data-input="admin-device-pack-wide" type="checkbox" ${draft.wide ? "checked" : ""}></label>
+        <div class="device-pack-form__actions"><button class="btn" type="button" data-action="admin-cancel-device-pack">Отмена</button><button class="btn btn--green-filled" type="button" data-action="admin-save-device-pack">${icon("check")}Применить</button></div></div>` : `<button class="device-pack-add" type="button" data-action="admin-add-device-pack">${icon("plus")}Добавить пакет</button>`;
+    const cards = packs.length ? packs.map((pack, index) => renderAdminDevicePackCard(pack, index)).join("") : `<div class="device-pack-empty"><strong>Пакетов пока нет</strong><span>Добавьте первый пакет устройств.</span></div>`;
+    return `<div class="modal open" role="dialog" aria-modal="true" aria-labelledby="admin-device-pack-title"><button class="modal__backdrop" type="button" data-action="admin-close-device-packs" aria-label="Закрыть пакеты устройств"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-admin"><div class="modal__header"><div><div class="section-label">УСТРОЙСТВА</div><div class="modal__title" id="admin-device-pack-title">${draft ? "Редактировать пакет" : "Пакеты устройств"}</div></div><button class="header__btn" type="button" data-action="admin-close-device-packs" aria-label="Закрыть пакеты устройств">${icon("close")}</button></div>${editor}${draft ? "" : `<div class="device-pack-admin-list">${cards}</div>${renderDeviceAccessSettings()}`}</div></div>`;
+}
+
+function renderAdminCommerceControls(kind, item) {
+    const pack = kind === "pack";
+    const move = pack ? "Переместить пакет" : "Переместить тариф";
+    const menu = pack ? "Управление пакетом" : "Управление тарифом";
+    return `<div class="pricing-card__admin-actions"><button class="pricing-card__admin-drag" type="button" ${pack ? "data-admin-pack-drag" : "data-admin-plan-drag"} aria-label="${move}" title="${move}">${icon("move")}</button><button type="button" data-action="admin-commerce-menu" data-kind="${kind}" data-value="${escapeAttribute(item.id)}" aria-label="${menu}" aria-haspopup="dialog">${icon("more")}</button></div>`;
+}
+
+function renderAdminCommerceMenu() {
+    const menu = state.adminCommerceMenu;
+    const pack = menu?.kind === "pack";
+    const items = pack ? state.adminSettingsDraft?.devicePacks : state.adminSettingsDraft?.plans;
+    const index = (items || []).findIndex(item => String(item.id) === String(menu?.id));
+    const item = items?.[index];
+    if (!item) return "";
+    const title = pack ? devicePackTitle(item.devices) : getPlanDisplayTitle(item, state.locale);
+    const row = (action, label, symbol, extras = "") => `<button type="button" data-action="${action}" data-value="${escapeAttribute(item.id)}" ${extras}>${icon(symbol)}<span>${label}</span></button>`;
+    return `<div class="modal open modal--commerce" role="dialog" aria-modal="true" aria-labelledby="commerce-menu-title"><button class="modal__backdrop" type="button" data-action="admin-commerce-close" aria-label="Закрыть управление"></button><div class="modal__sheet commerce-menu"><div class="modal__header"><strong id="commerce-menu-title">${escapeHtml(title)}</strong><button class="header__btn" type="button" data-action="admin-commerce-close" aria-label="Закрыть управление">${icon("close")}</button></div><div class="commerce-menu__actions">
+        ${row(pack ? "admin-edit-device-pack" : "admin-edit-plan", "Редактировать", "pencil")}
+        ${row(pack ? "admin-toggle-device-pack-wide" : "admin-toggle-plan-wide", item.wide ? "Обычная ширина" : "На всю ширину", "resize")}
+        ${row("admin-commerce-move", "Переместить выше", "arrowUp", `data-direction="-1" ${index === 0 ? "disabled" : ""}`)}
+        ${row("admin-commerce-move", "Переместить ниже", "arrowDown", `data-direction="1" ${index === items.length - 1 ? "disabled" : ""}`)}
+        ${row(pack ? "admin-delete-device-pack" : "admin-delete-plan", "Удалить", "trash")}
+    </div></div></div>`;
 }
 
 function setupGuideCopy() {
@@ -8189,7 +8265,7 @@ function renderPlanCard(plan, selected) {
 		const widthLabel = plan.wide
 			? (state.locale === "en" ? "Make plan compact" : "Сделать тариф узким")
 			: (state.locale === "en" ? "Make plan full width" : "Растянуть тариф");
-		return `<article class="pricing-card pricing-card--admin ${unlimited ? "pricing-card--unlimited" : ""} ${plan.wide ? "pricing-card--wide" : ""} ${plan.enabled === false ? "is-draft" : ""}" data-admin-plan-id="${escapeAttribute(key)}">${content}<div class="pricing-card__admin-actions"><button class="pricing-card__admin-drag" type="button" data-admin-plan-drag aria-label="${escapeAttribute(moveLabel)}" title="${escapeAttribute(moveLabel)}">${icon("move")}</button><button type="button" data-action="admin-toggle-plan-wide" data-value="${escapeAttribute(key)}" aria-label="${escapeAttribute(widthLabel)}" title="${escapeAttribute(widthLabel)}" aria-pressed="${Boolean(plan.wide)}">${icon("resize")}</button><button type="button" data-action="admin-edit-plan" data-value="${escapeAttribute(key)}" aria-label="${state.locale === "en" ? "Edit plan" : "Редактировать тариф"}" title="${state.locale === "en" ? "Edit plan" : "Редактировать тариф"}">${icon("pencil")}</button><button type="button" data-action="admin-delete-plan" data-value="${escapeAttribute(key)}" aria-label="${state.locale === "en" ? "Delete plan" : "Удалить тариф"}" title="${state.locale === "en" ? "Delete plan" : "Удалить тариф"}">${icon("trash")}</button></div></article>`;
+		return `<article class="pricing-card pricing-card--admin ${unlimited ? "pricing-card--unlimited" : ""} ${plan.wide ? "pricing-card--wide" : ""} ${plan.enabled === false ? "is-draft" : ""}" data-admin-plan-id="${escapeAttribute(key)}">${content}${renderAdminCommerceControls("plan", plan)}</article>`;
 	}
   return `<button class="pricing-card ${unlimited ? "pricing-card--unlimited" : ""} ${plan.wide ? "pricing-card--wide" : ""} ${selected ? "selected" : ""}" type="button" data-action="select-plan" data-value="${escapeAttribute(key)}" data-selection-feedback aria-pressed="${selected}">${content}</button>`;
 }
@@ -8964,9 +9040,26 @@ function bindRootActions() {
 				state.devicePackModalOpen = false;
 				void startPayment({ deviceOnly: true });
 			});
-			if (action === "admin-open-device-packs") { state.adminDevicePackEditorOpen = true; state.adminDevicePackFormDraft = null; render({ preserveScroll: true }); return; }
+			if (action === "admin-open-device-packs") { state.adminSettingsDraft.deviceAccess ||= defaultDeviceAccessSettings(); state.adminDevicePackEditorOpen = true; state.adminDevicePackFormDraft = null; render({ preserveScroll: true }); return; }
 			if (action === "admin-close-device-packs") { state.adminDevicePackEditorOpen = false; state.adminDevicePackFormDraft = null; render({ preserveScroll: true }); return; }
-			if (action === "admin-add-device-pack") return addAdminDevicePack();
+			if (action === "admin-commerce-menu") {
+                state.adminCommerceMenu = { kind: target.dataset.kind, id: value };
+                render({ preserveScroll: true });
+                queueMicrotask(() => app.querySelector('.commerce-menu__actions button:not(:disabled)')?.focus());
+                return;
+            }
+            if (action === "admin-commerce-close") { state.adminCommerceMenu = null; render({ preserveScroll: true }); return; }
+            if (action === "admin-commerce-move") {
+                const menu = state.adminCommerceMenu;
+                const items = menu?.kind === "pack" ? state.adminSettingsDraft.devicePacks : state.adminSettingsDraft.plans;
+                const index = items.findIndex(item => String(item.id) === String(value));
+                const direction = Number(target.dataset.direction || 0);
+                state.adminCommerceMenu = null;
+                if (menu?.kind === "pack") return moveAdminDevicePack(index, direction);
+                return moveAdminPlan(index, direction);
+            }
+            if (state.adminCommerceMenu && /^(?:admin-edit-|admin-delete-|admin-toggle-)/.test(action)) { state.adminCommerceMenu = null; render({ preserveScroll: true }); }
+            if (action === "admin-add-device-pack") return addAdminDevicePack();
 			if (action === "admin-edit-device-pack") return editAdminDevicePack(value);
 			if (action === "admin-cancel-device-pack") { state.adminDevicePackFormDraft = null; state.adminDevicePackEditingID = ""; render({ preserveScroll: true }); return; }
 			if (action === "admin-save-device-pack") return saveAdminDevicePack();
@@ -9402,7 +9495,11 @@ function bindRootActions() {
 			if (settingPath === "content.logoUrl") scheduleAdminLogoPreview(target.value);
 			if (settingPath === "content.webPage.faviconUrl") scheduleAdminFaviconPreview(target.value);
 			state.adminSettingsDirty = true;
-			const saveButton = app.querySelector('[data-action="admin-save-settings"]');
+            if (settingPath === "appearance.showFrames" || settingPath === "appearance.glass") {
+                render({ preserveScroll: true });
+                return;
+            }
+            const saveButton = app.querySelector('[data-action="admin-save-settings"]');
 			if (saveButton) saveButton.disabled = false;
 			const saveLabel = app.querySelector(".admin-save-bar > span");
 			syncAdminSaveBarDOM();
@@ -9619,6 +9716,16 @@ function bindRootActions() {
 	app.addEventListener("pointerdown", beginAdminPlanPointer);
 	app.addEventListener("pointerdown", beginAdminLayoutPointer);
 	app.addEventListener("keydown", (event) => {
+        if (state.adminCommerceMenu) {
+            if (event.key === "Escape") { event.preventDefault(); state.adminCommerceMenu = null; render({ preserveScroll: true }); return; }
+            if (event.key === "Tab") {
+                const controls = [...app.querySelectorAll('.commerce-menu button:not(:disabled)')];
+                const index = controls.indexOf(document.activeElement);
+                if (index < 0 || (event.shiftKey && index === 0) || (!event.shiftKey && index === controls.length - 1)) {
+                    event.preventDefault(); controls[event.shiftKey ? controls.length - 1 : 0]?.focus();
+                }
+            }
+        }
 		if (state.payModalOpen && event.key === "Escape") {
 			event.preventDefault();
 			closePayModal();
@@ -9718,11 +9825,17 @@ function bindRootActions() {
 			void sendSupportMessage().catch((error) => showToast(error?.message || localizedText("Не удалось отправить сообщение", "Failed to send message", "ارسال پیام انجام نشد")));
 			return;
 		}
-		const planHandle = event.target.closest?.("[data-admin-plan-drag]");
-		if (state.adminPlanEditing && planHandle && ["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"].includes(event.key)) {
+		const planHandle = event.target.closest?.("[data-admin-plan-drag], [data-admin-pack-drag]");
+		if ((state.adminPlanEditing || state.adminDevicePackEditorOpen) && planHandle && ["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"].includes(event.key)) {
 			event.preventDefault();
-			const node = planHandle.closest("[data-admin-plan-id]");
-			const plans = state.adminSettingsDraft?.plans || [];
+			if (planHandle.hasAttribute("data-admin-pack-drag")) {
+                const node = planHandle.closest("[data-admin-pack-id]");
+                const index = state.adminSettingsDraft.devicePacks.findIndex(item => String(item.id) === node?.dataset.adminPackId);
+                moveAdminDevicePack(index, ["ArrowLeft", "ArrowUp"].includes(event.key) ? -1 : 1);
+                return;
+            }
+            const node = planHandle.closest("[data-admin-plan-id]");
+            const plans = state.adminSettingsDraft?.plans || [];
 			const index = plans.findIndex((item) => String(item.id) === String(node?.dataset?.adminPlanId || ""));
 			moveAdminPlan(index, ["ArrowLeft", "ArrowUp"].includes(event.key) ? -1 : 1);
 			return;
@@ -12322,13 +12435,16 @@ function moveAdminProfileItem(source, group, targetID) {
 }
 
 function beginAdminPlanPointer(event) {
-	if (!state.adminPlanEditing || adminPlanPointer || (event.pointerType === "mouse" && event.button !== 0)) return;
-	const handle = event.target.closest?.("[data-admin-plan-drag]");
-	const node = handle?.closest?.("[data-admin-plan-id]");
-	const sourceID = String(node?.dataset?.adminPlanId || "");
+	if ((!state.adminPlanEditing && !state.adminDevicePackEditorOpen) || adminPlanPointer || (event.pointerType === "mouse" && event.button !== 0)) return;
+	const handle = event.target.closest?.("[data-admin-plan-drag], [data-admin-pack-drag]");
+    const pack = Boolean(handle?.hasAttribute("data-admin-pack-drag"));
+    const selector = pack ? "[data-admin-pack-id]" : "[data-admin-plan-id]";
+    const node = handle?.closest?.(selector);
+    const sourceID = String(pack ? node?.dataset?.adminPackId || "" : node?.dataset?.adminPlanId || "");
 	if (!handle || !node || !sourceID) return;
 	event.preventDefault();
 	adminPlanPointer = {
+		pack, selector,
 		pointerId: event.pointerId,
 		startX: event.clientX,
 		startY: event.clientY,
@@ -12353,7 +12469,7 @@ function moveAdminPlanPointer(event) {
 	pointer.node.classList.add("is-plan-dragging");
 	app.querySelectorAll(".is-plan-drop-target").forEach((node) => node.classList.remove("is-plan-drop-target"));
 	const hit = document.elementFromPoint(event.clientX, event.clientY);
-	const target = hit?.closest?.("[data-admin-plan-id]");
+	const target = hit?.closest?.(pointer.selector);
 	if (target && target !== pointer.node) target.classList.add("is-plan-drop-target");
 	const scroller = app.querySelector(".page-scroll");
 	if (scroller) {
@@ -12370,9 +12486,16 @@ function endAdminPlanPointer(event) {
 	let changed = false;
 	if (pointer.moved) {
 		const hit = document.elementFromPoint(pointer.clientX, pointer.clientY);
-		const target = hit?.closest?.("[data-admin-plan-id]");
-		const targetID = String(target?.dataset?.adminPlanId || "");
-		if (targetID && targetID !== pointer.sourceID) changed = reorderAdminPlansByID(pointer.sourceID, targetID);
+		const target = hit?.closest?.(pointer.selector);
+		const targetID = String(pointer.pack ? target?.dataset?.adminPackId || "" : target?.dataset?.adminPlanId || "");
+        if (targetID && targetID !== pointer.sourceID) {
+            if (pointer.pack) {
+                const packs = state.adminSettingsDraft.devicePacks;
+                const from = packs.findIndex(item => String(item.id) === pointer.sourceID);
+                const to = packs.findIndex(item => String(item.id) === targetID);
+                if (from >= 0 && to >= 0) { const [item] = packs.splice(from, 1); packs.splice(to, 0, item); changed = true; }
+            } else changed = reorderAdminPlansByID(pointer.sourceID, targetID);
+        }
 		suppressNextLayoutClick = true;
 		window.setTimeout(() => { suppressNextLayoutClick = false; }, 0);
 	}
@@ -14250,6 +14373,7 @@ function handleNativeBackButton() {
 }
 
 function getActiveModalName() {
+	if (state.adminCommerceMenu) return "commerce-actions";
 	if (state.profilePromoOpen) return "profile-promo";
 	if (state.p2pMenuStep) return "p2p";
 	if (state.giftReceiptOpen) return "gift-receipt";
@@ -14330,7 +14454,7 @@ function applyAppearance() {
 	const liquidColors = Array.from({ length: 4 }, (_, index) => String(liquidSettings.colors?.[index] || liquidFallback.colors[index]));
 	document.documentElement.dataset.background = backgroundMode;
 	document.documentElement.dataset.frames = appearance.showFrames === false ? "off" : "on";
-	document.documentElement.dataset.compact = appearance.compact === false ? "off" : "on";
+	document.documentElement.dataset.compact = "on";
 	document.documentElement.dataset.glass = appearance.glass === true ? "on" : "off";
 	const variables = {
 		"--bg": colors.background,
@@ -15582,6 +15706,7 @@ function icon(name) {
 		return `<span class="app-svg-icon app-svg-icon--${ADMIN_ICON_CLASSES[name]}" data-app-icon="${escapeAttribute(name)}" aria-hidden="true"></span>`;
 	}
   const icons = {
+	more: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>`,
 		search: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="m16.2 16.2 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
 		gift: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M19.97 10H3.96997V18C3.96997 21 4.96997 22 7.96997 22H15.97C18.97 22 19.97 21 19.97 18V10Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M21.5 7V8C21.5 9.1 20.97 10 19.5 10H4.5C2.97 10 2.5 9.1 2.5 8V7C2.5 5.9 2.97 5 4.5 5H19.5C20.97 5 21.5 5.9 21.5 7Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.64 4.99994H6.12003C5.78003 4.62994 5.79003 4.05994 6.15003 3.69994L7.57003 2.27994C7.94003 1.90994 8.55003 1.90994 8.92003 2.27994L11.64 4.99994Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M17.87 4.99994H12.35L15.07 2.27994C15.44 1.90994 16.05 1.90994 16.42 2.27994L17.84 3.69994C18.2 4.05994 18.21 4.62994 17.87 4.99994Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.93994 10V15.14C8.93994 15.94 9.81994 16.41 10.4899 15.98L11.4299 15.36C11.7699 15.14 12.1999 15.14 12.5299 15.36L13.4199 15.96C14.0799 16.4 14.9699 15.93 14.9699 15.13V10H8.93994Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 		shop: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3.00999 11.22V15.71C3.00999 20.2 4.80999 22 9.29999 22H14.69C19.18 22 20.98 20.2 20.98 15.71V11.22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12C13.83 12 15.18 10.51 15 8.68L14.34 2H9.67L9 8.68C8.82 10.51 10.17 12 12 12Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.31 12C20.33 12 21.81 10.36 21.61 8.35L21.33 5.6C20.97 3 19.97 2 17.35 2H14.3L15 9.01C15.17 10.66 16.66 12 18.31 12Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.64 12C7.29 12 8.78 10.66 8.94 9.01L9.16 6.8L9.64001 2H6.59C3.97001 2 2.97 3 2.61 5.6L2.34 8.35C2.14 10.36 3.62 12 5.64 12Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 17C10.33 17 9.5 17.83 9.5 19.5V22H14.5V19.5C14.5 17.83 13.67 17 12 17Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,

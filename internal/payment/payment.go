@@ -78,6 +78,7 @@ type CreatePurchaseOptions struct {
 	PromoDiscountPercent    int
 	PurchaseKind            database.PurchaseKind
 	ExtraDevices            int
+	DeviceExpiresAt         *time.Time
 	IsFreePlan              bool
 	FreePlanOneTime         bool
 	GiftRecipientUsername   string
@@ -207,6 +208,15 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	if err != nil {
 		return err
 	}
+	releaseDevices, err := s.purchaseRepository.LockDeviceLimit(ctx, subscription.ID)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := releaseDevices(); err != nil {
+			slog.Error("payment: unlock devices failed", "error", err)
+		}
+	}()
 	if purchase.IsFreePlan {
 		planID := ""
 		if purchase.PlanID != nil {
@@ -254,19 +264,38 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	}
 
 	if purchase.PurchaseKind == database.PurchaseKindExtraDevices {
-		var user *remnawave.PanelUser
-		userID, userUUID := subscriptionPanelIdentity(subscription)
-		if userID > 0 || userUUID != uuid.Nil {
-			user, err = s.remnawaveClient.AddDeviceLimitByIdentity(ctx, userID, userUUID, purchase.ExtraDevices)
-		} else if subscription.IsPrimary {
-			user, err = s.remnawaveClient.AddDeviceLimit(ctx, customer.TelegramID, purchase.ExtraDevices)
-		} else {
-			err = errors.New("subscription is not active yet")
+		panelState, stateErr := s.panelStateForSubscription(ctx, customer, subscription)
+		if stateErr != nil {
+			return stateErr
 		}
+		if panelState == nil || panelState.DeviceLimit <= 0 {
+			return errors.New("cannot add devices to an unlimited or missing subscription")
+		}
+		var base, limit int
+		if purchase.DeviceExpiresAt != nil {
+			var prepareErr error
+			base, limit, prepareErr = s.prepareSubscriptionDevices(ctx, customer, subscription, purchase, panelState)
+			if prepareErr != nil {
+				return prepareErr
+			}
+		} else {
+			// Invoices issued before timed packs retain their original entitlement.
+			if err := s.purchaseRepository.EnsureDeviceBase(ctx, subscription.ID, panelState.DeviceLimit); err != nil {
+				return err
+			}
+			var extra int
+			base, extra, err = s.purchaseRepository.DeviceLimitState(ctx, subscription.ID, 0, time.Now().UTC())
+			if err != nil {
+				return err
+			}
+			base += purchase.ExtraDevices
+			limit = deviceLimitWithGrants(base, extra)
+		}
+		user, err := s.applySubscriptionDeviceLimit(ctx, customer, subscription, limit)
 		if err != nil {
 			return err
 		}
-		if err := s.purchaseRepository.MarkAsPaid(ctx, purchase.ID); err != nil {
+		if err := s.purchaseRepository.MarkPaidWithDeviceBase(ctx, purchase.ID, subscription.ID, base); err != nil {
 			return err
 		}
 		purchase.Status = database.PurchaseStatusPaid
@@ -280,6 +309,16 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 			return err
 		}
 		s.notifyAdminAboutPayment(ctx, purchase, customer)
+		if purchase.DeviceExpiresAt != nil {
+			limit := 0
+			if user.HwidDeviceLimit != nil {
+				limit = *user.HwidDeviceLimit
+			}
+			if notifyErr := s.notifyDeviceGrants(ctx, customer, subscription, limit); notifyErr != nil {
+				slog.Error("payment: device notification queued for retry", "error", notifyErr)
+			}
+			return nil
+		}
 		text := "<b>Устройства добавлены</b>\n\nЛимит подписки увеличен на <b>{devices}</b>."
 		if s.runtimeSettings != nil {
 			text = s.runtimeSettings.ContentText(customer.Language, "devicePurchaseSuccess", text)
@@ -300,7 +339,13 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 		slog.Warn("payment: load panel state before purchase update failed", "error", err, "customerId", utils.MaskHalfInt64(customer.ID))
 	} else if shouldAccumulateEntitlements(customerForSubscription(customer, subscription), panelState) {
 		trafficLimit = mergeTrafficLimits(int(maxInt64(panelState.TrafficLimitBytes, 0)), trafficLimit)
-		deviceLimit = mergeDeviceLimits(maxInt(panelState.DeviceLimit, 0), deviceLimit)
+	}
+	if err != nil {
+		return err
+	}
+	baseDeviceLimit, deviceLimit, err := s.prepareSubscriptionDevices(ctx, customer, subscription, purchase, panelState)
+	if err != nil {
+		return err
 	}
 	slog.Info(
 		"payment: applying subscription entitlements",
@@ -330,8 +375,7 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	if err != nil {
 		return err
 	}
-
-	err = s.purchaseRepository.MarkAsPaid(ctx, purchase.ID)
+	err = s.purchaseRepository.MarkPaidWithDeviceBase(ctx, purchase.ID, subscription.ID, baseDeviceLimit)
 	if err != nil {
 		return err
 	}
@@ -350,6 +394,9 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 
 	if err = s.persistSubscriptionPanelState(ctx, customer, subscription, user); err != nil {
 		return err
+	}
+	if notifyErr := s.notifyDeviceGrants(ctx, customer, subscription, deviceLimit); notifyErr != nil {
+		slog.Error("payment: device notification queued for retry", "error", notifyErr)
 	}
 	if subscription.IsPrimary {
 		customerFilesToUpdate := s.buildAutoPaymentCustomerUpdates(customer, purchase)
@@ -858,6 +905,7 @@ func (s PaymentService) createBalancePurchase(ctx context.Context, amount float6
 		AgreementAccepted:        options.AgreementAccepted,
 		PurchaseKind:             options.PurchaseKind,
 		ExtraDevices:             options.ExtraDevices,
+		DeviceExpiresAt:          options.DeviceExpiresAt,
 		IsFreePlan:               options.IsFreePlan,
 		FreePlanOneTime:          options.FreePlanOneTime,
 		PromoCodeID:              options.PromoCodeID,
@@ -958,6 +1006,7 @@ func (s PaymentService) createCryptoInvoice(ctx context.Context, amount float64,
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
 		PurchaseKind:             options.PurchaseKind,
 		ExtraDevices:             options.ExtraDevices,
+		DeviceExpiresAt:          options.DeviceExpiresAt,
 		IsFreePlan:               options.IsFreePlan,
 		FreePlanOneTime:          options.FreePlanOneTime,
 		GiftRecipientUsername:    optionalTrimmedStringPointer(options.GiftRecipientUsername),
@@ -1024,6 +1073,7 @@ func (s PaymentService) createYookasaInvoice(ctx context.Context, amount float64
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
 		PurchaseKind:             options.PurchaseKind,
 		ExtraDevices:             options.ExtraDevices,
+		DeviceExpiresAt:          options.DeviceExpiresAt,
 		IsFreePlan:               options.IsFreePlan,
 		FreePlanOneTime:          options.FreePlanOneTime,
 		GiftRecipientUsername:    optionalTrimmedStringPointer(options.GiftRecipientUsername),
@@ -1078,6 +1128,7 @@ func (s PaymentService) createExternalInvoice(ctx context.Context, amount float6
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
 		PurchaseKind:             options.PurchaseKind,
 		ExtraDevices:             options.ExtraDevices,
+		DeviceExpiresAt:          options.DeviceExpiresAt,
 		IsFreePlan:               options.IsFreePlan,
 		FreePlanOneTime:          options.FreePlanOneTime,
 		GiftRecipientUsername:    optionalTrimmedStringPointer(options.GiftRecipientUsername),
@@ -1247,6 +1298,7 @@ func (s PaymentService) createTelegramInvoice(ctx context.Context, amount float6
 		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
 		PurchaseKind:             options.PurchaseKind,
 		ExtraDevices:             options.ExtraDevices,
+		DeviceExpiresAt:          options.DeviceExpiresAt,
 		IsFreePlan:               options.IsFreePlan,
 		FreePlanOneTime:          options.FreePlanOneTime,
 		GiftRecipientUsername:    optionalTrimmedStringPointer(options.GiftRecipientUsername),

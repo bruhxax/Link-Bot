@@ -112,6 +112,29 @@ func (s *Service) Create(now time.Time) (Challenge, error) {
 	}, nil
 }
 
+// Resume validates the browser secret without consuming an approved login.
+// Reloading a page can reuse its pending QR code instead of issuing a new one.
+func (s *Service) Resume(id, secret string, now time.Time) (Challenge, error) {
+	if s == nil {
+		return Challenge{}, ErrNotFound
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.byID[strings.TrimSpace(id)]
+	if !ok {
+		return Challenge{}, ErrNotFound
+	}
+	provided := sha256.Sum256([]byte(secret))
+	if subtle.ConstantTimeCompare(provided[:], entry.secretHash[:]) != 1 {
+		return Challenge{}, ErrInvalidSecret
+	}
+	if !now.Before(entry.expiresAt) {
+		s.deleteLocked(entry)
+		return Challenge{}, ErrExpired
+	}
+	return Challenge{ID: entry.id, Secret: secret, ApprovalToken: entry.approvalToken, ExpiresAt: entry.expiresAt}, nil
+}
+
 func (s *Service) Approve(approvalToken string, user TelegramUser, now time.Time) error {
 	if s == nil || strings.TrimSpace(approvalToken) == "" || user.ID <= 0 {
 		return ErrNotFound

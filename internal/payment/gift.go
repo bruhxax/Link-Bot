@@ -89,6 +89,11 @@ func (s PaymentService) deliverGiftEntitlements(ctx context.Context, purchase *d
 	if err != nil {
 		return err
 	}
+	releaseDevices, err := s.purchaseRepository.LockDeviceLimit(ctx, subscription.ID)
+	if err != nil {
+		return err
+	}
+	defer releaseDevices()
 	trafficLimit := purchaseTrafficLimit(purchase)
 	deviceLimit := purchaseDeviceLimit(purchase)
 	panelState, stateErr := s.panelStateForSubscription(ctx, recipient, subscription)
@@ -96,7 +101,13 @@ func (s PaymentService) deliverGiftEntitlements(ctx context.Context, purchase *d
 		slog.Warn("payment: load gift recipient panel state failed", "error", stateErr, "customerId", utils.MaskHalfInt64(recipient.ID))
 	} else if shouldAccumulateEntitlements(customerForSubscription(recipient, subscription), panelState) {
 		trafficLimit = mergeTrafficLimits(int(maxInt64(panelState.TrafficLimitBytes, 0)), trafficLimit)
-		deviceLimit = mergeDeviceLimits(maxInt(panelState.DeviceLimit, 0), deviceLimit)
+	}
+	if stateErr != nil {
+		return stateErr
+	}
+	baseDeviceLimit, deviceLimit, err := s.prepareSubscriptionDevices(ctx, recipient, subscription, purchase, panelState)
+	if err != nil {
+		return err
 	}
 
 	provisioning := remnawave.ProvisioningOptions{}
@@ -128,6 +139,9 @@ func (s PaymentService) deliverGiftEntitlements(ctx context.Context, purchase *d
 		provisioning,
 	)
 	if err != nil {
+		return err
+	}
+	if err := s.purchaseRepository.SetDeviceBase(ctx, subscription.ID, baseDeviceLimit); err != nil {
 		return err
 	}
 	return s.persistSubscriptionPanelState(ctx, recipient, subscription, user)

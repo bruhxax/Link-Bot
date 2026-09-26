@@ -129,6 +129,20 @@ func main() {
 	subscriptionNotificationCronScheduler := subscriptionChecker(syncService, subService)
 	subscriptionNotificationCronScheduler.Start()
 	defer subscriptionNotificationCronScheduler.Stop()
+	deviceAccessScheduler := cron.New(cron.WithSeconds(), cron.WithChain(cron.SkipIfStillRunning(cron.DefaultLogger)))
+	checkDeviceAccess := func() {
+		checkCtx, cancel := context.WithTimeout(ctx, 50*time.Second)
+		defer cancel()
+		if err := paymentService.ProcessDeviceExpirations(checkCtx); err != nil {
+			slog.Error("device expiry check failed", "error", err)
+		}
+	}
+	if _, err := deviceAccessScheduler.AddFunc("0 * * * * *", checkDeviceAccess); err != nil {
+		panic(err)
+	}
+	deviceAccessScheduler.Start()
+	defer deviceAccessScheduler.Stop()
+	go checkDeviceAccess()
 	go runSubscriptionCheck(syncService, subService)
 
 	webLogin := webauth.NewService(webauth.DefaultTTL)
