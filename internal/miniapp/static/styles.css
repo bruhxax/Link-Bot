@@ -11101,6 +11101,13 @@ body.has-open-modal .admin-save-bar {
 .admin-user-controls__danger button:active,
 .admin-user-controls__delete button:active { transform: scale(.985); }
 .admin-user-controls__delete { padding-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line-soft); }
+.admin-user-controls__reissue { padding-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line-soft); }
+.admin-user-controls__reissue > span { color: var(--muted); font-size: 8px; line-height: 1.45; }
+.admin-user-controls__reissue button { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--button-text); background: var(--control-bg); font-size: 9px; font-weight: 800; transition: border-color 220ms ease, background-color 220ms ease, transform 220ms ease; }
+.admin-user-controls__reissue button:hover { border-color: var(--text); background: var(--surface-strong); }
+.admin-user-controls__reissue button svg { width: 16px; height: 16px; }
+.admin-user-controls__reissue button:active { transform: scale(.985); }
+.admin-user-controls__reissue button:disabled { opacity: .55; cursor: not-allowed; }
 .admin-user-controls__delete > span { color: var(--muted); font-size: 8px; line-height: 1.45; }
 .admin-user-controls__delete button { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-color: color-mix(in srgb, var(--danger) 48%, var(--line)); color: var(--danger); }
 .admin-user-controls__delete button svg { width: 18px; height: 18px; flex: 0 0 auto; }
@@ -11139,7 +11146,9 @@ body.has-open-modal .admin-save-bar {
 	.admin-user-controls__danger { align-items: stretch; flex-direction: column; }
 	.admin-user-controls__danger { grid-template-columns: 1fr; }
 	.admin-user-controls__danger button,
+	.admin-user-controls__reissue button,
 	.admin-user-controls__delete button { width: 100%; }
+	.admin-user-controls__reissue { align-items: stretch; flex-direction: column; }
 	.admin-user-controls__delete { align-items: stretch; flex-direction: column; }
 }
 
@@ -11156,6 +11165,7 @@ body.has-open-modal .admin-save-bar {
 	.admin-user-detail button,
 	.admin-user-control-row button,
 	.admin-user-controls__danger button,
+	.admin-user-controls__reissue button,
 	.admin-user-controls__delete button { transition-duration: 1ms !important; }
 }
 
