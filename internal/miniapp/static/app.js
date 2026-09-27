@@ -2264,6 +2264,9 @@ const state = {
 	adminFinanceTo: "",
 	adminFinancePeriodMenuOpen: false,
 	adminFinanceAnimate: false,
+	adminStatus: null,
+	adminStatusBusy: false,
+	adminStatusError: "",
 	adminPush: null,
 	adminPushBusy: "",
 	adminPushError: "",
@@ -2834,6 +2837,7 @@ async function boot() {
   writeSetting(STORAGE_KEYS.page, state.currentPage);
   await refreshDashboard({ initial: true, silent: paymentReturn });
 	if (isAdminUser() && state.currentPage === "admin" && state.adminSection === "finance") void refreshAdminFinance().catch((error) => showToast(error?.message || "Не удалось загрузить финансы", "danger"));
+	if (isAdminUser() && state.currentPage === "admin" && state.adminSection === "status") void refreshAdminStatus();
 	if (isAdminUser() && state.currentPage === "admin" && state.adminSection === "push") void refreshAdminPush().catch((error) => showToast(error?.message || "Не удалось загрузить уведомления", "danger"));
   await handlePostBootstrapFlow();
 }
@@ -4092,6 +4096,7 @@ function renderAdminPage() {
 	if (state.adminSection === "integrations") return renderAdminIntegrationsPage();
 	if (state.adminSection === "moynalog") return renderAdminMoyNalogPage();
 	if (state.adminSection === "finance") return renderAdminFinancePage();
+	if (state.adminSection === "status") return renderAdminStatusPage();
 	if (state.adminSection === "partners") return renderAdminPartnersPage();
 	if (state.adminSection === "push") return renderAdminPushPage();
 	if (state.adminSection === "users") return renderAdminUsersPage();
@@ -4099,6 +4104,7 @@ function renderAdminPage() {
 		<section class="page admin-page ${pageClass("admin")}" id="page-admin">
 			${renderAdminSettingsSearch()}
 			${renderAdminMenuGroup(localizedText("Система", "System", "سیستم"), [
+				[localizedText("Статус", "Status", "وضعیت"), "", "status", "server"],
 				[localizedText("Язык и шрифт", "Language and font", "زبان و فونت"), "", "localization", "language"],
 				[localizedText("Режим аварии", "Maintenance mode", "حالت تعمیر"), "", "maintenance", "adminMaintenance"],
 				[localizedText("Диагностика", "Diagnostics", "عیب‌یابی"), "", "diagnostics", "adminDiagnostics"],
@@ -4133,6 +4139,7 @@ let adminSettingsSearchCatalog = null;
 let adminSettingsSearchResults = [];
 
 const ADMIN_SEARCH_SECTIONS = [
+	["status", "Статус", "бот панель версия обновление память время работы"],
 	["localization", "Язык и шрифт", "локализация язык шрифт"],
 	["maintenance", "Режим аварии", "технические работы"],
 	["diagnostics", "Диагностика", "ошибки события"],
@@ -4240,6 +4247,7 @@ function openAdminSettingsSearchResult(index) {
 	haptic("light");
 	renderAdminTransition();
 	if (item.section === "finance") void refreshAdminFinance();
+	if (item.section === "status") void refreshAdminStatus();
 	if (item.section === "push") void refreshAdminPush().catch((error) => showToast(error?.message || "Не удалось загрузить уведомления", "danger"));
 	if (item.section === "users") void refreshAdminUsers();
 	if (item.section === "partners") void refreshAdminPartners();
@@ -4288,6 +4296,79 @@ document.addEventListener("keydown", (event) => {
 		openAdminSettingsSearchResult(0);
 	}
 });
+
+let adminStatusPollTimer = 0;
+
+function adminStatusDuration(seconds) {
+	const total = Math.max(0, Math.floor(Number(seconds || 0)));
+	if (!total) return "—";
+	const days = Math.floor(total / 86400);
+	const hours = Math.floor(total % 86400 / 3600);
+	const minutes = Math.floor(total % 3600 / 60);
+	return [days ? `${days} д` : "", hours ? `${hours} ч` : "", `${minutes} мин`].filter(Boolean).join(" ");
+}
+
+function adminStatusMemory(bytes) {
+	const value = Number(bytes || 0);
+	if (!value) return "—";
+	return value >= 1024 ** 3 ? `${(value / 1024 ** 3).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ГБ` : `${Math.round(value / 1024 ** 2).toLocaleString("ru-RU")} МБ`;
+}
+
+function adminStatusState(state) {
+	return ["online", "offline"].includes(state) ? state : "unknown";
+}
+
+function renderAdminStatusService(title, service, iconName, details) {
+	const status = adminStatusState(service?.state);
+	const statusText = status === "online" ? "Работает" : status === "offline" ? "Нет связи" : "Нет данных";
+	return `<article class="admin-status__service is-${status}"><div class="admin-status__service-head"><span class="admin-status__service-icon">${icon(iconName)}</span><div><strong>${escapeHtml(title)}</strong><small>${status === "online" ? `Ответ ${Number(service?.latencyMs || 0)} мс` : status === "offline" ? "Проверка не прошла" : "Ожидаем проверку"}</small></div><span class="admin-status__badge"><i aria-hidden="true"></i>${statusText}</span></div><div class="admin-status__service-metrics">${details.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div></article>`;
+}
+
+function renderAdminStatusPage() {
+	const data = state.adminStatus;
+	if (!data) return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-status"><header class="admin-status__header"><div><span>СИСТЕМА</span><h2>Статус</h2></div></header>${state.adminStatusError ? `<div class="admin-status__error"><strong>Не удалось загрузить статус</strong><span>${escapeHtml(state.adminStatusError)}</span><button type="button" data-action="admin-status-refresh">Повторить</button></div>` : `<div class="admin-status__skeleton" aria-label="Проверяем сервисы" aria-busy="true"><i></i><i></i><i></i></div>`}</div></section>`;
+	const bot = data.bot || {};
+	const panel = data.panel || {};
+	const database = data.database || {};
+	const healthy = [bot.state, panel.state, database.state].every((item) => item === "online");
+	const update = data.update || {};
+	const updateText = update.state === "available" ? `Доступна ${update.latestVersion || "новая версия"}` : update.state === "current" ? "Нового релиза нет" : "Не удалось проверить";
+	const built = new Date(data.buildDate || "");
+	const builtText = Number.isNaN(built.getTime()) ? "" : new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(built);
+	const checked = new Date(data.checkedAt || "");
+	const checkedText = Number.isNaN(checked.getTime()) ? "—" : new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(checked);
+	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-status">
+		<header class="admin-status__header"><div><span>СИСТЕМА</span><h2>Статус</h2></div><button type="button" data-action="admin-status-refresh" aria-label="Обновить статус" ${state.adminStatusBusy ? "disabled" : ""}>${icon("refresh")}</button></header>
+		<div class="admin-status__overview ${healthy ? "is-healthy" : "is-attention"}"><i aria-hidden="true"></i><div><strong>${healthy ? "Сервисы доступны" : "Проверьте состояние сервисов"}</strong><span>Данные обновлены в ${checkedText}</span></div></div>
+		<div class="admin-status__grid">
+			${renderAdminStatusService("Бот", bot, "server", [["Время работы", adminStatusDuration(bot.uptimeSeconds)], ["Память Go", adminStatusMemory(data.heapBytes)]])}
+			${renderAdminStatusService("Панель Remnawave", panel, "server", [["Время работы сервера", adminStatusDuration(panel.uptimeSeconds)], ["Память сервера", Number(panel.memoryTotalBytes) ? `${adminStatusMemory(panel.memoryUsedBytes)} / ${adminStatusMemory(panel.memoryTotalBytes)}` : "—"]])}
+		</div>
+		<section class="admin-status__section"><h3>Сборка и обновление</h3><div class="admin-status__rows"><div><span>Версия бота</span><strong>${escapeHtml(data.version || "dev")}</strong></div><div><span>Последний релиз</span><strong>${escapeHtml(update.latestVersion || "—")}</strong></div><div><span>Обновление</span><strong class="${update.state === "available" ? "is-update" : ""}">${escapeHtml(updateText)}</strong></div>${builtText ? `<div><span>Собрано</span><strong>${escapeHtml(builtText)}</strong></div>` : ""}${data.commit && data.commit !== "none" ? `<div><span>Коммит</span><strong>${escapeHtml(data.commit)}</strong></div>` : ""}</div>${update.state === "available" ? `<button class="admin-status__release" type="button" data-action="open-link" data-value="${escapeAttribute(update.url || "https://github.com/bruhxax/Link-Bot/releases/latest")}">Посмотреть релиз${icon("chevronRight")}</button>` : ""}</section>
+		<section class="admin-status__section"><h3>Система</h3><div class="admin-status__rows"><div><span>База данных</span><strong class="is-${adminStatusState(database.state)}">${database.state === "online" ? `Подключена${Number(database.latencyMs) ? ` · ${Number(database.latencyMs)} мс` : ""}` : database.state === "offline" ? "Нет связи" : "Нет данных"}</strong></div><div><span>Выделено Go</span><strong>${adminStatusMemory(data.processBytes)}</strong></div><div><span>Горутины</span><strong>${Number(data.goroutines || 0).toLocaleString("ru-RU")}</strong></div></div></section>
+	</div></section>`;
+}
+
+async function refreshAdminStatus() {
+	if (state.currentPage !== "admin" || state.adminSection !== "status" || state.adminStatusBusy) return;
+	window.clearTimeout(adminStatusPollTimer);
+	state.adminStatusBusy = true;
+	render({ preserveScroll: true });
+	try {
+		const response = await post("/api/mini-app/admin/status", {});
+		state.adminStatusError = "";
+		if (state.currentPage === "admin" && state.adminSection === "status") state.adminStatus = response.data;
+	} catch (error) {
+		state.adminStatusError = error?.message || "Сервер не ответил";
+		if (!state.adminStatus && state.currentPage === "admin" && state.adminSection === "status") showToast(error?.message || "Не удалось проверить статус", "danger");
+	} finally {
+		state.adminStatusBusy = false;
+		if (state.currentPage === "admin" && state.adminSection === "status") {
+			render({ preserveScroll: true });
+			adminStatusPollTimer = window.setTimeout(() => { void refreshAdminStatus(); }, 60000);
+		}
+	}
+}
 
 function formatFinanceRub(value) {
 	return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value || 0));
@@ -9317,12 +9398,14 @@ function bindRootActions() {
 		if (value === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 		if (value === "moynalog") void refreshAdminMoyNalog();
 		if (value === "finance") void refreshAdminFinance();
+		if (value === "status") void refreshAdminStatus();
 		if (value === "push") void refreshAdminPush().catch((error) => showToast(error?.message || "Не удалось загрузить уведомления", "danger"));
 		if (value === "users") void refreshAdminUsers();
 		if (value === "partners") void refreshAdminPartners();
 		return;
 	  }
 	  if (action === "admin-settings-search-open") return openAdminSettingsSearchResult(Number(value));
+	  if (action === "admin-status-refresh") return await refreshAdminStatus();
 	  if (action === "admin-background-mode") {
 		if (!state.adminSettingsDraft || !ADMIN_BACKGROUND_OPTIONS.some(([mode]) => mode === value)) return;
 		setDeepValue(state.adminSettingsDraft, "appearance.backgroundMode", value);
@@ -14630,6 +14713,7 @@ function renderAdminTransition({ preserveScroll = false, scrollTop = 0 } = {}) {
 
 function closeAdminSection() {
 	if (state.adminSection === "home") return;
+	window.clearTimeout(adminStatusPollTimer);
 	adminSettingsSearchCatalog = null;
 	window.clearTimeout(adminUsersSearchTimer);
 	adminUsersSearchRequestID += 1;
@@ -14694,6 +14778,7 @@ function setPage(page) {
 	state.notificationPopoverOpen = false;
 	state.notificationPopoverClosing = false;
   if (nextPage !== "admin") {
+    window.clearTimeout(adminStatusPollTimer);
     state.adminSection = "home";
     state.adminBusy = "";
     state.adminPromoCodeDraft = "";

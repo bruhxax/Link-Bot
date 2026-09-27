@@ -45,6 +45,7 @@ var (
 )
 
 func main() {
+	startedAt := time.Now()
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
@@ -151,6 +152,7 @@ func main() {
 	webLogin := webauth.NewService(webauth.DefaultTTL)
 	h := handler.NewHandler(syncService, paymentService, tm, customerRepository, purchaseRepository, cryptoPayClient, yookasaClient, referralRepository, cache, runtimeSettings, errorReporter, webLogin)
 	miniAppHandler := miniapp.NewHandler(customerRepository, purchaseRepository, promoCodeRepository, referralRepository, partnerRepository, walletRepository, supportRepository, reviewRepository, paymentService, remnawaveClient, b, broadcastService, subService, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository, tm, webLogin)
+	miniAppHandler.SetStatusInfo(Version, Commit, BuildDate, startedAt, pool)
 	miniAppHandler.SetWebPushService(webPushService)
 	miniAppHandler.StartRealtime(ctx, config.DadaBaseUrl())
 	miniAppHandler.StartSupportAutoCloser(ctx)

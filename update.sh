@@ -121,6 +121,8 @@ if [[ $mode == shared && -n $cabinet_subdomain ]]; then
   fi
 fi
 
+export LINK_BOT_VERSION=$(git describe --tags --always 2>/dev/null || printf 'dev')
+export LINK_BOT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || printf 'none')
 docker compose up -d --no-recreate db
 docker compose up -d --build --force-recreate --no-deps bot
 

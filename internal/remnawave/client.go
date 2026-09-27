@@ -10,6 +10,7 @@ import (
 	"link-bot/internal/config"
 	"link-bot/utils"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -251,6 +252,32 @@ func (r *Client) Ping(ctx context.Context) error {
 	}
 	_, legacyErr := r.client.Users().GetAllUsers(ctx, 1, 0)
 	return errors.Join(err, streamErr, legacyErr)
+}
+
+type SystemStats struct {
+	UptimeSeconds    int64
+	MemoryUsedBytes  int64
+	MemoryTotalBytes int64
+}
+
+func (r *Client) GetSystemStats(ctx context.Context) (SystemStats, error) {
+	var payload struct {
+		Response struct {
+			Uptime float64 `json:"uptime"`
+			Memory struct {
+				Used  float64 `json:"used"`
+				Total float64 `json:"total"`
+			} `json:"memory"`
+		} `json:"response"`
+	}
+	if err := r.doAPIJSON(ctx, http.MethodGet, "/api/system/stats", nil, &payload); err != nil {
+		return SystemStats{}, err
+	}
+	return SystemStats{
+		UptimeSeconds:    int64(math.Max(0, payload.Response.Uptime)),
+		MemoryUsedBytes:  int64(math.Max(0, payload.Response.Memory.Used)),
+		MemoryTotalBytes: int64(math.Max(0, payload.Response.Memory.Total)),
+	}, nil
 }
 
 func (r *Client) GetUsers(ctx context.Context) (*[]PanelUser, error) {

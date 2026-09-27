@@ -13020,6 +13020,53 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 }
 
 /* Dashboard placeholders share the real layout and leave the configured background visible. */
+.admin-status { display: grid; gap: 13px; padding: 2px 4px 100px; }
+.admin-status__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 2px; }
+.admin-status__header > div { display: grid; gap: 3px; }
+.admin-status__header span { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .12em; }
+.admin-status__header h2 { margin: 0; color: var(--text); font-size: 20px; }
+.admin-status__header button { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--control-bg); color: var(--icon-color); cursor: pointer; }
+.admin-status__header button svg { width: 17px; height: 17px; }
+.admin-status__header button:disabled svg { animation: admin-status-spin .8s linear infinite; }
+.admin-status__overview { display: flex; align-items: center; gap: 11px; padding: 13px 15px; border: 1px solid var(--line-soft); border-radius: 13px; background: var(--surface-strong); }
+.admin-status__overview > i { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 5px color-mix(in srgb, var(--success) 12%, transparent); }
+.admin-status__overview.is-attention > i { background: var(--danger); box-shadow: 0 0 0 5px color-mix(in srgb, var(--danger) 12%, transparent); }
+.admin-status__overview > div { display: grid; gap: 3px; }
+.admin-status__overview strong { color: var(--text); font-size: 11px; }
+.admin-status__overview span { color: var(--muted); font-size: 9px; }
+.admin-status__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.admin-status__service, .admin-status__section { min-width: 0; padding: 15px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface-strong); box-shadow: var(--glass-shadow-soft); }
+.admin-status__service-head { display: flex; align-items: center; gap: 9px; }
+.admin-status__service-icon { width: 30px; height: 30px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; background: color-mix(in srgb, var(--accent) 13%, transparent); color: var(--icon-color); }
+.admin-status__service-icon svg { width: 17px; height: 17px; }
+.admin-status__service-head > div { min-width: 0; display: grid; gap: 3px; }
+.admin-status__service-head strong { overflow: hidden; color: var(--text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-status__service-head small { color: var(--muted); font-size: 8px; }
+.admin-status__badge { flex: 0 0 auto; display: flex; align-items: center; gap: 5px; margin-left: auto; color: var(--success); font-size: 8px; font-weight: 800; }
+.admin-status__badge i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.admin-status__service.is-offline .admin-status__badge { color: var(--danger); }
+.admin-status__service.is-unknown .admin-status__badge { color: var(--muted); }
+.admin-status__service-metrics { display: grid; gap: 0; margin-top: 15px; border-top: 1px solid var(--line-soft); }
+.admin-status__service-metrics > div, .admin-status__rows > div { min-width: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
+.admin-status__service-metrics > div:last-child, .admin-status__rows > div:last-child { padding-bottom: 0; border-bottom: 0; }
+.admin-status__service-metrics span, .admin-status__rows span { color: var(--muted); font-size: 9px; }
+.admin-status__service-metrics strong, .admin-status__rows strong { overflow: hidden; color: var(--text); font-size: 10px; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.admin-status__section h3 { margin: 0 0 6px; color: var(--text); font-size: 12px; }
+.admin-status__rows strong.is-update, .admin-status__rows strong.is-online { color: var(--success); }
+.admin-status__rows strong.is-offline { color: var(--danger); }
+.admin-status__release { width: 100%; min-height: 36px; display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 13px; border: 1px solid color-mix(in srgb, var(--success) 38%, transparent); border-radius: 9px; background: color-mix(in srgb, var(--success) 10%, transparent); color: var(--success); font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; }
+.admin-status__release svg { width: 15px; height: 15px; }
+.admin-status__skeleton { display: grid; gap: 10px; }
+.admin-status__skeleton i { height: 108px; border: 1px solid var(--line-soft); border-radius: 14px; background: linear-gradient(100deg, var(--surface-strong) 10%, color-mix(in srgb, var(--text) 8%, var(--surface-strong)) 48%, var(--surface-strong) 85%); background-size: 220% 100%; animation: admin-status-shimmer 1.4s ease-in-out infinite; }
+.admin-status__error { display: grid; justify-items: start; gap: 8px; padding: 19px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-strong); }
+.admin-status__error strong { color: var(--text); font-size: 12px; }
+.admin-status__error span { color: var(--muted); font-size: 10px; }
+.admin-status__error button { margin-top: 4px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--control-bg); color: var(--button-text); font: inherit; font-size: 10px; cursor: pointer; }
+@keyframes admin-status-shimmer { to { background-position-x: -220%; } }
+@keyframes admin-status-spin { to { transform: rotate(360deg); } }
+@media (max-width: 540px) { .admin-status__grid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .admin-status__skeleton i, .admin-status__header button:disabled svg { animation: none; } }
+:root[data-glass="on"] :where(.admin-status__overview, .admin-status__service, .admin-status__section, .admin-status__error, .admin-status__header button, .admin-status__error button) { background: var(--glass-background); background-image: var(--glass-texture); background-size: 128px 128px, 100% 100%; border-color: var(--glass-border); backdrop-filter: var(--glass-backdrop); -webkit-backdrop-filter: var(--glass-backdrop); }
 .admin-settings-search { grid-column: 1 / -1; margin-bottom: 20px; }
 .admin-settings-search__field { min-height: 48px; display: flex; align-items: center; gap: 11px; padding: 0 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--control-bg); box-shadow: var(--glass-shadow-soft); color: var(--icon-color); transition: border-color .2s ease, box-shadow .2s ease; }
 .admin-settings-search__field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent), var(--glass-shadow-soft); }

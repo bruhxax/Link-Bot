@@ -1,6 +1,10 @@
 services:
   bot:
-    build: .
+    build:
+      context: .
+      args:
+        VERSION: ${LINK_BOT_VERSION:-dev}
+        COMMIT: ${LINK_BOT_COMMIT:-none}
     image: link-bot:local
     container_name: link-bot
     restart: unless-stopped
