@@ -26,6 +26,14 @@ type AdminFinanceDaily struct {
 	PaymentCount int
 }
 
+type AdminFinanceProvider struct {
+	InvoiceType  InvoiceType
+	Currency     string
+	Revenue      float64
+	Refunds      float64
+	PaymentCount int
+}
+
 type AdminFinancePayment struct {
 	ID                        int64
 	Amount                    float64
@@ -48,13 +56,15 @@ type AdminFinancePayment struct {
 type AdminFinanceData struct {
 	Summary      AdminFinanceSummary
 	Daily        []AdminFinanceDaily
+	Providers    []AdminFinanceProvider
 	Payments     []AdminFinancePayment
 	PaymentTotal int
 }
 
 // LoadAdminFinance aggregates every payment provider stored in purchase. Free
 // plans are not payments; balance purchases stay in history but are excluded
-// from external revenue totals.
+// from external revenue totals. Older paid purchases without paid_at use their
+// creation date so non-YooKassa history is not silently lost.
 func (pr *PurchaseRepository) LoadAdminFinance(ctx context.Context, from, to time.Time, limit, offset int) (*AdminFinanceData, error) {
 	if !from.Before(to) {
 		return nil, fmt.Errorf("invalid finance range")
@@ -75,9 +85,10 @@ func (pr *PurchaseRepository) LoadAdminFinance(ctx context.Context, from, to tim
 			COALESCE(SUM(amount) FILTER (WHERE status = $3 AND UPPER(COALESCE(NULLIF(currency, ''), 'RUB')) = 'STARS'), 0),
 			COUNT(*)
 		FROM purchase
-		WHERE paid_at >= $1 AND paid_at < $2
+		WHERE COALESCE(paid_at, created_at) >= $1 AND COALESCE(paid_at, created_at) < $2
+		  AND (status = $6 OR (status = $3 AND paid_at IS NOT NULL))
 		  AND invoice_type NOT IN ($4, $5)
-	`, from, to, PurchaseStatusCancel, InvoiceTypeFree, InvoiceTypeBalance).Scan(
+	`, from, to, PurchaseStatusCancel, InvoiceTypeFree, InvoiceTypeBalance, PurchaseStatusPaid).Scan(
 		&result.Summary.RevenueRub,
 		&result.Summary.RefundsRub,
 		&result.Summary.RevenueStars,
@@ -89,18 +100,19 @@ func (pr *PurchaseRepository) LoadAdminFinance(ctx context.Context, from, to tim
 
 	rows, err := pr.pool.Query(ctx, `
 		SELECT
-			(paid_at AT TIME ZONE 'Europe/Moscow')::date,
+			(COALESCE(paid_at, created_at) AT TIME ZONE 'Europe/Moscow')::date,
 			COALESCE(SUM(amount) FILTER (WHERE UPPER(COALESCE(NULLIF(currency, ''), 'RUB')) <> 'STARS'), 0),
 			COALESCE(SUM(amount) FILTER (WHERE status = $3 AND UPPER(COALESCE(NULLIF(currency, ''), 'RUB')) <> 'STARS'), 0),
 			COALESCE(SUM(amount) FILTER (WHERE UPPER(COALESCE(NULLIF(currency, ''), 'RUB')) = 'STARS'), 0),
 			COALESCE(SUM(amount) FILTER (WHERE status = $3 AND UPPER(COALESCE(NULLIF(currency, ''), 'RUB')) = 'STARS'), 0),
 			COUNT(*)
 		FROM purchase
-		WHERE paid_at >= $1 AND paid_at < $2
+		WHERE COALESCE(paid_at, created_at) >= $1 AND COALESCE(paid_at, created_at) < $2
+		  AND (status = $6 OR (status = $3 AND paid_at IS NOT NULL))
 		  AND invoice_type NOT IN ($4, $5)
 		GROUP BY 1
 		ORDER BY 1
-	`, from, to, PurchaseStatusCancel, InvoiceTypeFree, InvoiceTypeBalance)
+	`, from, to, PurchaseStatusCancel, InvoiceTypeFree, InvoiceTypeBalance, PurchaseStatusPaid)
 	if err != nil {
 		return nil, fmt.Errorf("load admin finance chart: %w", err)
 	}
@@ -117,6 +129,35 @@ func (pr *PurchaseRepository) LoadAdminFinance(ctx context.Context, from, to tim
 		return nil, fmt.Errorf("iterate admin finance chart: %w", err)
 	}
 	rows.Close()
+
+	providerRows, err := pr.pool.Query(ctx, `
+		SELECT invoice_type, UPPER(COALESCE(NULLIF(currency, ''), 'RUB')),
+		       COALESCE(SUM(amount), 0),
+		       COALESCE(SUM(amount) FILTER (WHERE status = $3), 0),
+		       COUNT(*)
+		FROM purchase
+		WHERE COALESCE(paid_at, created_at) >= $1 AND COALESCE(paid_at, created_at) < $2
+		  AND (status = $6 OR (status = $3 AND paid_at IS NOT NULL))
+		  AND invoice_type NOT IN ($4, $5)
+		GROUP BY invoice_type, UPPER(COALESCE(NULLIF(currency, ''), 'RUB'))
+		ORDER BY COUNT(*) DESC, invoice_type
+	`, from, to, PurchaseStatusCancel, InvoiceTypeFree, InvoiceTypeBalance, PurchaseStatusPaid)
+	if err != nil {
+		return nil, fmt.Errorf("load admin finance providers: %w", err)
+	}
+	for providerRows.Next() {
+		var item AdminFinanceProvider
+		if err := providerRows.Scan(&item.InvoiceType, &item.Currency, &item.Revenue, &item.Refunds, &item.PaymentCount); err != nil {
+			providerRows.Close()
+			return nil, fmt.Errorf("scan admin finance provider: %w", err)
+		}
+		result.Providers = append(result.Providers, item)
+	}
+	if err := providerRows.Err(); err != nil {
+		providerRows.Close()
+		return nil, fmt.Errorf("iterate admin finance providers: %w", err)
+	}
+	providerRows.Close()
 
 	if err := pr.pool.QueryRow(ctx, `
 		SELECT COUNT(*)

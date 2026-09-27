@@ -1626,7 +1626,7 @@ select:focus-visible {
 	.admin-finance-chart__tooltip { transition-duration: 1ms !important; }
 }
 
-/* Finance composition: YooKassa-like single analytics surface and an in-app period menu. */
+/* Finance composition: shared revenue chart and an in-app period menu. */
 .admin-finance { gap: 16px; }
 .admin-finance__header { min-height: 43px; }
 .admin-finance__header h2 { font-size: 22px; letter-spacing: -.025em; }
@@ -13203,3 +13203,52 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   #page-dashboard.dashboard-reveal .runtime-detail-item,
   #page-dashboard.dashboard-reveal .runtime-layout-item[data-runtime-layout-key] { animation: none; }
 }
+
+/* Finance: every payment provider and optional GA4 traffic report. */
+.admin-finance-providers { display: grid; gap: 12px; }
+.admin-finance-providers__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.admin-finance-provider { min-width: 0; display: grid; gap: 10px; padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: color-mix(in srgb, var(--surface) 72%, transparent); transition: transform .2s ease, border-color .2s ease; }
+.admin-finance-provider:hover { transform: translateY(-2px); border-color: var(--control-border); }
+.admin-finance-provider.is-empty { opacity: .66; }
+.admin-finance-provider__head { min-width: 0; display: grid; grid-template-columns: 27px minmax(0, 1fr); align-items: center; column-gap: 8px; }
+.admin-finance-provider__logo { grid-row: 1 / 3; width: 27px; height: 27px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--line-soft); border-radius: 8px; background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--icon-color); }
+.admin-finance-provider__logo img { width: 20px; height: 20px; object-fit: contain; }
+.admin-finance-provider__logo svg { width: 15px; height: 15px; }
+.admin-finance-provider__head strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-finance-provider__head small { color: var(--muted); font-size: 8px; }
+.admin-finance-provider__value { overflow: hidden; font-size: 16px; font-weight: 850; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+.admin-finance-provider__refund { color: var(--muted); font-size: 8px; }
+.admin-ga4 { padding: 16px; }
+.admin-ga4__head { display: flex; align-items: center; gap: 10px; }
+.admin-ga4__mark { width: 31px; height: 31px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; background: color-mix(in srgb, #fbbc04 17%, transparent); color: #fbbc04; font-size: 17px; font-weight: 900; }
+.admin-ga4__head > div { min-width: 0; display: grid; gap: 3px; }
+.admin-ga4__head > div > span { color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .08em; }
+.admin-ga4__head h3 { margin: 0; font-size: 13px; }
+.admin-ga4__head > small { margin-left: auto; color: var(--muted); font-size: 8px; white-space: nowrap; }
+.admin-ga4__metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
+.admin-ga4__metrics > div { min-width: 0; display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line-soft); border-radius: 9px; background: color-mix(in srgb, var(--surface) 35%, transparent); }
+.admin-ga4__metrics span { overflow: hidden; color: var(--muted); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-ga4__metrics strong { font-size: 15px; font-variant-numeric: tabular-nums; }
+.admin-ga4__chart { height: 92px; display: flex; align-items: end; gap: 3px; margin-top: 17px; padding: 7px 0 0; border-bottom: 1px solid var(--line); }
+.admin-ga4__bar { min-width: 2px; height: var(--height); flex: 1; border-radius: 3px 3px 0 0; background: var(--accent); opacity: .74; animation: adminGA4BarIn .35s ease both; }
+.admin-ga4__bar:hover { opacity: 1; }
+@keyframes adminGA4BarIn { from { height: 0; } }
+.admin-ga4__channels { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 13px; }
+.admin-ga4__channels > span { display: inline-flex; align-items: center; gap: 7px; padding: 7px 9px; border: 1px solid var(--line-soft); border-radius: 7px; color: var(--muted); font-size: 8px; }
+.admin-ga4__channels b { font-weight: 650; }
+.admin-ga4__channels strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.admin-ga4__empty { padding: 24px 0 8px; color: var(--muted); font-size: 9px; text-align: center; }
+.admin-ga4__setup { display: grid; gap: 9px; margin-top: 16px; padding-top: 15px; border-top: 1px solid var(--line-soft); }
+.admin-ga4__setup strong { font-size: 11px; }
+.admin-ga4__setup > span { max-width: 540px; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.admin-ga4__setup a { width: fit-content; display: inline-flex; align-items: center; gap: 6px; margin-top: 2px; color: var(--accent); font-size: 9px; font-weight: 800; text-decoration: none; }
+.admin-ga4__setup a svg { width: 14px; height: 14px; }
+:root[data-glass="on"] .admin-finance-provider,
+:root[data-glass="on"] .admin-ga4__metrics > div { background: var(--glass-background); background-image: var(--glass-texture); background-size: 128px 128px, 100% 100%; border-color: var(--glass-border); backdrop-filter: var(--glass-backdrop); -webkit-backdrop-filter: var(--glass-backdrop); }
+@media (max-width: 390px) {
+  .admin-finance-provider { padding: 10px; }
+  .admin-finance-provider__value { font-size: 13px; }
+  .admin-ga4__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-ga4__head > small { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .admin-finance-provider, .admin-ga4__bar { animation: none; transition: none; } }

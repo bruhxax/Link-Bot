@@ -18,6 +18,7 @@ services:
     volumes:
       - ./translations:/translations
       - ./assets:/assets:ro
+      - ./secrets:/app/secrets:ro
       - link-bot-upload-data:/uploads
 
   migrate-bedolaga:

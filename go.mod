@@ -14,11 +14,13 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	github.com/robfig/cron/v3 v3.0.1
+	golang.org/x/oauth2 v0.34.0
 	golang.org/x/net v0.47.0
 	golang.org/x/text v0.31.0
 )
 
 require (
+	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect

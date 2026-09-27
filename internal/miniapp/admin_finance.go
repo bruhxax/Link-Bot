@@ -39,6 +39,15 @@ type adminFinanceDailyPayload struct {
 	PaymentCount int     `json:"paymentCount"`
 }
 
+type adminFinanceProviderPayload struct {
+	Key          string  `json:"key"`
+	Name         string  `json:"name"`
+	Currency     string  `json:"currency"`
+	Revenue      float64 `json:"revenue"`
+	Refunds      float64 `json:"refunds"`
+	PaymentCount int     `json:"paymentCount"`
+}
+
 type adminFinancePaymentPayload struct {
 	ID         int64   `json:"id"`
 	Amount     float64 `json:"amount"`
@@ -52,15 +61,17 @@ type adminFinancePaymentPayload struct {
 }
 
 type adminFinancePayload struct {
-	Period       string                       `json:"period"`
-	From         string                       `json:"from"`
-	To           string                       `json:"to"`
-	Summary      adminFinanceSummaryPayload   `json:"summary"`
-	Daily        []adminFinanceDailyPayload   `json:"daily"`
-	Payments     []adminFinancePaymentPayload `json:"payments"`
-	PaymentTotal int                          `json:"paymentTotal"`
-	Limit        int                          `json:"limit"`
-	Offset       int                          `json:"offset"`
+	Period       string                        `json:"period"`
+	From         string                        `json:"from"`
+	To           string                        `json:"to"`
+	Summary      adminFinanceSummaryPayload    `json:"summary"`
+	Daily        []adminFinanceDailyPayload    `json:"daily"`
+	Providers    []adminFinanceProviderPayload `json:"providers"`
+	Google       adminGA4Payload               `json:"google"`
+	Payments     []adminFinancePaymentPayload  `json:"payments"`
+	PaymentTotal int                           `json:"paymentTotal"`
+	Limit        int                           `json:"limit"`
+	Offset       int                           `json:"offset"`
 }
 
 func resolveAdminFinanceRange(req adminFinanceRequest, now time.Time) (string, time.Time, time.Time, error) {
@@ -222,6 +233,7 @@ func (h *Handler) handleAdminFinance(w http.ResponseWriter, r *http.Request, ses
 			PaymentCount: data.Summary.PaymentCount,
 		},
 		Daily:        make([]adminFinanceDailyPayload, 0, int(to.Sub(from).Hours()/24)),
+		Providers:    make([]adminFinanceProviderPayload, 0, len(data.Providers)),
 		Payments:     make([]adminFinancePaymentPayload, 0, len(data.Payments)),
 		PaymentTotal: data.PaymentTotal,
 		Limit:        req.Limit,
@@ -252,5 +264,12 @@ func (h *Handler) handleAdminFinance(w http.ResponseWriter, r *http.Request, ses
 			OccurredAt: item.OccurredAt.UTC().Format(time.RFC3339),
 		})
 	}
+	for _, item := range data.Providers {
+		payload.Providers = append(payload.Providers, adminFinanceProviderPayload{
+			Key: string(item.InvoiceType), Name: adminFinanceProvider(database.AdminFinancePayment{InvoiceType: item.InvoiceType}),
+			Currency: item.Currency, Revenue: item.Revenue, Refunds: item.Refunds, PaymentCount: item.PaymentCount,
+		})
+	}
+	payload.Google = h.loadAdminGA4(r.Context(), from, to)
 	h.writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "data": payload})
 }

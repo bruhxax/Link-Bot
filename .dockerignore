@@ -102,6 +102,7 @@ go.work.sum
 
 # env file
 .env
+secrets/
 
 # Local repository and generated artifacts
 .git

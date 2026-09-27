@@ -133,12 +133,12 @@ func setHTMLSecurityHeaders(w http.ResponseWriter) {
 		"child-src 'self' https://oauth.telegram.org https://telegram.org https://accounts.google.com",
 		"worker-src 'self'",
 		"form-action 'self'",
-		"script-src 'self' https://telegram.org https://oauth.telegram.org https://accounts.google.com",
+		"script-src 'self' https://telegram.org https://oauth.telegram.org https://accounts.google.com https://www.googletagmanager.com",
 		"style-src 'self' 'unsafe-inline'",
 		"font-src 'self' data: https://cdn.jsdelivr.net",
 		"img-src 'self' https: data: blob:",
 		"media-src 'self' blob:",
-		"connect-src 'self' https://telegram.org https://*.telegram.org https://oauth.telegram.org https://accounts.google.com https://oauth2.googleapis.com",
+		"connect-src 'self' https://telegram.org https://*.telegram.org https://oauth.telegram.org https://accounts.google.com https://oauth2.googleapis.com https://www.google-analytics.com https://region1.google-analytics.com",
 		"manifest-src 'self'",
 	}, "; "))
 }

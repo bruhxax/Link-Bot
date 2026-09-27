@@ -3233,6 +3233,13 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
 			to: financeDates[6].date,
 			summary: { revenueRub: 3810, refundsRub: 0, revenueStars: 150, refundsStars: 0, paymentCount: 26 },
 			daily: financeDates,
+			providers: [
+				{ key: "yookassa", name: "YooKassa", currency: "RUB", revenue: 2060, refunds: 0, paymentCount: 12 },
+				{ key: "lava", name: "LAVA", currency: "RUB", revenue: 930, refunds: 0, paymentCount: 6 },
+				{ key: "crypto", name: "Crypto Pay", currency: "RUB", revenue: 820, refunds: 0, paymentCount: 7 },
+				{ key: "telegram", name: "Telegram Stars", currency: "STARS", revenue: 150, refunds: 0, paymentCount: 1 },
+			],
+			google: { state: "ready", activeUsers: 1284, newUsers: 402, sessions: 1948, pageViews: 3672, daily: financeDates.map((item, index) => ({ date: item.date, users: [124, 156, 144, 188, 210, 193, 269][index], sessions: [170, 202, 186, 235, 298, 281, 376][index] })), channels: [{ name: "Organic Search", sessions: 841 }, { name: "Direct", sessions: 683 }, { name: "Referral", sessions: 424 }] },
 			payments: [
 				{ id: 1284, amount: 350, currency: "RUB", status: "paid", provider: "СБП", plan: "Подписка на 1 месяц", username: "alexvpn", telegramId: 6402520205, occurredAt: new Date(Date.now() - 3600000).toISOString() },
 				{ id: 1283, amount: 239, currency: "RUB", status: "paid", provider: "Банковская карта", plan: "Подписка на 3 месяца", username: "maria_net", telegramId: 7123456789, occurredAt: new Date(Date.now() - 7200000).toISOString() },
@@ -4512,6 +4519,41 @@ function renderAdminFinancePeriodPicker() {
 	return `<div class="admin-finance-period ${open ? "is-open" : ""}"><button class="admin-finance-period__trigger" type="button" data-action="admin-finance-period-toggle" aria-haspopup="listbox" aria-expanded="${open}" aria-controls="admin-finance-period-menu" ${state.adminFinanceBusy === "refresh" ? "disabled" : ""}><span aria-hidden="true">${icon("calendarDays")}</span><strong>${escapeHtml(adminFinancePeriodLabel())}</strong><i aria-hidden="true">${icon("chevron")}</i></button><div class="admin-finance-period__menu" id="admin-finance-period-menu" role="listbox" aria-label="Период аналитики" aria-hidden="${!open}">${options}</div></div>`;
 }
 
+const ADMIN_FINANCE_PROVIDERS = [
+	["yookassa", "YooKassa", "card"], ["crypto", "Crypto Pay", "crypto"],
+	["telegram", "Telegram Stars", "stars"], ["tribute", "Tribute", ""],
+	["lava", "LAVA", "lava"], ["wata", "WATA", "wata"],
+	["platega", "Platega", "platega"], ["freekassa", "FreeKassa", "freekassa"],
+	["heleket", "Heleket", "heleket"], ["pally", "Pally", "pally"],
+	["rollypay", "RollyPay", "rollypay"], ["cispay", "cisPay", "cispay"],
+	["p2p", "P2P", "p2p"],
+];
+
+function renderAdminFinanceProviders(items) {
+	const actual = Array.isArray(items) ? items : [];
+	const byKey = new Map(actual.map((item) => [String(item?.key || "").toLowerCase(), item]));
+	const known = ADMIN_FINANCE_PROVIDERS.map(([key, name, logo]) => ({ ...byKey.get(key), key, name, logo }));
+	const extra = actual.filter((item) => !ADMIN_FINANCE_PROVIDERS.some(([key]) => key === String(item?.key || "").toLowerCase()));
+	const providers = [...known, ...extra].sort((a, b) => Number(b.paymentCount || 0) - Number(a.paymentCount || 0));
+	return `<section class="admin-finance-providers" aria-labelledby="admin-finance-providers-title"><div class="admin-finance__section-head"><div><span>ПЛАТЁЖНЫЕ СИСТЕМЫ</span><h3 id="admin-finance-providers-title">По всем способам оплаты</h3></div></div><div class="admin-finance-providers__grid">${providers.map((item) => {
+		const count = Number(item.paymentCount || 0);
+		const revenue = Number(item.revenue || 0);
+		const refunds = Number(item.refunds || 0);
+		const logo = item.logo && PAYMENT_LOGO_URLS[item.logo] ? `<img src="${escapeAttribute(PAYMENT_LOGO_URLS[item.logo])}" alt="" loading="lazy">` : icon("wallet");
+		return `<article class="admin-finance-provider ${count ? "is-active" : "is-empty"}"><div class="admin-finance-provider__head"><span class="admin-finance-provider__logo">${logo}</span><strong>${escapeHtml(item.name || item.key || "Платёжная система")}</strong><small>${count.toLocaleString("ru-RU")} оплат</small></div><div class="admin-finance-provider__value">${escapeHtml(formatFinanceAmount(revenue, item.currency || (item.key === "telegram" ? "STARS" : "RUB")))}</div>${refunds > 0 ? `<span class="admin-finance-provider__refund">Возвраты: ${escapeHtml(formatFinanceAmount(refunds, item.currency || "RUB"))}</span>` : `<span class="admin-finance-provider__refund">${count ? "За выбранный период" : "Пока нет оплат"}</span>`}</article>`;
+	}).join("")}</div></section>`;
+}
+
+function renderAdminGoogleAnalytics(google) {
+	const report = google || { state: "unconfigured" };
+	const ready = report.state === "ready";
+	const days = Array.isArray(report.daily) ? report.daily : [];
+	const chartDays = days.filter((_, index) => index % Math.max(1, Math.ceil(days.length / 60)) === 0);
+	const max = Math.max(1, ...chartDays.map((day) => Number(day.sessions || 0)));
+	const chart = chartDays.length ? `<div class="admin-ga4__chart" role="img" aria-label="Сеансы Google Analytics по дням">${chartDays.map((day) => `<span class="admin-ga4__bar" style="--height:${Math.max(5, Math.round(Number(day.sessions || 0) / max * 100))}%" title="${escapeAttribute(`${day.date}: ${Number(day.sessions || 0)} сеансов`)}"></span>`).join("")}</div>` : `<div class="admin-ga4__empty">Google ещё не собрал данные за этот период</div>`;
+	return `<section class="admin-ga4 admin-finance-card" aria-labelledby="admin-ga4-title"><div class="admin-ga4__head"><span class="admin-ga4__mark">G</span><div><span>АНАЛИТИКА САЙТА</span><h3 id="admin-ga4-title">Google Analytics 4</h3></div><small>${ready ? "Подключено" : "Ожидает настройки"}</small></div>${ready ? `<div class="admin-ga4__metrics"><div><span>Пользователи</span><strong>${Number(report.activeUsers || 0).toLocaleString("ru-RU")}</strong></div><div><span>Новые</span><strong>${Number(report.newUsers || 0).toLocaleString("ru-RU")}</strong></div><div><span>Сеансы</span><strong>${Number(report.sessions || 0).toLocaleString("ru-RU")}</strong></div><div><span>Просмотры</span><strong>${Number(report.pageViews || 0).toLocaleString("ru-RU")}</strong></div></div>${chart}<div class="admin-ga4__channels">${(Array.isArray(report.channels) ? report.channels : []).slice(0, 5).map((item) => `<span><b>${escapeHtml(item.name || "Другое")}</b><strong>${Number(item.sessions || 0).toLocaleString("ru-RU")}</strong></span>`).join("")}</div>` : `<div class="admin-ga4__setup"><strong>${escapeHtml(report.message || "Подключите ресурс GA4")}</strong><span>Нужны Measurement ID для сбора посещений, ID ресурса и сервисный аккаунт с доступом на чтение. Инструкция — в README.</span><a href="https://analytics.google.com/" target="_blank" rel="noopener noreferrer">Открыть Google Analytics ${icon("arrowRight")}</a></div>`}</section>`;
+}
+
 function renderAdminFinancePage() {
 	const data = state.adminFinance;
 	if (!data) return renderAdminFinanceLoading();
@@ -4528,6 +4570,8 @@ function renderAdminFinancePage() {
 			${custom ? `<div class="admin-finance__custom"><label><span>С</span><input type="date" data-input="admin-finance-from" value="${escapeAttribute(state.adminFinanceFrom || data.from)}" max="${escapeAttribute(financeTodayISO())}"></label><i aria-hidden="true">—</i><label><span>По</span><input type="date" data-input="admin-finance-to" value="${escapeAttribute(state.adminFinanceTo || data.to)}" max="${escapeAttribute(financeTodayISO())}"></label><button type="button" data-action="admin-finance-apply" ${state.adminFinanceBusy ? "disabled" : ""}>Показать</button></div>` : ""}
 			<div class="admin-finance__chart-wrap" aria-live="polite" aria-labelledby="admin-finance-chart-title">${renderAdminFinanceChart(data.daily)}</div><div class="admin-finance__legend"><i aria-hidden="true"></i><span>Выручка в рублях</span>${Number(summary.revenueStars || 0) ? `<small>Stars учитываются отдельно</small>` : ""}</div></div>
 		</section>
+		${renderAdminFinanceProviders(data.providers)}
+		${renderAdminGoogleAnalytics(data.google)}
 		<section class="admin-finance__history" aria-labelledby="admin-finance-history-title"><div class="admin-finance__section-head"><div><span>ОПЕРАЦИИ</span><h3 id="admin-finance-history-title">История платежей</h3></div><strong>${Number(data.paymentTotal || 0).toLocaleString("ru-RU")}</strong></div><div class="admin-finance-history__surface"><div class="admin-finance-history__list">${renderAdminFinanceHistory(payments)}</div>${hasMore ? `<button class="admin-finance__more" type="button" data-action="admin-finance-more" ${state.adminFinanceBusy ? "disabled" : ""}>${state.adminFinanceBusy === "more" ? icon("refresh") : icon("arrowDown")}<span>Показать ещё</span></button>` : ""}</div></section>
 	</div></section>`;
 }
