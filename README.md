@@ -148,6 +148,16 @@ DEFAULT_FONT=auto
 Дополнительные заголовки можно задать через `REMNAWAVE_HEADERS` в формате
 `Header-One:value;Header-Two:value`.
 
+### Уведомления о входе в Remnawave и регистрации через Gmail
+
+Новый аккаунт, созданный через Google/Gmail, отправляет админу Telegram-уведомление с email, устройством, IP и примерным гео. Повторный вход уведомление не создаёт. Для уведомлений об успешном и неудачном входе в **панель Remnawave** настройте вебхук:
+
+1. В `.env` Link-Bot задайте `REMNAWAVE_WEBHOOK_SECRET` (не менее 32 символов) и перезапустите бота.
+2. В `.env` панели Remnawave задайте `WEBHOOK_ENABLED=true`, `WEBHOOK_URL=https://bot.example.com/api/remnawave/webhook` (замените домен на `PUBLIC_HOST`) и `WEBHOOK_SECRET_HEADER` с тем же секретом, затем перезапустите панель.
+3. Проверьте, что события `service.login_attempt_failed` и `service.login_attempt_success` включены для webhook в конфигурации уведомлений Remnawave.
+
+Бот проверяет HMAC-подпись Remnawave перед отправкой уведомления. Пароли в сообщениях не передаются. Гео определяется приблизительно по IP через ipwho.is; при недоступности сервиса показывается «не определено».
+
 ### Панель установлена скриптом eGames
 
 Link-Bot поддерживает eGames Reverse-Proxy. Выберите только один вариант

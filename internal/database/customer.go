@@ -479,11 +479,16 @@ func (cr *CustomerRepository) FindByGoogleSubject(ctx context.Context, subject s
 }
 
 func (cr *CustomerRepository) FindOrCreateByGoogleIdentity(ctx context.Context, subject, email string, verified bool, language string) (*Customer, error) {
+	customer, _, err := cr.FindOrCreateByGoogleIdentityWithCreated(ctx, subject, email, verified, language)
+	return customer, err
+}
+
+func (cr *CustomerRepository) FindOrCreateByGoogleIdentityWithCreated(ctx context.Context, subject, email string, verified bool, language string) (*Customer, bool, error) {
 	subject = strings.TrimSpace(subject)
 	email = strings.ToLower(strings.TrimSpace(email))
 	language = strings.TrimSpace(language)
 	if subject == "" || email == "" || !verified {
-		return nil, fmt.Errorf("invalid google identity")
+		return nil, false, fmt.Errorf("invalid google identity")
 	}
 	if language == "" {
 		language = "en"
@@ -499,18 +504,19 @@ func (cr *CustomerRepository) FindOrCreateByGoogleIdentity(ctx context.Context, 
 		DO UPDATE SET
 			google_email = EXCLUDED.google_email,
 			google_email_verified = EXCLUDED.google_email_verified
-	` + customerReturningClause()
+	` + customerReturningClause() + `, (xmax = 0)`
 
 	var customer Customer
-	if err := scanCustomer(cr.pool.QueryRow(ctx, query, language, subject, email, verified), &customer); err != nil {
+	var created bool
+	if err := cr.pool.QueryRow(ctx, query, language, subject, email, verified).Scan(append(customerScanDestinations(&customer), &created)...); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return nil, ErrGoogleIdentityConflict
+			return nil, false, ErrGoogleIdentityConflict
 		}
-		return nil, fmt.Errorf("failed to find or create customer by google identity: %w", err)
+		return nil, false, fmt.Errorf("failed to find or create customer by google identity: %w", err)
 	}
 
-	return &customer, nil
+	return &customer, created, nil
 }
 
 func (cr *CustomerRepository) FindByGoogleEmail(ctx context.Context, email string) (*Customer, error) {

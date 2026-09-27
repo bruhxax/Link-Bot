@@ -740,6 +740,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	})
 
 	mux.HandleFunc("/api/site/landing", h.handleLandingData)
+	mux.HandleFunc("/api/remnawave/webhook", h.handleRemnawaveSecurityWebhook)
 	mux.HandleFunc("/api/mini-app/public-config", h.handlePublicConfig)
 	mux.HandleFunc("/api/mini-app/auth/telegram/qr/start", h.handleStartTelegramQRLogin)
 	mux.HandleFunc("/api/mini-app/auth/telegram/qr/status", h.handleTelegramQRLoginStatus)
@@ -1060,7 +1061,11 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 				h.writeError(w, http.StatusServiceUnavailable, "feature_disabled", "Google login is temporarily unavailable")
 				return
 			}
-			sess, customer, err = h.sessionFromGoogleLogin(r.Context(), googleToken)
+			var created bool
+			sess, customer, created, err = h.sessionFromGoogleLogin(r.Context(), googleToken)
+			if err == nil && created {
+				h.notifyGoogleRegistration(customer, r)
+			}
 			if err == nil && sess != nil {
 				if customer != nil && customer.TelegramUsername != nil {
 					sess.User.Username = strings.TrimSpace(*customer.TelegramUsername)
@@ -1228,18 +1233,18 @@ func extractAuthData(r *http.Request) (string, string, string, string, error) {
 	return strings.TrimSpace(payload.InitData), strings.TrimSpace(payload.LoginData), strings.TrimSpace(payload.TelegramIDToken), strings.TrimSpace(payload.GoogleIDToken), nil
 }
 
-func (h *Handler) sessionFromGoogleLogin(ctx context.Context, idToken string) (*session, *database.Customer, error) {
+func (h *Handler) sessionFromGoogleLogin(ctx context.Context, idToken string) (*session, *database.Customer, bool, error) {
 	identity, err := validateGoogleIDToken(ctx, idToken, config.GoogleClientID())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 
-	customer, err := h.customerRepository.FindOrCreateByGoogleIdentity(ctx, identity.Subject, identity.Email, identity.EmailVerified, h.language())
+	customer, created, err := h.customerRepository.FindOrCreateByGoogleIdentityWithCreated(ctx, identity.Subject, identity.Email, identity.EmailVerified, h.language())
 	if err != nil {
 		if errors.Is(err, database.ErrGoogleIdentityConflict) {
-			return nil, nil, errGoogleAlreadyLinked
+			return nil, nil, false, errGoogleAlreadyLinked
 		}
-		return nil, nil, fmt.Errorf("%w: %v", errGoogleCustomerSync, err)
+		return nil, nil, false, fmt.Errorf("%w: %v", errGoogleCustomerSync, err)
 	}
 
 	return &session{
@@ -1254,7 +1259,7 @@ func (h *Handler) sessionFromGoogleLogin(ctx context.Context, idToken string) (*
 		GoogleSubject:       identity.Subject,
 		GoogleEmail:         identity.Email,
 		GoogleEmailVerified: identity.EmailVerified,
-	}, customer, nil
+	}, customer, created, nil
 }
 
 func telegramBotUsername() string {
