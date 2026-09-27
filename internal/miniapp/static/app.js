@@ -4332,7 +4332,7 @@ function renderAdminStatusPage() {
 	const database = data.database || {};
 	const healthy = [bot.state, panel.state, database.state].every((item) => item === "online");
 	const update = data.update || {};
-	const updateText = update.state === "available" ? `Доступна ${update.latestVersion || "новая версия"}` : update.state === "current" ? "Нового релиза нет" : "Не удалось проверить";
+	const updateText = update.state === "available" ? (update.kind === "commit" ? (Number(update.aheadBy || 0) === 1 ? "Новый коммит в GitHub" : `Новых коммитов: ${Number(update.aheadBy || 0)}`) : `Доступен релиз ${update.latestVersion || "новой версии"}`) : update.state === "current" ? "Обновлений нет" : "Не удалось проверить";
 	const built = new Date(data.buildDate || "");
 	const builtText = Number.isNaN(built.getTime()) ? "" : new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(built);
 	const checked = new Date(data.checkedAt || "");
@@ -4344,18 +4344,18 @@ function renderAdminStatusPage() {
 			${renderAdminStatusService("Бот", bot, "server", [["Время работы", adminStatusDuration(bot.uptimeSeconds)], ["Память Go", adminStatusMemory(data.heapBytes)]])}
 			${renderAdminStatusService("Панель Remnawave", panel, "server", [["Время работы сервера", adminStatusDuration(panel.uptimeSeconds)], ["Память сервера", Number(panel.memoryTotalBytes) ? `${adminStatusMemory(panel.memoryUsedBytes)} / ${adminStatusMemory(panel.memoryTotalBytes)}` : "—"]])}
 		</div>
-		<section class="admin-status__section"><h3>Сборка и обновление</h3><div class="admin-status__rows"><div><span>Версия бота</span><strong>${escapeHtml(data.version || "dev")}</strong></div><div><span>Последний релиз</span><strong>${escapeHtml(update.latestVersion || "—")}</strong></div><div><span>Обновление</span><strong class="${update.state === "available" ? "is-update" : ""}">${escapeHtml(updateText)}</strong></div>${builtText ? `<div><span>Собрано</span><strong>${escapeHtml(builtText)}</strong></div>` : ""}${data.commit && data.commit !== "none" ? `<div><span>Коммит</span><strong>${escapeHtml(data.commit)}</strong></div>` : ""}</div>${update.state === "available" ? `<button class="admin-status__release" type="button" data-action="open-link" data-value="${escapeAttribute(update.url || "https://github.com/bruhxax/Link-Bot/releases/latest")}">Посмотреть релиз${icon("chevronRight")}</button>` : ""}</section>
+		<section class="admin-status__section"><h3>Сборка и обновление</h3><div class="admin-status__rows"><div><span>Версия бота</span><strong>${escapeHtml(data.version || "dev")}</strong></div><div><span>Последний релиз</span><strong>${escapeHtml(update.latestVersion || "—")}</strong></div><div><span>Обновление</span><strong class="${update.state === "available" ? "is-update" : ""}">${escapeHtml(updateText)}</strong></div>${builtText ? `<div><span>Собрано</span><strong>${escapeHtml(builtText)}</strong></div>` : ""}${data.commit && data.commit !== "none" ? `<div><span>Коммит</span><strong>${escapeHtml(data.commit)}</strong></div>` : ""}</div>${update.state === "available" ? `<button class="admin-status__release" type="button" data-action="open-link" data-value="${escapeAttribute(update.url || "https://github.com/bruhxax/Link-Bot/releases/latest")}">${update.kind === "commit" ? "Посмотреть изменения" : "Посмотреть релиз"}${icon("chevronRight")}</button>` : ""}</section>
 		<section class="admin-status__section"><h3>Система</h3><div class="admin-status__rows"><div><span>База данных</span><strong class="is-${adminStatusState(database.state)}">${database.state === "online" ? `Подключена${Number(database.latencyMs) ? ` · ${Number(database.latencyMs)} мс` : ""}` : database.state === "offline" ? "Нет связи" : "Нет данных"}</strong></div><div><span>Выделено Go</span><strong>${adminStatusMemory(data.processBytes)}</strong></div><div><span>Горутины</span><strong>${Number(data.goroutines || 0).toLocaleString("ru-RU")}</strong></div></div></section>
 	</div></section>`;
 }
 
-async function refreshAdminStatus() {
+async function refreshAdminStatus(force = false) {
 	if (state.currentPage !== "admin" || state.adminSection !== "status" || state.adminStatusBusy) return;
 	window.clearTimeout(adminStatusPollTimer);
 	state.adminStatusBusy = true;
 	render({ preserveScroll: true });
 	try {
-		const response = await post("/api/mini-app/admin/status", {});
+		const response = await post(force ? "/api/mini-app/admin/status?refresh=1" : "/api/mini-app/admin/status", {});
 		state.adminStatusError = "";
 		if (state.currentPage === "admin" && state.adminSection === "status") state.adminStatus = response.data;
 	} catch (error) {
@@ -9413,7 +9413,7 @@ function bindRootActions() {
 		return;
 	  }
 	  if (action === "admin-settings-search-open") return openAdminSettingsSearchResult(Number(value));
-	  if (action === "admin-status-refresh") return await refreshAdminStatus();
+	  if (action === "admin-status-refresh") return await refreshAdminStatus(true);
 	  if (action === "admin-background-mode") {
 		if (!state.adminSettingsDraft || !ADMIN_BACKGROUND_OPTIONS.some(([mode]) => mode === value)) return;
 		setDeepValue(state.adminSettingsDraft, "appearance.backgroundMode", value);

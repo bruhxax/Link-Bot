@@ -19,8 +19,11 @@ import (
 
 const latestReleaseAPI = "https://api.github.com/repos/bruhxax/Link-Bot/releases/latest"
 const latestReleasePage = "https://github.com/bruhxax/Link-Bot/releases/latest"
+const githubCompareAPI = "https://api.github.com/repos/bruhxax/Link-Bot/compare/"
+const githubComparePage = "https://github.com/bruhxax/Link-Bot/compare/"
 
 var releaseVersionPattern = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)`)
+var commitHashPattern = regexp.MustCompile(`^[0-9a-fA-F]{7,40}$`)
 
 type adminStatusInfo struct {
 	startedAt       time.Time
@@ -43,7 +46,9 @@ type adminServiceStatus struct {
 
 type adminUpdateStatus struct {
 	State         string `json:"state"`
+	Kind          string `json:"kind,omitempty"`
 	LatestVersion string `json:"latestVersion,omitempty"`
+	AheadBy       int    `json:"aheadBy,omitempty"`
 	URL           string `json:"url,omitempty"`
 	CheckedAt     string `json:"checkedAt,omitempty"`
 }
@@ -153,52 +158,114 @@ func (h *Handler) handleAdminStatus(w http.ResponseWriter, r *http.Request, sess
 	}()
 	go func() {
 		defer group.Done()
-		result.Update = h.checkLatestRelease(ctx, result.Version)
+		result.Update = h.checkAvailableUpdate(ctx, result.Version, result.Commit, r.URL.Query().Get("refresh") == "1")
 	}()
 	group.Wait()
 	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": result})
 }
 
-func (h *Handler) checkLatestRelease(ctx context.Context, currentVersion string) adminUpdateStatus {
+func (h *Handler) checkAvailableUpdate(ctx context.Context, currentVersion, currentCommit string, force bool) adminUpdateStatus {
 	info := &h.adminStatus
 	info.updateMu.Lock()
 	defer info.updateMu.Unlock()
-	cacheTTL := 15 * time.Minute
+	cacheTTL := 5 * time.Minute
 	if info.update.State == "unknown" {
-		cacheTTL = 2 * time.Minute
+		cacheTTL = time.Minute
 	}
-	if time.Since(info.updateCheckedAt) < cacheTTL && !info.updateCheckedAt.IsZero() {
+	if !force && time.Since(info.updateCheckedAt) < cacheTTL && !info.updateCheckedAt.IsZero() {
 		return info.update
 	}
 	result := adminUpdateStatus{State: "unknown", URL: latestReleasePage, CheckedAt: time.Now().UTC().Format(time.RFC3339)}
-	probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	request, err := http.NewRequestWithContext(probeCtx, http.MethodGet, latestReleaseAPI, nil)
-	if err == nil {
-		request.Header.Set("Accept", "application/vnd.github+json")
-		request.Header.Set("User-Agent", "Link-Bot-status")
-		response, requestErr := (&http.Client{Timeout: 3 * time.Second}).Do(request)
-		if requestErr == nil {
-			defer response.Body.Close()
-			if response.StatusCode == http.StatusOK {
-				var release struct {
-					TagName string `json:"tag_name"`
-				}
-				if json.NewDecoder(io.LimitReader(response.Body, 16<<10)).Decode(&release) == nil {
-					result.LatestVersion = strings.TrimSpace(release.TagName)
-					if newer, comparable := isNewerRelease(currentVersion, result.LatestVersion); comparable {
-						result.State = "current"
-						if newer {
-							result.State = "available"
-						}
-					}
-				}
-			}
-		}
+	client := &http.Client{Timeout: 4 * time.Second}
+	currentCommit = strings.TrimSpace(currentCommit)
+	var releaseVersion string
+	var releaseOK bool
+	var aheadBy int
+	var compareOK bool
+	var checks sync.WaitGroup
+	checks.Add(1)
+	go func() {
+		defer checks.Done()
+		releaseVersion, releaseOK = fetchGitHubRelease(probeCtx, client, latestReleaseAPI)
+	}()
+	if commitHashPattern.MatchString(currentCommit) {
+		checks.Add(1)
+		go func() {
+			defer checks.Done()
+			aheadBy, compareOK = fetchGitHubAheadBy(probeCtx, client, githubCompareAPI+currentCommit+"...main?per_page=1")
+		}()
 	}
+	checks.Wait()
+	result = resolveAdminUpdateStatus(result, currentVersion, currentCommit, releaseVersion, releaseOK, aheadBy, compareOK)
 	info.update = result
 	info.updateCheckedAt = time.Now()
 	return result
+}
+
+func resolveAdminUpdateStatus(result adminUpdateStatus, currentVersion, currentCommit, releaseVersion string, releaseOK bool, aheadBy int, compareOK bool) adminUpdateStatus {
+	result.LatestVersion = releaseVersion
+	if releaseOK {
+		if newer, comparable := isNewerRelease(currentVersion, releaseVersion); comparable {
+			result.State = "current"
+			if newer {
+				result.State = "available"
+				result.Kind = "release"
+			}
+		}
+	}
+	if commitHashPattern.MatchString(currentCommit) {
+		if compareOK && aheadBy > 0 {
+			result.AheadBy = aheadBy
+			if result.State != "available" {
+				result.State = "available"
+				result.Kind = "commit"
+				result.URL = githubComparePage + currentCommit + "...main"
+			}
+		} else if !compareOK && result.State == "current" {
+			result.State = "unknown"
+		}
+	}
+	return result
+}
+
+func fetchGitHubStatusJSON(ctx context.Context, client *http.Client, url string, maxBytes int64, target any) bool {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return false
+	}
+	request.Header.Set("Accept", "application/vnd.github+json")
+	request.Header.Set("User-Agent", "Link-Bot-status")
+	response, err := client.Do(request)
+	if err != nil {
+		return false
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return false
+	}
+	return json.NewDecoder(io.LimitReader(response.Body, maxBytes)).Decode(target) == nil
+}
+
+func fetchGitHubRelease(ctx context.Context, client *http.Client, url string) (string, bool) {
+	var release struct {
+		TagName string `json:"tag_name"`
+	}
+	if !fetchGitHubStatusJSON(ctx, client, url, 16<<10, &release) {
+		return "", false
+	}
+	return strings.TrimSpace(release.TagName), release.TagName != ""
+}
+
+func fetchGitHubAheadBy(ctx context.Context, client *http.Client, url string) (int, bool) {
+	var comparison struct {
+		AheadBy int `json:"ahead_by"`
+	}
+	if !fetchGitHubStatusJSON(ctx, client, url, 128<<10, &comparison) {
+		return 0, false
+	}
+	return comparison.AheadBy, true
 }
 
 func isNewerRelease(current, latest string) (bool, bool) {

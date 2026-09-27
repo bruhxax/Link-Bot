@@ -1,6 +1,11 @@
 package miniapp
 
-import "testing"
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
 
 func TestIsNewerRelease(t *testing.T) {
 	tests := []struct {
@@ -18,5 +23,30 @@ func TestIsNewerRelease(t *testing.T) {
 		if newer != test.newer || comparable != test.comparable {
 			t.Errorf("isNewerRelease(%q, %q) = (%v, %v)", test.current, test.latest, newer, comparable)
 		}
+	}
+}
+
+func TestFetchGitHubAheadBy(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/compare/da6befa...main" || r.URL.Query().Get("per_page") != "1" {
+			t.Errorf("unexpected request URL: %s", r.URL.String())
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"ahead","ahead_by":1,"behind_by":0}`))
+	}))
+	defer server.Close()
+	ahead, ok := fetchGitHubAheadBy(context.Background(), server.Client(), server.URL+"/compare/da6befa...main?per_page=1")
+	if !ok || ahead != 1 {
+		t.Fatalf("ahead=%d, ok=%v", ahead, ok)
+	}
+}
+
+func TestAdminStatusDetectsNewCommitWithoutRelease(t *testing.T) {
+	update := resolveAdminUpdateStatus(adminUpdateStatus{State: "unknown", URL: latestReleasePage}, "2.2.6-8-gda6befa", "da6befa", "2.2.6", true, 1, true)
+	if update.State != "available" || update.Kind != "commit" || update.AheadBy != 1 || update.LatestVersion != "2.2.6" {
+		t.Fatalf("unexpected update: %+v", update)
+	}
+	if update.URL != githubComparePage+"da6befa...main" {
+		t.Fatalf("unexpected compare URL: %s", update.URL)
 	}
 }
