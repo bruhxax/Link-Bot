@@ -4784,6 +4784,44 @@ button.rating-star {
     text-overflow: ellipsis;
   }
 
+.server-card__visibility {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  margin-left: auto;
+  border: 1px solid color-mix(in srgb, #42df88 30%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, #42df88 10%, transparent);
+  color: #42df88;
+  cursor: pointer;
+  transition: color .25s ease, border-color .25s ease, background .25s ease, box-shadow .25s ease;
+}
+.server-card__visibility.is-hidden {
+  border-color: color-mix(in srgb, #ff6868 35%, transparent);
+  background: color-mix(in srgb, #ff6868 10%, transparent);
+  color: #ff6868;
+}
+.server-card__visibility:hover { box-shadow: 0 0 15px color-mix(in srgb, currentColor 20%, transparent); }
+.server-card__visibility:disabled { cursor: wait; }
+.server-card__visibility-icon {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  transition: opacity .26s ease, transform .32s cubic-bezier(.2,.75,.25,1);
+}
+.server-card__visibility-icon svg { width: 19px; height: 19px; }
+.server-card__visibility-icon--off { opacity: 0; transform: rotate(-35deg) scale(.55); }
+.server-card__visibility.is-hidden .server-card__visibility-icon--on { opacity: 0; transform: rotate(35deg) scale(.55); }
+.server-card__visibility.is-hidden .server-card__visibility-icon--off { opacity: 1; transform: rotate(0) scale(1); }
+.server-card--hidden { border-color: color-mix(in srgb, #ff6868 22%, var(--control-border-soft)); }
+@media (prefers-reduced-motion: reduce) {
+  .server-card__visibility,
+  .server-card__visibility-icon { transition: none; }
+}
+
 @keyframes serverPulse {
     0% {
       transform: scale(0.72);

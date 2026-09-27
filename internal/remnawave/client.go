@@ -115,6 +115,7 @@ const (
 )
 
 type NodeStatus struct {
+	UUID        string
 	Name        string
 	Address     string
 	CountryCode string
@@ -704,6 +705,7 @@ func (r *Client) GetNodesStatus(ctx context.Context) ([]NodeStatus, error) {
 
 	var payload struct {
 		Response []struct {
+			UUID        string `json:"uuid"`
 			Name        string `json:"name"`
 			Address     string `json:"address"`
 			CountryCode string `json:"countryCode"`
@@ -724,6 +726,7 @@ func (r *Client) GetNodesStatus(ctx context.Context) ([]NodeStatus, error) {
 		}
 
 		result = append(result, NodeStatus{
+			UUID:        strings.TrimSpace(node.UUID),
 			Name:        name,
 			Address:     strings.TrimSpace(node.Address),
 			CountryCode: strings.TrimSpace(node.CountryCode),

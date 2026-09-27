@@ -362,10 +362,12 @@ type paymentHistoryPayload struct {
 }
 
 type serverNodePayload struct {
+	ID          string `json:"id,omitempty"`
 	Name        string `json:"name"`
 	Address     string `json:"address,omitempty"`
 	CountryCode string `json:"countryCode,omitempty"`
 	Online      bool   `json:"online"`
+	Hidden      bool   `json:"hidden,omitempty"`
 }
 
 type paymentMethodPayload struct {
@@ -771,6 +773,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/target", h.withSession(h.handleAdminSubscriptionTarget))
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/rebind", h.withSession(h.handleAdminRebindSubscription))
 	mux.HandleFunc("/api/mini-app/admin/settings/update", h.withSession(h.handleAdminSettingsUpdate))
+	mux.HandleFunc("/api/mini-app/admin/servers/visibility", h.withSession(h.handleAdminServerVisibility))
 	mux.HandleFunc("/api/mini-app/admin/wallet/withdrawal/resolve", h.withSession(h.handleAdminWithdrawalResolve))
 	mux.HandleFunc("/api/mini-app/admin/logo/upload", h.withSession(h.handleAdminLogoUpload, "multipart/form-data"))
 	mux.HandleFunc("/api/mini-app/admin/favicon/upload", h.withSession(h.handleAdminFaviconUpload, "multipart/form-data"))
@@ -826,6 +829,7 @@ func (h *Handler) handlePublicConfig(w http.ResponseWriter, r *http.Request) {
 	if h.runtimeSettings != nil {
 		settings = h.runtimeSettings.Snapshot()
 	}
+	settings.HiddenServerNodes = nil
 	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": settings})
 }
 
@@ -2826,6 +2830,41 @@ func (h *Handler) handleAdminSettingsUpdate(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+func (h *Handler) handleAdminServerVisibility(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
+	if !h.isAdmin(sess.User.ID) {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+		return
+	}
+	if r.Method != http.MethodPost {
+		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		return
+	}
+	if h.runtimeSettings == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "settings_unavailable", "Runtime settings are unavailable")
+		return
+	}
+	var req struct {
+		ID     string `json:"id"`
+		Hidden bool   `json:"hidden"`
+	}
+	if err := h.decodeJSONRequest(w, r, 2048, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Invalid server visibility")
+		return
+	}
+	if err := h.runtimeSettings.SetServerNodeHidden(r.Context(), req.ID, req.Hidden, sess.User.ID); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid_server", err.Error())
+		return
+	}
+	h.landingNodesMu.Lock()
+	h.landingNodes = nil
+	h.landingNodesCheckedAt = time.Time{}
+	h.landingNodesMu.Unlock()
+	if h.realtime != nil {
+		h.realtime.publish()
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": map[string]any{"id": req.ID, "hidden": req.Hidden}})
+}
+
 func (h *Handler) applyTelegramLocalization(ctx context.Context) {
 	if h.telegramBot == nil || h.translation == nil {
 		return
@@ -4069,7 +4108,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		go func() {
 			serverCtx, serverCancel := context.WithTimeout(ctx, 3*time.Second)
 			defer serverCancel()
-			payload, loadErr := h.buildServersPayload(serverCtx)
+			payload, loadErr := h.buildServersPayload(serverCtx, h.isAdmin(sess.User.ID))
 			loaded <- serverLoadResult{payload: payload, err: loadErr}
 		}()
 	}
@@ -4225,6 +4264,10 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 	}
 
 	referralInviteURL := buildReferralInviteURL(customer.TelegramID, referralEnabled)
+	runtimeForUser := settings
+	if !h.isAdmin(sess.User.ID) {
+		runtimeForUser.HiddenServerNodes = nil
+	}
 	return &bootstrapResponse{
 		Brand: brandPayload{
 			Name:    settings.Content.BrandName,
@@ -4288,7 +4331,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 			GoogleClientID:         enabledValue(settings.Features["google"], config.GoogleClientID()),
 			StarsNeedPriorPurchase: config.RequirePaidPurchaseForStars(),
 		},
-		Runtime: settings,
+		Runtime: runtimeForUser,
 	}, nil
 }
 
@@ -4658,7 +4701,17 @@ func (h *Handler) canActivateTrial(ctx context.Context, customer *database.Custo
 	return purchase == nil, nil
 }
 
-func (h *Handler) buildServersPayload(ctx context.Context) (serversPayload, error) {
+func serverNodeID(node remnawave.NodeStatus) string {
+	if value := strings.ToLower(strings.TrimSpace(node.UUID)); value != "" {
+		return "uuid:" + value
+	}
+	if value := strings.ToLower(strings.TrimSpace(node.Address)); value != "" {
+		return "address:" + value + "|" + strings.ToLower(strings.TrimSpace(node.Name))
+	}
+	return "name:" + strings.ToLower(strings.TrimSpace(node.Name))
+}
+
+func (h *Handler) buildServersPayload(ctx context.Context, includeHidden bool) (serversPayload, error) {
 	if h.remnawaveClient == nil {
 		return serversPayload{Items: []serverNodePayload{}}, nil
 	}
@@ -4668,17 +4721,39 @@ func (h *Handler) buildServersPayload(ctx context.Context) (serversPayload, erro
 		return serversPayload{}, err
 	}
 
+	var hiddenIDs []string
+	if h.runtimeSettings != nil {
+		hiddenIDs = h.runtimeSettings.Snapshot().HiddenServerNodes
+	}
+	return filterServerNodes(nodes, hiddenIDs, includeHidden), nil
+}
+
+func filterServerNodes(nodes []remnawave.NodeStatus, hiddenNodeIDs []string, includeHidden bool) serversPayload {
 	items := make([]serverNodePayload, 0, len(nodes))
+	hiddenIDs := make(map[string]struct{}, len(hiddenNodeIDs))
+	for _, id := range hiddenNodeIDs {
+		hiddenIDs[id] = struct{}{}
+	}
 	for _, node := range nodes {
-		items = append(items, serverNodePayload{
+		id := serverNodeID(node)
+		_, hidden := hiddenIDs[id]
+		if hidden && !includeHidden {
+			continue
+		}
+		item := serverNodePayload{
 			Name:        node.Name,
 			Address:     node.Address,
 			CountryCode: node.CountryCode,
 			Online:      node.IsOnline,
-		})
+		}
+		if includeHidden {
+			item.ID = id
+			item.Hidden = hidden
+		}
+		items = append(items, item)
 	}
 
-	return serversPayload{Items: items}, nil
+	return serversPayload{Items: items}
 }
 
 func (h *Handler) buildReviewsPayload(ctx context.Context, customer *database.Customer) (reviewsPayload, error) {

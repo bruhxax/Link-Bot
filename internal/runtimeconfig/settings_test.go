@@ -21,6 +21,18 @@ func TestNormalizeAndValidatePaymentMethodOrder(t *testing.T) {
 	}
 }
 
+func TestNormalizeAndValidateHiddenServerNodes(t *testing.T) {
+	settings := DefaultSettings()
+	settings.HiddenServerNodes = []string{" UUID:ABC-123 ", "uuid:abc-123", "address:de.example|germany"}
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"address:de.example|germany", "uuid:abc-123"}
+	if !reflect.DeepEqual(settings.HiddenServerNodes, want) {
+		t.Fatalf("hidden server nodes = %v, want %v", settings.HiddenServerNodes, want)
+	}
+}
+
 func TestNormalizeAndValidateMissingPaymentMethodOrderUsesDefault(t *testing.T) {
 	settings := DefaultSettings()
 	settings.PaymentMethodOrder = nil

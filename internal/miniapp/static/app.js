@@ -2305,6 +2305,7 @@ const state = {
   paymentMethod: readSetting(STORAGE_KEYS.payMethod, ""),
   payModalContext: "",
   serverFilter: "all",
+  serverVisibilityBusy: "",
   installGuidePlatform: getDefaultInstallPlatform(),
   busyMethod: "",
   theme: "dark",
@@ -8237,8 +8238,12 @@ function renderSupportLinkRows() {
 function renderServerCard(server) {
   const flag = countryFlag(server.countryCode);
   const flagURL = countryFlagURL(server.countryCode);
+  const canControlVisibility = isAdminUser() && Boolean(server.id);
+  const visibilityLabel = server.hidden
+    ? localizedText("Нода скрыта. Показать пользователям", "Node hidden. Show to users", "گره پنهان است. نمایش به کاربران")
+    : localizedText("Нода видна. Скрыть от пользователей", "Node visible. Hide from users", "گره نمایان است. پنهان کردن از کاربران");
   return `
-    <div class="card server-card">
+    <div class="card server-card ${server.hidden ? "server-card--hidden" : ""}">
       <div class="server-card__row">
         <span class="server-card__dot ${server.online ? "is-online" : "is-offline"}"></span>
         <div class="server-card__copy">
@@ -8247,9 +8252,42 @@ function renderServerCard(server) {
             <span class="server-card__name">${escapeHtml(server.name)}</span>
           </strong>
         </div>
+        ${canControlVisibility ? `<button class="server-card__visibility ${server.hidden ? "is-hidden" : ""}" type="button" data-action="admin-toggle-server-visibility" data-value="${escapeAttribute(server.id)}" aria-label="${escapeAttribute(visibilityLabel)}" title="${escapeAttribute(visibilityLabel)}" aria-pressed="${!server.hidden}"><span class="server-card__visibility-icon server-card__visibility-icon--on">${icon("accessPoint")}</span><span class="server-card__visibility-icon server-card__visibility-icon--off">${icon("accessPointOff")}</span></button>` : ""}
       </div>
     </div>
   `;
+}
+
+async function toggleServerVisibility(id, button) {
+  if (!isAdminUser() || state.serverVisibilityBusy || !button) return;
+  const server = getServerItems().find((item) => item.id === id);
+  if (!server) return;
+  const hidden = !Boolean(server.hidden);
+  const applyVisibility = (nextHidden) => {
+    server.hidden = nextHidden;
+    button.classList.toggle("is-hidden", nextHidden);
+    button.closest(".server-card")?.classList.toggle("server-card--hidden", nextHidden);
+    const label = nextHidden
+      ? localizedText("Нода скрыта. Показать пользователям", "Node hidden. Show to users", "گره پنهان است. نمایش به کاربران")
+      : localizedText("Нода видна. Скрыть от пользователей", "Node visible. Hide from users", "گره نمایان است. پنهان کردن از کاربران");
+    button.setAttribute("aria-label", label);
+    button.setAttribute("title", label);
+    button.setAttribute("aria-pressed", String(!nextHidden));
+  };
+  state.serverVisibilityBusy = id;
+  applyVisibility(hidden);
+  button.disabled = true;
+  try {
+    await post("/api/mini-app/admin/servers/visibility", { id, hidden });
+    haptic("success");
+    showToast(hidden ? localizedText("Нода скрыта", "Node hidden", "گره پنهان شد") : localizedText("Нода снова видна", "Node visible again", "گره دوباره نمایان شد"), "success");
+  } catch (error) {
+    applyVisibility(!hidden);
+    throw error;
+  } finally {
+    state.serverVisibilityBusy = "";
+    button.disabled = false;
+  }
 }
 
 function getServerItems() {
@@ -9277,6 +9315,7 @@ function bindRootActions() {
       if (action === "download-support-media") return await downloadSupportMedia(Number(value));
       if (action === "close-support-ticket") return await closeSupportTicket();
       if (action === "set-server-filter") { state.serverFilter = ["all", "online", "offline"].includes(value) ? value : "all"; render(); return; }
+      if (action === "admin-toggle-server-visibility") return await toggleServerVisibility(value, target);
       if (action === "toggle-faq") { const index = Number(value); state.selectedFaqIndex = state.selectedFaqIndex === index ? -1 : index; render(); return; }
 		if (action === "select-setup-app") { state.selectedSetupAppID = value; haptic("light"); render({ preserveScroll: true }); return; }
 		if (action === "toggle-setup-platform") {
@@ -15959,6 +15998,8 @@ function icon(name) {
 		return `<span class="app-svg-icon app-svg-icon--${ADMIN_ICON_CLASSES[name]}" data-app-icon="${escapeAttribute(name)}" aria-hidden="true"></span>`;
 	}
   const icons = {
+	accessPoint: `<svg data-preserve-color viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12 12v.01m2.828-2.838a4 4 0 0 1 0 5.656m2.829-8.485a8 8 0 0 1 0 11.314m-8.489-2.829a4 4 0 0 1 0-5.656m-2.831 8.485a8 8 0 0 1 0-11.314" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>`,
+	accessPointOff: `<svg data-preserve-color viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="m3 3 18 18M14.828 9.172A4 4 0 0 1 16 12m1.657-5.657a8 8 0 0 1 1.635 8.952m-10.124-.467a4 4 0 0 1 0-5.656m-2.831 8.485a8 8 0 0 1 0-11.314" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>`,
 	more: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>`,
 		search: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="m16.2 16.2 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
 		gift: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M19.97 10H3.96997V18C3.96997 21 4.96997 22 7.96997 22H15.97C18.97 22 19.97 21 19.97 18V10Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M21.5 7V8C21.5 9.1 20.97 10 19.5 10H4.5C2.97 10 2.5 9.1 2.5 8V7C2.5 5.9 2.97 5 4.5 5H19.5C20.97 5 21.5 5.9 21.5 7Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.64 4.99994H6.12003C5.78003 4.62994 5.79003 4.05994 6.15003 3.69994L7.57003 2.27994C7.94003 1.90994 8.55003 1.90994 8.92003 2.27994L11.64 4.99994Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M17.87 4.99994H12.35L15.07 2.27994C15.44 1.90994 16.05 1.90994 16.42 2.27994L17.84 3.69994C18.2 4.05994 18.21 4.62994 17.87 4.99994Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.93994 10V15.14C8.93994 15.94 9.81994 16.41 10.4899 15.98L11.4299 15.36C11.7699 15.14 12.1999 15.14 12.5299 15.36L13.4199 15.96C14.0799 16.4 14.9699 15.93 14.9699 15.13V10H8.93994Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/></svg>`,

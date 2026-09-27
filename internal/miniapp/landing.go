@@ -230,7 +230,7 @@ func (h *Handler) landingNodeStatus() ([]landingNodePayload, bool) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
-	servers, err := h.buildServersPayload(ctx)
+	servers, err := h.buildServersPayload(ctx, false)
 	if err != nil {
 		slog.Warn("landing: node status unavailable", "error", err)
 		h.landingNodesAvailable = false

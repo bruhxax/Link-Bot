@@ -85,6 +85,7 @@ type Settings struct {
 	Referrals          ReferralSettings      `json:"referrals"`
 	Grace              GraceSettings         `json:"grace"`
 	Panel              PanelSettings         `json:"panel"`
+	HiddenServerNodes  []string              `json:"hiddenServerNodes,omitempty"`
 }
 
 type LocalizationSettings struct {
@@ -974,6 +975,9 @@ func (s *Service) Update(ctx context.Context, next Settings, updatedBy int64) (S
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// The server controls save independently from the appearance editor. A stale
+	// editor draft must not restore an older visibility list.
+	next.HiddenServerNodes = s.Snapshot().HiddenServerNodes
 	if err := NormalizeAndValidate(&next); err != nil {
 		return Settings{}, err
 	}
@@ -986,6 +990,38 @@ func (s *Service) Update(ctx context.Context, next Settings, updatedBy int64) (S
 	}
 	s.value.Store(next)
 	return cloneSettings(next), nil
+}
+
+func (s *Service) SetServerNodeHidden(ctx context.Context, id string, hidden bool, updatedBy int64) error {
+	id = strings.ToLower(strings.TrimSpace(id))
+	if id == "" || len(id) > 256 || strings.ContainsAny(id, "\r\n\t") {
+		return errors.New("invalid server node id")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := s.Snapshot()
+	ids := make([]string, 0, len(next.HiddenServerNodes)+1)
+	for _, existing := range next.HiddenServerNodes {
+		if existing != id {
+			ids = append(ids, existing)
+		}
+	}
+	if hidden {
+		ids = append(ids, id)
+	}
+	next.HiddenServerNodes = ids
+	if err := NormalizeAndValidate(&next); err != nil {
+		return err
+	}
+	raw, err := json.Marshal(next)
+	if err != nil {
+		return fmt.Errorf("encode server visibility: %w", err)
+	}
+	if err := s.repository.Save(ctx, raw, updatedBy); err != nil {
+		return fmt.Errorf("save server visibility: %w", err)
+	}
+	s.value.Store(next)
+	return nil
 }
 
 func (s *Service) FeatureEnabled(name string) bool {
@@ -1082,6 +1118,23 @@ func NormalizeAndValidate(settings *Settings) error {
 	previousVersion := settings.Version
 	settings.Version = CurrentVersion
 	settings.PaymentMethodOrder = normalizePaymentMethodOrder(settings.PaymentMethodOrder)
+	if len(settings.HiddenServerNodes) > 512 {
+		return errors.New("too many hidden server nodes")
+	}
+	hiddenNodes := make([]string, 0, len(settings.HiddenServerNodes))
+	seenHiddenNodes := make(map[string]struct{}, len(settings.HiddenServerNodes))
+	for _, id := range settings.HiddenServerNodes {
+		id = strings.ToLower(strings.TrimSpace(id))
+		if id == "" || len(id) > 256 || strings.ContainsAny(id, "\r\n\t") {
+			return errors.New("invalid hidden server node id")
+		}
+		if _, exists := seenHiddenNodes[id]; !exists {
+			seenHiddenNodes[id] = struct{}{}
+			hiddenNodes = append(hiddenNodes, id)
+		}
+	}
+	sort.Strings(hiddenNodes)
+	settings.HiddenServerNodes = hiddenNodes
 
 	if settings.Features == nil {
 		settings.Features = map[string]bool{}
