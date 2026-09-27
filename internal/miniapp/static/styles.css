@@ -13020,6 +13020,60 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .admin-user-balance-actions button svg { width: 15px; height: 15px; }
 .admin-user-balance-actions .is-credit { color: var(--success); background: color-mix(in srgb, var(--success) 8%, transparent); }
 .admin-user-balance-actions .is-debit { color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); }
+
+/* User management is rendered after the shared glass rules, so its cards and
+   controls need the same translucent treatment explicitly. */
+:root[data-glass="on"] :where(
+  .admin-users__search, .admin-users__more,
+  .admin-user-subscriptions__tab, .admin-user-subscription,
+  .admin-user-controls__group--balance
+) {
+  background: var(--glass-background) !important;
+  background-image: var(--glass-texture) !important;
+  background-size: 128px 128px, 100% 100% !important;
+  border-color: var(--glass-border) !important;
+  box-shadow: var(--glass-surface-shadow) !important;
+  backdrop-filter: var(--glass-backdrop) !important;
+  -webkit-backdrop-filter: var(--glass-backdrop) !important;
+}
+:root[data-glass="on"] :where(
+  .admin-user-subscription__facts > span, .admin-user-subscription__link,
+  .admin-user-balance-input input, .admin-user-control-row input,
+  .admin-user-control select, .admin-user-block-reason textarea,
+  .admin-user-block-delete,
+  .admin-user-subscription__link button, .admin-user-subscription__activate,
+  .admin-user-balance-actions button, .admin-user-control-row button,
+  .admin-user-controls__reissue button, .admin-user-controls__delete button,
+  .admin-user-controls__danger button
+) {
+  background: color-mix(in srgb, var(--surface) 14%, transparent) !important;
+  background-image: var(--glass-texture) !important;
+  background-size: 128px 128px, 100% 100% !important;
+  border-color: var(--glass-border) !important;
+  backdrop-filter: var(--glass-backdrop) !important;
+  -webkit-backdrop-filter: var(--glass-backdrop) !important;
+}
+:root[data-glass="on"] .admin-user-subscriptions__tab.is-active {
+  background: color-mix(in srgb, var(--accent) 10%, var(--glass-background)) !important;
+  background-image: var(--glass-texture) !important;
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--glass-border)) !important;
+}
+:root[data-glass="on"] .admin-user-balance-actions .is-credit,
+:root[data-glass="on"] .admin-user-controls__danger button.is-unblock {
+  background: color-mix(in srgb, var(--success) 8%, var(--glass-background)) !important;
+  background-image: var(--glass-texture) !important;
+  border-color: color-mix(in srgb, var(--success) 55%, var(--glass-border)) !important;
+}
+:root[data-glass="on"] .admin-user-balance-actions .is-debit,
+:root[data-glass="on"] .admin-user-controls__danger button.is-block,
+:root[data-glass="on"] .admin-user-controls__delete button {
+  background: color-mix(in srgb, var(--danger) 7%, var(--glass-background)) !important;
+  background-image: var(--glass-texture) !important;
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--glass-border)) !important;
+}
+:root[data-glass="on"] .admin-user-subscription__activate {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--glass-border)) !important;
+}
 @media (max-width: 390px) {
   .admin-user-subscription__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-user-subscriptions__tab { min-width: 118px; }
