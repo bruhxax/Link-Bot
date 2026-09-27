@@ -209,7 +209,7 @@ func (g *Gateway) createHeleket(ctx context.Context, cfg map[string]string, inpu
 	payload := map[string]any{
 		"amount": formatAmount(input.Amount), "currency": input.Currency, "order_id": strconv.FormatInt(input.PurchaseID, 10),
 		"url_return": input.ReturnURL, "url_success": input.ReturnURL, "url_callback": g.settings.WebhookURL(ProviderHeleket),
-		"lifetime": 3600, "theme": "dark", "additional_data": strconv.FormatInt(input.CustomerID, 10),
+		"lifetime": 3600, "theme": "dark", "additional_data": fmt.Sprintf("%d | %s", input.CustomerID, input.Description),
 	}
 	raw, _ := json.Marshal(payload)
 	signSource := base64.StdEncoding.EncodeToString(raw) + cfg["apiKey"]

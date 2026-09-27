@@ -196,20 +196,7 @@ func (s PaymentService) notifyAdminAboutPaymentByPush(purchase *database.Purchas
 	} else if !strings.HasPrefix(identity, "@") {
 		identity = "@" + identity
 	}
-	description := "Покупка"
-	if purchase.Month > 0 || purchase.Days > 0 {
-		description = formatTariffDuration(purchase.Month, purchase.Days)
-	}
-	if purchase.PurchaseKind == database.PurchaseKindExtraDevices && purchase.ExtraDevices > 0 {
-		description = fmt.Sprintf("+%d устройств", purchase.ExtraDevices)
-	} else if purchase.PurchaseKind == database.PurchaseKindExtraTraffic {
-		description = purchaseTrafficDescription(purchase)
-	} else if purchase.PurchaseKind == database.PurchaseKindGift {
-		description = "Подарок · " + description
-	}
-	if purchase.PurchaseKind == database.PurchaseKindSubscription && (purchase.ExtraTrafficBytes > 0 || purchase.ExtraTrafficUnlimited) {
-		description += " · " + purchaseTrafficDescription(purchase)
-	}
+	description := purchaseOrderDescription(purchase)
 
 	event := adminnotify.Event{
 		Title: "Новая оплата",

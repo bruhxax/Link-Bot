@@ -109,6 +109,7 @@ func (s PaymentService) sendP2PReviewNotification(ctx context.Context, purchase 
 		timezone,
 	)
 	message := buildP2PReviewNotificationMessage(base, request)
+	message += "\n\n📦 <b>Заказ:</b> " + html.EscapeString(purchaseOrderDescription(purchase))
 	keyboard := &telegramInlineKeyboardMarkup{InlineKeyboard: [][]telegramInlineKeyboardButton{{
 		{Text: "✅ Принять", CallbackData: fmt.Sprintf("%sapprove:%d", p2PCallbackPrefix, purchase.ID), Style: "success"},
 		{Text: "❌ Отклонить", CallbackData: fmt.Sprintf("%sreject:%d", p2PCallbackPrefix, purchase.ID), Style: "danger"},

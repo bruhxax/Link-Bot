@@ -103,7 +103,7 @@ func TestCompletedPaymentDispatchesAutomaticAdminPush(t *testing.T) {
 		if event.Title != "Новая оплата" || event.Tag != "payment-73" || event.URL != "/mini-app/?page=admin&section=finance" {
 			t.Fatalf("automatic payment push = %+v", event)
 		}
-		if event.Body != "350 ₽ · 1 месяц · @bruh_user · СБП" {
+		if event.Body != "350 ₽ · Подписка на 1 месяц · @bruh_user · СБП" {
 			t.Fatalf("automatic payment push body = %q", event.Body)
 		}
 	case <-time.After(time.Second):

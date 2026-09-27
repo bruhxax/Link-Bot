@@ -71,13 +71,12 @@ func newHTTPClient() *http.Client {
 	}
 }
 
-func (c *Client) CreateInvoice(ctx context.Context, amount int, month int, days int, customerId int64, purchaseId int64, returnURL string) (*Payment, error) {
+func (c *Client) CreateInvoice(ctx context.Context, amount int, customerId int64, purchaseId int64, returnURL, description string) (*Payment, error) {
 	rub := Amount{
 		Value:    strconv.Itoa(amount),
 		Currency: "RUB",
 	}
 
-	description := formatSubscriptionDurationDescription(month, days)
 	receipt := &Receipt{
 		Customer: &Customer{
 			Email: c.email,
@@ -113,13 +112,12 @@ func (c *Client) CreateInvoice(ctx context.Context, amount int, month int, days 
 	return payment, nil
 }
 
-func (c *Client) ChargeSavedPaymentMethod(ctx context.Context, amount int, month int, customerId int64, purchaseId int64, paymentMethodID uuid.UUID) (*Payment, error) {
+func (c *Client) ChargeSavedPaymentMethod(ctx context.Context, amount int, customerId int64, purchaseId int64, paymentMethodID uuid.UUID, description string) (*Payment, error) {
 	rub := Amount{
 		Value:    strconv.Itoa(amount),
 		Currency: "RUB",
 	}
 
-	description := formatSubscriptionDescription(month)
 	receipt := &Receipt{
 		Customer: &Customer{
 			Email: c.email,
@@ -299,26 +297,4 @@ func contextStringValue(ctx context.Context, key string) (string, bool) {
 	default:
 		return "", true
 	}
-}
-
-func formatSubscriptionDescription(month int) string {
-	switch month {
-	case 1:
-		return "Подписка на 1 месяц"
-	case 3:
-		return "Подписка на 3 месяца"
-	case 6:
-		return "Подписка на 6 месяцев"
-	case 12:
-		return "Подписка на 12 месяцев"
-	default:
-		return fmt.Sprintf("Подписка на %d мес.", month)
-	}
-}
-
-func formatSubscriptionDurationDescription(month, days int) string {
-	if days > 0 {
-		return fmt.Sprintf("Подписка на %d дн.", days)
-	}
-	return formatSubscriptionDescription(month)
 }

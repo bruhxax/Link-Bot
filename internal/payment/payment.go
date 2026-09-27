@@ -617,10 +617,7 @@ func purchaseDurationDays(purchase *database.Purchase) int {
 }
 
 func paymentDurationDescription(months, days int) string {
-	if days > 0 {
-		return fmt.Sprintf("Подписка на %d дн.", days)
-	}
-	return fmt.Sprintf("Подписка на %d мес.", months)
+	return "Подписка на " + formatTariffDuration(months, days)
 }
 
 func (s PaymentService) referralPurchaseAmountRub(purchase *database.Purchase) float64 {
@@ -1106,7 +1103,7 @@ func (s PaymentService) createCryptoInvoice(ctx context.Context, amount float64,
 		Amount:         fmt.Sprintf("%d", int(amount)),
 		AcceptedAssets: acceptedAssets,
 		Payload:        fmt.Sprintf("purchaseId=%d&username=%s", purchaseId, ctx.Value("username")),
-		Description:    paymentDurationDescription(months, options.DurationDays),
+		Description:    BuildOrderDescription(months, options),
 		PaidBtnName:    "callback",
 		PaidBtnUrl:     config.BotURL(),
 	})
@@ -1169,7 +1166,7 @@ func (s PaymentService) createYookasaInvoice(ctx context.Context, amount float64
 	if yookasaClient == nil {
 		return "", 0, errors.New("YooKassa не настроена")
 	}
-	invoice, err := yookasaClient.CreateInvoice(ctx, int(amount), months, options.DurationDays, customer.ID, purchaseId, s.buildYookassaReturnURL(purchaseId, options.ReturnTarget))
+	invoice, err := yookasaClient.CreateInvoice(ctx, int(amount), customer.ID, purchaseId, s.buildYookassaReturnURL(purchaseId, options.ReturnTarget), BuildOrderDescription(months, options))
 	if err != nil {
 		slog.Error("Error creating invoice", "error", err)
 		return "", 0, err
@@ -1223,7 +1220,7 @@ func (s PaymentService) createExternalInvoice(ctx context.Context, amount float6
 	username, _ := ctx.Value("username").(string)
 	created, err := s.integrationGateway.Create(ctx, integrations.CreatePaymentRequest{
 		Provider: provider, PurchaseID: purchaseID, Amount: amount, Currency: "RUB",
-		Description: "Link-Bot: " + paymentDurationDescription(months, options.DurationDays), CustomerID: customer.ID,
+		Description: BuildOrderDescription(months, options), CustomerID: customer.ID,
 		Username: strings.TrimSpace(username), ReturnURL: s.buildYookassaReturnURL(purchaseID, options.ReturnTarget),
 	})
 	if err != nil {
@@ -1403,7 +1400,7 @@ func (s PaymentService) createTelegramInvoice(ctx context.Context, amount float6
 				Amount: int(amount),
 			},
 		},
-		Description: s.translation.GetText(customer.Language, "invoice_description"),
+		Description: BuildOrderDescription(months, options),
 		Payload:     fmt.Sprintf("%d&%s", purchaseId, ctx.Value("username")),
 	})
 
@@ -1998,7 +1995,7 @@ func (s PaymentService) ProcessAutoPayment(ctx context.Context, customer *databa
 	if yookasaClient == nil {
 		return errors.New("YooKassa не настроена")
 	}
-	charge, err := yookasaClient.ChargeSavedPaymentMethod(ctx, amount, months, customer.ID, purchaseID, *customer.YookasaPaymentMethodID)
+	charge, err := yookasaClient.ChargeSavedPaymentMethod(ctx, amount, customer.ID, purchaseID, *customer.YookasaPaymentMethodID, BuildOrderDescription(months, CreatePurchaseOptions{}))
 	if err != nil {
 		_ = s.purchaseRepository.UpdateFields(ctx, purchaseID, map[string]interface{}{
 			"status": database.PurchaseStatusCancel,

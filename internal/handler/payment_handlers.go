@@ -171,7 +171,7 @@ func (h Handler) PaymentCallbackHandler(ctx context.Context, b *bot.Bot, update 
 		invMsg, err := b.SendInvoice(ctx2, &bot.SendInvoiceParams{
 			ChatID:      menuMsg.Chat.ID,
 			Title:       h.translation.GetText(langCode, "invoice_title"),
-			Description: h.translation.GetText(langCode, "invoice_description"),
+			Description: payment.BuildOrderDescription(plan.Months, payment.CreatePurchaseOptions{DurationDays: plan.Days, TrafficLimitBytes: &plan.TrafficLimitBytes, DeviceLimitCount: &plan.DeviceLimitCount}),
 			Payload:     payload,
 			Currency:    "XTR",
 			Prices: []models.LabeledPrice{
