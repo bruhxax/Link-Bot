@@ -12914,6 +12914,111 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .device-access-settings__body p, .device-access-settings__body small { color: var(--muted); font-size: 10px; line-height: 1.5; }
 .device-pack-pay-hint { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
 
+/* User management keeps the bot controls below a focused subscription view. */
+.admin-user-subscriptions__tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 1px 6px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.admin-user-subscriptions__tabs::-webkit-scrollbar { display: none; }
+.admin-user-subscriptions__tab {
+  min-width: 132px;
+  max-width: 210px;
+  min-height: 58px;
+  flex: 1 0 auto;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--control-bg);
+  color: var(--text);
+  text-align: left;
+  scroll-snap-align: start;
+  cursor: pointer;
+  transition: background .2s ease, border-color .2s ease, transform .2s ease;
+}
+.admin-user-subscriptions__tab:hover { border-color: var(--line); }
+.admin-user-subscriptions__tab:active { transform: scale(.98); }
+.admin-user-subscriptions__tab.is-active {
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--line));
+  background: color-mix(in srgb, var(--accent) 12%, var(--control-bg));
+}
+.admin-user-subscriptions__tab strong,
+.admin-user-subscriptions__tab small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-user-subscriptions__tab strong { font-size: 11px; }
+.admin-user-subscriptions__tab small { color: var(--muted); font-size: 8px; }
+.admin-user-subscription {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-strong);
+  box-shadow: var(--glass-shadow-soft);
+}
+.admin-user-subscription.is-selected { box-shadow: var(--glass-shadow-soft); }
+.admin-user-subscription__top { align-items: center; }
+.admin-user-subscription__top strong { font-size: 14px; }
+.admin-user-subscription__top span { font-size: 9px; }
+.admin-user-subscription__top i {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  white-space: nowrap;
+}
+.admin-user-subscription__traffic { display: grid; gap: 8px; margin-top: 17px; }
+.admin-user-subscription__traffic > div:first-child { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.admin-user-subscription__traffic span { color: var(--muted); font-size: 9px; }
+.admin-user-subscription__traffic strong { font-size: 10px; text-align: right; }
+.admin-user-subscription__progress { height: 5px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--text) 12%, transparent); }
+.admin-user-subscription__progress > span { display: block; height: 100%; border-radius: inherit; background: var(--success); transition: width .35s ease; }
+.admin-user-subscription__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 16px; }
+.admin-user-subscription__facts > span {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-content: center;
+  column-gap: 7px;
+  row-gap: 3px;
+  min-height: 57px;
+  padding: 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--control-bg);
+}
+.admin-user-subscription__facts svg { grid-row: 1 / 3; width: 15px; height: 15px; color: var(--icon-color); }
+.admin-user-subscription__facts small { overflow: hidden; color: var(--muted); font-size: 8px; white-space: nowrap; }
+.admin-user-subscription__facts b { font-size: 9px; }
+.admin-user-subscription__link { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 34px; gap: 8px; align-items: center; margin-top: 13px; padding: 9px 9px 9px 11px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--control-bg); }
+.admin-user-subscription__link > div { min-width: 0; display: grid; gap: 4px; }
+.admin-user-subscription__link span { color: var(--muted); font-size: 8px; }
+.admin-user-subscription__link code { overflow: hidden; color: var(--text); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-user-subscription__link button { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 8px; background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--icon-color); cursor: pointer; }
+.admin-user-subscription__link button svg { width: 16px; height: 16px; }
+.admin-user-subscription__current,
+.admin-user-subscription__activate { width: 100%; min-height: 37px; display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 12px; border: 1px solid color-mix(in srgb, var(--success) 35%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--success) 9%, transparent); color: var(--success); font-size: 9px; font-weight: 800; }
+.admin-user-subscription__current svg { width: 14px; height: 14px; }
+.admin-user-subscription__activate { border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--text); cursor: pointer; }
+.admin-user-controls__group--balance { gap: 13px; padding: 15px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-strong); }
+.admin-user-balance-input { display: grid; gap: 6px; }
+.admin-user-balance-input > span { color: var(--muted); font-size: 9px; font-weight: 750; }
+.admin-user-balance-input input { width: 100%; min-height: 43px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--control-bg); color: var(--text); font: inherit; font-size: 12px; }
+.admin-user-balance-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.admin-user-balance-actions button { min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid currentColor; border-radius: 9px; background: transparent; font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; }
+.admin-user-balance-actions button svg { width: 15px; height: 15px; }
+.admin-user-balance-actions .is-credit { color: var(--success); background: color-mix(in srgb, var(--success) 8%, transparent); }
+.admin-user-balance-actions .is-debit { color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); }
+@media (max-width: 390px) {
+  .admin-user-subscription__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-user-subscriptions__tab { min-width: 118px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-user-subscriptions__tab,
+  .admin-user-subscription__progress > span { transition: none; }
+}
+
 /* Dashboard placeholders share the real layout and leave the configured background visible. */
 .app-shell--dashboard-loading .bottom-nav { pointer-events: none; }
 .dashboard-skeleton { width: 100%; }

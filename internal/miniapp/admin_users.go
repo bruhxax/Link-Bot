@@ -33,6 +33,7 @@ type adminUserActionRequest struct {
 	CustomerID         int64  `json:"customerId"`
 	SubscriptionID     int64  `json:"subscriptionId"`
 	AmountRub          int64  `json:"amountRub"`
+	BalanceAction      string `json:"balanceAction"`
 	Days               int    `json:"days"`
 	TrafficGB          int64  `json:"trafficGb"`
 	Blocked            bool   `json:"blocked"`
@@ -89,6 +90,8 @@ type adminUserSubscriptionPayload struct {
 	UsedTrafficBytes  int64  `json:"usedTrafficBytes"`
 	DeviceLimit       int    `json:"deviceLimit"`
 	UsedDevices       int    `json:"usedDevices"`
+	PanelUsername     string `json:"panelUsername,omitempty"`
+	SubscriptionLink  string `json:"subscriptionLink,omitempty"`
 }
 
 func adminUserAvatarURL(username string) string {
@@ -188,12 +191,64 @@ func (h *Handler) handleAdminUserBalance(w http.ResponseWriter, r *http.Request,
 		h.writeError(w, http.StatusServiceUnavailable, "wallet_unavailable", "Баланс временно недоступен")
 		return
 	}
-	if _, created, err := h.walletRepository.Apply(r.Context(), req.CustomerID, req.AmountRub*100, "admin_credit", "admin-credit:"+uuid.NewString(), "Пополнение администратором"); err != nil || !created {
-		slog.Error("mini app: credit admin user balance", "error", err, "customerId", utils.MaskHalfInt64(req.CustomerID))
-		h.writeError(w, http.StatusInternalServerError, "admin_balance_failed", "Не удалось пополнить баланс")
+	amountCents, kind, description, err := adminBalanceTransaction(req.AmountRub, req.BalanceAction)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid_admin_balance", "Выберите пополнение или списание")
 		return
 	}
-	h.writeAdminUserActionResult(w, r, req.CustomerID, "Баланс пополнен")
+	if _, created, err := h.walletRepository.Apply(r.Context(), req.CustomerID, amountCents, kind, kind+":"+uuid.NewString(), description); err != nil || !created {
+		if errors.Is(err, database.ErrInsufficientBalance) {
+			h.writeError(w, http.StatusConflict, "insufficient_balance", "На балансе недостаточно средств")
+			return
+		}
+		slog.Error("mini app: adjust admin user balance", "error", err, "customerId", utils.MaskHalfInt64(req.CustomerID))
+		h.writeError(w, http.StatusInternalServerError, "admin_balance_failed", "Не удалось изменить баланс")
+		return
+	}
+	message := "Баланс пополнен"
+	if amountCents < 0 {
+		message = "Средства списаны с баланса"
+	}
+	h.writeAdminUserActionResult(w, r, req.CustomerID, message)
+}
+
+func adminBalanceTransaction(amountRub int64, action string) (int64, string, string, error) {
+	if amountRub <= 0 || amountRub > 1000000 {
+		return 0, "", "", errors.New("invalid amount")
+	}
+	switch action {
+	case "", "credit":
+		return amountRub * 100, "admin_credit", "Пополнение администратором", nil
+	case "debit":
+		return -amountRub * 100, "admin_debit", "Списание администратором", nil
+	default:
+		return 0, "", "", errors.New("invalid balance action")
+	}
+}
+
+func (h *Handler) handleAdminUserSelectSubscription(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
+	if !h.isAdmin(sess.User.ID) {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+		return
+	}
+	var req adminUserActionRequest
+	if err := h.decodeJSONRequest(w, r, 2048, &req); err != nil || req.CustomerID <= 0 || req.SubscriptionID <= 0 {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Выберите подписку")
+		return
+	}
+	if h.subscriptionRepository == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "subscriptions_unavailable", "Подписки временно недоступны")
+		return
+	}
+	if err := h.subscriptionRepository.SetActive(r.Context(), req.CustomerID, req.SubscriptionID); err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, database.ErrCustomerSubscriptionNotFound) {
+			status = http.StatusNotFound
+		}
+		h.writeError(w, status, "subscription_select_failed", "Не удалось выбрать подписку")
+		return
+	}
+	h.writeAdminUserActionResult(w, r, req.CustomerID, "Подписка выбрана в Mini App")
 }
 
 func (h *Handler) handleAdminUserSubscription(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
@@ -505,6 +560,10 @@ func (h *Handler) loadAdminUserDetail(ctx context.Context, customerID int64) (*a
 					item.Status = "unavailable"
 				}
 			} else if panelState != nil && panelState.Exists {
+				item.PanelUsername = panelState.PanelUsername
+				if panelState.SubscriptionLink != nil {
+					item.SubscriptionLink = strings.TrimSpace(*panelState.SubscriptionLink)
+				}
 				item.TrafficLimitBytes = panelState.TrafficLimitBytes
 				item.UsedTrafficBytes = panelState.UsedTrafficBytes
 				item.DeviceLimit = panelState.DeviceLimit

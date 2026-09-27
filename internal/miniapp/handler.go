@@ -800,6 +800,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/users/detail", h.withSession(h.handleAdminUserDetail))
 	mux.HandleFunc("/api/mini-app/admin/users/balance", h.withSession(h.handleAdminUserBalance))
 	mux.HandleFunc("/api/mini-app/admin/users/subscription", h.withSession(h.handleAdminUserSubscription))
+	mux.HandleFunc("/api/mini-app/admin/users/subscription/select", h.withSession(h.handleAdminUserSelectSubscription))
 	mux.HandleFunc("/api/mini-app/admin/users/subscription/delete", h.withSession(h.handleAdminUserDeleteSubscription))
 	mux.HandleFunc("/api/mini-app/admin/users/block", h.withSession(h.handleAdminUserBlock))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/state", h.withSession(h.handleAdminBroadcastState))
