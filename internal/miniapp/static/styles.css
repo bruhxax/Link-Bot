@@ -13020,6 +13020,31 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 }
 
 /* Dashboard placeholders share the real layout and leave the configured background visible. */
+.admin-settings-search { grid-column: 1 / -1; margin-bottom: 20px; }
+.admin-settings-search__field { min-height: 48px; display: flex; align-items: center; gap: 11px; padding: 0 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-strong); box-shadow: var(--glass-shadow-soft); color: var(--icon-color); transition: border-color .2s ease, box-shadow .2s ease; }
+.admin-settings-search__field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent), var(--glass-shadow-soft); }
+.admin-settings-search__field svg { width: 19px; height: 19px; flex: 0 0 auto; }
+.admin-settings-search__field input { width: 100%; min-width: 0; padding: 12px 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 12px; }
+.admin-settings-search__field input::placeholder { color: var(--muted); }
+.admin-settings-search__field kbd { padding: 2px 6px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); font: inherit; font-size: 10px; }
+.admin-settings-search__results, .admin-settings-search__empty { margin-top: 8px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-strong); box-shadow: var(--glass-shadow-soft); animation: admin-settings-results-in .2s ease both; }
+.admin-settings-search__results { max-height: min(55vh, 480px); overflow-y: auto; }
+.admin-settings-search__results button { width: 100%; min-height: 56px; display: grid; grid-template-columns: 29px minmax(0, 1fr) 15px; align-items: center; gap: 10px; padding: 8px 13px; border: 0; border-bottom: 1px solid var(--line-soft); background: transparent; color: var(--text); text-align: left; cursor: pointer; animation: admin-settings-result-in .24s ease both; animation-delay: calc(var(--search-order) * 22ms); }
+.admin-settings-search__results button:last-child { border-bottom: 0; }
+.admin-settings-search__results button:hover, .admin-settings-search__results button:focus-visible { outline: 0; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.admin-settings-search__results button > span:nth-child(2) { min-width: 0; display: grid; gap: 4px; }
+.admin-settings-search__results strong, .admin-settings-search__results small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-settings-search__results strong { font-size: 11px; }
+.admin-settings-search__results small { color: var(--muted); font-size: 9px; }
+.admin-settings-search__result-icon { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--icon-color); }
+.admin-settings-search__results svg { width: 16px; height: 16px; }
+.admin-settings-search__results button > svg { color: var(--muted); }
+.admin-settings-search__empty { padding: 16px; color: var(--muted); font-size: 11px; }
+.admin-settings-search__target { position: relative; z-index: 1; animation: admin-settings-target 2.6s ease-out; }
+@keyframes admin-settings-results-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes admin-settings-result-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes admin-settings-target { 0%, 45% { outline: 2px solid var(--accent); outline-offset: 5px; border-radius: 8px; box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 12%, transparent); } 100% { outline-color: transparent; box-shadow: none; } }
+@media (prefers-reduced-motion: reduce) { .admin-settings-search__results, .admin-settings-search__results button, .admin-settings-search__target { animation: none; } }
 .app-shell--dashboard-loading .bottom-nav { pointer-events: none; }
 .dashboard-skeleton { width: 100%; }
 .dashboard-skeleton__shape {

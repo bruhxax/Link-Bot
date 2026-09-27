@@ -2197,6 +2197,7 @@ const state = {
 	partnerPercentDraft: "",
 	partnerMonthlyUsersDraft: "",
 	adminSection: "home",
+	adminSettingsSearchQuery: "",
 	adminLayoutEditing: false,
 	adminLayoutBaseline: null,
 	adminLayoutBaselineDirty: false,
@@ -4096,6 +4097,7 @@ function renderAdminPage() {
 	if (state.adminSection === "users") return renderAdminUsersPage();
 	return `
 		<section class="page admin-page ${pageClass("admin")}" id="page-admin">
+			${renderAdminSettingsSearch()}
 			${renderAdminMenuGroup(localizedText("Система", "System", "سیستم"), [
 				[localizedText("Язык и шрифт", "Language and font", "زبان و فونت"), "", "localization", "language"],
 				[localizedText("Режим аварии", "Maintenance mode", "حالت تعمیر"), "", "maintenance", "adminMaintenance"],
@@ -4126,6 +4128,166 @@ function renderAdminPage() {
 		</section>
 	`;
 }
+
+let adminSettingsSearchCatalog = null;
+let adminSettingsSearchResults = [];
+
+const ADMIN_SEARCH_SECTIONS = [
+	["localization", "Язык и шрифт", "локализация язык шрифт"],
+	["maintenance", "Режим аварии", "технические работы"],
+	["diagnostics", "Диагностика", "ошибки события"],
+	["push", "Push-уведомления", "уведомления пуш"],
+	["features", "Управление функциями", "включить отключить функции"],
+	["trial", "Триал", "пробный период"],
+	["grace", "Доступ после окончания", "подписка истекла"],
+	["subscriptions", "Привязка подписок", "привязать подписку"],
+	["integrations", "Интеграции", "оплата платежи"],
+	["moynalog", "Мой налог", "чеки"],
+	["content", "Редактор контента", "тексты кнопки сообщения"],
+	["subpage", "Sub page", "клиенты подключения"],
+	["appearance", "Оформление", "цвет фон рамки стекло"],
+	["layout", "Конструктор UI", "расположение элементов"],
+	["plans", "Тарифы", "цена устройства трафик пакеты"],
+	["users", "Пользователи", "баланс подписки блокировка"],
+	["finance", "Финансы", "история платежей выручка"],
+	["referrals", "Рефералы и баланс", "бонусы приглашения"],
+	["partners", "Партнёры", "заявки"],
+	["broadcast", "Рассылка", "отправить сообщение"],
+	["promocodes", "Промокоды", "скидки купоны"],
+];
+
+const ADMIN_SEARCH_CONTENT_SECTIONS = [
+	["start", "Главное меню", "Telegram"], ["verification", "Проверка подписки", "Telegram"],
+	["commerce", "Покупка", "Telegram"], ["success", "После оплаты", "Telegram"],
+	["gift", "Подарок", "Telegram"], ["payment-notifications", "Уведомления оплат", "Telegram"],
+	["support", "Поддержка", "Mini App"], ["web", "Веб-страница", "Mini App"],
+	["notifications", "Уведомления", "Mini App"], ["panel", "Панель", "Mini App"],
+	["faq", "FAQ", "Mini App"], ["advanced", "Служебные тексты", "Mini App"],
+];
+
+function buildAdminSettingsSearchCatalog() {
+	const catalog = ADMIN_SEARCH_SECTIONS.map(([section, title, aliases]) => ({ section, title, context: "Раздел админки", aliases, path: "" }));
+	const collect = (html, section, sectionTitle, contentSection = "") => {
+		const template = document.createElement("template");
+		template.innerHTML = html;
+		const seen = new Set();
+		for (const control of template.content.querySelectorAll("[data-setting-path]")) {
+			const path = control.dataset.settingPath;
+			if (!path || seen.has(path)) continue;
+			seen.add(path);
+			const label = control.closest("label");
+			const detail = control.closest("details");
+			const group = control.closest(".admin-editor__section")?.querySelector("h3")?.textContent?.trim() || "";
+			const fieldName = label?.querySelector("span strong, span, strong")?.textContent?.trim() || control.getAttribute("aria-label") || path.split(".").at(-1);
+			const detailName = detail?.querySelector("summary strong")?.textContent?.trim() || "";
+			const title = detailName ? `${detailName} · ${fieldName}` : fieldName;
+			const aliases = path.startsWith("appearance.colors.surface") ? "цвет карточек цвет карты фон карточек" : "";
+			catalog.push({ section, contentSection, title, context: [sectionTitle, group].filter(Boolean).join(" · "), aliases, path });
+		}
+	};
+	for (const [contentSection, title, group] of ADMIN_SEARCH_CONTENT_SECTIONS) {
+		catalog.push({ section: "content", contentSection, title, context: `Редактор контента · ${group}`, aliases: title === "Главное меню" ? "текст главного меню бот старт меню" : "", path: "" });
+		collect(renderAdminContentSection(contentSection), "content", title, contentSection);
+	}
+	if (state.adminSettingsDraft) {
+		for (const [section, title, renderer] of [
+			["appearance", "Оформление", renderAdminAppearancePage],
+			["maintenance", "Режим аварии", renderAdminMaintenancePage],
+			["features", "Управление функциями", renderAdminFeaturesPage],
+			["trial", "Триал", renderAdminTrialPage],
+			["grace", "Доступ после окончания", renderAdminGracePage],
+			["referrals", "Рефералы и баланс", renderAdminReferralsPage],
+			["localization", "Язык и шрифт", renderAdminLocalizationPage],
+			["subpage", "Sub page", renderAdminSubPagePage],
+		]) collect(renderer(), section, title);
+	}
+	return catalog;
+}
+
+function findAdminSettings(query) {
+	const words = String(query || "").toLocaleLowerCase("ru-RU").trim().split(/\s+/).filter(Boolean);
+	if (!words.length) return [];
+	adminSettingsSearchCatalog ||= buildAdminSettingsSearchCatalog();
+	return adminSettingsSearchCatalog.map((item) => {
+		const title = item.title.toLocaleLowerCase("ru-RU");
+		const haystack = `${title} ${item.context} ${item.aliases || ""} ${item.path || ""}`.toLocaleLowerCase("ru-RU");
+		if (!words.every((word) => haystack.includes(word))) return null;
+		const score = words.reduce((sum, word) => sum + (title.startsWith(word) ? 6 : title.includes(word) ? 4 : (item.aliases || "").includes(word) ? 2 : 0), 0) + (item.path ? 1 : 0);
+		return { ...item, score };
+	}).filter(Boolean).sort((a, b) => b.score - a.score || a.title.localeCompare(b.title, "ru")).slice(0, 12);
+}
+
+function renderAdminSettingsSearchResults() {
+	adminSettingsSearchResults = findAdminSettings(state.adminSettingsSearchQuery);
+	if (!state.adminSettingsSearchQuery.trim()) return "";
+	if (!adminSettingsSearchResults.length) return `<div class="admin-settings-search__empty">Ничего не найдено. Попробуйте другое название функции.</div>`;
+	return `<div class="admin-settings-search__results" role="listbox" aria-label="Найденные настройки">${adminSettingsSearchResults.map((item, index) => `<button type="button" role="option" aria-selected="false" data-action="admin-settings-search-open" data-value="${index}" style="--search-order:${index}"><span class="admin-settings-search__result-icon">${icon(item.path ? "search" : "chevronRight")}</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.context)}</small></span>${icon("chevronRight")}</button>`).join("")}</div>`;
+}
+
+function renderAdminSettingsSearch() {
+	const expanded = Boolean(state.adminSettingsSearchQuery.trim());
+	return `<div class="admin-settings-search"><label class="admin-settings-search__field">${icon("search")}<input type="search" data-input="admin-settings-search" value="${escapeAttribute(state.adminSettingsSearchQuery)}" placeholder="Найти настройку или функцию" autocomplete="off" aria-label="Поиск по настройкам админки" aria-controls="admin-settings-search-results" aria-expanded="${expanded}"><kbd>/</kbd></label><div id="admin-settings-search-results" aria-live="polite">${renderAdminSettingsSearchResults()}</div></div>`;
+}
+
+function openAdminSettingsSearchResult(index) {
+	const item = adminSettingsSearchResults[index];
+	if (!item) return;
+	state.adminSettingsSearchQuery = "";
+	if (item.section === "layout") return enterAdminLayoutEditor();
+	if (item.section === "plans") return enterAdminPlanEditor();
+	state.adminSection = item.section;
+	if (item.contentSection) state.adminContentSection = item.contentSection;
+	haptic("light");
+	renderAdminTransition();
+	if (item.section === "finance") void refreshAdminFinance();
+	if (item.section === "push") void refreshAdminPush().catch((error) => showToast(error?.message || "Не удалось загрузить уведомления", "danger"));
+	if (item.section === "users") void refreshAdminUsers();
+	if (item.section === "partners") void refreshAdminPartners();
+	if (item.section === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
+	if (item.section === "moynalog") void refreshAdminMoyNalog();
+	if (!item.path) return;
+	window.setTimeout(() => {
+		const field = [...app.querySelectorAll("#page-admin [data-setting-path]")].find((node) => node.dataset.settingPath === item.path);
+		if (!field) return;
+		for (let parent = field.parentElement; parent; parent = parent.parentElement) if (parent instanceof HTMLDetailsElement) parent.open = true;
+		const target = field.closest("label") || field;
+		target.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" });
+		target.classList.add("admin-settings-search__target");
+		window.setTimeout(() => target.classList.remove("admin-settings-search__target"), 2600);
+	}, 100);
+}
+
+document.addEventListener("keydown", (event) => {
+	if (state.currentPage !== "admin" || state.adminSection !== "home" || !isAdminUser()) return;
+	const input = app.querySelector('[data-input="admin-settings-search"]');
+	if (!input) return;
+	const inSearch = event.target === input || Boolean(event.target.closest?.(".admin-settings-search__results"));
+	if (event.key === "/" && !inSearch && !event.target.closest?.("input, textarea, select, [contenteditable]")) {
+		event.preventDefault();
+		input.focus();
+		return;
+	}
+	if (!inSearch) return;
+	const options = [...app.querySelectorAll('.admin-settings-search__results [data-action="admin-settings-search-open"]')];
+	if (event.key === "Escape") {
+		event.preventDefault();
+		state.adminSettingsSearchQuery = "";
+		input.value = "";
+		app.querySelector("#admin-settings-search-results").innerHTML = "";
+		input.setAttribute("aria-expanded", "false");
+		input.focus();
+	} else if (event.key === "ArrowDown" && options.length) {
+		event.preventDefault();
+		options[event.target === input ? 0 : (options.indexOf(event.target) + 1) % options.length].focus();
+	} else if (event.key === "ArrowUp" && options.length) {
+		event.preventDefault();
+		if (event.target === input || options.indexOf(event.target) === 0) input.focus();
+		else options[options.indexOf(event.target) - 1].focus();
+	} else if (event.key === "Enter" && event.target === input && options.length) {
+		event.preventDefault();
+		openAdminSettingsSearchResult(0);
+	}
+});
 
 function formatFinanceRub(value) {
 	return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value || 0));
@@ -9160,6 +9322,7 @@ function bindRootActions() {
 		if (value === "partners") void refreshAdminPartners();
 		return;
 	  }
+	  if (action === "admin-settings-search-open") return openAdminSettingsSearchResult(Number(value));
 	  if (action === "admin-background-mode") {
 		if (!state.adminSettingsDraft || !ADMIN_BACKGROUND_OPTIONS.some(([mode]) => mode === value)) return;
 		setDeepValue(state.adminSettingsDraft, "appearance.backgroundMode", value);
@@ -9745,6 +9908,13 @@ function bindRootActions() {
 		}
 		const inputKey = target?.dataset?.input;
 		if (!inputKey) return;
+		if (inputKey === "admin-settings-search") {
+			state.adminSettingsSearchQuery = String(target.value || "").slice(0, 100);
+			const results = app.querySelector("#admin-settings-search-results");
+			if (results) results.innerHTML = renderAdminSettingsSearchResults();
+			target.setAttribute("aria-expanded", String(Boolean(state.adminSettingsSearchQuery.trim())));
+			return;
+		}
 		if (inputKey === "admin-users-search") {
 			state.adminUsersQuery = String(target.value || "").slice(0, 100);
 			window.clearTimeout(adminUsersSearchTimer);
@@ -14460,6 +14630,7 @@ function renderAdminTransition({ preserveScroll = false, scrollTop = 0 } = {}) {
 
 function closeAdminSection() {
 	if (state.adminSection === "home") return;
+	adminSettingsSearchCatalog = null;
 	window.clearTimeout(adminUsersSearchTimer);
 	adminUsersSearchRequestID += 1;
 	adminUserDetailRequestID += 1;
