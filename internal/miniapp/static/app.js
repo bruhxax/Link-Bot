@@ -8204,10 +8204,7 @@ function renderGiftPage() {
 
 	return `
 		<section class="page gift-page ${pageClass("gift")}" id="page-gift" aria-labelledby="gift-page-heading">
-			<header class="gift-intro">
-				<span class="gift-intro__icon" aria-hidden="true">${icon("gift")}</span>
-				<div><h1 id="gift-page-heading">${escapeHtml(copy.pageGift || "Подарить")}</h1><p>${escapeHtml(copy.giftProfileHint || "")}</p></div>
-			</header>
+			<h1 class="sr-only" id="gift-page-heading">${escapeHtml(copy.pageGift || "Подарить")}</h1>
 
 			<section class="gift-section">
 				<div class="gift-section__heading"><h2 id="gift-recipient-heading">${escapeHtml(copy.giftRecipient)}</h2><span>${escapeHtml(copy.giftRecipientHint)}</span></div>
@@ -8226,7 +8223,7 @@ function renderGiftPage() {
 				}).join("")}</div>` : `<div class="gift-empty"><strong>${escapeHtml(copy.noPlansTitle)}</strong><span>${escapeHtml(copy.noPlansHint)}</span></div>`}
 			</section>
 
-			${featureEnabled("promocodes") ? `<section class="gift-promo promo-box">
+			${featureEnabled("promocodes") ? `<section class="gift-promo">
 				<label class="support-field__label" id="gift-promo-label" for="gift-promo-code">${escapeHtml(copy.promoCode || "Промокод")}</label>
 				<div class="promo-box__row"><input class="support-field__input promo-box__input" id="gift-promo-code" type="text" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" aria-describedby="gift-promo-status" placeholder="${escapeAttribute(copy.promoCodePlaceholder || "")}" value="${escapeAttribute(state.promoCodeDraft)}" data-input="promo-code"></div>
 				<div class="promo-box__status ${promoStatus ? `promo-box__status--${escapeAttribute(promoStatus.type)}` : "promo-box__status--empty"}" id="gift-promo-status" data-promo-status role="status" aria-live="polite">${promoStatus ? escapeHtml(promoStatus.message) : ""}</div>
