@@ -35,7 +35,10 @@ h1,h2,h3,p{margin-top:0}
 h1{max-width:860px;margin:0 auto 25px;font-size:clamp(38px,5vw,58px);line-height:1.14;font-weight:700;letter-spacing:-.045em;text-wrap:balance}
 h1 span{color:color-mix(in srgb,var(--accent) 58%,var(--text))}
 .hero__lead{max-width:650px;margin:0 auto 30px;color:var(--muted);font-size:14px;line-height:1.85}
-.hero__actions{display:flex;justify-content:center;flex-wrap:wrap;gap:10px}
+.hero__actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:max-content;max-width:100%;margin-inline:auto}
+.button--trial{position:relative;grid-column:1/-1}
+.button--trial::before{content:"";position:absolute;inset:-1px;border-radius:inherit;box-shadow:0 0 20px color-mix(in srgb,var(--accent) 28%,transparent),0 0 7px color-mix(in srgb,var(--accent) 20%,transparent);pointer-events:none;opacity:.7;animation:trial-glow 4s ease-in-out infinite}
+@keyframes trial-glow{0%,100%{opacity:.55}50%{opacity:1}}
 .section{padding-block:90px 12px;scroll-margin-top:45px}
 .section-heading{display:flex;align-items:end;justify-content:space-between;gap:25px;margin-bottom:25px}
 .section-kicker{display:block;margin-bottom:12px;color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.1em}
@@ -94,5 +97,7 @@ h2{margin:0 0 9px;font-size:clamp(26px,4vw,40px);line-height:1.2;font-weight:700
 :root[data-glass="on"] :where(.nav-shell,.server-card,.plan-card,.contact-card,.empty-state,.button){background:color-mix(in srgb,var(--surface) 28%,transparent);background-image:url("./assets/glass-grain.svg?v=2"),linear-gradient(135deg,rgba(255,255,255,.025),rgba(255,255,255,.006));background-size:128px 128px,100% 100%;border:1px solid color-mix(in srgb,var(--text) 14%,transparent);box-shadow:0 8px 24px rgba(0,0,0,.18);backdrop-filter:blur(2.5px) saturate(1.08);-webkit-backdrop-filter:blur(2.5px) saturate(1.08)}
 :root[data-glass="on"] .plan-card--recommended{border-color:var(--accent)}
 :root[data-glass="on"] .button--primary{color:var(--accent)}
+:root[data-glass="on"] .button--trial{background-color:color-mix(in srgb,var(--accent) 14%,transparent);border-color:color-mix(in srgb,var(--accent) 55%,transparent)}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){:root[data-glass="on"] :where(.nav-shell,.server-card,.plan-card,.contact-card,.empty-state,.button){background:var(--surface)}}
 @media(prefers-reduced-transparency:reduce){:root[data-glass="on"] :where(.nav-shell,.server-card,.plan-card,.contact-card,.empty-state,.button){background:var(--surface);backdrop-filter:none;-webkit-backdrop-filter:none}}
+@media(prefers-reduced-motion:reduce){.button--trial::before{animation:none;opacity:.7}}
