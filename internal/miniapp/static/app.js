@@ -1699,6 +1699,7 @@ const DEFAULT_BACKGROUND_MOTION = Object.freeze({
 	twinkle: { dimming: 0, speed: 38 },
 	liquid1: { dimming: 26, speed: 35 },
 	liquid2: { dimming: 38, speed: 30 },
+	backtyan: { dimming: 65, speed: 50 },
 	solid: { dimming: 0, speed: 50 },
 });
 
@@ -1710,6 +1711,7 @@ const ADMIN_BACKGROUND_OPTIONS = [
 	["twinkle", "Мерцающие звёзды", "Маленькие светящиеся круги"],
 	["liquid1", "Жидкое стекло 1", "Яркий перелив с зерном"],
 	["liquid2", "Жидкое стекло 2", "Тёмный мягкий перелив"],
+	["backtyan", "BackTyan", "Зацикленное видео без звука"],
 	["solid", "Сплошной цвет", "Чистый однотонный фон"],
 ];
 
@@ -1721,6 +1723,7 @@ const ADMIN_BACKGROUND_COLOR_FIELDS = Object.freeze({
 	twinkle: [["appearance.colors.twinkleBackground", "Цвет фона"], ["appearance.colors.twinkleStar", "Цвет звёзд"]],
 	liquid1: [["appearance.liquid.liquid1.colors.0", "Цвет 1 · основа"], ["appearance.liquid.liquid1.colors.1", "Цвет 2 · холодный свет"], ["appearance.liquid.liquid1.colors.2", "Цвет 3 · перелив"], ["appearance.liquid.liquid1.colors.3", "Цвет 4 · блик"]],
 	liquid2: [["appearance.liquid.liquid2.colors.0", "Цвет 1 · основа"], ["appearance.liquid.liquid2.colors.1", "Цвет 2 · холодный свет"], ["appearance.liquid.liquid2.colors.2", "Цвет 3 · перелив"], ["appearance.liquid.liquid2.colors.3", "Цвет 4 · блик"]],
+	backtyan: [],
 	solid: [["appearance.colors.background", "Цвет фона"]],
 });
 
@@ -6195,7 +6198,7 @@ function renderAdminBackgroundControls(mode) {
 			: "Плавность движения без резких рывков";
 	return `<section class="admin-editor__section admin-background-settings">
 		<div class="admin-background-settings__heading"><div><h3>Настройка фона</h3><p>Отдельные параметры для «${escapeHtml(option[1])}»</p></div><span class="admin-background-settings__sample" data-preview-background="${escapeAttribute(mode)}"${previewStyle} aria-hidden="true"><i></i></span></div>
-		<div class="admin-color-grid">${colorFields.map(([path, label]) => renderAdminColorField(label, path)).join("")}</div>
+		${colorFields.length ? `<div class="admin-color-grid">${colorFields.map(([path, label]) => renderAdminColorField(label, path)).join("")}</div>` : ""}
 		<div class="admin-background-settings__ranges">
 			${renderAdminRangeField("Затемнение", "От светлого к глубокому тёмному фону", `appearance.backgroundMotion.${mode}.dimming`, { value: motion.dimming, min: 0, max: 80, suffix: "%", minLabel: "Светлее", maxLabel: "Темнее" })}
 			${renderAdminRangeField("Скорость", speedHint, `appearance.backgroundMotion.${mode}.speed`, { value: motion.speed, min: 10, max: 100, suffix: "%", minLabel: "Медленно", maxLabel: "Быстрее" })}
@@ -15245,7 +15248,7 @@ function applyAppearance() {
 	};
   state.theme = "dark";
   document.documentElement.dataset.theme = "dark";
-	const backgroundMode = ["animated", "grid", "grid2", "morphic", "twinkle", "liquid1", "liquid2", "solid"].includes(appearance.backgroundMode) ? appearance.backgroundMode : "animated";
+	const backgroundMode = ["animated", "grid", "grid2", "morphic", "twinkle", "liquid1", "liquid2", "backtyan", "solid"].includes(appearance.backgroundMode) ? appearance.backgroundMode : "animated";
 	const motionFallback = DEFAULT_BACKGROUND_MOTION[backgroundMode] || DEFAULT_BACKGROUND_MOTION.animated;
 	const motionSettings = appearance.backgroundMotion?.[backgroundMode] || motionFallback;
 	const backgroundDimming = Math.max(0, Math.min(80, Number(motionSettings.dimming ?? motionFallback.dimming)));
@@ -15354,6 +15357,14 @@ function syncBackgroundEngines() {
 	window.__linkBotMorphic?.setPaused(backgroundMode !== "morphic" || paused || reducedBackgroundMotion);
 	window.__linkBotTwinkle?.setPaused(backgroundMode !== "twinkle" || paused || reducedBackgroundMotion);
 	window.__linkBotLiquid?.setPaused(!backgroundMode.startsWith("liquid") || paused || reducedMotionMedia?.matches);
+	const video = document.querySelector(".bg-media__video");
+	if (video) {
+		if (backgroundMode === "backtyan" && !video.src) video.src = video.dataset.src;
+		video.muted = true;
+		video.playbackRate = Math.max(0.5, Math.min(1.5, Number(getRuntimeSettings()?.appearance?.backgroundMotion?.backtyan?.speed ?? DEFAULT_BACKGROUND_MOTION.backtyan.speed) / 50));
+		if (backgroundMode !== "backtyan" || paused || reducedBackgroundMotion) video.pause();
+		else if (video.paused) void video.play().catch(() => {});
+	}
 }
 
 function updateWaveColorFilter(backgroundHex, dotHex) {

@@ -994,6 +994,29 @@ func TestNormalizeAndValidateTwinkleBackgroundAppearance(t *testing.T) {
 	}
 }
 
+func TestBackTyanVideoBackgroundSurvivesSettingsRoundTrip(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Appearance.BackgroundMode = "backtyan"
+	delete(settings.Appearance.BackgroundMotion, "backtyan")
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if got := settings.Appearance.BackgroundMotion["backtyan"]; got.Dimming != 65 || got.Speed != 50 {
+		t.Fatalf("video background motion = %+v, want dimming 65 speed 50", got)
+	}
+	encoded, err := json.Marshal(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored Settings
+	if err := json.Unmarshal(encoded, &restored); err != nil {
+		t.Fatal(err)
+	}
+	if restored.Appearance.BackgroundMode != "backtyan" {
+		t.Fatalf("video background was lost after JSON round trip: %q", restored.Appearance.BackgroundMode)
+	}
+}
+
 func TestNormalizeAndValidateLiquidBackgroundAppearance(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Appearance.BackgroundMode = "liquid1"

@@ -615,6 +615,7 @@ func DefaultSettings() Settings {
 				"twinkle":  {Dimming: 0, Speed: 38},
 				"liquid1":  {Dimming: 26, Speed: 35},
 				"liquid2":  {Dimming: 38, Speed: 30},
+				"backtyan": {Dimming: 65, Speed: 50},
 				"solid":    {Dimming: 0, Speed: 50},
 			},
 			Liquid: map[string]LiquidBackgroundSettings{
@@ -1719,8 +1720,8 @@ func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings, 
 	if value.BackgroundMode == "" {
 		value.BackgroundMode = defaults.BackgroundMode
 	}
-	if value.BackgroundMode != "animated" && value.BackgroundMode != "grid" && value.BackgroundMode != "grid2" && value.BackgroundMode != "morphic" && value.BackgroundMode != "twinkle" && value.BackgroundMode != "liquid1" && value.BackgroundMode != "liquid2" && value.BackgroundMode != "solid" {
-		return errors.New("background mode must be animated, grid, grid2, morphic, twinkle, liquid1, liquid2 or solid")
+	if value.BackgroundMode != "animated" && value.BackgroundMode != "grid" && value.BackgroundMode != "grid2" && value.BackgroundMode != "morphic" && value.BackgroundMode != "twinkle" && value.BackgroundMode != "liquid1" && value.BackgroundMode != "liquid2" && value.BackgroundMode != "backtyan" && value.BackgroundMode != "solid" {
+		return errors.New("background mode must be animated, grid, grid2, morphic, twinkle, liquid1, liquid2, backtyan or solid")
 	}
 	if value.Colors == nil {
 		value.Colors = map[string]string{}
