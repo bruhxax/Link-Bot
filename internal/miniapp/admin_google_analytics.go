@@ -17,6 +17,8 @@ import (
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+
+	"link-bot/internal/database"
 )
 
 var ga4PropertyIDPattern = regexp.MustCompile(`^[0-9]+$`)
@@ -105,6 +107,29 @@ func (h *Handler) loadAdminGA4(ctx context.Context, from, to time.Time) adminGA4
 	ga4ReportCache.items[key] = ga4CacheEntry{value: result, expires: time.Now().Add(5 * time.Minute)}
 	ga4ReportCache.Unlock()
 	return result
+}
+
+func (h *Handler) handleAdminAnalytics(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
+	if !h.isAdmin(sess.User.ID) {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+		return
+	}
+	var req adminFinanceRequest
+	if err := h.decodeJSONRequest(w, r, 4096, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Некорректный запрос")
+		return
+	}
+	period, from, to, err := resolveAdminFinanceRange(req, time.Now())
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid_analytics_period", "Выберите период не больше 366 дней")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "data": map[string]interface{}{
+		"period": period,
+		"from":   from.In(adminFinanceLocation).Format(adminFinanceDateLayout),
+		"to":     to.In(adminFinanceLocation).AddDate(0, 0, -1).Format(adminFinanceDateLayout),
+		"google": h.loadAdminGA4(r.Context(), from, to),
+	}})
 }
 
 func fetchGA4Report(ctx context.Context, property, credentialsPath string, from, to time.Time) (adminGA4Payload, error) {

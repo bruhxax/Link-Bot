@@ -103,6 +103,7 @@ let adminUsersSearchTimer = null;
 let adminUsersSearchRequestID = 0;
 let adminUserDetailRequestID = 0;
 let adminFinanceRequestID = 0;
+let adminAnalyticsRequestID = 0;
 let browserDeviceFingerprintPromise = null;
 
 function preventMiniAppZoom() {
@@ -2264,6 +2265,11 @@ const state = {
 	adminFinanceTo: "",
 	adminFinancePeriodMenuOpen: false,
 	adminFinanceAnimate: false,
+	adminAnalytics: null,
+	adminAnalyticsBusy: false,
+	adminAnalyticsPeriod: "7d",
+	adminAnalyticsFrom: "",
+	adminAnalyticsTo: "",
 	adminStatus: null,
 	adminStatusBusy: false,
 	adminStatusError: "",
@@ -2319,7 +2325,7 @@ const state = {
 };
 
 state.currentPage = normalizePage(state.currentPage);
-if (state.currentPage === "admin" && ["finance", "diagnostics", "push"].includes(String(urlParams.get("section") || ""))) {
+if (state.currentPage === "admin" && ["finance", "analytics", "diagnostics", "push"].includes(String(urlParams.get("section") || ""))) {
 	state.adminSection = String(urlParams.get("section"));
 }
 
@@ -2811,7 +2817,7 @@ async function boot() {
 	applyAppearance();
   const paymentReturn = Boolean(getPaymentReturnState());
   state.currentPage = getEntryPage();
-	if (state.currentPage === "admin" && ["finance", "diagnostics", "push"].includes(String(urlParams.get("section") || ""))) {
+	if (state.currentPage === "admin" && ["finance", "analytics", "diagnostics", "push"].includes(String(urlParams.get("section") || ""))) {
 		state.adminSection = String(urlParams.get("section"));
 	}
   state.sidebarOpen = false;
@@ -2837,6 +2843,7 @@ async function boot() {
   writeSetting(STORAGE_KEYS.page, state.currentPage);
   await refreshDashboard({ initial: true, silent: paymentReturn });
 	if (isAdminUser() && state.currentPage === "admin" && state.adminSection === "finance") void refreshAdminFinance().catch((error) => showToast(error?.message || "Не удалось загрузить финансы", "danger"));
+	if (isAdminUser() && state.currentPage === "admin" && state.adminSection === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
 	if (isAdminUser() && state.currentPage === "admin" && state.adminSection === "status") void refreshAdminStatus();
 	if (isAdminUser() && state.currentPage === "admin" && state.adminSection === "push") void refreshAdminPush().catch((error) => showToast(error?.message || "Не удалось загрузить уведомления", "danger"));
   await handlePostBootstrapFlow();
@@ -3053,6 +3060,7 @@ async function refreshRealtimeData() {
 		} else if (state.currentPage === "admin" && isAdminUser()) {
 			switch (state.adminSection) {
 				case "finance": await refreshAdminFinance({ live: true }); break;
+				case "analytics": await refreshAdminAnalytics({ live: true }); break;
 				case "partners": await refreshAdminPartners({ silent: true }); break;
 				case "moynalog": await refreshAdminMoyNalog({ silent: true }); break;
 				case "broadcast": await refreshAdminBroadcast({ silent: true }); break;
@@ -3239,7 +3247,6 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
 				{ key: "crypto", name: "Crypto Pay", currency: "RUB", revenue: 820, refunds: 0, paymentCount: 7 },
 				{ key: "telegram", name: "Telegram Stars", currency: "STARS", revenue: 150, refunds: 0, paymentCount: 1 },
 			],
-			google: { state: "ready", activeUsers: 1284, newUsers: 402, sessions: 1948, pageViews: 3672, daily: financeDates.map((item, index) => ({ date: item.date, users: [124, 156, 144, 188, 210, 193, 269][index], sessions: [170, 202, 186, 235, 298, 281, 376][index] })), channels: [{ name: "Organic Search", sessions: 841 }, { name: "Direct", sessions: 683 }, { name: "Referral", sessions: 424 }] },
 			payments: [
 				{ id: 1284, amount: 350, currency: "RUB", status: "paid", provider: "СБП", plan: "Подписка на 1 месяц", username: "alexvpn", telegramId: 6402520205, occurredAt: new Date(Date.now() - 3600000).toISOString() },
 				{ id: 1283, amount: 239, currency: "RUB", status: "paid", provider: "Банковская карта", plan: "Подписка на 3 месяца", username: "maria_net", telegramId: 7123456789, occurredAt: new Date(Date.now() - 7200000).toISOString() },
@@ -3249,6 +3256,7 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
 			limit: 30,
 			offset: 0,
 		};
+		state.adminAnalytics = { period: "7d", from: financeDates[0].date, to: financeDates[6].date, google: { state: "ready", activeUsers: 1284, newUsers: 402, sessions: 1948, pageViews: 3672, daily: financeDates.map((item, index) => ({ date: item.date, users: [124, 156, 144, 188, 210, 193, 269][index], sessions: [170, 202, 186, 235, 298, 281, 376][index] })), channels: [{ name: "Organic Search", sessions: 841 }, { name: "Direct", sessions: 683 }, { name: "Referral", sessions: 424 }] } };
 		state.adminUsers = {
 			items: [
 				{ customerId: 12, telegramId: 6402520205, username: "alexvpn", avatarUrl: "", subscriptionName: "Основная", subscriptionStatus: "active", createdAt: new Date(Date.now() - 78 * 86400000).toISOString(), isBlocked: false },
@@ -3278,7 +3286,7 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
 		state.adminUserPreviewDetail = deepClone(state.adminUserDetail);
 		if (urlParams.get("detail") !== "1") state.adminUserDetail = null;
 		const previewSection = String(urlParams.get("section") || "");
-		if (["integrations", "referrals", "partners", "moynalog", "finance", "push", "users", "appearance"].includes(previewSection)) {
+		if (["integrations", "referrals", "partners", "moynalog", "finance", "analytics", "push", "users", "appearance"].includes(previewSection)) {
 			state.currentPage = "admin";
 			state.adminSection = previewSection;
 			state.adminLayoutEditing = false;
@@ -4103,6 +4111,7 @@ function renderAdminPage() {
 	if (state.adminSection === "integrations") return renderAdminIntegrationsPage();
 	if (state.adminSection === "moynalog") return renderAdminMoyNalogPage();
 	if (state.adminSection === "finance") return renderAdminFinancePage();
+	if (state.adminSection === "analytics") return renderAdminAnalyticsPage();
 	if (state.adminSection === "status") return renderAdminStatusPage();
 	if (state.adminSection === "partners") return renderAdminPartnersPage();
 	if (state.adminSection === "push") return renderAdminPushPage();
@@ -4133,6 +4142,7 @@ function renderAdminPage() {
 			${renderAdminMenuGroup(localizedText("Операции", "Operations", "عملیات"), [
 				[localizedText("Пользователи", "Users", "کاربران"), "", "users", "users"],
 				[localizedText("Финансы", "Finance", "امور مالی"), "", "finance", "chartLine"],
+				[localizedText("Аналитика", "Analytics", "تحلیل"), "", "analytics", "google"],
 				[localizedText("Рефералы и баланс", "Referrals and balance", "دعوت و موجودی"), "", "referrals", "users"],
 				[localizedText("Партнёры", "Partners", "همکاران"), "", "partners", "users"],
 				[localizedText("Рассылка", "Broadcast", "ارسال همگانی"), "", "broadcast", "adminBroadcast"],
@@ -4164,6 +4174,7 @@ const ADMIN_SEARCH_SECTIONS = [
 	["plans", "Тарифы", "цена устройства трафик пакеты"],
 	["users", "Пользователи", "баланс подписки блокировка"],
 	["finance", "Финансы", "история платежей выручка"],
+	["analytics", "Аналитика", "Google Analytics GA4 посещения пользователи сеансы просмотры"],
 	["referrals", "Рефералы и баланс", "бонусы приглашения"],
 	["partners", "Партнёры", "заявки"],
 	["broadcast", "Рассылка", "отправить сообщение"],
@@ -4254,6 +4265,7 @@ function openAdminSettingsSearchResult(index) {
 	haptic("light");
 	renderAdminTransition();
 	if (item.section === "finance") void refreshAdminFinance();
+	if (item.section === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
 	if (item.section === "status") void refreshAdminStatus();
 	if (item.section === "push") void refreshAdminPush().catch((error) => showToast(error?.message || "Не удалось загрузить уведомления", "danger"));
 	if (item.section === "users") void refreshAdminUsers();
@@ -4511,12 +4523,16 @@ function adminFinancePeriodLabel(period = state.adminFinancePeriod) {
 }
 
 function renderAdminFinancePeriodPicker() {
+	const analytics = state.adminSection === "analytics";
+	const period = analytics ? state.adminAnalyticsPeriod : state.adminFinancePeriod;
+	const actionPrefix = analytics ? "admin-analytics" : "admin-finance";
+	const busy = analytics ? state.adminAnalyticsBusy : state.adminFinanceBusy === "refresh";
 	const open = Boolean(state.adminFinancePeriodMenuOpen);
 	const options = ADMIN_FINANCE_PERIODS.map(([value, label]) => {
-		const selected = value === state.adminFinancePeriod;
-		return `<button class="admin-finance-period-option ${selected ? "is-selected" : ""}" type="button" role="option" aria-selected="${selected}" tabindex="${open ? "0" : "-1"}" data-action="admin-finance-period-select" data-value="${escapeAttribute(value)}"><span>${escapeHtml(label)}</span><i aria-hidden="true">${selected ? icon("check") : ""}</i></button>`;
+		const selected = value === period;
+		return `<button class="admin-finance-period-option ${selected ? "is-selected" : ""}" type="button" role="option" aria-selected="${selected}" tabindex="${open ? "0" : "-1"}" data-action="${actionPrefix}-period-select" data-value="${escapeAttribute(value)}"><span>${escapeHtml(label)}</span><i aria-hidden="true">${selected ? icon("check") : ""}</i></button>`;
 	}).join("");
-	return `<div class="admin-finance-period ${open ? "is-open" : ""}"><button class="admin-finance-period__trigger" type="button" data-action="admin-finance-period-toggle" aria-haspopup="listbox" aria-expanded="${open}" aria-controls="admin-finance-period-menu" ${state.adminFinanceBusy === "refresh" ? "disabled" : ""}><span aria-hidden="true">${icon("calendarDays")}</span><strong>${escapeHtml(adminFinancePeriodLabel())}</strong><i aria-hidden="true">${icon("chevron")}</i></button><div class="admin-finance-period__menu" id="admin-finance-period-menu" role="listbox" aria-label="Период аналитики" aria-hidden="${!open}">${options}</div></div>`;
+	return `<div class="admin-finance-period ${open ? "is-open" : ""}"><button class="admin-finance-period__trigger" type="button" data-action="${actionPrefix}-period-toggle" aria-haspopup="listbox" aria-expanded="${open}" aria-controls="admin-finance-period-menu" ${busy ? "disabled" : ""}><span aria-hidden="true">${icon("calendarDays")}</span><strong>${escapeHtml(adminFinancePeriodLabel(period))}</strong><i aria-hidden="true">${icon("chevron")}</i></button><div class="admin-finance-period__menu" id="admin-finance-period-menu" role="listbox" aria-label="Период ${analytics ? "аналитики" : "финансов"}" aria-hidden="${!open}">${options}</div></div>`;
 }
 
 const ADMIN_FINANCE_PROVIDERS = [
@@ -4551,7 +4567,7 @@ function renderAdminGoogleAnalytics(google) {
 	const chartDays = days.filter((_, index) => index % Math.max(1, Math.ceil(days.length / 60)) === 0);
 	const max = Math.max(1, ...chartDays.map((day) => Number(day.sessions || 0)));
 	const chart = chartDays.length ? `<div class="admin-ga4__chart" role="img" aria-label="Сеансы Google Analytics по дням">${chartDays.map((day) => `<span class="admin-ga4__bar" style="--height:${Math.max(5, Math.round(Number(day.sessions || 0) / max * 100))}%" title="${escapeAttribute(`${day.date}: ${Number(day.sessions || 0)} сеансов`)}"></span>`).join("")}</div>` : `<div class="admin-ga4__empty">Google ещё не собрал данные за этот период</div>`;
-	return `<section class="admin-ga4 admin-finance-card" aria-labelledby="admin-ga4-title"><div class="admin-ga4__head"><span class="admin-ga4__mark">G</span><div><span>АНАЛИТИКА САЙТА</span><h3 id="admin-ga4-title">Google Analytics 4</h3></div><small>${ready ? "Подключено" : "Ожидает настройки"}</small></div>${ready ? `<div class="admin-ga4__metrics"><div><span>Пользователи</span><strong>${Number(report.activeUsers || 0).toLocaleString("ru-RU")}</strong></div><div><span>Новые</span><strong>${Number(report.newUsers || 0).toLocaleString("ru-RU")}</strong></div><div><span>Сеансы</span><strong>${Number(report.sessions || 0).toLocaleString("ru-RU")}</strong></div><div><span>Просмотры</span><strong>${Number(report.pageViews || 0).toLocaleString("ru-RU")}</strong></div></div>${chart}<div class="admin-ga4__channels">${(Array.isArray(report.channels) ? report.channels : []).slice(0, 5).map((item) => `<span><b>${escapeHtml(item.name || "Другое")}</b><strong>${Number(item.sessions || 0).toLocaleString("ru-RU")}</strong></span>`).join("")}</div>` : `<div class="admin-ga4__setup"><strong>${escapeHtml(report.message || "Подключите ресурс GA4")}</strong><span>Нужны Measurement ID для сбора посещений, ID ресурса и сервисный аккаунт с доступом на чтение. Инструкция — в README.</span><a href="https://analytics.google.com/" target="_blank" rel="noopener noreferrer">Открыть Google Analytics ${icon("arrowRight")}</a></div>`}</section>`;
+	return `<section class="admin-ga4 admin-finance-card" aria-labelledby="admin-ga4-title"><div class="admin-ga4__head"><span class="admin-ga4__mark">G</span><div><span>АНАЛИТИКА САЙТА</span><h3 id="admin-ga4-title">Google Analytics 4</h3></div><small>${ready ? "Подключено" : report.state === "error" ? "Ошибка подключения" : "Ожидает настройки"}</small></div>${ready ? `<div class="admin-ga4__metrics"><div><span>Пользователи</span><strong>${Number(report.activeUsers || 0).toLocaleString("ru-RU")}</strong></div><div><span>Новые</span><strong>${Number(report.newUsers || 0).toLocaleString("ru-RU")}</strong></div><div><span>Сеансы</span><strong>${Number(report.sessions || 0).toLocaleString("ru-RU")}</strong></div><div><span>Просмотры</span><strong>${Number(report.pageViews || 0).toLocaleString("ru-RU")}</strong></div></div>${chart}<div class="admin-ga4__channels">${(Array.isArray(report.channels) ? report.channels : []).slice(0, 5).map((item) => `<span><b>${escapeHtml(item.name || "Другое")}</b><strong>${Number(item.sessions || 0).toLocaleString("ru-RU")}</strong></span>`).join("")}</div>` : `<div class="admin-ga4__setup"><strong>${escapeHtml(report.message || "Подключите ресурс GA4")}</strong><span>Нужны Measurement ID для сбора посещений, ID ресурса и сервисный аккаунт с доступом на чтение. Инструкция — в README.</span><a href="https://analytics.google.com/" target="_blank" rel="noopener noreferrer">Открыть Google Analytics ${icon("arrowRight")}</a></div>`}</section>`;
 }
 
 function renderAdminFinancePage() {
@@ -4563,7 +4579,7 @@ function renderAdminFinancePage() {
 	const custom = state.adminFinancePeriod === "custom";
 	const changing = state.adminFinanceBusy === "refresh";
 	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-finance">
-		<header class="admin-finance__header"><div><span>АНАЛИТИКА</span><h2>Финансы</h2></div></header>
+		<header class="admin-finance__header"><div><span>ПЛАТЕЖИ</span><h2>Финансы</h2></div></header>
 		<section class="admin-finance-card ${changing ? "is-updating" : ""} ${state.adminFinanceAnimate ? "is-entering" : ""}" aria-busy="${changing}">
 			<div class="admin-finance__metrics" aria-label="Финансовые показатели"><div class="is-revenue"><span>Выручка</span><strong>${escapeHtml(formatFinanceRub(summary.revenueRub))}</strong>${Number(summary.revenueStars || 0) ? `<small>+ ${escapeHtml(formatFinanceAmount(summary.revenueStars, "STARS"))}</small>` : ""}</div><div><span>Возвраты</span><strong>${escapeHtml(formatFinanceRub(summary.refundsRub))}</strong>${Number(summary.refundsStars || 0) ? `<small>+ ${escapeHtml(formatFinanceAmount(summary.refundsStars, "STARS"))}</small>` : ""}</div><div><span>Платежи</span><strong>${Number(summary.paymentCount || 0).toLocaleString("ru-RU")}</strong><small>${escapeHtml(financeDate(data.from, { day: "numeric", month: "short" }))} — ${escapeHtml(financeDate(data.to, { day: "numeric", month: "short" }))}</small></div></div>
 			<div class="admin-finance-card__body"><div class="admin-finance__toolbar"><h3 id="admin-finance-chart-title">Выручка по дням</h3>${renderAdminFinancePeriodPicker()}</div>
@@ -4571,8 +4587,19 @@ function renderAdminFinancePage() {
 			<div class="admin-finance__chart-wrap" aria-live="polite" aria-labelledby="admin-finance-chart-title">${renderAdminFinanceChart(data.daily)}</div><div class="admin-finance__legend"><i aria-hidden="true"></i><span>Выручка в рублях</span>${Number(summary.revenueStars || 0) ? `<small>Stars учитываются отдельно</small>` : ""}</div></div>
 		</section>
 		${renderAdminFinanceProviders(data.providers)}
-		${renderAdminGoogleAnalytics(data.google)}
 		<section class="admin-finance__history" aria-labelledby="admin-finance-history-title"><div class="admin-finance__section-head"><div><span>ОПЕРАЦИИ</span><h3 id="admin-finance-history-title">История платежей</h3></div><strong>${Number(data.paymentTotal || 0).toLocaleString("ru-RU")}</strong></div><div class="admin-finance-history__surface"><div class="admin-finance-history__list">${renderAdminFinanceHistory(payments)}</div>${hasMore ? `<button class="admin-finance__more" type="button" data-action="admin-finance-more" ${state.adminFinanceBusy ? "disabled" : ""}>${state.adminFinanceBusy === "more" ? icon("refresh") : icon("arrowDown")}<span>Показать ещё</span></button>` : ""}</div></section>
+	</div></section>`;
+}
+
+function renderAdminAnalyticsPage() {
+	const data = state.adminAnalytics;
+	const custom = state.adminAnalyticsPeriod === "custom";
+	const loading = !data || state.adminAnalyticsBusy;
+	const placeholder = `<section class="admin-ga4 admin-finance-card admin-analytics__loading" aria-busy="true"><div class="admin-ga4__head"><span class="admin-ga4__mark">G</span><div><span>АНАЛИТИКА САЙТА</span><h3>Google Analytics 4</h3></div></div><div class="admin-ga4__metrics">${Array.from({ length: 4 }, () => `<div><span></span><strong></strong></div>`).join("")}</div><div class="admin-finance__chart-skeleton"></div></section>`;
+	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-finance admin-analytics">
+		<header class="admin-finance__header"><div><span>ДАННЫЕ САЙТА</span><h2>Аналитика</h2></div>${renderAdminFinancePeriodPicker()}</header>
+		${custom ? `<div class="admin-finance__custom"><label><span>С</span><input type="date" data-input="admin-analytics-from" value="${escapeAttribute(state.adminAnalyticsFrom || data?.from || "")}" max="${escapeAttribute(financeTodayISO())}"></label><i aria-hidden="true">—</i><label><span>По</span><input type="date" data-input="admin-analytics-to" value="${escapeAttribute(state.adminAnalyticsTo || data?.to || "")}" max="${escapeAttribute(financeTodayISO())}"></label><button type="button" data-action="admin-analytics-apply" ${state.adminAnalyticsBusy ? "disabled" : ""}>Показать</button></div>` : ""}
+		${loading ? placeholder : renderAdminGoogleAnalytics(data.google)}
 	</div></section>`;
 }
 
@@ -4673,6 +4700,33 @@ async function refreshAdminFinance({ append = false, live = false } = {}) {
 		if (requestID !== adminFinanceRequestID) return;
 		state.adminFinanceBusy = "";
 		render({ preserveScroll: true });
+		throw error;
+	}
+}
+
+async function refreshAdminAnalytics({ live = false } = {}) {
+	if ((previewMode && state.adminAnalytics) || state.adminAnalyticsBusy) return;
+	const previous = live ? JSON.stringify(state.adminAnalytics || {}) : "";
+	const requestID = ++adminAnalyticsRequestID;
+	state.adminAnalyticsBusy = true;
+	if (!live) state.adminFinancePeriodMenuOpen = false;
+	if (!live) render({ preserveScroll: true });
+	try {
+		const response = await post("/api/mini-app/admin/analytics", { period: state.adminAnalyticsPeriod, from: state.adminAnalyticsFrom, to: state.adminAnalyticsTo });
+		if (requestID !== adminAnalyticsRequestID) return;
+		const next = response.data || {};
+		state.adminAnalytics = next;
+		state.adminAnalyticsPeriod = String(next.period || state.adminAnalyticsPeriod || "7d");
+		state.adminAnalyticsFrom = String(next.from || state.adminAnalyticsFrom || "");
+		state.adminAnalyticsTo = String(next.to || state.adminAnalyticsTo || "");
+		state.adminAnalyticsBusy = false;
+		if (state.adminSection !== "analytics") return;
+		if (live) { if (previous !== JSON.stringify(next)) renderRealtime(); }
+		else render({ preserveScroll: true });
+	} catch (error) {
+		if (requestID !== adminAnalyticsRequestID) return;
+		state.adminAnalyticsBusy = false;
+		if (state.adminSection === "analytics") render({ preserveScroll: true });
 		throw error;
 	}
 }
@@ -9450,6 +9504,7 @@ function bindRootActions() {
 		if (value === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 		if (value === "moynalog") void refreshAdminMoyNalog();
 		if (value === "finance") void refreshAdminFinance();
+		if (value === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
 		if (value === "status") void refreshAdminStatus();
 		if (value === "push") void refreshAdminPush().catch((error) => showToast(error?.message || "Не удалось загрузить уведомления", "danger"));
 		if (value === "users") void refreshAdminUsers();
@@ -9471,37 +9526,48 @@ function bindRootActions() {
 			if (action === "admin-push-enable") return await enableAdminPush();
 			if (action === "admin-push-disable") return await disableAdminPush();
 			if (action === "admin-push-test") return await testAdminPush();
-			if (action === "admin-finance-period-toggle") {
+			if (action === "admin-finance-period-toggle" || action === "admin-analytics-period-toggle") {
 				state.adminFinancePeriodMenuOpen = !state.adminFinancePeriodMenuOpen;
 				haptic("light");
 				render({ preserveScroll: true });
 				if (state.adminFinancePeriodMenuOpen) queueMicrotask(() => app.querySelector(".admin-finance-period-option.is-selected")?.focus());
 				return;
 			}
-			if (action === "admin-finance-period-select") {
+			if (action === "admin-finance-period-select" || action === "admin-analytics-period-select") {
 				if (!ADMIN_FINANCE_PERIODS.some(([period]) => period === value)) return;
+				const analytics = action === "admin-analytics-period-select";
 				state.adminFinancePeriodMenuOpen = false;
-				state.adminFinancePeriod = value;
+				if (analytics) state.adminAnalyticsPeriod = value;
+				else state.adminFinancePeriod = value;
 				haptic("light");
 				if (value === "custom") {
-					state.adminFinanceFrom = state.adminFinance?.from || financeTodayISO(-6);
-					state.adminFinanceTo = state.adminFinance?.to || financeTodayISO();
+					if (analytics) {
+						state.adminAnalyticsFrom = state.adminAnalytics?.from || financeTodayISO(-6);
+						state.adminAnalyticsTo = state.adminAnalytics?.to || financeTodayISO();
+					} else {
+						state.adminFinanceFrom = state.adminFinance?.from || financeTodayISO(-6);
+						state.adminFinanceTo = state.adminFinance?.to || financeTodayISO();
+					}
 					render({ preserveScroll: true });
-					queueMicrotask(() => app.querySelector('[data-input="admin-finance-from"]')?.focus());
+					queueMicrotask(() => app.querySelector(`[data-input="admin-${analytics ? "analytics" : "finance"}-from"]`)?.focus());
 					return;
 				}
 				if (previewMode) {
-					state.adminFinanceAnimate = true;
+					if (!analytics) state.adminFinanceAnimate = true;
 					render({ preserveScroll: true });
-					window.setTimeout(() => { state.adminFinanceAnimate = false; }, 420);
+					if (!analytics) window.setTimeout(() => { state.adminFinanceAnimate = false; }, 420);
 					return;
 				}
-				return await refreshAdminFinance();
+				return analytics ? await refreshAdminAnalytics() : await refreshAdminFinance();
 			}
 			if (action === "admin-finance-more") return await refreshAdminFinance({ append: true });
 			if (action === "admin-finance-apply") {
 				if (!state.adminFinanceFrom || !state.adminFinanceTo) return showToast("Выберите обе даты", "danger");
 				return await refreshAdminFinance();
+			}
+			if (action === "admin-analytics-apply") {
+				if (!state.adminAnalyticsFrom || !state.adminAnalyticsTo) return showToast("Выберите обе даты", "danger");
+				return await refreshAdminAnalytics();
 			}
 			if (action === "admin-user-open") return await openAdminUser(Number(value));
 			if (action === "admin-user-back") return closeAdminUserDetail();
@@ -10060,6 +10126,8 @@ function bindRootActions() {
 		}
 		if (inputKey === "admin-finance-from") { state.adminFinanceFrom = String(target.value || ""); return; }
 		if (inputKey === "admin-finance-to") { state.adminFinanceTo = String(target.value || ""); return; }
+		if (inputKey === "admin-analytics-from") { state.adminAnalyticsFrom = String(target.value || ""); return; }
+		if (inputKey === "admin-analytics-to") { state.adminAnalyticsTo = String(target.value || ""); return; }
 		if (inputKey === "admin-user-subscription") { state.adminUserSelectedSubscriptionID = String(target.value || ""); render({ preserveScroll: true }); return; }
 		if (inputKey === "admin-user-balance") { state.adminUserBalanceDraft = target.value; return; }
 		if (inputKey === "admin-user-days") { state.adminUserDaysDraft = target.value; return; }
@@ -15227,13 +15295,13 @@ function getPageTitle(page, short = false) {
 	if (page === "admin" && !short && state.adminSection !== "home") {
 		if (state.adminSection === "partners") return localizedText("Партнёры", "Partners", "همکاران");
 		const labels = state.locale === "fa" ? {
-			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", push: "اعلان‌های پوش", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", users: "کاربران",
+			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", push: "اعلان‌های پوش", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", analytics: "تحلیل", users: "کاربران",
 		} : state.locale === "en" ? {
 			localization: "Language and font",
-			maintenance: "Maintenance", diagnostics: "Diagnostics", push: "Push notifications", features: "Functions", subpage: "Sub page", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", users: "Users",
+			maintenance: "Maintenance", diagnostics: "Diagnostics", push: "Push notifications", features: "Functions", subpage: "Sub page", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", analytics: "Analytics", users: "Users",
 		} : {
 			localization: "Язык и шрифт",
-			maintenance: "Режим аварии", diagnostics: "Диагностика", push: "Push-уведомления", features: "Функции", subpage: "Sub page", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", users: "Пользователи",
+			maintenance: "Режим аварии", diagnostics: "Диагностика", push: "Push-уведомления", features: "Функции", subpage: "Sub page", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", analytics: "Аналитика", users: "Пользователи",
 		};
 		return labels[state.adminSection] || copy.pageAdmin || "Admin panel";
 	}

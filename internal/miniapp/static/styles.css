@@ -13219,6 +13219,12 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .admin-finance-provider__value { overflow: hidden; font-size: 16px; font-weight: 850; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
 .admin-finance-provider__refund { color: var(--muted); font-size: 8px; }
 .admin-ga4 { padding: 16px; }
+.admin-analytics .admin-finance__header { flex-wrap: wrap; align-items: center; }
+.admin-analytics .admin-finance__header .admin-finance-period { margin-left: auto; }
+.admin-analytics__loading .admin-ga4__metrics span,
+.admin-analytics__loading .admin-ga4__metrics strong { width: 70%; height: 10px; border-radius: 5px; background: var(--control-bg); animation: adminFinancePulse 1.25s ease-in-out infinite alternate; }
+.admin-analytics__loading .admin-ga4__metrics strong { width: 48%; height: 16px; }
+.admin-analytics__loading .admin-finance__chart-skeleton { min-height: 92px; margin-top: 17px; }
 .admin-ga4__head { display: flex; align-items: center; gap: 10px; }
 .admin-ga4__mark { width: 31px; height: 31px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; background: color-mix(in srgb, #fbbc04 17%, transparent); color: #fbbc04; font-size: 17px; font-weight: 900; }
 .admin-ga4__head > div { min-width: 0; display: grid; gap: 3px; }

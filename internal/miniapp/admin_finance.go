@@ -67,7 +67,6 @@ type adminFinancePayload struct {
 	Summary      adminFinanceSummaryPayload    `json:"summary"`
 	Daily        []adminFinanceDailyPayload    `json:"daily"`
 	Providers    []adminFinanceProviderPayload `json:"providers"`
-	Google       adminGA4Payload               `json:"google"`
 	Payments     []adminFinancePaymentPayload  `json:"payments"`
 	PaymentTotal int                           `json:"paymentTotal"`
 	Limit        int                           `json:"limit"`
@@ -270,6 +269,5 @@ func (h *Handler) handleAdminFinance(w http.ResponseWriter, r *http.Request, ses
 			Currency: item.Currency, Revenue: item.Revenue, Refunds: item.Refunds, PaymentCount: item.PaymentCount,
 		})
 	}
-	payload.Google = h.loadAdminGA4(r.Context(), from, to)
 	h.writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "data": payload})
 }

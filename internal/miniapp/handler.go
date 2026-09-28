@@ -790,6 +790,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/moynalog/test", h.withSession(h.handleAdminMoyNalogTest))
 	mux.HandleFunc("/api/mini-app/admin/moynalog/retry", h.withSession(h.handleAdminMoyNalogRetry))
 	mux.HandleFunc("/api/mini-app/admin/finance", h.withSession(h.handleAdminFinance))
+	mux.HandleFunc("/api/mini-app/admin/analytics", h.withSession(h.handleAdminAnalytics))
 	mux.HandleFunc("/api/mini-app/admin/status", h.withSession(h.handleAdminStatus))
 	mux.HandleFunc("/api/mini-app/admin/partners/state", h.withSession(h.handleAdminPartnersState))
 	mux.HandleFunc("/api/mini-app/admin/partners/review", h.withSession(h.handleAdminPartnerReview))
