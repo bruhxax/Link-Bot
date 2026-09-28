@@ -4046,6 +4046,10 @@ body:not(.is-layout-editing) .runtime-layout-item[data-runtime-id="subscription_
   height: 100%;
   object-fit: cover;
 }
+.payment-item--balance .payment-item__logo img,
+.payment-brand-logo--balance {
+  transform: scale(1.55);
+}
 .payment-item__main strong {
   font-size: 13px;
   font-weight: 800;

@@ -895,6 +895,7 @@ function resolveBrandMarkURL(value) {
 }
 
 const PAYMENT_LOGO_URLS = Object.freeze({
+  balance: "/mini-app/assets/payment-balance.jpg",
   sbp: "/mini-app/assets/payment-sbp.png",
   card: "/mini-app/assets/payment-card.png",
   stars: "/mini-app/assets/payment-stars.png",
@@ -4066,18 +4067,19 @@ function renderDesktopSidebar() {
 	const profileItem = (id, fallbackAction, iconName, label) => {
 		const item = profileItems.find((entry) => entry.id === id);
 		if (item?.layout?.visible === false) return "";
-		return actionItem(item?.action || fallbackAction, iconName, label, item?.value || "");
+		return actionItem(item?.action || fallbackAction, item?.icon || iconName, label, item?.value || "");
 	};
 	const pageItem = (page, iconName, label = getPageTitle(page)) => {
 		if (!pageFeatureEnabled(page) || (page === "admin" && !isAdminUser())) return "";
+		const item = profileItems.find((entry) => !entry.id.startsWith("custom.") && entry.action === "go-page" && entry.value === page);
 		const active = state.currentPage === page;
-		return `<button class="desktop-sidebar__item ${active ? "is-active" : ""}" type="button" data-action="go-page" data-value="${escapeAttribute(page)}" ${active ? 'aria-current="page"' : ""}><span class="desktop-sidebar__icon" aria-hidden="true">${icon(iconName)}</span><span>${escapeHtml(label)}</span></button>`;
+		return `<button class="desktop-sidebar__item ${active ? "is-active" : ""}" type="button" data-action="go-page" data-value="${escapeAttribute(page)}" ${active ? 'aria-current="page"' : ""}><span class="desktop-sidebar__icon" aria-hidden="true">${icon(item?.icon || iconName)}</span><span>${escapeHtml(label)}</span></button>`;
 	};
 	const actionItem = (action, iconName, label, value = "") => `<button class="desktop-sidebar__item" type="button" data-action="${escapeAttribute(action)}" ${value ? `data-value="${escapeAttribute(value)}"` : ""}><span class="desktop-sidebar__icon" aria-hidden="true">${icon(iconName)}</span><span>${escapeHtml(label)}</span></button>`;
 	const extraProfileItems = profileItems.filter((item) => item.id.startsWith("custom.") && item.layout?.visible !== false).map((item) => `<button class="desktop-sidebar__item" type="button" data-action="${escapeAttribute(item.action)}" data-value="${escapeAttribute(item.value || "")}"><span class="desktop-sidebar__icon" aria-hidden="true">${icon(item.icon || "external")}</span><span>${escapeHtml(item.label || "")}</span></button>`);
 	const newsItem = links.channel
-		? actionItem("open-link", "broadcast", localizedText("Новости", "News", "اخبار"), links.channel)
-		: `<button class="desktop-sidebar__item" type="button" disabled title="${escapeAttribute(localizedText("Новости пока недоступны", "News is not available yet", "اخبار هنوز در دسترس نیست"))}"><span class="desktop-sidebar__icon" aria-hidden="true">${icon("broadcast")}</span><span>${escapeHtml(localizedText("Новости", "News", "اخبار"))}</span></button>`;
+		? actionItem("open-link", profileItems.find((item) => item.id === "news")?.icon || "profileLetter", localizedText("Новости", "News", "اخبار"), links.channel)
+		: `<button class="desktop-sidebar__item" type="button" disabled title="${escapeAttribute(localizedText("Новости пока недоступны", "News is not available yet", "اخبار هنوز در دسترس نیست"))}"><span class="desktop-sidebar__icon" aria-hidden="true">${icon("profileLetter")}</span><span>${escapeHtml(localizedText("Новости", "News", "اخبار"))}</span></button>`;
 	const group = (label, items) => {
 		const content = items.filter(Boolean).join("");
 		return content ? `<div class="desktop-sidebar__group"><div class="desktop-sidebar__label">${escapeHtml(label)}</div>${content}</div>` : "";
@@ -4087,10 +4089,10 @@ function renderDesktopSidebar() {
 		<nav class="desktop-sidebar__nav" aria-label="${escapeAttribute(localizedText("Разделы кабинета", "Account sections", "بخش های حساب"))}">
 			${group(localizedText("Главная", "Home", "خانه"), [pageItem("dashboard", "houseLine"), pageItem("buy", "shop")])}
 			${group(localizedText("Статус", "Status", "وضعیت"), [pageItem("servers", "server")])}
-			${group(localizedText("Помощь", "Help", "راهنما"), [pageItem("support", "sms"), pageItem("faq", "question"), pageItem("privacy", "shield", localizedText("Политика", "Privacy policy", "حریم خصوصی")), pageItem("terms", "doc", localizedText("Соглашение", "Terms", "توافق‌نامه")), newsItem])}
+			${group(localizedText("Помощь", "Help", "راهنما"), [pageItem("support", "sms"), pageItem("faq", "question"), pageItem("privacy", "profileChecklist", localizedText("Политика", "Privacy policy", "حریم خصوصی")), pageItem("terms", "profileChecklist", localizedText("Соглашение", "Terms", "توافق‌نامه")), newsItem])}
 			${group(localizedText("Бонусы", "Bonuses", "پاداش‌ها"), [pageItem("payments", "wallet"), pageItem("reviews", "star"), actionItem("open-profile-promo", "profileDiscount", localizedText("Промокод", "Promo code", "کد تخفیف")), pageItem("gift", "gift")])}
 			${group(localizedText("Программы", "Programs", "برنامه ها"), [pageItem("referrals", "users", localizedText("Реф. система", "Referrals", "دعوت دوستان")), pageItem("partner", "profileUsersGroup", localizedText("Партнерка", "Partners", "همکاری"))])}
-			${group(localizedText("Аккаунт", "Account", "حساب"), [pageItem("login-methods", "profileKey", localizedText("Способы входа", "Sign-in methods", "روش‌های ورود")), profileItem("web_version", "open-web-version", "external", localizedText("Веб версия", "Web version", "نسخه وب")), profileItem("pwa_install", "open-install-guide", "profileDownload", localizedText("Рабочий стол", "Home screen", "صفحه اصلی")), pageItem("admin", "grid", copy.pageAdmin)])}
+			${group(localizedText("Аккаунт", "Account", "حساب"), [pageItem("login-methods", "profileKey", localizedText("Способы входа", "Sign-in methods", "روش‌های ورود")), profileItem("web_version", "open-web-version", "profileExternal", localizedText("Веб версия", "Web version", "نسخه وب")), profileItem("pwa_install", "open-install-guide", "profileDownload", localizedText("Рабочий стол", "Home screen", "صفحه اصلی")), pageItem("admin", "grid", copy.pageAdmin)])}
 			${group(localizedText("Дополнительно", "More", "بیشتر"), extraProfileItems)}
 		</nav>
 	</aside>`;
@@ -8880,7 +8882,7 @@ function paymentHistoryMethodMeta(item, copy) {
   const title = String(item?.paymentMethodTitle || "").trim();
   const normalized = `${invoiceType} ${title}`.toLowerCase();
 	if (invoiceType === "free") return { id: "free", label: title || localizedText("Бесплатная активация", "Free activation", "فعال‌سازی رایگان"), logo: "" };
-	if (invoiceType === "balance") return { id: "balance", label: title || localizedText("Баланс", "Balance", "موجودی"), logo: "" };
+	if (invoiceType === "balance") return { id: "balance", label: title || localizedText("Баланс", "Balance", "موجودی"), logo: PAYMENT_LOGO_URLS.balance };
   const providers = ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments"];
   const provider = providers.find((name) => normalized.includes(name));
   if (provider) {
@@ -15649,7 +15651,7 @@ function getSelectedPaymentMethod() {
 function paymentMethodMeta(id) {
   const copy = t();
   const map = {
-		balance: { id: "balance", label: localizedText("Баланс", "Balance", "موجودی"), hint: localizedText(`Доступно ${formatMoneyCents(state.data?.wallet?.balanceCents || 0)}`, `Available ${formatMoneyCents(state.data?.wallet?.balanceCents || 0)}`, `موجودی ${formatMoneyCents(state.data?.wallet?.balanceCents || 0)}`), logo: "" },
+		balance: { id: "balance", label: localizedText("Баланс", "Balance", "موجودی"), hint: localizedText(`Доступно ${formatMoneyCents(state.data?.wallet?.balanceCents || 0)}`, `Available ${formatMoneyCents(state.data?.wallet?.balanceCents || 0)}`, `موجودی ${formatMoneyCents(state.data?.wallet?.balanceCents || 0)}`), logo: PAYMENT_LOGO_URLS.balance },
     sbp: { id: "sbp", label: copy.payMethodSbp, hint: copy.payMethodSbpHint, logo: PAYMENT_LOGO_URLS.sbp },
     card: { id: "card", label: copy.payMethodCard, hint: copy.payMethodCardHint, logo: PAYMENT_LOGO_URLS.card },
     stars: { id: "stars", label: copy.payMethodStars, hint: copy.payMethodStarsHint, logo: PAYMENT_LOGO_URLS.stars },
@@ -15677,7 +15679,7 @@ function paymentMethodMeta(id) {
 function renderPaymentMethodLogo(method) {
   const source = String(method?.logo || "").trim();
   if (!source) return icon("wallet");
-  return `<img class="payment-brand-logo" src="${escapeAttribute(source)}" alt="" aria-hidden="true">`;
+  return `<img class="payment-brand-logo${method.id === "balance" ? " payment-brand-logo--balance" : ""}" src="${escapeAttribute(source)}" alt="" aria-hidden="true">`;
 }
 
 function pageClass(page) {
