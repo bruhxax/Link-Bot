@@ -10024,6 +10024,10 @@ body.has-open-modal .admin-save-bar {
   height: 19px !important;
 }
 
+.page-support .support-top-grid .menu-card:only-child {
+  grid-column: 1 / -1;
+}
+
 .page-support .support-top-grid .menu-card .menu-card__icon {
   color: var(--icon-color, #fff);
 }

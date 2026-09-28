@@ -1151,7 +1151,7 @@ func TestNormalizeAndValidateAddsProfileFeatureFlags(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Version = CurrentVersion - 1
 	settings.Features["reviews"] = false
-	for _, name := range []string{"additional_subscriptions", "payments_history", "news", "login_methods", "terms", "privacy"} {
+	for _, name := range []string{"additional_subscriptions", "payments_history", "news", "login_methods", "terms", "privacy", "promo_code", "partner", "faq"} {
 		delete(settings.Features, name)
 	}
 
@@ -1159,13 +1159,39 @@ func TestNormalizeAndValidateAddsProfileFeatureFlags(t *testing.T) {
 		t.Fatalf("NormalizeAndValidate() error = %v", err)
 	}
 
-	for _, name := range []string{"additional_subscriptions", "payments_history", "news", "login_methods", "terms", "privacy"} {
+	for _, name := range []string{"additional_subscriptions", "payments_history", "news", "login_methods", "terms", "privacy", "promo_code", "partner", "faq"} {
 		if !settings.Features[name] {
 			t.Fatalf("migrated feature %q is disabled", name)
 		}
 	}
 	if settings.Features["reviews"] {
 		t.Fatal("existing disabled feature was enabled during migration")
+	}
+}
+
+func TestProfileFeatureFlagsRemainDisabledAfterSettingsRoundTrip(t *testing.T) {
+	settings := DefaultSettings()
+	for _, name := range []string{"promo_code", "partner", "faq"} {
+		settings.Features[name] = false
+	}
+	raw, err := json.Marshal(settings)
+	if err != nil {
+		t.Fatalf("marshal settings: %v", err)
+	}
+	reloaded := DefaultSettings()
+	if err := json.Unmarshal(raw, &reloaded); err != nil {
+		t.Fatalf("unmarshal settings: %v", err)
+	}
+	if err := NormalizeAndValidate(&reloaded); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	for _, name := range []string{"promo_code", "partner", "faq"} {
+		if enabled, exists := reloaded.Features[name]; !exists || enabled {
+			t.Fatalf("disabled feature %q was not preserved: enabled=%v, exists=%v", name, enabled, exists)
+		}
+	}
+	if !reloaded.Features["promocodes"] {
+		t.Fatal("hiding the profile promo button disabled purchase discounts")
 	}
 }
 

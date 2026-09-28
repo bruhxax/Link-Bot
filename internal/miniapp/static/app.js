@@ -2092,9 +2092,9 @@ const ADMIN_APPEARANCE_PRESETS = [
 ];
 
 function buildPreviewRuntimeSettings() {
-	const features = Object.fromEntries(["mini_app", "additional_subscriptions", "stars", "trials", "google", "support", "reviews", "referrals", "promocodes", "media", "server_status", "payments_history", "gifts", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
+	const features = Object.fromEntries(["mini_app", "additional_subscriptions", "stars", "trials", "google", "support", "faq", "reviews", "referrals", "promocodes", "promo_code", "partner", "media", "server_status", "payments_history", "gifts", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
-		version: 23,
+		version: 26,
 		localization: { language: "ru", fontFamily: "auto" },
 		maintenance: { enabled: false, titleRu: "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u044b", textRu: "", reasonRu: "" },
 		features,
@@ -2397,8 +2397,10 @@ function featureEnabled(name) {
 function pageFeatureEnabled(page) {
 	const featureByPage = {
 		support: "support",
+		faq: "faq",
 		reviews: "reviews",
 		referrals: "referrals",
+		partner: "partner",
 		servers: "server_status",
 		media: "media",
 		payments: "payments_history",
@@ -4066,18 +4068,19 @@ function renderDesktopSidebar() {
 	const profileItems = getProfileItems();
 	const profileItem = (id, fallbackAction, iconName, label) => {
 		const item = profileItems.find((entry) => entry.id === id);
-		if (item?.layout?.visible === false) return "";
+		if (!item || item.layout?.visible === false) return "";
 		return actionItem(item?.action || fallbackAction, item?.icon || iconName, label, item?.value || "");
 	};
 	const pageItem = (page, iconName, label = getPageTitle(page)) => {
 		if (!pageFeatureEnabled(page) || (page === "admin" && !isAdminUser())) return "";
 		const item = profileItems.find((entry) => !entry.id.startsWith("custom.") && entry.action === "go-page" && entry.value === page);
+		if (item?.layout?.visible === false) return "";
 		const active = state.currentPage === page;
 		return `<button class="desktop-sidebar__item ${active ? "is-active" : ""}" type="button" data-action="go-page" data-value="${escapeAttribute(page)}" ${active ? 'aria-current="page"' : ""}><span class="desktop-sidebar__icon" aria-hidden="true">${icon(item?.icon || iconName)}</span><span>${escapeHtml(label)}</span></button>`;
 	};
 	const actionItem = (action, iconName, label, value = "") => `<button class="desktop-sidebar__item" type="button" data-action="${escapeAttribute(action)}" ${value ? `data-value="${escapeAttribute(value)}"` : ""}><span class="desktop-sidebar__icon" aria-hidden="true">${icon(iconName)}</span><span>${escapeHtml(label)}</span></button>`;
 	const extraProfileItems = profileItems.filter((item) => item.id.startsWith("custom.") && item.layout?.visible !== false).map((item) => `<button class="desktop-sidebar__item" type="button" data-action="${escapeAttribute(item.action)}" data-value="${escapeAttribute(item.value || "")}"><span class="desktop-sidebar__icon" aria-hidden="true">${icon(item.icon || "external")}</span><span>${escapeHtml(item.label || "")}</span></button>`);
-	const newsItem = links.channel
+	const newsItem = !featureEnabled("news") || getLayoutElement("profile", "news")?.visible === false ? "" : links.channel
 		? actionItem("open-link", profileItems.find((item) => item.id === "news")?.icon || "profileLetter", localizedText("Новости", "News", "اخبار"), links.channel)
 		: `<button class="desktop-sidebar__item" type="button" disabled title="${escapeAttribute(localizedText("Новости пока недоступны", "News is not available yet", "اخبار هنوز در دسترس نیست"))}"><span class="desktop-sidebar__icon" aria-hidden="true">${icon("profileLetter")}</span><span>${escapeHtml(localizedText("Новости", "News", "اخبار"))}</span></button>`;
 	const group = (label, items) => {
@@ -4090,7 +4093,7 @@ function renderDesktopSidebar() {
 			${group(localizedText("Главная", "Home", "خانه"), [pageItem("dashboard", "houseLine"), pageItem("buy", "shop")])}
 			${group(localizedText("Статус", "Status", "وضعیت"), [pageItem("servers", "server")])}
 			${group(localizedText("Помощь", "Help", "راهنما"), [pageItem("support", "sms"), pageItem("faq", "question"), pageItem("privacy", "profileChecklist", localizedText("Политика", "Privacy policy", "حریم خصوصی")), pageItem("terms", "profileChecklist", localizedText("Соглашение", "Terms", "توافق‌نامه")), newsItem])}
-			${group(localizedText("Бонусы", "Bonuses", "پاداش‌ها"), [pageItem("payments", "wallet"), pageItem("reviews", "star"), actionItem("open-profile-promo", "profileDiscount", localizedText("Промокод", "Promo code", "کد تخفیف")), pageItem("gift", "gift")])}
+			${group(localizedText("Бонусы", "Bonuses", "پاداش‌ها"), [pageItem("payments", "wallet"), pageItem("reviews", "star"), profileItem("promo_code", "open-profile-promo", "profileDiscount", localizedText("Промокод", "Promo code", "کد تخفیف")), pageItem("gift", "gift")])}
 			${group(localizedText("Программы", "Programs", "برنامه ها"), [pageItem("referrals", "users", localizedText("Реф. система", "Referrals", "دعوت دوستان")), pageItem("partner", "profileUsersGroup", localizedText("Партнерка", "Partners", "همکاری"))])}
 			${group(localizedText("Аккаунт", "Account", "حساب"), [pageItem("login-methods", "profileKey", localizedText("Способы входа", "Sign-in methods", "روش‌های ورود")), profileItem("web_version", "open-web-version", "profileExternal", localizedText("Веб версия", "Web version", "نسخه وب")), profileItem("pwa_install", "open-install-guide", "profileDownload", localizedText("Рабочий стол", "Home screen", "صفحه اصلی")), pageItem("admin", "grid", copy.pageAdmin)])}
 			${group(localizedText("Дополнительно", "More", "بیشتر"), extraProfileItems)}
@@ -5630,8 +5633,11 @@ function renderAdminFeaturesPage() {
 				["gifts", "Подарки", "Дарение подписок другим пользователям"],
 				["payments_history", "Платежи", "История покупок"],
 				["reviews", "Отзывы", "Отзывы пользователей"],
+				["promo_code", "Промокод", "Кнопка активации промокода: баланс, дни или трафик"],
 				["referrals", "Реферальная система", "Бонусы за приглашения"],
+				["partner", "Партнёрка", "Кабинет и заявки на участие в партнёрской программе"],
 				["media", "Медиа", "Видео и материалы"],
+				["faq", "FAQ", "Ответы на частые вопросы"],
 				["privacy", "Политика конфиденциальности", "Обработка пользовательских данных"],
 				["terms", "Пользовательское соглашение", "Условия использования сервиса"],
 				["news", "Новости", "Новости и обновления"],
@@ -5641,6 +5647,8 @@ function renderAdminFeaturesPage() {
 			],
 		},
 	];
+	const customButtons = getAdminCustomProfileFeatureItems();
+	if (customButtons.length) groups.push({ id: "custom", title: "Свои кнопки", hint: "Добавленные вами ссылки и страницы в профиле", items: customButtons });
 	return renderAdminEditorPage(
 		"Управление функциями",
 		`<div class="admin-feature-groups">${groups.map((group, index) => `
@@ -5653,11 +5661,30 @@ function renderAdminFeaturesPage() {
 					</div>
 				</header>
 				<div class="admin-toggle-list admin-feature-list">
-					${group.items.map(([key, label, hint]) => renderAdminFeatureToggle(label, hint, `features.${key}`)).join("")}
+					${group.items.map(([key, label, hint, path]) => renderAdminFeatureToggle(label, hint, path || `features.${key}`)).join("")}
 				</div>
 			</section>
 		`).join("")}</div>`,
 	);
+}
+
+function getAdminCustomProfileFeatureItems() {
+	const draft = state.adminSettingsDraft;
+	const buttons = draft?.content?.customLinks || [];
+	if (!buttons.length) return [];
+	if (!draft.layout) draft.layout = {};
+	if (!Array.isArray(draft.layout.elements)) draft.layout.elements = [];
+	const elements = draft.layout.elements;
+	return buttons.map((button, buttonIndex) => {
+		const id = `custom.${button.id || buttonIndex}`;
+		let index = elements.findIndex((item) => item.area === "profile" && item.id === id);
+		if (index < 0) {
+			index = elements.length;
+			const order = elements.filter((item) => item.area === "profile" && !item.id.startsWith("group_")).length;
+			elements.push({ area: "profile", id, order, visible: true, width: 100, height: 52, framed: true, align: "left", offsetX: 0, offsetY: 0, group: "main" });
+		}
+		return [id, button.labelRu || "Кнопка", button.hintRu || (button.type === "page" ? "Своя страница" : "Ссылка в профиле"), `layout.elements.${index}.visible`];
+	});
 }
 
 function ensureAdminSubPageDraft() {
@@ -7733,10 +7760,10 @@ function renderSupportPage() {
             <span class="menu-card__icon">${icon("ticketPlus")}</span>
 			<strong class="menu-card__title">${copy.newTicket}</strong>
 		</button>
-		<button class="card card--interactive menu-card" type="button" data-action="go-page" data-value="faq">
+		${featureEnabled("faq") ? `<button class="card card--interactive menu-card" type="button" data-action="go-page" data-value="faq">
             <span class="menu-card__icon">${icon("faqCustom")}</span>
 			<strong class="menu-card__title">${scopy.faq}</strong>
-		</button>
+		</button>` : ""}
         </div>
       `;
 	const tabs = `<div class="tabs tabs--support">${SUPPORT_TABS.map((tab) => `<button class="tab ${state.supportTab === tab ? "active" : ""}" type="button" data-action="switch-support-tab" data-value="${tab}">${tab === "open" ? scopy.open : scopy.history}</button>`).join("")}</div>`;
@@ -7963,7 +7990,9 @@ function renderServersPage() {
 
 function renderSettingsPage() {
 	const groups = { main: [], purchases: [], programs: [], help: [], account: [] };
-	for (const item of getProfileItems()) groups[item.group]?.push(item);
+	for (const item of getProfileItems()) {
+		if (item.layout?.visible !== false) groups[item.group]?.push(item);
+	}
 	const labels = state.locale === "fa"
 		? { main: "اصلی", purchases: "خریدها و پاداش‌ها", programs: "برنامه‌ها", help: "راهنما", account: "حساب" }
 		: state.locale === "en"
@@ -7993,9 +8022,9 @@ function getProfileItems() {
 		media: { group: "main", label: mediaLabel(), hint: mediaHint(), action: "go-page", value: "media", icon: "youtube", feature: "media" },
 		news: { group: "main", label: copy.channel, hint: linkHint(links.channel), action: "open-link", value: links.channel, icon: "profileLetter", feature: "news" },
 		payments: { group: "purchases", label: copy.paymentsTitle || "Payments", hint: copy.paymentsHint || "", action: "go-page", value: "payments", icon: "profileCard", feature: "payments_history" },
-		promo_code: { group: "purchases", label: localizedText("Промокод", "Promo code", "کد تخفیف"), hint: localizedText("Баланс, дни или ГБ", "Balance, days or GB", "موجودی، روز یا گیگابایت"), action: "open-profile-promo", icon: "profileDiscount" },
+		promo_code: { group: "purchases", label: localizedText("Промокод", "Promo code", "کد تخفیف"), hint: localizedText("Баланс, дни или ГБ", "Balance, days or GB", "موجودی، روز یا گیگابایت"), action: "open-profile-promo", icon: "profileDiscount", feature: "promo_code" },
 		referrals: { group: "programs", label: copy.referralSystem, hint: copy.referralsHint, action: "go-page", value: "referrals", icon: "profileUsers", feature: "referrals" },
-		partner: { group: "programs", label: localizedText("Партнёрка", "Partners", "همکاری"), hint: localizedText("Зарабатывайте на покупках приглашённых", "Earn from invited users' purchases", "از خریدهای کاربران دعوت‌شده درآمد کسب کنید"), action: "go-page", value: "partner", icon: "profileUsersGroup" },
+		partner: { group: "programs", label: localizedText("Партнёрка", "Partners", "همکاری"), hint: localizedText("Зарабатывайте на покупках приглашённых", "Earn from invited users' purchases", "از خریدهای کاربران دعوت‌شده درآمد کسب کنید"), action: "go-page", value: "partner", icon: "profileUsersGroup", feature: "partner" },
 		reviews: { group: "programs", label: copy.feedback, hint: reviewsSummaryHint(), action: "go-page", value: "reviews", icon: "profileStar", feature: "reviews" },
 		login_methods: { group: "account", label: loginMethodsLabel(), hint: loginMethodsHint(), action: "go-page", value: "login-methods", icon: "profileKey", feature: "login_methods" },
 		web_version: { group: "account", label: webVersionLabel(), hint: webVersionHint(), action: "open-web-version", value: "", icon: "profileExternal", feature: "web_version" },
@@ -8030,7 +8059,10 @@ function getProfileItems() {
 			icon: item.icon || (item.type === "page" ? "doc" : "external"),
 		};
 	}
-	const configured = getLayoutElements("profile");
+	const configured = (getRuntimeSettings()?.layout?.elements || [])
+		.filter((item) => item?.area === "profile")
+		.slice()
+		.sort((left, right) => Number(left.order || 0) - Number(right.order || 0));
 	const configuredIDs = new Set(configured.map((item) => item.id));
 	const missingBuiltIns = ["partner", "promo_code"]
 		.filter((id) => !configuredIDs.has(id))
