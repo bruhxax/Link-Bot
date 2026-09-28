@@ -10,6 +10,7 @@ import {
 import { renderSVG as renderQRCodeSVG } from "./uqr.mjs";
 import { defaultSourceCrop, legacySourceCrop, cropMediaGeometry, zoomCrop, resizeCropCorner, resizeBannerProportionally } from "./banner-crop.mjs";
 import { tokenizeSupportMessage } from "./support-message.mjs";
+import { createGlassOptics } from "./glass-optics.mjs";
 
 const app = document.getElementById("app");
 const toast = document.getElementById("toast");
@@ -2377,6 +2378,7 @@ const MODAL_CLOSE_MS = 220;
 
 const particleEngine = createParticleEngine();
 const waveMotionEngine = createWaveMotionEngine();
+const glassOptics = createGlassOptics();
 
 function t() {
 	const base = copybook[state.locale] || copybook.ru;
@@ -15258,6 +15260,7 @@ function applyAppearance() {
 	document.documentElement.dataset.frames = appearance.showFrames === false ? "off" : "on";
 	document.documentElement.dataset.compact = "on";
 	document.documentElement.dataset.glass = appearance.glass === true ? "on" : "off";
+	glassOptics.setEnabled(appearance.glass === true);
 	const variables = {
 		"--bg": colors.background,
 		"--surface": colors.surface,
