@@ -827,6 +827,24 @@ func TestNormalizeAndValidateSubPageCustomClients(t *testing.T) {
 	}
 }
 
+func TestNormalizeAndValidateSubPagePriorities(t *testing.T) {
+	settings := DefaultSettings()
+	settings.SubPage.PriorityBuiltIns = []string{" INCY ", "happ", "incy", "unknown"}
+	settings.SubPage.Clients = []SubPageClientSettings{
+		{ID: "first", Name: "First", Scheme: "first://add/", Enabled: true, Featured: true, AllPlatforms: true},
+		{ID: "second", Name: "Second", Scheme: "second://add/", Enabled: true, Featured: true, AllPlatforms: true},
+	}
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	if got := settings.SubPage.PriorityBuiltIns; len(got) != 2 || got[0] != "incy" || got[1] != "happ" {
+		t.Fatalf("priority built-ins = %#v", got)
+	}
+	if !settings.SubPage.Clients[0].Featured || !settings.SubPage.Clients[1].Featured {
+		t.Fatal("multiple priority clients must remain starred")
+	}
+}
+
 func TestNormalizeAndValidateRejectsSubPageWithoutUsableClient(t *testing.T) {
 	settings := DefaultSettings()
 	settings.SubPage = SubPageSettings{IncludeBuiltIns: false, Clients: []SubPageClientSettings{{ID: "custom", Name: "Custom", Scheme: "https://example.com/", Enabled: true, AllPlatforms: true}}}

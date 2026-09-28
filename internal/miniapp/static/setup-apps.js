@@ -98,9 +98,10 @@ export const SETUP_PLATFORM_IDS = Object.freeze(SETUP_PLATFORMS.map((platform) =
 
 export function getSetupPlatforms(settings = null) {
   const includeBuiltIns = settings?.includeBuiltIns !== false;
+  const priorityBuiltIns = Array.isArray(settings?.priorityBuiltIns) ? settings.priorityBuiltIns : [];
   const customClients = Array.isArray(settings?.clients) ? settings.clients : [];
   return SETUP_PLATFORMS.map((platform) => {
-    const apps = includeBuiltIns ? [...platform.apps] : [];
+    const apps = includeBuiltIns ? platform.apps.map((app) => Object.freeze({ ...app, featured: priorityBuiltIns.includes(app.id) })) : [];
     for (const client of customClients) {
       if (!client?.enabled) continue;
       const supportsPlatform = client.allPlatforms || (Array.isArray(client.platforms) && client.platforms.includes(platform.id));
@@ -118,10 +119,12 @@ export function getSetupPlatforms(settings = null) {
         featured: Boolean(client.featured),
         links: installURL ? Object.freeze([link(installLabel, `Download ${name}`, `دانلود ${name}`, installURL)]) : Object.freeze([]),
       });
-			if (client.featured) apps.unshift(app);
-			else apps.push(app);
+			apps.push(app);
     }
-    return Object.freeze({ ...platform, apps: Object.freeze(apps) });
+    return Object.freeze({ ...platform, apps: Object.freeze([
+      ...apps.filter((app) => app.featured),
+      ...apps.filter((app) => !app.featured),
+    ]) });
   }).filter((platform) => platform.apps.length > 0);
 }
 

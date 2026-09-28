@@ -38,7 +38,7 @@ func TestSubPageAdminAndDynamicCatalogAreWired(t *testing.T) {
 	}
 
 	setup := string(setupRaw)
-	for _, fragment := range []string{`export function getSetupPlatforms(settings = null)`, `client.allPlatforms`, `client.platforms.includes(platform.id)`, `apps.unshift(app)`} {
+	for _, fragment := range []string{`export function getSetupPlatforms(settings = null)`, `client.allPlatforms`, `client.platforms.includes(platform.id)`} {
 		if !strings.Contains(setup, fragment) {
 			t.Fatalf("setup-apps.js does not contain %q", fragment)
 		}

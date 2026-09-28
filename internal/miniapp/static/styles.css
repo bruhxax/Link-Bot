@@ -768,6 +768,13 @@ select:focus-visible {
 .admin-subpage-intro h3 { margin: 2px 0 4px; font-size: 13px; }
 .admin-subpage-intro p,
 .admin-subpage-client__hint { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.admin-subpage-builtins { display: grid; gap: 8px; }
+.admin-subpage-builtins > strong { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.admin-subpage-builtins > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.admin-subpage-builtins__client { min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--surface) 82%, transparent); color: var(--text); font: inherit; font-size: 11px; font-weight: 800; }
+.admin-subpage-builtins__client svg { width: 17px; height: 17px; color: var(--muted); }
+.admin-subpage-builtins__client.is-priority { border-color: var(--accent); }
+.admin-subpage-builtins__client.is-priority svg { color: var(--accent); }
 .admin-subpage-list { display: grid; gap: 12px; }
 .admin-subpage-client {
 	display: grid;
@@ -793,6 +800,7 @@ select:focus-visible {
 	background: transparent;
 }
 .admin-subpage-client__actions button.is-danger { color: var(--danger); }
+.admin-subpage-client__actions .admin-subpage-priority.is-active { border-color: var(--accent); color: var(--accent); }
 .admin-subpage-client__actions button:disabled { opacity: .3; }
 .admin-subpage-client__actions svg { width: 15px; height: 15px; }
 .admin-subpage-client__toggles { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
@@ -1316,8 +1324,10 @@ select:focus-visible {
 .setup-app {
 	min-width: 0;
 	min-height: 40px;
-	display: grid;
-	place-items: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
 	padding: 7px 10px;
 	border: 1px solid var(--line);
 	border-radius: 7px;
@@ -1327,6 +1337,8 @@ select:focus-visible {
 	transition: transform 220ms cubic-bezier(.22, 1, .36, 1), border-color 220ms ease, background-color 220ms ease;
 }
 .setup-app > span { overflow: hidden; font-size: 11px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.setup-app__priority { display: inline-flex; flex: 0 0 auto; color: var(--accent); }
+.setup-app__priority svg { width: 12px; height: 12px; }
 .setup-app.is-selected { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
 .setup-app:active { transform: scale(.98); }
 
@@ -12863,6 +12875,10 @@ body.is-layout-editing .layout-editor-grid { background: none; }
    masked SVG assets and controls whose parent has a different text color. */
 #app [data-app-icon] {
   color: var(--icon-color) !important;
+}
+
+#app :where(.admin-subpage-priority.is-active, .admin-subpage-builtins__client.is-priority, .setup-app__priority) [data-app-icon] {
+  color: var(--accent) !important;
 }
 
 #app [data-app-icon="trash"] {

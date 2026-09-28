@@ -2115,7 +2115,7 @@ function buildPreviewRuntimeSettings() {
 		},
 		appearance: { backgroundMode: "animated", compact: true, showFrames: true, glass: urlParams.get("glass") === "1", liquid: deepClone(DEFAULT_LIQUID_BACKGROUNDS), backgroundMotion: deepClone(DEFAULT_BACKGROUND_MOTION), colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", morphicBackground: "#000000", morphicBall: "#ff69b4", twinkleBackground: "#000000", twinkleStar: "#ffffff", waveBackground: "#000000", waveDot: "#ebebeb" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
-		subPage: { includeBuiltIns: true, clients: [] },
+		subPage: { includeBuiltIns: true, priorityBuiltIns: [], clients: [] },
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, titleFa: `${plan.months} \u0645\u0627\u0647`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
 		devicePacks: [],
 		trafficPacks: [],
@@ -2581,7 +2581,8 @@ function syncAdminSettingsDraft(force = false) {
 
 function seedEditableCopy(settings) {
 	if (!settings?.content) return;
-	if (!settings.subPage || typeof settings.subPage !== "object") settings.subPage = { includeBuiltIns: true, clients: [] };
+	if (!settings.subPage || typeof settings.subPage !== "object") settings.subPage = { includeBuiltIns: true, priorityBuiltIns: [], clients: [] };
+	if (!Array.isArray(settings.subPage.priorityBuiltIns)) settings.subPage.priorityBuiltIns = [];
 	if (!Array.isArray(settings.subPage.clients)) settings.subPage.clients = [];
 	if (!settings.content.webPage) {
 		const title = String(settings.content.brandName || "Link-Bot").trim() || "Link-Bot";
@@ -5691,10 +5692,11 @@ function getAdminCustomProfileFeatureItems() {
 }
 
 function ensureAdminSubPageDraft() {
-	if (!state.adminSettingsDraft) return { includeBuiltIns: true, clients: [] };
+	if (!state.adminSettingsDraft) return { includeBuiltIns: true, priorityBuiltIns: [], clients: [] };
 	if (!state.adminSettingsDraft.subPage || typeof state.adminSettingsDraft.subPage !== "object") {
-		state.adminSettingsDraft.subPage = { includeBuiltIns: true, clients: [] };
+		state.adminSettingsDraft.subPage = { includeBuiltIns: true, priorityBuiltIns: [], clients: [] };
 	}
+	if (!Array.isArray(state.adminSettingsDraft.subPage.priorityBuiltIns)) state.adminSettingsDraft.subPage.priorityBuiltIns = [];
 	if (!Array.isArray(state.adminSettingsDraft.subPage.clients)) state.adminSettingsDraft.subPage.clients = [];
 	return state.adminSettingsDraft.subPage;
 }
@@ -5708,9 +5710,10 @@ function renderAdminSubPageClient(client, index, total) {
 	const allPlatforms = client?.allPlatforms !== false;
 	const platforms = Array.isArray(client?.platforms) ? client.platforms : [];
 	const title = String(client?.name || "").trim() || localizedText("Новый клиент", "New client", "کلاینت جدید");
-	return `<article class="admin-subpage-client" aria-labelledby="admin-subpage-client-${index}">
-		<header class="admin-subpage-client__header"><div><span>${String(index + 1).padStart(2, "0")}</span><h3 id="admin-subpage-client-${index}">${escapeHtml(title)}</h3></div><div class="admin-subpage-client__actions"><button type="button" data-action="admin-move-subpage-client" data-value="${index}" data-direction="-1" ${index === 0 ? "disabled" : ""} aria-label="${escapeAttribute(localizedText("Переместить выше", "Move up", "انتقال به بالا"))}">${icon("arrowUp")}</button><button type="button" data-action="admin-move-subpage-client" data-value="${index}" data-direction="1" ${index === total - 1 ? "disabled" : ""} aria-label="${escapeAttribute(localizedText("Переместить ниже", "Move down", "انتقال به پایین"))}">${icon("arrowDown")}</button><button class="is-danger" type="button" data-action="admin-remove-subpage-client" data-value="${index}" aria-label="${escapeAttribute(localizedText("Удалить клиент", "Delete client", "حذف کلاینت"))}">${icon("trash")}</button></div></header>
-		<div class="admin-toggle-list admin-subpage-client__toggles">${renderAdminToggle(localizedText("Клиент включён", "Client enabled", "کلاینت فعال"), `subPage.clients.${index}.enabled`)}${renderAdminToggle(localizedText("Рекомендуемый", "Recommended", "پیشنهاد شده"), `subPage.clients.${index}.featured`)}</div>
+	const priority = Boolean(client?.featured);
+	return `<article class="admin-subpage-client ${priority ? "is-priority" : ""}" aria-labelledby="admin-subpage-client-${index}">
+		<header class="admin-subpage-client__header"><div><span>${String(index + 1).padStart(2, "0")}</span><h3 id="admin-subpage-client-${index}">${escapeHtml(title)}</h3></div><div class="admin-subpage-client__actions"><button class="admin-subpage-priority ${priority ? "is-active" : ""}" type="button" data-action="admin-toggle-subpage-client-priority" data-value="${index}" aria-pressed="${priority}" aria-label="${escapeAttribute(localizedText(`Приоритет: ${title}`, `Priority: ${title}`, `اولویت: ${title}`))}" ${client?.enabled === false ? "disabled" : ""}>${icon(priority ? "starFilled" : "star")}</button><button type="button" data-action="admin-move-subpage-client" data-value="${index}" data-direction="-1" ${index === 0 ? "disabled" : ""} aria-label="${escapeAttribute(localizedText("Переместить выше", "Move up", "انتقال به بالا"))}">${icon("arrowUp")}</button><button type="button" data-action="admin-move-subpage-client" data-value="${index}" data-direction="1" ${index === total - 1 ? "disabled" : ""} aria-label="${escapeAttribute(localizedText("Переместить ниже", "Move down", "انتقال به پایین"))}">${icon("arrowDown")}</button><button class="is-danger" type="button" data-action="admin-remove-subpage-client" data-value="${index}" aria-label="${escapeAttribute(localizedText("Удалить клиент", "Delete client", "حذف کلاینت"))}">${icon("trash")}</button></div></header>
+		<div class="admin-toggle-list admin-subpage-client__toggles">${renderAdminToggle(localizedText("Клиент включён", "Client enabled", "کلاینت فعال"), `subPage.clients.${index}.enabled`)}</div>
 		<div class="admin-editor__grid">${renderAdminSettingField(localizedText("Название", "Name", "نام"), `subPage.clients.${index}.name`, { placeholder: "Happ" })}${renderAdminSettingField(localizedText("Схема открытия", "Open URL prefix", "پیشوند باز کردن"), `subPage.clients.${index}.scheme`, { placeholder: "client://add/" })}</div>
 		<div class="admin-editor__grid">${renderAdminSettingField(localizedText("Ссылка для установки", "Install link", "لینک نصب"), `subPage.clients.${index}.installUrl`, { type: "url", placeholder: "https://..." })}${renderAdminSettingField(localizedText("Текст ссылки", "Link label", "متن لینک"), `subPage.clients.${index}.installLabelRu`, { placeholder: `Скачать ${title}` })}</div>
 		<label class="admin-field admin-field--full"><span>${escapeHtml(localizedText("Для каких устройств", "Devices", "دستگاه‌ها"))}</span><select class="admin-field__control" data-input="admin-subpage-scope" data-subpage-index="${index}"><option value="all" ${allPlatforms ? "selected" : ""}>${escapeHtml(localizedText("Один клиент для всех устройств", "One client for all devices", "یک کلاینت برای همه دستگاه‌ها"))}</option><option value="selected" ${!allPlatforms ? "selected" : ""}>${escapeHtml(localizedText("Только выбранные устройства", "Selected devices only", "فقط دستگاه‌های انتخاب‌شده"))}</option></select></label>
@@ -5723,8 +5726,9 @@ function renderAdminSubPagePage() {
 	const subPage = ensureAdminSubPageDraft();
 	const clients = subPage.clients;
 	return renderAdminEditorPage("Sub page", `<div class="admin-subpage">
-		<section class="admin-subpage-intro"><span aria-hidden="true">${icon("devicePhone")}</span><div><h3>${escapeHtml(localizedText("Клиенты подключения", "Connection clients", "کلاینت‌های اتصال"))}</h3><p>${escapeHtml(localizedText("Happ и INCY доступны по умолчанию. Добавьте свои клиенты для всех или только выбранных устройств.", "Happ and INCY are available by default. Add your own clients for all or selected devices.", "Happ و INCY به‌صورت پیش‌فرض در دسترس‌اند. کلاینت‌های خود را برای همه یا دستگاه‌های انتخاب‌شده اضافه کنید."))}</p></div></section>
+		<section class="admin-subpage-intro"><span aria-hidden="true">${icon("devicePhone")}</span><div><h3>${escapeHtml(localizedText("Клиенты подключения", "Connection clients", "کلاینت‌های اتصال"))}</h3><p>${escapeHtml(localizedText("Отмеченные звёздочкой клиенты показываются первыми. Свои клиенты можно переставлять стрелками.", "Starred clients appear first. Use the arrows to reorder your own clients.", "کلاینت‌های ستاره‌دار ابتدا نمایش داده می‌شوند. کلاینت‌های خود را با پیکان‌ها جابه‌جا کنید."))}</p></div></section>
 		<div class="admin-toggle-list">${renderAdminToggle(localizedText("Показывать встроенные Happ и INCY", "Show built-in Happ and INCY", "نمایش Happ و INCY داخلی"), "subPage.includeBuiltIns")}</div>
+		${subPage.includeBuiltIns ? `<div class="admin-subpage-builtins"><strong>${escapeHtml(localizedText("Встроенные клиенты", "Built-in clients", "کلاینت‌های داخلی"))}</strong><div>${["happ", "incy"].map((id) => { const priority = subPage.priorityBuiltIns.includes(id); const name = id === "happ" ? "Happ" : "INCY"; return `<button class="admin-subpage-builtins__client ${priority ? "is-priority" : ""}" type="button" data-action="admin-toggle-subpage-built-in-priority" data-value="${id}" aria-pressed="${priority}" aria-label="${escapeAttribute(localizedText(`Приоритет: ${name}`, `Priority: ${name}`, `اولویت: ${name}`))}"><span>${name}</span>${icon(priority ? "starFilled" : "star")}</button>`; }).join("")}</div></div>` : ""}
 		<div class="admin-subpage-list">${clients.map((client, index) => renderAdminSubPageClient(client, index, clients.length)).join("") || `<div class="admin-subpage-empty">${escapeHtml(localizedText("Пользовательских клиентов пока нет.", "No custom clients yet.", "هنوز کلاینت سفارشی وجود ندارد."))}</div>`}</div>
 		<button class="admin-subpage-add" type="button" data-action="admin-add-subpage-client">${icon("plus")}<span>${escapeHtml(localizedText("Добавить клиент", "Add client", "افزودن کلاینت"))}</span></button>
 	</div>`);
@@ -7686,7 +7690,7 @@ function renderSetupAppTabs(platform, selectedApp) {
   const copy = setupGuideCopy();
   return `<div class="setup-apps" role="tablist" aria-label="${escapeAttribute(copy.chooseApp)}">${platform.apps.map((appItem) => {
     const selected = appItem.id === selectedApp.id;
-    return `<button class="setup-app ${selected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${selected}" data-action="select-setup-app" data-value="${escapeAttribute(appItem.id)}" data-selection-feedback><span>${escapeHtml(appItem.name)}</span></button>`;
+    return `<button class="setup-app ${selected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${selected}" data-action="select-setup-app" data-value="${escapeAttribute(appItem.id)}" data-selection-feedback><span>${escapeHtml(appItem.name)}</span>${appItem.featured ? `<span class="setup-app__priority" aria-hidden="true">${icon("starFilled")}</span>` : ""}</button>`;
   }).join("")}</div>`;
 }
 
@@ -9752,6 +9756,8 @@ function bindRootActions() {
 			if (action === "admin-apply-plan-edit") return applyAdminPlanEdit();
 			if (action === "admin-select-all-squads") return selectAllAdminSquads(value);
 			if (action === "admin-add-subpage-client") return addAdminSubPageClient();
+			if (action === "admin-toggle-subpage-built-in-priority") return toggleAdminSubPageBuiltInPriority(value);
+			if (action === "admin-toggle-subpage-client-priority") return toggleAdminSubPageClientPriority(Number(value));
 			if (action === "admin-remove-subpage-client") return removeAdminSubPageClient(Number(value));
 			if (action === "admin-move-subpage-client") return moveAdminSubPageClient(Number(value), Number(target.dataset.direction || 0));
 			if (action === "admin-resolve-withdrawal") return await resolveAdminWithdrawal(Number(value), target.dataset.approve === "true");
@@ -10155,12 +10161,8 @@ function bindRootActions() {
 				const value = type === "boolean" ? Boolean(target.checked) : type === "number" ? Number(target.value || 0) : target.value;
 				setDeepValue(state.adminSettingsDraft, settingPath, value);
 			}
-			const featuredClient = settingPath.match(/^subPage\.clients\.(\d+)\.featured$/);
-			if (featuredClient && target.checked) {
-				const selectedIndex = Number(featuredClient[1]);
-				ensureAdminSubPageDraft().clients.forEach((client, index) => { if (index !== selectedIndex) client.featured = false; });
-				render({ preserveScroll: true });
-			}
+			const enabledClient = settingPath.match(/^subPage\.clients\.(\d+)\.enabled$/);
+			if (enabledClient && !target.checked) ensureAdminSubPageDraft().clients[Number(enabledClient[1])].featured = false;
 			if (settingPath.startsWith("appearance.")) {
 				if (target instanceof HTMLInputElement && target.type === "range") {
 					const min = Number(target.min || 0);
@@ -10192,7 +10194,7 @@ function bindRootActions() {
 			if (settingPath === "content.logoUrl") scheduleAdminLogoPreview(target.value);
 			if (settingPath === "content.webPage.faviconUrl") scheduleAdminFaviconPreview(target.value);
 			state.adminSettingsDirty = true;
-            if (settingPath === "appearance.showFrames" || settingPath === "appearance.glass") {
+			if (settingPath === "appearance.showFrames" || settingPath === "appearance.glass" || settingPath === "subPage.includeBuiltIns" || enabledClient) {
                 render({ preserveScroll: true });
                 return;
             }
@@ -11263,6 +11265,26 @@ function addAdminSubPageClient() {
 	haptic("light");
 	render({ preserveScroll: true });
 	queueMicrotask(() => app.querySelector(`[data-setting-path="subPage.clients.${subPage.clients.length - 1}.name"]`)?.focus());
+}
+
+function toggleAdminSubPageBuiltInPriority(id) {
+	if (!["happ", "incy"].includes(id)) return;
+	const priorities = ensureAdminSubPageDraft().priorityBuiltIns;
+	const index = priorities.indexOf(id);
+	if (index < 0) priorities.push(id);
+	else priorities.splice(index, 1);
+	state.adminSettingsDirty = true;
+	haptic("light");
+	render({ preserveScroll: true });
+}
+
+function toggleAdminSubPageClientPriority(index) {
+	const client = ensureAdminSubPageDraft().clients[index];
+	if (!client?.enabled) return;
+	client.featured = !client.featured;
+	state.adminSettingsDirty = true;
+	haptic("light");
+	render({ preserveScroll: true });
 }
 
 function removeAdminSubPageClient(index) {

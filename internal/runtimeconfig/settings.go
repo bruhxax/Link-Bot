@@ -302,8 +302,9 @@ type LayoutSettings struct {
 }
 
 type SubPageSettings struct {
-	IncludeBuiltIns bool                    `json:"includeBuiltIns"`
-	Clients         []SubPageClientSettings `json:"clients"`
+	IncludeBuiltIns  bool                    `json:"includeBuiltIns"`
+	PriorityBuiltIns []string                `json:"priorityBuiltIns"`
+	Clients          []SubPageClientSettings `json:"clients"`
 }
 
 type SubPageClientSettings struct {
@@ -665,8 +666,9 @@ func DefaultSettings() Settings {
 			LogoWidth:   188,
 		},
 		SubPage: SubPageSettings{
-			IncludeBuiltIns: true,
-			Clients:         []SubPageClientSettings{},
+			IncludeBuiltIns:  true,
+			PriorityBuiltIns: []string{},
+			Clients:          []SubPageClientSettings{},
 		},
 		Plans:        defaultPlans(),
 		DevicePacks:  defaultDevicePacks(),
@@ -2088,12 +2090,21 @@ func validateSubPage(value *SubPageSettings, defaults SubPageSettings, migrate b
 	if value.Clients == nil {
 		value.Clients = []SubPageClientSettings{}
 	}
+	priorities := make([]string, 0, 2)
+	prioritySeen := map[string]bool{}
+	for _, id := range value.PriorityBuiltIns {
+		id = strings.ToLower(strings.TrimSpace(id))
+		if (id == "happ" || id == "incy") && !prioritySeen[id] {
+			prioritySeen[id] = true
+			priorities = append(priorities, id)
+		}
+	}
+	value.PriorityBuiltIns = priorities
 	if len(value.Clients) > 24 {
 		return errors.New("too many Sub page clients")
 	}
 
 	seen := make(map[string]bool, len(value.Clients))
-	featuredFound := false
 	enabledFound := value.IncludeBuiltIns
 	for index := range value.Clients {
 		client := &value.Clients[index]
@@ -2145,13 +2156,6 @@ func validateSubPage(value *SubPageSettings, defaults SubPageSettings, migrate b
 			continue
 		}
 		enabledFound = true
-		if client.Featured {
-			if featuredFound {
-				client.Featured = false
-			} else {
-				featuredFound = true
-			}
-		}
 	}
 	if !enabledFound {
 		return errors.New("Sub page requires at least one enabled client")
