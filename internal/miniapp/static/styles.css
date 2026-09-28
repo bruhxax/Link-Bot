@@ -1489,14 +1489,14 @@ select:focus-visible {
 /* Finance: dense analytics with one restrained chart accent and flat history rows. */
 .admin-finance { display: grid; gap: 20px; padding: 2px 4px 104px; }
 .admin-finance__header { min-height: 47px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.admin-finance__header > div { min-width: 0; }
-.admin-finance__header span,
+.admin-finance__header > div:first-child { min-width: 0; }
+.admin-finance__header > div:first-child > span,
 .admin-finance__section-head > div > span { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .08em; }
 .admin-finance__header h2 { margin: 5px 0 0; font-size: 21px; line-height: 1.2; }
-.admin-finance__header button { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 6px; color: var(--muted); background: transparent; transition: color 180ms ease, background-color 180ms ease, transform 180ms ease; }
-.admin-finance__header button:hover { color: var(--text); background: var(--control-bg); }
-.admin-finance__header button:active { transform: rotate(12deg); }
-.admin-finance__header button svg { width: 17px; height: 17px; }
+.admin-finance__header > button { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 6px; color: var(--muted); background: transparent; transition: color 180ms ease, background-color 180ms ease, transform 180ms ease; }
+.admin-finance__header > button:hover { color: var(--text); background: var(--control-bg); }
+.admin-finance__header > button:active { transform: rotate(12deg); }
+.admin-finance__header > button svg { width: 17px; height: 17px; }
 
 .admin-finance__metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden; border-block: 1px solid var(--line); }
 .admin-finance__metrics > div { min-width: 0; min-height: 72px; padding: 11px 8px; display: grid; align-content: center; gap: 5px; }
@@ -13220,7 +13220,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .admin-finance-provider__refund { color: var(--muted); font-size: 8px; }
 .admin-ga4 { padding: 16px; }
 .admin-analytics .admin-finance__header { flex-wrap: wrap; align-items: center; }
-.admin-analytics .admin-finance__header .admin-finance-period { margin-left: auto; }
+.admin-analytics .admin-finance__header .admin-finance-period { flex: 0 0 172px; min-width: 172px; margin-left: auto; }
 .admin-analytics__loading .admin-ga4__metrics span,
 .admin-analytics__loading .admin-ga4__metrics strong { width: 70%; height: 10px; border-radius: 5px; background: var(--control-bg); animation: adminFinancePulse 1.25s ease-in-out infinite alternate; }
 .admin-analytics__loading .admin-ga4__metrics strong { width: 48%; height: 16px; }
