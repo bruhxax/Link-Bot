@@ -12,11 +12,6 @@
     success: "--success", danger: "--danger",
   };
   let loading = false;
-  let glassOptics;
-  import("./glass-optics.mjs").then(({ createGlassOptics }) => {
-    glassOptics = createGlassOptics();
-    glassOptics.setEnabled(document.documentElement.dataset.glass === "on");
-  }).catch(() => { /* Keep the frosted glass if optical filters are unavailable. */ });
   let previousNodes = "";
   let previousNodeStructure = "";
   let previousPlans = "";
@@ -218,7 +213,6 @@
       const data = payload.data;
       setColors(data.colors);
       document.documentElement.dataset.glass = data.glass === true ? "on" : "off";
-      glassOptics?.setEnabled(data.glass === true);
       setBrand(data.brand);
       renderNodes(data.nodes, Boolean(data.nodesAvailable));
       renderPlans(data.plans);
