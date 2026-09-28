@@ -73,6 +73,10 @@ type UserState struct {
 	DeviceLimit          int
 	UsedDevices          int
 	Devices              []UserDevice
+	// DevicesLoaded distinguishes a confirmed empty list from a failed HWID
+	// request. Only confirmed snapshots may advance notification state.
+	DevicesLoaded    bool
+	DevicesCheckedAt time.Time
 }
 
 var ErrAdminSubscriptionNotFound = errors.New("subscription not found")
@@ -481,6 +485,7 @@ func (r *Client) userStateFromPanelUser(ctx context.Context, user *PanelUser, lo
 	if user.HwidDeviceLimit != nil {
 		deviceLimit = *user.HwidDeviceLimit
 	}
+	devicesCheckedAt := time.Now().UTC()
 	devices, deviceErr := r.getUserHWIDDevices(ctx, user.ID, user.UUID)
 	if deviceErr != nil {
 		slog.Warn("remnawave: load user devices failed", "error", deviceErr, logKey, logValue)
@@ -504,6 +509,8 @@ func (r *Client) userStateFromPanelUser(ctx context.Context, user *PanelUser, lo
 			DeviceLimit:       deviceLimit,
 			UsedDevices:       usedDevices,
 			Devices:           devices,
+			DevicesLoaded:     deviceErr == nil,
+			DevicesCheckedAt:  devicesCheckedAt,
 		}, nil
 	}
 
@@ -528,6 +535,8 @@ func (r *Client) userStateFromPanelUser(ctx context.Context, user *PanelUser, lo
 		DeviceLimit:          deviceLimit,
 		UsedDevices:          usedDevices,
 		Devices:              devices,
+		DevicesLoaded:        deviceErr == nil,
+		DevicesCheckedAt:     devicesCheckedAt,
 	}, nil
 }
 
@@ -631,11 +640,17 @@ func (r *Client) getUserHWIDDevices(ctx context.Context, userID int64, userUUID 
 		err = r.doAPIJSON(ctx, http.MethodGet, "/api/hwid/devices/"+userUUID.String(), nil, &payload)
 	}
 	if err != nil {
-		var apiErr *remnawaveAPIError
-		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
-			return []UserDevice{}, nil
-		}
 		return nil, err
+	}
+	// An unsupported endpoint, null response or incomplete payload is not
+	// evidence that the user removed all their devices.
+	if payload.Response.Devices == nil || payload.Response.Total != len(payload.Response.Devices) {
+		return nil, errors.New("incomplete remnawave device list")
+	}
+	for _, device := range payload.Response.Devices {
+		if strings.TrimSpace(device.Hwid) == "" {
+			return nil, errors.New("remnawave device has no HWID")
+		}
 	}
 	return userDevicesFromResponse(payload, userID, userUUID), nil
 }

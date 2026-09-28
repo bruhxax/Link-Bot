@@ -5842,7 +5842,11 @@ func (h *Handler) trackDeviceNotifications(ctx context.Context, customer *databa
 	if h == nil || h.customerRepository == nil || h.telegramBot == nil || customer == nil || subscription == nil || subscription.ID <= 0 || panelState == nil {
 		return
 	}
-	added, limitReached, err := h.customerRepository.ClaimDeviceNotifications(ctx, customer.TelegramID, subscription.ID, panelState.UsedDevices, panelState.DeviceLimit)
+	snapshot, valid := deviceNotificationSnapshotForPanelState(panelState)
+	if !valid {
+		return
+	}
+	added, limitReached, err := h.customerRepository.ClaimDeviceNotifications(ctx, customer.TelegramID, subscription.ID, snapshot)
 	if err != nil {
 		slog.Warn("mini app: claim device notifications", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID), "subscriptionId", subscription.ID)
 		return
