@@ -21,6 +21,8 @@ const standaloneWebApp = clientSurface === "browser" && Boolean(
 );
 document.documentElement.dataset.client = clientSurface;
 document.documentElement.dataset.displayMode = standaloneWebApp ? "standalone" : "browser";
+const cabinetWideMedia = window.matchMedia("(min-width: 760px)");
+document.documentElement.dataset.layout = cabinetWideMedia.matches ? "wide" : "compact";
 const telegramBotID = document.querySelector('meta[name="telegram-bot-id"]')?.content?.trim() || "";
 const googleMetaClientID = document.querySelector('meta[name="google-client-id"]')?.content?.trim() || "";
 const urlParams = new URLSearchParams(window.location.search);
@@ -2880,10 +2882,8 @@ function initTelegram() {
     window.addEventListener("resize", syncAppViewportHeight, { passive: true });
     initTelegram.viewportResizeBound = true;
   }
-	if (clientSurface === "browser" && !initTelegram.cabinetBreakpointBound) {
-		window.matchMedia("(min-width: 760px)").addEventListener("change", () => {
-			if (state.data) render({ preserveScroll: false, scrollTop: 0 });
-		});
+	if (!initTelegram.cabinetBreakpointBound) {
+		cabinetWideMedia.addEventListener("change", syncCabinetLayout);
 		initTelegram.cabinetBreakpointBound = true;
 	}
   if (!tg) return;
@@ -3715,8 +3715,31 @@ function getBottomDockMode() {
 	return "navigation";
 }
 
-function isWideBrowserCabinet() {
-	return clientSurface === "browser" && window.matchMedia("(min-width: 760px)").matches;
+function isWideCabinet() {
+	return cabinetWideMedia.matches;
+}
+
+function syncCabinetLayout() {
+	const layout = isWideCabinet() ? "wide" : "compact";
+	if (document.documentElement.dataset.layout === layout) return;
+	const previousLeft = app.querySelector(".page-scroll")?.getBoundingClientRect().left;
+	document.documentElement.dataset.layout = layout;
+	if (!state.data) return;
+	render({ preserveInteraction: true });
+	if (reducedMotionMedia?.matches) return;
+	const content = app.querySelector(".page-scroll");
+	const nextLeft = content?.getBoundingClientRect().left;
+	const shift = Number.isFinite(previousLeft) && Number.isFinite(nextLeft)
+		? Math.max(-48, Math.min(48, previousLeft - nextLeft))
+		: (layout === "wide" ? 18 : -18);
+	const animate = (element, keyframes, duration) => element?.animate?.(keyframes, {
+		duration, easing: "cubic-bezier(.22, 1, .36, 1)",
+	});
+	animate(content, [{ opacity: .55, translate: `${shift}px 0` }, { opacity: 1, translate: "0 0" }], 320);
+	if (!state.adminLayoutEditing) {
+		animate(app.querySelector(layout === "wide" ? ".desktop-sidebar" : ".bottom-nav:not(.bottom-nav--editor)"),
+			[{ opacity: 0, translate: layout === "wide" ? "-18px 0" : "0 12px" }, { opacity: 1, translate: "0 0" }], 380);
+	}
 }
 
 function desktopSidebarContent(sidebar) {
@@ -3758,7 +3781,7 @@ function syncDesktopSidebar(current, next) {
 
 function mountCabinetShell(markup) {
 	const currentShell = app.firstElementChild;
-	if (!isWideBrowserCabinet() || !currentShell?.classList.contains("app-shell") || state.adminLayoutEditing || currentShell.classList.contains("app-shell--layout-editor")) {
+	if (!isWideCabinet() || !currentShell?.classList.contains("app-shell") || state.adminLayoutEditing || currentShell.classList.contains("app-shell--layout-editor")) {
 		app.innerHTML = markup;
 		return;
 	}
@@ -3784,17 +3807,11 @@ function mountCabinetShell(markup) {
 	currentShell.append(...nextShell.childNodes);
 }
 
-function render({ preserveScroll = true, scrollTop = null } = {}) {
+function render({ preserveScroll = true, scrollTop = null, preserveInteraction = false } = {}) {
 	realtimeRenderPending = false;
 	window.clearTimeout(realtimeRenderTimer);
-	if (state.data && isWideBrowserCabinet() && !state.adminLayoutEditing && state.currentPage === "settings") {
-		state.currentPage = "dashboard";
-		writeSetting(STORAGE_KEYS.page, state.currentPage);
-		preserveScroll = false;
-		scrollTop = 0;
-	}
-	const realtimeFocus = realtimeRefreshRunning ? captureRealtimeFocus() : null;
-	const realtimeDetails = realtimeRefreshRunning
+	const realtimeFocus = realtimeRefreshRunning || preserveInteraction ? captureRealtimeFocus() : null;
+	const realtimeDetails = realtimeRefreshRunning || preserveInteraction
 		? [...app.querySelectorAll("details")].flatMap((element, index) => element.open ? [{ index, label: element.querySelector("summary")?.textContent || "" }] : [])
 		: [];
   bannerMediaResizeObserver?.disconnect();
@@ -7111,7 +7128,7 @@ function renderDashboardPage() {
 		blocks[item.id] = renderDashboardBanner(item);
 	});
 	const switchAnimationClass = subscriptionSwitchAnimation ? `subscription-switch--${subscriptionSwitchAnimation}` : "";
-	const layoutPendingClass = (!isWideBrowserCabinet() || state.adminLayoutEditing) && getLayoutElements("dashboard").some((item) => item?.visible !== false && hasStoredLayoutPosition(item))
+	const layoutPendingClass = (!isWideCabinet() || state.adminLayoutEditing) && getLayoutElements("dashboard").some((item) => item?.visible !== false && hasStoredLayoutPosition(item))
 		? "layout-runtime-pending"
 		: "";
 	const revealClass = state.dashboardRevealPending && state.currentPage === "dashboard" ? "dashboard-reveal" : "";
@@ -12702,7 +12719,7 @@ function mountRuntimeLayoutSurface(surface, kind) {
 }
 
 function mountRuntimeLayout() {
-	if (state.currentPage === "dashboard" && (!isWideBrowserCabinet() || state.adminLayoutEditing)) {
+	if (state.currentPage === "dashboard" && (!isWideCabinet() || state.adminLayoutEditing)) {
 		mountRuntimeLayoutSurface(app.querySelector("#page-dashboard.page.active"), "page");
 	}
 }
@@ -14905,7 +14922,7 @@ function closeAdminSection() {
 
 function setPage(page) {
 	const normalizedPage = normalizePage(page);
-	const nextPage = normalizedPage === "settings" && isWideBrowserCabinet() && !state.adminLayoutEditing ? "dashboard" : normalizedPage;
+	const nextPage = normalizedPage;
 	if (state.adminPlanEditing) {
 		if (nextPage !== "buy") return;
 		state.currentPage = "buy";

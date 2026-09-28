@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestBrowserAndTelegramLayoutSurfaces(t *testing.T) {
+func TestResponsiveCabinetAndAuthenticationSurfaces(t *testing.T) {
 	appRaw, err := embeddedStatic.ReadFile("static/app.js")
 	if err != nil {
 		t.Fatalf("read embedded app.js: %v", err)
@@ -24,6 +24,10 @@ func TestBrowserAndTelegramLayoutSurfaces(t *testing.T) {
 		`document.documentElement.dataset.client = clientSurface;`,
 		`document.documentElement.dataset.displayMode = standaloneWebApp ? "standalone" : "browser";`,
 		`returnTarget: paymentReturnTarget,`,
+		`const cabinetWideMedia = window.matchMedia("(min-width: 760px)");`,
+		`document.documentElement.dataset.layout = cabinetWideMedia.matches ? "wide" : "compact";`,
+		`return cabinetWideMedia.matches;`,
+		`cabinetWideMedia.addEventListener("change", syncCabinetLayout);`,
 	} {
 		if !strings.Contains(appJS, fragment) {
 			t.Fatalf("browser surface detection fragment is missing: %q", fragment)
@@ -34,17 +38,17 @@ func TestBrowserAndTelegramLayoutSurfaces(t *testing.T) {
 		`:root[data-client="browser"] #app`,
 		`width: min(100%, 430px);`,
 		`@media (min-width: 760px)`,
-		`:root[data-client="browser"] .app-shell`,
+		`:root[data-layout="wide"] .app-shell`,
 		`grid-template-columns: clamp(224px, 20vw, 292px) minmax(0, 1fr);`,
-		`:root[data-client="browser"] .desktop-sidebar`,
-		`:root[data-client="browser"] .bottom-nav:not(.bottom-nav--editor) { display: none; }`,
+		`:root[data-layout="wide"] .desktop-sidebar`,
+		`:root[data-layout="wide"] .bottom-nav:not(.bottom-nav--editor) { display: none; }`,
 		`:root[data-client="browser"][data-display-mode="standalone"] .page-scroll`,
 		`padding-top: calc(12px + var(--safe-top));`,
 		`height: 100vh;`,
-		`:root[data-client="browser"] .modal`,
+		`:root[data-layout="wide"] .modal`,
 		`align-items: center;`,
 		`justify-content: center;`,
-		`:root[data-client="browser"] .modal__sheet`,
+		`:root[data-layout="wide"] .modal__sheet`,
 		`max-width: 430px;`,
 	} {
 		if !strings.Contains(styles, fragment) {
@@ -68,7 +72,7 @@ func TestBrowserAndTelegramLayoutSurfaces(t *testing.T) {
 		t.Fatal("narrow browsers and Telegram must retain the 360px dashboard coordinate plane")
 	}
 	for _, fragment := range []string{
-		`:root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard.page.active {`,
+		`:root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard.page.active {`,
 		`width: min(100%, clamp(480px, 35vw, 680px));`,
 		`grid-template-columns: minmax(0, 1fr);`,
 		`width: clamp(180px, 15vw, 240px) !important;`,
@@ -80,14 +84,14 @@ func TestBrowserAndTelegramLayoutSurfaces(t *testing.T) {
 	if strings.Contains(appJS, `subscription-switcher__create`) || strings.Contains(styles, `.subscription-switcher__create`) {
 		t.Fatal("the unsolicited add-subscription button must not appear above the dashboard")
 	}
-	if !strings.Contains(appJS, `if (state.currentPage === "dashboard" && (!isWideBrowserCabinet() || state.adminLayoutEditing))`) {
+	if !strings.Contains(appJS, `if (state.currentPage === "dashboard" && (!isWideCabinet() || state.adminLayoutEditing))`) {
 		t.Fatal("wide browser dashboard must use its fluid layout while the editor keeps saved coordinates")
 	}
 	if strings.Contains(appJS, `desktop-page-heading`) || strings.Contains(styles, `.desktop-page-heading`) {
 		t.Fatal("the extra desktop page heading must be removed")
 	}
-	if strings.Contains(styles, `:root[data-client="telegram"] #page-dashboard`) {
-		t.Fatal("wide browser layout must not override the Telegram dashboard")
+	if strings.Contains(appJS, `clientSurface === "browser" && window.matchMedia("(min-width: 760px)")`) {
+		t.Fatal("wide cabinet layout must also be available in Telegram")
 	}
 
 	if !strings.Contains(styles, ".modal__sheet--thread {\n  margin-inline: auto;\n}") {

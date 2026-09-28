@@ -10266,8 +10266,8 @@ body.has-open-modal .admin-save-bar {
   }
 }
 
-/* Narrow browsers retain the Mini App width. Wide browser rules below
-   expand the cabinet without changing Telegram sessions. */
+/* Narrow browsers retain the Mini App width. Shared wide layout rules below
+   expand both the web cabinet and Telegram windows. */
 :root[data-client="browser"] #app {
   width: min(100%, 430px);
   max-width: 430px;
@@ -10292,38 +10292,38 @@ body.has-open-modal .admin-save-bar {
 }
 
 @media (min-width: 700px) {
-  :root[data-client="browser"] .page-scroll {
+  :root[data-layout="wide"] .page-scroll {
     padding-left: 12px;
     padding-right: 12px;
   }
 
-  :root[data-client="browser"] .hero-center {
+  :root[data-layout="wide"] .hero-center {
     min-height: 220px;
   }
 
-  :root[data-client="browser"] .pricing-list {
+  :root[data-layout="wide"] .pricing-list {
     grid-template-columns: repeat(var(--plan-columns, 2), minmax(0, 1fr));
   }
 
-  :root[data-client="browser"] .pricing-card:not(.pricing-card--wide) .pricing-card__content {
+  :root[data-layout="wide"] .pricing-card:not(.pricing-card--wide) .pricing-card__content {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  :root[data-client="browser"] .pricing-card:not(.pricing-card--wide) .pricing-card__price-stack {
+  :root[data-layout="wide"] .pricing-card:not(.pricing-card--wide) .pricing-card__price-stack {
     justify-items: start;
   }
 
-  :root[data-client="browser"] .bottom-nav {
+  :root[data-layout="wide"] .bottom-nav {
     max-width: calc(100% - 24px);
   }
 
-  :root[data-client="browser"] .modal {
+  :root[data-layout="wide"] .modal {
     align-items: center;
     justify-content: center;
     padding: 24px;
   }
 
-  :root[data-client="browser"] .modal__sheet {
+  :root[data-layout="wide"] .modal__sheet {
     width: min(430px, 100%);
     max-width: 430px;
     max-height: calc(100dvh - 48px);
@@ -10332,15 +10332,15 @@ body.has-open-modal .admin-save-bar {
     border-bottom: 1px solid var(--line);
   }
 
-  :root[data-client="browser"] .modal__sheet--devices {
+  :root[data-layout="wide"] .modal__sheet--devices {
     max-height: min(78dvh, 600px);
   }
 
-  :root[data-client="browser"] .modal__sheet--support {
+  :root[data-layout="wide"] .modal__sheet--support {
     width: min(390px, 100%);
   }
 
-  :root[data-client="browser"] .modal__sheet--thread {
+  :root[data-layout="wide"] .modal__sheet--thread {
     width: min(430px, 100%);
     height: min(82dvh, 720px);
   }
@@ -12457,26 +12457,26 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 @keyframes profilePromoPanelOut { to { opacity: 0; transform: translateY(5px) scale(.98); } }
 @media (prefers-reduced-motion: reduce) { .modal--animate .profile-promo-sheet, .modal--closing .profile-promo-sheet { animation-duration: 1ms; } }
 
-/* The wide web cabinet has its own navigation. Telegram and narrow browsers
-   keep their existing single-column Mini App layout. */
+/* Wide windows share the same cabinet navigation in browsers and Telegram.
+   Compact windows keep the single-column Mini App layout. */
 .desktop-sidebar { display: none; }
 
 @media (min-width: 760px) {
-  :root[data-client="browser"] #app {
+  :root[data-layout="wide"] #app {
     width: 100%;
     max-width: none;
-    height: 100dvh;
+    height: var(--app-viewport-height, 100dvh);
     margin: 0;
   }
 
-  :root[data-client="browser"] .app-shell {
+  :root[data-layout="wide"] .app-shell {
     display: grid;
     grid-template-columns: clamp(224px, 20vw, 292px) minmax(0, 1fr);
     height: 100%;
     min-height: 0;
   }
 
-  :root[data-client="browser"] .desktop-sidebar {
+  :root[data-layout="wide"] .desktop-sidebar {
     min-width: 0;
     min-height: 0;
     margin: 12px 0 12px 12px;
@@ -12490,7 +12490,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     box-shadow: 0 16px 40px rgba(0, 0, 0, .16);
   }
 
-  :root[data-client="browser"] .desktop-sidebar__brand {
+  :root[data-layout="wide"] .desktop-sidebar__brand {
     min-height: 48px;
     padding: 0 10px 16px;
     display: flex;
@@ -12499,14 +12499,14 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     border-bottom: 1px solid var(--line);
   }
 
-  :root[data-client="browser"] .desktop-sidebar__brand img {
+  :root[data-layout="wide"] .desktop-sidebar__brand img {
     width: 29px;
     height: 29px;
     flex: 0 0 29px;
     object-fit: contain;
   }
 
-  :root[data-client="browser"] .desktop-sidebar__brand strong {
+  :root[data-layout="wide"] .desktop-sidebar__brand strong {
     min-width: 0;
     overflow: hidden;
     color: var(--text);
@@ -12517,7 +12517,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     white-space: nowrap;
   }
 
-  :root[data-client="browser"] .desktop-sidebar__nav {
+  :root[data-layout="wide"] .desktop-sidebar__nav {
     min-height: 0;
     padding: 5px 2px 12px;
     display: block;
@@ -12529,14 +12529,14 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     scrollbar-color: var(--line) transparent;
   }
 
-  :root[data-client="browser"] .desktop-sidebar__group {
+  :root[data-layout="wide"] .desktop-sidebar__group {
     padding: 8px 2px 9px;
     border-bottom: 1px solid var(--line-soft);
   }
 
-  :root[data-client="browser"] .desktop-sidebar__group:last-child { border-bottom: 0; }
+  :root[data-layout="wide"] .desktop-sidebar__group:last-child { border-bottom: 0; }
 
-  :root[data-client="browser"] .desktop-sidebar__label {
+  :root[data-layout="wide"] .desktop-sidebar__label {
     margin: 0 10px 5px;
     color: var(--muted);
     font-size: 10px;
@@ -12546,7 +12546,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     text-transform: uppercase;
   }
 
-  :root[data-client="browser"] .desktop-sidebar__item {
+  :root[data-layout="wide"] .desktop-sidebar__item {
     width: 100%;
 	min-height: 38px;
     padding: 6px 10px;
@@ -12563,18 +12563,18 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     transition: background-color .16s ease, color .16s ease;
   }
 
-  :root[data-client="browser"] .desktop-sidebar__item:hover { background: var(--control-bg); }
-  :root[data-client="browser"] .desktop-sidebar__item:disabled { opacity: .48; cursor: default; }
-  :root[data-client="browser"] .desktop-sidebar__item.is-active {
+  :root[data-layout="wide"] .desktop-sidebar__item:hover { background: var(--control-bg); }
+  :root[data-layout="wide"] .desktop-sidebar__item:disabled { opacity: .48; cursor: default; }
+  :root[data-layout="wide"] .desktop-sidebar__item.is-active {
     color: var(--accent);
     background: color-mix(in srgb, var(--accent) 11%, var(--surface-strong));
   }
-  :root[data-client="browser"] .desktop-sidebar__item:focus-visible {
+  :root[data-layout="wide"] .desktop-sidebar__item:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
   }
 
-  :root[data-client="browser"] .desktop-sidebar__icon {
+  :root[data-layout="wide"] .desktop-sidebar__icon {
     width: 19px;
     height: 19px;
     flex: 0 0 19px;
@@ -12583,12 +12583,12 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     color: currentColor;
   }
 
-  :root[data-client="browser"] .desktop-sidebar__icon svg,
-  :root[data-client="browser"] .desktop-sidebar__external svg { width: 18px; height: 18px; }
-  :root[data-client="browser"] .desktop-sidebar__external { margin-left: auto; color: var(--muted); }
+  :root[data-layout="wide"] .desktop-sidebar__icon svg,
+  :root[data-layout="wide"] .desktop-sidebar__external svg { width: 18px; height: 18px; }
+  :root[data-layout="wide"] .desktop-sidebar__external { margin-left: auto; color: var(--muted); }
 
-  :root[data-client="browser"] .page-scroll,
-  :root[data-client="browser"][data-display-mode="standalone"] .page-scroll {
+  :root[data-layout="wide"] .page-scroll,
+  :root[data-layout="wide"][data-display-mode="standalone"] .page-scroll {
     min-width: 0;
     min-height: 0;
     padding: 28px clamp(24px, 3.2vw, 56px) 48px;
@@ -12596,37 +12596,37 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 	overscroll-behavior: contain;
   }
 
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard.page.active {
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard.page.active {
     width: min(100%, clamp(480px, 35vw, 680px));
     margin: clamp(16px, 3vh, 32px) auto 0;
   }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-layout-area--dashboard {
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-layout-area--dashboard {
     gap: clamp(12px, 1.6vh, 18px);
   }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-layout-area--dashboard > .runtime-layout-item {
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-layout-area--dashboard > .runtime-layout-item {
     width: 100% !important;
     min-height: 0;
     height: auto !important;
     transform: none;
     align-self: center;
   }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-layout-item[data-runtime-id="subscription_switcher"] { order: 0; width: clamp(180px, 15vw, 240px) !important; height: 44px !important; min-height: 44px; overflow: visible; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-layout-item[data-runtime-id="brand"] { order: 1; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-layout-item[data-runtime-id="subscription"] { order: 2; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-layout-item[data-runtime-id="actions"] { order: 3; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-layout-item:not([data-runtime-id="subscription_switcher"]):not([data-runtime-id="brand"]):not([data-runtime-id="subscription"]):not([data-runtime-id="actions"]) { order: 4; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-detail-item {
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-layout-item[data-runtime-id="subscription_switcher"] { order: 0; width: clamp(180px, 15vw, 240px) !important; height: 44px !important; min-height: 44px; overflow: visible; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-layout-item[data-runtime-id="brand"] { order: 1; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-layout-item[data-runtime-id="subscription"] { order: 2; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-layout-item[data-runtime-id="actions"] { order: 3; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-layout-item:not([data-runtime-id="subscription_switcher"]):not([data-runtime-id="brand"]):not([data-runtime-id="subscription"]):not([data-runtime-id="actions"]) { order: 4; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-detail-item {
     width: 100% !important;
     height: auto !important;
     min-height: 0;
     transform: none;
   }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher {
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher {
     width: 100%;
     height: 100%;
     display: block;
   }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__trigger {
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__trigger {
     width: 100%;
     min-height: 44px;
     padding: 0 36px;
@@ -12634,92 +12634,92 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     justify-content: center;
     text-align: center;
   }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__trigger > span:first-child { max-width: 100%; text-align: center; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__chevron { position: absolute; right: 14px; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__chevron,
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__chevron svg { width: 16px; height: 16px; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__menu { width: 100%; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .hero-center--brand {
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__trigger > span:first-child { max-width: 100%; text-align: center; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__chevron { position: absolute; right: 14px; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__chevron,
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__chevron svg { width: 16px; height: 16px; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .subscription-switcher__menu { width: 100%; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .hero-center--brand {
     width: 100%;
     min-height: 0;
     margin: 0;
     gap: 8px;
   }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-detail-item--logo {
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-detail-item--logo {
     width: clamp(300px, 31vw, 420px) !important;
     height: clamp(220px, 29vh, 280px) !important;
     margin-inline: auto;
   }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-detail-item--logo > .hero-brand { height: 100%; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-detail-item--logo img { transform: scale(1.3); }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .hero-handle {
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-detail-item--logo > .hero-brand { height: 100%; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .runtime-detail-item--logo img { transform: scale(1.3); }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .hero-handle {
     max-width: none;
     font-size: 15px;
   }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .dashboard-compact { width: 100%; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar--status { gap: 12px; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; justify-items: stretch; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard [data-runtime-layout-key="dashboard:plan_name"] { grid-column: 1; justify-content: flex-start; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard [data-runtime-layout-key="dashboard:expires"] { grid-column: 2; justify-content: flex-end; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__name { font-size: clamp(24px, 2.4vw, 34px); text-align: left; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__date { margin-left: 0; justify-content: flex-end; font-size: 15px; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__row--pills { gap: 18px; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__row--pills .runtime-detail-item--pill { width: auto !important; flex: 0 0 auto; margin-inline: 0; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard [data-runtime-layout-key="dashboard:traffic"] { grid-column: 1; justify-self: start; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard [data-runtime-layout-key="dashboard:devices"] { grid-column: 2; justify-self: end; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-pill { min-height: 38px; padding-inline: 15px; font-size: 14px; }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .action-stack--dashboard {
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .dashboard-compact { width: 100%; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar--status { gap: 12px; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; justify-items: stretch; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard [data-runtime-layout-key="dashboard:plan_name"] { grid-column: 1; justify-content: flex-start; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard [data-runtime-layout-key="dashboard:expires"] { grid-column: 2; justify-content: flex-end; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__name { font-size: clamp(24px, 2.4vw, 34px); text-align: left; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__date { margin-left: 0; justify-content: flex-end; font-size: 15px; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__row--pills { gap: 18px; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-bar__row--pills .runtime-detail-item--pill { width: auto !important; flex: 0 0 auto; margin-inline: 0; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard [data-runtime-layout-key="dashboard:traffic"] { grid-column: 1; justify-self: start; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard [data-runtime-layout-key="dashboard:devices"] { grid-column: 2; justify-self: end; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .sub-pill { min-height: 38px; padding-inline: 15px; font-size: 14px; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .action-stack--dashboard {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
     margin: 0;
   }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .action-stack--dashboard .btn {
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .action-stack--dashboard .btn {
     width: 100%;
     min-height: clamp(54px, 6vh, 64px);
     font-size: 16px;
   }
-  :root[data-client="browser"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .action-stack--dashboard .btn svg { width: 18px; height: 18px; }
+  :root[data-layout="wide"] .app-shell:not(.app-shell--layout-editor) #page-dashboard .action-stack--dashboard .btn svg { width: 18px; height: 18px; }
 
-  :root[data-client="browser"] .page.active:not(#page-dashboard) {
+  :root[data-layout="wide"] .page.active:not(#page-dashboard) {
     width: 100%;
     max-width: 1200px;
     margin-inline: auto;
   }
-	:root[data-client="browser"] #page-admin.active:has(.admin-content-nav) { max-width: 960px; }
-	:root[data-client="browser"] #page-admin .admin-content-tabs button { min-height: 40px; padding-inline: 12px; font-size: 12px; }
-	:root[data-client="browser"] #page-admin .admin-content-panel .admin-editor__section h3 { font-size: 14px; }
-	:root[data-client="browser"] #page-admin .admin-content-panel .admin-field > span,
-	:root[data-client="browser"] #page-admin .admin-content-panel .admin-telegram-button summary span { font-size: 12px; }
-	:root[data-client="browser"] #page-admin .admin-content-panel .admin-field__control,
-	:root[data-client="browser"] #page-admin .admin-content-panel .admin-telegram-button summary strong { font-size: 13px; }
-	:root[data-client="browser"] #page-admin .admin-content-panel .admin-field__code { font-size: 12px; }
-	:root[data-client="browser"] #page-admin .admin-content-panel .admin-empty-line,
-	:root[data-client="browser"] #page-admin .admin-content-panel small { font-size: 11px; }
+	:root[data-layout="wide"] #page-admin.active:has(.admin-content-nav) { max-width: 960px; }
+	:root[data-layout="wide"] #page-admin .admin-content-tabs button { min-height: 40px; padding-inline: 12px; font-size: 12px; }
+	:root[data-layout="wide"] #page-admin .admin-content-panel .admin-editor__section h3 { font-size: 14px; }
+	:root[data-layout="wide"] #page-admin .admin-content-panel .admin-field > span,
+	:root[data-layout="wide"] #page-admin .admin-content-panel .admin-telegram-button summary span { font-size: 12px; }
+	:root[data-layout="wide"] #page-admin .admin-content-panel .admin-field__control,
+	:root[data-layout="wide"] #page-admin .admin-content-panel .admin-telegram-button summary strong { font-size: 13px; }
+	:root[data-layout="wide"] #page-admin .admin-content-panel .admin-field__code { font-size: 12px; }
+	:root[data-layout="wide"] #page-admin .admin-content-panel .admin-empty-line,
+	:root[data-layout="wide"] #page-admin .admin-content-panel small { font-size: 11px; }
 
-  :root[data-client="browser"] .bottom-nav:not(.bottom-nav--editor) { display: none; }
-  :root[data-client="browser"] .page-support .support-top-grid .menu-card {
+  :root[data-layout="wide"] .bottom-nav:not(.bottom-nav--editor) { display: none; }
+  :root[data-layout="wide"] .page-support .support-top-grid .menu-card {
     min-height: 74px !important;
     padding: 15px 20px !important;
     grid-template-columns: 32px minmax(0, 1fr);
     gap: 14px !important;
   }
-  :root[data-client="browser"] .page-support .support-top-grid .menu-card .menu-card__title { font-size: 15px !important; }
-  :root[data-client="browser"] .page-support .support-top-grid .menu-card .menu-card__hint { font-size: 12px !important; line-height: 1.35 !important; }
-  :root[data-client="browser"] .page-support .support-ticket-card { min-height: 118px; padding: 20px 24px !important; }
-  :root[data-client="browser"] .page-buy .pricing-list { gap: 14px; }
-  :root[data-client="browser"] .page-buy .pricing-card { min-height: 120px; }
-  :root[data-client="browser"] .profile-page.active:not(.profile-page--sorting) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-content: start; }
-  :root[data-client="browser"] .profile-page.active .profile-group { min-width: 0; }
-  :root[data-client="browser"] .profile-page.active .profile-group + .profile-group { margin-top: 0; }
-  :root[data-client="browser"] #page-admin.active:has(> .admin-menu-group) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-content: start; }
-  :root[data-client="browser"] #page-admin.active > .admin-menu-group { min-width: 0; margin-top: 0; }
-  :root[data-client="browser"] .app-shell--layout-editor { grid-template-columns: minmax(0, 1fr); }
-  :root[data-client="browser"] .app-shell--layout-editor .desktop-sidebar { display: none; }
+  :root[data-layout="wide"] .page-support .support-top-grid .menu-card .menu-card__title { font-size: 15px !important; }
+  :root[data-layout="wide"] .page-support .support-top-grid .menu-card .menu-card__hint { font-size: 12px !important; line-height: 1.35 !important; }
+  :root[data-layout="wide"] .page-support .support-ticket-card { min-height: 118px; padding: 20px 24px !important; }
+  :root[data-layout="wide"] .page-buy .pricing-list { gap: 14px; }
+  :root[data-layout="wide"] .page-buy .pricing-card { min-height: 120px; }
+  :root[data-layout="wide"] .profile-page.active:not(.profile-page--sorting) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-content: start; }
+  :root[data-layout="wide"] .profile-page.active .profile-group { min-width: 0; }
+  :root[data-layout="wide"] .profile-page.active .profile-group + .profile-group { margin-top: 0; }
+  :root[data-layout="wide"] #page-admin.active:has(> .admin-menu-group) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-content: start; }
+  :root[data-layout="wide"] #page-admin.active > .admin-menu-group { min-width: 0; margin-top: 0; }
+  :root[data-layout="wide"] .app-shell--layout-editor { grid-template-columns: minmax(0, 1fr); }
+  :root[data-layout="wide"] .app-shell--layout-editor .desktop-sidebar { display: none; }
 }
 
 @media (min-width: 1200px) {
-  :root[data-client="browser"] .page-support .support-top-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  :root[data-client="browser"] .page-buy .pricing-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  :root[data-layout="wide"] .page-support .support-top-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :root[data-layout="wide"] .page-buy .pricing-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* Translucent frosted glass: the page remains visible under a static grain tile.
