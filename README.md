@@ -247,6 +247,10 @@ curl https://bot.example.com/healthcheck
 
 Для **RollyPay** укажите API key и Webhook signing secret; в настройках кассы задайте выданный Link-Bot webhook как `callback_url`. Для **cisPay** укажите Shop ID, API key и один способ оплаты: `CARD` или `SBP`; в кабинете cisPay установите этот же webhook URL. Секреты хранятся в зашифрованной конфигурации и не выводятся обратно в админке.
 
+Также поддерживаются **anore.cc, MulenPay, AuraPay, AntiloPay, ParityPay, Tribute Shop API и CloudPayments**: создание заказа, подтверждение оплаты вебхуком, история и финансовая статистика. Для AntiloPay покупатель указывает email перед оплатой. [Инструкция, официальная документация и источники логотипов](docs/payment-providers.md).
+
+**Datagio, Paycore и Kassa AI** показаны в каталоге с официальными PNG-логотипами и пояснением, но приём платежей через них пока недоступен: для подключения необходима документация API от этих сервисов.
+
 ---
 
 ## 🪪 Логотип Mini App

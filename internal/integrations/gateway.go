@@ -7,6 +7,7 @@ import (
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/rsa"
+	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
 	"crypto/x509"
@@ -43,6 +44,7 @@ type CreatePaymentRequest struct {
 	Description string
 	CustomerID  int64
 	Username    string
+	Email       string
 	ReturnURL   string
 	ClientIP    string
 }
@@ -90,6 +92,20 @@ func (g *Gateway) Create(ctx context.Context, input CreatePaymentRequest) (Creat
 		return g.createRollyPay(ctx, cfg, input)
 	case ProviderCisPay:
 		return g.createCisPay(ctx, cfg, input)
+	case ProviderAnore:
+		return g.createAnore(ctx, cfg, input)
+	case ProviderMulenPay:
+		return g.createMulenPay(ctx, cfg, input)
+	case ProviderAuraPay:
+		return g.createAuraPay(ctx, cfg, input)
+	case ProviderAntiloPay:
+		return g.createAntiloPay(ctx, cfg, input)
+	case ProviderTribute:
+		return g.createTribute(ctx, cfg, input)
+	case ProviderParityPay:
+		return g.createParityPay(ctx, cfg, input)
+	case ProviderCloudPayments:
+		return g.createCloudPayments(ctx, cfg, input)
 	default:
 		return CreatedPayment{}, fmt.Errorf("unsupported gateway: %s", input.Provider)
 	}
@@ -117,6 +133,20 @@ func (g *Gateway) HandleWebhook(ctx context.Context, provider string, headers ht
 		return parseRollyPayWebhook(cfg, headers, raw)
 	case ProviderCisPay:
 		return parseCisPayWebhook(cfg, headers, raw)
+	case ProviderAnore:
+		return parseAnoreWebhook(cfg, headers, raw)
+	case ProviderMulenPay:
+		return g.parseMulenPayWebhook(ctx, cfg, raw)
+	case ProviderAuraPay:
+		return parseShopInvoiceWebhook(cfg, headers, raw)
+	case ProviderAntiloPay:
+		return parseAntiloPayWebhook(cfg, headers, raw)
+	case ProviderTribute:
+		return parseTributeWebhook(cfg, headers, raw)
+	case ProviderParityPay:
+		return parseShopInvoiceWebhook(cfg, headers, raw)
+	case ProviderCloudPayments:
+		return parseCloudPaymentsWebhook(cfg, headers, raw, form)
 	default:
 		return WebhookPayment{}, fmt.Errorf("unknown webhook provider: %s", provider)
 	}
@@ -345,6 +375,129 @@ func (g *Gateway) createCisPay(ctx context.Context, cfg map[string]string, input
 		return CreatedPayment{}, errors.New("cisPay did not return payment link")
 	}
 	return CreatedPayment{ExternalID: response.ID, URL: response.PaymentURL}, nil
+}
+
+func (g *Gateway) createAnore(ctx context.Context, cfg map[string]string, input CreatePaymentRequest) (CreatedPayment, error) {
+	shopID, err := strconv.ParseInt(strings.TrimSpace(cfg["shopId"]), 10, 64)
+	if err != nil || shopID <= 0 {
+		return CreatedPayment{}, errors.New("anore.cc shop ID must be a positive number")
+	}
+	payload := map[string]any{
+		"amount": input.Amount, "currency": input.Currency, "description": input.Description,
+		"shopId": shopID, "orderId": strconv.FormatInt(input.PurchaseID, 10),
+		"callbackUrl": g.settings.WebhookURL(ProviderAnore),
+		"successurl":  input.ReturnURL, "failurl": input.ReturnURL,
+	}
+	raw, _ := json.Marshal(payload)
+	var response struct {
+		Success    bool   `json:"success"`
+		ID         string `json:"id"`
+		PaymentURL string `json:"paymentUrl"`
+	}
+	endpoint := strings.TrimRight(firstNonEmpty(cfg["apiUrl"], "https://api.anore.cc/v1"), "/") + "/payments"
+	if err := g.doJSON(ctx, http.MethodPost, endpoint, raw, map[string]string{"Authorization": "Bearer " + cfg["apiKey"]}, &response); err != nil {
+		return CreatedPayment{}, err
+	}
+	if !response.Success || response.ID == "" || response.PaymentURL == "" {
+		return CreatedPayment{}, errors.New("anore.cc did not return a payment link")
+	}
+	return CreatedPayment{ExternalID: response.ID, URL: response.PaymentURL}, nil
+}
+
+func (g *Gateway) createCloudPayments(ctx context.Context, cfg map[string]string, input CreatePaymentRequest) (CreatedPayment, error) {
+	payload := map[string]any{
+		"Amount": input.Amount, "Currency": input.Currency, "Description": input.Description,
+		"InvoiceId": strconv.FormatInt(input.PurchaseID, 10), "AccountId": strconv.FormatInt(input.CustomerID, 10),
+		"RequireConfirmation": false, "SendEmail": false,
+		"SuccessRedirectUrl": input.ReturnURL, "FailRedirectUrl": input.ReturnURL,
+	}
+	raw, _ := json.Marshal(payload)
+	var response struct {
+		Success bool   `json:"Success"`
+		Message string `json:"Message"`
+		Model   struct {
+			ID  string `json:"Id"`
+			URL string `json:"Url"`
+		} `json:"Model"`
+	}
+	endpoint := strings.TrimRight(firstNonEmpty(cfg["apiUrl"], "https://api.cloudpayments.ru"), "/") + "/orders/create"
+	auth := base64.StdEncoding.EncodeToString([]byte(cfg["publicId"] + ":" + cfg["apiSecret"]))
+	if err := g.doJSON(ctx, http.MethodPost, endpoint, raw, map[string]string{"Authorization": "Basic " + auth}, &response); err != nil {
+		return CreatedPayment{}, err
+	}
+	if !response.Success || response.Model.ID == "" || response.Model.URL == "" {
+		return CreatedPayment{}, fmt.Errorf("CloudPayments did not return a payment link: %s", response.Message)
+	}
+	return CreatedPayment{ExternalID: response.Model.ID, URL: response.Model.URL}, nil
+}
+
+func (g *Gateway) createMulenPay(ctx context.Context, cfg map[string]string, input CreatePaymentRequest) (CreatedPayment, error) {
+	shopID, err := strconv.Atoi(strings.TrimSpace(cfg["shopId"]))
+	if err != nil || shopID <= 0 {
+		return CreatedPayment{}, errors.New("MulenPay shop ID must be a positive number")
+	}
+	amount := formatAmount(input.Amount)
+	currency := strings.ToLower(input.Currency)
+	sign := sha1.Sum([]byte(currency + amount + strconv.Itoa(shopID) + cfg["secretKey"]))
+	payload := map[string]any{
+		"currency": currency, "amount": amount, "uuid": strconv.FormatInt(input.PurchaseID, 10),
+		"shopId": shopID, "description": input.Description, "website_url": input.ReturnURL,
+		"items": []map[string]any{{"description": input.Description, "quantity": 1, "price": input.Amount, "vat_code": 0, "payment_subject": 4, "payment_mode": 4}},
+		"sign":  hex.EncodeToString(sign[:]),
+	}
+	raw, _ := json.Marshal(payload)
+	var response struct {
+		Success bool   `json:"success"`
+		ID      int64  `json:"id"`
+		URL     string `json:"paymentUrl"`
+	}
+	endpoint := strings.TrimRight(firstNonEmpty(cfg["apiUrl"], "https://mulenpay.ru/api"), "/") + "/v2/payments"
+	if err := g.doJSON(ctx, http.MethodPost, endpoint, raw, map[string]string{"Authorization": "Bearer " + cfg["apiKey"]}, &response); err != nil {
+		return CreatedPayment{}, err
+	}
+	if !response.Success || response.ID <= 0 || response.URL == "" {
+		return CreatedPayment{}, errors.New("MulenPay did not return a payment link")
+	}
+	return CreatedPayment{ExternalID: strconv.FormatInt(response.ID, 10), URL: response.URL}, nil
+}
+
+func (g *Gateway) parseMulenPayWebhook(ctx context.Context, cfg map[string]string, raw []byte) (WebhookPayment, error) {
+	var callback struct {
+		ID     int64  `json:"id"`
+		UUID   string `json:"uuid"`
+		Status string `json:"payment_status"`
+	}
+	if err := json.Unmarshal(raw, &callback); err != nil {
+		return WebhookPayment{}, err
+	}
+	purchaseID, err := strconv.ParseInt(callback.UUID, 10, 64)
+	if err != nil || purchaseID <= 0 || callback.ID <= 0 {
+		return WebhookPayment{}, errors.New("invalid MulenPay callback")
+	}
+	// The documented callback has no signature. Read the payment from MulenPay before changing an order.
+	var response struct {
+		Success bool `json:"success"`
+		Payment struct {
+			ID       int64  `json:"id"`
+			UUID     string `json:"uuid"`
+			Amount   string `json:"amount"`
+			Currency string `json:"currency"`
+			Status   int    `json:"status"`
+		} `json:"payment"`
+	}
+	endpoint := strings.TrimRight(firstNonEmpty(cfg["apiUrl"], "https://mulenpay.ru/api"), "/") + "/v2/payments/" + strconv.FormatInt(callback.ID, 10)
+	if err := g.doJSON(ctx, http.MethodGet, endpoint, nil, map[string]string{"Authorization": "Bearer " + cfg["apiKey"]}, &response); err != nil {
+		return WebhookPayment{}, err
+	}
+	if !response.Success || response.Payment.ID != callback.ID || response.Payment.UUID != callback.UUID {
+		return WebhookPayment{}, errors.New("MulenPay callback does not match payment")
+	}
+	amount, err := strconv.ParseFloat(response.Payment.Amount, 64)
+	if err != nil || amount <= 0 {
+		return WebhookPayment{}, errors.New("invalid MulenPay payment amount")
+	}
+	return WebhookPayment{PurchaseID: purchaseID, ExternalID: strconv.FormatInt(callback.ID, 10), Amount: amount,
+		Currency: strings.ToUpper(response.Payment.Currency), Paid: response.Payment.Status == 3, Cancelled: response.Payment.Status == 2 || response.Payment.Status == 4}, nil
 }
 
 func (g *Gateway) doJSON(ctx context.Context, method, endpoint string, body []byte, headers map[string]string, target any) error {
@@ -676,6 +829,61 @@ func parseCisPayWebhook(cfg map[string]string, headers http.Header, raw []byte) 
 	return WebhookPayment{
 		PurchaseID: purchaseID, ExternalID: payload.ID, Amount: float64(payload.Amount) / 100, Currency: strings.ToUpper(strings.TrimSpace(payload.Currency)),
 		Paid: status == "PAID", Cancelled: status == "FAILED" || status == "EXPIRED" || status == "REFUNDED",
+	}, nil
+}
+
+func parseAnoreWebhook(cfg map[string]string, headers http.Header, raw []byte) (WebhookPayment, error) {
+	signature := strings.TrimSpace(headers.Get("Anore-Signature"))
+	expected := hmacHex(sha256.New, []byte(cfg["webhookSecret"]), raw)
+	if signature == "" || !hmac.Equal([]byte(strings.ToLower(signature)), []byte(expected)) {
+		return WebhookPayment{}, errors.New("invalid anore.cc webhook signature")
+	}
+	var payload struct {
+		Event    string  `json:"event"`
+		ID       string  `json:"id"`
+		OrderID  string  `json:"orderId"`
+		Amount   float64 `json:"amount"`
+		Currency string  `json:"currency"`
+		Status   string  `json:"status"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return WebhookPayment{}, err
+	}
+	if payload.Event != "payment.succeeded" && payload.Event != "payment.expired" {
+		return WebhookPayment{}, errors.New("unsupported anore.cc webhook event")
+	}
+	purchaseID, err := strconv.ParseInt(payload.OrderID, 10, 64)
+	if err != nil || purchaseID <= 0 || payload.ID == "" || payload.Amount <= 0 {
+		return WebhookPayment{}, errors.New("invalid anore.cc webhook payment")
+	}
+	return WebhookPayment{
+		PurchaseID: purchaseID, ExternalID: payload.ID, Amount: payload.Amount, Currency: strings.ToUpper(payload.Currency),
+		Paid:      payload.Event == "payment.succeeded" && payload.Status == "paid",
+		Cancelled: payload.Event == "payment.expired" && payload.Status == "expired",
+	}, nil
+}
+
+func parseCloudPaymentsWebhook(cfg map[string]string, headers http.Header, raw []byte, form url.Values) (WebhookPayment, error) {
+	signature, err := base64.StdEncoding.DecodeString(strings.TrimSpace(headers.Get("Content-HMAC")))
+	if err != nil || len(signature) == 0 {
+		return WebhookPayment{}, errors.New("missing CloudPayments webhook signature")
+	}
+	mac := hmac.New(sha256.New, []byte(cfg["apiSecret"]))
+	_, _ = mac.Write(raw)
+	if !hmac.Equal(signature, mac.Sum(nil)) {
+		return WebhookPayment{}, errors.New("invalid CloudPayments webhook signature")
+	}
+	purchaseID, err := strconv.ParseInt(strings.TrimSpace(form.Get("InvoiceId")), 10, 64)
+	if err != nil || purchaseID <= 0 || strings.TrimSpace(form.Get("TransactionId")) == "" {
+		return WebhookPayment{}, errors.New("invalid CloudPayments webhook payment")
+	}
+	amount, err := strconv.ParseFloat(strings.ReplaceAll(form.Get("Amount"), ",", "."), 64)
+	if err != nil || amount <= 0 {
+		return WebhookPayment{}, errors.New("invalid CloudPayments webhook amount")
+	}
+	return WebhookPayment{
+		PurchaseID: purchaseID, Amount: amount, Currency: strings.ToUpper(form.Get("Currency")),
+		Paid: strings.EqualFold(form.Get("Status"), "Completed") && strings.EqualFold(form.Get("OperationType"), "Payment"),
 	}, nil
 }
 

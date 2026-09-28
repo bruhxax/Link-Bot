@@ -34,6 +34,13 @@ const (
 	ProviderPally           = "pally"
 	ProviderRollyPay        = "rollypay"
 	ProviderCisPay          = "cispay"
+	ProviderAnore           = "anore"
+	ProviderMulenPay        = "mulenpay"
+	ProviderAuraPay         = "aurapay"
+	ProviderAntiloPay       = "antilopay"
+	ProviderTribute         = "tribute"
+	ProviderParityPay       = "paritypay"
+	ProviderCloudPayments   = "cloudpayments"
 	ProviderP2P             = "p2p"
 	ProviderMoyNalog        = "moynalog"
 )
@@ -49,7 +56,8 @@ const (
 var moyNalogPaymentMethods = []string{
 	ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega,
 	ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay,
-	ProviderP2P, "telegram", "tribute",
+	ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments,
+	ProviderP2P, "telegram",
 }
 
 type MoyNalogConfig struct {
@@ -84,12 +92,14 @@ type FieldDefinition struct {
 }
 
 type ProviderDefinition struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Logo        string            `json:"logo"`
-	Kind        string            `json:"kind"`
-	Fields      []FieldDefinition `json:"fields"`
+	UnavailableReason string            `json:"unavailableReason,omitempty"`
+	WebsiteURL        string            `json:"websiteUrl,omitempty"`
+	ID                string            `json:"id"`
+	Name              string            `json:"name"`
+	Description       string            `json:"description"`
+	Logo              string            `json:"logo"`
+	Kind              string            `json:"kind"`
+	Fields            []FieldDefinition `json:"fields"`
 }
 
 type FieldView struct {
@@ -104,16 +114,18 @@ type FieldView struct {
 }
 
 type ProviderView struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Logo        string      `json:"logo"`
-	Kind        string      `json:"kind"`
-	Enabled     bool        `json:"enabled"`
-	Configured  bool        `json:"configured"`
-	WebhookURL  string      `json:"webhookUrl,omitempty"`
-	UpdatedAt   string      `json:"updatedAt,omitempty"`
-	Fields      []FieldView `json:"fields"`
+	UnavailableReason string      `json:"unavailableReason,omitempty"`
+	WebsiteURL        string      `json:"websiteUrl,omitempty"`
+	ID                string      `json:"id"`
+	Name              string      `json:"name"`
+	Description       string      `json:"description"`
+	Logo              string      `json:"logo"`
+	Kind              string      `json:"kind"`
+	Enabled           bool        `json:"enabled"`
+	Configured        bool        `json:"configured"`
+	WebhookURL        string      `json:"webhookUrl,omitempty"`
+	UpdatedAt         string      `json:"updatedAt,omitempty"`
+	Fields            []FieldView `json:"fields"`
 }
 
 type UpdateInput struct {
@@ -311,6 +323,73 @@ var definitions = []ProviderDefinition{
 		},
 	},
 	{
+		ID: ProviderAnore, Name: "anore.cc", Description: "СБП, карты и криптовалюта", Logo: "/mini-app/assets/payment-anore.png", Kind: "payment",
+		Fields: []FieldDefinition{
+			{Key: "apiKey", Label: "API-ключ", Required: true, Secret: true},
+			{Key: "shopId", Label: "ID кассы", Required: true, Help: "Числовой ID кассы для аккаунт-ключа"},
+			{Key: "webhookSecret", Label: "Секрет вебхука", Required: true, Secret: true, Help: "SECRET_KEY кассы для проверки подписи Anore-Signature"},
+		},
+	},
+	{
+		ID: ProviderCloudPayments, Name: "CloudPayments", Description: "Банковские карты и платёжная форма", Logo: "/mini-app/assets/payment-cloudpayments.png", Kind: "payment",
+		Fields: []FieldDefinition{
+			{Key: "publicId", Label: "Public ID", Required: true},
+			{Key: "apiSecret", Label: "API Secret", Required: true, Secret: true, Help: "Используется также для проверки Pay-уведомлений"},
+		},
+	},
+	{
+		ID: ProviderMulenPay, Name: "MulenPay", Description: "Карты и СБП", Logo: "/mini-app/assets/payment-mulenpay.png", Kind: "payment",
+		Fields: []FieldDefinition{
+			{Key: "shopId", Label: "Shop ID", Required: true},
+			{Key: "apiKey", Label: "API-ключ", Required: true, Secret: true},
+			{Key: "secretKey", Label: "Секрет подписи", Required: true, Secret: true},
+		},
+	},
+	{
+		ID: ProviderAuraPay, Name: "AuraPay", Description: "Карты и СБП", Logo: "/mini-app/assets/payment-aurapay.png", Kind: "payment",
+		Fields: []FieldDefinition{
+			{Key: "shopId", Label: "ID кассы", Required: true},
+			{Key: "apiKey", Label: "API-ключ", Required: true, Secret: true},
+			{Key: "webhookSecret", Label: "Секретный ключ №2", Required: true, Secret: true, Help: "Из настроек кассы, для проверки вебхуков"},
+		},
+	},
+	{
+		ID: ProviderAntiloPay, Name: "AntiloPay", Description: "Карты и СБП · при оплате нужен email покупателя", Logo: "/mini-app/assets/payment-antilopay.png", Kind: "payment",
+		Fields: []FieldDefinition{
+			{Key: "projectId", Label: "Идентификатор проекта", Required: true},
+			{Key: "secretId", Label: "Secret ID мерчанта", Required: true},
+			{Key: "privateKey", Label: "Приватный ключ Base64", Required: true, Secret: true},
+			{Key: "publicKey", Label: "Публичный ключ Callback Base64", Required: true, Help: "Отдельный публичный ключ подтверждённого проекта"},
+		},
+	},
+	{
+		ID: ProviderTribute, Name: "Tribute", Description: "Разовые покупки через Tribute Shop API", Logo: "/mini-app/assets/payment-tribute.png", Kind: "payment",
+		Fields: []FieldDefinition{
+			{Key: "apiKey", Label: "API-ключ", Required: true, Secret: true},
+			{Key: "shopId", Label: "Shop ID", Help: "Можно оставить пустым, если магазин один"},
+		},
+	},
+	{
+		ID: ProviderParityPay, Name: "ParityPay", Description: "Карты и СБП через API v2", Logo: "/mini-app/assets/payment-paritypay.png", Kind: "payment",
+		Fields: []FieldDefinition{
+			{Key: "shopId", Label: "ID кассы", Required: true},
+			{Key: "secretKey", Label: "Секретный ключ №1", Required: true, Secret: true},
+			{Key: "webhookSecret", Label: "Секретный ключ №2", Required: true, Secret: true},
+		},
+	},
+	{
+		ID: "datagio", Name: "Datagio", Description: "Подключение ожидает документацию сервиса", Logo: "/mini-app/assets/payment-datagio.png", Kind: "payment",
+		WebsiteURL: "https://datagio.finance", UnavailableReason: "Документация API по ссылкам на сайте Datagio недоступна. Для подключения нужны описание создания платежа и проверки уведомлений от сервиса.",
+	},
+	{
+		ID: "paycore", Name: "Paycore", Description: "Подключение ожидает документацию сервиса", Logo: "/mini-app/assets/payment-paycore.png", Kind: "payment",
+		WebsiteURL: "https://paycore.pw", UnavailableReason: "Публичную документацию Paycore найти не удалось. Для подключения нужны описание создания платежа и проверки уведомлений.",
+	},
+	{
+		ID: "kassaai", Name: "Kassa AI", Description: "Подключение ожидает документацию сервиса", Logo: "/mini-app/assets/payment-kassaai.png", Kind: "payment",
+		WebsiteURL: "https://kassa.ai", UnavailableReason: "На сайте Kassa AI нет публичной документации API. Для подключения нужны описание создания платежа и проверки уведомлений от сервиса.",
+	},
+	{
 		ID: ProviderP2P, Name: "P2P перевод", Description: "Ручная проверка перевода администратором", Logo: "/mini-app/assets/payment-p2p.png", Kind: "payment",
 		Fields: []FieldDefinition{
 			{Key: "destinations", Label: "Реквизиты", Required: true, Help: "Добавьте хотя бы один способ перевода"},
@@ -416,7 +495,7 @@ func (s *Service) ListAdmin() []ProviderView {
 	for _, definition := range definitions {
 		rec := s.records[definition.ID]
 		fields := make([]FieldView, 0, len(definition.Fields))
-		configured := true
+		configured := definition.UnavailableReason == ""
 		for _, field := range definition.Fields {
 			value := strings.TrimSpace(rec.Config[field.Key])
 			if field.Required && value == "" {
@@ -443,7 +522,7 @@ func (s *Service) ListAdmin() []ProviderView {
 			_, err := ParseMoyNalogConfig(rec.Config)
 			configured = err == nil
 		}
-		views = append(views, ProviderView{ID: definition.ID, Name: definition.Name, Description: definition.Description, Logo: definition.Logo, Kind: definition.Kind, Enabled: rec.Enabled, Configured: configured, WebhookURL: webhookURL, UpdatedAt: updatedAt, Fields: fields})
+		views = append(views, ProviderView{UnavailableReason: definition.UnavailableReason, WebsiteURL: definition.WebsiteURL, ID: definition.ID, Name: definition.Name, Description: definition.Description, Logo: definition.Logo, Kind: definition.Kind, Enabled: rec.Enabled, Configured: configured, WebhookURL: webhookURL, UpdatedAt: updatedAt, Fields: fields})
 	}
 	return views
 }
@@ -452,6 +531,9 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 	definition, ok := definitionByID(provider)
 	if !ok {
 		return ProviderView{}, fmt.Errorf("unknown integration: %s", provider)
+	}
+	if definition.UnavailableReason != "" {
+		return ProviderView{}, errors.New(definition.UnavailableReason)
 	}
 
 	s.mu.Lock()
@@ -575,7 +657,7 @@ func (s *Service) WebhookURL(provider string) string {
 
 func (s *Service) adminViewLocked(definition ProviderDefinition, rec record) ProviderView {
 	fields := make([]FieldView, 0, len(definition.Fields))
-	complete := true
+	complete := definition.UnavailableReason == ""
 	for _, field := range definition.Fields {
 		value := strings.TrimSpace(rec.Config[field.Key])
 		if field.Required && value == "" {
@@ -598,12 +680,12 @@ func (s *Service) adminViewLocked(definition ProviderDefinition, rec record) Pro
 		_, err := ParseMoyNalogConfig(rec.Config)
 		complete = err == nil
 	}
-	return ProviderView{ID: definition.ID, Name: definition.Name, Description: definition.Description, Logo: definition.Logo, Kind: definition.Kind, Enabled: rec.Enabled, Configured: complete, WebhookURL: webhookURL, UpdatedAt: rec.UpdatedAt.UTC().Format(time.RFC3339), Fields: fields}
+	return ProviderView{UnavailableReason: definition.UnavailableReason, WebsiteURL: definition.WebsiteURL, ID: definition.ID, Name: definition.Name, Description: definition.Description, Logo: definition.Logo, Kind: definition.Kind, Enabled: rec.Enabled, Configured: complete, WebhookURL: webhookURL, UpdatedAt: rec.UpdatedAt.UTC().Format(time.RFC3339), Fields: fields}
 }
 
 func configured(provider string, cfg map[string]string) bool {
 	definition, ok := definitionByID(provider)
-	if !ok {
+	if !ok || definition.UnavailableReason != "" {
 		return false
 	}
 	for _, field := range definition.Fields {
@@ -898,7 +980,7 @@ func firstNonEmpty(values ...string) string {
 }
 
 func SortedPaymentProviders() []string {
-	items := []string{ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega, ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay, ProviderP2P}
+	items := []string{ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega, ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay, ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments, ProviderP2P}
 	sort.Strings(items)
 	return items
 }

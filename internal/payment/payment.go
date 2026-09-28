@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -86,6 +87,8 @@ type CreatePurchaseOptions struct {
 	GiftRecipientUsername   string
 	GiftRecipientCustomerID *int64
 	GiftToken               *uuid.UUID
+	ReceiptEmail            string
+	ClientIP                string
 	P2PSenderReference      string
 	P2PDestination          database.P2PDestinationSnapshot
 	ReturnTarget            string
@@ -849,7 +852,7 @@ func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount fl
 		url, purchaseId, err = s.createTributeInvoice(ctx, amount, months, customer, options)
 	case database.InvoiceTypeP2P:
 		url, purchaseId, err = s.createP2PInvoice(ctx, amount, months, customer, options)
-	case database.InvoiceTypeLava, database.InvoiceTypeWata, database.InvoiceTypePlatega, database.InvoiceTypeFreeKassa, database.InvoiceTypeHeleket, database.InvoiceTypePally, database.InvoiceTypeRollyPay, database.InvoiceTypeCisPay:
+	case database.InvoiceTypeLava, database.InvoiceTypeWata, database.InvoiceTypePlatega, database.InvoiceTypeFreeKassa, database.InvoiceTypeHeleket, database.InvoiceTypePally, database.InvoiceTypeRollyPay, database.InvoiceTypeCisPay, database.InvoiceTypeAnore, database.InvoiceTypeMulenPay, database.InvoiceTypeAuraPay, database.InvoiceTypeParityPay, database.InvoiceTypeAntiloPay, database.InvoiceTypeTributeShop, database.InvoiceTypeCloudPayments:
 		url, purchaseId, err = s.createExternalInvoice(ctx, amount, months, customer, invoiceType, options)
 	default:
 		err = fmt.Errorf("unknown invoice type: %s", invoiceType)
@@ -867,7 +870,7 @@ func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount fl
 			category = "P2P перевод"
 		case database.InvoiceTypeBalance:
 			category = "Баланс"
-		case database.InvoiceTypeLava, database.InvoiceTypeWata, database.InvoiceTypePlatega, database.InvoiceTypeFreeKassa, database.InvoiceTypeHeleket, database.InvoiceTypePally, database.InvoiceTypeRollyPay, database.InvoiceTypeCisPay:
+		case database.InvoiceTypeLava, database.InvoiceTypeWata, database.InvoiceTypePlatega, database.InvoiceTypeFreeKassa, database.InvoiceTypeHeleket, database.InvoiceTypePally, database.InvoiceTypeRollyPay, database.InvoiceTypeCisPay, database.InvoiceTypeAnore, database.InvoiceTypeMulenPay, database.InvoiceTypeAuraPay, database.InvoiceTypeParityPay, database.InvoiceTypeAntiloPay, database.InvoiceTypeTributeShop, database.InvoiceTypeCloudPayments:
 			category = string(invoiceType)
 		}
 		s.errorReporter.Report(ctx, operations.ReportInput{
@@ -1195,6 +1198,13 @@ func (s PaymentService) createExternalInvoice(ctx context.Context, amount float6
 	if !ok {
 		return "", 0, fmt.Errorf("unsupported external invoice type: %s", invoiceType)
 	}
+	email := receiptEmail(customer, options.ReceiptEmail)
+	if invoiceType == database.InvoiceTypeAntiloPay {
+		address, err := mail.ParseAddress(email)
+		if err != nil || address.Address != email {
+			return "", 0, errors.New("AntiloPay: укажите корректный email покупателя")
+		}
+	}
 	purchaseID, err := s.purchaseRepository.Create(ctx, &database.Purchase{
 		InvoiceType: invoiceType, Status: database.PurchaseStatusNew, Amount: amount, Currency: "RUB",
 		CustomerID: customer.ID, SubscriptionID: options.SubscriptionID, Month: months, Days: options.DurationDays, PlanID: optionalTrimmedStringPointer(options.PlanID),
@@ -1221,6 +1231,7 @@ func (s PaymentService) createExternalInvoice(ctx context.Context, amount float6
 	created, err := s.integrationGateway.Create(ctx, integrations.CreatePaymentRequest{
 		Provider: provider, PurchaseID: purchaseID, Amount: amount, Currency: "RUB",
 		Description: BuildOrderDescription(months, options), CustomerID: customer.ID,
+		Email: email, ClientIP: options.ClientIP,
 		Username: strings.TrimSpace(username), ReturnURL: s.buildYookassaReturnURL(purchaseID, options.ReturnTarget),
 	})
 	if err != nil {
@@ -1234,6 +1245,16 @@ func (s PaymentService) createExternalInvoice(ctx context.Context, amount float6
 		return "", 0, err
 	}
 	return created.URL, purchaseID, nil
+}
+
+func receiptEmail(customer *database.Customer, supplied string) string {
+	if value := strings.TrimSpace(supplied); value != "" {
+		return value
+	}
+	if customer != nil && customer.GoogleEmailVerified && customer.GoogleEmail != nil {
+		return strings.TrimSpace(*customer.GoogleEmail)
+	}
+	return ""
 }
 
 func (s PaymentService) currentCryptoPayClient() (*cryptopay.Client, string) {
@@ -1284,6 +1305,7 @@ func integrationProviderForInvoiceType(invoiceType database.InvoiceType) (string
 		database.InvoiceTypePlatega: integrations.ProviderPlatega, database.InvoiceTypeFreeKassa: integrations.ProviderFreeKassa,
 		database.InvoiceTypeHeleket: integrations.ProviderHeleket, database.InvoiceTypePally: integrations.ProviderPally,
 		database.InvoiceTypeRollyPay: integrations.ProviderRollyPay, database.InvoiceTypeCisPay: integrations.ProviderCisPay,
+		database.InvoiceTypeAnore: integrations.ProviderAnore, database.InvoiceTypeMulenPay: integrations.ProviderMulenPay, database.InvoiceTypeAuraPay: integrations.ProviderAuraPay, database.InvoiceTypeParityPay: integrations.ProviderParityPay, database.InvoiceTypeAntiloPay: integrations.ProviderAntiloPay, database.InvoiceTypeTributeShop: integrations.ProviderTribute, database.InvoiceTypeCloudPayments: integrations.ProviderCloudPayments,
 	}
 	provider, ok := providers[invoiceType]
 	return provider, ok
@@ -1295,6 +1317,7 @@ func invoiceTypeForIntegrationProvider(provider string) (database.InvoiceType, b
 		integrations.ProviderPlatega: database.InvoiceTypePlatega, integrations.ProviderFreeKassa: database.InvoiceTypeFreeKassa,
 		integrations.ProviderHeleket: database.InvoiceTypeHeleket, integrations.ProviderPally: database.InvoiceTypePally,
 		integrations.ProviderRollyPay: database.InvoiceTypeRollyPay, integrations.ProviderCisPay: database.InvoiceTypeCisPay,
+		integrations.ProviderAnore: database.InvoiceTypeAnore, integrations.ProviderMulenPay: database.InvoiceTypeMulenPay, integrations.ProviderAuraPay: database.InvoiceTypeAuraPay, integrations.ProviderParityPay: database.InvoiceTypeParityPay, integrations.ProviderAntiloPay: database.InvoiceTypeAntiloPay, integrations.ProviderTribute: database.InvoiceTypeTributeShop, integrations.ProviderCloudPayments: database.InvoiceTypeCloudPayments,
 	}
 	invoiceType, ok := providers[provider]
 	return invoiceType, ok
@@ -1344,6 +1367,9 @@ func (s PaymentService) ProcessExternalWebhook(ctx context.Context, provider str
 	}
 	if provider == integrations.ProviderFreeKassa {
 		return "YES", nil
+	}
+	if provider == integrations.ProviderCloudPayments {
+		return `{"code":0}`, nil
 	}
 	return "OK", nil
 }

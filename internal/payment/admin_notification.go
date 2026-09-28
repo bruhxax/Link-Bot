@@ -433,8 +433,20 @@ func (s PaymentService) paymentMethodLabel(purchase *database.Purchase) string {
 		return "Crypto Pay"
 	case database.InvoiceTypeTelegram:
 		return "Telegram Stars"
-	case database.InvoiceTypeTribute:
+	case database.InvoiceTypeTribute, database.InvoiceTypeTributeShop:
 		return "Tribute"
+	case database.InvoiceTypeAnore:
+		return "anore.cc"
+	case database.InvoiceTypeMulenPay:
+		return "MulenPay"
+	case database.InvoiceTypeAuraPay:
+		return "AuraPay"
+	case database.InvoiceTypeAntiloPay:
+		return "AntiloPay"
+	case database.InvoiceTypeParityPay:
+		return "ParityPay"
+	case database.InvoiceTypeCloudPayments:
+		return "CloudPayments"
 	case database.InvoiceTypeP2P:
 		return "P2P перевод"
 	default:

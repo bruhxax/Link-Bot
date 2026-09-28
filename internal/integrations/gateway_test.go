@@ -2,8 +2,11 @@ package integrations
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/md5"
+	"crypto/sha1"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,6 +14,121 @@ import (
 	"net/url"
 	"testing"
 )
+
+func TestCreateMulenPayAndVerifyCallback(t *testing.T) {
+	paymentStatus := 3
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer api-key" {
+			t.Errorf("missing MulenPay authentication")
+		}
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/v2/payments":
+			var payload map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Error(err)
+			}
+			sign := sha1.Sum([]byte("rub170.007secret"))
+			if payload["sign"] != fmt.Sprintf("%x", sign) || payload["uuid"] != "4242" || payload["description"] != "VPN 30 days" {
+				t.Errorf("incorrect MulenPay payment: %#v", payload)
+			}
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"success":true,"id":99,"paymentUrl":"https://mulenpay.ru/pay/99"}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/v2/payments/99":
+			_, _ = fmt.Fprintf(w, `{"success":true,"payment":{"id":99,"uuid":"4242","amount":"170.00","currency":"rub","status":%d}}`, paymentStatus)
+		default:
+			t.Errorf("unexpected MulenPay request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	gateway := &Gateway{httpClient: server.Client()}
+	cfg := map[string]string{"shopId": "7", "apiKey": "api-key", "secretKey": "secret", "apiUrl": server.URL}
+	created, err := gateway.createMulenPay(context.Background(), cfg, CreatePaymentRequest{PurchaseID: 4242, Amount: 170, Currency: "RUB", Description: "VPN 30 days"})
+	if err != nil || created.ExternalID != "99" {
+		t.Fatalf("create MulenPay payment: %+v, %v", created, err)
+	}
+	event, err := gateway.parseMulenPayWebhook(context.Background(), cfg, []byte(`{"id":99,"uuid":"4242","payment_status":"success"}`))
+	if err != nil || event.PurchaseID != 4242 || event.ExternalID != "99" || !event.Paid {
+		t.Fatalf("verify MulenPay callback: %+v, %v", event, err)
+	}
+	if _, err := gateway.parseMulenPayWebhook(context.Background(), cfg, []byte(`{"id":99,"uuid":"4243","payment_status":"success"}`)); err == nil {
+		t.Fatal("accepted mismatched MulenPay callback")
+	}
+	paymentStatus = 1
+	event, err = gateway.parseMulenPayWebhook(context.Background(), cfg, []byte(`{"id":99,"uuid":"4242","payment_status":"success"}`))
+	if err != nil || event.Paid {
+		t.Fatalf("trusted an unverified paid status instead of the API: %+v, %v", event, err)
+	}
+}
+
+func TestCreateAnoreAndVerifyWebhook(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/payments" || r.Header.Get("Authorization") != "Bearer an_test_key" {
+			t.Fatalf("unexpected anore request: %s %s", r.URL.Path, r.Header.Get("Authorization"))
+		}
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload["shopId"] != float64(7) || payload["orderId"] != "4242" || payload["description"] != "VPN 30 days" || payload["callbackUrl"] != "https://bot.example/api/payments/webhook/anore/token" {
+			t.Fatalf("unexpected anore payload: %#v", payload)
+		}
+		_, _ = w.Write([]byte(`{"success":true,"id":"anore-payment","paymentUrl":"https://pay.anore.cc/test"}`))
+	}))
+	defer server.Close()
+	settings := &Service{baseURL: "https://bot.example", records: map[string]record{ProviderAnore: {WebhookToken: "token"}}}
+	gateway := &Gateway{settings: settings, httpClient: server.Client()}
+	created, err := gateway.createAnore(context.Background(), map[string]string{"apiKey": "an_test_key", "shopId": "7", "apiUrl": server.URL}, CreatePaymentRequest{PurchaseID: 4242, Amount: 170, Currency: "RUB", Description: "VPN 30 days"})
+	if err != nil || created.ExternalID != "anore-payment" {
+		t.Fatalf("create anore payment: %+v, %v", created, err)
+	}
+	raw := []byte(`{"event":"payment.succeeded","id":"anore-payment","orderId":"4242","amount":170,"currency":"rub","status":"paid"}`)
+	headers := make(http.Header)
+	headers.Set("Anore-Signature", hmacHex(sha256.New, []byte("webhook-secret"), raw))
+	payment, err := parseAnoreWebhook(map[string]string{"webhookSecret": "webhook-secret"}, headers, raw)
+	if err != nil || payment.PurchaseID != 4242 || payment.ExternalID != created.ExternalID || !payment.Paid || payment.Amount != 170 {
+		t.Fatalf("parse anore webhook: %+v, %v", payment, err)
+	}
+	headers.Set("Anore-Signature", "invalid")
+	if _, err := parseAnoreWebhook(map[string]string{"webhookSecret": "webhook-secret"}, headers, raw); err == nil {
+		t.Fatal("expected invalid anore signature error")
+	}
+}
+
+func TestCreateCloudPaymentsAndVerifyWebhook(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/orders/create" || r.Header.Get("Authorization") != "Basic "+base64.StdEncoding.EncodeToString([]byte("pk:test-secret")) {
+			t.Fatalf("unexpected CloudPayments request: %s", r.URL.Path)
+		}
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload["InvoiceId"] != "4242" || payload["Description"] != "VPN 30 days" || payload["SendEmail"] != false {
+			t.Fatalf("unexpected CloudPayments payload: %#v", payload)
+		}
+		_, _ = w.Write([]byte(`{"Success":true,"Model":{"Id":"cloud-order","Url":"https://orders.cloudpayments.ru/d/cloud-order"}}`))
+	}))
+	defer server.Close()
+	gateway := &Gateway{httpClient: server.Client()}
+	created, err := gateway.createCloudPayments(context.Background(), map[string]string{"publicId": "pk", "apiSecret": "test-secret", "apiUrl": server.URL}, CreatePaymentRequest{PurchaseID: 4242, Amount: 170, Currency: "RUB", Description: "VPN 30 days"})
+	if err != nil || created.ExternalID != "cloud-order" {
+		t.Fatalf("create CloudPayments order: %+v, %v", created, err)
+	}
+	form := url.Values{"InvoiceId": {"4242"}, "TransactionId": {"987"}, "Amount": {"170.00"}, "Currency": {"RUB"}, "Status": {"Completed"}, "OperationType": {"Payment"}}
+	raw := []byte(form.Encode())
+	mac := hmac.New(sha256.New, []byte("test-secret"))
+	_, _ = mac.Write(raw)
+	headers := make(http.Header)
+	headers.Set("Content-HMAC", base64.StdEncoding.EncodeToString(mac.Sum(nil)))
+	payment, err := parseCloudPaymentsWebhook(map[string]string{"apiSecret": "test-secret"}, headers, raw, form)
+	if err != nil || payment.PurchaseID != 4242 || !payment.Paid || payment.Amount != 170 {
+		t.Fatalf("parse CloudPayments webhook: %+v, %v", payment, err)
+	}
+	headers.Set("Content-HMAC", "invalid")
+	if _, err := parseCloudPaymentsWebhook(map[string]string{"apiSecret": "test-secret"}, headers, raw, form); err == nil {
+		t.Fatal("expected invalid CloudPayments signature error")
+	}
+}
 
 func TestParseLavaWebhookAuthorizationSignature(t *testing.T) {
 	raw := []byte(`{

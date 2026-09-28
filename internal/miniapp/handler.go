@@ -473,6 +473,7 @@ type purchaseRequest struct {
 	P2PDestinationID   string `json:"p2pDestinationId,omitempty"`
 	P2PSenderReference string `json:"p2pSenderReference,omitempty"`
 	ReturnTarget       string `json:"returnTarget,omitempty"`
+	ReceiptEmail       string `json:"receiptEmail,omitempty"`
 }
 
 type giftPurchaseRequest struct {
@@ -484,6 +485,7 @@ type giftPurchaseRequest struct {
 	P2PDestinationID   string `json:"p2pDestinationId,omitempty"`
 	P2PSenderReference string `json:"p2pSenderReference,omitempty"`
 	ReturnTarget       string `json:"returnTarget,omitempty"`
+	ReceiptEmail       string `json:"receiptEmail,omitempty"`
 }
 
 type giftSeenRequest struct {
@@ -1698,6 +1700,8 @@ func (h *Handler) handleCreatePurchase(w http.ResponseWriter, r *http.Request, s
 		P2PSenderReference: strings.TrimSpace(req.P2PSenderReference),
 		P2PDestination:     p2pDestination,
 		ReturnTarget:       req.ReturnTarget,
+		ReceiptEmail:       req.ReceiptEmail,
+		ClientIP:           publicRequestIP(r),
 	})
 	if err != nil {
 		slog.Error("mini app: create purchase", "error", err, "method", req.PaymentMethod, "months", req.Months)
@@ -1989,6 +1993,8 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		P2PSenderReference:    strings.TrimSpace(req.P2PSenderReference),
 		P2PDestination:        p2pDestination,
 		ReturnTarget:          req.ReturnTarget,
+		ReceiptEmail:          req.ReceiptEmail,
+		ClientIP:              publicRequestIP(r),
 	})
 	if err != nil {
 		if errors.Is(err, payment.ErrFreePlanAlreadyUsed) {
@@ -2210,6 +2216,8 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 		P2PSenderReference:      strings.TrimSpace(req.P2PSenderReference),
 		P2PDestination:          p2pDestination,
 		ReturnTarget:            req.ReturnTarget,
+		ReceiptEmail:            req.ReceiptEmail,
+		ClientIP:                publicRequestIP(r),
 	})
 	if err != nil {
 		slog.Error("mini app: create gift purchase", "error", err, "method", req.PaymentMethod, "months", req.Months)
@@ -3026,7 +3034,7 @@ func (h *Handler) handlePaymentIntegrationWebhook(w http.ResponseWriter, r *http
 		return
 	}
 	form := url.Values{}
-	if provider == integrations.ProviderFreeKassa || provider == integrations.ProviderPally {
+	if provider == integrations.ProviderFreeKassa || provider == integrations.ProviderPally || provider == integrations.ProviderCloudPayments {
 		form, err = url.ParseQuery(string(raw))
 		if err != nil {
 			h.writeError(w, http.StatusBadRequest, "invalid_webhook", "Invalid webhook")
@@ -3039,7 +3047,11 @@ func (h *Handler) handlePaymentIntegrationWebhook(w http.ResponseWriter, r *http
 		h.writeError(w, http.StatusBadRequest, "invalid_webhook", "Invalid webhook")
 		return
 	}
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	if provider == integrations.ProviderCloudPayments {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	} else {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(ack))
 }
@@ -5384,11 +5396,23 @@ func paymentMethodFallbackTitle(invoiceType database.InvoiceType, language strin
 			return "Crypto Pay"
 		}
 		return "Crypto Pay"
-	case database.InvoiceTypeTribute:
+	case database.InvoiceTypeTribute, database.InvoiceTypeTributeShop:
 		if isEnglish {
 			return "Tribute"
 		}
 		return "Tribute"
+	case database.InvoiceTypeAnore:
+		return "anore.cc"
+	case database.InvoiceTypeMulenPay:
+		return "MulenPay"
+	case database.InvoiceTypeAuraPay:
+		return "AuraPay"
+	case database.InvoiceTypeAntiloPay:
+		return "AntiloPay"
+	case database.InvoiceTypeParityPay:
+		return "ParityPay"
+	case database.InvoiceTypeCloudPayments:
+		return "CloudPayments"
 	case database.InvoiceTypeP2P:
 		if isEnglish {
 			return "P2P transfer"
@@ -6483,6 +6507,20 @@ func mapPaymentMethod(method string) (database.InvoiceType, error) {
 		return database.InvoiceTypeRollyPay, nil
 	case "cispay":
 		return database.InvoiceTypeCisPay, nil
+	case "anore":
+		return database.InvoiceTypeAnore, nil
+	case "paritypay":
+		return database.InvoiceTypeParityPay, nil
+	case "aurapay":
+		return database.InvoiceTypeAuraPay, nil
+	case "antilopay":
+		return database.InvoiceTypeAntiloPay, nil
+	case "tribute":
+		return database.InvoiceTypeTributeShop, nil
+	case "mulenpay":
+		return database.InvoiceTypeMulenPay, nil
+	case "cloudpayments":
+		return database.InvoiceTypeCloudPayments, nil
 	case "p2p":
 		return database.InvoiceTypeP2P, nil
 	default:

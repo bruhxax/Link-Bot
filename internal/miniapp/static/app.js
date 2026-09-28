@@ -905,6 +905,13 @@ const PAYMENT_LOGO_URLS = Object.freeze({
   pally: "/mini-app/assets/payment-pally.png",
 	rollypay: "/mini-app/assets/payment-rollypay.png",
 	cispay: "/mini-app/assets/payment-cispay.png",
+	anore: "/mini-app/assets/payment-anore.png",
+	mulenpay: "/mini-app/assets/payment-mulenpay.png",
+	aurapay: "/mini-app/assets/payment-aurapay.png",
+	antilopay: "/mini-app/assets/payment-antilopay.png",
+	paritypay: "/mini-app/assets/payment-paritypay.png",
+	tribute: "/mini-app/assets/payment-tribute.png",
+	cloudpayments: "/mini-app/assets/payment-cloudpayments.png",
 	p2p: "/mini-app/assets/payment-p2p.png",
 });
 
@@ -2155,6 +2162,8 @@ const state = {
 	adminTrafficPackFormDraft: null,
 	adminCommerceMenu: null,
   paymentLaunchModalOpen: false,
+	paymentContactContext: null,
+	receiptEmailDraft: "",
   paymentLaunchURL: "",
   paymentLaunchPurchaseId: 0,
   supportTab: "open",
@@ -2828,6 +2837,8 @@ async function boot() {
   state.subscriptionDeleteName = "";
   state.payModalOpen = false;
   state.paymentLaunchModalOpen = false;
+  state.paymentContactContext = null;
+  state.receiptEmailDraft = "";
   state.paymentLaunchURL = "";
   state.paymentLaunchPurchaseId = 0;
   state.devicesModalOpen = false;
@@ -3794,7 +3805,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-	const modalOpen = Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.profilePromoOpen || state.supportComposeOpen || state.supportThreadOpen || state.supportMediaViewer || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.trafficPackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.adminTrafficPackEditorOpen || state.adminCommerceMenu || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminBannerEditorOpen || state.adminLayoutStyleEditorOpen;
+	const modalOpen = Boolean(state.paymentContactContext) || Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.profilePromoOpen || state.supportComposeOpen || state.supportThreadOpen || state.supportMediaViewer || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.trafficPackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.adminTrafficPackEditorOpen || state.adminCommerceMenu || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminBannerEditorOpen || state.adminLayoutStyleEditorOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -3881,6 +3892,7 @@ function render({ preserveScroll = true, scrollTop = null } = {}) {
 		${isModalVisible("admin-traffic-packs", state.adminTrafficPackEditorOpen) ? renderAdminTrafficPackModal() : ""}
 		${state.adminCommerceMenu ? renderAdminCommerceMenu() : ""}
       ${isModalVisible("payment-launch", state.paymentLaunchModalOpen) ? renderPaymentLaunchModal() : ""}
+		${isModalVisible("payment-contact", Boolean(state.paymentContactContext)) ? renderPaymentContactModal() : ""}
       ${isModalVisible("review-compose", state.reviewComposeOpen) ? renderReviewComposerModal() : ""}
 		${isModalVisible("review-detail", state.reviewDetailOpen) ? renderReviewDetailModal() : ""}
 		${isModalVisible("gift-receipt", state.giftReceiptOpen) ? renderGiftReceiptModal() : ""}
@@ -4537,17 +4549,20 @@ function renderAdminFinancePeriodPicker() {
 
 const ADMIN_FINANCE_PROVIDERS = [
 	["yookassa", "YooKassa", "card"], ["crypto", "Crypto Pay", "crypto"],
-	["telegram", "Telegram Stars", "stars"], ["tribute", "Tribute", ""],
+	["telegram", "Telegram Stars", "stars"], ["tribute", "Tribute", "tribute"],
 	["lava", "LAVA", "lava"], ["wata", "WATA", "wata"],
 	["platega", "Platega", "platega"], ["freekassa", "FreeKassa", "freekassa"],
 	["heleket", "Heleket", "heleket"], ["pally", "Pally", "pally"],
 	["rollypay", "RollyPay", "rollypay"], ["cispay", "cisPay", "cispay"],
+	["anore", "anore.cc", "anore"], ["mulenpay", "MulenPay", "mulenpay"], ["aurapay", "AuraPay", "aurapay"], ["antilopay", "AntiloPay", "antilopay"], ["paritypay", "ParityPay", "paritypay"], ["cloudpayments", "CloudPayments", "cloudpayments"],
 	["p2p", "P2P", "p2p"],
 ];
 
 function renderAdminFinanceProviders(items) {
-	const actual = Array.isArray(items) ? items : [];
-	const byKey = new Map(actual.map((item) => [String(item?.key || "").toLowerCase(), item]));
+	const actual = (Array.isArray(items) ? items : []).map((item) => ({ ...item, key: item.key === "tribute_shop" ? "tribute" : item.key }));
+	const merged = new Map();
+	for (const item of actual) { const previous = merged.get(item.key); merged.set(item.key, previous ? { ...item, revenue: Number(previous.revenue || 0) + Number(item.revenue || 0), refunds: Number(previous.refunds || 0) + Number(item.refunds || 0), paymentCount: Number(previous.paymentCount || 0) + Number(item.paymentCount || 0) } : item); }
+	const byKey = new Map([...merged.values()].map((item) => [String(item?.key || "").toLowerCase(), item]));
 	const known = ADMIN_FINANCE_PROVIDERS.map(([key, name, logo]) => ({ ...byKey.get(key), key, name, logo }));
 	const extra = actual.filter((item) => !ADMIN_FINANCE_PROVIDERS.some(([key]) => key === String(item?.key || "").toLowerCase()));
 	const providers = [...known, ...extra].sort((a, b) => Number(b.paymentCount || 0) - Number(a.paymentCount || 0));
@@ -5392,7 +5407,8 @@ function renderAdminIntegrationsPage() {
 const MOYNALOG_PAYMENT_METHODS = [
 	["yookassa", "YooKassa"], ["lava", "LAVA"], ["wata", "WATA"],
 	["platega", "Platega"], ["freekassa", "FreeKassa"], ["cryptopay", "Crypto Pay"],
-  ["heleket", "Heleket"], ["pally", "Pally"], ["rollypay", "RollyPay"], ["cispay", "cisPay"], ["p2p", "P2P"],
+  ["heleket", "Heleket"], ["pally", "Pally"], ["rollypay", "RollyPay"], ["cispay", "cisPay"],
+  ["anore", "anore.cc"], ["mulenpay", "MulenPay"], ["aurapay", "AuraPay"], ["antilopay", "AntiloPay"], ["paritypay", "ParityPay"], ["cloudpayments", "CloudPayments"], ["p2p", "P2P"],
 	["telegram", "Telegram Stars"], ["tribute", "Tribute"],
 ];
 
@@ -5448,12 +5464,12 @@ function renderAdminIntegrationRow(item) {
 	const draft = integrationDraft(item);
 	const open = state.adminIntegrationOpen === item.id;
 	const busy = state.adminIntegrationBusy === item.id;
-	const status = item.enabled && item.configured ? "Работает" : item.configured ? "Выключено" : "Не настроено";
+	const status = item.unavailableReason ? "Недоступно" : item.enabled && item.configured ? "Работает" : item.configured ? "Выключено" : "Не настроено";
 	return `<article class="admin-integration ${open ? "is-open" : ""}">
 		<button class="admin-integration__summary" type="button" data-action="admin-integration-open" data-value="${escapeAttribute(item.id)}" aria-expanded="${open ? "true" : "false"}">
 			<img src="${escapeAttribute(item.logo || BRAND_MARK_URL)}" alt="" aria-hidden="true"><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.description || "")}</small></span><i class="admin-integration__status ${item.enabled && item.configured ? "is-active" : ""}">${escapeHtml(status)}</i>${icon("chevron")}
 		</button>
-		${open ? `<div class="admin-integration__body">
+		${open && item.unavailableReason ? `<div class="admin-integration__body"><p class="note">${escapeHtml(item.unavailableReason)}</p><a class="admin-integration__save" href="${escapeAttribute(item.websiteUrl)}" target="_blank" rel="noopener noreferrer">Сайт сервиса ${icon("external")}</a></div>` : open ? `<div class="admin-integration__body">
 			<label class="admin-integration__toggle"><span><strong>Включить интеграцию</strong><small>${item.kind === "payment" ? "Показывать этот способ оплаты" : "Отправлять уведомления об оплатах"}</small></span><input type="checkbox" data-integration-provider="${escapeAttribute(item.id)}" data-integration-enabled ${draft.enabled ? "checked" : ""}></label>
 			${item.id === "p2p" ? renderAdminP2PIntegrationFields(draft) : `<div class="admin-integration__fields">${(item.fields || []).map((field) => `<label class="admin-field"><span>${escapeHtml(field.label)}${field.required ? " *" : ""}</span><input class="admin-field__control" type="${field.secret ? "password" : "text"}" autocomplete="off" spellcheck="false" data-integration-provider="${escapeAttribute(item.id)}" data-integration-field="${escapeAttribute(field.key)}" value="${escapeAttribute(draft.fields[field.key] || "")}" placeholder="${escapeAttribute(field.secret && field.configured ? "Ключ сохранён — оставьте пустым" : (field.placeholder || ""))}">${field.help ? `<small>${escapeHtml(field.help)}</small>` : ""}</label>`).join("")}</div>`}
 			${item.webhookUrl ? `<div class="admin-integration__webhook"><span>Webhook URL</span><code>${escapeHtml(item.webhookUrl)}</code><button type="button" data-action="admin-integration-copy-webhook" data-value="${escapeAttribute(item.webhookUrl)}" aria-label="Скопировать webhook">${icon("copy")}</button></div>` : ""}
@@ -8848,7 +8864,7 @@ function paymentHistoryMethodMeta(item, copy) {
   const normalized = `${invoiceType} ${title}`.toLowerCase();
 	if (invoiceType === "free") return { id: "free", label: title || localizedText("Бесплатная активация", "Free activation", "فعال‌سازی رایگان"), logo: "" };
 	if (invoiceType === "balance") return { id: "balance", label: title || localizedText("Баланс", "Balance", "موجودی"), logo: "" };
-  const providers = ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay"];
+  const providers = ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments"];
   const provider = providers.find((name) => normalized.includes(name));
   if (provider) {
     const meta = paymentMethodMeta(provider);
@@ -9007,6 +9023,24 @@ function telegramMarkupToText(value) {
 	holder.innerHTML = String(value || "").replace(/<br\s*\/?>/gi, "\n").replace(/\n/g, "<br>");
 	holder.querySelectorAll("br").forEach((node) => node.replaceWith(document.createTextNode("\n")));
 	return String(holder.textContent || "").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function renderPaymentContactModal() {
+	const close = localizedText("Отмена", "Cancel", "لغو");
+	return `<div class="modal open ${modalStateClass("payment-contact")}" role="dialog" aria-modal="true" aria-labelledby="payment-contact-title"><button class="modal__backdrop" type="button" data-action="close-payment-contact" aria-label="${escapeAttribute(close)}"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title" id="payment-contact-title">${localizedText("Email для оплаты", "Payment email", "ایمیل پرداخت")}</div><button class="header__btn" type="button" data-action="close-payment-contact" aria-label="${escapeAttribute(close)}">${icon("close")}</button></div><p class="note">${localizedText("AntiloPay требует email покупателя для создания платежа.", "AntiloPay requires the buyer’s email to create a payment.", "AntiloPay برای ایجاد پرداخت به ایمیل خریدار نیاز دارد.")}</p><label class="support-field"><span class="support-field__label">Email</span><input id="payment-contact-email" class="support-field__input" type="email" maxlength="254" autocomplete="email" inputmode="email" enterkeyhint="done" data-input="receipt-email" value="${escapeAttribute(state.receiptEmailDraft)}" placeholder="name@example.com"></label><div class="subscription-editor__actions"><button class="btn" type="button" data-action="close-payment-contact">${escapeHtml(close)}</button><button class="btn btn--green-filled" type="button" data-action="confirm-payment-contact">${localizedText("Продолжить", "Continue", "ادامه")}${icon("arrow")}</button></div></div></div>`;
+}
+
+function paymentReceiptEmail() {
+	return String(state.receiptEmailDraft || state.data?.user?.googleEmail || "").trim();
+}
+
+function requirePaymentContact(context) {
+	if (getSelectedPaymentMethod()?.id !== "antilopay") return false;
+	if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(paymentReceiptEmail())) return false;
+	state.paymentContactContext = context;
+	render({ preserveScroll: true });
+	queueMicrotask(() => app.querySelector("#payment-contact-email")?.focus());
+	return true;
 }
 
 function renderPaymentLaunchModal() {
@@ -9781,6 +9815,16 @@ function bindRootActions() {
       if (action === "apply-promo") return await applyPromoCode();
 		if (action === "redeem-promo-reward") return await redeemPromoReward();
       if (action === "pay-selected") return await startPayment();
+		if (action === "close-payment-contact") return requestModalClose("payment-contact", () => { state.paymentContactContext = null; });
+		if (action === "confirm-payment-contact") {
+			const input = app.querySelector("#payment-contact-email");
+			if (!input?.value.trim() || !input.reportValidity()) { input?.focus(); return; }
+			state.receiptEmailDraft = input.value.trim();
+			const context = state.paymentContactContext;
+			state.paymentContactContext = null;
+			if (context?.mode === "gift") return await startGiftPayment();
+			return await startPayment(context || {});
+		}
 		if (action === "start-gift-payment") return await startGiftPayment();
 		if (action === "copy-gift-link") return state.data?.giftReceipt?.shareUrl ? copyToClipboard(state.data.giftReceipt.shareUrl).then(() => showToast(t().giftCopied, "success")) : undefined;
 		if (action === "close-gift-receipt") return closeGiftReceipt();
@@ -9980,6 +10024,7 @@ function bindRootActions() {
 			if (target.dataset.integrationField) draft.fields[target.dataset.integrationField] = target.value;
 			return;
 		}
+		if (target?.dataset?.input === "receipt-email") { state.receiptEmailDraft = target.value; return; }
 		if (target?.dataset?.input === "p2p-sender-reference") {
 			state.p2pSenderReference = target.value;
 			const submit = app.querySelector('[data-action="submit-p2p-payment"]');
@@ -14347,6 +14392,7 @@ async function startPayment({ deviceOnly = false, trafficOnly = false } = {}) {
   const freeCheckout = Boolean(!deviceOnly && !trafficOnly && plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !devicePack && !trafficPack);
   if ((!deviceOnly && !trafficOnly && !plan) || (deviceOnly && !devicePack) || (trafficOnly && !trafficPack) || (!freeCheckout && !method)) return showToast(t().paymentUnavailable);
 	if (method === "p2p") return openP2PMenu({ mode: "purchase", deviceOnly, trafficOnly });
+	if (!freeCheckout && requirePaymentContact({ mode: "purchase", deviceOnly, trafficOnly })) return;
 
   state.busyMethod = freeCheckout ? "free" : method;
   render();
@@ -14356,6 +14402,7 @@ async function startPayment({ deviceOnly = false, trafficOnly = false } = {}) {
       planId: plan?.id || "",
       months: plan?.months || 0,
       paymentMethod: freeCheckout ? "" : method,
+	  receiptEmail: paymentReceiptEmail(),
       agreementAccepted: true,
 	  promoCode: deviceOnly || trafficOnly ? "" : (getActivePromo()?.code || ""),
 	  devicePackId: trafficOnly ? "" : (devicePack?.id || ""),
@@ -14444,6 +14491,7 @@ async function startGiftPayment() {
 	}
 	if (!plan || !method) return showToast(copy.paymentUnavailable, "danger");
 	if (method === "p2p") return openP2PMenu({ mode: "gift" });
+	if (requirePaymentContact({ mode: "gift" })) return;
 
 	state.giftBusy = method;
 	state.giftValidation = "";
@@ -14455,6 +14503,7 @@ async function startGiftPayment() {
 			planId: plan.id || "",
 			months: Number(plan.months || 0),
 			paymentMethod: method,
+			receiptEmail: paymentReceiptEmail(),
 			promoCode: getActivePromo()?.code || "",
 			returnTarget: paymentReturnTarget,
 		});
@@ -15014,6 +15063,7 @@ function getNativeBackTargetPage() {
 }
 
 function handleNativeBackButton() {
+	if (state.paymentContactContext) return requestModalClose("payment-contact", () => { state.paymentContactContext = null; });
 	if (state.profilePromoOpen) return closeProfilePromo();
 	if (state.adminBannerEditorOpen) return closeAdminBannerEditor();
 	if (state.adminLayoutStyleEditorOpen) return closeAdminLayoutStyleEditor();
@@ -15070,6 +15120,7 @@ function handleNativeBackButton() {
 }
 
 function getActiveModalName() {
+	if (state.paymentContactContext) return "payment-contact";
 	if (state.adminCommerceMenu) return "commerce-actions";
 	if (state.profilePromoOpen) return "profile-promo";
 	if (state.p2pMenuStep) return "p2p";
@@ -15533,7 +15584,7 @@ function getAdminPaymentMethods() {
 	if (enabled.has("p2p") && enabled.has("notification_bot")) methods.push("p2p");
 	if (getRuntimeSettings()?.features?.stars !== false) methods.push("stars");
 	if (enabled.has("cryptopay")) methods.push("crypto");
-	for (const id of ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay"]) {
+	for (const id of ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments"]) {
 		if (enabled.has(id)) methods.push(id);
 	}
 	return sortConfiguredPaymentMethods(methods.map((id) => ({ id })));
@@ -15595,6 +15646,13 @@ function paymentMethodMeta(id) {
 		pally: { id: "pally", label: "Pally", hint: "Оплата картой или через СБП", logo: PAYMENT_LOGO_URLS.pally },
 		rollypay: { id: "rollypay", label: "RollyPay", hint: "Оплата через RollyPay", logo: PAYMENT_LOGO_URLS.rollypay },
 		cispay: { id: "cispay", label: "cisPay", hint: "Оплата картой или через СБП", logo: PAYMENT_LOGO_URLS.cispay },
+		anore: { id: "anore", label: "anore.cc", hint: "СБП, карты и криптовалюта", logo: PAYMENT_LOGO_URLS.anore },
+		mulenpay: { id: "mulenpay", label: "MulenPay", hint: "Карты и СБП", logo: PAYMENT_LOGO_URLS.mulenpay },
+		aurapay: { id: "aurapay", label: "AuraPay", hint: "Карты и СБП", logo: PAYMENT_LOGO_URLS.aurapay },
+		antilopay: { id: "antilopay", label: "AntiloPay", hint: "Карты и СБП", logo: PAYMENT_LOGO_URLS.antilopay },
+		paritypay: { id: "paritypay", label: "ParityPay", hint: "Карты и СБП", logo: PAYMENT_LOGO_URLS.paritypay },
+		tribute: { id: "tribute", label: "Tribute", hint: "Оплата через Tribute", logo: PAYMENT_LOGO_URLS.tribute },
+		cloudpayments: { id: "cloudpayments", label: "CloudPayments", hint: "Оплата картой", logo: PAYMENT_LOGO_URLS.cloudpayments },
   };
   return map[id] || null;
 }

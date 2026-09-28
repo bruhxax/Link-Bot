@@ -26,7 +26,11 @@ func (s *PaymentService) moyNalogConfigForPurchase(purchase *database.Purchase) 
 		return integrations.MoyNalogConfig{}, false
 	}
 	cfg, err := integrations.ParseMoyNalogConfig(raw)
-	if err != nil || !cfg.PaymentMethods[string(purchase.InvoiceType)] {
+	method := string(purchase.InvoiceType)
+	if purchase.InvoiceType == database.InvoiceTypeTributeShop {
+		method = integrations.ProviderTribute
+	}
+	if err != nil || !cfg.PaymentMethods[method] {
 		return integrations.MoyNalogConfig{}, false
 	}
 	return cfg, true

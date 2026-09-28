@@ -61,7 +61,7 @@ var featureOrder = []string{
 
 var setupPlatformOrder = []string{"ios", "android", "macos", "windows", "android-tv", "apple-tv"}
 
-var defaultPaymentMethodOrder = []string{"balance", "sbp", "card", "p2p", "stars", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay"}
+var defaultPaymentMethodOrder = []string{"balance", "sbp", "card", "p2p", "stars", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments"}
 
 func DefaultPaymentMethodOrder() []string {
 	return append([]string(nil), defaultPaymentMethodOrder...)
