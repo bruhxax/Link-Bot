@@ -123,13 +123,75 @@ fi
 
 export LINK_BOT_VERSION=$(git describe --tags --always 2>/dev/null || printf 'dev')
 export LINK_BOT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || printf 'none')
-docker compose up -d --no-recreate db
-docker compose up -d --build --force-recreate --no-deps bot
+
+# Keep Docker's detailed output available on failure, while showing concise
+# progress in an interactive terminal. CI and verbose runs keep raw output.
+phase_total=4
+if [[ $mode == managed || $mode == new ]]; then ((phase_total += 1)); fi
+if [[ -n $cabinet_subdomain ]]; then ((phase_total += 1)); fi
+phase_current=0
+animate_update=false
+if [[ -t 1 && ${TERM:-dumb} != dumb && ${LINK_BOT_UPDATE_VERBOSE:-0} != 1 ]]; then
+  animate_update=true
+fi
+
+run_phase() {
+  local label=$1 log pid started status frame=0
+  local frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+  shift
+  ((phase_current += 1))
+
+  if ! "$animate_update"; then
+    printf '[%d/%d] %s\n' "$phase_current" "$phase_total" "$label"
+    if "$@"; then
+      printf '✓ %s\n' "$label"
+      return 0
+    else
+      status=$?
+    fi
+    printf '✗ %s\n' "$label" >&2
+    return "$status"
+  fi
+
+  log=$(mktemp "${TMPDIR:-/tmp}/link-bot-update.XXXXXX")
+  started=$SECONDS
+  "$@" >"$log" 2>&1 &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    printf '\r\033[2K  \033[36m%s\033[0m [%d/%d] %s · %d с' \
+      "${frames[frame]}" "$phase_current" "$phase_total" "$label" "$((SECONDS - started))"
+    frame=$(((frame + 1) % ${#frames[@]}))
+    sleep 0.12
+  done
+
+  if wait "$pid"; then
+    printf '\r\033[2K  \033[32m✓\033[0m [%d/%d] %s · %d с\n' \
+      "$phase_current" "$phase_total" "$label" "$((SECONDS - started))"
+    rm -f -- "$log"
+    return 0
+  else
+    status=$?
+  fi
+  printf '\r\033[2K  \033[31m✗\033[0m [%d/%d] %s\n' \
+    "$phase_current" "$phase_total" "$label" >&2
+  printf 'Последние строки журнала:\n' >&2
+  tail -n 80 -- "$log" >&2
+  printf 'Полный журнал: %s\n' "$log" >&2
+  return "$status"
+}
+
+if "$animate_update"; then
+  printf '\n\033[1;36mLink-Bot\033[0m · обновление %s\n\n' "$LINK_BOT_VERSION"
+fi
+
+run_phase 'Подготовка базы данных' docker compose up -d --no-recreate db
+run_phase 'Сборка новой версии' docker compose build bot
+run_phase 'Перезапуск бота' docker compose up -d --force-recreate --no-deps bot
 
 if [[ $mode == managed ]]; then
-  docker compose -p "$caddy_project" --profile standalone up -d --force-recreate --no-deps caddy
+  run_phase 'Обновление веб-сервера' docker compose -p "$caddy_project" --profile standalone up -d --force-recreate --no-deps caddy
 elif [[ $mode == new ]]; then
-  docker compose --profile standalone up -d --no-deps caddy
+  run_phase 'Запуск веб-сервера' docker compose --profile standalone up -d --no-deps caddy
 fi
 
 if ! command -v curl >/dev/null 2>&1; then
@@ -151,7 +213,7 @@ verify_https() {
   return 1
 }
 
-verify_https "$public_host" / Landing
+run_phase 'Проверка HTTPS лендинга' verify_https "$public_host" / Landing
 if [[ -n $cabinet_subdomain ]]; then
-  verify_https "${cabinet_subdomain}.${public_host}" /mini-app/ Cabinet
+  run_phase 'Проверка HTTPS кабинета' verify_https "${cabinet_subdomain}.${public_host}" /mini-app/ Cabinet
 fi
