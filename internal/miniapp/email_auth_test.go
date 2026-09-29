@@ -1,7 +1,13 @@
 package miniapp
 
 import (
+	"bufio"
+	"context"
 	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +32,59 @@ func TestEmailBrowserSessionRoundTripAndTamperRejection(t *testing.T) {
 	}
 	if _, err := parseAndValidateLoginData(strings.Replace(encoded, "user%40example.com", "other%40example.com", 1), botToken); err == nil {
 		t.Fatal("tampered email session was accepted")
+	}
+}
+
+func TestSMTPHTTPProxyConnect(t *testing.T) {
+	for _, status := range []int{http.StatusOK, http.StatusForbidden} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer listener.Close()
+			proxyResult := make(chan error, 1)
+			go func() {
+				conn, acceptErr := listener.Accept()
+				if acceptErr != nil {
+					proxyResult <- acceptErr
+					return
+				}
+				defer conn.Close()
+				request, readErr := http.ReadRequest(bufio.NewReader(conn))
+				if readErr != nil {
+					proxyResult <- readErr
+					return
+				}
+				if request.Method != http.MethodConnect || request.Host != "smtp.gmail.com:465" || request.Header.Get("Proxy-Authorization") != "Basic dXNlcjpwYXNz" {
+					proxyResult <- fmt.Errorf("unexpected CONNECT request: method=%s host=%s auth=%s", request.Method, request.Host, request.Header.Get("Proxy-Authorization"))
+					return
+				}
+				_, writeErr := fmt.Fprintf(conn, "HTTP/1.1 %d %s\r\n\r\n", status, http.StatusText(status))
+				if status == http.StatusOK && writeErr == nil {
+					_, writeErr = io.WriteString(conn, "220 SMTP ready\r\n")
+				}
+				proxyResult <- writeErr
+			}()
+			conn, err := dialSMTPViaHTTPProxy(context.Background(), &net.Dialer{}, "http://user:pass@"+listener.Addr().String(), "smtp.gmail.com:465")
+			if status == http.StatusForbidden {
+				if err == nil || !strings.Contains(err.Error(), "HTTP 403") {
+					t.Fatalf("expected proxy refusal, got %v", err)
+				}
+			} else {
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer conn.Close()
+				greeting, readErr := bufio.NewReader(conn).ReadString('\n')
+				if readErr != nil || greeting != "220 SMTP ready\r\n" {
+					t.Fatalf("SMTP greeting was lost after CONNECT: %q, %v", greeting, readErr)
+				}
+			}
+			if proxyErr := <-proxyResult; proxyErr != nil {
+				t.Fatal(proxyErr)
+			}
+		})
 	}
 }
 

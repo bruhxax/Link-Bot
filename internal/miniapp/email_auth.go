@@ -1,11 +1,13 @@
 package miniapp
 
 import (
+	"bufio"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -16,6 +18,7 @@ import (
 	"net/http"
 	"net/mail"
 	"net/smtp"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -216,7 +219,7 @@ func (h *Handler) handleVerifyEmailAuth(w http.ResponseWriter, r *http.Request) 
 }
 
 type emailSMTPSettings struct {
-	host, port, user, password, from string
+	host, port, user, password, from, proxyURL string
 }
 
 type emailDeliveryError struct {
@@ -232,7 +235,7 @@ func emailDeliveryFailure(code string, err error) error {
 }
 
 func emailSMTPSettingsFromEnv() (emailSMTPSettings, bool) {
-	s := emailSMTPSettings{host: strings.TrimSpace(os.Getenv("SMTP_HOST")), port: strings.TrimSpace(os.Getenv("SMTP_PORT")), user: strings.TrimSpace(os.Getenv("SMTP_USER")), password: os.Getenv("SMTP_PASSWORD"), from: strings.TrimSpace(os.Getenv("SMTP_FROM"))}
+	s := emailSMTPSettings{host: strings.TrimSpace(os.Getenv("SMTP_HOST")), port: strings.TrimSpace(os.Getenv("SMTP_PORT")), user: strings.TrimSpace(os.Getenv("SMTP_USER")), password: os.Getenv("SMTP_PASSWORD"), from: strings.TrimSpace(os.Getenv("SMTP_FROM")), proxyURL: strings.TrimSpace(os.Getenv("SMTP_PROXY_URL"))}
 	// Google displays app passwords in groups of four characters for readability.
 	if strings.EqualFold(s.host, "smtp.gmail.com") {
 		s.password = strings.Join(strings.Fields(s.password), "")
@@ -248,7 +251,7 @@ func emailSMTPSettingsFromEnv() (emailSMTPSettings, bool) {
 func sendEmailAuthCode(ctx context.Context, settings emailSMTPSettings, recipient, code string) error {
 	err := sendEmailAuthCodeOnce(ctx, settings, recipient, code)
 	var deliveryErr *emailDeliveryError
-	if err != nil && strings.EqualFold(settings.host, "smtp.gmail.com") && settings.port == "587" && errors.As(err, &deliveryErr) && deliveryErr.code == "email_smtp_connection_failed" {
+	if err != nil && strings.EqualFold(settings.host, "smtp.gmail.com") && settings.port == "587" && errors.As(err, &deliveryErr) && (deliveryErr.code == "email_smtp_connection_failed" || deliveryErr.code == "email_smtp_proxy_failed") {
 		settings.port = "465"
 		if retryErr := sendEmailAuthCodeOnce(ctx, settings, recipient, code); retryErr != nil {
 			return fmt.Errorf("Gmail SMTP port 587 failed (%v); port 465 failed: %w", err, retryErr)
@@ -263,16 +266,26 @@ func sendEmailAuthCodeOnce(ctx context.Context, settings emailSMTPSettings, reci
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	var conn net.Conn
 	var err error
-	if settings.port == "465" {
-		conn, err = tls.DialWithDialer(dialer, "tcp", address, &tls.Config{ServerName: settings.host, MinVersion: tls.VersionTLS12})
+	if settings.proxyURL != "" {
+		conn, err = dialSMTPViaHTTPProxy(ctx, dialer, settings.proxyURL, address)
+		if err != nil {
+			return emailDeliveryFailure("email_smtp_proxy_failed", err)
+		}
 	} else {
 		conn, err = dialer.DialContext(ctx, "tcp", address)
-	}
-	if err != nil {
-		return emailDeliveryFailure("email_smtp_connection_failed", err)
+		if err != nil {
+			return emailDeliveryFailure("email_smtp_connection_failed", err)
+		}
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(15 * time.Second))
+	if settings.port == "465" {
+		secureConn := tls.Client(conn, &tls.Config{ServerName: settings.host, MinVersion: tls.VersionTLS12})
+		if err = secureConn.HandshakeContext(ctx); err != nil {
+			return emailDeliveryFailure("email_smtp_tls_failed", err)
+		}
+		conn = secureConn
+	}
 	client, err := smtp.NewClient(conn, settings.host)
 	if err != nil {
 		return emailDeliveryFailure("email_smtp_connection_failed", err)
@@ -308,4 +321,64 @@ func sendEmailAuthCodeOnce(ctx context.Context, settings emailSMTPSettings, reci
 		return err
 	}
 	return writer.Close()
+}
+
+type smtpProxyConn struct {
+	net.Conn
+	reader *bufio.Reader
+}
+
+func (c *smtpProxyConn) Read(p []byte) (int, error) { return c.reader.Read(p) }
+
+func dialSMTPViaHTTPProxy(ctx context.Context, dialer *net.Dialer, rawProxyURL, target string) (net.Conn, error) {
+	proxy, err := url.Parse(rawProxyURL)
+	if err != nil || (proxy.Scheme != "http" && proxy.Scheme != "https") || proxy.Hostname() == "" || proxy.Host == "" || proxy.Path != "" || proxy.RawQuery != "" || proxy.Fragment != "" {
+		return nil, errors.New("invalid SMTP_PROXY_URL; expected an HTTP or HTTPS proxy URL")
+	}
+	proxyAddress := proxy.Host
+	if proxy.Port() == "" {
+		port := "80"
+		if proxy.Scheme == "https" {
+			port = "443"
+		}
+		proxyAddress = net.JoinHostPort(proxy.Hostname(), port)
+	}
+	conn, err := dialer.DialContext(ctx, "tcp", proxyAddress)
+	if err != nil {
+		return nil, fmt.Errorf("proxy connection failed: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			conn.Close()
+		}
+	}()
+	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
+	if proxy.Scheme == "https" {
+		secureConn := tls.Client(conn, &tls.Config{ServerName: proxy.Hostname(), MinVersion: tls.VersionTLS12})
+		if err = secureConn.HandshakeContext(ctx); err != nil {
+			return nil, fmt.Errorf("proxy TLS failed: %w", err)
+		}
+		conn = secureConn
+	}
+	request := &http.Request{Method: http.MethodConnect, URL: &url.URL{Opaque: target}, Host: target, Header: make(http.Header)}
+	if proxy.User != nil {
+		username := proxy.User.Username()
+		password, _ := proxy.User.Password()
+		request.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(username+":"+password)))
+	}
+	if err = request.Write(conn); err != nil {
+		return nil, fmt.Errorf("proxy CONNECT request failed: %w", err)
+	}
+	reader := bufio.NewReader(conn)
+	response, readErr := http.ReadResponse(reader, request)
+	if readErr != nil {
+		err = readErr
+		return nil, fmt.Errorf("proxy CONNECT response failed: %w", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		err = fmt.Errorf("proxy CONNECT to SMTP was refused: HTTP %d", response.StatusCode)
+		return nil, err
+	}
+	_ = conn.SetDeadline(time.Time{})
+	return &smtpProxyConn{Conn: conn, reader: reader}, nil
 }

@@ -687,6 +687,7 @@ async function submitEmailAuth() {
 			email_not_configured: emailAuthText("Вход по почте пока не настроен", "Email login is not configured yet"),
 			email_code_cooldown: emailAuthText("Подождите минуту перед новым кодом", "Wait a minute before requesting a new code"),
 			email_smtp_connection_failed: emailAuthText("Сервер не может подключиться к почте. Проверьте SMTP_HOST, SMTP_PORT и исходящие порты 465/587 у хостинга", "Server cannot connect to email. Check SMTP_HOST, SMTP_PORT, and outbound ports 465/587 with your host"),
+			email_smtp_proxy_failed: emailAuthText("Прокси не пропускает подключение к почте. Проверьте SMTP_PROXY_URL и разрешение CONNECT к портам 465/587", "Proxy cannot connect to email. Check SMTP_PROXY_URL and CONNECT access to ports 465/587"),
 			email_smtp_tls_failed: emailAuthText("Ошибка защищённого соединения с почтой. Для Gmail используйте порт 465 или 587", "Secure mail connection failed. For Gmail, use port 465 or 587"),
 			email_smtp_auth_failed: emailAuthText("Почтовый сервер отклонил вход. Для Gmail проверьте SMTP_USER и пароль приложения в SMTP_PASSWORD", "Mail server rejected the sign-in. For Gmail, check SMTP_USER and the app password in SMTP_PASSWORD"),
 			email_smtp_sender_failed: emailAuthText("Почтовый сервер отклонил отправителя. Проверьте SMTP_FROM: для Gmail укажите адрес SMTP_USER", "Mail server rejected the sender. For Gmail, set SMTP_FROM to SMTP_USER"),
