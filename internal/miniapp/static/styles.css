@@ -6449,7 +6449,8 @@ button.rating-star {
 }
 
 .browser-email__switch:hover { text-decoration: underline; }
-.browser-email__error { min-height: 15px; margin: 0; color: #ff727d; font-size: 11px; font-weight: 700; }
+.browser-email__error { margin: 0; color: #ff727d; font-size: 11px; font-weight: 700; line-height: 1.4; }
+.browser-email__error:empty { display: none; }
 
 .browser-email__submit {
   min-height: 43px;
@@ -13080,7 +13081,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   .server-summary-panel, .review-card, .review-detail__comment, .login-method-card,
   .media-empty-card, .empty-design-card, .partner-application-card,
   .admin-users__list, .admin-user-subscriptions__list, .admin-partner-entry,
-  .admin-push__surface, .modal__sheet, .desktop-sidebar,
+  .admin-push__surface, .modal__sheet, .desktop-sidebar, .browser-auth,
   .subscription-switcher__menu, .notification-popover
 ) {
   background: var(--glass-background) !important;
@@ -13088,6 +13089,20 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   background-size: 128px 128px, 100% 100% !important;
   border: 1px solid var(--glass-border) !important;
   box-shadow: var(--glass-surface-shadow) !important;
+  backdrop-filter: var(--glass-backdrop) !important;
+  -webkit-backdrop-filter: var(--glass-backdrop) !important;
+}
+
+:root[data-glass="on"] .browser-auth {
+  backdrop-filter: var(--glass-menu-backdrop) !important;
+  -webkit-backdrop-filter: var(--glass-menu-backdrop) !important;
+}
+
+:root[data-glass="on"] :where(.browser-email__field input, .browser-email__digit, .browser-email__back) {
+  background: var(--glass-background) !important;
+  background-image: var(--glass-texture) !important;
+  background-size: 128px 128px, 100% 100% !important;
+  border-color: var(--glass-border) !important;
   backdrop-filter: var(--glass-backdrop) !important;
   -webkit-backdrop-filter: var(--glass-backdrop) !important;
 }

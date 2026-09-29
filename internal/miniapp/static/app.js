@@ -659,7 +659,7 @@ function renderEmailAuth() {
 		<div class="browser-email__heading">${escapeHtml(registration ? emailAuthText("Регистрация", "Registration") : emailAuthText("Вход", "Sign in"))}</div>
 		<label class="browser-email__field"><span>${escapeHtml(emailAuthText("Почта", "Email"))}</span><input data-email-auth-email type="email" inputmode="email" autocomplete="email" maxlength="254" required placeholder="name@example.com" value="${escapeAttribute(emailAuth.email)}"></label>
 		<label class="browser-email__field"><span>${escapeHtml(emailAuthText("Пароль", "Password"))}</span><input data-email-auth-password type="password" autocomplete="${registration ? "new-password" : "current-password"}" minlength="8" maxlength="72" required placeholder="••••••••" value="${escapeAttribute(emailAuth.password)}"></label>
-		<button class="browser-email__switch" type="button" data-action="email-auth-toggle">${escapeHtml(registration ? emailAuthText("Уже есть аккаунт? Войти", "Already have an account? Sign in") : emailAuthText("Нет аккаунта? Регистрация", "No account? Register"))}</button>
+		<button class="browser-email__switch" type="button" data-action="email-auth-toggle" ${emailAuth.busy ? "disabled" : ""}>${escapeHtml(registration ? emailAuthText("Уже есть аккаунт? Войти", "Already have an account? Sign in") : emailAuthText("Нет аккаунта? Регистрация", "No account? Register"))}</button>
 		<p class="browser-email__error" role="alert">${escapeHtml(emailAuth.error)}</p>
 		<button class="browser-email__submit" type="submit" ${emailAuth.busy ? "disabled" : ""}>${escapeHtml(emailAuth.busy ? emailAuthText("Отправляем код…", "Sending code…") : registration ? emailAuthText("Регистрация", "Register") : emailAuthText("Войти", "Sign in"))}</button>
 	</form>`;
@@ -667,8 +667,8 @@ function renderEmailAuth() {
 
 async function submitEmailAuth() {
 	if (emailAuth.busy) return;
-	const email = String(app.querySelector("[data-email-auth-email]")?.value || emailAuth.email).trim();
-	const password = String(app.querySelector("[data-email-auth-password]")?.value || emailAuth.password);
+	const email = String(app.querySelector("[data-email-auth-email]")?.value ?? emailAuth.email).trim();
+	const password = String(app.querySelector("[data-email-auth-password]")?.value ?? emailAuth.password);
 	emailAuth.email = email;
 	emailAuth.password = password;
 	emailAuth.error = "";
@@ -685,6 +685,7 @@ async function submitEmailAuth() {
 			invalid_credentials: emailAuthText("Неверная почта или пароль", "Invalid email or password"),
 			email_already_registered: emailAuthText("Такая почта уже зарегистрирована", "This email is already registered"),
 			email_not_configured: emailAuthText("Вход по почте пока не настроен", "Email login is not configured yet"),
+			feature_disabled: emailAuthText("Вход по почте сейчас отключён", "Email login is currently disabled"),
 			email_code_cooldown: emailAuthText("Подождите минуту перед новым кодом", "Wait a minute before requesting a new code"),
 			email_smtp_connection_failed: emailAuthText("Сервер не может подключиться к почте. Проверьте SMTP_HOST, SMTP_PORT и исходящие порты 465/587 у хостинга", "Server cannot connect to email. Check SMTP_HOST, SMTP_PORT, and outbound ports 465/587 with your host"),
 			email_smtp_proxy_failed: emailAuthText("Прокси не пропускает подключение к почте. Проверьте SMTP_PROXY_URL и разрешение CONNECT к портам 465/587", "Proxy cannot connect to email. Check SMTP_PROXY_URL and CONNECT access to ports 465/587"),
@@ -2207,7 +2208,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 ];
 
 function buildPreviewRuntimeSettings() {
-	const features = Object.fromEntries(["mini_app", "additional_subscriptions", "stars", "trials", "google", "support", "faq", "reviews", "referrals", "promocodes", "promo_code", "partner", "media", "server_status", "payments_history", "gifts", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
+	const features = Object.fromEntries(["mini_app", "additional_subscriptions", "stars", "trials", "google", "email_auth", "support", "faq", "reviews", "referrals", "promocodes", "promo_code", "partner", "media", "server_status", "payments_history", "gifts", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
 		version: 26,
 		localization: { language: "ru", fontFamily: "auto", fontFamilyRu: "montserrat", fontFamilyEn: "inter" },
@@ -6022,6 +6023,7 @@ function renderAdminFeaturesPage() {
 				["mini_app", "Mini App", "Доступ к личному кабинету"],
 				["additional_subscriptions", "Доп. подписки", "Создание, переключение и удаление дополнительных подписок"],
 				["google", "Gmail", "Авторизация через Google"],
+				["email_auth", "Вход по почте", "Вход и регистрация по почте в веб-кабинете"],
 				["stars", "Telegram Stars", "Оплата звёздами Telegram"],
 				["trials", "Триалы", "Бесплатный пробный доступ"],
 				["support", "Поддержка", "Обращения пользователей"],
@@ -8969,6 +8971,8 @@ function renderStateScreen(kind, message = "", meta = null) {
     const brand = browserAuthBrand();
     const copy = browserAuthCopy(brand.name);
     const fallbackMark = Array.from(brand.name)[0]?.toLocaleUpperCase() || "L";
+    const emailAuthAvailable = featureEnabled("email_auth");
+    const showOtherLogin = !emailAuthAvailable || emailAuth.stage === "credentials";
     return `
       <div class="state-screen state-screen--browser-auth">
         <section class="browser-auth" aria-labelledby="browser-auth-title">
@@ -8977,10 +8981,10 @@ function renderStateScreen(kind, message = "", meta = null) {
             <img class="browser-auth__logo" data-browser-brand-logo data-brand-logo src="${escapeAttribute(brand.logoUrl)}" alt="">
           </div>
           <h1 class="browser-auth__title" id="browser-auth-title">${escapeHtml(copy.title)}</h1>
-            ${emailAuth.stage === "credentials" ? renderBrowserAuthQR() : ""}
-          ${renderEmailAuth()}
-          ${emailAuth.stage === "credentials" ? `<div class="browser-auth__divider"><span>${escapeHtml(emailAuthText("или войдите через", "or sign in with"))}</span></div>` : ""}
-          ${emailAuth.stage === "credentials" ? `
+          ${showOtherLogin ? renderBrowserAuthQR() : ""}
+          ${emailAuthAvailable ? renderEmailAuth() : ""}
+          ${showOtherLogin ? `<div class="browser-auth__divider"><span>${escapeHtml(emailAuthText("или войдите через", "or sign in with"))}</span></div>` : ""}
+          ${showOtherLogin ? `
           <div class="browser-auth__actions">
             <button class="browser-auth__telegram" type="button" data-action="telegram-browser-login">
               <span class="browser-auth__telegram-icon" aria-hidden="true">${icon("telegram")}</span>
@@ -10067,11 +10071,19 @@ function bindRootActions() {
 
     try {
       if (action === "email-auth-toggle") {
-			emailAuth.email = String(app.querySelector("[data-email-auth-email]")?.value || emailAuth.email);
-			emailAuth.password = "";
+			if (emailAuth.busy) return;
+			const form = app.querySelector("[data-email-auth-form]");
+			if (!form) return;
+			emailAuth.email = String(form.querySelector("[data-email-auth-email]")?.value ?? emailAuth.email);
+			emailAuth.password = String(form.querySelector("[data-email-auth-password]")?.value ?? emailAuth.password);
 			emailAuth.error = "";
 			emailAuth.mode = emailAuth.mode === "login" ? "register" : "login";
-			render();
+			const registration = emailAuth.mode === "register";
+			form.querySelector(".browser-email__heading").textContent = registration ? emailAuthText("Регистрация", "Registration") : emailAuthText("Вход", "Sign in");
+			form.querySelector("[data-email-auth-password]").autocomplete = registration ? "new-password" : "current-password";
+			form.querySelector(".browser-email__switch").textContent = registration ? emailAuthText("Уже есть аккаунт? Войти", "Already have an account? Sign in") : emailAuthText("Нет аккаунта? Регистрация", "No account? Register");
+			form.querySelector(".browser-email__submit").textContent = registration ? emailAuthText("Регистрация", "Register") : emailAuthText("Войти", "Sign in");
+			form.querySelector(".browser-email__error").textContent = "";
 			return;
 		}
       if (action === "email-auth-back") {

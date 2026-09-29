@@ -66,6 +66,10 @@ func (h *Handler) handleStartEmailAuth(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
 		return
 	}
+	if h.runtimeSettings != nil && !h.runtimeSettings.FeatureEnabled("email_auth") {
+		h.writeError(w, http.StatusForbidden, "feature_disabled", "Email login is disabled")
+		return
+	}
 	if !hasAcceptedContentType(r.Header.Get("Content-Type"), []string{"application/json"}) {
 		h.writeError(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "JSON required")
 		return
@@ -165,6 +169,10 @@ func (h *Handler) handleVerifyEmailAuth(w http.ResponseWriter, r *http.Request) 
 	setAPIHeaders(w)
 	if r.Method != http.MethodPost {
 		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		return
+	}
+	if h.runtimeSettings != nil && !h.runtimeSettings.FeatureEnabled("email_auth") {
+		h.writeError(w, http.StatusForbidden, "feature_disabled", "Email login is disabled")
 		return
 	}
 	if !hasAcceptedContentType(r.Header.Get("Content-Type"), []string{"application/json"}) {

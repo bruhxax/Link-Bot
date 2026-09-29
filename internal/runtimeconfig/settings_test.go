@@ -1257,6 +1257,20 @@ func TestNormalizeAndValidateAddsProfileFeatureFlags(t *testing.T) {
 	}
 }
 
+func TestEmailAuthFeatureDefaultsAndStaysDisabled(t *testing.T) {
+	settings := DefaultSettings()
+	if !settings.Features["email_auth"] {
+		t.Fatal("email authentication should be enabled by default")
+	}
+	settings.Features["email_auth"] = false
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatal(err)
+	}
+	if settings.Features["email_auth"] {
+		t.Fatal("normalization re-enabled email authentication")
+	}
+}
+
 func TestProfileFeatureFlagsRemainDisabledAfterSettingsRoundTrip(t *testing.T) {
 	settings := DefaultSettings()
 	for _, name := range []string{"promo_code", "partner", "faq"} {

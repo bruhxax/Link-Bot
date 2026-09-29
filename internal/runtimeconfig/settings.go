@@ -41,6 +41,7 @@ var featureOrder = []string{
 	"mini_app",
 	"additional_subscriptions",
 	"google",
+	"email_auth",
 	"stars",
 	"trials",
 	"referrals",
