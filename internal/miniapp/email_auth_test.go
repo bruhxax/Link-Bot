@@ -1,6 +1,7 @@
 package miniapp
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +26,24 @@ func TestEmailBrowserSessionRoundTripAndTamperRejection(t *testing.T) {
 	}
 	if _, err := parseAndValidateLoginData(strings.Replace(encoded, "user%40example.com", "other%40example.com", 1), botToken); err == nil {
 		t.Fatal("tampered email session was accepted")
+	}
+}
+
+func TestEmailSMTPSettingsForGmail(t *testing.T) {
+	t.Setenv("SMTP_HOST", "smtp.gmail.com")
+	t.Setenv("SMTP_PORT", "465")
+	t.Setenv("SMTP_USER", "sender@gmail.com")
+	t.Setenv("SMTP_PASSWORD", "abcd efgh ijkl mnop")
+	t.Setenv("SMTP_FROM", "sender@gmail.com")
+	settings, ok := emailSMTPSettingsFromEnv()
+	if !ok || settings.password != "abcdefghijklmnop" {
+		t.Fatalf("Gmail app password was not accepted without display spaces: settings=%+v, configured=%v", emailSMTPSettings{host: settings.host, port: settings.port}, ok)
+	}
+	root := errors.New("authentication rejected")
+	err := emailDeliveryFailure("email_smtp_auth_failed", root)
+	var deliveryErr *emailDeliveryError
+	if !errors.As(err, &deliveryErr) || deliveryErr.code != "email_smtp_auth_failed" || !errors.Is(err, root) {
+		t.Fatalf("SMTP failure lost its category or underlying cause: %v", err)
 	}
 }
 

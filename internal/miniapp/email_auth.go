@@ -147,7 +147,12 @@ func (h *Handler) handleStartEmailAuth(w http.ResponseWriter, r *http.Request) {
 	if err = sendEmailAuthCode(r.Context(), settings, email, code); err != nil {
 		h.customerRepository.DeleteEmailChallenge(r.Context(), id)
 		slog.Error("email auth delivery failed", "error", err)
-		h.writeError(w, http.StatusBadGateway, "email_delivery_failed", "Unable to send the confirmation code")
+		code := "email_delivery_failed"
+		var deliveryErr *emailDeliveryError
+		if errors.As(err, &deliveryErr) {
+			code = deliveryErr.code
+		}
+		h.writeError(w, http.StatusBadGateway, code, "Unable to send the confirmation code")
 		return
 	}
 	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": map[string]any{"challengeId": id.String(), "expiresIn": 600}})
@@ -214,8 +219,24 @@ type emailSMTPSettings struct {
 	host, port, user, password, from string
 }
 
+type emailDeliveryError struct {
+	code string
+	err  error
+}
+
+func (e *emailDeliveryError) Error() string { return e.code + ": " + e.err.Error() }
+func (e *emailDeliveryError) Unwrap() error { return e.err }
+
+func emailDeliveryFailure(code string, err error) error {
+	return &emailDeliveryError{code: code, err: err}
+}
+
 func emailSMTPSettingsFromEnv() (emailSMTPSettings, bool) {
 	s := emailSMTPSettings{host: strings.TrimSpace(os.Getenv("SMTP_HOST")), port: strings.TrimSpace(os.Getenv("SMTP_PORT")), user: strings.TrimSpace(os.Getenv("SMTP_USER")), password: os.Getenv("SMTP_PASSWORD"), from: strings.TrimSpace(os.Getenv("SMTP_FROM"))}
+	// Google displays app passwords in groups of four characters for readability.
+	if strings.EqualFold(s.host, "smtp.gmail.com") {
+		s.password = strings.Join(strings.Fields(s.password), "")
+	}
 	if s.port == "" {
 		s.port = "587"
 	}
@@ -225,6 +246,19 @@ func emailSMTPSettingsFromEnv() (emailSMTPSettings, bool) {
 }
 
 func sendEmailAuthCode(ctx context.Context, settings emailSMTPSettings, recipient, code string) error {
+	err := sendEmailAuthCodeOnce(ctx, settings, recipient, code)
+	var deliveryErr *emailDeliveryError
+	if err != nil && strings.EqualFold(settings.host, "smtp.gmail.com") && settings.port == "587" && errors.As(err, &deliveryErr) && deliveryErr.code == "email_smtp_connection_failed" {
+		settings.port = "465"
+		if retryErr := sendEmailAuthCodeOnce(ctx, settings, recipient, code); retryErr != nil {
+			return fmt.Errorf("Gmail SMTP port 587 failed (%v); port 465 failed: %w", err, retryErr)
+		}
+		return nil
+	}
+	return err
+}
+
+func sendEmailAuthCodeOnce(ctx context.Context, settings emailSMTPSettings, recipient, code string) error {
 	address := net.JoinHostPort(settings.host, settings.port)
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	var conn net.Conn
@@ -235,33 +269,33 @@ func sendEmailAuthCode(ctx context.Context, settings emailSMTPSettings, recipien
 		conn, err = dialer.DialContext(ctx, "tcp", address)
 	}
 	if err != nil {
-		return err
+		return emailDeliveryFailure("email_smtp_connection_failed", err)
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(15 * time.Second))
 	client, err := smtp.NewClient(conn, settings.host)
 	if err != nil {
-		return err
+		return emailDeliveryFailure("email_smtp_connection_failed", err)
 	}
 	defer client.Close()
 	if settings.port != "465" {
 		ok, _ := client.Extension("STARTTLS")
 		if !ok {
-			return errors.New("SMTP server does not support STARTTLS")
+			return emailDeliveryFailure("email_smtp_tls_failed", errors.New("SMTP server does not support STARTTLS"))
 		}
 		if err = client.StartTLS(&tls.Config{ServerName: settings.host, MinVersion: tls.VersionTLS12}); err != nil {
-			return err
+			return emailDeliveryFailure("email_smtp_tls_failed", err)
 		}
 	}
 	if err = client.Auth(smtp.PlainAuth("", settings.user, settings.password, settings.host)); err != nil {
-		return err
+		return emailDeliveryFailure("email_smtp_auth_failed", err)
 	}
 	from, _ := mail.ParseAddress(settings.from)
 	if err = client.Mail(from.Address); err != nil {
-		return err
+		return emailDeliveryFailure("email_smtp_sender_failed", err)
 	}
 	if err = client.Rcpt(recipient); err != nil {
-		return err
+		return emailDeliveryFailure("email_smtp_recipient_failed", err)
 	}
 	writer, err := client.Data()
 	if err != nil {

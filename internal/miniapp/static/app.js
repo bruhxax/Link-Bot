@@ -686,6 +686,11 @@ async function submitEmailAuth() {
 			email_already_registered: emailAuthText("Такая почта уже зарегистрирована", "This email is already registered"),
 			email_not_configured: emailAuthText("Вход по почте пока не настроен", "Email login is not configured yet"),
 			email_code_cooldown: emailAuthText("Подождите минуту перед новым кодом", "Wait a minute before requesting a new code"),
+			email_smtp_connection_failed: emailAuthText("Сервер не может подключиться к почте. Проверьте SMTP_HOST, SMTP_PORT и исходящие порты 465/587 у хостинга", "Server cannot connect to email. Check SMTP_HOST, SMTP_PORT, and outbound ports 465/587 with your host"),
+			email_smtp_tls_failed: emailAuthText("Ошибка защищённого соединения с почтой. Для Gmail используйте порт 465 или 587", "Secure mail connection failed. For Gmail, use port 465 or 587"),
+			email_smtp_auth_failed: emailAuthText("Почтовый сервер отклонил вход. Для Gmail проверьте SMTP_USER и пароль приложения в SMTP_PASSWORD", "Mail server rejected the sign-in. For Gmail, check SMTP_USER and the app password in SMTP_PASSWORD"),
+			email_smtp_sender_failed: emailAuthText("Почтовый сервер отклонил отправителя. Проверьте SMTP_FROM: для Gmail укажите адрес SMTP_USER", "Mail server rejected the sender. For Gmail, set SMTP_FROM to SMTP_USER"),
+			email_smtp_recipient_failed: emailAuthText("Почтовый сервер отклонил адрес получателя. Проверьте введённую почту", "Mail server rejected the recipient address. Check the email you entered"),
 			email_delivery_failed: emailAuthText("Не удалось отправить письмо. Попробуйте позже", "Could not send email. Try again later"),
 		};
 		emailAuth.error = messages[error?.code] || error?.message || emailAuthText("Не удалось отправить код", "Could not send the code");
@@ -3608,6 +3613,7 @@ async function getBrowserAuthHeaders() {
 
 function requestTimeoutForURL(url) {
   const path = String(url || "");
+  if (path.includes("/api/mini-app/auth/email/start")) return 40000;
   if (path.includes("/api/mini-app/bootstrap")) return 30000;
   if (path.includes("/api/mini-app/purchase")) return 45000;
 	if (path.includes("/api/mini-app/promocode/redeem")) return 30000;
@@ -4168,6 +4174,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
 	state.subscriptionSwitchAnimation = "";
 	const publicMaintenance = !hasAuth() && Boolean(getRuntimeSettings()?.maintenance?.enabled) ? getRuntimeSettings().maintenance : null;
 	document.documentElement.dataset.accessScreen = !state.loading && !state.data && Boolean(state.maintenance || publicMaintenance || state.blocked) ? "on" : "off";
+	app.classList.toggle("app--browser-auth", !state.loading && !state.data && !hasAuth() && !previewMode && !state.maintenance && !publicMaintenance && !state.blocked && !state.error);
   applyAppearance();
   if (isInstallGuideMode()) {
     app.innerHTML = renderInstallGuidePage();
@@ -8968,7 +8975,6 @@ function renderStateScreen(kind, message = "", meta = null) {
             <span class="browser-auth__logo-fallback" hidden>${escapeHtml(fallbackMark)}</span>
             <img class="browser-auth__logo" data-browser-brand-logo data-brand-logo src="${escapeAttribute(brand.logoUrl)}" alt="">
           </div>
-          <div class="browser-auth__eyebrow">${escapeHtml(brand.name)} Web</div>
           <h1 class="browser-auth__title" id="browser-auth-title">${escapeHtml(copy.title)}</h1>
             ${emailAuth.stage === "credentials" ? renderBrowserAuthQR() : ""}
           ${renderEmailAuth()}
