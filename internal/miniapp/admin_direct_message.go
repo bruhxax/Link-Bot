@@ -82,8 +82,6 @@ func (h *Handler) writeDirectMessageError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusBadRequest, "recipient_unavailable", "У пользователя нет Telegram-чата с ботом")
 	case errors.Is(err, broadcast.ErrNoMessage):
 		h.writeError(w, http.StatusBadRequest, "message_required", "Сначала напишите сообщение боту")
-	case errors.Is(err, broadcast.ErrDirectPreview):
-		h.writeError(w, http.StatusBadRequest, "preview_required", "Сначала нажмите «Проверить»")
 	case errors.Is(err, broadcast.ErrDirectState), errors.Is(err, broadcast.ErrRunning):
 		h.writeError(w, http.StatusConflict, "direct_message_changed", "Черновик изменился или уже отправляется. Обновите карточку")
 	default:

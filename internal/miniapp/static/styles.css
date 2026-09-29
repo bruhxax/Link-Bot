@@ -13089,6 +13089,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .admin-user-direct__draft p { overflow-wrap: anywhere; margin: 6px 0 0; color: var(--text); font-size: 10px; line-height: 1.5; }
 .admin-user-direct__compose, .admin-user-direct__actions button, .admin-user-direct__confirm button { min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--control-bg); color: var(--text); font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease; }
 .admin-user-direct__compose { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--accent) 15%, var(--surface-strong)); }
+.admin-user-direct__compose.is-secondary { border-color: var(--line); color: var(--muted); background: var(--control-bg); }
 .admin-user-direct__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .admin-user-direct__actions .is-send, .admin-user-direct__confirm button:last-child { border-color: color-mix(in srgb, var(--success) 55%, var(--line)); color: var(--success); background: color-mix(in srgb, var(--success) 10%, var(--control-bg)); }
 .admin-user-direct button svg { width: 15px; height: 15px; }
@@ -13151,6 +13152,31 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 }
 :root[data-glass="on"] .admin-user-subscription__activate {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--glass-border)) !important;
+}
+:root[data-glass="on"] .admin-user-direct {
+  backdrop-filter: blur(13px) saturate(1.12) !important;
+  -webkit-backdrop-filter: blur(13px) saturate(1.12) !important;
+}
+:root[data-glass="on"] :where(
+  .admin-user-direct__icon, .admin-user-direct__head > button,
+  .admin-user-direct__draft, .admin-user-direct__compose,
+  .admin-user-direct__actions button, .admin-user-direct__confirm,
+  .admin-user-direct__confirm button
+) {
+  background: color-mix(in srgb, var(--surface) 12%, transparent) !important;
+  background-image: var(--glass-texture) !important;
+  background-size: 128px 128px, 100% 100% !important;
+  border-color: var(--glass-border) !important;
+  backdrop-filter: var(--glass-menu-backdrop) !important;
+  -webkit-backdrop-filter: var(--glass-menu-backdrop) !important;
+}
+:root[data-glass="on"] .admin-user-direct__compose:not(.is-secondary),
+:root[data-glass="on"] .admin-user-direct__actions .is-send,
+:root[data-glass="on"] .admin-user-direct__confirm button:last-child {
+  background: color-mix(in srgb, var(--accent) 13%, transparent) !important;
+  background-image: var(--glass-texture) !important;
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--glass-border)) !important;
+  color: var(--text);
 }
 @media (max-width: 390px) {
   .admin-user-subscription__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }

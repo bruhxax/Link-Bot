@@ -61,25 +61,21 @@ func (r *BroadcastRepository) SaveDirectSource(ctx context.Context, adminID int6
 func (r *BroadcastRepository) MarkDirectPreviewed(ctx context.Context, adminID int64, messageID int) (*DirectMessageDraft, error) {
 	return scanDirectMessage(r.pool.QueryRow(ctx, `
 		UPDATE bot_direct_message_drafts SET previewed_at = NOW(), updated_at = NOW()
-		WHERE admin_telegram_id = $1 AND status = 'draft' AND source_message_id = $2
+		WHERE admin_telegram_id = $1 AND status IN ('draft', 'sent') AND source_message_id = $2
 		RETURNING `+directMessageColumns, adminID, messageID))
 }
 
-func (r *BroadcastRepository) BeginDirectSend(ctx context.Context, adminID, customerID int64) (*DirectMessageDraft, error) {
+func (r *BroadcastRepository) BeginDirectSend(ctx context.Context, adminID, customerID int64, expectedUpdatedAt time.Time) (*DirectMessageDraft, error) {
 	return scanDirectMessage(r.pool.QueryRow(ctx, `
 		UPDATE bot_direct_message_drafts SET status = 'sending', updated_at = NOW()
-		WHERE admin_telegram_id = $1 AND customer_id = $2 AND status = 'draft'
-			AND source_message_id IS NOT NULL AND previewed_at IS NOT NULL
-		RETURNING `+directMessageColumns, adminID, customerID))
+		WHERE admin_telegram_id = $1 AND customer_id = $2 AND updated_at = $3 AND status IN ('draft', 'sent')
+			AND source_message_id IS NOT NULL
+		RETURNING `+directMessageColumns, adminID, customerID, expectedUpdatedAt))
 }
 
-func (r *BroadcastRepository) FinishDirectSend(ctx context.Context, adminID int64, sent bool) error {
-	status := "draft"
-	if sent {
-		status = "sent"
-	}
+func (r *BroadcastRepository) FinishDirectSend(ctx context.Context, adminID int64, status string) error {
 	_, err := r.pool.Exec(ctx, `
-		UPDATE bot_direct_message_drafts SET status = $2, sent_at = CASE WHEN $2 = 'sent' THEN NOW() ELSE NULL END,
+		UPDATE bot_direct_message_drafts SET status = $2, sent_at = CASE WHEN $2 = 'sent' THEN NOW() ELSE sent_at END,
 			updated_at = NOW() WHERE admin_telegram_id = $1 AND status = 'sending'
 	`, adminID, status)
 	return err

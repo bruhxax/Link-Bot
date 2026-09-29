@@ -5118,10 +5118,10 @@ function renderAdminDirectMessage(user) {
 	const ready = draft?.status === "draft" && Boolean(draft.sourceKind);
 	const sent = draft?.status === "sent";
 	return `<div class="admin-user-direct"><div class="admin-user-direct__head"><span class="admin-user-direct__icon">${icon("send")}</span><div><strong>Личное сообщение</strong><small>Только ${escapeHtml(adminUserDisplayName(user))} · Telegram ID ${escapeHtml(String(user.telegramId || "—"))}</small></div><button type="button" data-action="admin-user-message-refresh" aria-label="Обновить сообщение" ${busy ? "disabled" : ""}>${icon("refresh")}</button></div>
-		${ready || sent ? `<div class="admin-user-direct__draft"><span>${escapeHtml(broadcastKindLabel(draft.sourceKind, state.locale === "en"))}${sent ? " · Отправлено" : draft.previewedAt ? " · Проверено" : " · Ожидает проверки"}</span><p>${escapeHtml(draft.sourcePreview || "Сообщение без текста")}</p></div>` : `<p class="admin-user-direct__hint">${draft?.status === "interrupted" ? "Бот перезапустился во время отправки. Доставка неизвестна: проверьте чат получателя перед повторной отправкой." : awaiting ? "Ожидаем сообщение в чате с ботом. Отправьте его и вернитесь сюда." : "Напишите текст или отправьте медиа боту. После проверки сообщение получит только этот пользователь."}</p>`}
-		<button class="admin-user-direct__compose" type="button" data-action="admin-user-message-capture" ${busy ? "disabled" : ""}>${icon("send")}<span>${ready || sent || draft?.status === "interrupted" ? "Написать другое сообщение" : "Написать сообщение"}</span></button>
-		${ready ? `<div class="admin-user-direct__actions"><button type="button" data-action="admin-user-message-preview" ${busy ? "disabled" : ""}>${icon("eye")}Проверить</button><button class="is-send" type="button" data-action="admin-user-message-confirm" ${busy || !draft.previewedAt ? "disabled" : ""}>${icon("send")}Отправить</button></div>` : ""}
-		${state.adminDirectConfirmOpen && ready ? `<div class="admin-user-direct__confirm"><strong>Отправить именно этому пользователю?</strong><span>Сообщение получит ${escapeHtml(adminUserDisplayName(user))}. Отменить доставку нельзя.</span><div><button type="button" data-action="admin-user-message-cancel">Отмена</button><button type="button" data-action="admin-user-message-send" ${busy ? "disabled" : ""}>Да, отправить</button></div></div>` : ""}
+		${ready || sent ? `<div class="admin-user-direct__draft"><span>${escapeHtml(broadcastKindLabel(draft.sourceKind, state.locale === "en"))}${sent ? " · Отправлено" : draft.previewedAt ? " · Проверено" : " · Готово к отправке"}</span><p>${escapeHtml(draft.sourcePreview || "Сообщение без текста")}</p></div>` : `<p class="admin-user-direct__hint">${draft?.status === "interrupted" ? "Бот перезапустился во время отправки. Доставка неизвестна: проверьте чат получателя перед повторной отправкой." : awaiting ? "Ожидаем сообщение в чате с ботом. Отправьте его и вернитесь сюда." : "Напишите текст или отправьте медиа боту. После этого можно отправить сообщение сразу или сначала проверить его."}</p>`}
+		${ready || sent ? `<div class="admin-user-direct__actions"><button type="button" data-action="admin-user-message-preview" ${busy ? "disabled" : ""}>${icon("eye")}Проверить</button><button class="is-send" type="button" data-action="admin-user-message-confirm" ${busy ? "disabled" : ""}>${icon("send")}${sent ? "Отправить ещё раз" : "Отправить"}</button></div>` : ""}
+		<button class="admin-user-direct__compose ${ready || sent ? "is-secondary" : ""}" type="button" data-action="admin-user-message-capture" ${busy ? "disabled" : ""}>${icon("send")}<span>${ready || sent || draft?.status === "interrupted" ? "Написать новое сообщение" : "Написать сообщение"}</span></button>
+		${state.adminDirectConfirmOpen && (ready || sent) ? `<div class="admin-user-direct__confirm"><strong>${sent ? "Отправить сообщение ещё раз?" : "Отправить сообщение этому пользователю?"}</strong><span>Сообщение получит ${escapeHtml(adminUserDisplayName(user))}. Отменить доставку нельзя.</span><div><button type="button" data-action="admin-user-message-cancel">Отмена</button><button type="button" data-action="admin-user-message-send" ${busy ? "disabled" : ""}>Да, отправить</button></div></div>` : ""}
 	</div>`;
 }
 
@@ -5290,6 +5290,7 @@ async function refreshAdminDirectMessage(customerID = Number(state.adminUserDeta
 async function actAdminDirectMessage(action) {
 	const customerID = Number(state.adminUserDetail?.customerId || 0);
 	if (!customerID || state.adminDirectMessageBusy) return;
+	const wasSent = action === "send" && state.adminDirectMessage?.status === "sent";
 	adminDirectRequestID += 1;
 	state.adminDirectMessageBusy = action;
 	state.adminDirectConfirmOpen = false;
@@ -5305,7 +5306,7 @@ async function actAdminDirectMessage(action) {
 			if (tg?.close) setTimeout(() => tg.close(), 450);
 			else openExternal(state.data?.meta?.botUrl);
 		} else if (action === "preview") showToast("Проверка отправлена вам в Telegram", "success");
-		else showToast("Сообщение отправлено пользователю", "success");
+		else showToast(wasSent ? "Сообщение отправлено повторно" : "Сообщение отправлено пользователю", "success");
 	} catch (error) {
 		state.adminDirectMessageBusy = "";
 		render({ preserveScroll: true });

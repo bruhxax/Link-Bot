@@ -17,7 +17,6 @@ import (
 
 var (
 	ErrDirectRecipient = errors.New("direct message recipient is unavailable")
-	ErrDirectPreview   = errors.New("preview the direct message before sending")
 	ErrDirectState     = errors.New("direct message is busy or changed")
 )
 
@@ -49,7 +48,7 @@ func (s *Service) StartDirectCapture(ctx context.Context, adminID, customerID in
 	}
 	_, err = s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      adminID,
-		Text:        "<b>Личное сообщение пользователю</b>\n\nОтправьте сюда текст, фото, видео, аудио или файл. Ссылки, форматирование и Telegram HTML сохранятся. Затем вернитесь в карточку пользователя, нажмите «Проверить» и «Отправить».",
+		Text:        "<b>Личное сообщение пользователю</b>\n\nОтправьте сюда текст, фото, видео, аудио или файл. Ссылки, форматирование и Telegram HTML сохранятся. Затем вернитесь в карточку пользователя и нажмите «Отправить». Кнопка «Проверить» покажет копию сообщения только вам.",
 		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: &models.ForceReply{ForceReply: true, InputFieldPlaceholder: "Сообщение пользователю", Selective: true},
 	})
@@ -101,7 +100,7 @@ func (s *Service) CaptureDirectMessage(ctx context.Context, message *models.Mess
 	if link := adminDirectURL(draft.CustomerID); link != "" {
 		replyMarkup = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{Text: "Открыть карточку пользователя", WebApp: &models.WebAppInfo{URL: link}}}}}
 	}
-	_, _ = s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{ChatID: message.Chat.ID, Text: "Сообщение сохранено. Вернитесь в карточку пользователя и нажмите «Проверить».", ReplyMarkup: replyMarkup})
+	_, _ = s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{ChatID: message.Chat.ID, Text: "Сообщение сохранено. Вернитесь в карточку пользователя: можно проверить его или сразу отправить.", ReplyMarkup: replyMarkup})
 	return true, nil
 }
 
@@ -116,7 +115,7 @@ func (s *Service) PreviewDirect(ctx context.Context, adminID, customerID int64) 
 	if !draft.HasSource() {
 		return nil, ErrNoMessage
 	}
-	if draft.Status != "draft" {
+	if draft.Status != "draft" && draft.Status != "sent" {
 		return nil, ErrDirectState
 	}
 	if err := s.copyTo(ctx, directAsBroadcast(draft), adminID, nil); err != nil {
@@ -140,9 +139,6 @@ func (s *Service) SendDirect(ctx context.Context, adminID, customerID int64) (*d
 	if !draft.HasSource() {
 		return nil, ErrNoMessage
 	}
-	if draft.PreviewedAt == nil {
-		return nil, ErrDirectPreview
-	}
 	customer, err := s.customerRepository.FindById(ctx, customerID)
 	if err != nil {
 		return nil, err
@@ -150,7 +146,8 @@ func (s *Service) SendDirect(ctx context.Context, adminID, customerID int64) (*d
 	if customer == nil || customer.TelegramID <= 0 || customer.TelegramIDIsSynthetic {
 		return nil, ErrDirectRecipient
 	}
-	draft, err = s.repository.BeginDirectSend(ctx, adminID, customerID)
+	previousStatus := draft.Status
+	draft, err = s.repository.BeginDirectSend(ctx, adminID, customerID, draft.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -158,10 +155,10 @@ func (s *Service) SendDirect(ctx context.Context, adminID, customerID int64) (*d
 		return nil, ErrDirectState
 	}
 	if err := s.copyTo(ctx, directAsBroadcast(draft), customer.TelegramID, nil); err != nil {
-		_ = s.repository.FinishDirectSend(ctx, adminID, false)
+		_ = s.repository.FinishDirectSend(ctx, adminID, previousStatus)
 		return nil, fmt.Errorf("send direct message: %w", err)
 	}
-	if err := s.repository.FinishDirectSend(ctx, adminID, true); err != nil {
+	if err := s.repository.FinishDirectSend(ctx, adminID, "sent"); err != nil {
 		return nil, err
 	}
 	return s.repository.GetDirect(ctx, adminID)
