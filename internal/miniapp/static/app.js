@@ -96,6 +96,7 @@ let googleLoginScriptPromise = null;
 let googleLoginInitializedClientID = "";
 let googleAuthMode = "login";
 let googleLoginPendingMode = "";
+const emailAuth = { mode: "login", stage: "credentials", email: "", password: "", challengeId: "", busy: false, error: "" };
 let googleLinkRefreshTimer = null;
 let dashboardHydrationTimer = null;
 let dashboardRefreshPromise = null;
@@ -637,6 +638,109 @@ function browserAuthCopy(brandName = browserAuthBrand().name) {
     loginFailed: "Не удалось авторизоваться через Telegram",
     loginUnavailable: "Вход через Telegram временно недоступен",
   };
+}
+
+function emailAuthText(ru, en, fa = en) {
+	return state.locale === "ru" ? ru : state.locale === "fa" ? fa : en;
+}
+
+function renderEmailAuth() {
+	if (emailAuth.stage === "code" || emailAuth.stage === "success") {
+		return `<div class="browser-email browser-email--code ${emailAuth.stage === "success" ? "is-success" : ""}">
+			<div class="browser-email__code-head"><button type="button" class="browser-email__back" data-action="email-auth-back" aria-label="${escapeAttribute(emailAuthText("Изменить почту", "Change email"))}">←</button><div><strong>${escapeHtml(emailAuthText("Подтвердите почту", "Confirm your email"))}</strong><span>${escapeHtml(emailAuthText("Отправили 5 цифр на", "We sent 5 digits to"))} ${escapeHtml(emailAuth.email)}</span></div></div>
+			<div class="browser-email__codes" role="group" aria-label="${escapeAttribute(emailAuthText("Код подтверждения", "Confirmation code"))}">${Array.from({ length: 5 }, (_, index) => `<input class="browser-email__digit" data-email-code-digit="${index}" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="${index === 0 ? "one-time-code" : "off"}" aria-label="${escapeAttribute(emailAuthText(`Цифра ${index + 1}`, `Digit ${index + 1}`))}" ${emailAuth.busy ? "disabled" : ""}>`).join("")}</div>
+			<p class="browser-email__error" role="alert">${escapeHtml(emailAuth.error)}</p>
+			<button class="browser-email__submit" type="button" data-action="email-auth-verify" ${emailAuth.busy ? "disabled" : ""}>${escapeHtml(emailAuth.stage === "success" ? emailAuthText("Входим…", "Signing in…") : emailAuth.busy ? emailAuthText("Проверяем…", "Checking…") : emailAuthText("Подтвердить", "Confirm"))}</button>
+			<p class="browser-email__hint">${escapeHtml(emailAuthText("Код действует 10 минут. Проверьте папку «Спам». Чтобы исправить адрес, нажмите стрелку выше.", "The code is valid for 10 minutes. Check spam, or use the arrow to edit the address."))}</p>
+		</div>`;
+	}
+	const registration = emailAuth.mode === "register";
+	return `<form class="browser-email" data-email-auth-form>
+		<div class="browser-email__heading">${escapeHtml(registration ? emailAuthText("Регистрация", "Registration") : emailAuthText("Вход", "Sign in"))}</div>
+		<label class="browser-email__field"><span>${escapeHtml(emailAuthText("Почта", "Email"))}</span><input data-email-auth-email type="email" inputmode="email" autocomplete="email" maxlength="254" required placeholder="name@example.com" value="${escapeAttribute(emailAuth.email)}"></label>
+		<label class="browser-email__field"><span>${escapeHtml(emailAuthText("Пароль", "Password"))}</span><input data-email-auth-password type="password" autocomplete="${registration ? "new-password" : "current-password"}" minlength="8" maxlength="72" required placeholder="••••••••" value="${escapeAttribute(emailAuth.password)}"></label>
+		<button class="browser-email__switch" type="button" data-action="email-auth-toggle">${escapeHtml(registration ? emailAuthText("Уже есть аккаунт? Войти", "Already have an account? Sign in") : emailAuthText("Нет аккаунта? Регистрация", "No account? Register"))}</button>
+		<p class="browser-email__error" role="alert">${escapeHtml(emailAuth.error)}</p>
+		<button class="browser-email__submit" type="submit" ${emailAuth.busy ? "disabled" : ""}>${escapeHtml(emailAuth.busy ? emailAuthText("Отправляем код…", "Sending code…") : registration ? emailAuthText("Регистрация", "Register") : emailAuthText("Войти", "Sign in"))}</button>
+	</form>`;
+}
+
+async function submitEmailAuth() {
+	if (emailAuth.busy) return;
+	const email = String(app.querySelector("[data-email-auth-email]")?.value || emailAuth.email).trim();
+	const password = String(app.querySelector("[data-email-auth-password]")?.value || emailAuth.password);
+	emailAuth.email = email;
+	emailAuth.password = password;
+	emailAuth.error = "";
+	emailAuth.busy = true;
+	render();
+	try {
+		const result = await post("/api/mini-app/auth/email/start", { email, password, mode: emailAuth.mode });
+		emailAuth.challengeId = String(result?.data?.challengeId || "");
+		if (!emailAuth.challengeId) throw new Error(emailAuthText("Не удалось отправить код", "Could not send the code"));
+		emailAuth.stage = "code";
+		emailAuth.password = "";
+	} catch (error) {
+		const messages = {
+			invalid_credentials: emailAuthText("Неверная почта или пароль", "Invalid email or password"),
+			email_already_registered: emailAuthText("Такая почта уже зарегистрирована", "This email is already registered"),
+			email_not_configured: emailAuthText("Вход по почте пока не настроен", "Email login is not configured yet"),
+			email_code_cooldown: emailAuthText("Подождите минуту перед новым кодом", "Wait a minute before requesting a new code"),
+			email_delivery_failed: emailAuthText("Не удалось отправить письмо. Попробуйте позже", "Could not send email. Try again later"),
+		};
+		emailAuth.error = messages[error?.code] || error?.message || emailAuthText("Не удалось отправить код", "Could not send the code");
+	} finally {
+		emailAuth.busy = false;
+		render();
+		if (emailAuth.stage === "code") app.querySelector("[data-email-code-digit]")?.focus();
+	}
+}
+
+async function verifyEmailAuth() {
+	if (emailAuth.busy || emailAuth.stage !== "code") return;
+	const code = [...app.querySelectorAll("[data-email-code-digit]")].map((node) => node.value).join("");
+	if (!/^\d{5}$/.test(code)) return;
+	emailAuth.busy = true;
+	emailAuth.error = "";
+	const button = app.querySelector('[data-action="email-auth-verify"]');
+	if (button) button.disabled = true;
+	try {
+		const result = await post("/api/mini-app/auth/email/verify", { challengeId: emailAuth.challengeId, code });
+		const sessionData = String(result?.data?.sessionData || "");
+		if (!sessionData) throw new Error("No session received");
+		emailAuth.stage = "success";
+		app.querySelector(".browser-email--code")?.classList.add("is-success");
+		await new Promise((resolve) => window.setTimeout(resolve, 520));
+		writeSessionSetting(STORAGE_KEYS.telegramLogin, sessionData);
+		writeSessionSetting(STORAGE_KEYS.telegramIDToken, "");
+		clearGoogleAuth();
+		stopTelegramQRLogin({ reset: true });
+		state.loading = true;
+		state.error = "";
+		state.subscriptionGate = null;
+		render();
+		await refreshDashboard({ initial: true });
+	} catch (error) {
+		if (error?.code === "invalid_code") {
+			emailAuth.error = emailAuthText("Неправильный код подтверждения", "Incorrect confirmation code");
+			const card = app.querySelector(".browser-email--code");
+			card?.classList.remove("is-shaking");
+			void card?.offsetWidth;
+			card?.classList.add("is-shaking");
+			window.setTimeout(() => card?.classList.remove("is-shaking"), 1000);
+			app.querySelectorAll("[data-email-code-digit]").forEach((node) => { node.value = ""; });
+			app.querySelector("[data-email-code-digit]")?.focus();
+			const message = app.querySelector(".browser-email__error");
+			if (message) message.textContent = emailAuth.error;
+		} else {
+			emailAuth.error = error?.message || emailAuthText("Не удалось войти", "Could not sign in");
+			const message = app.querySelector(".browser-email__error");
+			if (message) message.textContent = emailAuth.error;
+		}
+	} finally {
+		emailAuth.busy = false;
+		if (button) button.disabled = false;
+	}
 }
 
 function getGoogleClientID() {
@@ -8504,7 +8608,9 @@ function renderLoginMethodsPage() {
   const googleLinked = Boolean(user.googleLinked);
   const telegramLinked = user.telegramLinked !== false;
   const gmailEmail = String(user.googleEmail || "").trim();
-  const providerLabel = String(user.authProvider || "telegram") === "google" ? gmailLabel() : telegramLabel();
+  const emailAddress = String(user.email || "").trim();
+  const provider = String(user.authProvider || "telegram");
+  const providerLabel = provider === "email" ? emailAuthText("Почта", "Email") : provider === "google" ? gmailLabel() : telegramLabel();
   const gmailStatus = googleLinked ? authLinkedLabel() : authNotLinkedLabel();
   const gmailAction = googleLinked ? "" : `
     <div class="login-method-action">
@@ -8528,6 +8634,7 @@ function renderLoginMethodsPage() {
           </div>
         </div>
         <div class="login-method-list">
+          ${emailAddress ? `<div class="login-method-row"><span class="login-method-row__icon">${icon("profileLetter")}</span><span class="login-method-row__body"><strong>${escapeHtml(emailAuthText("Почта", "Email"))}</strong><span>${escapeHtml(emailAddress)}</span></span><span class="login-method-row__status is-linked">${escapeHtml(authLinkedLabel())}</span></div>` : ""}
           <div class="login-method-row">
             <span class="login-method-row__icon">${icon("telegram")}</span>
             <span class="login-method-row__body"><strong>${escapeHtml(telegramLabel())}</strong></span>
@@ -8863,7 +8970,10 @@ function renderStateScreen(kind, message = "", meta = null) {
           </div>
           <div class="browser-auth__eyebrow">${escapeHtml(brand.name)} Web</div>
           <h1 class="browser-auth__title" id="browser-auth-title">${escapeHtml(copy.title)}</h1>
-			${renderBrowserAuthQR()}
+            ${emailAuth.stage === "credentials" ? renderBrowserAuthQR() : ""}
+          ${renderEmailAuth()}
+          ${emailAuth.stage === "credentials" ? `<div class="browser-auth__divider"><span>${escapeHtml(emailAuthText("или войдите через", "or sign in with"))}</span></div>` : ""}
+          ${emailAuth.stage === "credentials" ? `
           <div class="browser-auth__actions">
             <button class="browser-auth__telegram" type="button" data-action="telegram-browser-login">
               <span class="browser-auth__telegram-icon" aria-hidden="true">${icon("telegram")}</span>
@@ -8877,6 +8987,7 @@ function renderStateScreen(kind, message = "", meta = null) {
               ${getGoogleClientID() ? `<div class="google-login-widget google-login-widget--overlay" data-google-mode="login" aria-hidden="true"></div>` : ""}
             </div>
           </div>
+          ` : ""}
         </section>
       </div>
     `;
@@ -9837,6 +9948,21 @@ function queueSelectionFeedback(action, value) {
 function bindRootActions() {
   if (bindRootActions.bound) return;
   bindRootActions.bound = true;
+	app.addEventListener("submit", (event) => {
+		if (!event.target.matches?.("[data-email-auth-form]")) return;
+		event.preventDefault();
+		void submitEmailAuth();
+	});
+	app.addEventListener("paste", (event) => {
+		if (!event.target.matches?.("[data-email-code-digit]")) return;
+		const digits = String(event.clipboardData?.getData("text") || "").replace(/\D/g, "").slice(0, 5);
+		if (!digits) return;
+		event.preventDefault();
+		const inputs = [...app.querySelectorAll("[data-email-code-digit]")];
+		inputs.forEach((node, index) => { node.value = digits[index] || ""; });
+		inputs[Math.min(digits.length, 4)]?.focus();
+		if (digits.length === 5) void verifyEmailAuth();
+	});
 	for (const eventName of ["pointerdown", "touchmove", "wheel", "scroll"]) {
 		app.addEventListener(eventName, () => { realtimeLastInteraction = Date.now(); }, { passive: true, capture: true });
 	}
@@ -9933,6 +10059,23 @@ function bindRootActions() {
 		}
 
     try {
+      if (action === "email-auth-toggle") {
+			emailAuth.email = String(app.querySelector("[data-email-auth-email]")?.value || emailAuth.email);
+			emailAuth.password = "";
+			emailAuth.error = "";
+			emailAuth.mode = emailAuth.mode === "login" ? "register" : "login";
+			render();
+			return;
+		}
+      if (action === "email-auth-back") {
+			emailAuth.stage = "credentials";
+			emailAuth.challengeId = "";
+			emailAuth.error = "";
+			render();
+			queueMicrotask(() => app.querySelector("[data-email-auth-email]")?.focus());
+			return;
+		}
+      if (action === "email-auth-verify") return await verifyEmailAuth();
       if (action === "refresh") return await refreshDashboard({ forceSubscriptionCheck: Boolean(state.subscriptionGate) });
       if (action === "telegram-browser-login") return await startTelegramBrowserLogin(target);
       if (action === "google-browser-login") return await startGoogleLogin("login", target);
@@ -10396,6 +10539,17 @@ function bindRootActions() {
 
 	app.addEventListener("input", (event) => {
       const target = event.target;
+		if (target.matches?.("[data-email-auth-email]")) { emailAuth.email = target.value; return; }
+		if (target.matches?.("[data-email-auth-password]")) { emailAuth.password = target.value; return; }
+		if (target.matches?.("[data-email-code-digit]")) {
+			const digits = [...app.querySelectorAll("[data-email-code-digit]")];
+			const index = digits.indexOf(target);
+			const value = String(target.value || "").replace(/\D/g, "");
+			target.value = value.slice(-1);
+			if (target.value && index < 4) digits[index + 1]?.focus();
+			if (digits.every((node) => node.value)) void verifyEmailAuth();
+			return;
+		}
 		if (target?.dataset?.input === "admin-layout-style") {
 			const item = getSelectedDashboardStyleItem();
 			const field = target.dataset.layoutStyleField;
@@ -10811,6 +10965,11 @@ function bindRootActions() {
 	app.addEventListener("pointerdown", beginAdminPlanPointer);
 	app.addEventListener("pointerdown", beginAdminLayoutPointer);
 	app.addEventListener("keydown", (event) => {
+		if (event.target.matches?.("[data-email-code-digit]") && event.key === "Backspace" && !event.target.value) {
+			const digits = [...app.querySelectorAll("[data-email-code-digit]")];
+			digits[digits.indexOf(event.target) - 1]?.focus();
+			return;
+		}
         if (state.adminCommerceMenu) {
             if (event.key === "Escape") { event.preventDefault(); state.adminCommerceMenu = null; render({ preserveScroll: true }); return; }
             if (event.key === "Tab") {

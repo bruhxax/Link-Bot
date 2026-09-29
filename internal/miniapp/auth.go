@@ -19,6 +19,7 @@ const (
 	telegramInitDataFutureSkew = 5 * time.Minute
 	sessionProviderTelegram    = "telegram"
 	sessionProviderGoogle      = "google"
+	sessionProviderEmail       = "email"
 )
 
 var currentMiniAppTime = func() time.Time {
@@ -43,6 +44,7 @@ type session struct {
 	GoogleSubject       string
 	GoogleEmail         string
 	GoogleEmailVerified bool
+	Email               string
 }
 
 func parseAndValidateInitData(initData, botToken string) (*session, error) {
@@ -162,7 +164,7 @@ func parseAndValidateLoginData(loginData, botToken string) (*session, error) {
 	if provider == "" {
 		provider = sessionProviderTelegram
 	}
-	if provider != sessionProviderTelegram && provider != sessionProviderGoogle {
+	if provider != sessionProviderTelegram && provider != sessionProviderGoogle && provider != sessionProviderEmail {
 		return nil, fmt.Errorf("invalid session provider")
 	}
 	googleSubject := ""
@@ -174,6 +176,13 @@ func parseAndValidateLoginData(loginData, botToken string) (*session, error) {
 		googleEmailVerified = values.Get("google_email_verified") == "1"
 		if googleSubject == "" || googleEmail == "" || !googleEmailVerified {
 			return nil, fmt.Errorf("invalid google browser session")
+		}
+	}
+	email := ""
+	if provider == sessionProviderEmail {
+		email = strings.ToLower(strings.TrimSpace(values.Get("email")))
+		if email == "" {
+			return nil, fmt.Errorf("invalid email browser session")
 		}
 	}
 
@@ -191,6 +200,7 @@ func parseAndValidateLoginData(loginData, botToken string) (*session, error) {
 		GoogleSubject:       googleSubject,
 		GoogleEmail:         googleEmail,
 		GoogleEmailVerified: googleEmailVerified,
+		Email:               email,
 	}, nil
 }
 
@@ -209,11 +219,14 @@ func createBrowserSessionData(sess *session, botToken string, now time.Time) (st
 	if provider == "" {
 		provider = sessionProviderTelegram
 	}
-	if provider != sessionProviderTelegram && provider != sessionProviderGoogle {
+	if provider != sessionProviderTelegram && provider != sessionProviderGoogle && provider != sessionProviderEmail {
 		return "", fmt.Errorf("invalid session provider")
 	}
 	if provider == sessionProviderGoogle && (strings.TrimSpace(sess.GoogleSubject) == "" || strings.TrimSpace(sess.GoogleEmail) == "" || !sess.GoogleEmailVerified) {
 		return "", fmt.Errorf("invalid google browser session")
+	}
+	if provider == sessionProviderEmail && strings.TrimSpace(sess.Email) == "" {
+		return "", fmt.Errorf("invalid email browser session")
 	}
 
 	values := url.Values{}
@@ -236,6 +249,10 @@ func createBrowserSessionData(sess *session, botToken string, now time.Time) (st
 		values.Set("google_subject", strings.TrimSpace(sess.GoogleSubject))
 		values.Set("google_email", strings.ToLower(strings.TrimSpace(sess.GoogleEmail)))
 		values.Set("google_email_verified", "1")
+	}
+	if provider == sessionProviderEmail {
+		values.Set("provider", sessionProviderEmail)
+		values.Set("email", strings.ToLower(strings.TrimSpace(sess.Email)))
 	}
 
 	var pairs []string

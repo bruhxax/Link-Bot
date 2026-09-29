@@ -6225,8 +6225,9 @@ button.rating-star {
 .state-card__title { margin-top: 14px; font-size: 22px; font-weight: 800; line-height: 1.1; letter-spacing: -.04em; }
 .state-card__text { margin-top: 10px; color: var(--muted); line-height: 1.5; }
 .state-screen--browser-auth {
+  height: auto;
   align-content: center;
-  min-height: 100%;
+  min-height: var(--app-viewport-height, 100dvh);
 }
 
 .browser-auth {
@@ -6388,6 +6389,124 @@ button.rating-star {
   justify-items: stretch;
   margin-top: 2px;
 }
+
+.browser-email {
+  width: min(100%, 320px);
+  display: grid;
+  gap: 9px;
+  text-align: left;
+  animation: browser-email-enter .35s cubic-bezier(.2,.8,.2,1) both;
+}
+
+.browser-email__heading {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+
+.browser-email__field {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.browser-email__field input {
+  width: 100%;
+  height: 43px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  outline: none;
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+
+.browser-email__field input::placeholder { color: var(--muted); opacity: .58; }
+.browser-email__field input:focus {
+  border-color: var(--accent);
+  background: var(--surface-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.browser-email__switch,
+.browser-email__back {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.browser-email__switch {
+  justify-self: start;
+  padding: 1px 2px;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.browser-email__switch:hover { text-decoration: underline; }
+.browser-email__error { min-height: 15px; margin: 0; color: #ff727d; font-size: 11px; font-weight: 700; }
+
+.browser-email__submit {
+  min-height: 43px;
+  border: 1px solid color-mix(in srgb, var(--accent) 72%, white);
+  border-radius: 10px;
+  background: var(--accent);
+  color: #071016;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 25%, transparent);
+  transition: transform .2s ease, box-shadow .2s ease, opacity .2s ease;
+}
+.browser-email__submit:hover { transform: translateY(-1px); box-shadow: 0 11px 30px color-mix(in srgb, var(--accent) 35%, transparent); }
+.browser-email__submit:disabled { opacity: .65; cursor: wait; transform: none; }
+
+.browser-auth__divider {
+  width: min(100%, 320px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.browser-auth__divider::before,
+.browser-auth__divider::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+
+.browser-email--code { gap: 16px; padding: 8px 0; }
+.browser-email__code-head { display: flex; align-items: center; gap: 12px; }
+.browser-email__code-head > div { min-width: 0; display: grid; gap: 4px; }
+.browser-email__code-head strong { color: var(--text); font-size: 17px; }
+.browser-email__code-head span { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.browser-email__back { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 10px; font-size: 19px; }
+.browser-email__back:hover { background: var(--surface-strong); }
+.browser-email__codes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.browser-email__digit {
+  width: 100%; height: 54px; padding: 0;
+  border: 1px solid var(--line); border-radius: 13px;
+  outline: none; background: color-mix(in srgb, var(--surface-strong) 85%, transparent);
+  color: var(--text); text-align: center; font: inherit; font-size: 25px; font-weight: 850;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.browser-email__digit:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); transform: translateY(-2px); }
+.browser-email__hint { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; text-align: center; }
+.browser-email--code.is-shaking .browser-email__codes { animation: browser-email-shake 1s ease both; }
+.browser-email--code.is-shaking .browser-email__digit { border-color: #ff727d; }
+.browser-email--code.is-success .browser-email__digit { border-color: #46d7a0; box-shadow: 0 0 25px rgba(70,215,160,.28); transform: scale(1.05); }
+.browser-email--code.is-success { animation: browser-email-success .52s ease both; }
+@keyframes browser-email-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes browser-email-shake { 0%,100% { transform: translateX(0); } 15%,45%,75% { transform: translateX(-7px); } 30%,60%,90% { transform: translateX(7px); } }
+@keyframes browser-email-success { 0% { opacity: 1; transform: scale(1); } 55% { opacity: 1; transform: scale(1.035); } 100% { opacity: 0; transform: scale(.94) translateY(-8px); } }
+@media (prefers-reduced-motion: reduce) { .browser-email, .browser-email--code.is-shaking .browser-email__codes, .browser-email--code.is-success { animation: none; } }
 
 .browser-auth__telegram,
 .browser-auth__google {

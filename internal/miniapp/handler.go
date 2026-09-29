@@ -177,6 +177,7 @@ type userPayload struct {
 	PhotoURL       string `json:"photoUrl,omitempty"`
 	LanguageCode   string `json:"languageCode"`
 	AuthProvider   string `json:"authProvider"`
+	Email          string `json:"email,omitempty"`
 	GoogleEmail    string `json:"googleEmail,omitempty"`
 	GoogleLinked   bool   `json:"googleLinked"`
 	TelegramLinked bool   `json:"telegramLinked"`
@@ -746,6 +747,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/public-config", h.handlePublicConfig)
 	mux.HandleFunc("/api/mini-app/auth/telegram/qr/start", h.handleStartTelegramQRLogin)
 	mux.HandleFunc("/api/mini-app/auth/telegram/qr/status", h.handleTelegramQRLoginStatus)
+	mux.HandleFunc("/api/mini-app/auth/email/start", h.handleStartEmailAuth)
+	mux.HandleFunc("/api/mini-app/auth/email/verify", h.handleVerifyEmailAuth)
 	mux.HandleFunc("/api/mini-app/bootstrap", h.withSession(h.handleBootstrap))
 	mux.HandleFunc("/api/mini-app/realtime", h.withSession(h.handleRealtime))
 	mux.HandleFunc("/api/mini-app/subscriptions/select", h.withSession(h.handleSelectSubscription))
@@ -1133,6 +1136,13 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 			}
 			h.writeError(w, http.StatusUnauthorized, "unauthorized", "Authorize with Telegram")
 			return
+		}
+		if sess.Provider == sessionProviderEmail {
+			customer, err = h.customerRepository.FindByEmailIdentity(r.Context(), sess.User.ID, sess.Email)
+			if err != nil || customer == nil || customer.TelegramID != sess.User.ID {
+				h.writeError(w, http.StatusUnauthorized, "unauthorized", "Email session expired")
+				return
+			}
 		}
 
 		if config.GetBlockedTelegramIds()[sess.User.ID] {
@@ -4313,6 +4323,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 			PhotoURL:       sess.User.PhotoURL,
 			LanguageCode:   settings.Localization.Language,
 			AuthProvider:   fallbackText(sess.Provider, sessionProviderTelegram),
+			Email:          sess.Email,
 			GoogleEmail:    customerGoogleEmail(customer),
 			GoogleLinked:   customerGoogleSubject(customer) != "",
 			TelegramLinked: !customer.TelegramIDIsSynthetic,
