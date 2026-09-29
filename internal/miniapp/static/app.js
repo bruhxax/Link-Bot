@@ -2379,7 +2379,7 @@ const state = {
   subscriptionGate: null,
 	blocked: null,
   error: "",
-  currentPage: readSetting(STORAGE_KEYS.page, "dashboard"),
+  currentPage: "dashboard",
   sidebarOpen: false,
   payModalOpen: false,
 	p2pMenuStep: "",
@@ -17230,15 +17230,15 @@ function normalizePage(value) {
 }
 
 function getEntryPage() {
-  const saved = readSetting(STORAGE_KEYS.page, "dashboard");
   const requested = urlParams.get("page");
-  const page = isPageReload() ? saved : requested || saved;
+  const page = isPageReload() ? readSetting(STORAGE_KEYS.page, "dashboard") : requested || "dashboard";
   return PAGES.includes(page) ? page : "dashboard";
 }
 
 function getEntryAdminSection() {
 	const requested = String(urlParams.get("section") || "");
 	if (!isPageReload() && ["finance", "analytics", "diagnostics", "push"].includes(requested)) return requested;
+	if (!isPageReload()) return "home";
 	const saved = readSetting(STORAGE_KEYS.adminSection, "home");
 	return saved === "home" || ADMIN_SEARCH_SECTIONS.some(([section]) => section === saved) ? saved : "home";
 }
