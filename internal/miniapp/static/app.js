@@ -74,6 +74,10 @@ registerPWAServiceWorker();
 
 const STORAGE_KEYS = {
   page: "link-bot-page",
+	adminSection: "link-bot-admin-section",
+	adminContentSection: "link-bot-admin-content-section",
+	adminBroadcastTab: "link-bot-admin-broadcast-tab",
+	customPageID: "link-bot-custom-page-id",
   theme: "link-bot-theme",
   payMethod: "link-bot-pay-method",
   languageOverride: "link-bot-language-override",
@@ -2481,7 +2485,7 @@ const state = {
 	notificationPopoverOpen: false,
 	notificationPopoverClosing: false,
 	notificationPopoverAlign: "center",
-	activeCustomPageID: "",
+	activeCustomPageID: readSetting(STORAGE_KEYS.customPageID, ""),
   adminPromoCodeDraft: "",
 	adminPromoTypeDraft: "discount",
 	adminPromoSubscriptionUnitDraft: "days",
@@ -2500,7 +2504,7 @@ const state = {
   adminSubscriptionDestination: "",
   adminBusy: "",
 	adminBroadcast: null,
-	adminBroadcastTab: "telegram",
+	adminBroadcastTab: readSetting(STORAGE_KEYS.adminBroadcastTab, "telegram") === "email" ? "email" : "telegram",
 	adminEmailBroadcast: null,
 	adminEmailDraftSubject: "",
 	adminEmailDraftBody: "",
@@ -2558,7 +2562,7 @@ const state = {
 	adminSettingsDraft: null,
 	adminSettingsDirty: false,
 	adminJSONDrafts: {},
-	adminContentSection: "start",
+	adminContentSection: readSetting(STORAGE_KEYS.adminContentSection, "start"),
 	adminContentLastSections: { Telegram: "start", "Mini App": "support" },
 	adminContentTabsScrollLeft: 0,
 	adminLayoutCategory: "dashboard",
@@ -2586,10 +2590,7 @@ const state = {
   supportThreadScrollTop: 0,
 };
 
-state.currentPage = normalizePage(state.currentPage);
-if (state.currentPage === "admin" && ["finance", "analytics", "diagnostics", "push"].includes(String(urlParams.get("section") || ""))) {
-	state.adminSection = String(urlParams.get("section"));
-}
+state.currentPage = PAGES.includes(state.currentPage) ? state.currentPage : "dashboard";
 
 let pageAnimationEnabled = false;
 let subscriptionSwitchAnimation = "";
@@ -3082,9 +3083,8 @@ async function boot() {
 	applyAppearance();
   const paymentReturn = Boolean(getPaymentReturnState());
   state.currentPage = getEntryPage();
-	if (state.currentPage === "admin" && ["finance", "analytics", "diagnostics", "push"].includes(String(urlParams.get("section") || ""))) {
-		state.adminSection = String(urlParams.get("section"));
-	}
+	state.adminSection = state.currentPage === "admin" ? getEntryAdminSection() : "home";
+	if (!ADMIN_SEARCH_CONTENT_SECTIONS.some(([section]) => section === state.adminContentSection)) state.adminContentSection = "start";
   state.sidebarOpen = false;
   state.subscriptionMenuOpen = false;
   state.subscriptionMenuClosing = false;
@@ -3109,11 +3109,19 @@ async function boot() {
 	closeSupportThreadState();
   writeSetting(STORAGE_KEYS.page, state.currentPage);
   await refreshDashboard({ initial: true, silent: paymentReturn });
-	if (isAdminUser() && state.currentPage === "admin" && state.adminSection === "finance") void refreshAdminFinance().catch((error) => showToast(error?.message || "Не удалось загрузить финансы", "danger"));
-	if (isAdminUser() && state.currentPage === "admin" && state.adminSection === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
-	if (isAdminUser() && state.currentPage === "admin" && state.adminSection === "status") void refreshAdminStatus();
-	if (isAdminUser() && state.currentPage === "admin" && state.adminSection === "push") void refreshAdminPush().catch((error) => showToast(error?.message || "Не удалось загрузить уведомления", "danger"));
+	if (isAdminUser() && state.currentPage === "admin" && !["broadcast", "user-message"].includes(urlParams.get("admin"))) refreshRestoredAdminSection();
   await handlePostBootstrapFlow();
+}
+
+function refreshRestoredAdminSection() {
+	if (state.adminSection === "finance") void refreshAdminFinance().catch((error) => showToast(error?.message || "Не удалось загрузить финансы", "danger"));
+	if (state.adminSection === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
+	if (state.adminSection === "status") void refreshAdminStatus();
+	if (state.adminSection === "push") void refreshAdminPush().catch((error) => showToast(error?.message || "Не удалось загрузить уведомления", "danger"));
+	if (state.adminSection === "users") void refreshAdminUsers();
+	if (state.adminSection === "partners") void refreshAdminPartners();
+	if (state.adminSection === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
+	if (state.adminSection === "moynalog") void refreshAdminMoyNalog();
 }
 
 async function loadPublicConfig() {
@@ -3180,6 +3188,7 @@ async function handlePostBootstrapFlow() {
   }
 
   clearPendingPayment();
+	if (isPageReload()) return;
 
 	if (urlParams.get("admin") === "broadcast" && isAdminUser()) {
 		state.currentPage = "admin";
@@ -3955,8 +3964,13 @@ function ensureSelections() {
 
   if (state.currentPage === "admin" && !isAdminUser()) {
     state.currentPage = "dashboard";
+		state.adminSection = "home";
     writeSetting(STORAGE_KEYS.page, state.currentPage);
   }
+	if (state.currentPage === "custom-page" && !(getRuntimeSettings()?.content?.customLinks || []).some((item) => String(item?.id) === String(state.activeCustomPageID) && item?.type === "page")) {
+		state.currentPage = "settings";
+		writeSetting(STORAGE_KEYS.page, state.currentPage);
+	}
 	if (state.currentPage !== "admin" && !pageFeatureEnabled(state.currentPage)) {
 		state.currentPage = "dashboard";
 		writeSetting(STORAGE_KEYS.page, state.currentPage);
@@ -4365,6 +4379,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
     mountGoogleLoginWidgets();
     return;
   }
+	persistNavigationState();
 	const dockMode = getBottomDockMode();
 	const dockModeChanged = dockMode !== lastBottomDockMode;
 	mountCabinetShell(`
@@ -17159,6 +17174,20 @@ function writeSetting(key, value) {
   try { window.localStorage.setItem(key, value); } catch { return; }
 }
 
+let lastPersistedNavigation = "";
+
+function persistNavigationState() {
+	const values = [state.currentPage, state.adminSection, state.adminContentSection, state.adminBroadcastTab, state.activeCustomPageID];
+	const signature = JSON.stringify(values);
+	if (signature === lastPersistedNavigation) return;
+	lastPersistedNavigation = signature;
+	writeSetting(STORAGE_KEYS.page, state.currentPage);
+	if (state.currentPage === "admin") writeSetting(STORAGE_KEYS.adminSection, state.adminSection);
+	if (state.currentPage === "admin" && state.adminSection === "content") writeSetting(STORAGE_KEYS.adminContentSection, state.adminContentSection);
+	if (state.currentPage === "admin" && state.adminSection === "broadcast") writeSetting(STORAGE_KEYS.adminBroadcastTab, state.adminBroadcastTab);
+	if (state.currentPage === "custom-page") writeSetting(STORAGE_KEYS.customPageID, state.activeCustomPageID);
+}
+
 function readSessionSetting(key, fallback) {
   try {
     const persistent = window.localStorage.getItem(key);
@@ -17201,7 +17230,21 @@ function normalizePage(value) {
 }
 
 function getEntryPage() {
-  return normalizePage(urlParams.get("page") || "dashboard");
+  const saved = readSetting(STORAGE_KEYS.page, "dashboard");
+  const requested = urlParams.get("page");
+  const page = isPageReload() ? saved : requested || saved;
+  return PAGES.includes(page) ? page : "dashboard";
+}
+
+function getEntryAdminSection() {
+	const requested = String(urlParams.get("section") || "");
+	if (!isPageReload() && ["finance", "analytics", "diagnostics", "push"].includes(requested)) return requested;
+	const saved = readSetting(STORAGE_KEYS.adminSection, "home");
+	return saved === "home" || ADMIN_SEARCH_SECTIONS.some(([section]) => section === saved) ? saved : "home";
+}
+
+function isPageReload() {
+	return window.performance?.getEntriesByType?.("navigation")?.[0]?.type === "reload" || window.performance?.navigation?.type === 1;
 }
 
 function haptic(kind) {
