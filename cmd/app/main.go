@@ -230,6 +230,15 @@ func main() {
 		return update.Message != nil && update.Message.From != nil &&
 			update.Message.From.ID == config.GetAdminTelegramId()
 	}, func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		directCaptured, directErr := broadcastService.CaptureDirectMessage(ctx, update.Message)
+		if directErr != nil {
+			slog.Error("direct message capture failed", "error", directErr)
+			_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: update.Message.Chat.ID, Text: "Не удалось сохранить личное сообщение. Попробуйте ещё раз."})
+			return
+		}
+		if directCaptured {
+			return
+		}
 		captured, err := broadcastService.CaptureMessage(ctx, update.Message)
 		if err != nil {
 			slog.Error("broadcast message capture failed", "error", err)

@@ -56,7 +56,10 @@ func (s *Service) RecoverInterrupted(ctx context.Context) error {
 	if s == nil || s.repository == nil {
 		return nil
 	}
-	return s.repository.RecoverInterrupted(ctx)
+	if err := s.repository.RecoverInterrupted(ctx); err != nil {
+		return err
+	}
+	return s.repository.RecoverDirectSend(ctx)
 }
 
 func (s *Service) Get(ctx context.Context) (*database.BroadcastDraft, error) {
@@ -67,6 +70,13 @@ func (s *Service) Get(ctx context.Context) (*database.BroadcastDraft, error) {
 }
 
 func (s *Service) StartCapture(ctx context.Context, adminID int64) (*database.BroadcastDraft, error) {
+	direct, err := s.repository.GetDirect(ctx, adminID)
+	if err != nil {
+		return nil, err
+	}
+	if direct != nil && direct.Status == "awaiting_message" {
+		return nil, ErrRunning
+	}
 	draft, err := s.repository.StartCapture(ctx, adminID)
 	if err != nil {
 		return nil, normalizeRepositoryStateError(err)

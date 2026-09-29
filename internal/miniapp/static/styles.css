@@ -13074,13 +13074,37 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .admin-user-balance-actions button svg { width: 15px; height: 15px; }
 .admin-user-balance-actions .is-credit { color: var(--success); background: color-mix(in srgb, var(--success) 8%, transparent); }
 .admin-user-balance-actions .is-debit { color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); }
+.admin-user-direct { display: grid; gap: 12px; margin: 10px 0 16px; padding: 16px; border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line)); border-radius: 15px; background: var(--surface-strong); box-shadow: 0 10px 32px rgba(0, 0, 0, .12); }
+.admin-user-direct__head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.admin-user-direct__icon { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 10px; color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.admin-user-direct__icon svg { width: 18px; height: 18px; }
+.admin-user-direct__head > div { min-width: 0; flex: 1; display: grid; gap: 3px; }
+.admin-user-direct__head strong { font-size: 11px; }
+.admin-user-direct__head small { overflow: hidden; color: var(--muted); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-user-direct__head > button { width: 32px; height: 32px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 9px; background: var(--control-bg); color: var(--icon-color); cursor: pointer; }
+.admin-user-direct__head > button svg { width: 15px; height: 15px; }
+.admin-user-direct__hint { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.admin-user-direct__draft { min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--control-bg); }
+.admin-user-direct__draft span { color: var(--accent); font-size: 8px; font-weight: 800; }
+.admin-user-direct__draft p { overflow-wrap: anywhere; margin: 6px 0 0; color: var(--text); font-size: 10px; line-height: 1.5; }
+.admin-user-direct__compose, .admin-user-direct__actions button, .admin-user-direct__confirm button { min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--control-bg); color: var(--text); font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease; }
+.admin-user-direct__compose { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--accent) 15%, var(--surface-strong)); }
+.admin-user-direct__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.admin-user-direct__actions .is-send, .admin-user-direct__confirm button:last-child { border-color: color-mix(in srgb, var(--success) 55%, var(--line)); color: var(--success); background: color-mix(in srgb, var(--success) 10%, var(--control-bg)); }
+.admin-user-direct button svg { width: 15px; height: 15px; }
+.admin-user-direct button:disabled { opacity: .45; cursor: not-allowed; }
+.admin-user-direct button:not(:disabled):active { transform: scale(.98); }
+.admin-user-direct__confirm { display: grid; gap: 6px; padding: 12px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: 10px; background: var(--control-bg); }
+.admin-user-direct__confirm strong { font-size: 10px; }
+.admin-user-direct__confirm span { color: var(--muted); font-size: 9px; line-height: 1.4; }
+.admin-user-direct__confirm > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
 
 /* User management is rendered after the shared glass rules, so its cards and
    controls need the same translucent treatment explicitly. */
 :root[data-glass="on"] :where(
   .admin-users__search, .admin-users__more,
   .admin-user-subscriptions__tab, .admin-user-subscription,
-  .admin-user-controls__group--balance
+  .admin-user-controls__group--balance, .admin-user-direct
 ) {
   background: var(--glass-background) !important;
   background-image: var(--glass-texture) !important;

@@ -104,6 +104,7 @@ let adminFaviconPreviewTimer = null;
 let adminUsersSearchTimer = null;
 let adminUsersSearchRequestID = 0;
 let adminUserDetailRequestID = 0;
+let adminDirectRequestID = 0;
 let adminFinanceRequestID = 0;
 let adminAnalyticsRequestID = 0;
 let browserDeviceFingerprintPromise = null;
@@ -2308,6 +2309,9 @@ const state = {
 	adminUserTrafficDraft: "",
 	adminUserBlockReasonDraft: "",
 	adminUserDeleteSubscriptionOnBlock: false,
+	adminDirectMessage: null,
+	adminDirectMessageBusy: "",
+	adminDirectConfirmOpen: false,
 	adminSettingsDraft: null,
 	adminSettingsDirty: false,
 	adminJSONDrafts: {},
@@ -2940,6 +2944,15 @@ async function handlePostBootstrapFlow() {
 		writeSetting(STORAGE_KEYS.page, "admin");
 		render();
 		await refreshAdminBroadcast({ forceButtons: true });
+		return;
+	}
+	if (urlParams.get("admin") === "user-message" && isAdminUser()) {
+		const customerID = Number(urlParams.get("customerId") || 0);
+		state.currentPage = "admin";
+		state.adminSection = "users";
+		writeSetting(STORAGE_KEYS.page, "admin");
+		render();
+		if (Number.isSafeInteger(customerID) && customerID > 0) await openAdminUser(customerID);
 		return;
 	}
 
@@ -5090,11 +5103,26 @@ function renderAdminUserDetailPage(user) {
 			${subscriptions.length ? `<div class="admin-user-subscriptions__tabs" role="group" aria-label="Подписки пользователя">${subscriptions.map((item) => `<button class="admin-user-subscriptions__tab ${selected?.id === item.id ? "is-active" : ""}" type="button" aria-pressed="${selected?.id === item.id}" data-action="admin-user-view-subscription" data-value="${Number(item.id || 0)}"><strong>${escapeHtml(item.name || "Подписка")}</strong><small>${item.isSelected ? "Выбрана в Mini App" : item.isPrimary ? "Основная" : "Дополнительная"}</small></button>`).join("")}</div>${selected ? renderAdminUserSubscription(selected) : ""}` : `<div class="admin-users__empty admin-users__empty--compact"><strong>Подписок пока нет</strong></div>`}
 		</section>
 		<section class="admin-user-controls" aria-labelledby="admin-user-controls-title"><div class="admin-user-section-head"><div><span>ФУНКЦИИ БОТА</span><h3 id="admin-user-controls-title">Управление пользователем</h3></div></div>
+			${renderAdminDirectMessage(user)}
 			<div class="admin-user-controls__group admin-user-controls__group--balance"><div><strong>Баланс Mini App</strong><span>Сейчас доступно ${escapeHtml(formatMoneyCents(referrals.balanceCents || 0))}. Операции сохраняются в истории.</span></div><label class="admin-user-balance-input"><span>Сумма, ₽</span><input type="number" min="1" max="1000000" step="1" inputmode="numeric" value="${escapeAttribute(state.adminUserBalanceDraft)}" data-input="admin-user-balance" placeholder="Например, 500"></label><div class="admin-user-balance-actions"><button class="is-credit" type="button" data-action="admin-user-credit" ${busy ? "disabled" : ""}>${icon("plus")}Пополнить</button><button class="is-debit" type="button" data-action="admin-user-debit" ${busy || Number(referrals.balanceCents || 0) < 100 ? "disabled" : ""}>${icon("minus")}Списать</button></div></div>
 			<div class="admin-user-controls__group ${user.isBlocked || !selected ? "is-disabled" : ""}"><div><strong>Изменить подписку</strong><span>${selected ? escapeHtml(selected.name || "Выбранная подписка") : "Нет доступной подписки"}</span></div><div class="admin-user-control-grid"><div class="admin-user-control-row"><label><span>Продлить, дней</span><input type="number" min="1" max="3650" inputmode="numeric" value="${escapeAttribute(state.adminUserDaysDraft)}" data-input="admin-user-days" placeholder="30" ${user.isBlocked || !selected ? "disabled" : ""}></label><button type="button" data-action="admin-user-extend" ${busy || user.isBlocked || !selected ? "disabled" : ""}>Продлить</button></div><div class="admin-user-control-row"><label><span>Добавить, ГБ</span><input type="number" min="1" max="1000000" inputmode="numeric" value="${escapeAttribute(state.adminUserTrafficDraft)}" data-input="admin-user-traffic" placeholder="50" ${user.isBlocked || !selected ? "disabled" : ""}></label><button type="button" data-action="admin-user-traffic" ${busy || user.isBlocked || !selected ? "disabled" : ""}>Добавить</button></div></div><div class="admin-user-controls__reissue"><span>Создать новую ссылку с остатком срока и трафика. Старая работает ещё 10 минут.</span><button type="button" data-action="admin-user-reissue-subscription" ${busy || user.isBlocked || !selected || selected.status !== "active" ? "disabled" : ""}>${icon("refresh")}Перевыпустить</button></div><div class="admin-user-controls__delete"><span>Удаление аннулирует доступ в панели и не может быть отменено.</span><button type="button" data-action="admin-user-delete-subscription" ${busy || user.isBlocked || !selected ? "disabled" : ""}>${icon("trash")}Удалить подписку</button></div></div>
 			<div class="admin-user-controls__danger"><div><strong>${user.isBlocked ? "Разблокировать пользователя" : "Заблокировать пользователя"}</strong><span>${user.isBlocked ? `Причина: ${escapeHtml(user.blockedReason || "не указана")}` : (state.adminUserDeleteSubscriptionOnBlock ? "Доступ будет закрыт, а подписки безвозвратно удалены." : "Доступ в панели будет выключен. Подписки и их срок сохранятся.")}</span></div>${user.isBlocked ? "" : `<label class="admin-user-block-reason"><span>Причина блокировки</span><textarea maxlength="500" rows="3" data-input="admin-user-block-reason" placeholder="Укажите причину для истории блокировки">${escapeHtml(state.adminUserBlockReasonDraft)}</textarea></label><label class="admin-user-block-delete"><input type="checkbox" data-input="admin-user-block-delete" ${state.adminUserDeleteSubscriptionOnBlock ? "checked" : ""}><span><strong>Удалить подписку</strong><small>Безвозвратно удалить доступ из панели вместо временного отключения</small></span></label>`}<button type="button" class="${user.isBlocked ? "is-unblock" : "is-block"}" data-action="admin-user-block" data-blocked="${user.isBlocked ? "false" : "true"}" ${busy ? "disabled" : ""}>${user.isBlocked ? "Разблокировать" : "Заблокировать"}</button></div>
 		</section>
 	</div></section>`;
+}
+
+function renderAdminDirectMessage(user) {
+	const draft = state.adminDirectMessage?.customerId === user.customerId ? state.adminDirectMessage : null;
+	const busy = Boolean(state.adminDirectMessageBusy);
+	const awaiting = draft?.status === "awaiting_message";
+	const ready = draft?.status === "draft" && Boolean(draft.sourceKind);
+	const sent = draft?.status === "sent";
+	return `<div class="admin-user-direct"><div class="admin-user-direct__head"><span class="admin-user-direct__icon">${icon("send")}</span><div><strong>Личное сообщение</strong><small>Только ${escapeHtml(adminUserDisplayName(user))} · Telegram ID ${escapeHtml(String(user.telegramId || "—"))}</small></div><button type="button" data-action="admin-user-message-refresh" aria-label="Обновить сообщение" ${busy ? "disabled" : ""}>${icon("refresh")}</button></div>
+		${ready || sent ? `<div class="admin-user-direct__draft"><span>${escapeHtml(broadcastKindLabel(draft.sourceKind, state.locale === "en"))}${sent ? " · Отправлено" : draft.previewedAt ? " · Проверено" : " · Ожидает проверки"}</span><p>${escapeHtml(draft.sourcePreview || "Сообщение без текста")}</p></div>` : `<p class="admin-user-direct__hint">${draft?.status === "interrupted" ? "Бот перезапустился во время отправки. Доставка неизвестна: проверьте чат получателя перед повторной отправкой." : awaiting ? "Ожидаем сообщение в чате с ботом. Отправьте его и вернитесь сюда." : "Напишите текст или отправьте медиа боту. После проверки сообщение получит только этот пользователь."}</p>`}
+		<button class="admin-user-direct__compose" type="button" data-action="admin-user-message-capture" ${busy ? "disabled" : ""}>${icon("send")}<span>${ready || sent || draft?.status === "interrupted" ? "Написать другое сообщение" : "Написать сообщение"}</span></button>
+		${ready ? `<div class="admin-user-direct__actions"><button type="button" data-action="admin-user-message-preview" ${busy ? "disabled" : ""}>${icon("eye")}Проверить</button><button class="is-send" type="button" data-action="admin-user-message-confirm" ${busy || !draft.previewedAt ? "disabled" : ""}>${icon("send")}Отправить</button></div>` : ""}
+		${state.adminDirectConfirmOpen && ready ? `<div class="admin-user-direct__confirm"><strong>Отправить именно этому пользователю?</strong><span>Сообщение получит ${escapeHtml(adminUserDisplayName(user))}. Отменить доставку нельзя.</span><div><button type="button" data-action="admin-user-message-cancel">Отмена</button><button type="button" data-action="admin-user-message-send" ${busy ? "disabled" : ""}>Да, отправить</button></div></div>` : ""}
+	</div>`;
 }
 
 function renderAdminUserSubscription(item) {
@@ -5195,6 +5223,9 @@ async function openAdminUser(customerID) {
 	const summary = (state.adminUsers?.items || []).find((item) => Number(item.customerId) === Number(customerID)) || { customerId: customerID, telegramId: "", username: "", avatarUrl: "" };
 	state.adminUserDetail = null;
 	state.adminUserPending = summary;
+	state.adminDirectMessage = null;
+	state.adminDirectMessageBusy = "";
+	state.adminDirectConfirmOpen = false;
 	state.adminUserDetailSettled = false;
 	state.adminUsersBusy = "detail";
 	haptic("light");
@@ -5214,6 +5245,7 @@ async function openAdminUser(customerID) {
 		state.adminUserDeleteSubscriptionOnBlock = false;
 		state.adminUsersBusy = "";
 		render({ preserveScroll: false, scrollTop: 0 });
+		void refreshAdminDirectMessage(customerID);
 	} catch (error) {
 		if (detailRequestID !== adminUserDetailRequestID) return;
 		state.adminUserPending = null;
@@ -5235,8 +5267,50 @@ function closeAdminUserDetail() {
 	state.adminUserTrafficDraft = "";
 	state.adminUserBlockReasonDraft = "";
 	state.adminUserDeleteSubscriptionOnBlock = false;
+	state.adminDirectMessage = null;
+	state.adminDirectMessageBusy = "";
+	state.adminDirectConfirmOpen = false;
 	haptic("light");
 	renderAdminTransition();
+}
+
+async function refreshAdminDirectMessage(customerID = Number(state.adminUserDetail?.customerId || 0)) {
+	if (!customerID || state.adminSection !== "users") return;
+	const requestID = ++adminDirectRequestID;
+	try {
+		const response = await post("/api/mini-app/admin/users/message/state", { customerId: customerID });
+		if (requestID !== adminDirectRequestID || state.adminSection !== "users" || Number(state.adminUserDetail?.customerId || 0) !== customerID) return;
+		state.adminDirectMessage = response.data || null;
+		render({ preserveScroll: true });
+	} catch (error) {
+		showToast(error?.message || "Не удалось обновить сообщение", "danger");
+	}
+}
+
+async function actAdminDirectMessage(action) {
+	const customerID = Number(state.adminUserDetail?.customerId || 0);
+	if (!customerID || state.adminDirectMessageBusy) return;
+	adminDirectRequestID += 1;
+	state.adminDirectMessageBusy = action;
+	state.adminDirectConfirmOpen = false;
+	render({ preserveScroll: true });
+	try {
+		const response = await post(`/api/mini-app/admin/users/message/${action}`, { customerId: customerID });
+		if (Number(state.adminUserDetail?.customerId || 0) !== customerID) { state.adminDirectMessageBusy = ""; return; }
+		state.adminDirectMessage = response.data || null;
+		state.adminDirectMessageBusy = "";
+		render({ preserveScroll: true });
+		if (action === "capture") {
+			showToast("Напишите сообщение боту в Telegram", "success");
+			if (tg?.close) setTimeout(() => tg.close(), 450);
+			else openExternal(state.data?.meta?.botUrl);
+		} else if (action === "preview") showToast("Проверка отправлена вам в Telegram", "success");
+		else showToast("Сообщение отправлено пользователю", "success");
+	} catch (error) {
+		state.adminDirectMessageBusy = "";
+		render({ preserveScroll: true });
+		throw error;
+	}
 }
 
 function adminUserSelectedSubscriptionID() {
@@ -9660,6 +9734,12 @@ function bindRootActions() {
 			}
 			if (action === "admin-user-open") return await openAdminUser(Number(value));
 			if (action === "admin-user-back") return closeAdminUserDetail();
+			if (action === "admin-user-message-refresh") return await refreshAdminDirectMessage();
+			if (action === "admin-user-message-capture") return await actAdminDirectMessage("capture");
+			if (action === "admin-user-message-preview") return await actAdminDirectMessage("preview");
+			if (action === "admin-user-message-confirm") { state.adminDirectConfirmOpen = true; render({ preserveScroll: true }); return; }
+			if (action === "admin-user-message-cancel") { state.adminDirectConfirmOpen = false; render({ preserveScroll: true }); return; }
+			if (action === "admin-user-message-send") return await actAdminDirectMessage("send");
 			if (action === "admin-users-more") return await refreshAdminUsers({ append: true });
 			if (action === "admin-user-credit") return await creditAdminUserBalance();
 			if (action === "admin-user-debit") return await debitAdminUserBalance();
@@ -10588,6 +10668,7 @@ function bindRootActions() {
 		if ("clearAppBadge" in navigator) navigator.clearAppBadge().catch(() => {});
 		navigator.serviceWorker?.controller?.postMessage({ type: "CLEAR_APP_BADGE" });
 		if (hasAuth()) queueRealtimeRefresh(0);
+		if (state.currentPage === "admin" && state.adminSection === "users" && state.adminUserDetail?.customerId) void refreshAdminDirectMessage();
 	}
   });
 
