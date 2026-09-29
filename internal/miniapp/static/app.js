@@ -16225,6 +16225,38 @@ function applyWebPageMetadata() {
 	if (favicon) favicon.setAttribute("href", faviconURL);
 }
 
+let backtyanVideoLoadPromise = null;
+
+function prepareBacktyanVideo(video) {
+	if (video.src || backtyanVideoLoadPromise) return;
+	video.addEventListener("loadeddata", syncBackgroundEngines);
+	video.addEventListener("canplay", syncBackgroundEngines);
+	// The clip is short: download it completely before playback so a slow
+	// connection cannot make the first loop repeatedly stop to buffer.
+	backtyanVideoLoadPromise = fetch(video.dataset.src, { cache: "force-cache" })
+		.then((response) => {
+			if (!response.ok) throw new Error(`BackTyan download failed: ${response.status}`);
+			return response.blob();
+		})
+		.then((blob) => {
+			const blobURL = URL.createObjectURL(blob);
+			video.addEventListener("error", () => {
+				URL.revokeObjectURL(blobURL);
+				video.src = video.dataset.src;
+				video.load();
+			}, { once: true });
+			video.src = blobURL;
+			video.preload = "auto";
+			video.load();
+		})
+		.catch(() => {
+			// Keep the background available if a WebView rejects blob playback.
+			video.src = video.dataset.src;
+			video.preload = "auto";
+			video.load();
+		});
+}
+
 function syncBackgroundEngines() {
 	const backgroundMode = document.documentElement.dataset.background || "animated";
 	const paused = document.hidden || state.adminPlanEditing;
@@ -16239,11 +16271,12 @@ function syncBackgroundEngines() {
 	window.__linkBotLiquid?.setPaused(!backgroundMode.startsWith("liquid") || paused || reducedMotionMedia?.matches);
 	const video = document.querySelector(".bg-media__video");
 	if (video) {
-		if (backgroundMode === "backtyan" && !video.src) video.src = video.dataset.src;
+		if (backgroundMode === "backtyan") prepareBacktyanVideo(video);
 		video.muted = true;
-		video.playbackRate = Math.max(0.5, Math.min(1.5, Number(getRuntimeSettings()?.appearance?.backgroundMotion?.backtyan?.speed ?? DEFAULT_BACKGROUND_MOTION.backtyan.speed) / 50));
+		const playbackRate = Math.max(0.5, Math.min(1.5, Number(getRuntimeSettings()?.appearance?.backgroundMotion?.backtyan?.speed ?? DEFAULT_BACKGROUND_MOTION.backtyan.speed) / 50));
+		if (video.playbackRate !== playbackRate) video.playbackRate = playbackRate;
 		if (backgroundMode !== "backtyan" || paused || reducedBackgroundMotion) video.pause();
-		else if (video.paused) void video.play().catch(() => {});
+		else if (video.src && video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA && video.paused) void video.play().catch(() => {});
 	}
 }
 
