@@ -409,6 +409,22 @@ func TestCheckoutPlansIncludesCustomPlan(t *testing.T) {
 	}
 }
 
+func TestPlanTitleUsesRequestedLocale(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Localization.Language = "ru"
+	settings.Plans = []PlanSettings{{ID: "one_month", Enabled: true, Months: 1, PriceRub: 100, TitleRU: "1 месяц", TitleEN: "1 month", TitleFA: "۱ ماه"}}
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatal(err)
+	}
+	service := &Service{}
+	service.value.Store(settings)
+	for _, test := range []struct{ locale, want string }{{"ru", "1 месяц"}, {"en", "1 month"}, {"fa", "۱ ماه"}, {"", "1 месяц"}} {
+		if got := service.PlanTitle("one_month", test.locale); got != test.want {
+			t.Errorf("PlanTitle(%q) = %q, want %q", test.locale, got, test.want)
+		}
+	}
+}
+
 func TestCheckoutPlansIncludesFreePlanAndNormalizesOneTimeRule(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Plans = []PlanSettings{

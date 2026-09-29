@@ -54,7 +54,10 @@ func (s *Service) CheckoutPlan(planID string, months int) (planbook.CheckoutPlan
 }
 
 func (s *Service) PlanTitle(planID, locale string) string {
-	locale = s.Language()
+	locale = strings.TrimSpace(locale)
+	if locale == "" {
+		locale = s.Language()
+	}
 	for _, item := range s.Snapshot().Plans {
 		if item.ID != planID {
 			continue

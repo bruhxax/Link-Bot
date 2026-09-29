@@ -4441,8 +4441,8 @@ async function refreshAdminStatus(force = false) {
 	}
 }
 
-function formatFinanceRub(value) {
-	return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value || 0));
+function formatFinanceRub(value, locale = "ru") {
+	return new Intl.NumberFormat(intlLocale(locale), { style: "currency", currency: "RUB", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value || 0));
 }
 
 function formatFinanceAmount(value, currency) {
@@ -7342,6 +7342,12 @@ function subscriptionSwitcherCopy() {
 	return { rename: "Переименовать", create: "Создать", remove: "Удалить", primary: "Основная", active: "Активна", inactive: "Не активна", primaryDelete: "Основную подписку удалить нельзя" };
 }
 
+function subscriptionDisplayName(item, copy = subscriptionSwitcherCopy()) {
+	const name = String(item?.name || "").trim();
+	if (!name || (item?.isPrimary && name === "Основная")) return copy.primary;
+	return name;
+}
+
 function renderSubscriptionSwitcher() {
 	if (!featureEnabled("additional_subscriptions") && !state.adminLayoutEditing) return "";
 	const items = getSubscriptionItems();
@@ -7355,7 +7361,7 @@ function renderSubscriptionSwitcher() {
 	const menu = menuVisible ? `<div class="subscription-switcher__menu ${state.subscriptionMenuClosing ? "is-closing" : "is-open"}" role="menu" aria-label="${localizedText("Подписки", "Subscriptions", "اشتراک‌ها")}" aria-busy="${Boolean(switchingID)}">
 		<div class="subscription-switcher__list">${items.map((item) => {
 			const isSwitching = Number(item.id) === switchingID;
-			return `<button class="subscription-switcher__item ${item.isActive ? "is-active" : ""} ${isSwitching ? "is-switching" : ""}" type="button" role="menuitemradio" aria-checked="${Boolean(item.isActive)}" aria-busy="${isSwitching}" data-action="select-subscription" data-value="${escapeAttribute(String(item.id || 0))}" ${state.subscriptionBusy ? "disabled" : ""}><span class="subscription-switcher__item-copy"><strong>${escapeHtml(item.name || copy.primary)}</strong><small>${item.status === "active" ? copy.active : copy.inactive}${item.isPrimary ? ` · ${copy.primary}` : ""}</small></span><span class="subscription-switcher__check">${isSwitching ? `<span class="subscription-switcher__progress" aria-hidden="true"></span>` : (item.isActive ? icon("check") : "")}</span></button>`;
+			return `<button class="subscription-switcher__item ${item.isActive ? "is-active" : ""} ${isSwitching ? "is-switching" : ""}" type="button" role="menuitemradio" aria-checked="${Boolean(item.isActive)}" aria-busy="${isSwitching}" data-action="select-subscription" data-value="${escapeAttribute(String(item.id || 0))}" ${state.subscriptionBusy ? "disabled" : ""}><span class="subscription-switcher__item-copy"><strong>${escapeHtml(subscriptionDisplayName(item, copy))}</strong><small>${item.status === "active" ? copy.active : copy.inactive}${item.isPrimary ? ` · ${copy.primary}` : ""}</small></span><span class="subscription-switcher__check">${isSwitching ? `<span class="subscription-switcher__progress" aria-hidden="true"></span>` : (item.isActive ? icon("check") : "")}</span></button>`;
 		}).join("")}</div>
 		<div class="subscription-switcher__actions">
 			<button type="button" role="menuitem" data-action="open-subscription-rename" ${state.subscriptionBusy ? "disabled" : ""}>${icon("pencil")}<span>${copy.rename}</span></button>
@@ -7363,7 +7369,7 @@ function renderSubscriptionSwitcher() {
 			<button class="subscription-switcher__delete" type="button" role="menuitem" data-action="delete-subscription" ${active?.isPrimary || state.subscriptionBusy ? `disabled aria-label="${escapeAttribute(copy.primaryDelete)}"` : ""}>${icon("trash")}<span>${copy.remove}</span></button>
 		</div>
 	</div>` : "";
-	return `<div class="subscription-switcher ${menuVisible ? "is-expanded" : ""}"><button class="subscription-switcher__trigger" type="button" data-action="toggle-subscription-menu" aria-haspopup="menu" aria-expanded="${Boolean(state.subscriptionMenuOpen)}"><span>${escapeHtml(active?.name || copy.primary)}</span><span class="subscription-switcher__chevron">${icon("arrowDown")}</span></button>${menu}</div>`;
+	return `<div class="subscription-switcher ${menuVisible ? "is-expanded" : ""}"><button class="subscription-switcher__trigger" type="button" data-action="toggle-subscription-menu" aria-haspopup="menu" aria-expanded="${Boolean(state.subscriptionMenuOpen)}"><span>${escapeHtml(subscriptionDisplayName(active, copy))}</span><span class="subscription-switcher__chevron">${icon("arrowDown")}</span></button>${menu}</div>`;
 }
 
 function renderProfilePromoModal() {
@@ -7444,8 +7450,8 @@ function renderBuyPage() {
   const checkoutDisabled = !plan || (!freeCheckout && !method) || state.busyMethod || state.adminPlanEditing;
   const checkout = `<div class="card card--checkout">
 		<div class="summary-row checkout-summary"><div><div class="summary-row__title">${copy.selectedPlan}</div><div class="summary-row__value">${plan ? getPlanDisplayTitle(plan, state.locale) : "—"}</div></div>${plan?.recommended ? `<span class="badge badge--inline">${copy.best}</span>` : plan?.savingsPercent ? `<span class="badge badge--inline">${copy.savings(plan.savingsPercent)}</span>` : ""}</div>
-		${devicePack ? `<div class="summary-row checkout-summary"><div><div class="summary-row__title">Устройства</div><div class="summary-row__value">${escapeHtml(devicePackTitle(devicePack.devices))}</div></div></div>` : ""}
-		${trafficPack ? `<div class="summary-row checkout-summary"><div><div class="summary-row__title">Трафик</div><div class="summary-row__value">${escapeHtml(trafficPackTitle(trafficPack.trafficGb))}</div></div></div>` : ""}
+		${devicePack ? `<div class="summary-row checkout-summary"><div><div class="summary-row__title">${localizedText("Устройства", "Devices", "دستگاه‌ها")}</div><div class="summary-row__value">${escapeHtml(devicePackTitle(devicePack.devices))}</div></div></div>` : ""}
+		${trafficPack ? `<div class="summary-row checkout-summary"><div><div class="summary-row__title">${localizedText("Трафик", "Traffic", "ترافیک")}</div><div class="summary-row__value">${escapeHtml(trafficPackTitle(trafficPack.trafficGb))}</div></div></div>` : ""}
         <div class="payment-stack">
 		${freeCheckout && !state.adminPlanEditing ? `<div class="checkout-free-note"><span>${icon("check")}</span><div><strong>${escapeHtml(freeLabel)}</strong><small>${localizedText("Способ оплаты не нужен — тариф активируется сразу.", "No payment method or redirect is required.", "نیازی به روش پرداخت نیست؛ تعرفه فوراً فعال می‌شود.")}</small></div></div>` : `<button class="pay-selector checkout-payment ${method ? "" : "checkout-payment--empty"}" type="button" data-action="open-pay-modal" ${method || state.adminPlanEditing ? "" : "disabled aria-disabled=\"true\""}><span class="pay-selector__icon ${method ? "pay-selector__icon--brand" : ""}">${method ? renderPaymentMethodLogo(method) : icon("wallet")}</span><span class="pay-selector__copy"><strong>${escapeHtml(methodTitle)}</strong><span>${escapeHtml(methodHint)}</span></span><span class="pay-selector__tail">${icon("checkoutEdit")}</span></button>`}
         ${featureEnabled("promocodes") && !freeCheckout ? `<div class="promo-box checkout-promo">
@@ -7499,6 +7505,8 @@ function formatCheckoutPrice(plan, pack, methodID) {
 
 function devicePackTitle(count) {
 	const value = Math.max(0, Number(count || 0));
+	if (state.locale === "en") return `+${formatNumber(value, state.locale)} ${value === 1 ? "device" : "devices"}`;
+	if (state.locale === "fa") return `+${formatNumber(value, state.locale)} دستگاه`;
 	const mod10 = value % 10;
 	const mod100 = value % 100;
 	const word = mod10 === 1 && mod100 !== 11 ? "устройство" : (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? "устройства" : "устройств");
@@ -7509,10 +7517,10 @@ function renderDevicePackTrigger(pack) {
 	return `<div class="device-pack-trigger-row ${pack ? "has-selection" : ""}">
 		<button class="device-pack-trigger__main" type="button" data-action="open-device-packs">
 			<span class="device-pack-trigger__icon">${icon("devicePhone")}</span>
-			<span class="device-pack-trigger__copy"><strong>Докупить устройства</strong>${pack ? `<small>${escapeHtml(devicePackTitle(pack.devices))}</small>` : ""}</span>
+			<span class="device-pack-trigger__copy"><strong>${localizedText("Докупить устройства", "Buy more devices", "خرید دستگاه بیشتر")}</strong>${pack ? `<small>${escapeHtml(devicePackTitle(pack.devices))}</small>` : ""}</span>
 			<span class="device-pack-trigger__tail">${icon("chevronRight")}</span>
 		</button>
-		${pack ? `<button class="device-pack-trigger__cancel" type="button" data-action="clear-device-pack" aria-label="Отменить выбранный пакет">Отмена</button>` : ""}
+		${pack ? `<button class="device-pack-trigger__cancel" type="button" data-action="clear-device-pack" aria-label="${escapeAttribute(localizedText("Отменить выбранный пакет", "Remove selected pack", "حذف بسته انتخاب‌شده"))}">${localizedText("Отмена", "Cancel", "لغو")}</button>` : ""}
 	</div>`;
 }
 
@@ -7527,12 +7535,12 @@ function renderDevicePackAdminTrigger(editor = false) {
 }
 
 function renderDevicePackCard(pack, selected = false) {
-	const price = `${formatNumber(devicePackPrice(pack, "rub"), state.locale)} ₽`;
+	const price = formatCurrency(devicePackPrice(pack, "rub"), state.locale);
 	return `<button class="pricing-card device-pack-card ${selected ? "selected" : ""} ${pack.wide ? "is-wide" : ""}" type="button" data-action="select-device-pack" data-value="${escapeAttribute(pack.id)}" data-selection-feedback aria-pressed="${selected}">
 		<div class="pricing-card__content">
 			<div class="pricing-card__copy">
 				<div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(devicePackTitle(pack.devices))}</div></div>
-				<div class="pricing-card__spec">До ${escapeHtml(formatShortDateLabel(new Date(devicePackExpiry()).toISOString(), state.locale))}</div>
+				<div class="pricing-card__spec">${localizedText("До", "Until", "تا")} ${escapeHtml(formatShortDateLabel(new Date(devicePackExpiry()).toISOString(), state.locale))}</div>
 			</div>
 			<div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong>${escapeHtml(price)}</strong></div></div></div>
 		</div>
@@ -7560,8 +7568,9 @@ function renderDevicePackModal() {
 	const selected = getSelectedDevicePack();
 	const packList = packs.length
 		? `<div class="device-pack-grid">${packs.map((pack) => renderDevicePackCard(pack, String(pack.id) === String(selected?.id))).join("")}</div>`
-		: `<div class="device-pack-empty" role="status"><strong>Пакеты устройств пока не настроены</strong><span>Администратор может добавить их в разделе «Тарифы».</span></div>`;
-	return `<div class="modal open ${modalStateClass("device-packs")}" role="dialog" aria-modal="true" aria-labelledby="device-pack-modal-title"><button class="modal__backdrop" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-purchase"><div class="modal__header"><div><div class="section-label">УСТРОЙСТВА</div><div class="modal__title" id="device-pack-modal-title">Докупить устройства</div></div><button class="header__btn" type="button" data-action="close-device-packs" aria-label="Закрыть выбор устройств">${icon("close")}</button></div><div class="device-pack-modal__scroll">${packList}</div><div class="device-pack-modal__footer"><div class="device-pack-modal__actions"><button class="btn btn--green-filled" type="button" data-action="buy-device-pack">${icon("cart")}Докупить</button><button class="btn" type="button" data-action="continue-device-pack" ${selected ? "" : "disabled"}>Продолжить</button></div></div></div></div>`;
+		: `<div class="device-pack-empty" role="status"><strong>${localizedText("Пакеты устройств пока не настроены", "Device packs are not configured yet", "بسته‌های دستگاه هنوز تنظیم نشده‌اند")}</strong><span>${localizedText("Администратор может добавить их в разделе «Тарифы».", "An administrator can add them under Plans.", "مدیر می‌تواند آن‌ها را در بخش تعرفه‌ها اضافه کند.")}</span></div>`;
+	const close = localizedText("Закрыть выбор устройств", "Close device selection", "بستن انتخاب دستگاه");
+	return `<div class="modal open ${modalStateClass("device-packs")}" role="dialog" aria-modal="true" aria-labelledby="device-pack-modal-title"><button class="modal__backdrop" type="button" data-action="close-device-packs" aria-label="${escapeAttribute(close)}"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-purchase"><div class="modal__header"><div><div class="section-label">${localizedText("УСТРОЙСТВА", "DEVICES", "دستگاه‌ها")}</div><div class="modal__title" id="device-pack-modal-title">${localizedText("Докупить устройства", "Buy more devices", "خرید دستگاه بیشتر")}</div></div><button class="header__btn" type="button" data-action="close-device-packs" aria-label="${escapeAttribute(close)}">${icon("close")}</button></div><div class="device-pack-modal__scroll">${packList}</div><div class="device-pack-modal__footer"><div class="device-pack-modal__actions"><button class="btn btn--green-filled" type="button" data-action="buy-device-pack">${icon("cart")}${localizedText("Докупить", "Buy", "خرید")}</button><button class="btn" type="button" data-action="continue-device-pack" ${selected ? "" : "disabled"}>${localizedText("Продолжить", "Continue", "ادامه")}</button></div></div></div></div>`;
 }
 
 function openDevicePackPaymentMethods() {
@@ -7588,7 +7597,7 @@ function getSelectedTrafficPack() {
 }
 
 function trafficPackTitle(gb) {
-	return Number(gb) === 0 ? "Безлимитный трафик" : `+${formatNumber(Number(gb), state.locale)} ГБ`;
+	return Number(gb) === 0 ? localizedText("Безлимитный трафик", "Unlimited traffic", "ترافیک نامحدود") : `+${formatNumber(Number(gb), state.locale)} ${localizedText("ГБ", "GB", "گیگابایت")}`;
 }
 
 function trafficPackPrice(pack, methodID) {
@@ -7597,7 +7606,7 @@ function trafficPackPrice(pack, methodID) {
 }
 
 function renderTrafficPackTrigger(pack) {
-	return `<div class="device-pack-trigger-row ${pack ? "has-selection" : ""}"><button class="device-pack-trigger__main" type="button" data-action="open-traffic-packs"><span class="device-pack-trigger__icon">${icon("chartLine")}</span><span class="device-pack-trigger__copy"><strong>Докупить трафик</strong>${pack ? `<small>${escapeHtml(trafficPackTitle(pack.trafficGb))}</small>` : ""}</span><span class="device-pack-trigger__tail">${icon("chevronRight")}</span></button>${pack ? `<button class="device-pack-trigger__cancel" type="button" data-action="clear-traffic-pack" aria-label="Отменить выбранный пакет">Отмена</button>` : ""}</div>`;
+	return `<div class="device-pack-trigger-row ${pack ? "has-selection" : ""}"><button class="device-pack-trigger__main" type="button" data-action="open-traffic-packs"><span class="device-pack-trigger__icon">${icon("chartLine")}</span><span class="device-pack-trigger__copy"><strong>${localizedText("Докупить трафик", "Buy more traffic", "خرید ترافیک بیشتر")}</strong>${pack ? `<small>${escapeHtml(trafficPackTitle(pack.trafficGb))}</small>` : ""}</span><span class="device-pack-trigger__tail">${icon("chevronRight")}</span></button>${pack ? `<button class="device-pack-trigger__cancel" type="button" data-action="clear-traffic-pack" aria-label="${escapeAttribute(localizedText("Отменить выбранный пакет", "Remove selected pack", "حذف بسته انتخاب‌شده"))}">${localizedText("Отмена", "Cancel", "لغو")}</button>` : ""}</div>`;
 }
 
 function renderTrafficPackAdminTrigger(editor = false) {
@@ -7606,20 +7615,21 @@ function renderTrafficPackAdminTrigger(editor = false) {
 }
 
 function renderTrafficPackCard(pack, selected = false) {
-	return `<button class="pricing-card device-pack-card ${selected ? "selected" : ""} ${pack.wide ? "is-wide" : ""}" type="button" data-action="select-traffic-pack" data-value="${escapeAttribute(pack.id)}" data-selection-feedback aria-pressed="${selected}"><div class="pricing-card__content"><div class="pricing-card__copy"><div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(trafficPackTitle(pack.trafficGb))}</div></div><div class="pricing-card__spec">Без сброса</div></div><div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong>${escapeHtml(formatCurrency(pack.priceRub, state.locale))}</strong></div></div></div></div></button>`;
+	return `<button class="pricing-card device-pack-card ${selected ? "selected" : ""} ${pack.wide ? "is-wide" : ""}" type="button" data-action="select-traffic-pack" data-value="${escapeAttribute(pack.id)}" data-selection-feedback aria-pressed="${selected}"><div class="pricing-card__content"><div class="pricing-card__copy"><div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(trafficPackTitle(pack.trafficGb))}</div></div><div class="pricing-card__spec">${localizedText("Без сброса", "No reset", "بدون بازنشانی")}</div></div><div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong>${escapeHtml(formatCurrency(pack.priceRub, state.locale))}</strong></div></div></div></div></button>`;
 }
 
 function renderTrafficPackModal() {
 	const packs = getTrafficPacks();
 	const selected = getSelectedTrafficPack();
-	const list = packs.length ? `<div class="device-pack-grid">${packs.map((pack) => renderTrafficPackCard(pack, String(pack.id) === String(selected?.id))).join("")}</div>` : `<div class="device-pack-empty" role="status"><strong>Пакеты трафика пока не настроены</strong><span>Администратор может добавить их в разделе «Тарифы».</span></div>`;
-	return `<div class="modal open ${modalStateClass("traffic-packs")}" role="dialog" aria-modal="true" aria-labelledby="traffic-pack-modal-title"><button class="modal__backdrop" type="button" data-action="close-traffic-packs" aria-label="Закрыть выбор трафика"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-purchase"><div class="modal__header"><div><div class="section-label">ТРАФИК</div><div class="modal__title" id="traffic-pack-modal-title">Докупить трафик</div></div><button class="header__btn" type="button" data-action="close-traffic-packs" aria-label="Закрыть выбор трафика">${icon("close")}</button></div><div class="device-pack-modal__scroll">${list}</div><div class="device-pack-modal__footer"><div class="device-pack-modal__actions"><button class="btn btn--green-filled" type="button" data-action="buy-traffic-pack">${icon("cart")}Докупить</button><button class="btn" type="button" data-action="continue-traffic-pack" ${selected ? "" : "disabled"}>Продолжить</button></div></div></div></div>`;
+	const list = packs.length ? `<div class="device-pack-grid">${packs.map((pack) => renderTrafficPackCard(pack, String(pack.id) === String(selected?.id))).join("")}</div>` : `<div class="device-pack-empty" role="status"><strong>${localizedText("Пакеты трафика пока не настроены", "Traffic packs are not configured yet", "بسته‌های ترافیک هنوز تنظیم نشده‌اند")}</strong><span>${localizedText("Администратор может добавить их в разделе «Тарифы».", "An administrator can add them under Plans.", "مدیر می‌تواند آن‌ها را در بخش تعرفه‌ها اضافه کند.")}</span></div>`;
+	const close = localizedText("Закрыть выбор трафика", "Close traffic selection", "بستن انتخاب ترافیک");
+	return `<div class="modal open ${modalStateClass("traffic-packs")}" role="dialog" aria-modal="true" aria-labelledby="traffic-pack-modal-title"><button class="modal__backdrop" type="button" data-action="close-traffic-packs" aria-label="${escapeAttribute(close)}"></button><div class="modal__sheet modal__sheet--device-packs modal__sheet--device-packs-purchase"><div class="modal__header"><div><div class="section-label">${localizedText("ТРАФИК", "TRAFFIC", "ترافیک")}</div><div class="modal__title" id="traffic-pack-modal-title">${localizedText("Докупить трафик", "Buy more traffic", "خرید ترافیک بیشتر")}</div></div><button class="header__btn" type="button" data-action="close-traffic-packs" aria-label="${escapeAttribute(close)}">${icon("close")}</button></div><div class="device-pack-modal__scroll">${list}</div><div class="device-pack-modal__footer"><div class="device-pack-modal__actions"><button class="btn btn--green-filled" type="button" data-action="buy-traffic-pack">${icon("cart")}${localizedText("Докупить", "Buy", "خرید")}</button><button class="btn" type="button" data-action="continue-traffic-pack" ${selected ? "" : "disabled"}>${localizedText("Продолжить", "Continue", "ادامه")}</button></div></div></div></div>`;
 }
 
 function openTrafficPackPaymentMethods() {
-	if (!getSelectedTrafficPack()) return showToast("Выберите пакет трафика", "danger");
-	if (!isSubscriptionActive()) return showToast("Докупка доступна только при активной подписке", "danger");
-	if (Number(state.data?.subscription?.trafficLimitBytes || 0) <= 0) return showToast("У подписки уже безлимитный трафик", "danger");
+	if (!getSelectedTrafficPack()) return showToast(localizedText("Выберите пакет трафика", "Choose a traffic pack", "بسته ترافیک را انتخاب کنید"), "danger");
+	if (!isSubscriptionActive()) return showToast(localizedText("Докупка доступна только при активной подписке", "An active subscription is required", "اشتراک فعال لازم است"), "danger");
+	if (Number(state.data?.subscription?.trafficLimitBytes || 0) <= 0) return showToast(localizedText("У подписки уже безлимитный трафик", "This subscription already has unlimited traffic", "این اشتراک ترافیک نامحدود دارد"), "danger");
 	if (!getAvailableMethods(null).length) return showToast(t().paymentUnavailable, "danger");
 	window.clearTimeout(closingModalTimer);
 	closingModalName = "";
@@ -7978,23 +7988,23 @@ function renderPartnerPage() {
 	const data = state.partner;
 	const application = data?.application;
 	const partner = data?.partner;
-	if (!data && state.partnerBusy === "load") return `<section class="page partner-page ${pageClass("partner")}" id="page-partner"><div class="partner-loading" role="status">${icon("refresh")}<span>Загружаем партнёрскую программу…</span></div></section>`;
+	if (!data && state.partnerBusy === "load") return `<section class="page partner-page ${pageClass("partner")}" id="page-partner"><div class="partner-loading" role="status">${icon("refresh")}<span>${localizedText("Загружаем партнёрскую программу…", "Loading partner program…", "بارگذاری برنامه همکاری…")}</span></div></section>`;
 	if (partner) return renderPartnerCabinetPage(partner);
 	if (application) return `<section class="page partner-page ${pageClass("partner")}" id="page-partner">
-		<section class="partner-application-card"><header><strong>${application.status === "rejected" ? "Заявка отклонена" : "Заявка на рассмотрении"}</strong><span>${application.status === "rejected" ? "Проверьте данные." : "Ответ придёт в бот."}</span></header><a class="partner-application-card__resource" href="${escapeAttribute(application.resourceUrl)}" target="_blank" rel="noopener noreferrer"><span>Ресурс</span><strong>${escapeHtml(application.resourceUrl)}</strong></a><div class="partner-application-card__metrics"><span><small>Процент</small><b>${formatNumber(application.requestedPercent || 0, state.locale)}%</b></span><span><small>Аудитория / мес.</small><b>${formatNumber(application.expectedMonthlyUsers || 0, state.locale)}</b></span></div></section>
-		${application.status === "rejected" ? renderPartnerApplicationForm("Отправить новую заявку") : ""}
+		<section class="partner-application-card"><header><strong>${application.status === "rejected" ? localizedText("Заявка отклонена", "Application rejected", "درخواست رد شد") : localizedText("Заявка на рассмотрении", "Application under review", "درخواست در حال بررسی است")}</strong><span>${application.status === "rejected" ? localizedText("Проверьте данные.", "Please check your details.", "اطلاعات را بررسی کنید.") : localizedText("Ответ придёт в бот.", "We'll reply in the bot.", "پاسخ در ربات ارسال می‌شود.")}</span></header><a class="partner-application-card__resource" href="${escapeAttribute(application.resourceUrl)}" target="_blank" rel="noopener noreferrer"><span>${localizedText("Ресурс", "Resource", "منبع")}</span><strong>${escapeHtml(application.resourceUrl)}</strong></a><div class="partner-application-card__metrics"><span><small>${localizedText("Процент", "Rate", "درصد")}</small><b>${formatNumber(application.requestedPercent || 0, state.locale)}%</b></span><span><small>${localizedText("Аудитория / мес.", "Audience / month", "مخاطب / ماه")}</small><b>${formatNumber(application.expectedMonthlyUsers || 0, state.locale)}</b></span></div></section>
+		${application.status === "rejected" ? renderPartnerApplicationForm(localizedText("Отправить новую заявку", "Submit another application", "ارسال درخواست جدید")) : ""}
 	</section>`;
 	return `<section class="page partner-page ${pageClass("partner")}" id="page-partner">
-		${renderPartnerApplicationForm("Оставить заявку")}
+		${renderPartnerApplicationForm(localizedText("Оставить заявку", "Apply", "ثبت درخواست"))}
 	</section>`;
 }
 
 function renderPartnerApplicationForm(buttonLabel) {
 	const busy = state.partnerBusy === "apply";
 	return `<form class="partner-form partner-application-card" data-partner-form>
-		<header><strong>Партнёрская программа</strong><span>Процент с покупок по вашей ссылке.</span></header><label><span>Ссылка на ресурс</span><input type="url" required maxlength="1000" inputmode="url" autocomplete="url" placeholder="https://t.me/channel" data-input="partner-resource" value="${escapeAttribute(state.partnerResourceDraft)}"></label>
-		<div class="partner-form__grid"><label><span>Процент, %</span><input type="number" required min="0" max="100" inputmode="numeric" placeholder="20" data-input="partner-percent" value="${escapeAttribute(state.partnerPercentDraft)}"></label><label><span>Аудитория / мес.</span><input type="number" required min="0" max="10000000" inputmode="numeric" placeholder="100" data-input="partner-monthly-users" value="${escapeAttribute(state.partnerMonthlyUsersDraft)}"></label></div>
-		<button class="btn partner-form__submit" type="button" data-action="submit-partner-application" ${busy ? "disabled" : ""}>${icon(busy ? "refresh" : "send")}<span>${busy ? "Отправляем…" : buttonLabel}</span></button>
+		<header><strong>${localizedText("Партнёрская программа", "Partner program", "برنامه همکاری")}</strong><span>${localizedText("Процент с покупок по вашей ссылке.", "Earn a share of purchases made through your link.", "از خریدهای انجام‌شده با لینک خود سهم بگیرید.")}</span></header><label><span>${localizedText("Ссылка на ресурс", "Resource URL", "لینک منبع")}</span><input type="url" required maxlength="1000" inputmode="url" autocomplete="url" placeholder="https://t.me/channel" data-input="partner-resource" value="${escapeAttribute(state.partnerResourceDraft)}"></label>
+		<div class="partner-form__grid"><label><span>${localizedText("Процент, %", "Rate, %", "درصد، %")}</span><input type="number" required min="0" max="100" inputmode="numeric" placeholder="20" data-input="partner-percent" value="${escapeAttribute(state.partnerPercentDraft)}"></label><label><span>${localizedText("Аудитория / мес.", "Audience / month", "مخاطب / ماه")}</span><input type="number" required min="0" max="10000000" inputmode="numeric" placeholder="100" data-input="partner-monthly-users" value="${escapeAttribute(state.partnerMonthlyUsersDraft)}"></label></div>
+		<button class="btn partner-form__submit" type="button" data-action="submit-partner-application" ${busy ? "disabled" : ""}>${icon(busy ? "refresh" : "send")}<span>${busy ? localizedText("Отправляем…", "Submitting…", "در حال ارسال…") : buttonLabel}</span></button>
 	</form>`;
 }
 
@@ -8004,8 +8014,8 @@ function renderPartnerCabinetPage(partner) {
 	try { qrCode = renderQRCodeSVG(inviteURL, { border: 4, ecc: "H", pixelSize: 8, rounded: 0.5, moduleScale: 0.96, finderRadius: 1.45, whiteColor: "#fff", blackColor: "#050505" }).replace("<svg ", '<svg data-preserve-color="true" aria-hidden="true" '); } catch { qrCode = icon("qr"); }
 	const stats = partner.stats || {};
 	return `<section class="page partner-page ${pageClass("partner")}" id="page-partner">
-		<div class="referral-metrics partner-referral-metrics" role="group" aria-label="Статистика партнёрской программы"><div class="referral-metric"><strong>${formatNumber(stats.visitors || 0, state.locale)}</strong><span>Пришло</span></div><div class="referral-metric"><strong>${formatNumber(stats.trialUsers || 0, state.locale)}</strong><span>Триалы</span></div><div class="referral-metric"><strong>${formatNumber(stats.payingUsers || 0, state.locale)}</strong><span>Купили</span></div><div class="referral-metric referral-metric--balance"><strong>${escapeHtml(formatFinanceRub(stats.commission || 0))}</strong><span>Начислено</span></div></div>
-		${!partner.isActive ? `<section class="partner-application-card"><header><strong>Партнёрство приостановлено</strong><span>Переходы по ссылке не учитываются.</span></header></section>` : ""}<section class="referral-invite-card partner-invite-card" aria-labelledby="partner-link-title"><h2 class="sr-only" id="partner-link-title">Партнёрская ссылка</h2><p class="partner-invite-card__rate">${formatNumber(partner.commissionPercent || 0, state.locale)}% с покупок</p><div class="referral-invite-card__qr" role="img" aria-label="QR-код партнёрской ссылки">${qrCode}</div><code class="partner-invite-card__url">${escapeHtml(inviteURL || "Ссылка готовится")}</code><div class="referral-share-actions" aria-label="Действия с партнёрской ссылкой"><button class="btn" type="button" data-action="share-partner" ${partner.shareUrl ? "" : "disabled"}>${icon("share")}<span>Поделиться</span></button><button class="btn" type="button" data-action="copy-partner" ${inviteURL ? "" : "disabled"}>${icon("copy")}<span>Копировать</span></button></div></section>
+		<div class="referral-metrics partner-referral-metrics" role="group" aria-label="${escapeAttribute(localizedText("Статистика партнёрской программы", "Partner program statistics", "آمار برنامه همکاری"))}"><div class="referral-metric"><strong>${formatNumber(stats.visitors || 0, state.locale)}</strong><span>${localizedText("Пришло", "Visitors", "بازدیدکنندگان")}</span></div><div class="referral-metric"><strong>${formatNumber(stats.trialUsers || 0, state.locale)}</strong><span>${localizedText("Триалы", "Trials", "آزمایشی‌ها")}</span></div><div class="referral-metric"><strong>${formatNumber(stats.payingUsers || 0, state.locale)}</strong><span>${localizedText("Купили", "Purchased", "خریدها")}</span></div><div class="referral-metric referral-metric--balance"><strong>${escapeHtml(formatFinanceRub(stats.commission || 0, state.locale))}</strong><span>${localizedText("Начислено", "Earned", "درآمد")}</span></div></div>
+		${!partner.isActive ? `<section class="partner-application-card"><header><strong>${localizedText("Партнёрство приостановлено", "Partnership paused", "همکاری متوقف شده است")}</strong><span>${localizedText("Переходы по ссылке не учитываются.", "Visits through your link are not counted.", "بازدیدهای لینک شما محاسبه نمی‌شوند.")}</span></header></section>` : ""}<section class="referral-invite-card partner-invite-card" aria-labelledby="partner-link-title"><h2 class="sr-only" id="partner-link-title">${localizedText("Партнёрская ссылка", "Partner link", "لینک همکاری")}</h2><p class="partner-invite-card__rate">${formatNumber(partner.commissionPercent || 0, state.locale)}% ${localizedText("с покупок", "of purchases", "از خریدها")}</p><div class="referral-invite-card__qr" role="img" aria-label="${escapeAttribute(localizedText("QR-код партнёрской ссылки", "Partner link QR code", "کد QR لینک همکاری"))}">${qrCode}</div><code class="partner-invite-card__url">${escapeHtml(inviteURL || localizedText("Ссылка готовится", "Preparing your link", "لینک در حال آماده‌سازی است"))}</code><div class="referral-share-actions" aria-label="${escapeAttribute(localizedText("Действия с партнёрской ссылкой", "Partner link actions", "عملیات لینک همکاری"))}"><button class="btn" type="button" data-action="share-partner" ${partner.shareUrl ? "" : "disabled"}>${icon("share")}<span>${localizedText("Поделиться", "Share", "اشتراک‌گذاری")}</span></button><button class="btn" type="button" data-action="copy-partner" ${inviteURL ? "" : "disabled"}>${icon("copy")}<span>${localizedText("Копировать", "Copy", "کپی")}</span></button></div></section>
 	</section>`;
 }
 
@@ -8041,7 +8051,24 @@ function renderReferralInviteCard(referral, copy) {
 
 function renderWalletTransaction(item) {
 	const positive = Number(item?.amountCents || 0) >= 0;
-	return `<div class="wallet-history__row"><div><strong>${escapeHtml(item?.description || localizedText("Операция", "Transaction", "تراکنش"))}</strong><small>${escapeHtml(formatPaymentDate(item?.createdAt))}</small></div><span class="${positive ? "is-positive" : "is-negative"}">${positive ? "+" : ""}${escapeHtml(formatMoneyCents(item?.amountCents || 0))}</span></div>`;
+	return `<div class="wallet-history__row"><div><strong>${escapeHtml(walletTransactionLabel(item))}</strong><small>${escapeHtml(formatPaymentDate(item?.createdAt))}</small></div><span class="${positive ? "is-positive" : "is-negative"}">${positive ? "+" : ""}${escapeHtml(formatMoneyCents(item?.amountCents || 0))}</span></div>`;
+}
+
+function walletTransactionLabel(item) {
+	const description = String(item?.description || "").trim();
+	const labels = {
+		admin_credit: localizedText("Пополнение администратором", "Added by administrator", "افزایش موجودی توسط مدیر"),
+		admin_debit: localizedText("Списание администратором", "Deducted by administrator", "کسر موجودی توسط مدیر"),
+		purchase: localizedText("Оплата покупки с баланса", "Purchase paid from balance", "پرداخت خرید از موجودی"),
+		purchase_refund: localizedText("Возврат за неисполненную покупку", "Refund for unfulfilled purchase", "بازپرداخت خرید انجام‌نشده"),
+		referral_purchase: localizedText("Реферальная награда за покупку", "Referral purchase reward", "پاداش خرید ارجاعی"),
+		referral_trial: localizedText("Реферальная награда за пробный период", "Referral trial reward", "پاداش دوره آزمایشی ارجاعی"),
+	};
+	if (item?.kind === "promo_reward") {
+		const code = description.replace(/^Промокод\s+/iu, "");
+		return `${localizedText("Промокод", "Promo code", "کد تخفیف")} ${code}`.trim();
+	}
+	return labels[item?.kind] || description || localizedText("Операция", "Transaction", "تراکنش");
 }
 
 function renderWalletWithdrawal(item) {
@@ -8907,7 +8934,28 @@ function getPlanDurationTitle(months, days, locale) {
 
 function getPlanBaseTitle(plan, locale) {
 	const configuredTitle = locale === "fa" ? plan?.titleFa : locale === "en" ? plan?.titleEn : plan?.titleRu;
-	return String(configuredTitle || "").trim() || getPlanDurationTitle(plan?.months, plan?.days, locale);
+	return localizePlanLabel(configuredTitle, plan?.months, plan?.days, locale);
+}
+
+function localizePlanLabel(rawLabel, months, days, locale = state.locale) {
+	const label = String(rawLabel || "").trim();
+	if (!label) return getPlanDurationTitle(months, days, locale);
+	if (locale === "ru") return label;
+	const unlimitedMatch = label.match(/\s*[·|]\s*(?:безлимит|unlimited|نامحدود)$/iu);
+	const base = unlimitedMatch ? label.slice(0, unlimitedMatch.index).trim() : label;
+	const monthMatch = base.match(/^(?:(\d+)\s*)?(?:месяц(?:а|ев)?|мес\.?|months?)$/iu);
+	const dayMatch = base.match(/^(\d+)\s*(?:день|дня|дней|days?)$/iu);
+	const knownMonths = Number(monthMatch?.[1] || months || (monthMatch ? 1 : 0));
+	let translated = base;
+	if (monthMatch) translated = getPlanDurationTitle(knownMonths, 0, locale);
+	else if (dayMatch) translated = getPlanDurationTitle(0, Number(dayMatch[1] || days), locale);
+	else if (/^годовой$/iu.test(base)) translated = locale === "fa" ? "۱۲ ماه" : "Annual";
+	else if (/^пробный$/iu.test(base)) translated = locale === "fa" ? "آزمایشی" : "Trial";
+	else if (/^бонус$/iu.test(base)) translated = locale === "fa" ? "پاداش" : "Bonus";
+	else if (/^покупка$/iu.test(base)) translated = locale === "fa" ? "خرید" : "Purchase";
+	else if (/[А-Яа-яЁё]/u.test(base) && (Number(days || 0) > 0 || Number(months || 0) > 0)) translated = getPlanDurationTitle(months, days, locale);
+	if (unlimitedMatch) translated += locale === "fa" ? " · نامحدود" : " · Unlimited";
+	return translated;
 }
 
 function planHasUnlimitedTraffic(plan) {
@@ -8941,15 +8989,15 @@ function getPlanDetails(planOrMonths, locale) {
 
   switch (months) {
     case 1:
-      return { traffic: isEn ? "150 GB" : "150 ГБ", devices: isEn ? "Up to 5 devices" : "До 5 устройств" };
+      return { traffic: isFa ? "۱۵۰ گیگابایت" : isEn ? "150 GB" : "150 ГБ", devices: isFa ? "تا ۵ دستگاه" : isEn ? "Up to 5 devices" : "До 5 устройств" };
     case 3:
-      return { traffic: isEn ? "500 GB" : "500 ГБ", devices: isEn ? "Up to 7 devices" : "До 7 устройств" };
+      return { traffic: isFa ? "۵۰۰ گیگابایت" : isEn ? "500 GB" : "500 ГБ", devices: isFa ? "تا ۷ دستگاه" : isEn ? "Up to 7 devices" : "До 7 устройств" };
     case 6:
-      return { traffic: isEn ? "1,000 GB" : "1,000 ГБ", devices: isEn ? "Up to 10 devices" : "До 10 устройств" };
+      return { traffic: isFa ? "۱٬۰۰۰ گیگابایت" : isEn ? "1,000 GB" : "1,000 ГБ", devices: isFa ? "تا ۱۰ دستگاه" : isEn ? "Up to 10 devices" : "До 10 устройств" };
     case 12:
-      return { traffic: isEn ? "Unlimited traffic" : "Безлимитный трафик", devices: isEn ? "Unlimited devices" : "Безлимит устройств" };
+      return { traffic: isFa ? "ترافیک نامحدود" : isEn ? "Unlimited traffic" : "Безлимитный трафик", devices: isFa ? "دستگاه نامحدود" : isEn ? "Unlimited devices" : "Безлимит устройств" };
     default:
-      return { traffic: isEn ? "Traffic included" : "Трафик включён", devices: isEn ? "Up to 5 devices" : "До 5 устройств" };
+      return { traffic: isFa ? "ترافیک شامل می‌شود" : isEn ? "Traffic included" : "Трафик включён", devices: isFa ? "تا ۵ دستگاه" : isEn ? "Up to 5 devices" : "До 5 устройств" };
   }
 }
 
@@ -9002,7 +9050,7 @@ function renderPlanCard(plan, selected) {
 
 function renderPaymentHistoryItem(item) {
   const copy = t();
-  const planLabel = item.planLabel || getPlanDurationTitle(item.months, item.days, state.locale);
+  const planLabel = localizePlanLabel(item.planLabel, item.months, item.days);
   const amountLabel = formatPaymentAmount(item.amount, item.currency, item.invoiceType);
   const method = paymentHistoryMethodMeta(item, copy);
   const statusLabel = formatPaymentStatus(item.status);
@@ -9108,7 +9156,7 @@ function renderPayModal() {
 	const pack = deviceOnly ? getSelectedDevicePack() : null;
 	const trafficPack = trafficOnly ? getSelectedTrafficPack() : null;
 	const closeLabel = localizedText("Закрыть способы оплаты", "Close payment methods", "بستن روش‌های پرداخت");
-	const packHint = pack ? `<p class="device-pack-pay-hint">${escapeHtml(devicePackTitle(pack.devices))} · ${escapeHtml(formatShortDateLabel(new Date(devicePackExpiry()).toISOString(), state.locale))}</p>` : trafficPack ? `<p class="device-pack-pay-hint">${escapeHtml(trafficPackTitle(trafficPack.trafficGb))} · Без сброса</p>` : "";
+	const packHint = pack ? `<p class="device-pack-pay-hint">${escapeHtml(devicePackTitle(pack.devices))} · ${escapeHtml(formatShortDateLabel(new Date(devicePackExpiry()).toISOString(), state.locale))}</p>` : trafficPack ? `<p class="device-pack-pay-hint">${escapeHtml(trafficPackTitle(trafficPack.trafficGb))} · ${localizedText("Без сброса", "No reset", "بدون بازنشانی")}</p>` : "";
 	return `<div class="modal open ${modalStateClass("pay")}" role="dialog" aria-modal="true" aria-labelledby="pay-modal-title"><button class="modal__backdrop" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title" id="pay-modal-title">${copy.choosePaymentMethod}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button></div>${packHint}<div class="menu-list">${getAvailableMethods(plan).map((method) => `<button class="pay-row ${state.paymentMethod === method.id ? "selected" : ""}" type="button" data-action="select-pay-method" data-value="${method.id}" data-selection-feedback aria-pressed="${state.paymentMethod === method.id}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(method.label)}</strong><span>${escapeHtml(deviceOnly || trafficOnly ? `${method.hint} · ${method.id === "stars" ? `${formatNumber(deviceOnly ? devicePackPrice(pack, method.id) : trafficPackPrice(trafficPack, method.id), state.locale)} Stars` : formatCurrency(deviceOnly ? devicePackPrice(pack, method.id) : trafficPackPrice(trafficPack, method.id), state.locale)}` : method.hint)}</span></span><span class="pay-row__check">${state.paymentMethod === method.id ? icon("check") : ""}</span></button>`).join("") || `<div class="note">${copy.paymentUnavailable}</div>`}</div></div></div>`;
 }
 
@@ -13575,13 +13623,13 @@ async function submitPartnerApplication() {
 	const resourceUrl = String(state.partnerResourceDraft || "").trim();
 	const requestedPercent = Number(state.partnerPercentDraft);
 	const expectedMonthlyUsers = Number(state.partnerMonthlyUsersDraft);
-	if (!resourceUrl || !Number.isInteger(requestedPercent) || requestedPercent < 0 || requestedPercent > 100 || !Number.isInteger(expectedMonthlyUsers) || expectedMonthlyUsers < 0) return showToast("Заполните ссылку, процент и ожидаемую аудиторию", "danger");
+	if (!resourceUrl || !Number.isInteger(requestedPercent) || requestedPercent < 0 || requestedPercent > 100 || !Number.isInteger(expectedMonthlyUsers) || expectedMonthlyUsers < 0) return showToast(localizedText("Заполните ссылку, процент и ожидаемую аудиторию", "Enter a link, rate, and expected audience", "لینک، درصد و مخاطبان مورد انتظار را وارد کنید"), "danger");
 	state.partnerBusy = "apply";
 	render({ preserveScroll: true });
 	try {
 		const response = await post("/api/mini-app/partner/apply", { resourceUrl, requestedPercent, expectedMonthlyUsers });
 		state.partner = response.data || state.partner;
-		showToast("Заявка отправлена", "success");
+		showToast(localizedText("Заявка отправлена", "Application submitted", "درخواست ارسال شد"), "success");
 	} finally { state.partnerBusy = ""; render({ preserveScroll: true }); }
 }
 
@@ -14584,7 +14632,7 @@ async function startPayment({ deviceOnly = false, trafficOnly = false } = {}) {
   const plan = getSelectedPlan();
   const devicePack = getSelectedDevicePack();
   const trafficPack = getSelectedTrafficPack();
-	if (!deviceOnly && !trafficOnly && trafficPack && Number(plan?.trafficLimitBytes || 0) <= 0) return showToast("В этом тарифе трафик уже безлимитный", "danger");
+	if (!deviceOnly && !trafficOnly && trafficPack && Number(plan?.trafficLimitBytes || 0) <= 0) return showToast(localizedText("В этом тарифе трафик уже безлимитный", "This plan already has unlimited traffic", "این تعرفه ترافیک نامحدود دارد"), "danger");
   const method = getSelectedPaymentMethod()?.id || "";
   const freeCheckout = Boolean(!deviceOnly && !trafficOnly && plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !devicePack && !trafficPack);
   if ((!deviceOnly && !trafficOnly && !plan) || (deviceOnly && !devicePack) || (trafficOnly && !trafficPack) || (!freeCheckout && !method)) return showToast(t().paymentUnavailable);
@@ -15703,7 +15751,7 @@ function getActiveReview() {
 
 function getCurrentSubscriptionPlanLabel() {
   const subscription = state.data?.subscription || {};
-  if (subscription.planLabel) return String(subscription.planLabel);
+  if (subscription.planLabel) return localizePlanLabel(subscription.planLabel, subscription.planMonths, subscription.planDays);
   if (subscription.isTrial) return getTrialPlanLabel();
   switch (Number(subscription.planMonths || 0)) {
     case 1: return localizedText("Месяц", "1 Month", "۱ ماه");
@@ -15843,21 +15891,21 @@ function paymentMethodMeta(id) {
     stars: { id: "stars", label: copy.payMethodStars, hint: copy.payMethodStarsHint, logo: PAYMENT_LOGO_URLS.stars },
     crypto: { id: "crypto", label: copy.payMethodCrypto, hint: copy.payMethodCryptoHint, logo: PAYMENT_LOGO_URLS.crypto },
 		p2p: { id: "p2p", label: localizedText("P2P перевод", "P2P transfer", "انتقال P2P"), hint: localizedText("Перевод с проверкой администратора", "Transfer reviewed by an administrator", "انتقال با بررسی مدیر"), logo: PAYMENT_LOGO_URLS.p2p },
-		lava: { id: "lava", label: "LAVA", hint: "Оплата через LAVA", logo: PAYMENT_LOGO_URLS.lava },
-		wata: { id: "wata", label: "WATA", hint: "Карты и СБП", logo: PAYMENT_LOGO_URLS.wata },
-		platega: { id: "platega", label: "Platega", hint: "Оплата через Platega", logo: PAYMENT_LOGO_URLS.platega },
-		freekassa: { id: "freekassa", label: "FreeKassa", hint: "Оплата через FreeKassa", logo: PAYMENT_LOGO_URLS.freekassa },
-		heleket: { id: "heleket", label: "Heleket", hint: "Оплата криптовалютой", logo: PAYMENT_LOGO_URLS.heleket },
-		pally: { id: "pally", label: "Pally", hint: "Оплата картой или через СБП", logo: PAYMENT_LOGO_URLS.pally },
-		rollypay: { id: "rollypay", label: "RollyPay", hint: "Оплата через RollyPay", logo: PAYMENT_LOGO_URLS.rollypay },
-		cispay: { id: "cispay", label: "cisPay", hint: "Оплата картой или через СБП", logo: PAYMENT_LOGO_URLS.cispay },
-		anore: { id: "anore", label: "anore.cc", hint: "СБП, карты и криптовалюта", logo: PAYMENT_LOGO_URLS.anore },
-		mulenpay: { id: "mulenpay", label: "MulenPay", hint: "Карты и СБП", logo: PAYMENT_LOGO_URLS.mulenpay },
-		aurapay: { id: "aurapay", label: "AuraPay", hint: "Карты и СБП", logo: PAYMENT_LOGO_URLS.aurapay },
-		antilopay: { id: "antilopay", label: "AntiloPay", hint: "Карты и СБП", logo: PAYMENT_LOGO_URLS.antilopay },
-		paritypay: { id: "paritypay", label: "ParityPay", hint: "Карты и СБП", logo: PAYMENT_LOGO_URLS.paritypay },
-		tribute: { id: "tribute", label: "Tribute", hint: "Оплата через Tribute", logo: PAYMENT_LOGO_URLS.tribute },
-		cloudpayments: { id: "cloudpayments", label: "CloudPayments", hint: "Оплата картой", logo: PAYMENT_LOGO_URLS.cloudpayments },
+		lava: { id: "lava", label: "LAVA", hint: localizedText("Оплата через LAVA", "Pay with LAVA", "پرداخت با LAVA"), logo: PAYMENT_LOGO_URLS.lava },
+		wata: { id: "wata", label: "WATA", hint: localizedText("Карты и СБП", "Cards and SBP", "کارت و SBP"), logo: PAYMENT_LOGO_URLS.wata },
+		platega: { id: "platega", label: "Platega", hint: localizedText("Оплата через Platega", "Pay with Platega", "پرداخت با Platega"), logo: PAYMENT_LOGO_URLS.platega },
+		freekassa: { id: "freekassa", label: "FreeKassa", hint: localizedText("Оплата через FreeKassa", "Pay with FreeKassa", "پرداخت با FreeKassa"), logo: PAYMENT_LOGO_URLS.freekassa },
+		heleket: { id: "heleket", label: "Heleket", hint: localizedText("Оплата криптовалютой", "Pay with cryptocurrency", "پرداخت با رمزارز"), logo: PAYMENT_LOGO_URLS.heleket },
+		pally: { id: "pally", label: "Pally", hint: localizedText("Оплата картой или через СБП", "Card or SBP payment", "پرداخت با کارت یا SBP"), logo: PAYMENT_LOGO_URLS.pally },
+		rollypay: { id: "rollypay", label: "RollyPay", hint: localizedText("Оплата через RollyPay", "Pay with RollyPay", "پرداخت با RollyPay"), logo: PAYMENT_LOGO_URLS.rollypay },
+		cispay: { id: "cispay", label: "cisPay", hint: localizedText("Оплата картой или через СБП", "Card or SBP payment", "پرداخت با کارت یا SBP"), logo: PAYMENT_LOGO_URLS.cispay },
+		anore: { id: "anore", label: "anore.cc", hint: localizedText("СБП, карты и криптовалюта", "SBP, cards and cryptocurrency", "SBP، کارت و رمزارز"), logo: PAYMENT_LOGO_URLS.anore },
+		mulenpay: { id: "mulenpay", label: "MulenPay", hint: localizedText("Карты и СБП", "Cards and SBP", "کارت و SBP"), logo: PAYMENT_LOGO_URLS.mulenpay },
+		aurapay: { id: "aurapay", label: "AuraPay", hint: localizedText("Карты и СБП", "Cards and SBP", "کارت و SBP"), logo: PAYMENT_LOGO_URLS.aurapay },
+		antilopay: { id: "antilopay", label: "AntiloPay", hint: localizedText("Карты и СБП", "Cards and SBP", "کارت و SBP"), logo: PAYMENT_LOGO_URLS.antilopay },
+		paritypay: { id: "paritypay", label: "ParityPay", hint: localizedText("Карты и СБП", "Cards and SBP", "کارت و SBP"), logo: PAYMENT_LOGO_URLS.paritypay },
+		tribute: { id: "tribute", label: "Tribute", hint: localizedText("Оплата через Tribute", "Pay with Tribute", "پرداخت با Tribute"), logo: PAYMENT_LOGO_URLS.tribute },
+		cloudpayments: { id: "cloudpayments", label: "CloudPayments", hint: localizedText("Оплата картой", "Card payment", "پرداخت با کارت"), logo: PAYMENT_LOGO_URLS.cloudpayments },
   };
   return map[id] || null;
 }
