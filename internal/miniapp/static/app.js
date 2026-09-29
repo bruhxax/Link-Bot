@@ -3829,66 +3829,122 @@ function mountCabinetShell(markup) {
 }
 
 let pendingLanguageTextTransition = false;
-const textTransitionGhosts = new WeakMap();
-const textTransitionAnimations = new WeakMap();
+const activeTextTransitions = new WeakMap();
+const textTransitionSegmenter = typeof Intl.Segmenter === "function" ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
+
+function splitTransitionText(value) {
+	return textTransitionSegmenter ? [...textTransitionSegmenter.segment(value)].map((part) => part.segment) : Array.from(value);
+}
+
+function transitionTextNode(node) {
+	return [...node.childNodes].find((child) => child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) || null;
+}
+
+function transitionGlyphs(textNode, value) {
+	const glyphs = [];
+	const offset = textNode.textContent.indexOf(value);
+	if (offset < 0) return glyphs;
+	const range = document.createRange();
+	let cursor = offset;
+	for (const character of splitTransitionText(value)) {
+		range.setStart(textNode, cursor);
+		cursor += character.length;
+		range.setEnd(textNode, cursor);
+		const rect = range.getBoundingClientRect();
+		glyphs.push({ character, rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height } });
+	}
+	return glyphs;
+}
+
+function transitionTextStyle(node) {
+	const style = window.getComputedStyle(node);
+	return {
+		font: style.font, color: style.color, lineHeight: style.lineHeight,
+		letterSpacing: style.letterSpacing, textShadow: style.textShadow,
+		textTransform: style.textTransform, fontVariantNumeric: style.fontVariantNumeric,
+	};
+}
 
 function captureTextTransitionNode(node, path = null) {
 	if (!(node instanceof HTMLElement)) return null;
-	const value = node.textContent?.trim();
+	activeTextTransitions.get(node)?.cleanup();
+	const textNode = transitionTextNode(node);
+	const value = textNode?.textContent.trim();
 	const rect = node.getBoundingClientRect();
-	if (!value || value.length > 120 || rect.width < 2 || rect.height < 2 || rect.bottom < 0 || rect.top > window.innerHeight) return null;
+	if (!value || value !== node.textContent.trim() || value.length > 120 || rect.width < 2 || rect.height < 2 || rect.bottom < 0 || rect.top > window.innerHeight) return null;
 	const style = window.getComputedStyle(node);
 	if (style.visibility === "hidden" || style.opacity === "0") return null;
 	return {
 		path, value, tag: node.tagName,
-		rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-		style: { font: style.font, color: style.color, lineHeight: style.lineHeight, letterSpacing: style.letterSpacing, textAlign: style.textAlign, textShadow: style.textShadow, textTransform: style.textTransform },
+		glyphs: transitionGlyphs(textNode, value),
+		style: transitionTextStyle(node),
 	};
 }
 
+function transitionGlyphLayer(glyph, style) {
+	if (!glyph?.character.trim() || glyph.rect.width < 1 || glyph.rect.height < 1) return null;
+	const layer = document.createElement("span");
+	layer.textContent = glyph.character;
+	layer.setAttribute("aria-hidden", "true");
+	Object.assign(layer.style, {
+		position: "fixed", pointerEvents: "none", zIndex: "9999",
+		left: `${glyph.rect.left}px`, top: `${glyph.rect.top}px`,
+		whiteSpace: "pre", ...style,
+	});
+	document.body.appendChild(layer);
+	return layer;
+}
+
 function playTextTransition(before, node, delay = 0) {
-	if (!before || !node || before.value === node.textContent?.trim() || reducedMotionMedia?.matches || typeof node.animate !== "function") return;
-	const after = node.getBoundingClientRect();
-	if (after.width < 2 || after.height < 2 || after.bottom < 0 || after.top > window.innerHeight) return;
-	textTransitionGhosts.get(node)?.remove();
-	textTransitionAnimations.get(node)?.cancel();
-	const ghost = document.createElement("span");
-	ghost.textContent = before.value;
-	ghost.setAttribute("aria-hidden", "true");
-	Object.assign(ghost.style, {
-		position: "fixed", pointerEvents: "none", zIndex: "9999", boxSizing: "border-box",
-		left: `${before.rect.left}px`, top: `${before.rect.top}px`,
-		width: `${before.rect.width}px`, minHeight: `${before.rect.height}px`,
-		whiteSpace: "normal", overflow: "hidden", ...before.style,
-	});
-	document.body.appendChild(ghost);
-	textTransitionGhosts.set(node, ghost);
-	const oldAnimation = ghost.animate([
-		{ transform: "translateY(0)", opacity: 1, filter: "blur(0)" },
-		{ transform: "translateY(-0.7em)", opacity: 0, filter: "blur(2px)" },
-	], { duration: 360, delay, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" });
-	const removeGhost = () => {
-		ghost.remove();
-		if (textTransitionGhosts.get(node) === ghost) textTransitionGhosts.delete(node);
+	if (!before || !(node instanceof HTMLElement) || before.value === node.textContent?.trim() || reducedMotionMedia?.matches || typeof node.animate !== "function") return;
+	const rect = node.getBoundingClientRect();
+	const textNode = transitionTextNode(node);
+	const value = textNode?.textContent.trim();
+	if (!value || value !== node.textContent.trim() || rect.width < 2 || rect.height < 2 || rect.bottom < 0 || rect.top > window.innerHeight) return;
+	const oldGlyphs = before.glyphs;
+	const nextCharacters = splitTransitionText(value);
+	// Keep unchanged text in place; a price change should roll only its digits.
+	let prefix = 0;
+	while (prefix < oldGlyphs.length && prefix < nextCharacters.length && oldGlyphs[prefix].character === nextCharacters[prefix]) prefix++;
+	let suffix = 0;
+	while (suffix < oldGlyphs.length - prefix && suffix < nextCharacters.length - prefix && oldGlyphs[oldGlyphs.length - 1 - suffix].character === nextCharacters[nextCharacters.length - 1 - suffix]) suffix++;
+	const changedCharacters = nextCharacters.slice(prefix, nextCharacters.length - suffix).join("");
+	const raw = textNode.textContent;
+	const start = raw.indexOf(value);
+	const mask = document.createElement("i");
+	mask.dataset.textTransitionMask = "";
+	mask.textContent = changedCharacters;
+	Object.assign(mask.style, { fontStyle: "inherit", color: "transparent", webkitTextFillColor: "transparent", textShadow: "none" });
+	textNode.replaceWith(document.createTextNode(raw.slice(0, start) + nextCharacters.slice(0, prefix).join("")), mask, document.createTextNode(nextCharacters.slice(nextCharacters.length - suffix).join("") + raw.slice(start + value.length)));
+	const newGlyphs = changedCharacters ? transitionGlyphs(mask.firstChild, changedCharacters) : [];
+	const style = transitionTextStyle(node);
+	const layers = [];
+	const animations = [];
+	const animateGlyph = (glyph, entering, index, glyphStyle) => {
+		const layer = transitionGlyphLayer(glyph, glyphStyle);
+		if (!layer) return;
+		layers.push(layer);
+		const direction = index % 2 === 0 ? -1 : 1;
+		animations.push(layer.animate(entering
+			? [{ transform: `translateY(${-direction * 0.55}em)`, opacity: 0 }, { transform: "translateY(0)", opacity: 1 }]
+			: [{ transform: "translateY(0)", opacity: 1 }, { transform: `translateY(${direction * 0.55}em)`, opacity: 0 }],
+			{ duration: entering ? 260 : 180, delay: delay + Math.min(index * 7, 98) + (entering ? 120 : 0), easing: entering ? "cubic-bezier(.22,1,.36,1)" : "cubic-bezier(.4,0,1,1)", fill: "both" }));
 	};
-	oldAnimation.finished.then(removeGhost, removeGhost);
-	const previousDisplay = node.style.display;
-	if (window.getComputedStyle(node).display === "inline") node.style.display = "inline-block";
-	const nextAnimation = node.animate([
-		{ transform: "translateY(0.7em)", opacity: 0, filter: "blur(2px)" },
-		{ transform: "translateY(0)", opacity: 1, filter: "blur(0)" },
-	], { duration: 420, delay, easing: "cubic-bezier(.22,1,.36,1)", fill: "both" });
-	textTransitionAnimations.set(node, nextAnimation);
-	nextAnimation.finished.then(() => {
-		if (textTransitionAnimations.get(node) !== nextAnimation) return;
-		nextAnimation.cancel();
-		node.style.display = previousDisplay;
-		textTransitionAnimations.delete(node);
-	}, () => {
-		if (textTransitionAnimations.get(node) !== nextAnimation) return;
-		node.style.display = previousDisplay;
-		textTransitionAnimations.delete(node);
-	});
+	oldGlyphs.slice(prefix, oldGlyphs.length - suffix).forEach((glyph, index) => animateGlyph(glyph, false, index, before.style));
+	newGlyphs.forEach((glyph, index) => animateGlyph(glyph, true, index, style));
+	const transition = {
+		cleanup() {
+			if (activeTextTransitions.get(node) !== transition) return;
+			activeTextTransitions.delete(node);
+			animations.forEach((animation) => animation.cancel());
+			layers.forEach((layer) => layer.remove());
+			mask.replaceWith(document.createTextNode(changedCharacters));
+			node.normalize();
+		},
+	};
+	activeTextTransitions.set(node, transition);
+	if (animations.length) Promise.allSettled(animations.map((animation) => animation.finished)).then(() => transition.cleanup());
+	else transition.cleanup();
 }
 
 function textNodePath(node, root) {
@@ -3908,6 +3964,7 @@ function captureRenderTextTransitions(language) {
 	return roots.flatMap((selector) => {
 		const root = app.querySelector(selector);
 		if (!root) return [];
+		if (language) root.querySelectorAll("[data-text-transition-mask]").forEach((mask) => activeTextTransitions.get(mask.parentElement)?.cleanup());
 		const candidates = language
 			? root.querySelectorAll("button, div, h1, h2, h3, label, p, small, span, strong")
 			: root.querySelectorAll("[data-price-transition]");
