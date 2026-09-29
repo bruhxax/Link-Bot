@@ -76,6 +76,7 @@ const STORAGE_KEYS = {
   page: "link-bot-page",
   theme: "link-bot-theme",
   payMethod: "link-bot-pay-method",
+  languageOverride: "link-bot-language-override",
   telegramIDToken: "link-bot-telegram-id-token",
   telegramLogin: "link-bot-telegram-login",
   googleLogin: "link-bot-google-login",
@@ -2099,7 +2100,7 @@ function buildPreviewRuntimeSettings() {
 	const features = Object.fromEntries(["mini_app", "additional_subscriptions", "stars", "trials", "google", "support", "faq", "reviews", "referrals", "promocodes", "promo_code", "partner", "media", "server_status", "payments_history", "gifts", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
 		version: 26,
-		localization: { language: "ru", fontFamily: "auto" },
+		localization: { language: "ru", fontFamily: "auto", fontFamilyRu: "montserrat", fontFamilyEn: "inter" },
 		maintenance: { enabled: false, titleRu: "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u044b", textRu: "", reasonRu: "" },
 		features,
 		content: {
@@ -5415,16 +5416,18 @@ async function setAdminUserBlocked(blocked) {
 }
 
 function renderAdminLocalizationPage() {
-	const localization = state.adminSettingsDraft?.localization || { language: "ru", fontFamily: "auto" };
+	const localization = state.adminSettingsDraft?.localization || { language: "ru", fontFamily: "auto", fontFamilyRu: "montserrat", fontFamilyEn: "inter" };
 	const title = localizedText("Язык и шрифт", "Language and font", "زبان و فونت");
-	const languageLabel = localizedText("Язык бота и Mini App", "Bot and Mini App language", "زبان ربات و Mini App");
-	const fontLabel = localizedText("Шрифт Mini App", "Mini App font", "فونت Mini App");
-	const hint = localizedText("После сохранения язык изменится в Telegram-боте и Mini App для всех пользователей.", "After saving, the Telegram bot and Mini App language changes for every user.", "پس از ذخیره، زبان ربات تلگرام و Mini App برای همه کاربران تغییر می‌کند.");
-	const fontHint = localizedText("В режиме «Автоматически» Vazir включается для фарси, а Montserrat — для русского и английского.", "Automatic uses Vazir for Persian and Montserrat for Russian and English.", "حالت خودکار برای فارسی از Vazir و برای روسی و انگلیسی از Montserrat استفاده می‌کند.");
+	const languageLabel = localizedText("Язык бота и язык Mini App по умолчанию", "Bot and default Mini App language", "زبان پیش‌فرض ربات و Mini App");
+	const hint = localizedText("Язык бота задаётся здесь. Пользователь может изменить язык Mini App в профиле.", "Set the bot language here. Users can switch their Mini App language in Profile.", "زبان ربات را اینجا تنظیم کنید. کاربران می‌توانند زبان Mini App را در پروفایل تغییر دهند.");
+	const fontHint = localizedText("Для фарси автоматически используется Vazir. Шрифты русского и английского настраиваются отдельно.", "Persian uses Vazir automatically. Russian and English fonts are configured separately.", "برای فارسی از Vazir استفاده می‌شود. فونت روسی و انگلیسی جداگانه تنظیم می‌شوند.");
+	const fontSelect = (path, current, options, label) => `<label class="admin-field"><span>${escapeHtml(label)}</span><select class="admin-field__control" data-setting-path="${path}" data-setting-type="text">${options.map(([value, name]) => `<option value="${value}" ${current === value ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}</select></label>`;
 	return renderAdminEditorPage(title, `<section class="admin-editor__section admin-localization"><p class="admin-localization__hint">${escapeHtml(hint)}</p><div class="admin-editor__grid">
 		<label class="admin-field"><span>${escapeHtml(languageLabel)}</span><select class="admin-field__control" data-setting-path="localization.language" data-setting-type="text"><option value="ru" ${localization.language === "ru" ? "selected" : ""}>Русский</option><option value="en" ${localization.language === "en" ? "selected" : ""}>English</option><option value="fa" ${localization.language === "fa" ? "selected" : ""}>فارسی</option></select></label>
-		<label class="admin-field"><span>${escapeHtml(fontLabel)}</span><select class="admin-field__control" data-setting-path="localization.fontFamily" data-setting-type="text"><option value="auto" ${localization.fontFamily === "auto" ? "selected" : ""}>${escapeHtml(localizedText("Автоматически", "Automatic", "خودکار"))}</option><option value="montserrat" ${localization.fontFamily === "montserrat" ? "selected" : ""}>Montserrat</option><option value="vazir" ${localization.fontFamily === "vazir" ? "selected" : ""}>Vazir</option></select></label>
-	</div><p class="admin-localization__font-hint">${escapeHtml(fontHint)}</p></section>`);
+		${fontSelect("localization.fontFamilyRu", localization.fontFamilyRu || "montserrat", [["montserrat", "Montserrat"], ["golos", "Golos Text"], ["rubik", "Rubik"], ["manrope", "Manrope"], ["onest", "Onest"]], localizedText("Шрифт для русского", "Font for Russian", "فونت روسی"))}
+		${fontSelect("localization.fontFamilyEn", localization.fontFamilyEn || "inter", [["inter", "Inter"], ["dmsans", "DM Sans"], ["jakarta", "Plus Jakarta Sans"], ["outfit", "Outfit"], ["spacegrotesk", "Space Grotesk"]], localizedText("Шрифт для английского", "Font for English", "فونت انگلیسی"))}
+		<label class="admin-field"><span>${escapeHtml(localizedText("Шрифт для фарси", "Font for Persian", "فونت فارسی"))}</span><select class="admin-field__control" data-setting-path="localization.fontFamily" data-setting-type="text"><option value="auto" ${localization.fontFamily === "auto" ? "selected" : ""}>${escapeHtml(localizedText("Автоматически", "Automatic", "خودکار"))}</option><option value="montserrat" ${localization.fontFamily === "montserrat" ? "selected" : ""}>Montserrat</option><option value="vazir" ${localization.fontFamily === "vazir" ? "selected" : ""}>Vazir</option></select></label>
+	</div><div class="admin-localization__previews"><div class="admin-localization__preview" data-preview-font-language="ru" data-font="${escapeAttribute(localization.fontFamilyRu || "montserrat")}"><small>Русский</small><strong>Красивый и быстрый интернет</strong><span>Аа Бб Вв Гг Дд · 1234567890</span></div><div class="admin-localization__preview" data-preview-font-language="en" data-font="${escapeAttribute(localization.fontFamilyEn || "inter")}"><small>English</small><strong>Beautiful and fast internet</strong><span>Aa Bb Cc Dd Ee · 1234567890</span></div></div><p class="admin-localization__font-hint">${escapeHtml(fontHint)}</p></section>`);
 }
 
 function renderAdminMenuGroup(label, items) {
@@ -8085,6 +8088,7 @@ function renderSettingsPage() {
 		.filter(([, items]) => state.adminLayoutEditing || items.length);
 	return `
 		<section class="page profile-page ${state.adminLayoutEditing ? "profile-page--sorting" : ""} ${pageClass("settings")}" id="page-settings">
+			${state.adminLayoutEditing ? "" : renderProfileLanguageSwitch()}
 			${orderedGroups.map(([key, items]) => `
 				<section class="profile-group ${state.adminLayoutEditing ? "profile-group--dropzone" : ""}" aria-labelledby="profile-${key}" data-profile-group="${escapeAttribute(key)}">
 					<h2 class="profile-group__title" id="profile-${key}"><span></span>${escapeHtml(labels[key])}</h2>
@@ -8093,6 +8097,38 @@ function renderSettingsPage() {
 			`).join("")}
 		</section>
 	`;
+}
+
+function renderProfileLanguageSwitch() {
+	const active = state.locale === "ru" || state.locale === "en" ? state.locale : "";
+	const label = localizedText("Язык интерфейса", "Interface language", "زبان برنامه");
+	return `<div class="profile-row profile-language-row" data-language="${active}"><span class="profile-row__icon">${icon("language")}</span><span class="profile-row__body"><strong>${escapeHtml(label)}</strong></span><span class="profile-language-switch" role="group" aria-label="${escapeAttribute(label)}"><span class="profile-language-switch__light" aria-hidden="true"></span><button type="button" data-action="profile-language" data-value="ru" aria-label="Русский" aria-pressed="${active === "ru"}">RU</button><button type="button" data-action="profile-language" data-value="en" aria-label="English" aria-pressed="${active === "en"}">EN</button></span></div>`;
+}
+
+let profileLanguageRenderTimer = null;
+
+function setProfileLanguage(language) {
+	if (language !== "ru" && language !== "en") return;
+	const userID = state.data?.user?.id;
+	if (!userID) return;
+	const adminLanguage = pickLocale(getRuntimeSettings()?.localization?.language || "ru");
+	const key = `${STORAGE_KEYS.languageOverride}:${userID}`;
+	try {
+		if (language === adminLanguage) window.localStorage.removeItem(key);
+		else window.localStorage.setItem(key, language);
+	} catch { /* language remains selected for this session */ }
+	state.locale = language;
+	const row = app.querySelector(".profile-language-row");
+	if (row) {
+		row.dataset.language = language;
+		row.querySelectorAll("[data-action='profile-language']").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.value === language)));
+	}
+	haptic("light");
+	window.clearTimeout(profileLanguageRenderTimer);
+	profileLanguageRenderTimer = window.setTimeout(() => {
+		syncLocalizationFromSettings();
+		render({ preserveScroll: true });
+	}, 240);
 }
 
 function getProfileItems() {
@@ -8118,8 +8154,8 @@ function getProfileItems() {
 	const overrides = settings.profileButtons || {};
 	for (const [id, item] of Object.entries(definitions)) {
 		const override = overrides[id] || {};
-		if (override.labelRu) item.label = override.labelRu;
-		if (override.hintRu) item.hint = override.hintRu;
+		if (state.locale === "ru" && override.labelRu) item.label = override.labelRu;
+		if (state.locale === "ru" && override.hintRu) item.hint = override.hintRu;
 		if (override.url && id === "web_version") {
 			item.action = "open-link";
 			item.value = resolveWebVersionOverrideURL(override.url);
@@ -9857,6 +9893,7 @@ function bindRootActions() {
 			if (action === "admin-add-legal-section") return addAdminLegalSection();
 			if (action === "admin-remove-legal-section") return removeAdminLegalSection(Number(value));
       if (action === "go-home") return setPage("dashboard");
+	  if (action === "profile-language") return setProfileLanguage(value);
 	  if (action === "go-page") return setPage(value);
 		if (action === "open-banner") return openDashboardBanner(value);
 		if (action === "open-promo-widget-checkout") return await openPromoWidgetCheckout(value);
@@ -10241,6 +10278,11 @@ function bindRootActions() {
 			} else {
 				const value = type === "boolean" ? Boolean(target.checked) : type === "number" ? Number(target.value || 0) : target.value;
 				setDeepValue(state.adminSettingsDraft, settingPath, value);
+			}
+			if (settingPath === "localization.fontFamilyRu" || settingPath === "localization.fontFamilyEn") {
+				const language = settingPath.endsWith("Ru") ? "ru" : "en";
+				const preview = app.querySelector(`[data-preview-font-language="${language}"]`);
+				if (preview) preview.dataset.font = target.value;
 			}
 			const enabledClient = settingPath.match(/^subPage\.clients\.(\d+)\.enabled$/);
 			if (enabledClient && !target.checked) ensureAdminSubPageDraft().clients[Number(enabledClient[1])].featured = false;
@@ -15852,9 +15894,13 @@ function intlLocale(locale = state.locale) {
 
 function syncLocalizationFromSettings(settings = null) {
 	const localization = settings?.localization || getRuntimeSettings()?.localization || {};
-	state.locale = pickLocale(localization.language || state.locale || "ru");
+	const userID = state.data?.user?.id;
+	const override = userID ? readSetting(`${STORAGE_KEYS.languageOverride}:${userID}`, "") : "";
+	state.locale = override === "ru" || override === "en" ? override : pickLocale(localization.language || "ru");
 	const configuredFont = ["auto", "montserrat", "vazir"].includes(localization.fontFamily) ? localization.fontFamily : "auto";
-	const resolvedFont = state.locale === "fa" && (configuredFont === "auto" || configuredFont === "vazir") ? "vazir" : "montserrat";
+	const russianFont = ["montserrat", "golos", "rubik", "manrope", "onest"].includes(localization.fontFamilyRu) ? localization.fontFamilyRu : "montserrat";
+	const englishFont = ["inter", "dmsans", "jakarta", "outfit", "spacegrotesk"].includes(localization.fontFamilyEn) ? localization.fontFamilyEn : "inter";
+	const resolvedFont = state.locale === "fa" ? ((configuredFont === "auto" || configuredFont === "vazir") ? "vazir" : "montserrat") : state.locale === "en" ? englishFont : russianFont;
 	document.documentElement.lang = state.locale;
 	document.documentElement.dir = state.locale === "fa" ? "rtl" : "ltr";
 	document.documentElement.dataset.font = resolvedFont;

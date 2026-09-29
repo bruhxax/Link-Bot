@@ -183,6 +183,123 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
++@font-face {
+  font-family: "Golos Text";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/mini-app/assets/fonts/golostext/cyrillic.woff2") format("woff2");
+  unicode-range: U+0400-052F, U+2116;
+}
+
+@font-face {
+  font-family: "Golos Text";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/mini-app/assets/fonts/golostext/latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Rubik";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/mini-app/assets/fonts/rubik/cyrillic.woff2") format("woff2");
+  unicode-range: U+0400-052F, U+2116;
+}
+
+@font-face {
+  font-family: "Rubik";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/mini-app/assets/fonts/rubik/latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/mini-app/assets/fonts/manrope/cyrillic.woff2") format("woff2");
+  unicode-range: U+0400-052F, U+2116;
+}
+
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/mini-app/assets/fonts/manrope/latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Onest";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/mini-app/assets/fonts/onest/cyrillic.woff2") format("woff2");
+  unicode-range: U+0400-052F, U+2116;
+}
+
+@font-face {
+  font-family: "Onest";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/mini-app/assets/fonts/onest/latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/mini-app/assets/fonts/inter/latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "DM Sans";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/mini-app/assets/fonts/dmsans/latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/mini-app/assets/fonts/plusjakartasans/latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/mini-app/assets/fonts/outfit/latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/mini-app/assets/fonts/spacegrotesk/latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 :root {
   --bg: #000000;
   --surface: #08090c;
@@ -401,6 +518,57 @@ select:focus-visible {
 
 .profile-row--flat { border-color: transparent; }
 .profile-row:active { transform: scale(.99); background: var(--surface-strong); }
+.profile-language-row {
+  width: 100%;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  margin-bottom: 19px;
+  cursor: default;
+}
+.profile-language-row:active { transform: none; background: var(--control-bg); }
+.profile-language-switch {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, 42px);
+  padding: 3px;
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 65%, transparent);
+  isolation: isolate;
+}
+.profile-language-switch__light {
+  position: absolute;
+  z-index: -1;
+  inset: 3px auto 3px 3px;
+  width: 42px;
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, white 30%);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent) 48%, var(--control-bg));
+  box-shadow: 0 0 13px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 1px 0 rgba(255,255,255,.2);
+  opacity: 0;
+  transition: transform .24s cubic-bezier(.2,.8,.2,1), opacity .2s ease;
+}
+.profile-language-row[data-language="ru"] .profile-language-switch__light { opacity: 1; }
+.profile-language-row[data-language="en"] .profile-language-switch__light { opacity: 1; transform: translateX(42px); }
+.profile-language-switch button {
+  position: relative;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .03em;
+  cursor: pointer;
+  transition: color .2s ease, text-shadow .2s ease;
+}
+.profile-language-switch button[aria-pressed="true"] { color: var(--text); text-shadow: 0 0 8px rgba(255,255,255,.26); }
+.profile-language-switch button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .profile-language-switch__light, .profile-language-switch button { transition-duration: 0s; }
+}
 .profile-row__icon, .profile-row__tail { display: grid; place-items: center; color: var(--icon-color, var(--text)); }
 .profile-row__icon svg { width: 19px; height: 19px; }
 .profile-svg-icon {
@@ -1846,6 +2014,16 @@ body {
   touch-action: pan-y;
 }
 
+html[data-font="golos"] { --app-font: "Golos Text", "Montserrat", sans-serif; }
+html[data-font="rubik"] { --app-font: "Rubik", "Montserrat", sans-serif; }
+html[data-font="manrope"] { --app-font: "Manrope", "Montserrat", sans-serif; }
+html[data-font="onest"] { --app-font: "Onest", "Montserrat", sans-serif; }
+html[data-font="inter"] { --app-font: "Inter", "Montserrat", sans-serif; }
+html[data-font="dmsans"] { --app-font: "DM Sans", "Montserrat", sans-serif; }
+html[data-font="jakarta"] { --app-font: "Plus Jakarta Sans", "Montserrat", sans-serif; }
+html[data-font="outfit"] { --app-font: "Outfit", "Montserrat", sans-serif; }
+html[data-font="spacegrotesk"] { --app-font: "Space Grotesk", "Montserrat", sans-serif; }
+html[data-font] :is(body, button, input, select, textarea) { font-family: var(--app-font, "Montserrat", sans-serif); }
 html[data-font="vazir"] body,
 html[data-font="vazir"] button,
 html[data-font="vazir"] input,
@@ -1877,6 +2055,20 @@ html[dir="rtl"] :where(.header__btn, .menu-row__tail, .subscription-switcher__ch
 .admin-localization__hint,
 .admin-localization__font-hint { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
 .admin-localization__font-hint { padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.admin-localization__previews { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.admin-localization__preview { display: grid; gap: 7px; min-width: 0; padding: 15px; border: 1px solid var(--line-soft); border-radius: 12px; background: var(--control-bg); }
+.admin-localization__preview small { color: var(--muted); font: 700 10px "Montserrat", sans-serif; text-transform: uppercase; letter-spacing: .08em; }
+.admin-localization__preview strong { font-size: 17px; line-height: 1.25; }
+.admin-localization__preview span { font-size: 12px; color: var(--muted); }
+.admin-localization__preview[data-font="golos"] { font-family: "Golos Text", sans-serif; }
+.admin-localization__preview[data-font="rubik"] { font-family: "Rubik", sans-serif; }
+.admin-localization__preview[data-font="manrope"] { font-family: "Manrope", sans-serif; }
+.admin-localization__preview[data-font="onest"] { font-family: "Onest", sans-serif; }
+.admin-localization__preview[data-font="inter"] { font-family: "Inter", sans-serif; }
+.admin-localization__preview[data-font="dmsans"] { font-family: "DM Sans", sans-serif; }
+.admin-localization__preview[data-font="jakarta"] { font-family: "Plus Jakarta Sans", sans-serif; }
+.admin-localization__preview[data-font="outfit"] { font-family: "Outfit", sans-serif; }
+.admin-localization__preview[data-font="spacegrotesk"] { font-family: "Space Grotesk", sans-serif; }
 
 html,
 body,

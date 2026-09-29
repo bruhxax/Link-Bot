@@ -92,8 +92,10 @@ type Settings struct {
 }
 
 type LocalizationSettings struct {
-	Language   string `json:"language"`
-	FontFamily string `json:"fontFamily"`
+	Language     string `json:"language"`
+	FontFamily   string `json:"fontFamily"`
+	FontFamilyRU string `json:"fontFamilyRu"`
+	FontFamilyEN string `json:"fontFamilyEn"`
 }
 
 type MaintenanceSettings struct {
@@ -470,8 +472,10 @@ func DefaultSettings() Settings {
 		Version:            CurrentVersion,
 		PaymentMethodOrder: DefaultPaymentMethodOrder(),
 		Localization: LocalizationSettings{
-			Language:   language,
-			FontFamily: fontFamily,
+			Language:     language,
+			FontFamily:   fontFamily,
+			FontFamilyRU: "montserrat",
+			FontFamilyEN: "inter",
 		},
 		Maintenance: MaintenanceSettings{
 			TitleRU:  "Технические работы",
@@ -1244,10 +1248,28 @@ func validateLocalization(value *LocalizationSettings, defaults LocalizationSett
 	}
 	switch value.FontFamily {
 	case "auto", "montserrat", "vazir":
-		return nil
 	default:
 		return errors.New("font family must be one of: auto, montserrat, vazir")
 	}
+	value.FontFamilyRU = strings.ToLower(strings.TrimSpace(value.FontFamilyRU))
+	if value.FontFamilyRU == "" {
+		value.FontFamilyRU = defaults.FontFamilyRU
+	}
+	switch value.FontFamilyRU {
+	case "montserrat", "golos", "rubik", "manrope", "onest":
+	default:
+		return errors.New("Russian font family is unsupported")
+	}
+	value.FontFamilyEN = strings.ToLower(strings.TrimSpace(value.FontFamilyEN))
+	if value.FontFamilyEN == "" {
+		value.FontFamilyEN = defaults.FontFamilyEN
+	}
+	switch value.FontFamilyEN {
+	case "inter", "dmsans", "jakarta", "outfit", "spacegrotesk":
+	default:
+		return errors.New("English font family is unsupported")
+	}
+	return nil
 }
 
 func ensureCustomProfileLayout(layout *LayoutSettings, links []CustomLink) {

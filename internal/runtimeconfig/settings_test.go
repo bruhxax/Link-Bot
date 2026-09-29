@@ -88,6 +88,37 @@ func TestDefaultSettingsStartsWithoutPlans(t *testing.T) {
 	}
 }
 
+func TestLocalizationFontsDefaultAndValidate(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Localization.FontFamilyRU = ""
+	settings.Localization.FontFamilyEN = ""
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatal(err)
+	}
+	if settings.Localization.FontFamilyRU != "montserrat" || settings.Localization.FontFamilyEN != "inter" {
+		t.Fatalf("unexpected migrated fonts: %+v", settings.Localization)
+	}
+	for _, font := range []string{"montserrat", "golos", "rubik", "manrope", "onest"} {
+		settings := DefaultSettings()
+		settings.Localization.FontFamilyRU = font
+		if err := NormalizeAndValidate(&settings); err != nil {
+			t.Errorf("Russian font %q: %v", font, err)
+		}
+	}
+	for _, font := range []string{"inter", "dmsans", "jakarta", "outfit", "spacegrotesk"} {
+		settings := DefaultSettings()
+		settings.Localization.FontFamilyEN = font
+		if err := NormalizeAndValidate(&settings); err != nil {
+			t.Errorf("English font %q: %v", font, err)
+		}
+	}
+	settings = DefaultSettings()
+	settings.Localization.FontFamilyRU = "unknown"
+	if err := NormalizeAndValidate(&settings); err == nil {
+		t.Fatal("unknown Russian font was accepted")
+	}
+}
+
 func TestNormalizeAndValidateReferralRewards(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Referrals.Trial = ReferralRewardSettings{Days: 2, TrafficGB: 10, BalanceMode: "fixed", BalanceRub: 50, BalancePercent: 20}
