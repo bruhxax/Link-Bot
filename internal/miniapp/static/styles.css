@@ -13020,7 +13020,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 16px;
-  background: var(--surface-strong);
+  background: var(--surface);
   box-shadow: var(--glass-shadow-soft);
 }
 .admin-user-subscription.is-selected { box-shadow: var(--glass-shadow-soft); }
@@ -13065,7 +13065,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .admin-user-subscription__activate { width: 100%; min-height: 37px; display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 12px; border: 1px solid color-mix(in srgb, var(--success) 35%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--success) 9%, transparent); color: var(--success); font-size: 9px; font-weight: 800; }
 .admin-user-subscription__current svg { width: 14px; height: 14px; }
 .admin-user-subscription__activate { border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--text); cursor: pointer; }
-.admin-user-controls__group--balance { gap: 13px; padding: 15px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-strong); }
+.admin-user-controls__group--balance { gap: 13px; padding: 15px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 .admin-user-balance-input { display: grid; gap: 6px; }
 .admin-user-balance-input > span { color: var(--muted); font-size: 9px; font-weight: 750; }
 .admin-user-balance-input input { width: 100%; min-height: 43px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--control-bg); color: var(--text); font: inherit; font-size: 12px; }
@@ -13074,7 +13074,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .admin-user-balance-actions button svg { width: 15px; height: 15px; }
 .admin-user-balance-actions .is-credit { color: var(--success); background: color-mix(in srgb, var(--success) 8%, transparent); }
 .admin-user-balance-actions .is-debit { color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); }
-.admin-user-direct { display: grid; gap: 12px; margin: 10px 0 16px; padding: 16px; border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line)); border-radius: 15px; background: var(--surface-strong); box-shadow: 0 10px 32px rgba(0, 0, 0, .12); }
+.admin-user-direct { display: grid; gap: 12px; margin: 10px 0 16px; padding: 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); box-shadow: var(--glass-shadow-soft); }
 .admin-user-direct__head { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .admin-user-direct__icon { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 10px; color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .admin-user-direct__icon svg { width: 18px; height: 18px; }
@@ -13088,7 +13088,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .admin-user-direct__draft span { color: var(--accent); font-size: 8px; font-weight: 800; }
 .admin-user-direct__draft p { overflow-wrap: anywhere; margin: 6px 0 0; color: var(--text); font-size: 10px; line-height: 1.5; }
 .admin-user-direct__compose, .admin-user-direct__actions button, .admin-user-direct__confirm button { min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--control-bg); color: var(--text); font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease; }
-.admin-user-direct__compose { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--accent) 15%, var(--surface-strong)); }
+.admin-user-direct__compose { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--accent) 15%, var(--control-bg)); }
 .admin-user-direct__compose.is-secondary { border-color: var(--line); color: var(--muted); background: var(--control-bg); }
 .admin-user-direct__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .admin-user-direct__actions .is-send, .admin-user-direct__confirm button:last-child { border-color: color-mix(in srgb, var(--success) 55%, var(--line)); color: var(--success); background: color-mix(in srgb, var(--success) 10%, var(--control-bg)); }
@@ -13196,14 +13196,14 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .admin-status__header button { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--control-bg); color: var(--icon-color); cursor: pointer; }
 .admin-status__header button svg { width: 17px; height: 17px; }
 .admin-status__header button:disabled svg { animation: admin-status-spin .8s linear infinite; }
-.admin-status__overview { display: flex; align-items: center; gap: 11px; padding: 13px 15px; border: 1px solid var(--line-soft); border-radius: 13px; background: var(--surface-strong); }
+.admin-status__overview { display: flex; align-items: center; gap: 11px; padding: 13px 15px; border: 1px solid var(--line-soft); border-radius: 13px; background: var(--surface); }
 .admin-status__overview > i { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 5px color-mix(in srgb, var(--success) 12%, transparent); }
 .admin-status__overview.is-attention > i { background: var(--danger); box-shadow: 0 0 0 5px color-mix(in srgb, var(--danger) 12%, transparent); }
 .admin-status__overview > div { display: grid; gap: 3px; }
 .admin-status__overview strong { color: var(--text); font-size: 11px; }
 .admin-status__overview span { color: var(--muted); font-size: 9px; }
 .admin-status__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.admin-status__service, .admin-status__section { min-width: 0; padding: 15px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface-strong); box-shadow: var(--glass-shadow-soft); }
+.admin-status__service, .admin-status__section { min-width: 0; padding: 15px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); box-shadow: var(--glass-shadow-soft); }
 .admin-status__service-head { display: flex; align-items: center; gap: 9px; }
 .admin-status__service-icon { width: 30px; height: 30px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; background: color-mix(in srgb, var(--accent) 13%, transparent); color: var(--icon-color); }
 .admin-status__service-icon svg { width: 17px; height: 17px; }
@@ -13225,8 +13225,8 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .admin-status__release { width: 100%; min-height: 36px; display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 13px; border: 1px solid color-mix(in srgb, var(--success) 38%, transparent); border-radius: 9px; background: color-mix(in srgb, var(--success) 10%, transparent); color: var(--success); font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; }
 .admin-status__release svg { width: 15px; height: 15px; }
 .admin-status__skeleton { display: grid; gap: 10px; }
-.admin-status__skeleton i { height: 108px; border: 1px solid var(--line-soft); border-radius: 14px; background: linear-gradient(100deg, var(--surface-strong) 10%, color-mix(in srgb, var(--text) 8%, var(--surface-strong)) 48%, var(--surface-strong) 85%); background-size: 220% 100%; animation: admin-status-shimmer 1.4s ease-in-out infinite; }
-.admin-status__error { display: grid; justify-items: start; gap: 8px; padding: 19px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-strong); }
+.admin-status__skeleton i { height: 108px; border: 1px solid var(--line-soft); border-radius: 14px; background: linear-gradient(100deg, var(--surface) 10%, color-mix(in srgb, var(--text) 8%, var(--surface)) 48%, var(--surface) 85%); background-size: 220% 100%; animation: admin-status-shimmer 1.4s ease-in-out infinite; }
+.admin-status__error { display: grid; justify-items: start; gap: 8px; padding: 19px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 .admin-status__error strong { color: var(--text); font-size: 12px; }
 .admin-status__error span { color: var(--muted); font-size: 10px; }
 .admin-status__error button { margin-top: 4px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--control-bg); color: var(--button-text); font: inherit; font-size: 10px; cursor: pointer; }
