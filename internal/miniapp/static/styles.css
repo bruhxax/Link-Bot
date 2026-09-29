@@ -1127,15 +1127,18 @@ select:focus-visible {
 [data-preview-background="liquid1"],
 [data-preview-background="liquid2"] {
   background:
-    linear-gradient(132deg, transparent 8%, color-mix(in srgb, var(--preview-liquid-3) 86%, transparent) 47%, transparent 76%),
-    linear-gradient(38deg, var(--preview-liquid-1) 6%, var(--preview-liquid-2) 54%, var(--preview-liquid-4) 116%);
+    radial-gradient(ellipse 86% 90% at 16% 26%, color-mix(in srgb, var(--preview-liquid-2) 48%, transparent), transparent 77%),
+    radial-gradient(ellipse 88% 92% at 86% 82%, color-mix(in srgb, var(--preview-liquid-3) 38%, transparent), transparent 78%),
+    linear-gradient(112deg, transparent 19%, color-mix(in srgb, var(--preview-liquid-4) 29%, transparent) 39%, transparent 53%, color-mix(in srgb, var(--preview-liquid-4) 13%, transparent) 69%, transparent 80%),
+    var(--preview-liquid-1);
 }
 [data-preview-background="liquid2"] {
   background:
-    linear-gradient(156deg, var(--preview-liquid-1) 12%, transparent 56%),
-    linear-gradient(28deg, var(--preview-liquid-1) 8%, var(--preview-liquid-2) 47%, var(--preview-liquid-3) 79%, var(--preview-liquid-4) 126%);
+    radial-gradient(ellipse 84% 90% at 22% 30%, color-mix(in srgb, var(--preview-liquid-2) 25%, transparent), transparent 78%),
+    radial-gradient(ellipse 95% 92% at 80% 84%, color-mix(in srgb, var(--preview-liquid-3) 24%, transparent), transparent 77%),
+    linear-gradient(107deg, transparent 28%, color-mix(in srgb, var(--preview-liquid-4) 20%, transparent) 49%, transparent 61%, color-mix(in srgb, var(--preview-liquid-4) 11%, transparent) 74%, transparent 83%),
+    var(--preview-liquid-1);
 }
-[data-preview-background="liquid1"] > i { position: absolute; inset: 0; opacity: .18; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); mix-blend-mode: soft-light; }
 
 .admin-background-settings { border-top: 1px solid var(--line-soft); }
 .admin-background-settings__heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
@@ -2396,38 +2399,24 @@ img { display: block; max-width: 100%; }
   transform: translateZ(0);
 }
 
-.bg-media__liquid-grain {
-  position: absolute;
-  inset: 0;
-  display: block;
-  pointer-events: none;
-  z-index: 1;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.92' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='.78'/%3E%3C/svg%3E");
-  background-size: 180px 180px;
-  opacity: .18;
-  mix-blend-mode: soft-light;
-}
-
-:root[data-background="liquid2"] .bg-media__liquid-grain {
-  opacity: .055;
-  background-size: 240px 240px;
-}
-
-:root[data-performance="low"] .bg-media__liquid-grain {
-  opacity: .045;
-}
-
 :root[data-liquid-fallback="true"] .bg-media__liquid {
   background:
-    linear-gradient(138deg, transparent 4%, color-mix(in srgb, var(--liquid-color-3) 82%, transparent) 48%, transparent 76%),
-    linear-gradient(36deg, var(--liquid-color-1) 8%, var(--liquid-color-2) 52%, var(--liquid-color-4) 126%);
+    radial-gradient(ellipse 80% 90% at 16% 26%, color-mix(in srgb, var(--liquid-color-2) 43%, transparent), transparent 78%),
+    radial-gradient(ellipse 88% 90% at 84% 80%, color-mix(in srgb, var(--liquid-color-3) 36%, transparent), transparent 78%),
+    linear-gradient(112deg, transparent 20%, color-mix(in srgb, var(--liquid-color-4) 27%, transparent) 40%, transparent 55%, color-mix(in srgb, var(--liquid-color-4) 12%, transparent) 70%, transparent 81%),
+    var(--liquid-color-1);
 }
 
 :root[data-liquid-fallback="true"][data-background="liquid2"] .bg-media__liquid {
   background:
-    linear-gradient(158deg, var(--liquid-color-1) 12%, transparent 58%),
-    linear-gradient(28deg, var(--liquid-color-1) 8%, var(--liquid-color-2) 47%, var(--liquid-color-3) 79%, var(--liquid-color-4) 126%);
+    radial-gradient(ellipse 90% 90% at 24% 30%, color-mix(in srgb, var(--liquid-color-2) 25%, transparent), transparent 78%),
+    radial-gradient(ellipse 92% 92% at 78% 85%, color-mix(in srgb, var(--liquid-color-3) 23%, transparent), transparent 79%),
+    linear-gradient(108deg, transparent 29%, color-mix(in srgb, var(--liquid-color-4) 20%, transparent) 50%, transparent 63%, color-mix(in srgb, var(--liquid-color-4) 10%, transparent) 75%, transparent 84%),
+    var(--liquid-color-1);
 }
+
+:root[data-background="liquid1"] .bg-media__shade::after,
+:root[data-background="liquid2"] .bg-media__shade::after { display: none; }
 
 .bg-media__shade {
   z-index: 6;

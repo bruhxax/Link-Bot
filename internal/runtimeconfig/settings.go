@@ -619,20 +619,20 @@ func DefaultSettings() Settings {
 				"grid2":    {Dimming: 14, Speed: 50},
 				"morphic":  {Dimming: 0, Speed: 42},
 				"twinkle":  {Dimming: 0, Speed: 38},
-				"liquid1":  {Dimming: 26, Speed: 35},
-				"liquid2":  {Dimming: 38, Speed: 30},
+				"liquid1":  {Dimming: 16, Speed: 35},
+				"liquid2":  {Dimming: 22, Speed: 30},
 				"backtyan": {Dimming: 65, Speed: 50},
 				"solid":    {Dimming: 0, Speed: 50},
 			},
 			Liquid: map[string]LiquidBackgroundSettings{
 				"liquid1": {
-					Colors:  []string{"#000000", "#1646ff", "#7226ff", "#ffffff"},
-					Dimming: 26,
+					Colors:  []string{"#07111d", "#407f8d", "#88799e", "#e9eeea"},
+					Dimming: 16,
 					Speed:   35,
 				},
 				"liquid2": {
-					Colors:  []string{"#000000", "#1646ff", "#7226ff", "#ffffff"},
-					Dimming: 38,
+					Colors:  []string{"#05090d", "#334f5b", "#566b76", "#cfddd9"},
+					Dimming: 22,
 					Speed:   30,
 				},
 			},
@@ -1769,6 +1769,7 @@ func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings, 
 	if value.Liquid == nil {
 		value.Liquid = map[string]LiquidBackgroundSettings{}
 	}
+	legacyLiquidPalette := map[string]bool{}
 	for name, fallback := range defaults.Liquid {
 		current, exists := value.Liquid[name]
 		if !exists {
@@ -1786,6 +1787,24 @@ func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings, 
 				return fmt.Errorf("invalid liquid background color %q", name)
 			}
 			current.Colors[index] = color
+		}
+		legacyColors := []string{"#000000", "#1646ff", "#7226ff", "#ffffff"}
+		legacyLiquidPalette[name] = true
+		for index, oldColor := range legacyColors {
+			if current.Colors[index] != oldColor {
+				legacyLiquidPalette[name] = false
+				break
+			}
+		}
+		if legacyLiquidPalette[name] {
+			current.Colors = append([]string(nil), fallback.Colors...)
+			oldDimming := 26
+			if name == "liquid2" {
+				oldDimming = 38
+			}
+			if current.Dimming == oldDimming {
+				current.Dimming = fallback.Dimming
+			}
 		}
 		if current.Dimming < 0 || current.Dimming > 80 {
 			return fmt.Errorf("liquid background dimming %q must be between 0 and 80", name)
@@ -1812,6 +1831,15 @@ func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings, 
 			if legacy, ok := value.Liquid[name]; ok {
 				current.Dimming = legacy.Dimming
 				current.Speed = legacy.Speed
+			}
+		}
+		if legacyLiquidPalette[name] {
+			oldDimming := 26
+			if name == "liquid2" {
+				oldDimming = 38
+			}
+			if current.Dimming == oldDimming {
+				current.Dimming = fallback.Dimming
 			}
 		}
 		if current.Dimming < 0 || current.Dimming > 80 {

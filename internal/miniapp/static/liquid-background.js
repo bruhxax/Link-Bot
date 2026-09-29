@@ -27,68 +27,55 @@ function createLiquidBackground(target) {
 		uniform vec3 uColor3;
 		uniform vec3 uColor4;
 
-		float hash(vec2 p) {
-			p = fract(p * vec2(123.34, 456.21));
-			p += dot(p, p + 45.32);
-			return fract(p.x * p.y);
+		float glow(float distance, float width) {
+			float normalized = distance / width;
+			return exp(-normalized * normalized);
 		}
 
-		float noise(vec2 p) {
-			vec2 i = floor(p);
-			vec2 f = fract(p);
-			f = f * f * (3.0 - 2.0 * f);
-			return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
-				mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
-		}
-
-		float fbm(vec2 p) {
-			float value = 0.0;
-			float amplitude = 0.52;
-			mat2 rotation = mat2(0.80, -0.60, 0.60, 0.80);
-			for (int i = 0; i < 5; i++) {
-				value += amplitude * noise(p);
-				p = rotation * p * 2.02 + 7.13;
-				amplitude *= 0.5;
-			}
-			return value;
+		float haze(vec2 point, vec2 center, vec2 scale) {
+			vec2 offset = (point - center) * scale;
+			return exp(-dot(offset, offset));
 		}
 
 		void main() {
-			vec2 uv = gl_FragCoord.xy / max(uResolution, vec2(1.0));
-			vec2 p = uv - 0.5;
-			p.x *= uResolution.x / max(uResolution.y, 1.0);
-			float t = uTime;
-			float largeFlow = fbm(p * 1.18 + vec2(t * 0.045, -t * 0.030));
-			float crossFlow = fbm(p.yx * 1.55 + vec2(-t * 0.026, t * 0.036) + largeFlow * 0.72);
-			vec2 warped = p + vec2(largeFlow - 0.5, crossFlow - 0.5) * 0.42;
-			float folds = fbm(warped * 1.34 + vec2(crossFlow, largeFlow) * 0.58);
+			vec2 point = (gl_FragCoord.xy / max(uResolution, vec2(1.0))) * 2.0 - 1.0;
+			point.x *= uResolution.x / max(uResolution.y, 1.0);
+			float time = uTime;
+			point += vec2(0.035 * sin(time * 0.31), 0.035 * cos(time * 0.25));
+			point.x += 0.068 * sin(point.y * 2.7 + time * 0.24);
+			point.y += 0.025 * sin(point.x * 2.2 - time * 0.18);
 
-			vec3 color;
+			float topLight = haze(point, vec2(-0.34, 0.34), vec2(1.12, 1.22));
+			float bottomLight = haze(point, vec2(0.35, -0.52), vec2(1.18, 1.42));
+			float shimmer = 0.5 + 0.5 * sin(point.y * 2.8 + time * 0.43);
+			vec3 color = uColor1;
 			if (uVariant < 1.5) {
-				float blueSweep = smoothstep(-0.62, 0.34, warped.x + warped.y * 0.42 + folds * 0.50);
-				float purpleFold = smoothstep(-0.28, 0.52, -warped.x * 0.30 - warped.y + crossFlow * 0.78);
-				float whiteSheen = smoothstep(0.28, 0.86, warped.x - warped.y * 0.86 + largeFlow * 0.48);
-				float darkRibbon = 1.0 - smoothstep(0.12, 0.26, abs(warped.x + warped.y * 0.58 + folds * 0.22));
-				color = mix(uColor1, uColor2, blueSweep * 0.94);
-				color = mix(color, uColor3, purpleFold * (0.48 + blueSweep * 0.42));
-				color = mix(color, uColor1, darkRibbon * 0.48);
-				color = mix(color, uColor4, whiteSheen * (0.34 + purpleFold * 0.58));
+				float sheet = point.x + point.y * 0.43 - 0.28 * sin(point.y * 2.15 + time * 0.27) + 0.10;
+				float secondSheet = point.x - point.y * 0.42 + 0.19 * sin(point.y * 1.55 - time * 0.21) - 0.30;
+				float glassBody = smoothstep(-0.43, -0.12, sheet) * (1.0 - smoothstep(0.16, 0.48, sheet));
+				float edge = glow(sheet + 0.19, 0.062) * (0.55 + 0.45 * topLight);
+				float edgeReturn = glow(sheet - 0.23, 0.092) * (0.35 + 0.65 * bottomLight);
+				float distantEdge = glow(secondSheet, 0.10) * (0.20 + 0.45 * bottomLight);
+				color = mix(uColor1, uColor2, 0.07 + topLight * 0.19);
+				color = mix(color, uColor3, bottomLight * 0.18 + glassBody * 0.18);
+				color += uColor2 * topLight * 0.08 + uColor3 * bottomLight * 0.045;
+				color *= 1.0 - glow(sheet + 0.015, 0.10) * 0.16;
+				color += mix(uColor2, uColor3, shimmer) * (edge * 0.19 + distantEdge * 0.14);
+				color += uColor4 * (edge * 0.26 + edgeReturn * 0.12 + distantEdge * 0.08);
 			} else {
-				float narrowLight = smoothstep(-0.05, 0.42, warped.x + folds * 0.28);
-				float lowerFlow = smoothstep(0.03, 0.74, -warped.y + crossFlow * 0.55);
-				float violetVeil = smoothstep(-0.42, 0.40, warped.x - warped.y * 0.48 + largeFlow * 0.46);
-				float whiteEdge = smoothstep(0.54, 1.02, warped.x - warped.y * 1.10 + folds * 0.32);
-				color = mix(uColor1, uColor2, narrowLight * 0.72);
-				color = mix(color, uColor3, lowerFlow * violetVeil * 0.92);
-				color = mix(color, uColor4, whiteEdge * lowerFlow * 0.72);
-				color = mix(color, uColor1, smoothstep(-0.24, 0.38, warped.y + warped.x * 0.22) * 0.56);
+				float sheet = point.x - point.y * 0.42 + 0.27 * sin(point.y * 1.8 - time * 0.23) - 0.06;
+				float shadow = glow(sheet - 0.22, 0.32);
+				float paleEdge = glow(sheet + 0.16, 0.072) * (0.35 + 0.50 * topLight);
+				float fineEdge = glow(sheet - 0.13, 0.037) * (0.28 + 0.62 * bottomLight);
+				float secondary = glow(point.x + point.y * 0.45 + 0.31 + 0.10 * sin(time * 0.19), 0.18) * bottomLight;
+				color = mix(uColor1, uColor2, 0.04 + topLight * 0.11);
+				color = mix(color, uColor3, bottomLight * 0.16 + secondary * 0.14);
+				color *= 1.0 - shadow * 0.14;
+				color += mix(uColor2, uColor3, shimmer) * (paleEdge * 0.10 + secondary * 0.09);
+				color += uColor4 * (paleEdge * 0.27 + fineEdge * 0.20);
 			}
-
-			float softGlass = (fbm(warped * 3.1 - t * 0.018) - 0.5) * 0.055;
-			float grain = hash(gl_FragCoord.xy + floor(t * 8.0)) - 0.5;
-			color += softGlass + grain * mix(0.036, 0.012, step(1.5, uVariant));
-			color = pow(max(color, 0.0), vec3(0.96));
-			gl_FragColor = vec4(color, 1.0);
+			float vignette = 1.0 - 0.16 * smoothstep(0.18, 1.55, length(point));
+			gl_FragColor = vec4(clamp(color * vignette, 0.0, 1.0), 1.0);
 		}
 	`;
 
@@ -126,7 +113,7 @@ function createLiquidBackground(target) {
 		variant: gl.getUniformLocation(program, "uVariant"),
 		colors: [1, 2, 3, 4].map((index) => gl.getUniformLocation(program, `uColor${index}`)),
 	};
-	let colors = ["#000000", "#1646ff", "#7226ff", "#ffffff"];
+	let colors = ["#07111d", "#407f8d", "#88799e", "#e9eeea"];
 	let variant = 1;
 	let speed = 35;
 	let paused = true;

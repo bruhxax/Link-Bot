@@ -25,8 +25,8 @@ func TestLiquidBackgroundControlsAndLayersAreBundled(t *testing.T) {
 
 	appJS := string(appRaw)
 	for _, fragment := range []string{
-		`["liquid1", "Жидкое стекло 1", "Яркий перелив с зерном"]`,
-		`["liquid2", "Жидкое стекло 2", "Тёмный мягкий перелив"]`,
+		`["liquid1", "Жидкое стекло 1", "Мягкий перламутровый перелив"]`,
+		`["liquid2", "Жидкое стекло 2", "Тёмное стекло с тонкими бликами"]`,
 		`appearance.backgroundMotion.${mode}.dimming`,
 		`appearance.backgroundMotion.${mode}.speed`,
 		`ADMIN_BACKGROUND_COLOR_FIELDS`,
@@ -41,7 +41,7 @@ func TestLiquidBackgroundControlsAndLayersAreBundled(t *testing.T) {
 	for _, fragment := range []string{
 		`.bg-media__liquid-canvas`,
 		`.bg-media__shade`,
-		`:root[data-background="liquid2"] .bg-media__liquid-grain`,
+		`:root[data-background="liquid2"] .bg-media__shade::after`,
 		`.admin-background-settings__ranges`,
 		`.admin-color-field:focus-within`,
 		`.admin-range-field input[type="range"]:focus-visible`,
@@ -59,12 +59,12 @@ func TestLiquidBackgroundControlsAndLayersAreBundled(t *testing.T) {
 	}
 
 	liquidJS := string(liquidRaw)
-	for _, fragment := range []string{`float fbm`, `uniform float uVariant`, `window.__linkBotLiquid`, `setConfig`} {
+	for _, fragment := range []string{`float glow`, `float haze`, `uniform float uVariant`, `window.__linkBotLiquid`, `setConfig`} {
 		if !strings.Contains(liquidJS, fragment) {
 			t.Fatalf("liquid-background.js does not contain %q", fragment)
 		}
 	}
-	if strings.Contains(styles, `.bg-media__liquid-field--2`) {
-		t.Fatal("legacy blurred liquid fields are still bundled")
+	if strings.Contains(styles, `.bg-media__liquid-grain`) {
+		t.Fatal("grain overlay is still bundled")
 	}
 }

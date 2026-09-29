@@ -1923,8 +1923,8 @@ ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "promo_widget", order: 18, v
 ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "notification_widget", order: 19, visible: false, width: 42, height: 92, framed: false, align: "center", offsetX: 0, offsetY: 0, notificationText: "", iconBubble: true, cornerRadius: 10, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 });
 
 const DEFAULT_LIQUID_BACKGROUNDS = Object.freeze({
-	liquid1: { colors: ["#000000", "#1646ff", "#7226ff", "#ffffff"], dimming: 26, speed: 35 },
-	liquid2: { colors: ["#000000", "#1646ff", "#7226ff", "#ffffff"], dimming: 38, speed: 30 },
+	liquid1: { colors: ["#07111d", "#407f8d", "#88799e", "#e9eeea"], dimming: 16, speed: 35 },
+	liquid2: { colors: ["#05090d", "#334f5b", "#566b76", "#cfddd9"], dimming: 22, speed: 30 },
 });
 
 const DEFAULT_BACKGROUND_MOTION = Object.freeze({
@@ -1933,8 +1933,8 @@ const DEFAULT_BACKGROUND_MOTION = Object.freeze({
 	grid2: { dimming: 14, speed: 50 },
 	morphic: { dimming: 0, speed: 42 },
 	twinkle: { dimming: 0, speed: 38 },
-	liquid1: { dimming: 26, speed: 35 },
-	liquid2: { dimming: 38, speed: 30 },
+	liquid1: { dimming: 16, speed: 35 },
+	liquid2: { dimming: 22, speed: 30 },
 	backtyan: { dimming: 65, speed: 50 },
 	solid: { dimming: 0, speed: 50 },
 });
@@ -1945,8 +1945,8 @@ const ADMIN_BACKGROUND_OPTIONS = [
 	["grid2", "Сетка 2", "Вертикальная сетка и свечение"],
 	["morphic", "Морфинг", "Мягкие поднимающиеся капли"],
 	["twinkle", "Мерцающие звёзды", "Маленькие светящиеся круги"],
-	["liquid1", "Жидкое стекло 1", "Яркий перелив с зерном"],
-	["liquid2", "Жидкое стекло 2", "Тёмный мягкий перелив"],
+	["liquid1", "Жидкое стекло 1", "Мягкий перламутровый перелив"],
+	["liquid2", "Жидкое стекло 2", "Тёмное стекло с тонкими бликами"],
 	["backtyan", "BackTyan", "Зацикленное видео без звука"],
 	["solid", "Сплошной цвет", "Чистый однотонный фон"],
 ];

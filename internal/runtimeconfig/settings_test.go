@@ -1084,6 +1084,7 @@ func TestBackTyanVideoBackgroundSurvivesSettingsRoundTrip(t *testing.T) {
 
 func TestNormalizeAndValidateLiquidBackgroundAppearance(t *testing.T) {
 	settings := DefaultSettings()
+	defaults := DefaultSettings()
 	settings.Appearance.BackgroundMode = "liquid1"
 	settings.Appearance.Liquid = nil
 
@@ -1098,8 +1099,10 @@ func TestNormalizeAndValidateLiquidBackgroundAppearance(t *testing.T) {
 		if len(background.Colors) != 4 {
 			t.Fatalf("liquid background %q colors = %d, want 4", mode, len(background.Colors))
 		}
-		if background.Colors[0] != "#000000" || background.Colors[1] != "#1646ff" || background.Colors[2] != "#7226ff" || background.Colors[3] != "#ffffff" {
-			t.Fatalf("liquid background %q defaults = %#v", mode, background.Colors)
+		for index, color := range defaults.Appearance.Liquid[mode].Colors {
+			if background.Colors[index] != color {
+				t.Fatalf("liquid background %q color %d = %q, want %q", mode, index, background.Colors[index], color)
+			}
 		}
 		if background.Speed < 10 || background.Speed > 100 {
 			t.Fatalf("liquid background %q speed = %d", mode, background.Speed)
@@ -1126,6 +1129,33 @@ func TestNormalizeAndValidateLiquidBackgroundAppearance(t *testing.T) {
 	}
 	if got := settings.Appearance.Liquid["liquid2"]; got.Dimming != 0 || got.Speed != 100 || got.Colors[2] != "#abcdef" {
 		t.Fatalf("custom liquid background was not preserved: %+v", got)
+	}
+}
+
+func TestNormalizeAndValidateRefreshesOldLiquidDefaults(t *testing.T) {
+	settings := DefaultSettings()
+	for mode, oldDimming := range map[string]int{"liquid1": 26, "liquid2": 38} {
+		old := settings.Appearance.Liquid[mode]
+		old.Colors = []string{"#000000", "#1646ff", "#7226ff", "#ffffff"}
+		old.Dimming = oldDimming
+		settings.Appearance.Liquid[mode] = old
+		settings.Appearance.BackgroundMotion[mode] = BackgroundMotionSettings{Dimming: oldDimming, Speed: old.Speed}
+	}
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("NormalizeAndValidate() error = %v", err)
+	}
+	defaults := DefaultSettings()
+	for _, mode := range []string{"liquid1", "liquid2"} {
+		got := settings.Appearance.Liquid[mode]
+		want := defaults.Appearance.Liquid[mode]
+		for index, color := range want.Colors {
+			if got.Colors[index] != color {
+				t.Fatalf("%s color %d = %s, want %s", mode, index, got.Colors[index], color)
+			}
+		}
+		if settings.Appearance.BackgroundMotion[mode].Dimming != defaults.Appearance.BackgroundMotion[mode].Dimming {
+			t.Fatalf("%s dimming was not upgraded", mode)
+		}
 	}
 }
 
