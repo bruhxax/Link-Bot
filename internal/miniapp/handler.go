@@ -682,7 +682,7 @@ func NewHandler(
 		panic(err)
 	}
 
-	return &Handler{
+	handler := &Handler{
 		customerRepository:     customerRepository,
 		purchaseRepository:     purchaseRepository,
 		subscriptionRepository: subscriptionRepository,
@@ -711,6 +711,12 @@ func NewHandler(
 		webLogin:               webLogin,
 		realtime:               newRealtimeHub(),
 	}
+	recoverCtx, recoverCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer recoverCancel()
+	if err := customerRepository.RecoverEmailBroadcast(recoverCtx); err != nil {
+		slog.Warn("recover email broadcast failed", "error", err)
+	}
+	return handler
 }
 
 func (h *Handler) SetWebPushService(service *webpush.Service) {
@@ -749,6 +755,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/auth/telegram/qr/status", h.handleTelegramQRLoginStatus)
 	mux.HandleFunc("/api/mini-app/auth/email/start", h.handleStartEmailAuth)
 	mux.HandleFunc("/api/mini-app/auth/email/verify", h.handleVerifyEmailAuth)
+	mux.HandleFunc("/api/mini-app/auth/email/link/start", h.withSession(h.handleStartEmailLink))
+	mux.HandleFunc("/api/mini-app/auth/email/link/verify", h.withSession(h.handleVerifyEmailLink))
+	mux.HandleFunc("/api/mini-app/auth/telegram/link", h.withSession(h.handleLinkTelegramIdentity))
 	mux.HandleFunc("/api/mini-app/bootstrap", h.withSession(h.handleBootstrap))
 	mux.HandleFunc("/api/mini-app/realtime", h.withSession(h.handleRealtime))
 	mux.HandleFunc("/api/mini-app/subscriptions/select", h.withSession(h.handleSelectSubscription))
@@ -823,6 +832,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/broadcast/preview", h.withSession(h.handleAdminBroadcastPreview))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/send", h.withSession(h.handleAdminBroadcastSend))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/reset", h.withSession(h.handleAdminBroadcastReset))
+	mux.HandleFunc("/api/mini-app/admin/broadcast/email/state", h.withSession(h.handleAdminEmailBroadcastState))
+	mux.HandleFunc("/api/mini-app/admin/broadcast/email/save", h.withSession(h.handleAdminEmailBroadcastSave))
+	mux.HandleFunc("/api/mini-app/admin/broadcast/email/preview", h.withSession(h.handleAdminEmailBroadcastPreview))
+	mux.HandleFunc("/api/mini-app/admin/broadcast/email/send", h.withSession(h.handleAdminEmailBroadcastSend))
 	mux.HandleFunc("/api/mini-app/support/refresh", h.withSession(h.handleSupportRefresh))
 	mux.HandleFunc("/api/mini-app/support/create", h.withSession(h.handleSupportCreate))
 	mux.HandleFunc("/api/mini-app/support/thread", h.withSession(h.handleSupportThread))
@@ -1555,6 +1568,17 @@ func (h *Handler) handleActivateTrial(w http.ResponseWriter, r *http.Request, se
 		h.writeError(w, http.StatusServiceUnavailable, "feature_disabled", "Trial activation is temporarily unavailable")
 		return
 	}
+	if customer.TelegramIDIsSynthetic {
+		email, err := h.customerRepository.EmailForCustomer(r.Context(), customer.ID)
+		if err != nil {
+			h.writeError(w, http.StatusInternalServerError, "trial_failed", "Не удалось проверить привязку Telegram")
+			return
+		}
+		if emailTrialNeedsTelegram(customer, email) {
+			h.writeError(w, http.StatusForbidden, "trial_telegram_required", "Привяжите Telegram, чтобы получить пробный период")
+			return
+		}
+	}
 	activeSubscription, _, err := h.loadCustomerSubscriptions(r.Context(), customer)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "trial_failed", "Не удалось проверить подписку")
@@ -1634,6 +1658,10 @@ func (h *Handler) handleActivateTrial(w http.ResponseWriter, r *http.Request, se
 		"message": "Пробный период активирован",
 		"data":    payload,
 	})
+}
+
+func emailTrialNeedsTelegram(customer *database.Customer, linkedEmail string) bool {
+	return customer != nil && customer.TelegramIDIsSynthetic && linkedEmail != ""
 }
 
 func trialBrowserDeviceHash(r *http.Request) (string, error) {
@@ -4211,6 +4239,13 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		return nil, err
 	}
 	trialEligible := activeSubscription.IsPrimary && bootstrapTrialEligible(settings.Trial, viewCustomer, highestPurchase, panelState, panelLookupFailed, fast)
+	linkedEmail, err := h.customerRepository.EmailForCustomer(ctx, customer.ID)
+	if err != nil {
+		return nil, err
+	}
+	if emailTrialNeedsTelegram(customer, linkedEmail) {
+		trialEligible = false
+	}
 
 	supportData := supportPayload{
 		IsAdmin:        h.isAdmin(sess.User.ID),
@@ -4323,7 +4358,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 			PhotoURL:       sess.User.PhotoURL,
 			LanguageCode:   settings.Localization.Language,
 			AuthProvider:   fallbackText(sess.Provider, sessionProviderTelegram),
-			Email:          sess.Email,
+			Email:          linkedEmail,
 			GoogleEmail:    customerGoogleEmail(customer),
 			GoogleLinked:   customerGoogleSubject(customer) != "",
 			TelegramLinked: !customer.TelegramIDIsSynthetic,

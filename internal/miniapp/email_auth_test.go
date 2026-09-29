@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"link-bot/internal/database"
 )
 
 func TestEmailBrowserSessionRoundTripAndTamperRejection(t *testing.T) {
@@ -121,5 +122,17 @@ func TestEmailAuthValidationAndCodeBinding(t *testing.T) {
 	id := uuid.New()
 	if emailCodeHash(id, "12345") == emailCodeHash(id, "12346") || emailCodeHash(id, "12345") == emailCodeHash(uuid.New(), "12345") {
 		t.Fatal("code hash is not bound to code and challenge")
+	}
+}
+
+func TestEmailTrialRequiresVerifiedTelegramOnlyForSyntheticEmailAccount(t *testing.T) {
+	if !emailTrialNeedsTelegram(&database.Customer{TelegramIDIsSynthetic: true}, "user@example.com") {
+		t.Fatal("an email-only account must not receive a trial")
+	}
+	if emailTrialNeedsTelegram(&database.Customer{TelegramIDIsSynthetic: false}, "user@example.com") {
+		t.Fatal("linking a real Telegram identity must remove the email-only restriction")
+	}
+	if emailTrialNeedsTelegram(&database.Customer{TelegramIDIsSynthetic: false}, "") {
+		t.Fatal("Telegram-only accounts must remain eligible for a trial")
 	}
 }

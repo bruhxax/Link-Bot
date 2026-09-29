@@ -97,6 +97,8 @@ let googleLoginInitializedClientID = "";
 let googleAuthMode = "login";
 let googleLoginPendingMode = "";
 const emailAuth = { mode: "login", stage: "credentials", email: "", password: "", challengeId: "", busy: false, error: "" };
+const emailLink = { open: false, stage: "credentials", email: "", password: "", challengeId: "", busy: false, error: "" };
+let telegramLinkPending = false;
 let googleLinkRefreshTimer = null;
 let dashboardHydrationTimer = null;
 let dashboardRefreshPromise = null;
@@ -200,6 +202,12 @@ function scheduleDashboardHydration() {
 
 window.onTelegramAuth = (payload) => {
   const idToken = String(payload?.id_token || "").trim();
+  if (telegramLinkPending) {
+    telegramLinkPending = false;
+    if (payload?.error || !idToken) return showToast(emailAuthText("Не удалось подтвердить Telegram", "Could not confirm Telegram"), "danger");
+    void completeTelegramLink(idToken);
+    return;
+  }
   if (payload?.error || !idToken) {
     showToast(browserAuthCopy().loginFailed, "danger");
     return;
@@ -553,6 +561,7 @@ function loadTelegramLoginScript() {
 }
 
 async function startTelegramBrowserLogin(trigger) {
+  telegramLinkPending = false;
   const copy = browserAuthCopy();
   if (!telegramBotID) {
     showToast(copy.loginUnavailable, "danger");
@@ -591,6 +600,46 @@ async function startTelegramBrowserLogin(trigger) {
       trigger.disabled = false;
       trigger.classList.remove("is-loading");
     }, 800);
+  }
+}
+
+async function startTelegramLink(trigger) {
+  if (state.loginMethodBusy || telegramLinkPending || !telegramBotID) return showToast(emailAuthText("Вход через Telegram недоступен", "Telegram login is unavailable"), "danger");
+  state.loginMethodBusy = "telegram";
+  trigger?.setAttribute("disabled", "");
+  try {
+    await loadTelegramLoginScript();
+    const auth = window.Telegram?.Login?.auth;
+    if (typeof auth !== "function") throw new Error("Telegram login unavailable");
+    telegramLinkPending = true;
+    window.setTimeout(() => { telegramLinkPending = false; }, 120000);
+    auth({ client_id: Number(telegramBotID), redirect_uri: `${window.location.origin}${window.location.pathname}`, request_access: ["write"], lang: state.locale }, window.onTelegramAuth);
+  } catch (error) {
+    telegramLinkPending = false;
+    showToast(emailAuthText("Не удалось открыть Telegram", "Could not open Telegram"), "danger");
+  } finally {
+    state.loginMethodBusy = "";
+    trigger?.removeAttribute("disabled");
+  }
+}
+
+async function completeTelegramLink(idToken) {
+  state.loginMethodBusy = "telegram";
+  render({ preserveScroll: true });
+  try {
+    const response = await post("/api/mini-app/auth/telegram/link", { idToken });
+    const sessionData = String(response?.data?.sessionData || "");
+    if (!sessionData) throw new Error(emailAuthText("Не удалось обновить вход", "Could not refresh sign-in"));
+    writeSessionSetting(STORAGE_KEYS.telegramLogin, sessionData);
+    writeSessionSetting(STORAGE_KEYS.telegramIDToken, "");
+    clearGoogleAuth();
+    state.loginMethodBusy = "";
+    await refreshDashboard({ initial: true });
+    showToast(emailAuthText("Telegram привязан", "Telegram linked"), "success");
+  } catch (error) {
+    state.loginMethodBusy = "";
+    render({ preserveScroll: true });
+    showToast(error?.message || emailAuthText("Не удалось привязать Telegram", "Could not link Telegram"), "danger");
   }
 }
 
@@ -663,6 +712,80 @@ function renderEmailAuth() {
 		<p class="browser-email__error" role="alert">${escapeHtml(emailAuth.error)}</p>
 		<button class="browser-email__submit" type="submit" ${emailAuth.busy ? "disabled" : ""}>${escapeHtml(emailAuth.busy ? emailAuthText("Отправляем код…", "Sending code…") : registration ? emailAuthText("Регистрация", "Register") : emailAuthText("Войти", "Sign in"))}</button>
 	</form>`;
+}
+
+function renderEmailLink() {
+  if (!emailLink.open) return "";
+  if (emailLink.stage === "code") return `<div class="login-email-link browser-email--code">
+    <div class="browser-email__code-head"><button class="browser-email__back" type="button" data-action="email-link-back" aria-label="${escapeAttribute(emailAuthText("Изменить почту", "Change email"))}">←</button><div><strong>${escapeHtml(emailAuthText("Подтвердите почту", "Confirm email"))}</strong><span>${escapeHtml(emailLink.email)}</span></div></div>
+    <div class="browser-email__codes" role="group" aria-label="${escapeAttribute(emailAuthText("Код подтверждения", "Confirmation code"))}">${Array.from({ length: 5 }, (_, index) => `<input class="browser-email__digit" data-email-link-digit="${index}" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="${index === 0 ? "one-time-code" : "off"}" aria-label="${escapeAttribute(emailAuthText(`Цифра ${index + 1}`, `Digit ${index + 1}`))}">`).join("")}</div>
+    <p class="browser-email__error" data-email-link-error role="alert">${escapeHtml(emailLink.error)}</p>
+    <button class="browser-email__submit" type="button" data-action="email-link-verify" ${emailLink.busy ? "disabled" : ""}>${escapeHtml(emailAuthText("Подтвердить", "Confirm"))}</button>
+    <p class="browser-email__hint">${escapeHtml(emailAuthText("Код действует 10 минут. Проверьте папку «Спам».", "The code is valid for 10 minutes. Check your spam folder."))}</p>
+  </div>`;
+  return `<form class="login-email-link" data-email-link-form>
+    <strong>${escapeHtml(emailAuthText("Привязать почту", "Link email"))}</strong>
+    <label class="browser-email__field"><span>${escapeHtml(emailAuthText("Почта", "Email"))}</span><input data-email-link-email type="email" autocomplete="email" required maxlength="254" placeholder="name@example.com" value="${escapeAttribute(emailLink.email)}"></label>
+    <label class="browser-email__field"><span>${escapeHtml(emailAuthText("Пароль для входа", "Sign-in password"))}</span><input data-email-link-password type="password" autocomplete="new-password" required minlength="8" maxlength="72" value="${escapeAttribute(emailLink.password)}" placeholder="••••••••"></label>
+    <p class="browser-email__error" role="alert">${escapeHtml(emailLink.error)}</p>
+    <div class="login-email-link__actions"><button type="button" data-action="email-link-close">${escapeHtml(emailAuthText("Отмена", "Cancel"))}</button><button class="browser-email__submit" type="submit" ${emailLink.busy ? "disabled" : ""}>${escapeHtml(emailLink.busy ? emailAuthText("Отправляем код…", "Sending code…") : emailAuthText("Получить код", "Send code"))}</button></div>
+  </form>`;
+}
+
+async function startEmailLink() {
+  if (emailLink.busy) return;
+  const form = app.querySelector("[data-email-link-form]");
+  emailLink.email = String(form?.querySelector("[data-email-link-email]")?.value ?? emailLink.email).trim();
+  emailLink.password = String(form?.querySelector("[data-email-link-password]")?.value ?? emailLink.password);
+  emailLink.error = "";
+  emailLink.busy = true;
+  render({ preserveScroll: true });
+  try {
+    const response = await post("/api/mini-app/auth/email/link/start", { email: emailLink.email, password: emailLink.password });
+    emailLink.challengeId = String(response?.data?.challengeId || "");
+    emailLink.password = "";
+    emailLink.stage = "code";
+    emailLink.busy = false;
+    render({ preserveScroll: true });
+    app.querySelector("[data-email-link-digit]")?.focus();
+  } catch (error) {
+    emailLink.error = error?.message || emailAuthText("Не удалось отправить код", "Could not send code");
+    emailLink.busy = false;
+    render({ preserveScroll: true });
+  }
+}
+
+async function verifyEmailLink() {
+  if (emailLink.busy || emailLink.stage !== "code") return;
+  const code = [...app.querySelectorAll("[data-email-link-digit]")].map((node) => node.value).join("");
+  if (!/^\d{5}$/.test(code)) return;
+  emailLink.busy = true;
+  app.querySelector('[data-action="email-link-verify"]')?.setAttribute("disabled", "");
+  try {
+    const response = await post("/api/mini-app/auth/email/link/verify", { challengeId: emailLink.challengeId, code });
+    state.data = response.data;
+    emailLink.open = false;
+    emailLink.stage = "credentials";
+    emailLink.password = "";
+    emailLink.error = "";
+    emailLink.busy = false;
+    render({ preserveScroll: true });
+    showToast(emailAuthText("Почта привязана", "Email linked"), "success");
+  } catch (error) {
+    emailLink.error = error?.code === "invalid_code" ? emailAuthText("Неправильный код подтверждения", "Incorrect confirmation code") : error?.message || emailAuthText("Не удалось привязать почту", "Could not link email");
+    emailLink.busy = false;
+    const panel = app.querySelector(".login-email-link.browser-email--code");
+    panel?.classList.remove("is-shaking");
+    void panel?.offsetWidth;
+    panel?.classList.add("is-shaking");
+    const errorNode = panel?.querySelector("[data-email-link-error]");
+    if (errorNode) errorNode.textContent = emailLink.error;
+    if (error?.code === "invalid_code") {
+      app.querySelectorAll("[data-email-link-digit]").forEach((node) => { node.value = ""; });
+      app.querySelector("[data-email-link-digit]")?.focus();
+    }
+    app.querySelector('[data-action="email-link-verify"]')?.removeAttribute("disabled");
+  }
 }
 
 async function submitEmailAuth() {
@@ -2377,6 +2500,14 @@ const state = {
   adminSubscriptionDestination: "",
   adminBusy: "",
 	adminBroadcast: null,
+	adminBroadcastTab: "telegram",
+	adminEmailBroadcast: null,
+	adminEmailDraftSubject: "",
+	adminEmailDraftBody: "",
+	adminEmailPreviewAddress: "",
+	adminEmailDraftDirty: false,
+	adminEmailBusy: "",
+	adminEmailConfirmOpen: false,
 	adminBroadcastButtonsDraft: [],
 	adminBroadcastButtonsDirty: false,
 	adminBroadcastBusy: "",
@@ -3616,6 +3747,7 @@ async function getBrowserAuthHeaders() {
 function requestTimeoutForURL(url) {
   const path = String(url || "");
   if (path.includes("/api/mini-app/auth/email/start")) return 40000;
+  if (path.includes("/api/mini-app/auth/email/link/start") || path.includes("/api/mini-app/admin/broadcast/email/preview")) return 40000;
   if (path.includes("/api/mini-app/bootstrap")) return 30000;
   if (path.includes("/api/mini-app/purchase")) return 45000;
 	if (path.includes("/api/mini-app/promocode/redeem")) return 30000;
@@ -3751,6 +3883,12 @@ function mapApiErrorMessage(code, fallback) {
 	google_login_failed: localizedText("Не удалось создать профиль Google", "Could not create the Google profile", "نمایه Google ایجاد نشد"),
 	trial_device_required: localizedText("Не удалось подтвердить устройство для пробного периода", "Could not verify this device for the trial", "تأیید دستگاه برای دوره آزمایشی انجام نشد"),
 	trial_identity_used: localizedText("Пробный период уже использован этим аккаунтом или устройством", "The trial was already used by this account or device", "دوره آزمایشی قبلا توسط این حساب یا دستگاه استفاده شده است"),
+	trial_telegram_required: localizedText("Привяжите Telegram, чтобы получить пробный период", "Link Telegram to unlock a free trial", "برای دریافت دوره آزمایشی تلگرام را متصل کنید"),
+	telegram_already_linked: localizedText("Этот Telegram уже привязан к другому аккаунту с почтой", "This Telegram account is already linked to an email account", "این حساب تلگرام از قبل متصل است"),
+	email_account_has_history: localizedText("На почтовом аккаунте уже есть действия. Для безопасной привязки напишите в поддержку", "This email account has activity. Contact support to link it safely", "برای اتصال امن با پشتیبانی تماس بگیرید"),
+	invalid_telegram_identity: localizedText("Подтвердите Telegram ещё раз", "Confirm Telegram again", "تلگرام را دوباره تأیید کنید"),
+	email_already_registered: localizedText("Эта почта уже привязана к другому аккаунту", "This email is already linked to another account", "این ایمیل از قبل ثبت شده است"),
+	email_already_linked: localizedText("Почта уже привязана", "Email is already linked", "ایمیل از قبل متصل است"),
     google_invalid: googleAuthCopy().loginFailed,
     google_link_failed: googleAuthCopy().linkFailed,
 	too_many_requests: localizedText("Слишком много запросов, попробуйте чуть позже", "Too many requests, please slow down a bit", "درخواست‌ها بیش از حد است؛ کمی بعد دوباره تلاش کنید"),
@@ -5906,6 +6044,7 @@ function renderAdminIntegrationRow(item) {
 }
 
 function renderAdminBroadcastPage() {
+	if (state.adminBroadcastTab === "email") return renderAdminEmailBroadcastPage();
 	const english = state.locale === "en";
 	const draft = state.adminBroadcast || { status: "idle", buttons: [], recipientCount: 0, sentCount: 0, failedCount: 0 };
 	const running = draft.status === "running";
@@ -5923,6 +6062,7 @@ function renderAdminBroadcastPage() {
 	return `
 		<section class="page admin-page ${pageClass("admin")}" id="page-admin">
 			<div class="admin-broadcast">
+				${renderAdminBroadcastTabs()}
 				<header class="admin-broadcast__header">
 					<div><span>${english ? "Delivery" : "Рассылка"}</span><h2>${english ? "Message to users" : "Сообщение пользователям"}</h2></div>
 					<span class="admin-broadcast__status admin-broadcast__status--${escapeAttribute(draft.status || "idle")}">${escapeHtml(broadcastStatusLabel(draft.status, english))}</span>
@@ -5954,6 +6094,44 @@ function renderAdminBroadcastPage() {
 			${state.adminBroadcastConfirmOpen ? renderAdminBroadcastConfirm(english) : ""}
 		</section>
 	`;
+}
+
+function renderAdminBroadcastTabs() {
+  const email = state.adminBroadcastTab === "email";
+  return `<div class="admin-broadcast__tabs" role="tablist" aria-label="${escapeAttribute(emailAuthText("Тип рассылки", "Broadcast type"))}">
+    <button type="button" role="tab" aria-selected="${!email}" class="${!email ? "is-active" : ""}" data-action="admin-broadcast-tab" data-value="telegram">${icon("telegram")}<span>Telegram</span></button>
+    <button type="button" role="tab" aria-selected="${email}" class="${email ? "is-active" : ""}" data-action="admin-broadcast-tab" data-value="email">${icon("profileLetter")}<span>${escapeHtml(emailAuthText("Рассылка по почте", "Email broadcast"))}</span></button>
+  </div>`;
+}
+
+function renderAdminEmailBroadcastPage() {
+  const english = state.locale === "en";
+  const draft = state.adminEmailBroadcast?.draft || { status: "idle", recipientCount: 0, sentCount: 0, failedCount: 0 };
+  const configured = state.adminEmailBroadcast?.configured !== false;
+  const running = draft.status === "running";
+  const busy = Boolean(state.adminEmailBusy);
+  const total = Math.max(0, Number(draft.recipientCount || 0));
+  const processed = Number(draft.sentCount || 0) + Number(draft.failedCount || 0);
+  const progress = total ? Math.min(100, Math.round(processed / total * 100)) : 0;
+  return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-broadcast">
+    ${renderAdminBroadcastTabs()}
+    <header class="admin-broadcast__header"><div><span>${english ? "Delivery" : "Рассылка"}</span><h2>${english ? "Email to users" : "Письмо пользователям"}</h2></div><span class="admin-broadcast__status admin-broadcast__status--${escapeAttribute(draft.status)}">${escapeHtml(broadcastStatusLabel(draft.status, english))}</span></header>
+    <section class="admin-broadcast__section admin-email-broadcast__compose">
+      <div class="admin-broadcast__section-head"><div><span>1</span><div><strong>${english ? "Compose email" : "Написать письмо"}</strong><small>${english ? "All users with verified email" : "Всем пользователям с подтверждённой почтой"}</small></div></div></div>
+      <label class="admin-email-broadcast__field"><span>${english ? "Subject" : "Тема"}</span><input data-admin-email-subject maxlength="160" placeholder="${english ? "Email subject" : "Тема письма"}" value="${escapeAttribute(state.adminEmailDraftSubject)}" ${running ? "disabled" : ""}></label>
+      <label class="admin-email-broadcast__field"><span>${english ? "Message" : "Текст письма"}</span><textarea data-admin-email-body maxlength="20000" rows="9" placeholder="${english ? "Write the message" : "Напишите текст письма"}" ${running ? "disabled" : ""}>${escapeHtml(state.adminEmailDraftBody)}</textarea></label>
+      <button class="admin-broadcast__primary" type="button" data-action="admin-email-save" ${running || busy ? "disabled" : ""}>${icon("check")}<span>${english ? "Save email" : "Сохранить письмо"}</span></button>
+    </section>
+    <section class="admin-broadcast__section admin-broadcast__section--delivery">
+      <div class="admin-broadcast__section-head"><div><span>2</span><div><strong>${english ? "Preview and send" : "Проверка и отправка"}</strong><small>${english ? "Send a test copy before launch" : "Сначала отправьте себе тестовое письмо"}</small></div></div></div>
+      ${!configured ? `<p class="admin-broadcast__error">${english ? "Configure SMTP before sending" : "Для отправки настройте SMTP"}</p>` : ""}
+      <p class="admin-broadcast__empty">${english ? "Verified email addresses" : "Подтверждённых адресов"}: ${Number(state.adminEmailBroadcast?.availableRecipients || 0)}</p>
+      <label class="admin-email-broadcast__field"><span>${english ? "Preview address" : "Адрес для проверки"}</span><input data-admin-email-preview type="email" autocomplete="email" placeholder="you@example.com" value="${escapeAttribute(state.adminEmailPreviewAddress)}"></label>
+      ${running || total > 0 ? `<div class="admin-broadcast__progress"><div><span>${english ? "Progress" : "Прогресс"}</span><strong>${progress}%</strong></div><i><b style="width:${progress}%"></b></i><p>${english ? "Sent" : "Отправлено"}: ${Number(draft.sentCount || 0)} · ${english ? "Errors" : "Ошибок"}: ${Number(draft.failedCount || 0)} · ${english ? "Total" : "Всего"}: ${total}</p></div>` : ""}
+      ${draft.lastError ? `<p class="admin-broadcast__error">${escapeHtml(draft.lastError)}</p>` : ""}
+      <div class="admin-broadcast__actions"><button type="button" data-action="admin-email-preview-send" ${running || busy || !configured ? "disabled" : ""}>${icon("eye")}<span>${english ? "Send preview" : "Отправить себе"}</span></button><button class="admin-broadcast__send" type="button" data-action="admin-email-open-confirm" ${running || busy || !configured || !state.adminEmailBroadcast?.availableRecipients ? "disabled" : ""}>${icon("send")}<span>${english ? "Send to all" : "Отправить всем"}</span></button></div>
+    </section>
+  </div>${state.adminEmailConfirmOpen ? `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-email-close-confirm"></button><div class="modal__sheet admin-broadcast-confirm" role="dialog" aria-modal="true"><div class="modal__header"><div class="modal__title">${english ? "Send email to all users?" : "Отправить письмо всем пользователям?"}</div></div><p>${english ? `Recipients with verified email: ${Number(state.adminEmailBroadcast?.availableRecipients || 0)}. Check the preview first.` : `Получателей с подтверждённой почтой: ${Number(state.adminEmailBroadcast?.availableRecipients || 0)}. Проверьте тестовое письмо перед запуском.`}</p><div class="admin-broadcast-confirm__actions"><button type="button" data-action="admin-email-close-confirm">${english ? "Cancel" : "Отмена"}</button><button class="admin-broadcast-confirm__send" type="button" data-action="admin-email-send">${icon("send")}<span>${english ? "Start" : "Запустить"}</span></button></div></div></div>` : ""}</section>`;
 }
 
 function renderAdminBroadcastButton(button, index, disabled, english) {
@@ -7541,6 +7719,8 @@ function renderDashboardPage() {
 		: `<button class="btn ${trialEligible ? "" : "btn--green"}" type="button" data-action="go-page" data-value="buy">${icon("cart")}<span class="runtime-editable-text">${escapeHtml(copy.buySubscription)}</span></button>`;
 	const secondaryAction = active
 		? `<button class="btn btn--green" type="button" data-action="go-page" data-value="setup">${icon("arrowDownSquare")}<span class="runtime-editable-text">${escapeHtml(copy.setup)}</span></button>`
+		: state.data?.user?.email && state.data?.user?.telegramLinked === false && state.data?.trial?.enabled
+			? `<button class="btn btn--green btn--trial" type="button" data-action="go-page" data-value="login-methods">${icon("telegram")}<span class="runtime-editable-text">${escapeHtml(emailAuthText("Привязать Telegram, чтобы получить пробный период", "Link Telegram to unlock a free trial"))}</span></button>`
 		: trialEligible
 			? `<button class="btn btn--green btn--trial" type="button" data-action="activate-trial">${icon("gift")}<span class="runtime-editable-text">${escapeHtml(copy.activateTrial)}</span></button>`
 			: "";
@@ -8622,6 +8802,8 @@ function renderLoginMethodsPage() {
   const provider = String(user.authProvider || "telegram");
   const providerLabel = provider === "email" ? emailAuthText("Почта", "Email") : provider === "google" ? gmailLabel() : telegramLabel();
   const gmailStatus = googleLinked ? authLinkedLabel() : authNotLinkedLabel();
+  const telegramAction = !telegramLinked && emailAddress ? `<div class="login-method-action"><button class="btn btn--trial" type="button" data-action="telegram-link-login" ${state.loginMethodBusy === "telegram" ? "disabled" : ""}>${icon("telegram")}<span>${escapeHtml(emailAuthText("Привязать Telegram, чтобы получить пробный период", "Link Telegram to unlock a free trial"))}</span></button></div>` : "";
+  const emailAction = !emailAddress && featureEnabled("email_auth") ? `<div class="login-method-action"><button class="btn" type="button" data-action="email-link-open">${icon("profileLetter")}<span>${escapeHtml(emailAuthText("Привязать почту", "Link email"))}</span></button></div>${renderEmailLink()}` : "";
   const gmailAction = googleLinked ? "" : `
     <div class="login-method-action">
       <div class="google-button-shell google-button-shell--method" ${state.loginMethodBusy === "google" ? "data-google-disabled=\"1\"" : ""}>
@@ -8644,7 +8826,7 @@ function renderLoginMethodsPage() {
           </div>
         </div>
         <div class="login-method-list">
-          ${emailAddress ? `<div class="login-method-row"><span class="login-method-row__icon">${icon("profileLetter")}</span><span class="login-method-row__body"><strong>${escapeHtml(emailAuthText("Почта", "Email"))}</strong><span>${escapeHtml(emailAddress)}</span></span><span class="login-method-row__status is-linked">${escapeHtml(authLinkedLabel())}</span></div>` : ""}
+          <div class="login-method-row"><span class="login-method-row__icon">${icon("profileLetter")}</span><span class="login-method-row__body"><strong>${escapeHtml(emailAuthText("Почта", "Email"))}</strong><span>${escapeHtml(emailAddress || emailAuthText("Не привязана", "Not linked"))}</span></span><span class="login-method-row__status ${emailAddress ? "is-linked" : ""}">${escapeHtml(emailAddress ? authLinkedLabel() : authNotLinkedLabel())}</span></div>
           <div class="login-method-row">
             <span class="login-method-row__icon">${icon("telegram")}</span>
             <span class="login-method-row__body"><strong>${escapeHtml(telegramLabel())}</strong></span>
@@ -8656,6 +8838,8 @@ function renderLoginMethodsPage() {
             <span class="login-method-row__status ${googleLinked ? "is-linked" : ""}">${escapeHtml(gmailStatus)}</span>
           </div>
         </div>
+        ${telegramAction}
+        ${emailAction}
         ${gmailAction}
       </div>
     </section>
@@ -9960,11 +10144,22 @@ function bindRootActions() {
   if (bindRootActions.bound) return;
   bindRootActions.bound = true;
 	app.addEventListener("submit", (event) => {
+		if (event.target.matches?.("[data-email-link-form]")) { event.preventDefault(); void startEmailLink(); return; }
 		if (!event.target.matches?.("[data-email-auth-form]")) return;
 		event.preventDefault();
 		void submitEmailAuth();
 	});
 	app.addEventListener("paste", (event) => {
+		if (event.target.matches?.("[data-email-link-digit]")) {
+			const digits = String(event.clipboardData?.getData("text") || "").replace(/\D/g, "").slice(0, 5);
+			if (!digits) return;
+			event.preventDefault();
+			const inputs = [...app.querySelectorAll("[data-email-link-digit]")];
+			inputs.forEach((node, index) => { node.value = digits[index] || ""; });
+			inputs[Math.min(digits.length, 4)]?.focus();
+			if (digits.length === 5) void verifyEmailLink();
+			return;
+		}
 		if (!event.target.matches?.("[data-email-code-digit]")) return;
 		const digits = String(event.clipboardData?.getData("text") || "").replace(/\D/g, "").slice(0, 5);
 		if (!digits) return;
@@ -10097,6 +10292,11 @@ function bindRootActions() {
       if (action === "email-auth-verify") return await verifyEmailAuth();
       if (action === "refresh") return await refreshDashboard({ forceSubscriptionCheck: Boolean(state.subscriptionGate) });
       if (action === "telegram-browser-login") return await startTelegramBrowserLogin(target);
+		if (action === "telegram-link-login") return await startTelegramLink(target);
+		if (action === "email-link-open") { emailLink.open = true; emailLink.error = ""; render({ preserveScroll: true }); app.querySelector("[data-email-link-email]")?.focus(); return; }
+		if (action === "email-link-close") { emailLink.open = false; emailLink.password = ""; render({ preserveScroll: true }); return; }
+		if (action === "email-link-back") { emailLink.stage = "credentials"; emailLink.error = ""; render({ preserveScroll: true }); return; }
+		if (action === "email-link-verify") return await verifyEmailLink();
       if (action === "google-browser-login") return await startGoogleLogin("login", target);
       if (action === "google-link-login") return await startGoogleLogin("link", target);
       if (action === "open-sidebar") { state.sidebarOpen = true; render(); return; }
@@ -10448,6 +10648,12 @@ function bindRootActions() {
       if (action === "admin-load-subscription-target") return await loadAdminSubscriptionTarget();
       if (action === "admin-rebind-subscription") return await rebindAdminSubscription();
 			if (action === "admin-broadcast-capture") return await startAdminBroadcastCapture();
+			if (action === "admin-broadcast-tab" && ["telegram", "email"].includes(value)) { state.adminBroadcastTab = value; state.adminEmailConfirmOpen = false; render({ preserveScroll: true }); return await refreshAdminBroadcast({ forceButtons: true }); }
+			if (action === "admin-email-save") return await saveAdminEmailBroadcast();
+			if (action === "admin-email-preview-send") return await previewAdminEmailBroadcast();
+			if (action === "admin-email-open-confirm") { state.adminEmailConfirmOpen = true; render({ preserveScroll: true }); return; }
+			if (action === "admin-email-close-confirm") { state.adminEmailConfirmOpen = false; render({ preserveScroll: true }); return; }
+			if (action === "admin-email-send") return await sendAdminEmailBroadcast();
 			if (action === "admin-broadcast-add-button") return addAdminBroadcastButton();
 			if (action === "admin-broadcast-remove-button") return removeAdminBroadcastButton(Number(value));
 			if (action === "admin-broadcast-set-style") return setAdminBroadcastButtonStyle(Number(target.dataset.broadcastIndex), value);
@@ -10558,6 +10764,19 @@ function bindRootActions() {
 
 	app.addEventListener("input", (event) => {
       const target = event.target;
+		if (target.matches?.("[data-admin-email-subject]")) { state.adminEmailDraftSubject = target.value; state.adminEmailDraftDirty = true; return; }
+		if (target.matches?.("[data-admin-email-body]")) { state.adminEmailDraftBody = target.value; state.adminEmailDraftDirty = true; return; }
+		if (target.matches?.("[data-admin-email-preview]")) { state.adminEmailPreviewAddress = target.value; return; }
+		if (target.matches?.("[data-email-link-email]")) { emailLink.email = target.value; return; }
+		if (target.matches?.("[data-email-link-password]")) { emailLink.password = target.value; return; }
+		if (target.matches?.("[data-email-link-digit]")) {
+			const digits = [...app.querySelectorAll("[data-email-link-digit]")];
+			const index = digits.indexOf(target);
+			target.value = String(target.value || "").replace(/\D/g, "").slice(-1);
+			if (target.value && index < 4) digits[index + 1]?.focus();
+			if (digits.every((node) => node.value)) void verifyEmailLink();
+			return;
+		}
 		if (target.matches?.("[data-email-auth-email]")) { emailAuth.email = target.value; return; }
 		if (target.matches?.("[data-email-auth-password]")) { emailAuth.password = target.value; return; }
 		if (target.matches?.("[data-email-code-digit]")) {
@@ -10984,6 +11203,11 @@ function bindRootActions() {
 	app.addEventListener("pointerdown", beginAdminPlanPointer);
 	app.addEventListener("pointerdown", beginAdminLayoutPointer);
 	app.addEventListener("keydown", (event) => {
+		if (event.target.matches?.("[data-email-link-digit]") && event.key === "Backspace" && !event.target.value) {
+			const digits = [...app.querySelectorAll("[data-email-link-digit]")];
+			digits[digits.indexOf(event.target) - 1]?.focus();
+			return;
+		}
 		if (event.target.matches?.("[data-email-code-digit]") && event.key === "Backspace" && !event.target.value) {
 			const digits = [...app.querySelectorAll("[data-email-code-digit]")];
 			digits[digits.indexOf(event.target) - 1]?.focus();
@@ -11506,6 +11730,7 @@ function setAdminBroadcastDraft(draft, { forceButtons = false } = {}) {
 }
 
 async function refreshAdminBroadcast({ silent = false, forceButtons = false } = {}) {
+	if (state.adminBroadcastTab === "email") return refreshAdminEmailBroadcast({ silent });
 	if (state.adminSection !== "broadcast" || state.adminBroadcastBusy === "state") return;
 	const previous = silent ? JSON.stringify(state.adminBroadcast || {}) : "";
 	if (!silent) {
@@ -11522,6 +11747,73 @@ async function refreshAdminBroadcast({ silent = false, forceButtons = false } = 
 		state.adminBroadcastBusy = "";
 		if (!silent) throw error;
 	}
+}
+
+async function refreshAdminEmailBroadcast({ silent = false } = {}) {
+  if (state.adminSection !== "broadcast" || state.adminEmailBusy === "state") return;
+  const previous = JSON.stringify(state.adminEmailBroadcast || {});
+  if (!silent) { state.adminEmailBusy = "state"; render({ preserveScroll: true }); }
+  try {
+    const response = await post("/api/mini-app/admin/broadcast/email/state", {});
+    state.adminEmailBroadcast = response.data;
+    if (!state.adminEmailDraftDirty) {
+      state.adminEmailDraftSubject = String(response.data?.draft?.subject || "");
+      state.adminEmailDraftBody = String(response.data?.draft?.body || "");
+    }
+    state.adminEmailBusy = "";
+    if (!silent || previous !== JSON.stringify(response.data)) render({ preserveScroll: true });
+  } catch (error) {
+    state.adminEmailBusy = "";
+    if (!silent) throw error;
+  }
+}
+
+async function saveAdminEmailBroadcast({ quiet = false } = {}) {
+  if (state.adminEmailBusy) return false;
+  state.adminEmailBusy = "save";
+  render({ preserveScroll: true });
+  try {
+    const response = await post("/api/mini-app/admin/broadcast/email/save", { subject: state.adminEmailDraftSubject, body: state.adminEmailDraftBody });
+    state.adminEmailBroadcast = { ...(state.adminEmailBroadcast || {}), draft: response.data };
+    state.adminEmailDraftDirty = false;
+    state.adminEmailBusy = "";
+    render({ preserveScroll: true });
+    if (!quiet) showToast(emailAuthText("Письмо сохранено", "Email saved"), "success");
+    return true;
+  } catch (error) {
+    state.adminEmailBusy = "";
+    render({ preserveScroll: true });
+    showToast(error?.message || emailAuthText("Не удалось сохранить письмо", "Could not save email"), "danger");
+    return false;
+  }
+}
+
+async function previewAdminEmailBroadcast() {
+  if (state.adminEmailDraftDirty && !await saveAdminEmailBroadcast({ quiet: true })) return;
+  if (state.adminEmailBusy) return;
+  const email = String(state.adminEmailPreviewAddress || "").trim();
+  if (!email) return showToast(emailAuthText("Укажите адрес для проверки", "Enter a preview address"), "danger");
+  state.adminEmailBusy = "preview";
+  render({ preserveScroll: true });
+  try {
+    await post("/api/mini-app/admin/broadcast/email/preview", { email });
+    showToast(emailAuthText("Тестовое письмо отправлено", "Preview email sent"), "success");
+  } catch (error) { showToast(error?.message || emailAuthText("Не удалось отправить письмо", "Could not send email"), "danger"); }
+  finally { state.adminEmailBusy = ""; render({ preserveScroll: true }); }
+}
+
+async function sendAdminEmailBroadcast() {
+  state.adminEmailConfirmOpen = false;
+  if (state.adminEmailDraftDirty && !await saveAdminEmailBroadcast({ quiet: true })) return;
+  if (state.adminEmailBusy) return;
+  state.adminEmailBusy = "send";
+  render({ preserveScroll: true });
+  try {
+    const response = await post("/api/mini-app/admin/broadcast/email/send", {});
+    state.adminEmailBroadcast = { ...(state.adminEmailBroadcast || {}), draft: response.data };
+    showToast(emailAuthText("Рассылка запущена", "Email broadcast started"), "success");
+  } catch (error) { showToast(error?.message || emailAuthText("Не удалось запустить рассылку", "Could not start broadcast"), "danger"); }
+  finally { state.adminEmailBusy = ""; render({ preserveScroll: true }); }
 }
 
 async function startAdminBroadcastCapture() {

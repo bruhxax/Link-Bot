@@ -257,11 +257,15 @@ func emailSMTPSettingsFromEnv() (emailSMTPSettings, bool) {
 }
 
 func sendEmailAuthCode(ctx context.Context, settings emailSMTPSettings, recipient, code string) error {
-	err := sendEmailAuthCodeOnce(ctx, settings, recipient, code)
+	return sendSMTPMessage(ctx, settings, recipient, "Код подтверждения входа", "Код подтверждения: "+code+"\nОн действует 10 минут. Если вы не запрашивали вход, проигнорируйте письмо.")
+}
+
+func sendSMTPMessage(ctx context.Context, settings emailSMTPSettings, recipient, subject, body string) error {
+	err := sendSMTPMessageOnce(ctx, settings, recipient, subject, body)
 	var deliveryErr *emailDeliveryError
 	if err != nil && strings.EqualFold(settings.host, "smtp.gmail.com") && settings.port == "587" && errors.As(err, &deliveryErr) && (deliveryErr.code == "email_smtp_connection_failed" || deliveryErr.code == "email_smtp_proxy_failed") {
 		settings.port = "465"
-		if retryErr := sendEmailAuthCodeOnce(ctx, settings, recipient, code); retryErr != nil {
+		if retryErr := sendSMTPMessageOnce(ctx, settings, recipient, subject, body); retryErr != nil {
 			return fmt.Errorf("Gmail SMTP port 587 failed (%v); port 465 failed: %w", err, retryErr)
 		}
 		return nil
@@ -269,7 +273,7 @@ func sendEmailAuthCode(ctx context.Context, settings emailSMTPSettings, recipien
 	return err
 }
 
-func sendEmailAuthCodeOnce(ctx context.Context, settings emailSMTPSettings, recipient, code string) error {
+func sendSMTPMessageOnce(ctx context.Context, settings emailSMTPSettings, recipient, subject, body string) error {
 	address := net.JoinHostPort(settings.host, settings.port)
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	var conn net.Conn
@@ -322,8 +326,10 @@ func sendEmailAuthCodeOnce(ctx context.Context, settings emailSMTPSettings, reci
 	if err != nil {
 		return err
 	}
-	subject := mime.QEncoding.Encode("utf-8", "Код подтверждения входа")
-	message := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\nКод подтверждения: %s\r\nОн действует 10 минут. Если вы не запрашивали вход, проигнорируйте письмо.\r\n", settings.from, recipient, subject, code)
+	subject = mime.QEncoding.Encode("utf-8", subject)
+	body = strings.ReplaceAll(strings.ReplaceAll(body, "\r\n", "\n"), "\r", "\n")
+	body = strings.ReplaceAll(body, "\n", "\r\n")
+	message := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s\r\n", settings.from, recipient, subject, body)
 	if _, err = io.WriteString(writer, message); err != nil {
 		_ = writer.Close()
 		return err

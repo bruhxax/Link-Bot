@@ -1239,6 +1239,14 @@ select:focus-visible {
 .admin-empty-state strong { font-size: 12px; }
 
 .admin-broadcast { display: grid; gap: 0; padding-bottom: 24px; }
+.admin-broadcast__tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); }
+.admin-broadcast__tabs button { min-width: 0; min-height: 39px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; font-weight: 750; cursor: pointer; }
+.admin-broadcast__tabs button.is-active { border-color: var(--accent-border); background: var(--surface-strong); color: var(--text); box-shadow: 0 5px 18px rgba(0, 0, 0, .15); }
+.admin-broadcast__tabs svg { width: 16px; height: 16px; flex: 0 0 16px; }
+.admin-email-broadcast__compose { display: grid; gap: 11px; }
+.admin-email-broadcast__field { display: grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.admin-email-broadcast__field input, .admin-email-broadcast__field textarea { width: 100%; min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-strong); color: var(--text); font: inherit; font-size: 12px; line-height: 1.5; outline: none; resize: vertical; }
+.admin-email-broadcast__field input:focus, .admin-email-broadcast__field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .admin-broadcast__header { min-height: 54px; padding-bottom: 13px; display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; border-bottom: 1px solid var(--line); }
 .admin-broadcast__header > div { min-width: 0; display: grid; gap: 3px; }
 .admin-broadcast__header > div > span { color: var(--muted); font-size: 9px; font-weight: 800; text-transform: uppercase; }
@@ -5514,6 +5522,20 @@ button.rating-star {
   display: grid;
   justify-items: stretch;
 }
+
+.login-email-link {
+  display: grid;
+  gap: 11px;
+  padding: 15px;
+  border: 1px solid var(--line-soft);
+  border-radius: 13px;
+  background: var(--surface-soft);
+}
+.login-email-link > strong { color: var(--text); font-size: 14px; }
+.login-email-link__actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.login-email-link__actions > button:first-child { border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); color: var(--text); font: inherit; font-weight: 700; cursor: pointer; }
+.login-email-link .browser-email__submit { width: 100%; }
+.login-method-action .btn { white-space: normal; min-height: 44px; }
 
 .google-button-shell {
   position: relative;
@@ -13105,6 +13127,21 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   border-color: var(--glass-border) !important;
   backdrop-filter: var(--glass-backdrop) !important;
   -webkit-backdrop-filter: var(--glass-backdrop) !important;
+}
+
+:root[data-glass="on"] .login-email-link {
+  background: var(--glass-background);
+  background-image: var(--glass-texture);
+  border-color: var(--glass-border);
+  backdrop-filter: var(--glass-menu-backdrop);
+  -webkit-backdrop-filter: var(--glass-menu-backdrop);
+}
+:root[data-glass="on"] :where(.admin-broadcast__tabs, .admin-email-broadcast__field input, .admin-email-broadcast__field textarea) {
+  background: var(--glass-background);
+  background-image: var(--glass-texture);
+  border-color: var(--glass-border);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
 }
 
 :root[data-glass="on"] :where(
