@@ -3830,7 +3830,20 @@ function mountCabinetShell(markup) {
 
 let pendingLanguageTextTransition = false;
 const activeTextTransitions = new WeakMap();
+const runningTextTransitions = new Set();
+let textTransitionRenderGeneration = 0;
 const textTransitionSegmenter = typeof Intl.Segmenter === "function" ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
+
+function cancelAllTextTransitions() {
+	for (const transition of [...runningTextTransitions]) transition.cleanup();
+}
+
+document.addEventListener("visibilitychange", () => {
+	if (!document.hidden) return;
+	textTransitionRenderGeneration++;
+	pendingLanguageTextTransition = false;
+	cancelAllTextTransitions();
+});
 
 function splitTransitionText(value) {
 	return textTransitionSegmenter ? [...textTransitionSegmenter.segment(value)].map((part) => part.segment) : Array.from(value);
@@ -3919,11 +3932,15 @@ function playTextTransition(before, node, delay = 0) {
 	const newGlyphs = changedCharacters ? transitionGlyphs(mask.firstChild, changedCharacters) : [];
 	const style = transitionTextStyle(node);
 	const layers = [];
+	const outgoingLayers = [];
+	const incomingLayers = [];
 	const animations = [];
+	const finishingAnimations = [];
 	const animateGlyph = (glyph, entering, index, glyphStyle) => {
 		const layer = transitionGlyphLayer(glyph, glyphStyle);
 		if (!layer) return;
 		layers.push(layer);
+		(entering ? incomingLayers : outgoingLayers).push(layer);
 		const direction = index % 2 === 0 ? -1 : 1;
 		animations.push(layer.animate(entering
 			? [{ transform: `translateY(${-direction * 0.55}em)`, opacity: 0 }, { transform: "translateY(0)", opacity: 1 }]
@@ -3936,14 +3953,33 @@ function playTextTransition(before, node, delay = 0) {
 		cleanup() {
 			if (activeTextTransitions.get(node) !== transition) return;
 			activeTextTransitions.delete(node);
-			animations.forEach((animation) => animation.cancel());
+			runningTextTransitions.delete(transition);
+			[...animations, ...finishingAnimations].forEach((animation) => animation.cancel());
 			layers.forEach((layer) => layer.remove());
 			mask.replaceWith(document.createTextNode(changedCharacters));
 			node.normalize();
 		},
+		reveal() {
+			if (activeTextTransitions.get(node) !== transition) return;
+			outgoingLayers.forEach((layer) => layer.remove());
+			mask.style.color = "inherit";
+			mask.style.webkitTextFillColor = "currentColor";
+			mask.style.textShadow = "";
+			mask.style.opacity = "0";
+			finishingAnimations.push(mask.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 110, easing: "ease-out", fill: "both" }));
+			incomingLayers.forEach((layer) => finishingAnimations.push(layer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 110, easing: "ease-out", fill: "both" })));
+			Promise.allSettled(finishingAnimations.map((animation) => animation.finished)).then(() => {
+				if (activeTextTransitions.get(node) !== transition) return;
+				mask.style.opacity = "";
+				[...animations, ...finishingAnimations].forEach((animation) => animation.cancel());
+				layers.forEach((layer) => layer.remove());
+				runningTextTransitions.delete(transition);
+			});
+		},
 	};
 	activeTextTransitions.set(node, transition);
-	if (animations.length) Promise.allSettled(animations.map((animation) => animation.finished)).then(() => transition.cleanup());
+	runningTextTransitions.add(transition);
+	if (animations.length) Promise.allSettled(animations.map((animation) => animation.finished)).then(() => transition.reveal());
 	else transition.cleanup();
 }
 
@@ -3995,9 +4031,11 @@ function updateAnimatedText(node, value) {
 }
 
 function render({ preserveScroll = true, scrollTop = null, preserveInteraction = false } = {}) {
-	const languageTextTransition = pendingLanguageTextTransition;
+	const transitionGeneration = ++textTransitionRenderGeneration;
+	cancelAllTextTransitions();
+	const languageTextTransition = pendingLanguageTextTransition && !document.hidden;
 	pendingLanguageTextTransition = false;
-	const textTransitions = state.data ? captureRenderTextTransitions(languageTextTransition) : [];
+	const textTransitions = state.data && !document.hidden ? captureRenderTextTransitions(languageTextTransition) : [];
 	realtimeRenderPending = false;
 	window.clearTimeout(realtimeRenderTimer);
 	const realtimeFocus = realtimeRefreshRunning || preserveInteraction ? captureRealtimeFocus() : null;
@@ -4116,7 +4154,9 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
   mountAdminContentTabs();
   restoreScrollPosition(nextScrollTop);
 	mountRuntimeLayout();
-	if (textTransitions.length) requestAnimationFrame(() => playRenderTextTransitions(textTransitions, languageTextTransition));
+	if (textTransitions.length) requestAnimationFrame(() => {
+		if (transitionGeneration === textTransitionRenderGeneration && !document.hidden) playRenderTextTransitions(textTransitions, languageTextTransition);
+	});
 	mountBannerMedia();
   syncBottomNavIndicator();
   restoreSupportThreadScrollState(supportThreadScrollState);
@@ -8322,9 +8362,11 @@ function setProfileLanguage(language) {
 	}
 	haptic("light");
 	window.clearTimeout(profileLanguageRenderTimer);
+	const sourcePage = state.currentPage;
+	const sourceGeneration = textTransitionRenderGeneration;
 	profileLanguageRenderTimer = window.setTimeout(() => {
 		syncLocalizationFromSettings();
-		pendingLanguageTextTransition = true;
+		pendingLanguageTextTransition = state.currentPage === sourcePage && textTransitionRenderGeneration === sourceGeneration && !document.hidden;
 		render({ preserveScroll: true });
 	}, 240);
 }
