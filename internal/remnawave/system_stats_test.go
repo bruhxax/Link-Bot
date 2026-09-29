@@ -24,3 +24,28 @@ func TestGetSystemStats(t *testing.T) {
 		t.Fatalf("unexpected stats: %+v", stats)
 	}
 }
+
+func TestGetVersionFromSystemMetadata(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/system/metadata" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"response":{"version":" 3.4.4 "}}`))
+	}))
+	defer server.Close()
+	version, err := NewClient(server.URL, "token", "remote").GetVersion(context.Background())
+	if err != nil || version != "3.4.4" {
+		t.Fatalf("version = %q, error = %v", version, err)
+	}
+}
+
+func TestGetVersionRejectsEmptyMetadata(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"response":{}}`))
+	}))
+	defer server.Close()
+	if _, err := NewClient(server.URL, "token", "remote").GetVersion(context.Background()); err == nil {
+		t.Fatal("missing version must not be treated as current")
+	}
+}

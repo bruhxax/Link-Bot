@@ -264,6 +264,22 @@ type SystemStats struct {
 	MemoryTotalBytes int64
 }
 
+func (r *Client) GetVersion(ctx context.Context) (string, error) {
+	var payload struct {
+		Response struct {
+			Version string `json:"version"`
+		} `json:"response"`
+	}
+	if err := r.doAPIJSON(ctx, http.MethodGet, "/api/system/metadata", nil, &payload); err != nil {
+		return "", err
+	}
+	version := strings.TrimSpace(payload.Response.Version)
+	if version == "" {
+		return "", errors.New("remnawave metadata has no version")
+	}
+	return version, nil
+}
+
 func (r *Client) GetSystemStats(ctx context.Context) (SystemStats, error) {
 	var payload struct {
 		Response struct {

@@ -50,3 +50,23 @@ func TestAdminStatusDetectsNewCommitWithoutRelease(t *testing.T) {
 		t.Fatalf("unexpected compare URL: %s", update.URL)
 	}
 }
+
+func TestResolvePanelUpdateStatus(t *testing.T) {
+	tests := []struct {
+		name, current, latest, want string
+		latestOK                    bool
+	}{
+		{"update available", "3.4.3", "v3.4.4", "available", true},
+		{"up to date", "3.4.4", "v3.4.4", "current", true},
+		{"version unavailable", "", "v3.4.4", "unknown", true},
+		{"release unavailable", "3.4.3", "", "unknown", false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			status := resolvePanelUpdateStatus(test.current, test.latest, test.latestOK)
+			if status.State != test.want || status.URL != remnawaveLatestReleasePage {
+				t.Fatalf("status = %+v, want state %q", status, test.want)
+			}
+		})
+	}
+}

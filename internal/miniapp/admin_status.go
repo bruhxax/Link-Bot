@@ -21,19 +21,25 @@ const latestReleaseAPI = "https://api.github.com/repos/bruhxax/Link-Bot/releases
 const latestReleasePage = "https://github.com/bruhxax/Link-Bot/releases/latest"
 const githubCompareAPI = "https://api.github.com/repos/bruhxax/Link-Bot/compare/"
 const githubComparePage = "https://github.com/bruhxax/Link-Bot/compare/"
+const remnawaveLatestReleaseAPI = "https://api.github.com/repos/remnawave/panel/releases/latest"
+const remnawaveLatestReleasePage = "https://github.com/remnawave/panel/releases/latest"
 
 var releaseVersionPattern = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)`)
 var commitHashPattern = regexp.MustCompile(`^[0-9a-fA-F]{7,40}$`)
 
 type adminStatusInfo struct {
-	startedAt       time.Time
-	version         string
-	commit          string
-	buildDate       string
-	database        *pgxpool.Pool
-	updateMu        sync.Mutex
-	updateCheckedAt time.Time
-	update          adminUpdateStatus
+	startedAt             time.Time
+	version               string
+	commit                string
+	buildDate             string
+	database              *pgxpool.Pool
+	updateMu              sync.Mutex
+	updateCheckedAt       time.Time
+	update                adminUpdateStatus
+	panelReleaseMu        sync.Mutex
+	panelReleaseCheckedAt time.Time
+	panelLatestVersion    string
+	panelReleaseOK        bool
 }
 
 type adminServiceStatus struct {
@@ -53,18 +59,26 @@ type adminUpdateStatus struct {
 	CheckedAt     string `json:"checkedAt,omitempty"`
 }
 
+type adminPanelUpdateStatus struct {
+	State          string `json:"state"`
+	CurrentVersion string `json:"currentVersion,omitempty"`
+	LatestVersion  string `json:"latestVersion,omitempty"`
+	URL            string `json:"url"`
+}
+
 type adminStatusPayload struct {
-	CheckedAt    string             `json:"checkedAt"`
-	Bot          adminServiceStatus `json:"bot"`
-	Panel        adminServiceStatus `json:"panel"`
-	Database     adminServiceStatus `json:"database"`
-	Version      string             `json:"version"`
-	Commit       string             `json:"commit,omitempty"`
-	BuildDate    string             `json:"buildDate,omitempty"`
-	HeapBytes    uint64             `json:"heapBytes"`
-	ProcessBytes uint64             `json:"processBytes"`
-	Goroutines   int                `json:"goroutines"`
-	Update       adminUpdateStatus  `json:"update"`
+	CheckedAt    string                 `json:"checkedAt"`
+	Bot          adminServiceStatus     `json:"bot"`
+	Panel        adminServiceStatus     `json:"panel"`
+	Database     adminServiceStatus     `json:"database"`
+	Version      string                 `json:"version"`
+	Commit       string                 `json:"commit,omitempty"`
+	BuildDate    string                 `json:"buildDate,omitempty"`
+	HeapBytes    uint64                 `json:"heapBytes"`
+	ProcessBytes uint64                 `json:"processBytes"`
+	Goroutines   int                    `json:"goroutines"`
+	Update       adminUpdateStatus      `json:"update"`
+	PanelUpdate  adminPanelUpdateStatus `json:"panelUpdate"`
 }
 
 func (h *Handler) SetStatusInfo(version, commit, buildDate string, startedAt time.Time, pool *pgxpool.Pool) {
@@ -104,7 +118,9 @@ func (h *Handler) handleAdminStatus(w http.ResponseWriter, r *http.Request, sess
 	ctx, cancel := context.WithTimeout(r.Context(), 6*time.Second)
 	defer cancel()
 	var group sync.WaitGroup
-	group.Add(4)
+	var panelVersion, panelLatestVersion string
+	var panelReleaseOK bool
+	group.Add(5)
 	go func() {
 		defer group.Done()
 		if h.telegramBot == nil {
@@ -135,6 +151,9 @@ func (h *Handler) handleAdminStatus(w http.ResponseWriter, r *http.Request, sess
 			result.Panel.State = "offline"
 			return
 		}
+		if version, versionErr := h.remnawaveClient.GetVersion(probeCtx); versionErr == nil {
+			panelVersion = version
+		}
 		if stats, statsErr := h.remnawaveClient.GetSystemStats(probeCtx); statsErr == nil {
 			result.Panel.UptimeSeconds = stats.UptimeSeconds
 			result.Panel.MemoryUsedBytes = stats.MemoryUsedBytes
@@ -160,8 +179,50 @@ func (h *Handler) handleAdminStatus(w http.ResponseWriter, r *http.Request, sess
 		defer group.Done()
 		result.Update = h.checkAvailableUpdate(ctx, result.Version, result.Commit, r.URL.Query().Get("refresh") == "1")
 	}()
+	go func() {
+		defer group.Done()
+		panelLatestVersion, panelReleaseOK = h.checkPanelLatestRelease(ctx, r.URL.Query().Get("refresh") == "1")
+	}()
 	group.Wait()
+	result.PanelUpdate = resolvePanelUpdateStatus(panelVersion, panelLatestVersion, panelReleaseOK)
 	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": result})
+}
+
+func (h *Handler) checkPanelLatestRelease(ctx context.Context, force bool) (string, bool) {
+	info := &h.adminStatus
+	info.panelReleaseMu.Lock()
+	defer info.panelReleaseMu.Unlock()
+	cacheTTL := 5 * time.Minute
+	if !info.panelReleaseOK {
+		cacheTTL = time.Minute
+	}
+	if !force && !info.panelReleaseCheckedAt.IsZero() && time.Since(info.panelReleaseCheckedAt) < cacheTTL {
+		return info.panelLatestVersion, info.panelReleaseOK
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	version, ok := fetchGitHubRelease(probeCtx, &http.Client{Timeout: 4 * time.Second}, remnawaveLatestReleaseAPI)
+	info.panelLatestVersion = version
+	info.panelReleaseOK = ok
+	info.panelReleaseCheckedAt = time.Now()
+	return version, ok
+}
+
+func resolvePanelUpdateStatus(currentVersion, latestVersion string, latestOK bool) adminPanelUpdateStatus {
+	result := adminPanelUpdateStatus{
+		State: "unknown", CurrentVersion: strings.TrimSpace(currentVersion),
+		LatestVersion: strings.TrimSpace(latestVersion), URL: remnawaveLatestReleasePage,
+	}
+	if !latestOK {
+		return result
+	}
+	if newer, comparable := isNewerRelease(result.CurrentVersion, result.LatestVersion); comparable {
+		result.State = "current"
+		if newer {
+			result.State = "available"
+		}
+	}
+	return result
 }
 
 func (h *Handler) checkAvailableUpdate(ctx context.Context, currentVersion, currentCommit string, force bool) adminUpdateStatus {
