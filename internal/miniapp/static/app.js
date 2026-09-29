@@ -3828,7 +3828,119 @@ function mountCabinetShell(markup) {
 	currentShell.append(...nextShell.childNodes);
 }
 
+let pendingLanguageTextTransition = false;
+const textTransitionGhosts = new WeakMap();
+const textTransitionAnimations = new WeakMap();
+
+function captureTextTransitionNode(node, path = null) {
+	if (!(node instanceof HTMLElement)) return null;
+	const value = node.textContent?.trim();
+	const rect = node.getBoundingClientRect();
+	if (!value || value.length > 120 || rect.width < 2 || rect.height < 2 || rect.bottom < 0 || rect.top > window.innerHeight) return null;
+	const style = window.getComputedStyle(node);
+	if (style.visibility === "hidden" || style.opacity === "0") return null;
+	return {
+		path, value, tag: node.tagName,
+		rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+		style: { font: style.font, color: style.color, lineHeight: style.lineHeight, letterSpacing: style.letterSpacing, textAlign: style.textAlign, textShadow: style.textShadow, textTransform: style.textTransform },
+	};
+}
+
+function playTextTransition(before, node, delay = 0) {
+	if (!before || !node || before.value === node.textContent?.trim() || reducedMotionMedia?.matches || typeof node.animate !== "function") return;
+	const after = node.getBoundingClientRect();
+	if (after.width < 2 || after.height < 2 || after.bottom < 0 || after.top > window.innerHeight) return;
+	textTransitionGhosts.get(node)?.remove();
+	textTransitionAnimations.get(node)?.cancel();
+	const ghost = document.createElement("span");
+	ghost.textContent = before.value;
+	ghost.setAttribute("aria-hidden", "true");
+	Object.assign(ghost.style, {
+		position: "fixed", pointerEvents: "none", zIndex: "9999", boxSizing: "border-box",
+		left: `${before.rect.left}px`, top: `${before.rect.top}px`,
+		width: `${before.rect.width}px`, minHeight: `${before.rect.height}px`,
+		whiteSpace: "normal", overflow: "hidden", ...before.style,
+	});
+	document.body.appendChild(ghost);
+	textTransitionGhosts.set(node, ghost);
+	const oldAnimation = ghost.animate([
+		{ transform: "translateY(0)", opacity: 1, filter: "blur(0)" },
+		{ transform: "translateY(-0.7em)", opacity: 0, filter: "blur(2px)" },
+	], { duration: 360, delay, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" });
+	const removeGhost = () => {
+		ghost.remove();
+		if (textTransitionGhosts.get(node) === ghost) textTransitionGhosts.delete(node);
+	};
+	oldAnimation.finished.then(removeGhost, removeGhost);
+	const previousDisplay = node.style.display;
+	if (window.getComputedStyle(node).display === "inline") node.style.display = "inline-block";
+	const nextAnimation = node.animate([
+		{ transform: "translateY(0.7em)", opacity: 0, filter: "blur(2px)" },
+		{ transform: "translateY(0)", opacity: 1, filter: "blur(0)" },
+	], { duration: 420, delay, easing: "cubic-bezier(.22,1,.36,1)", fill: "both" });
+	textTransitionAnimations.set(node, nextAnimation);
+	nextAnimation.finished.then(() => {
+		if (textTransitionAnimations.get(node) !== nextAnimation) return;
+		nextAnimation.cancel();
+		node.style.display = previousDisplay;
+		textTransitionAnimations.delete(node);
+	}, () => {
+		if (textTransitionAnimations.get(node) !== nextAnimation) return;
+		node.style.display = previousDisplay;
+		textTransitionAnimations.delete(node);
+	});
+}
+
+function textNodePath(node, root) {
+	const path = [];
+	for (let current = node; current && current !== root; current = current.parentElement) {
+		path.unshift(Array.prototype.indexOf.call(current.parentElement.children, current));
+	}
+	return path;
+}
+
+function nodeAtTextPath(root, path) {
+	return path.reduce((node, index) => node?.children[index], root);
+}
+
+function captureRenderTextTransitions(language) {
+	const roots = language ? [".page.active", ".desktop-sidebar", ".bottom-nav"] : [".page.active"];
+	return roots.flatMap((selector) => {
+		const root = app.querySelector(selector);
+		if (!root) return [];
+		const candidates = language
+			? root.querySelectorAll("button, div, h1, h2, h3, label, p, small, span, strong")
+			: root.querySelectorAll("[data-price-transition]");
+		return [...candidates].filter((node) => !language || node.childElementCount === 0 || node.matches(".profile-group__title"))
+			.map((node) => ({ selector, rootID: root.id, priceKey: language ? "" : (node.dataset.giftPlanPrice || "checkout"), ...captureTextTransitionNode(node, textNodePath(node, root)) }))
+			.filter((item) => item.path);
+	});
+}
+
+function playRenderTextTransitions(snapshots, language) {
+	let count = 0;
+	for (const snapshot of snapshots) {
+		const root = app.querySelector(snapshot.selector);
+		if (!root || root.id !== snapshot.rootID) continue;
+		const node = language
+			? nodeAtTextPath(root, snapshot.path)
+			: [...root.querySelectorAll("[data-price-transition]")].find((item) => (item.dataset.giftPlanPrice || "checkout") === snapshot.priceKey);
+		if (!(node instanceof HTMLElement) || node.tagName !== snapshot.tag || (language && node.childElementCount !== 0 && !node.matches(".profile-group__title"))) continue;
+		playTextTransition(snapshot, node, language ? Math.min(count++ * 6, 90) : 0);
+	}
+}
+
+function updateAnimatedText(node, value) {
+	if (!node || node.textContent === value) return;
+	const before = captureTextTransitionNode(node);
+	node.textContent = value;
+	playTextTransition(before, node);
+}
+
 function render({ preserveScroll = true, scrollTop = null, preserveInteraction = false } = {}) {
+	const languageTextTransition = pendingLanguageTextTransition;
+	pendingLanguageTextTransition = false;
+	const textTransitions = state.data ? captureRenderTextTransitions(languageTextTransition) : [];
 	realtimeRenderPending = false;
 	window.clearTimeout(realtimeRenderTimer);
 	const realtimeFocus = realtimeRefreshRunning || preserveInteraction ? captureRealtimeFocus() : null;
@@ -3947,6 +4059,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
   mountAdminContentTabs();
   restoreScrollPosition(nextScrollTop);
 	mountRuntimeLayout();
+	if (textTransitions.length) requestAnimationFrame(() => playRenderTextTransitions(textTransitions, languageTextTransition));
 	mountBannerMedia();
   syncBottomNavIndicator();
   restoreSupportThreadScrollState(supportThreadScrollState);
@@ -7463,7 +7576,7 @@ function renderBuyPage() {
 		  <div data-promo-reward-action>${renderPromoRewardAction()}</div>
         </div>` : ""}
 		${state.data.meta?.starsNeedPriorPurchase && !freeCheckout ? `<div class="note">${copy.starsNeedPriorPurchase}</div>` : ""}
-		<button class="btn btn--green-filled buy-action" type="button" data-action="pay-selected" ${checkoutDisabled ? "disabled aria-disabled=\"true\"" : ""}>${icon(state.busyMethod ? "refresh" : "cart")}${payLabel}</button>
+		<button class="btn btn--green-filled buy-action" type="button" data-action="pay-selected" ${checkoutDisabled ? "disabled aria-disabled=\"true\"" : ""}>${icon(state.busyMethod ? "refresh" : "cart")}<span data-price-transition>${escapeHtml(payLabel)}</span></button>
         </div>
       </div>`;
 	return `<section class="page ${state.adminPlanEditing ? "page-buy--admin-editor" : ""} ${pageClass("buy")}" id="page-buy">${devicePackTrigger}${trafficPackTrigger}${planList}${displayedPlans.length ? checkout : ""}</section>`;
@@ -8154,6 +8267,7 @@ function setProfileLanguage(language) {
 	window.clearTimeout(profileLanguageRenderTimer);
 	profileLanguageRenderTimer = window.setTimeout(() => {
 		syncLocalizationFromSettings();
+		pendingLanguageTextTransition = true;
 		render({ preserveScroll: true });
 	}, 240);
 }
@@ -8361,7 +8475,7 @@ function renderGiftPage() {
 				<div class="gift-section__heading gift-section__heading--caps"><h2 id="gift-period-heading">${escapeHtml(copy.giftPeriod)}</h2></div>
 				${plans.length ? `<div class="gift-plan-list" role="radiogroup" aria-label="${escapeAttribute(copy.giftPeriod)}">${plans.map((plan) => {
 					const active = planKey(plan) === planKey(selected);
-					return `<button class="gift-plan-row ${active ? "is-selected" : ""}" type="button" role="radio" aria-checked="${active}" data-action="select-gift-plan" data-value="${escapeAttribute(planKey(plan))}" data-selection-feedback><strong>${escapeHtml(getGiftPlanTitle(plan, state.locale))}</strong><span data-gift-plan-price="${escapeAttribute(planKey(plan))}">${escapeHtml(formatGiftPlanPrice(plan))}</span></button>`;
+					return `<button class="gift-plan-row ${active ? "is-selected" : ""}" type="button" role="radio" aria-checked="${active}" data-action="select-gift-plan" data-value="${escapeAttribute(planKey(plan))}" data-selection-feedback><strong>${escapeHtml(getGiftPlanTitle(plan, state.locale))}</strong><span data-price-transition data-gift-plan-price="${escapeAttribute(planKey(plan))}">${escapeHtml(formatGiftPlanPrice(plan))}</span></button>`;
 				}).join("")}</div>` : `<div class="gift-empty"><strong>${escapeHtml(copy.noPlansTitle)}</strong><span>${escapeHtml(copy.noPlansHint)}</span></div>`}
 			</section>
 
@@ -14421,7 +14535,7 @@ function updateCheckoutPriceDom() {
 	if (state.currentPage === "gift") {
 		app.querySelectorAll("[data-gift-plan-price]").forEach((node) => {
 			const plan = getGiftPlans().find((item) => planKey(item) === node.dataset.giftPlanPrice);
-			if (plan) node.textContent = formatGiftPlanPrice(plan);
+			if (plan) updateAnimatedText(node, formatGiftPlanPrice(plan));
 		});
 		return;
 	}
@@ -14432,11 +14546,17 @@ function updateCheckoutPriceDom() {
   const trafficPack = getSelectedTrafficPack();
   const method = getSelectedPaymentMethod();
   const freeCheckout = Boolean(plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !pack && !trafficPack);
-	const payLabel = freeCheckout
+  const payLabel = freeCheckout
 		? localizedText("Получить бесплатно", "Get for free", "دریافت رایگان")
     : plan ? `${t().pay} ${formatCheckoutPrice(plan, pack, method?.id)}` : t().pay;
   action.disabled = Boolean(state.busyMethod);
-  action.innerHTML = `${icon(state.busyMethod ? "refresh" : "cart")}${escapeHtml(payLabel)}`;
+	let label = action.querySelector("[data-price-transition]");
+	if (!label) {
+		action.innerHTML = `${icon(state.busyMethod ? "refresh" : "cart")}<span data-price-transition>${escapeHtml(payLabel)}</span>`;
+		label = action.querySelector("[data-price-transition]");
+	} else {
+		updateAnimatedText(label, payLabel);
+	}
 }
 
 function syncPromoCheckoutDom(options = {}) {
