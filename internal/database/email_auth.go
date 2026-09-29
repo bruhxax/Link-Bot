@@ -65,10 +65,10 @@ func (cr *CustomerRepository) DeleteEmailChallenge(ctx context.Context, id uuid.
 }
 
 // CompleteEmailChallenge serializes attempts and consumes the code exactly once.
-func (cr *CustomerRepository) CompleteEmailChallenge(ctx context.Context, id uuid.UUID, codeHash, language string) (*Customer, error) {
+func (cr *CustomerRepository) CompleteEmailChallenge(ctx context.Context, id uuid.UUID, codeHash, language string) (*Customer, bool, error) {
 	tx, err := cr.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer tx.Rollback(ctx)
 
@@ -78,53 +78,54 @@ func (cr *CustomerRepository) CompleteEmailChallenge(ctx context.Context, id uui
 	err = tx.QueryRow(ctx, `SELECT email, mode, COALESCE(password_hash, ''), code_hash, attempts, expires_at
 		FROM email_auth_challenge WHERE id = $1 FOR UPDATE`, id).Scan(&email, &mode, &passwordHash, &expectedHash, &attempts, &expiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrEmailCodeInvalid
+		return nil, false, ErrEmailCodeInvalid
 	}
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if attempts >= 5 || !expiresAt.After(time.Now().UTC()) || (mode != "register" && mode != "login") {
-		return nil, ErrEmailCodeInvalid
+		return nil, false, ErrEmailCodeInvalid
 	}
 	if expectedHash != codeHash {
 		_, err = tx.Exec(ctx, `UPDATE email_auth_challenge SET attempts = attempts + 1 WHERE id = $1`, id)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if err = tx.Commit(ctx); err != nil {
-			return nil, err
+			return nil, false, err
 		}
-		return nil, ErrEmailCodeInvalid
+		return nil, false, ErrEmailCodeInvalid
 	}
 
 	var customerID int64
 	if mode == "register" {
 		if passwordHash == "" {
-			return nil, fmt.Errorf("missing registration credential")
+			return nil, false, fmt.Errorf("missing registration credential")
 		}
 		err = tx.QueryRow(ctx, `INSERT INTO customer (telegram_id, language, telegram_id_is_synthetic)
 			VALUES (nextval('google_customer_telegram_id_seq'), $1, TRUE) RETURNING id`, language).Scan(&customerID)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		err = tx.QueryRow(ctx, `INSERT INTO customer_email_auth (customer_id, email, password_hash)
 			VALUES ($1, $2, $3) ON CONFLICT (email) DO NOTHING RETURNING customer_id`, customerID, email, passwordHash).Scan(&customerID)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrEmailAlreadyRegistered
+			return nil, false, ErrEmailAlreadyRegistered
 		}
 	} else {
 		err = tx.QueryRow(ctx, `SELECT customer_id FROM customer_email_auth WHERE email = $1`, email).Scan(&customerID)
 	}
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if _, err = tx.Exec(ctx, `DELETE FROM email_auth_challenge WHERE id = $1`, id); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return cr.FindById(ctx, customerID)
+	customer, err := cr.FindById(ctx, customerID)
+	return customer, mode == "register", err
 }
 
 // CompleteEmailLinkChallenge binds the verified address only to the account

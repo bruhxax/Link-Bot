@@ -36,6 +36,27 @@ func TestEmailBrowserSessionRoundTripAndTamperRejection(t *testing.T) {
 	}
 }
 
+func TestEmailRegistrationAlertEscapesAddressAndShowsRegistrationDetails(t *testing.T) {
+	registeredAt := time.Date(2026, 9, 29, 8, 4, 0, 0, time.UTC)
+	message := formatEmailRegistrationAlert("user+<tag>@example.com", 42, "203.0.113.7", "Mozilla/5.0 (iPhone)", "Москва", registeredAt)
+	for _, expected := range []string{
+		"Регистрация через почту",
+		"user+&lt;tag&gt;@example.com",
+		"<code>42</code>",
+		"<code>203.0.113.7</code>",
+		"Москва",
+		"iPhone",
+		"29.09.2026 11:04 МСК",
+	} {
+		if !strings.Contains(message, expected) {
+			t.Errorf("registration alert is missing %q: %s", expected, message)
+		}
+	}
+	if strings.Contains(message, "user+<tag>@example.com") {
+		t.Fatal("registration email was not escaped for Telegram HTML")
+	}
+}
+
 func TestSMTPHTTPProxyConnect(t *testing.T) {
 	for _, status := range []int{http.StatusOK, http.StatusForbidden} {
 		t.Run(http.StatusText(status), func(t *testing.T) {

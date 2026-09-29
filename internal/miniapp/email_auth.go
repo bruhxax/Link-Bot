@@ -194,7 +194,7 @@ func (h *Handler) handleVerifyEmailAuth(w http.ResponseWriter, r *http.Request) 
 		h.writeError(w, http.StatusBadRequest, "invalid_code", "Invalid confirmation code")
 		return
 	}
-	customer, err := h.customerRepository.CompleteEmailChallenge(r.Context(), id, emailCodeHash(id, request.Code), h.language())
+	customer, registered, err := h.customerRepository.CompleteEmailChallenge(r.Context(), id, emailCodeHash(id, request.Code), h.language())
 	if errors.Is(err, database.ErrEmailCodeInvalid) {
 		h.writeError(w, http.StatusUnauthorized, "invalid_code", "Invalid confirmation code")
 		return
@@ -222,6 +222,9 @@ func (h *Handler) handleVerifyEmailAuth(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "email_auth_failed", "Unable to complete email login")
 		return
+	}
+	if registered {
+		h.notifyEmailRegistration(customer.ID, email, r)
 	}
 	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": map[string]any{"sessionData": sessionData}})
 }

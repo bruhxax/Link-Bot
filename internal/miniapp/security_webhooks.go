@@ -135,6 +135,33 @@ func (h *Handler) notifyGoogleRegistration(customer *database.Customer, r *http.
 	}()
 }
 
+func (h *Handler) notifyEmailRegistration(customerID int64, email string, r *http.Request) {
+	if h.telegramBot == nil || config.GetAdminTelegramId() == 0 {
+		return
+	}
+	ip := publicRequestIP(r)
+	agent := r.UserAgent()
+	registeredAt := time.Now()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		defer cancel()
+		message := formatEmailRegistrationAlert(email, customerID, ip, agent, lookupSecurityGeo(ctx, ip), registeredAt)
+		if err := h.sendSecurityAlert(ctx, message); err != nil {
+			slog.Warn("email registration notification failed", "error", err)
+		}
+	}()
+}
+
+func formatEmailRegistrationAlert(email string, customerID int64, ip, agent, geo string, registeredAt time.Time) string {
+	return "🆕 <b>Регистрация через почту</b>\n\n" +
+		"✉️ Почта: <code>" + safeSecurityText(email) + "</code>\n" +
+		fmt.Sprintf("👤 ID: <code>%d</code>\n", customerID) +
+		"🌐 IP: <code>" + safeSecurityText(ip) + "</code>\n" +
+		"📍 Гео: " + safeSecurityText(geo) + "\n" +
+		"💻 Устройство: " + safeSecurityText(describeSecurityDevice(agent)) + "\n" +
+		"🕒 Время: " + formatSecurityTime(registeredAt)
+}
+
 func (h *Handler) sendSecurityAlert(ctx context.Context, text string) error {
 	_, err := h.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: config.GetAdminTelegramId(), Text: text, ParseMode: models.ParseModeHTML,
