@@ -7991,6 +7991,44 @@ function renderBuyPage() {
 	return `<section class="page ${state.adminPlanEditing ? "page-buy--admin-editor" : ""} ${pageClass("buy")}" id="page-buy">${devicePackTrigger}${trafficPackTrigger}${planList}${displayedPlans.length ? checkout : ""}</section>`;
 }
 
+let lastPlanSelectionAt = 0;
+
+function syncSelectedPlanUI() {
+	const page = app.querySelector("#page-buy.active");
+	const currentCheckout = page?.querySelector(".card--checkout");
+	if (!page || !currentCheckout) return false;
+	const template = document.createElement("template");
+	template.innerHTML = renderBuyPage();
+	const nextCheckout = template.content.querySelector(".card--checkout");
+	if (!nextCheckout) return false;
+	for (const card of page.querySelectorAll('.pricing-list [data-action="select-plan"]')) {
+		const selected = card.dataset.value === state.selectedPlanId;
+		card.classList.toggle("selected", selected);
+		card.setAttribute("aria-pressed", String(selected));
+	}
+	const currentAction = currentCheckout.querySelector(".buy-action");
+	const nextAction = nextCheckout.querySelector(".buy-action");
+	const nextLabel = nextAction?.querySelector("[data-price-transition]")?.textContent;
+	const now = performance.now();
+	const animatePrice = now - lastPlanSelectionAt > 450;
+	lastPlanSelectionAt = now;
+	if (currentAction && nextAction) {
+		currentAction.disabled = nextAction.disabled;
+		currentAction.setAttribute("aria-disabled", String(nextAction.disabled));
+		nextAction.replaceWith(currentAction);
+	}
+	currentCheckout.replaceWith(nextCheckout);
+	const label = currentAction?.querySelector("[data-price-transition]");
+	if (label && nextLabel != null) {
+		if (animatePrice) updateAnimatedText(label, nextLabel);
+		else {
+			activeTextTransitions.get(label)?.cleanup();
+			label.textContent = nextLabel;
+		}
+	}
+	return true;
+}
+
 function getDevicePacks(settings = getRuntimeSettings()) {
 	return (settings?.devicePacks || []).filter((pack) => pack && pack.enabled !== false && Number(pack.devices || 0) > 0 && Number(pack.priceRub || 0) > 0);
 }
@@ -10585,13 +10623,12 @@ function bindRootActions() {
 		if (action === "open-setup-app") return openSelectedSetupApp();
       if (action === "select-plan") {
         const selectedPlan = (state.data?.plans || []).find((plan) => planKey(plan) === value);
-        if (selectedPlan) {
-          state.selectedPlanId = planKey(selectedPlan);
-          state.selectedPlanMonths = selectedPlan.months;
-          ensureSelections();
-        }
+        if (!selectedPlan || state.selectedPlanId === planKey(selectedPlan)) return;
+        state.selectedPlanId = planKey(selectedPlan);
+        state.selectedPlanMonths = selectedPlan.months;
+        ensureSelections();
         haptic("light");
-        render();
+        if (!syncSelectedPlanUI()) render();
         return;
       }
 		if (action === "select-gift-plan") {
