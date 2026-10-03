@@ -118,8 +118,6 @@ let adminAnalyticsRequestID = 0;
 let browserDeviceFingerprintPromise = null;
 
 function preventMiniAppZoom() {
-  let lastTouchEndAt = 0;
-
   const stopGesture = (event) => {
     event.preventDefault();
   };
@@ -132,14 +130,6 @@ function preventMiniAppZoom() {
     if ((event.touches && event.touches.length > 1) || Number(event.scale || 1) !== 1) {
       event.preventDefault();
     }
-  }, { passive: false });
-
-  document.addEventListener("touchend", (event) => {
-    const now = Date.now();
-    if (now - lastTouchEndAt < 320) {
-      event.preventDefault();
-    }
-    lastTouchEndAt = now;
   }, { passive: false });
 }
 
