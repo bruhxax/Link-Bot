@@ -17,6 +17,7 @@ func (s *Service) CheckoutPlans() []planbook.CheckoutPlan {
 		}
 		plan := planbook.CheckoutPlan{
 			ID:                       item.ID,
+			Name:                     item.Name,
 			Months:                   item.Months,
 			Days:                     item.Days,
 			PriceRub:                 item.PriceRub,
@@ -61,6 +62,9 @@ func (s *Service) PlanTitle(planID, locale string) string {
 	for _, item := range s.Snapshot().Plans {
 		if item.ID != planID {
 			continue
+		}
+		if item.Name != "" {
+			return item.Name
 		}
 		if strings.HasPrefix(strings.ToLower(locale), "fa") {
 			return item.TitleFA

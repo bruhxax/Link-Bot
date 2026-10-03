@@ -162,7 +162,7 @@
     }
     list.innerHTML = safePlans.map((plan) => {
       const planDuration = duration(plan);
-      const rawTitle = String(plan.titleRu || "").trim() || `На ${planDuration}`;
+      const rawTitle = String(plan.name || "").trim() || String(plan.titleRu || "").trim() || `На ${planDuration}`;
       const title = escapeHTML(rawTitle);
       const durationNote = rawTitle.toLocaleLowerCase("ru") === planDuration.toLocaleLowerCase("ru") ? "" : `<span class="plan-card__duration">${escapeHTML(planDuration)}</span>`;
       const priceRub = Number(plan.priceRub) || 0;

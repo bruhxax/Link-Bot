@@ -9263,6 +9263,7 @@ body.is-plan-editing .page-scroll {
   gap: 10px;
 }
 
+.admin-plan-name { grid-column: 1 / -1; }
 .admin-plan-duration { grid-column: 1 / -1; display: grid; gap: 9px; }
 .admin-plan-duration__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text); font-size: 12px; font-weight: 700; }
 .admin-plan-duration__switch { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 164px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--control-bg); }
@@ -10868,9 +10869,11 @@ body.has-open-modal .admin-save-bar {
 }
 
 .gift-plan-row strong { font-size: 14px; line-height: 1.25; }
-.gift-plan-row span { color: var(--accent); font-size: 14px; font-weight: 800; white-space: nowrap; }
+.gift-plan-row__copy { min-width: 0; display: grid; gap: 3px; }
+.gift-plan-row__copy small { color: var(--muted); font-size: 10px; font-weight: 500; line-height: 1.2; }
+.gift-plan-row .gift-plan-row__price { color: var(--accent); font-size: 14px; font-weight: 800; white-space: nowrap; }
 .gift-plan-row.is-selected { border-color: var(--accent); background: var(--accent); color: var(--accent-contrast, #ffffff); }
-.gift-plan-row.is-selected span { color: currentColor; }
+.gift-plan-row.is-selected .gift-plan-row__price, .gift-plan-row.is-selected .gift-plan-row__copy small { color: currentColor; }
 .gift-plan-row:active { transform: scale(.992); }
 .gift-plan-row:focus-visible,
 .gift-payment-row:focus-visible,
@@ -10934,7 +10937,7 @@ body.has-open-modal .admin-save-bar {
 
 @media (max-width: 360px) {
   .gift-plan-row { min-height: 54px; padding-inline: 13px; }
-  .gift-plan-row strong, .gift-plan-row span { font-size: 13px; }
+  .gift-plan-row strong, .gift-plan-row .gift-plan-row__price { font-size: 13px; }
   .gift-receipt__share button { min-width: 46px; }
   .gift-receipt__share button span { display: none; }
 }

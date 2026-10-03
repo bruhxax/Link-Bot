@@ -3901,6 +3901,7 @@ function runtimePlanToPayload(plan, index = 0) {
 	const trafficGb = Math.max(0, Number(plan?.trafficGb || 0));
 	return {
 		id: String(plan?.id || `draft_${index}`),
+		name: String(plan?.name || ""),
 		months,
 		days,
 		priceRub: Math.max(0, Number(plan?.priceRub || 0)),
@@ -6899,7 +6900,7 @@ function adminLayoutMeta(area, id) {
 function renderAdminLayoutToolbar(selected) {
 	if (!selected) return "";
 	if (selected.type === "plan") {
-		const label = selected.item.titleRu || selected.item.titleEn || selected.item.id;
+		const label = selected.item.name || selected.item.titleRu || selected.item.titleEn || selected.item.id;
 		return `<div class="admin-ui-tools" aria-label="${escapeAttribute(label)}"><strong>${escapeHtml(label)}</strong><div>
 			<button type="button" data-action="admin-layout-toggle-plan-wide" aria-pressed="${Boolean(selected.item.wide)}" title="${state.locale === "en" ? "Full width" : "\u041d\u0430 \u0432\u0441\u044e \u0448\u0438\u0440\u0438\u043d\u0443"}">${icon("frame")}</button>
 			<button type="button" data-action="admin-layout-hide-plan" title="${state.locale === "en" ? "Hide" : "\u0421\u043a\u0440\u044b\u0442\u044c"}">${icon("eyeOff")}</button>
@@ -6957,7 +6958,7 @@ function renderAdminVisualPlans() {
 	return (state.adminSettingsDraft?.plans || []).map((plan, index) => {
 		if (plan.enabled === false) return "";
 		const selected = state.adminLayoutSelection === `plan:${plan.id}`;
-		return `<div class="admin-ui-plan ${plan.wide ? "is-wide" : ""} ${selected ? "is-selected" : ""}" data-ui-plan-index="${index}" data-ui-plan-id="${escapeAttribute(plan.id)}" tabindex="0" role="button" aria-pressed="${selected}"><strong>${escapeHtml(plan.titleRu || plan.titleEn || plan.id)}</strong><span>${plan.unlimitedTraffic ? "\u0411\u0435\u0437\u043b\u0438\u043c\u0438\u0442\u043d\u044b\u0439 \u0442\u0440\u0430\u0444\u0438\u043a" : `${Number(plan.trafficGb || 0).toLocaleString("ru-RU")} \u0413\u0411`}</span><b>${Number(plan.priceRub || 0) === 0 ? "Бесплатно" : `${Number(plan.priceRub || 0)} \u0420`}</b><i data-ui-plan-resize aria-hidden="true">${icon("resize")}</i></div>`;
+		return `<div class="admin-ui-plan ${plan.wide ? "is-wide" : ""} ${selected ? "is-selected" : ""}" data-ui-plan-index="${index}" data-ui-plan-id="${escapeAttribute(plan.id)}" tabindex="0" role="button" aria-pressed="${selected}"><strong>${escapeHtml(plan.name || plan.titleRu || plan.titleEn || plan.id)}</strong><span>${plan.unlimitedTraffic ? "\u0411\u0435\u0437\u043b\u0438\u043c\u0438\u0442\u043d\u044b\u0439 \u0442\u0440\u0430\u0444\u0438\u043a" : `${Number(plan.trafficGb || 0).toLocaleString("ru-RU")} \u0413\u0411`}</span><b>${Number(plan.priceRub || 0) === 0 ? "Бесплатно" : `${Number(plan.priceRub || 0)} \u0420`}</b><i data-ui-plan-resize aria-hidden="true">${icon("resize")}</i></div>`;
 	}).join("");
 }
 
@@ -6967,7 +6968,7 @@ function renderAdminHiddenLayoutItems(area, hidden) {
 	const title = state.locale === "en" ? "Hidden elements" : "\u0421\u043a\u0440\u044b\u0442\u044b\u0435 \u044d\u043b\u0435\u043c\u0435\u043d\u0442\u044b";
 	return `<div class="admin-ui-hidden"><strong>${escapeHtml(title)}</strong><div>
 		${hidden.map(({ item, key }) => { const [label, iconName] = adminLayoutMeta(item.area, item.id); return `<button type="button" data-action="admin-layout-show-item" data-value="${escapeAttribute(key)}">${icon(iconName)}<span>${escapeHtml(label)}</span></button>`; }).join("")}
-		${disabledPlans.map((plan) => `<button type="button" data-action="admin-layout-show-plan" data-value="${escapeAttribute(plan.id)}">${icon("cartShopping")}<span>${escapeHtml(plan.titleRu || plan.titleEn || plan.id)}</span></button>`).join("")}
+		${disabledPlans.map((plan) => `<button type="button" data-action="admin-layout-show-plan" data-value="${escapeAttribute(plan.id)}">${icon("cartShopping")}<span>${escapeHtml(plan.name || plan.titleRu || plan.titleEn || plan.id)}</span></button>`).join("")}
 	</div></div>`;
 }
 
@@ -7132,9 +7133,9 @@ function renderAdminTrialResetStrategy() {
 }
 
 function renderAdminPlanEditor(plan, index) {
-	return `<div class="admin-repeat-row"><div class="admin-repeat-row__head"><strong>${escapeHtml(plan.titleRu || plan.id)}</strong><div class="admin-builder-row__actions"><button type="button" data-action="admin-move-plan" data-value="${index}" data-direction="-1">${icon("arrowUp")}</button><button type="button" data-action="admin-move-plan" data-value="${index}" data-direction="1">${icon("arrowDown")}</button></div></div>
+	return `<div class="admin-repeat-row"><div class="admin-repeat-row__head"><strong>${escapeHtml(plan.name || plan.titleRu || plan.id)}</strong><div class="admin-builder-row__actions"><button type="button" data-action="admin-move-plan" data-value="${index}" data-direction="-1">${icon("arrowUp")}</button><button type="button" data-action="admin-move-plan" data-value="${index}" data-direction="1">${icon("arrowDown")}</button></div></div>
 		<div class="admin-toggle-list admin-toggle-list--inline">${renderAdminToggle("Активен", `plans.${index}.enabled`)}${renderAdminToggle("Безлимит", `plans.${index}.unlimitedTraffic`)}${renderAdminToggle("На всю ширину", `plans.${index}.wide`)}</div>
-		${renderAdminSettingField("Название", `plans.${index}.titleRu`)}
+		${renderAdminSettingField("Название тарифа (необязательно)", `plans.${index}.name`, { placeholder: "Без названия — показывать срок" })}
 		<div class="admin-editor__grid">${renderAdminSettingField("Цена ₽", `plans.${index}.priceRub`, { type: "number", min: 0 })}${renderAdminSettingField("Устройств", `plans.${index}.deviceLimit`, { type: "number", min: 0 })}</div>
 		${Number(plan.priceRub || 0) === 0 ? `<div class="admin-toggle-list">${renderAdminToggle("Можно взять только 1 раз", `plans.${index}.freeOneTime`)}</div>` : ""}
 		${renderAdminSettingField("Трафик, ГБ", `plans.${index}.trafficGb`, { type: "number", min: 0 })}
@@ -7254,6 +7255,7 @@ function renderAdminPlanEditorModal() {
 		<div class="modal__header"><div><div class="section-label">РЕДАКТОР ТАРИФА</div><div class="modal__title">Параметры тарифа</div></div><button class="header__btn" type="button" data-action="admin-close-plan-modal">${icon("close")}</button></div>
 		<div class="admin-plan-modal__body">
 		<div class="admin-plan-modal__grid">
+			<label class="admin-field admin-plan-name"><span>Название тарифа (необязательно)</span><input class="admin-field__control" type="text" maxlength="80" data-input="admin-plan-name" value="${escapeAttribute(plan.name || "")}" placeholder="Без названия — показывать срок"></label>
 			<div class="admin-plan-duration"><div class="admin-plan-duration__head"><span>Срок тарифа</span><div class="admin-plan-duration__switch ${durationUnit === "days" ? "is-days" : ""}" role="group" aria-label="Единица срока"><button type="button" data-action="admin-plan-duration-unit" data-value="months" aria-pressed="${durationUnit === "months"}">Месяцы</button><button type="button" data-action="admin-plan-duration-unit" data-value="days" aria-pressed="${durationUnit === "days"}">Дни</button></div></div><input class="admin-field__control admin-plan-duration__input" type="number" min="1" max="${durationUnit === "days" ? 3650 : 120}" inputmode="numeric" data-input="admin-plan-duration" aria-label="Срок тарифа, ${durationUnit === "days" ? "дни" : "месяцы"}" value="${escapeAttribute(durationValue || "")}" placeholder="${durationUnit === "days" ? "7" : "1"}"></div>
 			<label class="admin-field"><span>Цена, ₽</span><input class="admin-field__control" type="number" min="0" max="1000000" inputmode="numeric" data-input="admin-plan-price" value="${escapeAttribute(plan.priceRub ?? 0)}"></label>
 			<label class="admin-field"><span>Трафик, ГБ (0 = безлимит)</span><input class="admin-field__control" type="number" min="0" max="1000000" inputmode="numeric" data-input="admin-plan-traffic" value="${escapeAttribute(plan.trafficGb ?? 0)}"></label>
@@ -8921,7 +8923,7 @@ function renderGiftPage() {
 				<div class="gift-section__heading gift-section__heading--caps"><h2 id="gift-period-heading">${escapeHtml(copy.giftPeriod)}</h2></div>
 				${plans.length ? `<div class="gift-plan-list" role="radiogroup" aria-label="${escapeAttribute(copy.giftPeriod)}">${plans.map((plan) => {
 					const active = planKey(plan) === planKey(selected);
-					return `<button class="gift-plan-row ${active ? "is-selected" : ""}" type="button" role="radio" aria-checked="${active}" data-action="select-gift-plan" data-value="${escapeAttribute(planKey(plan))}" data-selection-feedback><strong>${escapeHtml(getGiftPlanTitle(plan, state.locale))}</strong><span data-price-transition data-gift-plan-price="${escapeAttribute(planKey(plan))}">${escapeHtml(formatGiftPlanPrice(plan))}</span></button>`;
+					return `<button class="gift-plan-row ${active ? "is-selected" : ""}" type="button" role="radio" aria-checked="${active}" data-action="select-gift-plan" data-value="${escapeAttribute(planKey(plan))}" data-selection-feedback><span class="gift-plan-row__copy"><strong>${escapeHtml(getGiftPlanTitle(plan, state.locale))}</strong>${planHasCustomTitle(plan, state.locale) ? `<small>${escapeHtml(getPlanDurationTitle(plan.months, plan.days, state.locale))}</small>` : ""}</span><span class="gift-plan-row__price" data-price-transition data-gift-plan-price="${escapeAttribute(planKey(plan))}">${escapeHtml(formatGiftPlanPrice(plan))}</span></button>`;
 				}).join("")}</div>` : `<div class="gift-empty"><strong>${escapeHtml(copy.noPlansTitle)}</strong><span>${escapeHtml(copy.noPlansHint)}</span></div>`}
 			</section>
 
@@ -9498,8 +9500,15 @@ function getPlanDurationTitle(months, days, locale) {
 }
 
 function getPlanBaseTitle(plan, locale) {
+	const name = String(plan?.name || "").trim();
+	if (name) return name;
 	const configuredTitle = locale === "fa" ? plan?.titleFa : locale === "en" ? plan?.titleEn : plan?.titleRu;
 	return localizePlanLabel(configuredTitle, plan?.months, plan?.days, locale);
+}
+
+function planHasCustomTitle(plan, locale) {
+	const duration = getPlanDurationTitle(plan?.months, plan?.days, locale).trim().toLocaleLowerCase();
+	return getPlanBaseTitle(plan, locale).trim().toLocaleLowerCase() !== duration;
 }
 
 function localizePlanLabel(rawLabel, months, days, locale = state.locale) {
@@ -9593,6 +9602,7 @@ function renderPlanCard(plan, selected) {
 			<div class="pricing-card__name">${escapeHtml(title)}</div>
 			${unlimited ? `<span class="pricing-card__unlimited-badge">${localizedText("Безлимит", "Unlimited", "نامحدود")}</span>` : ""}
           </div>
+		  ${hasDuration && planHasCustomTitle(plan, state.locale) ? `<div class="pricing-card__spec">${escapeHtml(getPlanDurationTitle(plan.months, plan.days, state.locale))}</div>` : ""}
 		  <div class="pricing-card__spec">${escapeHtml(hasDuration ? details.traffic : localizedText("Укажите трафик", "Set traffic", "ترافیک را مشخص کنید"))}</div>
 		  <div class="pricing-card__spec">${escapeHtml(hasDuration ? details.devices : localizedText("Укажите устройства", "Set device limit", "تعداد دستگاه را مشخص کنید"))}</div>
         </div>
@@ -11099,6 +11109,10 @@ function bindRootActions() {
 			return;
 		}
 		if (inputKey.startsWith("admin-plan-") && state.adminPlanFormDraft) {
+			if (inputKey === "admin-plan-name") {
+				state.adminPlanFormDraft.name = target.value;
+				return;
+			}
 			const numeric = Math.max(0, Number(target.value || 0));
 			if (inputKey === "admin-plan-duration") {
 				state.adminPlanFormDraft.months = state.adminPlanDurationUnit === "months" ? numeric : 0;
@@ -13248,7 +13262,7 @@ function addAdminPlan() {
 	const plans = state.adminSettingsDraft?.plans;
 	if (!Array.isArray(plans)) return;
 	const id = `custom_${Date.now().toString(36)}`;
-	const plan = { id, enabled: false, months: 0, days: 0, titleRu: "", titleEn: "", titleFa: "", priceRub: 0, priceStars: 0, freeOneTime: false, trafficGb: 0, unlimitedTraffic: true, deviceLimit: 0, wide: false, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" };
+	const plan = { id, enabled: false, months: 0, days: 0, name: "", titleRu: "", titleEn: "", titleFa: "", priceRub: 0, priceStars: 0, freeOneTime: false, trafficGb: 0, unlimitedTraffic: true, deviceLimit: 0, wide: false, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" };
 	plans.push(plan);
 	state.adminSettingsDirty = true;
 	state.adminPlanEditingID = id;
@@ -13313,6 +13327,7 @@ function applyAdminPlanEdit() {
 	plans[index] = {
 		...current,
 		enabled: true,
+		name: String(draft.name || "").trim(),
 		months: state.adminPlanDurationUnit === "months" ? months : 0,
 		days: state.adminPlanDurationUnit === "days" ? days : 0,
 		priceRub,

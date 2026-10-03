@@ -29,6 +29,7 @@ const (
 
 type CheckoutPlan struct {
 	ID                       string
+	Name                     string
 	Months                   int
 	Days                     int
 	PriceRub                 int

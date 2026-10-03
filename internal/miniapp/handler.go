@@ -433,6 +433,7 @@ type supportThreadPayload struct {
 
 type planPayload struct {
 	ID                string `json:"id"`
+	Name              string `json:"name,omitempty"`
 	Months            int    `json:"months"`
 	Days              int    `json:"days,omitempty"`
 	PriceRub          int    `json:"priceRub"`
@@ -6441,6 +6442,7 @@ func (h *Handler) buildPlans() []planPayload {
 
 		plans = append(plans, planPayload{
 			ID:                plan.ID,
+			Name:              plan.Name,
 			Months:            plan.Months,
 			Days:              plan.Days,
 			PriceRub:          plan.PriceRub,

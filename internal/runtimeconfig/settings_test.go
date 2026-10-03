@@ -425,6 +425,26 @@ func TestPlanTitleUsesRequestedLocale(t *testing.T) {
 	}
 }
 
+func TestNamedPlanKeepsDurationAsSeparateField(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Plans = []PlanSettings{{ID: "custom_7d", Enabled: true, Days: 7, Name: "  Weekend  ", PriceRub: 99}}
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatal(err)
+	}
+	service := &Service{}
+	service.value.Store(settings)
+	plan := service.CheckoutPlans()[0]
+	if plan.Name != "Weekend" || plan.Days != 7 || plan.Months != 0 {
+		t.Fatalf("named plan lost its duration or name: %+v", plan)
+	}
+	if got := service.PlanTitle(plan.ID, "ru"); got != "Weekend" {
+		t.Fatalf("named plan title = %q, want Weekend", got)
+	}
+	if settings.Plans[0].TitleRU != "7 дней" {
+		t.Fatalf("duration title = %q, want 7 дней", settings.Plans[0].TitleRU)
+	}
+}
+
 func TestCheckoutPlansIncludesFreePlanAndNormalizesOneTimeRule(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Plans = []PlanSettings{

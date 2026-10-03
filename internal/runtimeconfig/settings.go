@@ -327,6 +327,7 @@ type PlanSettings struct {
 	Enabled                  bool     `json:"enabled"`
 	Months                   int      `json:"months"`
 	Days                     int      `json:"days,omitempty"`
+	Name                     string   `json:"name,omitempty"`
 	TitleRU                  string   `json:"titleRu"`
 	TitleEN                  string   `json:"titleEn"`
 	TitleFA                  string   `json:"titleFa"`
@@ -2252,6 +2253,7 @@ func validatePlans(value *[]PlanSettings, defaults []PlanSettings) error {
 		if item.TrafficGB < 0 || item.TrafficGB > 1000000 || item.DeviceLimit < 0 || item.DeviceLimit > 1000 {
 			return fmt.Errorf("invalid limits for plan %q", item.ID)
 		}
+		item.Name = limit(strings.TrimSpace(item.Name), 80)
 		item.TitleRU = limit(strings.TrimSpace(item.TitleRU), 80)
 		item.TitleEN = limit(strings.TrimSpace(item.TitleEN), 80)
 		item.TitleFA = limit(strings.TrimSpace(item.TitleFA), 80)
