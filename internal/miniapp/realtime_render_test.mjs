@@ -84,3 +84,18 @@ test("background updates batch into one render", () => {
   assert.equal(page.renders, 0);
   assert.equal(page.context.realtimeBatchRenderRequested, true);
 });
+
+test("thinking changes live without remounting messages or the composer", () => {
+	const page = harness({modal:true, thread:true});
+	const indicator = {hidden:true};
+	const query = page.context.app.querySelector;
+	page.context.app.querySelector = selector => selector === '#support-ai-thinking' ? indicator : query(selector);
+	page.context.state.activeSupportThread = {messages:[{id:1}],ticket:{status:'open'},aiThinking:true};
+	page.context.renderRealtime();
+	assert.equal(indicator.hidden,false);
+	assert.equal(page.messages.innerHTML,'old');
+	page.context.state.activeSupportThread.aiThinking = false;
+	page.context.renderRealtime();
+	assert.equal(indicator.hidden,true);
+	assert.equal(page.renders,0);
+});

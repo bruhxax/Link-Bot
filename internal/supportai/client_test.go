@@ -26,7 +26,7 @@ func TestCompatibleProvider(t *testing.T) {
 			if json.NewDecoder(r.Body).Decode(&input) != nil {
 				t.Error("invalid request")
 			}
-			if input.Model != "a-model" || len(input.Messages) != 2 || input.Messages[0].Role != "system" || !strings.Contains(input.Messages[0].Content, "Зови себя Ася") || !strings.Contains(input.Messages[0].Content, "нет инструментов") || input.Messages[1].Content != "VPN не работает" {
+			if input.Model != "a-model" || len(input.Messages) != 2 || input.Messages[0].Role != "system" || !strings.Contains(input.Messages[0].Content, "Зови себя Ася") || !strings.Contains(input.Messages[0].Content, "нет инструментов") || !strings.Contains(input.Messages[0].Content, `"active":true`) || input.Messages[1].Content != "VPN не работает" {
 				t.Errorf("wrong model/prompt/history: %+v", input)
 			}
 			w.Write([]byte(`{"choices":[{"message":{"content":"{\"reply\":\"Здравствуйте! Уточните устройство.\",\"handoff\":false}"},"finish_reason":"stop"}]}`))
@@ -40,7 +40,7 @@ func TestCompatibleProvider(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(models, []string{"a-model", "z-model"}) {
 		t.Fatalf("models: %v %v", models, err)
 	}
-	reply, err := c.Respond(context.Background(), server.URL, "third-party-test-key", "a-model", "Зови себя Ася", []Message{{Role: "user", Content: "VPN не работает"}})
+	reply, err := c.Respond(context.Background(), server.URL, "third-party-test-key", "a-model", "Зови себя Ася", []Message{{Role: "user", Content: "VPN не работает"}}, `Подтверждённые данные: {"active":true}`)
 	if err != nil || reply.Handoff || reply.Text != "Здравствуйте! Уточните устройство." {
 		t.Fatalf("reply: %+v %v", reply, err)
 	}

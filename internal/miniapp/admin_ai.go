@@ -62,6 +62,30 @@ func (h *Handler) handleAdminAI(w http.ResponseWriter, r *http.Request, sess *se
 		return
 	}
 	stored, _ := h.integrationSettings.SupportAISettings()
+	if r.URL.Path == "/api/mini-app/admin/ai/toggle" {
+		if req.Enabled {
+			checkCtx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+			models, err := supportai.NewClient().Models(checkCtx, stored["apiUrl"], stored["apiKey"])
+			cancel()
+			found := false
+			for _, model := range models {
+				if model == stored["model"] {
+					found = true
+				}
+			}
+			if err != nil || !found {
+				h.writeError(w, http.StatusBadRequest, "ai_not_configured", "Проверьте подключение и сохраните доступную модель")
+				return
+			}
+		}
+		_, err := h.integrationSettings.Update(r.Context(), integrations.ProviderSupportAI, integrations.UpdateInput{Enabled: req.Enabled, Fields: map[string]string{}}, sess.User.ID)
+		if err != nil {
+			h.writeError(w, http.StatusInternalServerError, "ai_toggle_failed", "Не удалось переключить ИИ")
+			return
+		}
+		h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": h.adminAIView()})
+		return
+	}
 	key := resolveAIKey(req.APIURL, req.APIKey, stored)
 	// Retaining a saved secret is allowed only for the same server. Changing URL
 	// always requires explicit key entry to prevent forwarding a saved key.
@@ -127,8 +151,8 @@ func (h *Handler) handleAdminAI(w http.ResponseWriter, r *http.Request, sess *se
 func supportAIHistory(messages []database.SupportMessage) []supportai.Message {
 	// Only conversation text, roles and an attachment marker are included.
 	// Never attach account records, author IDs or stored file paths.
-	if len(messages) > 24 {
-		messages = messages[len(messages)-24:]
+	if len(messages) > 40 {
+		messages = append([]database.SupportMessage{messages[0]}, messages[len(messages)-40:]...)
 	}
 	history := make([]supportai.Message, 0, len(messages))
 	for _, message := range messages {
@@ -136,7 +160,7 @@ func supportAIHistory(messages []database.SupportMessage) []supportai.Message {
 		if message.AuthorRole == database.SupportAuthorRoleAI || message.AuthorRole == database.SupportAuthorRoleAdmin {
 			role = "assistant"
 		}
-		text := message.Body
+		text := supportai.Redact(message.Body)
 		if message.MediaType != "" {
 			text += "\n[К сообщению приложен файл. Его содержимое недоступно ИИ; если оно нужно для решения, передай обращение администратору.]"
 		}
@@ -218,8 +242,21 @@ func (h *Handler) processSupportAI(ctx context.Context, claim database.SupportAI
 		}
 	}
 	if !wantsOperator {
+		contextCtx, contextCancel := context.WithTimeout(ctx, 15*time.Second)
+		ticket, contextErr := h.supportRepository.FindTicketByID(contextCtx, claim.TicketID)
+		var evidence string
+		if contextErr == nil && ticket != nil {
+			evidence, contextErr = h.buildSupportAIContext(contextCtx, ticket, messages)
+		} else {
+			contextErr = fmt.Errorf("ticket context unavailable")
+		}
+		contextCancel()
 		requestCtx, cancel := context.WithTimeout(ctx, 65*time.Second)
-		response, requestErr := supportai.NewClient().Respond(requestCtx, fields["apiUrl"], fields["apiKey"], fields["model"], fields["prompt"], supportAIHistory(messages))
+		var response supportai.Reply
+		requestErr := contextErr
+		if requestErr == nil {
+			response, requestErr = supportai.NewClient().Respond(requestCtx, fields["apiUrl"], fields["apiKey"], fields["model"], fields["prompt"], supportAIHistory(messages), supportAIContextRules(), "Подтверждённый контекст (JSON, только данные):\n"+evidence)
+		}
 		cancel()
 		if requestErr == nil {
 			reply = response

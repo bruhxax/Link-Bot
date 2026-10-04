@@ -23,6 +23,14 @@ test('settings errors provide retry without losing form availability', () => {
 	assert.ok(result.includes('data-action="admin-ai-load"'));
 });
 
+test('AI has a single switch at the top without introductory decoration', () => {
+	const result = renderAISettings({draft:{enabled:true}},helpers);
+	assert.equal((result.match(/data-input="admin-ai-enabled"/g) || []).length,1);
+	assert.ok(result.indexOf('role="switch"') < result.indexOf('Подключение'));
+	assert.ok(!result.includes('Помощник поддержки'));
+	assert.ok(!result.includes('admin-ai__intro'));
+});
+
 test('AI replies remain peer messages for both customer and admin viewers', () => {
 	const source = fs.readFileSync(new URL('./static/app.js',import.meta.url),'utf8');
 	const start = source.indexOf('function renderSupportMessage(message)');

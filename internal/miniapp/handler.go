@@ -429,10 +429,11 @@ type supportAttachmentPayload struct {
 }
 
 type supportThreadPayload struct {
-	Ticket   supportTicketPayload    `json:"ticket"`
-	Messages []supportMessagePayload `json:"messages"`
-	CanReply bool                    `json:"canReply"`
-	CanClose bool                    `json:"canClose"`
+	AIThinking bool                    `json:"aiThinking"`
+	Ticket     supportTicketPayload    `json:"ticket"`
+	Messages   []supportMessagePayload `json:"messages"`
+	CanReply   bool                    `json:"canReply"`
+	CanClose   bool                    `json:"canClose"`
 }
 
 type planPayload struct {
@@ -810,6 +811,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/ai/settings", h.withSession(h.handleAdminAI))
 	mux.HandleFunc("/api/mini-app/admin/ai/models", h.withSession(h.handleAdminAI))
 	mux.HandleFunc("/api/mini-app/admin/ai/update", h.withSession(h.handleAdminAI))
+	mux.HandleFunc("/api/mini-app/admin/ai/toggle", h.withSession(h.handleAdminAI))
 	mux.HandleFunc("/api/mini-app/admin/moynalog/state", h.withSession(h.handleAdminMoyNalogState))
 	mux.HandleFunc("/api/mini-app/admin/moynalog/test", h.withSession(h.handleAdminMoyNalogTest))
 	mux.HandleFunc("/api/mini-app/admin/moynalog/retry", h.withSession(h.handleAdminMoyNalogRetry))
@@ -5671,11 +5673,19 @@ func (h *Handler) buildSupportThreadPayload(ctx context.Context, sess *session, 
 		ticket.CustomerUnreadCount = 0
 	}
 
+	thinking := false
+	if !isAdmin && h.integrationSettings != nil {
+		_, enabled := h.integrationSettings.SupportAISettings()
+		if enabled {
+			thinking, _ = h.supportRepository.AIThinking(ctx, ticket.ID)
+		}
+	}
 	return &supportThreadPayload{
-		Ticket:   h.buildSupportTicketPayload(*ticket, isAdmin, ""),
-		Messages: buildSupportMessagePayloads(messages),
-		CanReply: ticket.Status == database.SupportTicketStatusOpen,
-		CanClose: isAdmin && ticket.Status == database.SupportTicketStatusOpen,
+		AIThinking: thinking,
+		Ticket:     h.buildSupportTicketPayload(*ticket, isAdmin, ""),
+		Messages:   buildSupportMessagePayloads(messages),
+		CanReply:   ticket.Status == database.SupportTicketStatusOpen,
+		CanClose:   isAdmin && ticket.Status == database.SupportTicketStatusOpen,
 	}, nil
 }
 

@@ -42,7 +42,7 @@ func TestAISupportPersistentFlow(t *testing.T) {
 	if _, err := pool.Exec(ctx, `CREATE TABLE customer(id BIGINT PRIMARY KEY); INSERT INTO customer VALUES (1)`); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"000006_support_tickets.up.sql", "000035_support_message_media.up.sql", "000050_support_ai.up.sql"} {
+	for _, name := range []string{"000006_support_tickets.up.sql", "000035_support_message_media.up.sql", "000050_support_ai.up.sql", "000051_support_ai_knowledge.up.sql"} {
 		raw, err := os.ReadFile(filepath.Join("..", "..", "db", "migrations", name))
 		if err != nil {
 			t.Fatal(err)
@@ -87,6 +87,14 @@ func TestAISupportPersistentFlow(t *testing.T) {
 	}
 
 	ticket := create()
+	assertThinking := func(id int64, expected bool) {
+		t.Helper()
+		actual, err := repo.AIThinking(ctx, id)
+		if err != nil || actual != expected {
+			t.Fatalf("thinking state: got %v, want %v: %v", actual, expected, err)
+		}
+	}
+	assertThinking(ticket.ID, true)
 	first := claim()
 	if first.TicketID != ticket.ID {
 		t.Fatal("wrong ticket claimed")
@@ -118,8 +126,10 @@ func TestAISupportPersistentFlow(t *testing.T) {
 		t.Fatalf("unread counts incorrect: %+v %v", updated, err)
 	}
 	empty()
+	assertThinking(ticket.ID, false)
 
 	add(ticket.ID, "Позови оператора")
+	assertThinking(ticket.ID, true)
 	pending := claim()
 	if handed, err := repo.HandoffAI(ctx, ticket.ID, "Позвал администратора"); err != nil || !handed {
 		t.Fatalf("handoff: %v %v", handed, err)
@@ -131,6 +141,7 @@ func TestAISupportPersistentFlow(t *testing.T) {
 		t.Fatalf("duplicate handoff: %v %v", handed, err)
 	}
 	add(ticket.ID, "Ещё вопрос для администратора")
+	assertThinking(ticket.ID, false)
 	empty() // Handoff persists for all subsequent customer messages.
 	notifyID, err := repo.ClaimAINotification(ctx)
 	if err != nil || notifyID != ticket.ID {
@@ -162,6 +173,7 @@ func TestAISupportPersistentFlow(t *testing.T) {
 	if err := repo.CloseTicket(ctx, ticket.ID); err != nil {
 		t.Fatal(err)
 	}
+	assertThinking(ticket.ID, false)
 	if committed, err := repo.FinishAIMessage(ctx, *pending, "Ответ в закрытый тикет", false); err != nil || committed {
 		t.Fatalf("answered after close: %v %v", committed, err)
 	}
@@ -183,6 +195,56 @@ func TestAISupportPersistentFlow(t *testing.T) {
 		t.Fatal("model handoff did not enqueue notification")
 	}
 
+	if _, err := pool.Exec(ctx, `INSERT INTO customer VALUES (2), (3);
+	 CREATE TABLE purchase(customer_id BIGINT, status TEXT, amount NUMERIC, currency TEXT);
+	 INSERT INTO purchase VALUES (1, 'paid', 200, 'RUB'), (1, 'new', 900, 'RUB'), (2, 'paid', 5000, 'RUB')`); err != nil {
+		t.Fatal(err)
+	}
+	makeCase := func(owner int64, answer string, closed bool) *SupportTicket {
+		t.Helper()
+		item, err := repo.CreateTicket(ctx, &SupportTicket{CustomerID: owner, Subject: "Happ Windows импорт", CustomerName: "private owner", CustomerUsername: "private_owner"}, &SupportMessage{Body: "Happ на Windows не импортирует", AuthorTelegramID: owner})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if answer != "" {
+			if _, err := repo.AddAdminMessage(ctx, item.ID, 99, answer); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if closed {
+			if err := repo.CloseTicket(ctx, item.ID); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return item
+	}
+	makeCase(2, "Импортируйте ссылку через буфер обмена", true)
+	makeCase(3, "Открытый тикет не является решением", false)
+	makeCase(2, "", true)
+	ownCase := makeCase(1, "Собственная история", true)
+	examples, err := repo.FindAISupportExamples(ctx, 1, ticket.ID, "happ OR windows")
+	if err != nil || len(examples) != 1 || examples[0].Answer != "Импортируйте ссылку через буфер обмена" {
+		t.Fatalf("invalid resolved cases: %+v %v", examples, err)
+	}
+	history, err := repo.AICustomerHistory(ctx, 1, ticket.ID, "happ OR windows")
+	if err != nil || history.TotalTickets != 5 || len(history.Recent) != 4 || history.Recent[0]["subject"] != ownCase.Subject {
+		t.Fatalf("invalid owner history: %+v %v", history, err)
+	}
+	msgs, ok := history.Recent[0]["messages"].([]map[string]any)
+	if !ok || len(msgs) != 2 || msgs[1]["role"] != "admin" || msgs[1]["text"] != "Собственная история" {
+		t.Fatalf("history messages not decoded: %+v", history.Recent[0])
+	}
+	totals, err := repo.AIAccountTotals(ctx, 1)
+	if err != nil || totals["totalPurchases"] != 2 || totals["successfulPurchases"] != 1 || totals["paidRub"] != float64(200) {
+		t.Fatalf("account totals leaked another owner: %+v %v", totals, err)
+	}
+	knowledgeDown, err := os.ReadFile(filepath.Join("..", "..", "db", "migrations", "000051_support_ai_knowledge.down.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, string(knowledgeDown)); err != nil {
+		t.Fatal(err)
+	}
 	raw, err := os.ReadFile(filepath.Join("..", "..", "db", "migrations", "000050_support_ai.down.sql"))
 	if err != nil {
 		t.Fatal(err)

@@ -15,8 +15,8 @@ import (
 	"time"
 )
 
-const DefaultPrompt = `Ты — ИИ-помощник поддержки VPN-сервиса. В первом ответе коротко представься именно как ИИ-помощник. Общайся вежливо, понятно и на языке пользователя. Помогай только в рамках текущего обращения: установка VPN, подключение, настройка клиента, ошибки и вопросы о подписке.
-Сначала уточни устройство, приложение и текст ошибки, если без них невозможно помочь. Предлагай безопасные конкретные шаги, по одному или небольшими списками. Не выдумывай условия сервиса и факты об аккаунте. Не проси пароль, платёжные данные или API-ключи.
+const DefaultPrompt = `Тебя зовут Bruh Ассистент. Помогай пользователям VPN-сервиса вежливо, естественно, максимально коротко и понятно. Представляйся один раз, только когда это уместно; не добавляй приветствие к каждому ответу. Обычно отвечай в 1–3 коротких предложениях. Инструкции давай короткими нумерованными шагами. Без «А, понял», «вы имеете в виду» и пересказа вопроса.
+Используй подтверждённые данные аккаунта, историю пользователя, FAQ и подходящие решения администратора из контекста. Если информации недостаточно, задай один конкретный вопрос. Не повторяй уже известные вопросы и не выдавай предположение за факт. Не проси пароль, платёжные данные, API-ключи или полную ссылку подписки.
 Не пополняй баланс, не продлевай и не изменяй подписки. Не обещай, что выполнил такие операции. Вопросы об оплате, возвратах и изменении аккаунта передавай администратору.
 Если пользователь просит оператора, администратора или живого человека, сразу передай обращение. Если не можешь помочь, нужна проверка вложения или после двух попыток проблема не решена — тоже передай обращение. При передаче коротко сообщи, что позвал администратора, и больше не продолжай самостоятельное решение.`
 
@@ -138,11 +138,15 @@ func (c *Client) Models(ctx context.Context, base, key string) ([]string, error)
 	return models, nil
 }
 
-func (c *Client) Respond(ctx context.Context, base, key, model, prompt string, history []Message) (Reply, error) {
+func (c *Client) Respond(ctx context.Context, base, key, model, prompt string, history []Message, evidence ...string) (Reply, error) {
 	if strings.TrimSpace(prompt) == "" {
 		prompt = DefaultPrompt
 	}
-	messages := []Message{{Role: "system", Content: responseContract + prompt}}
+	system := responseContract + prompt
+	for _, context := range evidence {
+		system += "\n\n" + context
+	}
+	messages := []Message{{Role: "system", Content: system}}
 	messages = append(messages, history...)
 	var result struct {
 		Choices []struct {
@@ -168,7 +172,11 @@ func (c *Client) Respond(ctx context.Context, base, key, model, prompt string, h
 	if err := json.Unmarshal([]byte(content), &parsed); err != nil || parsed.Handoff == nil || strings.TrimSpace(parsed.Text) == "" || len([]rune(parsed.Text)) > 4000 {
 		return Reply{}, errors.New("ИИ вернул ответ в неподдерживаемом формате")
 	}
-	return Reply{Text: parsed.Text, Handoff: *parsed.Handoff}, nil
+	text := CleanReply(parsed.Text)
+	if text == "" || len([]rune(text)) > 900 {
+		return Reply{}, errors.New("ИИ не подготовил краткий ответ")
+	}
+	return Reply{Text: text, Handoff: *parsed.Handoff}, nil
 }
 
 var operatorRequest = regexp.MustCompile(`(?i)(оператор|администратор|админ|жив(?:ой|ого|ым)\s+(?:человек|сотрудник|оператор)|человек(?:а|ом)?\s+(?:позови|нужен)|(?:позови|позовите|вызови|соедини|свяжи|хочу|нужен|нужна|дайте|пригласи|переключи).{0,45}(?:человек|сотрудник|поддержк)|(?:call|contact|speak|talk|connect|need|want).{0,40}(?:human|person|operator|agent|admin)|(?:human|operator|live agent)\s*(?:please|support)?\s*[.!?]*$)`)

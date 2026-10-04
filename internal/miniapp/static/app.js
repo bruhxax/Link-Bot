@@ -3241,6 +3241,7 @@ let realtimeBatchRenderRequested = false;
 
 function patchRealtimeSupportMessages() {
 	if (!state.supportThreadOpen || !state.activeSupportThread) return;
+	patchRealtimeSupportThinking();
 	const list = app.querySelector("#support-thread-messages");
 	if (!list) return;
 	const incoming = state.activeSupportThread.messages || [];
@@ -3260,6 +3261,11 @@ function patchRealtimeSupportMessages() {
 	if (distanceFromBottom < 72) list.scrollTop = list.scrollHeight;
 	else list.scrollTop = Math.min(list.scrollTop, list.scrollHeight);
 	hydrateSupportMedia();
+}
+
+function patchRealtimeSupportThinking() {
+	const indicator = app.querySelector("#support-ai-thinking");
+	if (indicator) indicator.hidden = !state.activeSupportThread?.aiThinking || Boolean(state.data?.support?.isAdmin) || state.activeSupportThread?.ticket?.status !== "open";
 }
 
 function renderRealtime() {
@@ -5945,6 +5951,20 @@ async function saveAdminAI() {
 		ai.draft = { ...response.data, apiKey: "" };
 		showToast("Настройки ИИ сохранены", "success");
 	} catch (error) { ai.error = error?.message || "Не удалось сохранить настройки"; }
+	finally { ai.busy = ""; if (state.adminSection === "ai") render({ preserveScroll: true }); }
+}
+
+async function toggleAdminAI(enabled) {
+	const ai = state.adminAI;
+	if (!ai.draft || ai.busy) return;
+	if (enabled && (!ai.draft.keyConfigured || !ai.draft.model)) { render({ preserveScroll: true }); return showToast("Сначала сохраните URL, ключ и модель", "danger"); }
+	const previous = ai.draft.enabled;
+	ai.draft.enabled = enabled; ai.busy = "toggle"; ai.error = ""; render({ preserveScroll: true });
+	try {
+		const response = previewMode ? {data:{enabled}} : await post("/api/mini-app/admin/ai/toggle",{enabled});
+		ai.draft.enabled = Boolean(response.data.enabled);
+		showToast(ai.draft.enabled ? "ИИ включён" : "ИИ выключен", "success");
+	} catch (error) { ai.draft.enabled = previous; ai.error = error?.message || "Не удалось переключить ИИ"; }
 	finally { ai.busy = ""; if (state.adminSection === "ai") render({ preserveScroll: true }); }
 }
 
@@ -10159,6 +10179,7 @@ function renderSupportThreadModal() {
         <div class="support-thread__messages" id="support-thread-messages">
           ${(thread.messages || []).map((message) => renderSupportMessage(message)).join("")}
         </div>
+        <div class="support-ai-thinking" id="support-ai-thinking" role="status" aria-live="polite" ${thread.aiThinking && !support.isAdmin && ticket.status === "open" ? "" : "hidden"}><span class="support-ai-thinking__dots" aria-hidden="true"><i></i><i></i><i></i></span><span>${escapeHtml(localizedText("ИИ думает", "AI is thinking", "هوش مصنوعی در حال فکر کردن است"))}</span></div>
         ${thread.canReply ? `
           <div class="support-reply ${state.supportPendingMedia ? "support-reply--has-media" : ""}">
             ${renderSupportPendingMedia()}
@@ -11184,6 +11205,7 @@ function bindRootActions() {
 		if (inputKey.startsWith("admin-ai-")) {
 			const field = inputKey.slice("admin-ai-".length);
 			if (!state.adminAI.draft || state.adminAI.busy) return;
+			if (field === "enabled") { void toggleAdminAI(target.checked); return; }
 			state.adminAI.draft[field] = field === "enabled" ? target.checked : String(target.value || "");
 			if (field === "apiUrl" || field === "apiKey") {
 				state.adminAI.verified = false; state.adminAI.models = []; state.adminAI.error = "";

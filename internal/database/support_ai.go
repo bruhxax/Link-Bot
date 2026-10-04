@@ -12,6 +12,15 @@ const SupportAuthorRoleAI SupportAuthorRole = "ai"
 
 type SupportAIClaim struct{ TicketID, MessageID int64 }
 
+func (r *SupportRepository) AIThinking(ctx context.Context, ticketID int64) (bool, error) {
+	var thinking bool
+	err := r.pool.QueryRow(ctx, `SELECT EXISTS (
+	 SELECT 1 FROM support_ai_state s JOIN support_ticket t ON t.id = s.ticket_id
+	 WHERE s.ticket_id = $1 AND s.pending AND NOT s.handed_off AND t.status = 'open'
+	 AND (SELECT author_role FROM support_message WHERE ticket_id = s.ticket_id ORDER BY id DESC LIMIT 1) = 'customer')`, ticketID).Scan(&thinking)
+	return thinking, err
+}
+
 // A persistent lease prevents duplicate replies across processes and permits
 // recovery after a restart. Human replies always take ownership of the ticket.
 func (r *SupportRepository) ClaimAIMessage(ctx context.Context) (*SupportAIClaim, error) {
