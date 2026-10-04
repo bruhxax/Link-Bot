@@ -5,10 +5,65 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// EnsureReviewAccessTarget provisions a missing primary account, then applies
+// the previously saved absolute expiry. Existing accounts are never extended
+// relatively, even when a previous create response was lost.
+func (r *Client) EnsureReviewAccessTarget(ctx context.Context, customerID, telegramID, trafficBytes int64, deviceLimit int, expiresAt *time.Time) (*PanelUser, error) {
+	user, err := r.getPanelUserByTelegramID(ctx, telegramID)
+	if err != nil {
+		if !strings.Contains(err.Error(), "not found") {
+			return nil, err
+		}
+		user, err = r.createOrRecoverUserWithOptions(ctx, customerID, telegramID, int(trafficBytes), deviceLimit, 0, legacyProvisioningOptions(false))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var targetTraffic *int64
+	if trafficBytes > 0 && user.TrafficLimitBytes > 0 {
+		targetTraffic = &trafficBytes
+	}
+	return r.ApplyUserAccessTarget(ctx, user.ID, user.UUID, expiresAt, targetTraffic)
+}
+
+// Recover the deterministic secondary username after a lost create response.
+// A review for an empty additional slot must never attach the primary account.
+func (r *Client) EnsureReviewSecondaryAccessTarget(ctx context.Context, customerID, telegramID, subscriptionID, trafficBytes int64, deviceLimit int, expiresAt *time.Time) (*PanelUser, error) {
+	options := legacyProvisioningOptions(false)
+	options.UsernameSuffix = fmt.Sprintf("s%d", subscriptionID)
+	username := appendUsernameSuffix(generateUsername(options.UsernameTemplate, customerID, telegramID), options.UsernameSuffix)
+	filters := url.Values{"telegramId": {strconv.FormatInt(telegramID, 10)}, "size": {"20"}}
+	users, err := r.streamUsers(ctx, filters)
+	if err != nil {
+		return nil, err
+	}
+	var user *PanelUser
+	for i := range users {
+		if users[i].Username == username {
+			user = &users[i]
+			break
+		}
+	}
+	if user == nil {
+		user, err = r.createUserWithOptions(ctx, customerID, telegramID, int(trafficBytes), deviceLimit, 0, options)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var traffic *int64
+	if trafficBytes > 0 && user.TrafficLimitBytes > 0 {
+		traffic = &trafficBytes
+	}
+	return r.ApplyUserAccessTarget(ctx, user.ID, user.UUID, expiresAt, traffic)
+}
 
 func (r *Client) AdjustUserAccess(ctx context.Context, userID int64, userUUID uuid.UUID, days int, trafficBytes int64) (*PanelUser, error) {
 	if days <= 0 && trafficBytes <= 0 {

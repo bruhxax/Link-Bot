@@ -27,6 +27,7 @@ var (
 )
 
 type PromoCode struct {
+	OwnerCustomerID     *int64     `db:"owner_customer_id"`
 	ID                  int64      `db:"id"`
 	Code                string     `db:"code"`
 	DiscountPercent     int        `db:"discount_percent"`
@@ -117,6 +118,7 @@ var promoCodeSelectColumns = []string{
 	"reward_type",
 	"reward_value",
 	"reward_traffic_gb",
+	"owner_customer_id",
 }
 
 func promoCodeSelectColumnsWithLiveCount(alias string) []string {
@@ -146,6 +148,7 @@ func scanPromoCode(scanner interface {
 		&promo.RewardType,
 		&promo.RewardValue,
 		&promo.RewardTrafficGB,
+		&promo.OwnerCustomerID,
 	)
 }
 
@@ -355,10 +358,14 @@ func (r *PromoCodeRepository) FindRewardRedemption(ctx context.Context, promoCod
 // customer, including the external panel update. Session locks survive the
 // short claim transaction and work across multiple bot instances.
 func (r *PromoCodeRepository) AcquireSubscriptionRewardLock(ctx context.Context, customerID int64) (func(), error) {
+	return acquireSubscriptionRewardLock(ctx, r.pool, customerID)
+}
+
+func acquireSubscriptionRewardLock(ctx context.Context, pool *pgxpool.Pool, customerID int64) (func(), error) {
 	if customerID <= 0 {
 		return nil, errors.New("customer is required for promo reward lock")
 	}
-	conn, err := r.pool.Acquire(ctx)
+	conn, err := pool.Acquire(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("acquire promo reward connection: %w", err)
 	}
@@ -392,16 +399,20 @@ func (r *PromoCodeRepository) ClaimReward(ctx context.Context, promo *PromoCode,
 	var expiresAt *time.Time
 	var maxRedemptions *int
 	var deletedAt *time.Time
+	var ownerCustomerID *int64
 	if err := tx.QueryRow(ctx, `
-		SELECT is_active, expires_at, max_redemptions, deleted_at
+		SELECT is_active, expires_at, max_redemptions, deleted_at, owner_customer_id
 		FROM promo_code WHERE id = $1 FOR UPDATE
-	`, promo.ID).Scan(&active, &expiresAt, &maxRedemptions, &deletedAt); err != nil {
+	`, promo.ID).Scan(&active, &expiresAt, &maxRedemptions, &deletedAt, &ownerCustomerID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrPromoCodeUnavailable
 		}
 		return nil, fmt.Errorf("lock promo reward: %w", err)
 	}
 
+	if ownerCustomerID != nil && *ownerCustomerID != customerID {
+		return nil, ErrPromoCodeUnavailable
+	}
 	item := &PromoRewardRedemption{}
 	err = tx.QueryRow(ctx, `
 		SELECT id, status, subscription_id, target_expires_at, target_traffic_bytes
@@ -495,6 +506,9 @@ func (r *PromoCodeRepository) CompleteRedemption(ctx context.Context, promo *Pro
 		return fmt.Errorf("failed to lock promo code: %w", err)
 	}
 
+	if !current.AvailableToCustomer(customerID) {
+		return ErrPromoCodeUnavailable
+	}
 	if current.MaxRedemptions != nil && current.RedemptionCount >= *current.MaxRedemptions {
 		return ErrPromoCodeLimitReached
 	}

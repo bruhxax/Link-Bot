@@ -11,6 +11,8 @@ import { renderSVG as renderQRCodeSVG } from "./uqr.mjs";
 import { defaultSourceCrop, legacySourceCrop, cropMediaGeometry, zoomCrop, resizeCropCorner, resizeBannerProportionally } from "./banner-crop.mjs";
 import { tokenizeSupportMessage } from "./support-message.mjs";
 
+import { reviewRewardDraft, reviewRewardsFromDraft, reviewRewardSummary } from "./review-rewards.mjs";
+
 import { syncTelegramLayout } from "./telegram-layout.mjs";
 
 const app = document.getElementById("app");
@@ -2433,6 +2435,9 @@ const state = {
   promoBusy: "",
   loginMethodBusy: "",
   reviewComposeOpen: false,
+  reviewRewardSettingsOpen: false,
+  reviewRewardDraft: null,
+  reviewRewardSaving: false,
   reviewDetailOpen: false,
   activeReviewId: 0,
   reviewDraftRating: 0,
@@ -3022,7 +3027,7 @@ function deviceText() {
 function reviewsText() {
 	if (state.locale === "fa") {
 		return {
-			leaveReview: "ثبت دیدگاه", thanksTitle: "دیدگاه شما منتشر شده است", viewMine: "مشاهده دیدگاه من", emptyTitle: "هنوز دیدگاهی ثبت نشده", emptyHint: "اولین نفری باشید که Link-Bot را ارزیابی می‌کند.", ratingLabel: "امتیاز", commentLabel: "دیدگاه", commentPlaceholder: "تجربه خود و موارد قابل بهبود را بنویسید...", submit: "ارسال دیدگاه", ratingRequired: "امتیازی بین ۱ تا ۵ انتخاب کنید", alreadyReviewed: "هر کاربر فقط یک دیدگاه می‌تواند ثبت کند", rewardHint: "پس از ارسال، ۲ روز و ۲۰ گیگابایت هدیه می‌گیرید.", rewardToast: "هدیه دیدگاه ثبت شد: ۲ روز و ۲۰ گیگابایت", reviewsCount: (count) => `${formatNumber(count, "fa")} دیدگاه`, mine: "دیدگاه من", delete: "حذف دیدگاه", deleteSuccess: "دیدگاه حذف شد",
+			leaveReview: "ثبت دیدگاه", thanksTitle: "دیدگاه شما منتشر شده است", viewMine: "مشاهده دیدگاه من", emptyTitle: "هنوز دیدگاهی ثبت نشده", emptyHint: "اولین نفری باشید که Link-Bot را ارزیابی می‌کند.", ratingLabel: "امتیاز", commentLabel: "دیدگاه", commentPlaceholder: "تجربه خود و موارد قابل بهبود را بنویسید...", submit: "ارسال دیدگاه", ratingRequired: "امتیازی بین ۱ تا ۵ انتخاب کنید", alreadyReviewed: "هر کاربر فقط یک دیدگاه می‌تواند ثبت کند", rewardHint: reviewRewardHint(), rewardToast: "دیدگاه ثبت شد", reviewsCount: (count) => `${formatNumber(count, "fa")} دیدگاه`, mine: "دیدگاه من", delete: "حذف دیدگاه", deleteSuccess: "دیدگاه حذف شد",
 		};
 	}
   if (state.locale === "en") {
@@ -3038,8 +3043,8 @@ function reviewsText() {
       submit: "Submit review",
       ratingRequired: "Choose a rating from 1 to 5",
       alreadyReviewed: "You can leave only one review",
-      rewardHint: "After submission you receive +2 days and +20 GB as a gift.",
-      rewardToast: "Review reward received: +2 days and +20 GB",
+      rewardHint: reviewRewardHint(),
+      rewardToast: "Review saved",
       reviewsCount: (count) => `${formatNumber(count, "en")} review${count === 1 ? "" : "s"}`,
       mine: "Mine",
       delete: "Delete review",
@@ -3059,8 +3064,8 @@ function reviewsText() {
     submit: "Отправить отзыв",
     ratingRequired: "Выберите оценку от 1 до 5",
     alreadyReviewed: "Отзыв можно оставить только один раз",
-    rewardHint: "После отправки вы получите подарок: +2 дня и +20 ГБ.",
-    rewardToast: "Подарок за отзыв получен: +2 дня и +20 ГБ",
+    rewardHint: reviewRewardHint(),
+    rewardToast: "Отзыв сохранён",
     reviewsCount: (count) => `${formatNumber(count, "ru")} ${pluralizeRu(count, ["отзыв", "отзыва", "отзывов"])}`,
     mine: "Мой отзыв",
     delete: "Удалить отзыв",
@@ -3093,6 +3098,7 @@ async function boot() {
   state.paymentLaunchPurchaseId = 0;
   state.devicesModalOpen = false;
   state.reviewComposeOpen = false;
+  state.reviewRewardSettingsOpen = false;
   state.reviewDetailOpen = false;
   state.activeReviewId = 0;
   state.reviewDraftRating = 0;
@@ -4306,7 +4312,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
   const activeModalName = getActiveModalName();
   animatedModalName = activeModalName && activeModalName !== previousActiveModalName ? activeModalName : "";
   previousActiveModalName = activeModalName;
-	const modalOpen = Boolean(state.paymentContactContext) || Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.profilePromoOpen || state.supportComposeOpen || state.supportThreadOpen || state.supportMediaViewer || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.trafficPackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.adminTrafficPackEditorOpen || state.adminCommerceMenu || state.paymentLaunchModalOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminBannerEditorOpen || state.adminLayoutStyleEditorOpen;
+	const modalOpen = Boolean(state.paymentContactContext) || Boolean(state.p2pMenuStep) || state.giftReceiptOpen || state.profilePromoOpen || state.supportComposeOpen || state.supportThreadOpen || state.supportMediaViewer || state.devicesModalOpen || state.payModalOpen || state.devicePackModalOpen || state.trafficPackModalOpen || state.subscriptionEditorOpen || state.subscriptionDeleteOpen || state.adminDevicePackEditorOpen || state.adminTrafficPackEditorOpen || state.adminCommerceMenu || state.paymentLaunchModalOpen || state.reviewRewardSettingsOpen || state.reviewComposeOpen || state.reviewDetailOpen || state.adminPlanEditorModalOpen || state.adminProfileEditorModalOpen || state.adminPromoWidgetEditorOpen || state.adminNotificationWidgetEditorOpen || state.adminBannerEditorOpen || state.adminLayoutStyleEditorOpen;
   document.body.classList.toggle("has-open-modal", modalOpen);
   document.body.classList.toggle("is-install-guide", isInstallGuideMode());
 	document.body.classList.toggle("is-layout-editing", state.adminLayoutEditing);
@@ -4396,6 +4402,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
 		${state.adminCommerceMenu ? renderAdminCommerceMenu() : ""}
       ${isModalVisible("payment-launch", state.paymentLaunchModalOpen) ? renderPaymentLaunchModal() : ""}
 		${isModalVisible("payment-contact", Boolean(state.paymentContactContext)) ? renderPaymentContactModal() : ""}
+      ${isModalVisible("review-rewards", state.reviewRewardSettingsOpen) ? renderReviewRewardSettingsModal() : ""}
       ${isModalVisible("review-compose", state.reviewComposeOpen) ? renderReviewComposerModal() : ""}
 		${isModalVisible("review-detail", state.reviewDetailOpen) ? renderReviewDetailModal() : ""}
 		${isModalVisible("gift-receipt", state.giftReceiptOpen) ? renderGiftReceiptModal() : ""}
@@ -8469,6 +8476,7 @@ function renderReviewsPage() {
   return `
     <section class="page ${pageClass("reviews")}" id="page-reviews">
       <div class="card reviews-hero">
+        ${isAdminUser() ? `<button class="reviews-reward-settings" type="button" data-action="open-review-rewards" aria-label="Настроить вознаграждение" title="Настроить вознаграждение">${icon("pencil")}</button>` : ""}
         <div class="reviews-hero__score">${formatAverageRating(reviews.average || 0, state.locale)}</div>
         <div class="reviews-hero__stars">${renderRatingStars(Math.round(reviews.average || 0), false, "reviews-hero__star")}</div>
         <div class="reviews-hero__meta">${escapeHtml(countLabel)}</div>
@@ -8479,6 +8487,7 @@ function renderReviewsPage() {
         <div class="card reviews-mine">
           <div class="reviews-mine__copy">
             <strong>${escapeHtml(copy.thanksTitle)}</strong>
+            ${reviews.myReview && !reviews.myReview.rewardGranted ? `<button class="review-reward-retry" type="button" data-action="retry-review-reward" ${state.reviewBusy ? "disabled" : ""}>Получить вознаграждение</button>` : ""}
           </div>
           <button class="btn reviews-mine__btn" type="button" data-action="open-review-detail" data-value="${escapeAttribute(String(reviews.myReview?.id || 0))}">${escapeHtml(copy.viewMine)}</button>
         </div>
@@ -9885,6 +9894,64 @@ function renderDevicesModal() {
   `;
 }
 
+function reviewPersonalPromoHint() {
+  const review = state.data?.reviews?.myReview || {};
+  if (review.rewardPromoStatus === "exhausted") return "Промокод уже использован.";
+  if (review.rewardPromoStatus === "expired") return "Срок действия промокода истёк.";
+  if (review.rewardPromoStatus === "inactive") return "Промокод отключён.";
+  const expiry = review.rewardPromoExpiresAt ? ` Действует до ${formatShortDateLabel(review.rewardPromoExpiresAt)}.` : "";
+  return `Активируйте его в разделе «Промокод».${expiry}`;
+}
+
+function currentReviewRewards() {
+  return state.data?.reviews?.rewards || state.data?.runtime?.reviewRewards || { days: 2, trafficGb: 20, balanceRub: 0, promo: { enabled: false } };
+}
+
+function reviewRewardHint() {
+  const summary = reviewRewardSummary(currentReviewRewards(), state.locale);
+  return summary ? `${localizedText("Подарок за отзыв", "Review reward", "هدیه دیدگاه")}: ${summary}` : localizedText("Спасибо, что делитесь своим опытом.", "Thank you for sharing your experience.", "از اشتراک تجربه شما سپاسگزاریم.");
+}
+
+function renderReviewRewardSettingsModal() {
+  if (!isAdminUser() || !state.reviewRewardDraft) return "";
+  const d = state.reviewRewardDraft, p = d.promo, busy = state.reviewRewardSaving;
+  const input = (field, value, label, max, disabled = false, min = 1) => `<label class="review-reward-field"><span>${label}</span><input type="number" data-input="review-reward-value" data-field="${field}" min="${min}" max="${max}" step="1" inputmode="numeric" value="${escapeAttribute(value)}" ${disabled || busy ? "disabled" : ""}></label>`;
+  const option = (key, name, hint, value, max, unit) => `<section class="review-reward-option ${d[key] ? "is-selected" : ""}"><label class="review-reward-option__toggle"><input type="checkbox" data-input="review-reward-toggle" data-field="${key}" ${d[key] ? "checked" : ""} ${busy ? "disabled" : ""}><span><strong>${name}</strong><small>${hint}</small></span></label>${input(key === "daysEnabled" ? "days" : key === "trafficEnabled" ? "trafficGb" : "balanceRub", value, unit, max, !d[key])}</section>`;
+  return `<div class="modal open ${modalStateClass("review-rewards")}"><button class="modal__backdrop" type="button" data-action="close-review-rewards" aria-label="Закрыть" ${busy ? "disabled" : ""}></button><div class="modal__sheet modal__sheet--review review-rewards" role="dialog" aria-modal="true" aria-labelledby="review-rewards-title"><div class="modal__header"><div><div class="section-label">Отзывы</div><div class="modal__title" id="review-rewards-title">Вознаграждение за отзыв</div></div><button class="header__btn" type="button" data-action="close-review-rewards" aria-label="Закрыть" ${busy ? "disabled" : ""}>${icon("close")}</button></div><p class="review-rewards__hint">Выберите одну или несколько наград. Настройки применятся к новым отзывам.</p><div class="review-rewards__options">
+    ${option("daysEnabled", "Дни подписки", "Продлить выбранную подписку", d.days, 3650, "Дней")}
+    ${option("trafficEnabled", "Дополнительный трафик", "Добавить к лимиту подписки", d.trafficGb, 1000000, "ГБ")}
+    ${option("balanceEnabled", "Деньги на баланс", "Зачислить на баланс приложения", d.balanceRub, 1000000, "₽")}
+    <section class="review-reward-option review-reward-option--promo ${p.enabled ? "is-selected" : ""}"><label class="review-reward-option__toggle"><input type="checkbox" data-input="review-reward-toggle" data-field="promo.enabled" ${p.enabled ? "checked" : ""} ${busy ? "disabled" : ""}><span><strong>Личный промокод</strong><small>Только автору отзыва · одно использование</small></span></label>${p.enabled ? `<div class="review-reward-promo"><label class="review-reward-field review-reward-field--wide"><span>Награда промокода</span><select data-input="review-reward-type" ${busy ? "disabled" : ""}>${[["discount","Скидка на покупку"],["balance","Деньги на баланс"],["days","Дни подписки"],["traffic","Гигабайты"],["days_traffic","Дни и гигабайты"]].map(([id,label]) => `<option value="${id}" ${p.rewardType === id ? "selected" : ""}>${label}</option>`).join("")}</select></label>${p.rewardType === "discount" ? input("promo.discountPercent",p.discountPercent,"Скидка, %",99) : input("promo.rewardValue",p.rewardValue,p.rewardType === "balance" ? "Сумма, ₽" : p.rewardType === "traffic" ? "Трафик, ГБ" : "Дней",["days","days_traffic"].includes(p.rewardType) ? 3650 : 1000000)}${p.rewardType === "days_traffic" ? input("promo.rewardTrafficGb",p.rewardTrafficGb,"Трафик, ГБ",1000000) : ""}${input("promo.expiryDays",p.expiryDays,"Срок, дней",3650,false,0)}<small class="review-reward-field--wide">0 дней — без срока. Код появится в отзыве пользователя.</small></div>` : ""}</section>
+    </div><p class="review-rewards__hint">Для трафика без дней нужна подписка. Безлимит сохраняется.</p><button class="btn btn--green-filled review-rewards__save" type="button" data-action="save-review-rewards" ${busy ? "disabled" : ""}>${icon(busy ? "refresh" : "check")}${busy ? "Сохранение…" : "Сохранить"}</button></div></div>`;
+}
+
+async function saveReviewRewardSettings() {
+  if (!isAdminUser() || state.reviewRewardSaving) return;
+  let rewards;
+  try { rewards = reviewRewardsFromDraft(state.reviewRewardDraft); } catch (error) { showToast(error.message, "danger"); return; }
+  state.reviewRewardSaving = true;
+  render({ preserveScroll: true });
+  try {
+    const response = previewMode ? { data: rewards } : await post("/api/mini-app/admin/reviews/rewards", rewards);
+    const saved = response.data;
+    state.data.reviews.rewards = saved;
+    state.data.reviews.rewardDays = saved.days;
+    state.data.reviews.rewardTrafficBytes = saved.trafficGb * 1024 ** 3;
+    if (state.data.runtime) state.data.runtime.reviewRewards = saved;
+    if (state.data.admin?.settings) state.data.admin.settings.reviewRewards = saved;
+    if (state.adminSettingsDraft) state.adminSettingsDraft.reviewRewards = deepClone(saved);
+    state.reviewRewardSettingsOpen = false;
+    showToast("Вознаграждение сохранено", "success");
+  } finally { state.reviewRewardSaving = false; render({ preserveScroll: true }); }
+}
+
+async function retryReviewReward() {
+  if (state.reviewBusy) return;
+  state.reviewBusy = "retry-reward"; render({ preserveScroll: true });
+  try { const response = await post("/api/mini-app/reviews/reward/retry", {}); state.data = response.data; ensureSelections(); showToast(response.message, "success"); }
+  finally { state.reviewBusy = ""; render({ preserveScroll: true }); }
+}
+
 function renderReviewComposerModal() {
   const copy = reviewsText();
   return `
@@ -9906,7 +9973,7 @@ function renderReviewComposerModal() {
           <span class="support-field__label">${escapeHtml(copy.commentLabel)}</span>
           <textarea class="support-field__textarea review-field__textarea" rows="5" maxlength="2000" placeholder="${escapeAttribute(copy.commentPlaceholder)}" data-input="review-comment">${escapeHtml(state.reviewDraftComment)}</textarea>
         </label>
-        <div class="review-bonus-note">${escapeHtml(copy.rewardHint)}</div>
+        <div class="review-bonus-note">${escapeHtml(reviewRewardHint())}</div>
         <button class="btn reviews-submit" type="button" data-action="submit-review" ${state.reviewBusy ? "disabled" : ""}>${icon(state.reviewBusy ? "refresh" : "send")}${escapeHtml(copy.submit)}</button>
       </div>
     </div>
@@ -9931,6 +9998,7 @@ function renderReviewDetailModal() {
         </div>
         <div class="review-detail__stars">${renderRatingStars(Number(review.rating || 0), false, "review-detail__star")}</div>
         <div class="review-detail__comment">${escapeHtml(review.comment || "")}</div>
+        ${review.isMine && state.data?.reviews?.myReview?.rewardPromoCode ? `<div class="review-personal-code"><span>Ваш личный промокод · одно использование</span><button type="button" data-action="copy-review-promo">${escapeHtml(state.data.reviews.myReview.rewardPromoCode)}${icon("copy")}</button><small>${escapeHtml(reviewPersonalPromoHint())}</small></div>` : ""}
         ${isAdminUser() ? `
           <div class="review-detail__actions">
             <button class="btn btn--ghost review-detail__delete" type="button" data-action="admin-delete-review" data-value="${escapeAttribute(String(review.id || 0))}" ${deleteBusy ? "disabled" : ""}>${icon(deleteBusy ? "refresh" : "trash")}${escapeHtml(copy.delete)}</button>
@@ -10578,6 +10646,11 @@ function bindRootActions() {
 		if (action === "open-banner") return openDashboardBanner(value);
 		if (action === "open-promo-widget-checkout") return await openPromoWidgetCheckout(value);
 		if (action === "open-notification-widget") return toggleNotificationPopover(target);
+      if (action === "open-review-rewards") { if (!isAdminUser()) return; state.reviewRewardDraft = reviewRewardDraft(currentReviewRewards()); state.reviewRewardSettingsOpen = true; render(); return; }
+      if (action === "close-review-rewards") { if (state.reviewRewardSaving) return; return requestModalClose("review-rewards", () => { state.reviewRewardSettingsOpen = false; }); }
+      if (action === "save-review-rewards") return await saveReviewRewardSettings();
+      if (action === "retry-review-reward") return await retryReviewReward();
+      if (action === "copy-review-promo") { await copyToClipboard(state.data?.reviews?.myReview?.rewardPromoCode || ""); showToast("Промокод скопирован", "success"); return; }
       if (action === "open-review-compose") { state.reviewComposeOpen = true; render(); return; }
       if (action === "close-review-compose") return requestModalClose("review-compose", () => { state.reviewComposeOpen = false; state.reviewDraftRating = 0; state.reviewDraftComment = ""; state.reviewBusy = ""; });
       if (action === "set-review-rating") { state.reviewDraftRating = Number(value) || 0; haptic("light"); render(); return; }
@@ -11256,6 +11329,9 @@ function bindRootActions() {
       if (inputKey === "support-subject") state.supportDraftSubject = target.value;
       if (inputKey === "support-message") state.supportDraftMessage = target.value;
       if (inputKey === "support-reply") state.supportReplyDraft = target.value;
+      if (inputKey === "review-reward-toggle" && state.reviewRewardDraft && !state.reviewRewardSaving) { const field = target.dataset.field; if (field === "promo.enabled") state.reviewRewardDraft.promo.enabled = target.checked; else { state.reviewRewardDraft[field] = target.checked; const valueField = { daysEnabled: "days", trafficEnabled: "trafficGb", balanceEnabled: "balanceRub" }[field]; if (target.checked && !Number(state.reviewRewardDraft[valueField])) state.reviewRewardDraft[valueField] = { days: 2, trafficGb: 20, balanceRub: 100 }[valueField]; } render({ preserveScroll: true }); return; }
+      if (inputKey === "review-reward-value" && state.reviewRewardDraft && !state.reviewRewardSaving) { const field = target.dataset.field; if (field.startsWith("promo.")) state.reviewRewardDraft.promo[field.slice(6)] = target.value; else state.reviewRewardDraft[field] = target.value; return; }
+      if (inputKey === "review-reward-type" && state.reviewRewardDraft && !state.reviewRewardSaving) { state.reviewRewardDraft.promo.rewardType = target.value; if (!Number(state.reviewRewardDraft.promo.rewardValue)) state.reviewRewardDraft.promo.rewardValue = target.value === "balance" ? 100 : target.value === "traffic" ? 20 : 2; if (!Number(state.reviewRewardDraft.promo.rewardTrafficGb)) state.reviewRewardDraft.promo.rewardTrafficGb = 20; render({ preserveScroll: true }); return; }
       if (inputKey === "review-comment") state.reviewDraftComment = target.value;
   });
 
@@ -14450,6 +14526,7 @@ async function submitReview() {
     });
     state.reviewBusy = "";
     state.reviewComposeOpen = false;
+  state.reviewRewardSettingsOpen = false;
     state.reviewDraftRating = 0;
     state.reviewDraftComment = "";
     state.data = response.data;
@@ -15922,7 +15999,7 @@ function setPage(page) {
   const samePage = nextPage === state.currentPage;
   rememberCurrentScroll();
 	if (samePage && nextPage === "admin" && state.adminSection !== "home") return closeAdminSection();
-	if (samePage && !state.sidebarOpen && !state.payModalOpen && !state.p2pMenuStep && !state.paymentLaunchModalOpen && !state.devicesModalOpen && !state.reviewComposeOpen && !state.reviewDetailOpen && !state.supportMediaViewer && !state.notificationPopoverOpen && !state.notificationPopoverClosing) return;
+	if (samePage && !state.sidebarOpen && !state.payModalOpen && !state.p2pMenuStep && !state.paymentLaunchModalOpen && !state.devicesModalOpen && !state.reviewRewardSettingsOpen && !state.reviewComposeOpen && !state.reviewDetailOpen && !state.supportMediaViewer && !state.notificationPopoverOpen && !state.notificationPopoverClosing) return;
   state.animatePageEntry = !samePage;
   state.currentPage = nextPage;
   state.sidebarOpen = false;
@@ -15933,6 +16010,7 @@ function setPage(page) {
   state.paymentLaunchPurchaseId = 0;
   state.devicesModalOpen = false;
   state.reviewComposeOpen = false;
+  state.reviewRewardSettingsOpen = false;
   state.reviewDetailOpen = false;
   state.activeReviewId = 0;
   state.reviewDraftRating = 0;
@@ -16043,6 +16121,7 @@ function shouldShowNativeBackButton() {
     state.devicePackModalOpen ||
     state.trafficPackModalOpen ||
     state.paymentLaunchModalOpen ||
+    state.reviewRewardSettingsOpen ||
     state.reviewComposeOpen ||
     state.reviewDetailOpen ||
     (state.currentPage === "admin" && state.adminSection !== "home") ||
@@ -16105,6 +16184,7 @@ function handleNativeBackButton() {
   if (state.devicePackModalOpen) return requestModalClose("device-packs", () => { state.devicePackModalOpen = false; });
   if (state.trafficPackModalOpen) return requestModalClose("traffic-packs", () => { state.trafficPackModalOpen = false; });
   if (state.paymentLaunchModalOpen) return requestModalClose("payment-launch", () => { state.paymentLaunchModalOpen = false; state.paymentLaunchURL = ""; state.paymentLaunchPurchaseId = 0; });
+  if (state.reviewRewardSettingsOpen) { if (state.reviewRewardSaving) return; return requestModalClose("review-rewards", () => { state.reviewRewardSettingsOpen = false; }); }
   if (state.reviewComposeOpen) return requestModalClose("review-compose", () => { state.reviewComposeOpen = false; state.reviewDraftRating = 0; state.reviewDraftComment = ""; state.reviewBusy = ""; });
   if (state.reviewDetailOpen) return requestModalClose("review-detail", () => { state.activeReviewId = 0; state.reviewDetailOpen = false; });
   if (state.currentPage === "admin" && state.adminSection !== "home") {
@@ -16136,6 +16216,7 @@ function getActiveModalName() {
   if (state.devicePackModalOpen) return "device-packs";
   if (state.trafficPackModalOpen) return "traffic-packs";
   if (state.paymentLaunchModalOpen) return "payment-launch";
+  if (state.reviewRewardSettingsOpen) return "review-rewards";
   if (state.reviewComposeOpen) return "review-compose";
   if (state.reviewDetailOpen) return "review-detail";
   return "";

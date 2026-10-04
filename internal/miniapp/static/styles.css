@@ -4452,12 +4452,56 @@ body:not(.is-layout-editing) .runtime-layout-item[data-runtime-id="subscription_
 }
 
 .reviews-hero {
+  position: relative;
   display: grid;
   justify-items: center;
   gap: 5px;
   padding: 13px 14px;
   text-align: center;
 }
+
+.reviews-reward-settings {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.reviews-reward-settings:hover { color: var(--text); background: var(--surface-soft); }
+.reviews-reward-settings svg { width: 16px; height: 16px; }
+.review-rewards { width: min(100%, 460px); }
+.modal__sheet--review.review-rewards { max-height: min(90dvh, 800px); }
+.review-rewards__hint { margin: 0 0 14px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.review-rewards__options { display: grid; gap: 9px; margin-bottom: 14px; }
+.review-reward-option { display: grid; grid-template-columns: minmax(0, 1fr) 76px; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 14px; }
+.review-reward-option.is-selected { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.review-reward-option__toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; min-width: 0; }
+.review-reward-option__toggle input { width: 17px; height: 17px; flex: 0 0 17px; accent-color: var(--accent); }
+.review-reward-option__toggle span { display: grid; gap: 4px; }
+.review-reward-option__toggle strong { font-size: 12px; font-weight: 600; }
+.review-reward-option__toggle small, .review-reward-promo small { color: var(--muted); font-size: 10px; line-height: 1.4; }
+.review-reward-field { display: grid; gap: 5px; min-width: 0; }
+.review-reward-field > span { font-size: 10px; color: var(--muted); }
+.review-reward-field input, .review-reward-field select { width: 100%; min-width: 0; min-height: 36px; padding: 8px 9px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; font-size: 12px; }
+.review-reward-field input:disabled { opacity: .35; }
+.review-reward-field input:focus-visible, .review-reward-field select:focus-visible, .reviews-reward-settings:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.review-reward-option--promo { grid-template-columns: minmax(0, 1fr); }
+.review-reward-promo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding-top: 4px; }
+.review-reward-field--wide { grid-column: 1 / -1; }
+.review-rewards__save { width: 100%; min-height: 42px; }
+.review-reward-retry { border: 0; padding: 6px 0 0; background: transparent; color: var(--accent); font: inherit; font-size: 11px; text-align: start; cursor: pointer; }
+.review-personal-code { display: grid; gap: 8px; margin-top: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
+.review-personal-code > span, .review-personal-code > small { color: var(--muted); font-size: 11px; }
+.review-personal-code button { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; font-size: 12px; overflow-wrap: anywhere; text-align: left; cursor: pointer; }
+.review-personal-code svg { flex: 0 0 16px; width: 16px; height: 16px; }
 
 .reviews-hero__score {
   font-size: 32px;

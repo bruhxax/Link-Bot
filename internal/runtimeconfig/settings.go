@@ -23,7 +23,7 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
-const CurrentVersion = 26
+const CurrentVersion = 27
 
 var (
 	hexColorPattern       = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -72,6 +72,7 @@ func DefaultPaymentMethodOrder() []string {
 }
 
 type Settings struct {
+	ReviewRewards      ReviewRewardSettings  `json:"reviewRewards"`
 	Version            int                   `json:"version"`
 	Localization       LocalizationSettings  `json:"localization"`
 	Maintenance        MaintenanceSettings   `json:"maintenance"`
@@ -472,6 +473,7 @@ func DefaultSettings() Settings {
 
 	settings := Settings{
 		Version:            CurrentVersion,
+		ReviewRewards:      DefaultReviewRewards(),
 		PaymentMethodOrder: DefaultPaymentMethodOrder(),
 		Localization: LocalizationSettings{
 			Language:     language,
@@ -990,6 +992,7 @@ func (s *Service) Update(ctx context.Context, next Settings, updatedBy int64) (S
 	// The server controls save independently from the appearance editor. A stale
 	// editor draft must not restore an older visibility list.
 	next.HiddenServerNodes = s.Snapshot().HiddenServerNodes
+	next.ReviewRewards = s.Snapshot().ReviewRewards
 	if err := NormalizeAndValidate(&next); err != nil {
 		return Settings{}, err
 	}
@@ -1129,6 +1132,12 @@ func NormalizeAndValidate(settings *Settings) error {
 	defaults := DefaultSettings()
 	previousVersion := settings.Version
 	settings.Version = CurrentVersion
+	if previousVersion < 27 && settings.ReviewRewards == (ReviewRewardSettings{}) {
+		settings.ReviewRewards = defaults.ReviewRewards
+	}
+	if err := settings.ReviewRewards.Validate(); err != nil {
+		return err
+	}
 	settings.PaymentMethodOrder = normalizePaymentMethodOrder(settings.PaymentMethodOrder)
 	if len(settings.HiddenServerNodes) > 512 {
 		return errors.New("too many hidden server nodes")

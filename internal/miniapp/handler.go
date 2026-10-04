@@ -259,23 +259,27 @@ type walletPayload struct {
 }
 
 type reviewsPayload struct {
-	Count              int                 `json:"count"`
-	Average            float64             `json:"average"`
-	CanCreate          bool                `json:"canCreate"`
-	RewardDays         int                 `json:"rewardDays"`
-	RewardTrafficBytes int64               `json:"rewardTrafficBytes"`
-	Items              []reviewItemPayload `json:"items"`
-	MyReview           *reviewItemPayload  `json:"myReview,omitempty"`
+	Rewards            runtimeconfig.ReviewRewardSettings `json:"rewards"`
+	Count              int                                `json:"count"`
+	Average            float64                            `json:"average"`
+	CanCreate          bool                               `json:"canCreate"`
+	RewardDays         int                                `json:"rewardDays"`
+	RewardTrafficBytes int64                              `json:"rewardTrafficBytes"`
+	Items              []reviewItemPayload                `json:"items"`
+	MyReview           *reviewItemPayload                 `json:"myReview,omitempty"`
 }
 
 type reviewItemPayload struct {
-	ID            int64  `json:"id"`
-	Username      string `json:"username"`
-	Rating        int    `json:"rating"`
-	Comment       string `json:"comment"`
-	CreatedAt     string `json:"createdAt"`
-	RewardGranted bool   `json:"rewardGranted,omitempty"`
-	IsMine        bool   `json:"isMine,omitempty"`
+	RewardPromoCode      string `json:"rewardPromoCode,omitempty"`
+	RewardPromoStatus    string `json:"rewardPromoStatus,omitempty"`
+	RewardPromoExpiresAt string `json:"rewardPromoExpiresAt,omitempty"`
+	ID                   int64  `json:"id"`
+	Username             string `json:"username"`
+	Rating               int    `json:"rating"`
+	Comment              string `json:"comment"`
+	CreatedAt            string `json:"createdAt"`
+	RewardGranted        bool   `json:"rewardGranted,omitempty"`
+	IsMine               bool   `json:"isMine,omitempty"`
 }
 
 type serversPayload struct {
@@ -782,6 +786,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/payments/remove-method", h.withSession(h.handleRemovePaymentMethod))
 	mux.HandleFunc("/api/mini-app/devices/delete", h.withSession(h.handleDeleteDeviceExact))
 	mux.HandleFunc("/api/mini-app/reviews/create", h.withSession(h.handleCreateReview))
+	mux.HandleFunc("/api/mini-app/admin/reviews/rewards", h.withSession(h.handleAdminReviewRewards))
+	mux.HandleFunc("/api/mini-app/reviews/reward/retry", h.withSession(h.handleRetryReviewReward))
 	mux.HandleFunc("/api/mini-app/admin/reviews/delete", h.withSession(h.handleAdminDeleteReview))
 	mux.HandleFunc("/api/mini-app/admin/promocodes/create", h.withSession(h.handleAdminCreatePromoCode))
 	mux.HandleFunc("/api/mini-app/admin/promocodes/validate", h.withSession(h.handleAdminValidatePromoCode))
@@ -3585,13 +3591,19 @@ func (h *Handler) handleCreateReview(w http.ResponseWriter, r *http.Request, ses
 
 		h.writeJSON(w, http.StatusOK, map[string]any{
 			"ok":      true,
-			"message": "Подарок за отзыв уже был получен",
+			"message": "Ваш отзыв уже сохранён",
 			"data":    payload,
 		})
 		return
 	}
 
+	rewardSnapshot, err := json.Marshal(h.reviewRewards())
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "review_failed", "Не удалось сохранить отзыв")
+		return
+	}
 	review, err := h.reviewRepository.Create(r.Context(), &database.Review{
+		RewardSettings:   rewardSnapshot,
 		CustomerID:       customer.ID,
 		TelegramID:       customer.TelegramID,
 		TelegramUsername: buildReviewUsername(sess),
@@ -3632,7 +3644,7 @@ func (h *Handler) handleCreateReview(w http.ResponseWriter, r *http.Request, ses
 
 	h.writeJSON(w, http.StatusOK, map[string]any{
 		"ok":      true,
-		"message": "Подарок за отзыв получен: +2 дня и +20 ГБ",
+		"message": reviewRewardSuccessMessage(review.RewardSettings),
 		"data":    payload,
 	})
 }
@@ -4270,7 +4282,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		}
 	}
 
-	reviewsData := reviewsPayload{Items: []reviewItemPayload{}}
+	reviewsData := reviewsPayload{Rewards: settings.ReviewRewards, Items: []reviewItemPayload{}}
 	var reviewsErr error
 	if settings.Features["reviews"] {
 		reviewsData, reviewsErr = h.buildReviewsPayload(ctx, customer)
@@ -4278,11 +4290,12 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 	if reviewsErr != nil {
 		slog.Warn("mini app: load reviews failed", "error", reviewsErr, "telegramId", utils.MaskHalfInt64(customer.TelegramID))
 		reviewsData = reviewsPayload{
+			Rewards:            settings.ReviewRewards,
 			Count:              0,
 			Average:            0,
-			CanCreate:          true,
-			RewardDays:         reviewRewardDays,
-			RewardTrafficBytes: reviewRewardTrafficBytes,
+			CanCreate:          false,
+			RewardDays:         settings.ReviewRewards.Days,
+			RewardTrafficBytes: int64(settings.ReviewRewards.TrafficGB) * adminUserTrafficGB,
 			Items:              []reviewItemPayload{},
 		}
 	}
@@ -4831,12 +4844,14 @@ func filterServerNodes(nodes []remnawave.NodeStatus, hiddenNodeIDs []string, inc
 }
 
 func (h *Handler) buildReviewsPayload(ctx context.Context, customer *database.Customer) (reviewsPayload, error) {
+	rewards := h.reviewRewards()
 	result := reviewsPayload{
+		Rewards:            rewards,
 		Count:              0,
 		Average:            0,
 		CanCreate:          true,
-		RewardDays:         reviewRewardDays,
-		RewardTrafficBytes: reviewRewardTrafficBytes,
+		RewardDays:         rewards.Days,
+		RewardTrafficBytes: int64(rewards.TrafficGB) * adminUserTrafficGB,
 		Items:              []reviewItemPayload{},
 	}
 	if h.reviewRepository == nil || customer == nil {
@@ -4899,6 +4914,19 @@ func (h *Handler) buildReviewsPayload(ctx context.Context, customer *database.Cu
 		}
 	}
 
+	if result.MyReview != nil && h.promoCodeRepository != nil {
+		promo, err := h.promoCodeRepository.FindReviewPromo(ctx, result.MyReview.ID, customer.ID)
+		if err != nil {
+			return result, err
+		}
+		if promo != nil {
+			result.MyReview.RewardPromoCode = promo.Code
+			result.MyReview.RewardPromoStatus = promoStatus(promo, time.Now().UTC())
+			if promo.ExpiresAt != nil {
+				result.MyReview.RewardPromoExpiresAt = formatOptionalTime(*promo.ExpiresAt)
+			}
+		}
+	}
 	return result, nil
 }
 
@@ -5158,6 +5186,9 @@ func (h *Handler) resolvePromoCode(ctx context.Context, customerID int64, rawCod
 		return nil, "", "", err
 	}
 	if promo == nil {
+		return nil, code, "promo_not_found", nil
+	}
+	if !promo.AvailableToCustomer(customerID) {
 		return nil, code, "promo_not_found", nil
 	}
 	if customerID > 0 && promo.RewardType != "discount" {
@@ -5493,66 +5524,6 @@ func timeOrNil(value *time.Time) time.Time {
 		return time.Time{}
 	}
 	return *value
-}
-
-func (h *Handler) grantReviewReward(ctx context.Context, customer *database.Customer, reviewID int64) error {
-	if h.reviewRepository == nil || h.remnawaveClient == nil || customer == nil {
-		return fmt.Errorf("review reward is unavailable")
-	}
-
-	review, err := h.reviewRepository.FindAnyByCustomerID(ctx, customer.ID)
-	if err != nil {
-		return err
-	}
-	if review == nil {
-		return fmt.Errorf("review %d not found", reviewID)
-	}
-	if review.RewardGranted {
-		return nil
-	}
-
-	panelState, err := h.remnawaveClient.GetUserStateByTelegramID(ctx, customer.TelegramID)
-	if err != nil {
-		return err
-	}
-
-	trafficLimit := int(reviewRewardTrafficBytes)
-	deviceLimit := config.DeviceLimitForMonths(1)
-	if panelState != nil && panelState.Exists {
-		if panelState.Active {
-			if maxInt64(panelState.TrafficLimitBytes, 0) <= 0 {
-				trafficLimit = 0
-			} else {
-				trafficLimit = mergeReviewTrafficLimit(panelState.TrafficLimitBytes)
-			}
-			deviceLimit = normalizeReviewDeviceLimit(panelState.DeviceLimit, true)
-		} else {
-			trafficLimit = mergeReviewTrafficLimit(maxInt64(panelState.TrafficLimitBytes, 0))
-			deviceLimit = normalizeReviewDeviceLimit(panelState.DeviceLimit, false)
-		}
-	}
-
-	user, err := h.remnawaveClient.CreateOrUpdateUser(ctx, customer.ID, customer.TelegramID, trafficLimit, deviceLimit, reviewRewardDays, false)
-	if err != nil {
-		return err
-	}
-
-	updates := map[string]any{
-		"subscription_link": user.SubscriptionURL,
-		"expire_at":         user.ExpireAt,
-	}
-	if err := h.customerRepository.UpdateFields(ctx, customer.ID, updates); err != nil {
-		return err
-	}
-	if err := h.reviewRepository.MarkRewardGranted(ctx, reviewID, reviewRewardDays, reviewRewardTrafficBytes); err != nil {
-		return err
-	}
-
-	customer.SubscriptionLink = &user.SubscriptionURL
-	expireAt := user.ExpireAt
-	customer.ExpireAt = &expireAt
-
-	return nil
 }
 
 func buildReviewUsername(sess *session) string {

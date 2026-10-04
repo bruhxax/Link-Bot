@@ -15,6 +15,7 @@ import (
 var ErrReviewAlreadyExists = errors.New("review already exists")
 
 type Review struct {
+	RewardSettings     []byte     `db:"reward_settings"`
 	ID                 int64      `db:"id"`
 	CustomerID         int64      `db:"customer_id"`
 	TelegramID         int64      `db:"telegram_id"`
@@ -44,14 +45,17 @@ func NewReviewRepository(pool *pgxpool.Pool) *ReviewRepository {
 }
 
 func (r *ReviewRepository) Create(ctx context.Context, review *Review) (*Review, error) {
+	if len(review.RewardSettings) == 0 {
+		review.RewardSettings = []byte(`{"days":2,"trafficGb":20,"promo":{"enabled":false}}`)
+	}
 	query := `
 		INSERT INTO review (
 			customer_id, telegram_id, telegram_username, rating, comment,
-			reward_granted, reward_days, reward_traffic_bytes, reward_granted_at, deleted_at, created_at, updated_at
+			reward_granted, reward_days, reward_traffic_bytes, reward_granted_at, deleted_at, created_at, updated_at, reward_settings
 		)
-		VALUES ($1, $2, $3, $4, $5, FALSE, 0, 0, NULL, NULL, NOW(), NOW())
+		VALUES ($1, $2, $3, $4, $5, FALSE, 0, 0, NULL, NULL, NOW(), NOW(), $6)
 		RETURNING id, customer_id, telegram_id, telegram_username, rating, comment,
-		          reward_granted, reward_days, reward_traffic_bytes, reward_granted_at, deleted_at, created_at, updated_at
+		          reward_granted, reward_days, reward_traffic_bytes, reward_granted_at, deleted_at, created_at, updated_at, reward_settings
 	`
 
 	created := &Review{}
@@ -63,6 +67,7 @@ func (r *ReviewRepository) Create(ctx context.Context, review *Review) (*Review,
 		review.TelegramUsername,
 		review.Rating,
 		review.Comment,
+		review.RewardSettings,
 	).Scan(
 		&created.ID,
 		&created.CustomerID,
@@ -77,6 +82,7 @@ func (r *ReviewRepository) Create(ctx context.Context, review *Review) (*Review,
 		&created.DeletedAt,
 		&created.CreatedAt,
 		&created.UpdatedAt,
+		&created.RewardSettings,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -92,7 +98,7 @@ func (r *ReviewRepository) Create(ctx context.Context, review *Review) (*Review,
 func (r *ReviewRepository) FindByCustomerID(ctx context.Context, customerID int64) (*Review, error) {
 	query := sq.Select(
 		"id", "customer_id", "telegram_id", "telegram_username", "rating", "comment",
-		"reward_granted", "reward_days", "reward_traffic_bytes", "reward_granted_at", "deleted_at", "created_at", "updated_at",
+		"reward_granted", "reward_days", "reward_traffic_bytes", "reward_granted_at", "deleted_at", "created_at", "updated_at", "reward_settings",
 	).
 		From("review").
 		Where(sq.Eq{"customer_id": customerID}).
@@ -120,6 +126,7 @@ func (r *ReviewRepository) FindByCustomerID(ctx context.Context, customerID int6
 		&item.DeletedAt,
 		&item.CreatedAt,
 		&item.UpdatedAt,
+		&item.RewardSettings,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -134,7 +141,7 @@ func (r *ReviewRepository) FindByCustomerID(ctx context.Context, customerID int6
 func (r *ReviewRepository) FindAnyByCustomerID(ctx context.Context, customerID int64) (*Review, error) {
 	query := sq.Select(
 		"id", "customer_id", "telegram_id", "telegram_username", "rating", "comment",
-		"reward_granted", "reward_days", "reward_traffic_bytes", "reward_granted_at", "deleted_at", "created_at", "updated_at",
+		"reward_granted", "reward_days", "reward_traffic_bytes", "reward_granted_at", "deleted_at", "created_at", "updated_at", "reward_settings",
 	).
 		From("review").
 		Where(sq.Eq{"customer_id": customerID}).
@@ -161,6 +168,7 @@ func (r *ReviewRepository) FindAnyByCustomerID(ctx context.Context, customerID i
 		&item.DeletedAt,
 		&item.CreatedAt,
 		&item.UpdatedAt,
+		&item.RewardSettings,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -179,7 +187,7 @@ func (r *ReviewRepository) ListLatest(ctx context.Context, limit int) ([]Review,
 
 	query := sq.Select(
 		"id", "customer_id", "telegram_id", "telegram_username", "rating", "comment",
-		"reward_granted", "reward_days", "reward_traffic_bytes", "reward_granted_at", "deleted_at", "created_at", "updated_at",
+		"reward_granted", "reward_days", "reward_traffic_bytes", "reward_granted_at", "deleted_at", "created_at", "updated_at", "reward_settings",
 	).
 		From("review").
 		Where("deleted_at IS NULL").
@@ -215,6 +223,7 @@ func (r *ReviewRepository) ListLatest(ctx context.Context, limit int) ([]Review,
 			&item.DeletedAt,
 			&item.CreatedAt,
 			&item.UpdatedAt,
+			&item.RewardSettings,
 		); err != nil {
 			return nil, fmt.Errorf("scan review: %w", err)
 		}
