@@ -10751,8 +10751,8 @@ function bindRootActions() {
       if (action === "close-devices-modal") return requestModalClose("devices", () => { state.devicesModalOpen = false; state.deviceBusyHwid = ""; });
       if (action === "delete-device") return await deleteDevice(value);
       if (action === "switch-support-tab") { state.supportTab = SUPPORT_TABS.includes(value) ? value : "open"; render(); void refreshSupport({ silent: true }); return; }
-      if (action === "open-support-compose") { state.supportComposeOpen = true; render(); return; }
-      if (action === "close-support-compose") return requestModalClose("support-compose", () => { state.supportComposeOpen = false; state.supportDraftSubject = ""; state.supportDraftMessage = ""; });
+      if (action === "open-support-compose") return openSupportComposer();
+      if (action === "close-support-compose") return requestModalClose("support-compose", closeSupportComposeState);
       if (action === "open-support-ticket") return await openSupportTicket(Number(value));
       if (action === "close-support-thread") return requestModalClose("support-thread", closeSupportThreadState);
       if (action === "submit-support-ticket") return await submitSupportTicket();
@@ -14681,7 +14681,59 @@ function clearSupportMediaCache() {
 	supportMediaRequests.clear();
 }
 
+let supportThreadVersion = 0;
+let supportThreadReadVersion = 0;
+let supportThreadRequest = null;
+let supportComposeVersion = 0;
+let supportOperationVersion = 0;
+
+function invalidateSupportThreadRequests() {
+	supportThreadVersion++;
+	supportThreadReadVersion++;
+	supportThreadRequest = null;
+	window.clearInterval(supportThreadPollTimer);
+	supportThreadPollTimer = 0;
+}
+
+function isCurrentSupportThread(version, ticketId) {
+	return version === supportThreadVersion && state.supportThreadOpen && state.activeSupportTicketId === ticketId && closingModalName !== "support-thread";
+}
+
+function beginSupportOperation(name) {
+	supportThreadReadVersion++; // An older poll must not replace an optimistic write.
+	state.supportBusy = name;
+	return ++supportOperationVersion;
+}
+
+function finishSupportOperation(version) {
+	if (version !== supportOperationVersion) return false;
+	state.supportBusy = "";
+	return true;
+}
+
+function openSupportComposer() {
+	if (closingModalName === "support-compose") return;
+	supportComposeVersion++;
+	state.supportComposeOpen = true;
+	render();
+}
+
+function closeSupportComposeState() {
+	supportComposeVersion++;
+	state.supportComposeOpen = false;
+	state.supportDraftSubject = "";
+	state.supportDraftMessage = "";
+}
+
 function closeSupportThreadState() {
+	invalidateSupportThreadRequests();
+	supportOperationVersion++;
+	state.supportBusy = "";
+	if (closingModalName === "support-thread") {
+		window.clearTimeout(closingModalTimer);
+		closingModalName = "";
+		previousActiveModalName = "";
+	}
 	state.supportThreadOpen = false;
 	state.supportMediaViewer = null;
 	state.activeSupportTicketId = 0;
@@ -14784,8 +14836,15 @@ async function refreshSupport({ silent = false } = {}) {
 
 async function openSupportTicket(ticketId, { silent = false } = {}) {
   if (!ticketId) return;
+	if (closingModalName === "support-thread") return;
+	if (silent) {
+		if (!isCurrentSupportThread(supportThreadVersion, ticketId) || state.supportBusy || supportThreadRequest) return;
+	} else {
+		invalidateSupportThreadRequests();
+	}
 	if (state.activeSupportTicketId && state.activeSupportTicketId !== ticketId) {
 		state.supportMediaViewer = null;
+		state.supportReplyDraft = "";
 		clearPendingSupportMedia();
 		clearSupportMediaCache();
 	}
@@ -14816,7 +14875,21 @@ async function openSupportTicket(ticketId, { silent = false } = {}) {
     state.supportThreadOpen = true;
     render();
   }
-  const response = await post("/api/mini-app/support/thread", { ticketId });
+  const version = supportThreadVersion;
+  const readVersion = ++supportThreadReadVersion;
+  const request = { version, ticketId };
+  supportThreadRequest = request;
+  let response;
+  try {
+    response = await post("/api/mini-app/support/thread", { ticketId });
+  } catch (error) {
+    if (!isCurrentSupportThread(version, ticketId) || readVersion !== supportThreadReadVersion) return;
+    if (!silent) { closeSupportThreadState(); render(); }
+    throw error;
+  } finally {
+    if (supportThreadRequest === request) supportThreadRequest = null;
+  }
+  if (!isCurrentSupportThread(version, ticketId) || readVersion !== supportThreadReadVersion) return;
   const previous = JSON.stringify(state.activeSupportThread || {});
   state.activeSupportTicketId = ticketId;
   state.activeSupportThread = response.data;
@@ -14829,17 +14902,19 @@ async function openSupportTicket(ticketId, { silent = false } = {}) {
 
 async function submitSupportTicket() {
   const scopy = supportText();
-  if (state.supportBusy) return;
+  if (state.supportBusy || !state.supportComposeOpen || closingModalName === "support-compose") return;
   if (!state.supportDraftMessage.trim()) return showToast(scopy.messagePlaceholder);
 
-  state.supportBusy = "create-ticket";
+  const version = supportComposeVersion;
+  const operation = beginSupportOperation("create-ticket");
   render();
   try {
     const response = await post("/api/mini-app/support/create", {
       subject: state.supportDraftSubject.trim(),
       message: state.supportDraftMessage.trim(),
     });
-    state.supportBusy = "";
+    if (!finishSupportOperation(operation) || version !== supportComposeVersion || !state.supportComposeOpen || closingModalName === "support-compose") return;
+    invalidateSupportThreadRequests();
     state.supportComposeOpen = false;
     state.supportDraftSubject = "";
     state.supportDraftMessage = "";
@@ -14850,7 +14925,7 @@ async function submitSupportTicket() {
     void refreshSupport({ silent: true });
     showToast(scopy.ticketCreated, "success");
   } catch (error) {
-    state.supportBusy = "";
+    if (!finishSupportOperation(operation) || version !== supportComposeVersion || !state.supportComposeOpen || closingModalName === "support-compose") return;
     render();
     throw error;
   }
@@ -14858,29 +14933,31 @@ async function submitSupportTicket() {
 
 async function sendSupportMessage() {
   const scopy = supportText();
-  if (state.supportBusy) return;
+  if (state.supportBusy || !state.supportThreadOpen || closingModalName === "support-thread") return;
   const message = state.supportReplyDraft.trim();
 	const media = state.supportPendingMedia;
   if (!state.activeSupportTicketId || (!message && !media)) return showToast(scopy.replyPlaceholder);
 	if (media) return await sendSupportMediaMessage(media, message);
 
   const previousThread = cloneSupportThread(state.activeSupportThread);
-  state.supportBusy = "send-support-message";
+  const ticketId = state.activeSupportTicketId;
+  const version = supportThreadVersion;
+  const operation = beginSupportOperation("send-support-message");
   state.supportReplyDraft = "";
   appendOptimisticSupportMessage(message);
   render();
   try {
     const response = await post("/api/mini-app/support/send", {
-      ticketId: state.activeSupportTicketId,
+      ticketId,
       message,
     });
-    state.supportBusy = "";
+    if (!finishSupportOperation(operation) || !isCurrentSupportThread(version, ticketId)) return;
     state.activeSupportThread = response.data;
     render();
     void refreshSupport({ silent: true });
     showToast(scopy.replySent, "success");
   } catch (error) {
-    state.supportBusy = "";
+    if (!finishSupportOperation(operation) || !isCurrentSupportThread(version, ticketId)) return;
     state.activeSupportThread = previousThread;
     if (!state.supportReplyDraft.trim()) state.supportReplyDraft = message;
     render();
@@ -14890,25 +14967,28 @@ async function sendSupportMessage() {
 
 async function sendSupportMediaMessage(file, caption) {
 	const scopy = supportText();
+	if (state.supportBusy || !state.supportThreadOpen || closingModalName === "support-thread") return;
 	const previousThread = cloneSupportThread(state.activeSupportThread);
 	const previousDraft = state.supportReplyDraft;
-	state.supportBusy = "send-support-media";
+	const ticketId = state.activeSupportTicketId;
+	const version = supportThreadVersion;
+	const operation = beginSupportOperation("send-support-media");
 	state.supportReplyDraft = "";
 	render();
 	try {
 		const form = new FormData();
-		form.append("ticketId", String(state.activeSupportTicketId));
+		form.append("ticketId", String(ticketId));
 		form.append("caption", caption);
 		form.append("file", file, file.name || "media");
 		const response = await postForm("/api/mini-app/support/send-media", form);
-		state.supportBusy = "";
+		if (!finishSupportOperation(operation) || !isCurrentSupportThread(version, ticketId)) return;
 		clearPendingSupportMedia();
 		state.activeSupportThread = response.data;
 		render();
 		void refreshSupport({ silent: true });
 		showToast(scopy.replySent, "success");
 	} catch (error) {
-		state.supportBusy = "";
+		if (!finishSupportOperation(operation) || !isCurrentSupportThread(version, ticketId)) return;
 		state.activeSupportThread = previousThread;
 		state.supportReplyDraft = previousDraft;
 		render();
@@ -14918,11 +14998,13 @@ async function sendSupportMediaMessage(file, caption) {
 
 async function closeSupportTicket() {
   const scopy = supportText();
-  if (state.supportBusy) return;
+  if (state.supportBusy || !state.supportThreadOpen || closingModalName === "support-thread") return;
   if (!state.activeSupportTicketId) return;
 
   const previousThread = cloneSupportThread(state.activeSupportThread);
-  state.supportBusy = "close-support-ticket";
+  const ticketId = state.activeSupportTicketId;
+  const version = supportThreadVersion;
+  const operation = beginSupportOperation("close-support-ticket");
   if (state.activeSupportThread?.ticket) {
     state.activeSupportThread = {
       ...state.activeSupportThread,
@@ -14933,14 +15015,14 @@ async function closeSupportTicket() {
   }
   render();
   try {
-    const response = await post("/api/mini-app/support/close", { ticketId: state.activeSupportTicketId });
-    state.supportBusy = "";
+    const response = await post("/api/mini-app/support/close", { ticketId });
+    if (!finishSupportOperation(operation) || !isCurrentSupportThread(version, ticketId)) return;
     state.activeSupportThread = response.data;
     render();
     void refreshSupport({ silent: true });
     showToast(scopy.ticketClosedToast, "success");
   } catch (error) {
-    state.supportBusy = "";
+    if (!finishSupportOperation(operation) || !isCurrentSupportThread(version, ticketId)) return;
     state.activeSupportThread = previousThread;
     render();
     throw error;
@@ -14980,7 +15062,7 @@ function syncSupportPolling() {
   supportListPollTimer = 0;
   supportThreadPollTimer = 0;
 
-	if (realtimeConnected || state.currentPage !== "support" || !hasAuth() || previewMode) return;
+	if (realtimeConnected || state.currentPage !== "support" || !hasAuth() || previewMode || closingModalName === "support-thread") return;
 
   if (state.supportThreadOpen && state.activeSupportTicketId) {
     supportThreadPollTimer = window.setInterval(() => {
@@ -16282,7 +16364,7 @@ function handleNativeBackButton() {
 	if (state.notificationPopoverOpen || state.notificationPopoverClosing) return requestNotificationPopoverClose();
   if (state.supportMediaViewer) return requestModalClose("support-media-viewer", () => { state.supportMediaViewer = null; });
   if (state.supportThreadOpen) return requestModalClose("support-thread", closeSupportThreadState);
-  if (state.supportComposeOpen) return requestModalClose("support-compose", () => { state.supportComposeOpen = false; state.supportDraftSubject = ""; state.supportDraftMessage = ""; });
+  if (state.supportComposeOpen) return requestModalClose("support-compose", closeSupportComposeState);
   if (state.devicesModalOpen) return requestModalClose("devices", () => { state.devicesModalOpen = false; state.deviceBusyHwid = ""; });
   if (state.payModalOpen) return closePayModal();
   if (state.devicePackModalOpen) return requestModalClose("device-packs", () => { state.devicePackModalOpen = false; });
@@ -16337,6 +16419,14 @@ function modalStateClass(name) {
 }
 
 function requestModalClose(name, onClosed) {
+  if (closingModalName === name) return;
+  // Invalidate asynchronous work when closing starts, before the animation ends.
+  if (name === "support-thread") invalidateSupportThreadRequests();
+  if (name === "support-compose") supportComposeVersion++;
+  if (name === "support-thread" || name === "support-compose") {
+    supportOperationVersion++;
+    state.supportBusy = "";
+  }
   window.clearTimeout(closingModalTimer);
   closingModalName = name;
   animatedModalName = "";
