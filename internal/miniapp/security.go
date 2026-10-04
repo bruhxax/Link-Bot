@@ -125,6 +125,9 @@ func setCommonSecurityHeaders(w http.ResponseWriter) {
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow, noarchive")
 }
 
+// Regional collection endpoints from Yandex Metrika's CSP documentation.
+const yandexMetrikaCSPOrigins = "https://mc.yandex.ru https://mc.yandex.az https://mc.yandex.by https://mc.yandex.co.il https://mc.yandex.com https://mc.yandex.com.am https://mc.yandex.com.ge https://mc.yandex.com.tr https://mc.yandex.ee https://mc.yandex.fr https://mc.yandex.kg https://mc.yandex.kz https://mc.yandex.lt https://mc.yandex.lv https://mc.yandex.md https://mc.yandex.tj https://mc.yandex.tm https://mc.yandex.uz"
+
 func setHTMLSecurityHeaders(w http.ResponseWriter) {
 	setCommonSecurityHeaders(w)
 	w.Header().Set("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
@@ -137,12 +140,12 @@ func setHTMLSecurityHeaders(w http.ResponseWriter) {
 		"child-src 'self' https://oauth.telegram.org https://telegram.org https://accounts.google.com",
 		"worker-src 'self'",
 		"form-action 'self'",
-		"script-src 'self' https://telegram.org https://oauth.telegram.org https://accounts.google.com https://www.googletagmanager.com",
+		"script-src 'self' https://telegram.org https://oauth.telegram.org https://accounts.google.com https://www.googletagmanager.com https://yastatic.net " + yandexMetrikaCSPOrigins,
 		"style-src 'self' 'unsafe-inline'",
 		"font-src 'self' data: https://cdn.jsdelivr.net",
 		"img-src 'self' https: data: blob:",
 		"media-src 'self' blob:",
-		"connect-src 'self' https://telegram.org https://*.telegram.org https://oauth.telegram.org https://accounts.google.com https://oauth2.googleapis.com https://www.google-analytics.com https://region1.google-analytics.com",
+		"connect-src 'self' https://telegram.org https://*.telegram.org https://oauth.telegram.org https://accounts.google.com https://oauth2.googleapis.com https://www.google-analytics.com https://region1.google-analytics.com " + yandexMetrikaCSPOrigins,
 		"manifest-src 'self'",
 	}, "; "))
 }

@@ -13733,6 +13733,8 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .admin-analytics__loading .admin-finance__chart-skeleton { min-height: 92px; margin-top: 17px; }
 .admin-ga4__head { display: flex; align-items: center; gap: 10px; }
 .admin-ga4__mark { width: 31px; height: 31px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; background: color-mix(in srgb, #fbbc04 17%, transparent); color: #fbbc04; font-size: 17px; font-weight: 900; }
+.admin-ga4__mark.admin-yandex__mark { background: color-mix(in srgb, #fc3f1d 17%, transparent); color: #fc3f1d; }
+.admin-yandex .admin-ga4__bar { background: #fc3f1d; }
 .admin-ga4__head > div { min-width: 0; display: grid; gap: 3px; }
 .admin-ga4__head > div > span { color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .08em; }
 .admin-ga4__head h3 { margin: 0; font-size: 13px; }

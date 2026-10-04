@@ -906,6 +906,7 @@ func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
 	data = bytes.ReplaceAll(data, []byte("__TELEGRAM_BOT_ID__"), []byte(html.EscapeString(telegramBotID())))
 	data = bytes.ReplaceAll(data, []byte("__GOOGLE_CLIENT_ID__"), []byte(html.EscapeString(config.GoogleClientID())))
 	data = bytes.ReplaceAll(data, []byte("__GA4_MEASUREMENT_ID__"), []byte(ga4MeasurementID()))
+	data = bytes.ReplaceAll(data, []byte("__YANDEX_METRIKA_COUNTER_ID__"), []byte(yandexCounterID()))
 	data = bytes.ReplaceAll(data, []byte("__PUBLIC_BASE_URL__"), []byte(html.EscapeString(h.publicBaseURL)))
 	data = bytes.ReplaceAll(data, []byte("__PAGE_TITLE__"), []byte(html.EscapeString(page.Title)))
 	data = bytes.ReplaceAll(data, []byte("__PAGE_DESCRIPTION__"), []byte(html.EscapeString(page.Description)))

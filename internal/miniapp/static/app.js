@@ -3537,6 +3537,7 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
 			offset: 0,
 		};
 		state.adminAnalytics = { period: "7d", from: financeDates[0].date, to: financeDates[6].date, google: { state: "ready", activeUsers: 1284, newUsers: 402, sessions: 1948, pageViews: 3672, daily: financeDates.map((item, index) => ({ date: item.date, users: [124, 156, 144, 188, 210, 193, 269][index], sessions: [170, 202, 186, 235, 298, 281, 376][index] })), channels: [{ name: "Organic Search", sessions: 841 }, { name: "Direct", sessions: 683 }, { name: "Referral", sessions: 424 }] } };
+        state.adminAnalytics.yandex = { state: "ready", counterId: "12345678", activeUsers: 1178, newUsers: 385, sessions: 1804, pageViews: 3410, daily: financeDates.map((item, index) => ({ date: item.date, users: [115, 142, 136, 171, 199, 180, 235][index], sessions: [151, 185, 173, 222, 272, 260, 341][index] })), channels: [{ name: "Переходы из поисковых систем", sessions: 793 }, { name: "Прямые заходы", sessions: 624 }, { name: "Переходы по ссылкам на сайтах", sessions: 387 }] };
 		state.adminUsers = {
 			items: [
 				{ customerId: 12, telegramId: 6402520205, username: "alexvpn", avatarUrl: "", subscriptionName: "Основная", subscriptionStatus: "active", createdAt: new Date(Date.now() - 78 * 86400000).toISOString(), isBlocked: false },
@@ -5093,14 +5094,17 @@ function renderAdminFinanceProviders(items) {
 	}).join("")}</div></section>`;
 }
 
-function renderAdminGoogleAnalytics(google) {
-	const report = google || { state: "unconfigured" };
+function renderAdminSiteAnalytics(reportData, provider = "google") {
+	const yandex = provider === "yandex";
+	const name = yandex ? "Яндекс Метрика" : "Google Analytics 4";
+	const titleID = yandex ? "admin-yandex-title" : "admin-ga4-title";
+	const report = reportData || { state: "unconfigured" };
 	const ready = report.state === "ready";
 	const days = Array.isArray(report.daily) ? report.daily : [];
 	const chartDays = days.filter((_, index) => index % Math.max(1, Math.ceil(days.length / 60)) === 0);
 	const max = Math.max(1, ...chartDays.map((day) => Number(day.sessions || 0)));
-	const chart = chartDays.length ? `<div class="admin-ga4__chart" role="img" aria-label="Сеансы Google Analytics по дням">${chartDays.map((day) => `<span class="admin-ga4__bar" style="--height:${Math.max(5, Math.round(Number(day.sessions || 0) / max * 100))}%" title="${escapeAttribute(`${day.date}: ${Number(day.sessions || 0)} сеансов`)}"></span>`).join("")}</div>` : `<div class="admin-ga4__empty">Google ещё не собрал данные за этот период</div>`;
-	return `<section class="admin-ga4 admin-finance-card" aria-labelledby="admin-ga4-title"><div class="admin-ga4__head"><span class="admin-ga4__mark">G</span><div><span>АНАЛИТИКА САЙТА</span><h3 id="admin-ga4-title">Google Analytics 4</h3></div><small>${ready ? "Подключено" : report.state === "error" ? "Ошибка подключения" : "Ожидает настройки"}</small></div>${ready ? `<div class="admin-ga4__metrics"><div><span>Пользователи</span><strong>${Number(report.activeUsers || 0).toLocaleString("ru-RU")}</strong></div><div><span>Новые</span><strong>${Number(report.newUsers || 0).toLocaleString("ru-RU")}</strong></div><div><span>Сеансы</span><strong>${Number(report.sessions || 0).toLocaleString("ru-RU")}</strong></div><div><span>Просмотры</span><strong>${Number(report.pageViews || 0).toLocaleString("ru-RU")}</strong></div></div>${chart}<div class="admin-ga4__channels">${(Array.isArray(report.channels) ? report.channels : []).slice(0, 5).map((item) => `<span><b>${escapeHtml(item.name || "Другое")}</b><strong>${Number(item.sessions || 0).toLocaleString("ru-RU")}</strong></span>`).join("")}</div>` : `<div class="admin-ga4__setup"><strong>${escapeHtml(report.message || "Подключите ресурс GA4")}</strong><span>Нужны Measurement ID для сбора посещений, ID ресурса и сервисный аккаунт с доступом на чтение. Инструкция — в README.</span><a href="https://analytics.google.com/" target="_blank" rel="noopener noreferrer">Открыть Google Analytics ${icon("arrowRight")}</a></div>`}</section>`;
+	const chart = chartDays.length ? `<div class="admin-ga4__chart" role="img" aria-label="${yandex ? "Визиты Яндекс Метрики" : "Сеансы Google Analytics"} по дням">${chartDays.map((day) => `<span class="admin-ga4__bar" style="--height:${Math.max(5, Math.round(Number(day.sessions || 0) / max * 100))}%" title="${escapeAttribute(`${day.date}: ${Number(day.sessions || 0)} ${yandex ? "визитов" : "сеансов"}`)}"></span>`).join("")}</div>` : `<div class="admin-ga4__empty">${yandex ? "Метрика ещё не собрала" : "Google ещё не собрал"} данные за этот период</div>`;
+	return `<section class="admin-ga4 admin-finance-card ${yandex ? "admin-yandex" : ""}" aria-labelledby="${titleID}"><div class="admin-ga4__head"><span class="admin-ga4__mark ${yandex ? "admin-yandex__mark" : ""}">${yandex ? "Я" : "G"}</span><div><span>АНАЛИТИКА САЙТА</span><h3 id="${titleID}">${name}</h3></div><small>${ready ? (report.sampled ? "Подключено · выборка" : "Подключено") : report.state === "error" ? "Ошибка подключения" : "Ожидает настройки"}</small></div>${ready ? `<div class="admin-ga4__metrics"><div><span>${yandex ? "Посетители" : "Пользователи"}</span><strong>${Number(report.activeUsers || 0).toLocaleString("ru-RU")}</strong></div><div><span>Новые</span><strong>${Number(report.newUsers || 0).toLocaleString("ru-RU")}</strong></div><div><span>${yandex ? "Визиты" : "Сеансы"}</span><strong>${Number(report.sessions || 0).toLocaleString("ru-RU")}</strong></div><div><span>Просмотры</span><strong>${Number(report.pageViews || 0).toLocaleString("ru-RU")}</strong></div></div>${chart}<div class="admin-ga4__channels">${(Array.isArray(report.channels) ? report.channels : []).slice(0, 5).map((item) => `<span><b>${escapeHtml(item.name || "Другое")}</b><strong>${Number(item.sessions || 0).toLocaleString("ru-RU")}</strong></span>`).join("")}</div>` : `<div class="admin-ga4__setup"><strong>${escapeHtml(report.message || (yandex ? "Подключите счётчик Метрики" : "Подключите ресурс GA4"))}</strong><span>${yandex ? "Укажите ID счётчика и OAuth-токен с доступом к отчётам. Инструкция — в README." : "Нужны Measurement ID для сбора посещений, ID ресурса и сервисный аккаунт с доступом на чтение. Инструкция — в README."}</span><a href="${yandex ? "https://metrika.yandex.ru/" : "https://analytics.google.com/"}" target="_blank" rel="noopener noreferrer">Открыть ${yandex ? "Яндекс Метрику" : "Google Analytics"} ${icon("arrowRight")}</a></div>`}</section>`;
 }
 
 function renderAdminFinancePage() {
@@ -5124,15 +5128,20 @@ function renderAdminFinancePage() {
 	</div></section>`;
 }
 
+function renderAdminAnalyticsLoading(provider) {
+  const yandex = provider === "yandex";
+  return `<section class="admin-ga4 admin-finance-card admin-analytics__loading ${yandex ? "admin-yandex" : ""}" aria-busy="true"><div class="admin-ga4__head"><span class="admin-ga4__mark ${yandex ? "admin-yandex__mark" : ""}">${yandex ? "Я" : "G"}</span><div><span>АНАЛИТИКА САЙТА</span><h3>${yandex ? "Яндекс Метрика" : "Google Analytics 4"}</h3></div></div><div class="admin-ga4__metrics">${Array.from({ length: 4 }, () => `<div><span></span><strong></strong></div>`).join("")}</div><div class="admin-finance__chart-skeleton"></div></section>`;
+}
+
 function renderAdminAnalyticsPage() {
 	const data = state.adminAnalytics;
 	const custom = state.adminAnalyticsPeriod === "custom";
 	const loading = !data || state.adminAnalyticsBusy;
-	const placeholder = `<section class="admin-ga4 admin-finance-card admin-analytics__loading" aria-busy="true"><div class="admin-ga4__head"><span class="admin-ga4__mark">G</span><div><span>АНАЛИТИКА САЙТА</span><h3>Google Analytics 4</h3></div></div><div class="admin-ga4__metrics">${Array.from({ length: 4 }, () => `<div><span></span><strong></strong></div>`).join("")}</div><div class="admin-finance__chart-skeleton"></div></section>`;
+
 	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-finance admin-analytics">
 		<header class="admin-finance__header"><div><span>ДАННЫЕ САЙТА</span><h2>Аналитика</h2></div>${renderAdminFinancePeriodPicker()}</header>
 		${custom ? `<div class="admin-finance__custom"><label><span>С</span><input type="date" data-input="admin-analytics-from" value="${escapeAttribute(state.adminAnalyticsFrom || data?.from || "")}" max="${escapeAttribute(financeTodayISO())}"></label><i aria-hidden="true">—</i><label><span>По</span><input type="date" data-input="admin-analytics-to" value="${escapeAttribute(state.adminAnalyticsTo || data?.to || "")}" max="${escapeAttribute(financeTodayISO())}"></label><button type="button" data-action="admin-analytics-apply" ${state.adminAnalyticsBusy ? "disabled" : ""}>Показать</button></div>` : ""}
-		${loading ? placeholder : renderAdminGoogleAnalytics(data.google)}
+		${loading ? renderAdminAnalyticsLoading("google") + renderAdminAnalyticsLoading("yandex") : renderAdminSiteAnalytics(data.google) + renderAdminSiteAnalytics(data.yandex, "yandex")}
 	</div></section>`;
 }
 
@@ -15989,6 +15998,7 @@ function setPage(page) {
 		const sameEditorPage = nextPage === state.currentPage;
 		state.adminLayoutAddMenuOpen = false;
 		state.currentPage = nextPage;
+  if (!samePage) window.dispatchEvent(new CustomEvent("miniapp:pageview", { detail: { page: nextPage } }));
 		state.adminLayoutCategory = nextPage === "settings" ? "profile" : nextPage;
 		state.adminLayoutSelection = "";
 		previousBottomNavIndex = sameEditorPage ? previousBottomNavIndex : -1;

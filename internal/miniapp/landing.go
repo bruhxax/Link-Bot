@@ -125,6 +125,7 @@ func (h *Handler) serveLanding(w http.ResponseWriter, r *http.Request) {
 	}
 	data = bytes.ReplaceAll(data, []byte("__GLASS_MODE__"), []byte(glassMode))
 	data = bytes.ReplaceAll(data, []byte("__GA4_MEASUREMENT_ID__"), []byte(ga4MeasurementID()))
+	data = bytes.ReplaceAll(data, []byte("__YANDEX_METRIKA_COUNTER_ID__"), []byte(yandexCounterID()))
 	setHTMLSecurityHeaders(w)
 	w.Header().Set("X-Robots-Tag", "index, follow")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

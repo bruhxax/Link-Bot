@@ -25,24 +25,24 @@ var ga4PropertyIDPattern = regexp.MustCompile(`^[0-9]+$`)
 var ga4MeasurementIDPattern = regexp.MustCompile(`^G-[A-Z0-9]+$`)
 
 type adminGA4Payload struct {
-	State       string            `json:"state"`
-	PropertyID  string            `json:"propertyId,omitempty"`
-	Message     string            `json:"message,omitempty"`
-	ActiveUsers int64             `json:"activeUsers"`
-	NewUsers    int64             `json:"newUsers"`
-	Sessions    int64             `json:"sessions"`
-	PageViews   int64             `json:"pageViews"`
-	Daily       []adminGA4Daily   `json:"daily"`
-	Channels    []adminGA4Channel `json:"channels"`
+	State       string                  `json:"state"`
+	PropertyID  string                  `json:"propertyId,omitempty"`
+	Message     string                  `json:"message,omitempty"`
+	ActiveUsers int64                   `json:"activeUsers"`
+	NewUsers    int64                   `json:"newUsers"`
+	Sessions    int64                   `json:"sessions"`
+	PageViews   int64                   `json:"pageViews"`
+	Daily       []adminAnalyticsDaily   `json:"daily"`
+	Channels    []adminAnalyticsChannel `json:"channels"`
 }
 
-type adminGA4Daily struct {
+type adminAnalyticsDaily struct {
 	Date     string `json:"date"`
 	Users    int64  `json:"users"`
 	Sessions int64  `json:"sessions"`
 }
 
-type adminGA4Channel struct {
+type adminAnalyticsChannel struct {
 	Name     string `json:"name"`
 	Sessions int64  `json:"sessions"`
 }
@@ -124,11 +124,19 @@ func (h *Handler) handleAdminAnalytics(w http.ResponseWriter, r *http.Request, s
 		h.writeError(w, http.StatusBadRequest, "invalid_analytics_period", "Выберите период не больше 366 дней")
 		return
 	}
+	var googleReport adminGA4Payload
+	var yandexReport adminYandexPayload
+	var reports sync.WaitGroup
+	reports.Add(2)
+	go func() { defer reports.Done(); googleReport = h.loadAdminGA4(r.Context(), from, to) }()
+	go func() { defer reports.Done(); yandexReport = h.loadAdminYandex(r.Context(), from, to) }()
+	reports.Wait()
 	h.writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "data": map[string]interface{}{
 		"period": period,
 		"from":   from.In(adminFinanceLocation).Format(adminFinanceDateLayout),
 		"to":     to.In(adminFinanceLocation).AddDate(0, 0, -1).Format(adminFinanceDateLayout),
-		"google": h.loadAdminGA4(r.Context(), from, to),
+		"google": googleReport,
+		"yandex": yandexReport,
 	}})
 }
 
@@ -159,7 +167,7 @@ func fetchGA4Report(ctx context.Context, property, credentialsPath string, from,
 	if err != nil {
 		return adminGA4Payload{}, err
 	}
-	result := adminGA4Payload{State: "ready", PropertyID: property, Daily: make([]adminGA4Daily, 0, len(daily.Rows)), Channels: make([]adminGA4Channel, 0, len(channels.Rows))}
+	result := adminGA4Payload{State: "ready", PropertyID: property, Daily: make([]adminAnalyticsDaily, 0, len(daily.Rows)), Channels: make([]adminAnalyticsChannel, 0, len(channels.Rows))}
 	if len(summary.Rows) > 0 {
 		metrics := summary.Rows[0].Metrics
 		result.ActiveUsers = ga4Metric(metrics, 0)
@@ -172,13 +180,13 @@ func fetchGA4Report(ctx context.Context, property, credentialsPath string, from,
 			continue
 		}
 		value := row.Dimensions[0].Value
-		result.Daily = append(result.Daily, adminGA4Daily{Date: value[:4] + "-" + value[4:6] + "-" + value[6:], Users: ga4Metric(row.Metrics, 0), Sessions: ga4Metric(row.Metrics, 1)})
+		result.Daily = append(result.Daily, adminAnalyticsDaily{Date: value[:4] + "-" + value[4:6] + "-" + value[6:], Users: ga4Metric(row.Metrics, 0), Sessions: ga4Metric(row.Metrics, 1)})
 	}
 	for _, row := range channels.Rows {
 		if len(row.Dimensions) == 0 {
 			continue
 		}
-		result.Channels = append(result.Channels, adminGA4Channel{Name: row.Dimensions[0].Value, Sessions: ga4Metric(row.Metrics, 0)})
+		result.Channels = append(result.Channels, adminAnalyticsChannel{Name: row.Dimensions[0].Value, Sessions: ga4Metric(row.Metrics, 0)})
 	}
 	return result, nil
 }
