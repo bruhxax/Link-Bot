@@ -158,6 +158,7 @@ func (h *Handler) handleSupportMediaUpload(w http.ResponseWriter, r *http.Reques
 			h.notifyCustomerAboutSupportReply(ctx, ticket, notificationText)
 		})
 	} else {
+		h.handoffAISupportIfRequested(r.Context(), ticket.ID, caption)
 		h.notifySupportAsync(func(ctx context.Context) {
 			h.notifyAdminAboutSupportReply(ctx, ticket, notificationText)
 		})

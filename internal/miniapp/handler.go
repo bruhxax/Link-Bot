@@ -807,6 +807,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/gifts/test", h.withSession(h.handleAdminGiftTest))
 	mux.HandleFunc("/api/mini-app/admin/events/resolve", h.withSession(h.handleAdminEventResolve))
 	mux.HandleFunc("/api/mini-app/admin/integrations/update", h.withSession(h.handleAdminIntegrationUpdate))
+	mux.HandleFunc("/api/mini-app/admin/ai/settings", h.withSession(h.handleAdminAI))
+	mux.HandleFunc("/api/mini-app/admin/ai/models", h.withSession(h.handleAdminAI))
+	mux.HandleFunc("/api/mini-app/admin/ai/update", h.withSession(h.handleAdminAI))
 	mux.HandleFunc("/api/mini-app/admin/moynalog/state", h.withSession(h.handleAdminMoyNalogState))
 	mux.HandleFunc("/api/mini-app/admin/moynalog/test", h.withSession(h.handleAdminMoyNalogTest))
 	mux.HandleFunc("/api/mini-app/admin/moynalog/retry", h.withSession(h.handleAdminMoyNalogRetry))
@@ -2977,6 +2980,10 @@ func (h *Handler) handleAdminIntegrationUpdate(w http.ResponseWriter, r *http.Re
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "Некорректные настройки")
 		return
 	}
+	if strings.TrimSpace(req.Provider) == integrations.ProviderSupportAI {
+		h.writeError(w, http.StatusBadRequest, "invalid_integration", "Используйте настройки во вкладке ИИ")
+		return
+	}
 	view, err := h.integrationSettings.Update(r.Context(), strings.TrimSpace(req.Provider), integrations.UpdateInput{Enabled: req.Enabled, Fields: req.Fields}, sess.User.ID)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid_integration", err.Error())
@@ -3766,6 +3773,7 @@ func (h *Handler) handleSupportCreate(w http.ResponseWriter, r *http.Request, se
 		return
 	}
 
+	h.handoffAISupportIfRequested(r.Context(), ticket.ID, message)
 	createdTicket, err := h.supportRepository.FindTicketByID(r.Context(), ticket.ID)
 	if err != nil || createdTicket == nil {
 		h.writeError(w, http.StatusInternalServerError, "support_create_failed", "Не удалось обновить обращение")
@@ -3889,6 +3897,7 @@ func (h *Handler) handleSupportSend(w http.ResponseWriter, r *http.Request, sess
 			h.writeError(w, http.StatusInternalServerError, "support_send_failed", "Не удалось отправить сообщение")
 			return
 		}
+		h.handoffAISupportIfRequested(r.Context(), ticket.ID, body)
 		h.notifySupportAsync(func(ctx context.Context) {
 			h.notifyAdminAboutSupportReply(ctx, ticket, body)
 		})
@@ -6069,9 +6078,9 @@ func (h *Handler) autoCloseInactiveSupportTickets(ctx context.Context) {
 	}
 }
 
-func (h *Handler) sendMiniAppNotification(ctx context.Context, telegramID int64, text string) {
+func (h *Handler) sendMiniAppNotification(ctx context.Context, telegramID int64, text string) error {
 	if h.telegramBot == nil || telegramID == 0 {
-		return
+		return fmt.Errorf("notification recipient unavailable")
 	}
 
 	params := &bot.SendMessageParams{
@@ -6102,6 +6111,7 @@ func (h *Handler) sendMiniAppNotification(ctx context.Context, telegramID int64,
 	if err != nil {
 		slog.Warn("mini app: failed to send support notification", "error", err, "telegramId", utils.MaskHalfInt64(telegramID))
 	}
+	return err
 }
 
 func (h *Handler) supportNotificationSettings() runtimeconfig.TelegramSupportSettings {

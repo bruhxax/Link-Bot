@@ -509,6 +509,9 @@ func (s *Service) ListAdmin() []ProviderView {
 
 	views := make([]ProviderView, 0, len(definitions))
 	for _, definition := range definitions {
+		if definition.Kind == "ai" {
+			continue
+		}
 		rec := s.records[definition.ID]
 		fields := make([]FieldView, 0, len(definition.Fields))
 		configured := definition.UnavailableReason == ""
@@ -555,9 +558,11 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	rec := s.records[provider]
-	if rec.Config == nil {
-		rec.Config = map[string]string{}
+	configCopy := make(map[string]string, len(rec.Config))
+	for key, value := range rec.Config {
+		configCopy[key] = value
 	}
+	rec.Config = configCopy
 	allowed := make(map[string]FieldDefinition, len(definition.Fields))
 	for _, field := range definition.Fields {
 		allowed[field.Key] = field

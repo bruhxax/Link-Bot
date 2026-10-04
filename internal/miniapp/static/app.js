@@ -14,6 +14,7 @@ import { tokenizeSupportMessage } from "./support-message.mjs";
 import { reviewRewardDraft, reviewRewardsFromDraft, reviewRewardSummary } from "./review-rewards.mjs";
 
 import { syncTelegramLayout } from "./telegram-layout.mjs";
+import { renderAISettings } from "./admin-ai.mjs";
 
 const app = document.getElementById("app");
 const toast = document.getElementById("toast");
@@ -2528,6 +2529,7 @@ const state = {
 	adminFinancePeriodMenuOpen: false,
 	adminFinanceAnimate: false,
 	adminAnalytics: null,
+	adminAI: { draft: null, models: [], verified: false, busy: "", error: "" },
 	adminAnalyticsBusy: false,
 	adminAnalyticsPeriod: "7d",
 	adminAnalyticsFrom: "",
@@ -3567,10 +3569,11 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
 		state.adminUserPreviewDetail = deepClone(state.adminUserDetail);
 		if (urlParams.get("detail") !== "1") state.adminUserDetail = null;
 		const previewSection = String(urlParams.get("section") || "");
-		if (["integrations", "referrals", "partners", "moynalog", "finance", "analytics", "push", "users", "appearance"].includes(previewSection)) {
+		if (["integrations", "referrals", "partners", "moynalog", "finance", "analytics", "ai", "push", "users", "appearance"].includes(previewSection)) {
 			state.currentPage = "admin";
 			state.adminSection = previewSection;
 			state.adminLayoutEditing = false;
+			if (previewSection === "ai") void loadAdminAI();
 		} else {
 			state.currentPage = "dashboard";
 			state.adminSection = "layout";
@@ -4640,6 +4643,7 @@ function renderAdminPage() {
 	if (state.adminSection === "moynalog") return renderAdminMoyNalogPage();
 	if (state.adminSection === "finance") return renderAdminFinancePage();
 	if (state.adminSection === "analytics") return renderAdminAnalyticsPage();
+	if (state.adminSection === "ai") return `<section class="page admin-page ${pageClass("admin")}" id="page-admin">${renderAISettings(state.adminAI, { escapeHtml, escapeAttribute, icon })}</section>`;
 	if (state.adminSection === "status") return renderAdminStatusPage();
 	if (state.adminSection === "partners") return renderAdminPartnersPage();
 	if (state.adminSection === "push") return renderAdminPushPage();
@@ -4659,6 +4663,7 @@ function renderAdminPage() {
 				[localizedText("Привязка подписок", "Subscription binding", "اتصال اشتراک‌ها"), "", "subscriptions", "adminSubscriptions"],
 				[localizedText("Интеграции", "Integrations", "یکپارچه‌سازی‌ها"), "", "integrations", "adminIntegrations"],
 				[localizedText("Мой налог", "My Tax", "مالیات من"), "", "moynalog", "adminIntegrations"],
+				[localizedText("ИИ", "AI", "هوش مصنوعی"), "", "ai", "sparkles"],
 			])}
 			${renderAdminMenuGroup(localizedText("Интерфейс", "Interface", "رابط کاربری"), [
 				[localizedText("Редактор контента", "Content", "ویرایشگر محتوا"), "", "content", "adminContent"],
@@ -4695,6 +4700,7 @@ const ADMIN_SEARCH_SECTIONS = [
 	["subscriptions", "Привязка подписок", "привязать подписку"],
 	["integrations", "Интеграции", "оплата платежи"],
 	["moynalog", "Мой налог", "чеки"],
+	["ai", "ИИ", "нейросеть AI модели API ключ промпт поддержка оператор"],
 	["content", "Редактор контента", "тексты кнопки сообщения"],
 	["subpage", "Sub page", "клиенты подключения"],
 	["appearance", "Оформление", "цвет фон рамки стекло"],
@@ -4800,6 +4806,7 @@ function openAdminSettingsSearchResult(index) {
 	if (item.section === "partners") void refreshAdminPartners();
 	if (item.section === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 	if (item.section === "moynalog") void refreshAdminMoyNalog();
+	if (item.section === "ai") void loadAdminAI();
 	if (!item.path) return;
 	window.setTimeout(() => {
 		const field = [...app.querySelectorAll("#page-admin [data-setting-path]")].find((node) => node.dataset.settingPath === item.path);
@@ -5900,6 +5907,45 @@ async function setAdminUserBlocked(blocked) {
 		: "Разблокировать пользователя и включить действующие подписки?";
 	if (!window.confirm(question)) return;
 	return runAdminUserAction("/api/mini-app/admin/users/block", { blocked: Boolean(blocked), reason, deleteSubscription }, "block");
+}
+
+async function loadAdminAI() {
+	if (state.adminAI.draft || state.adminAI.busy) return;
+	state.adminAI.busy = "load"; state.adminAI.error = "";
+	try {
+		const response = previewMode ? { data: { apiUrl: "", keyConfigured: false, model: "", enabled: false, prompt: "Ты — ИИ-помощник поддержки VPN. Представься, помогай с подключением. Не меняй баланс и подписки. По просьбе клиента или при затруднении позови администратора.", defaultPrompt: "Ты — ИИ-помощник поддержки VPN. Представься, помогай с подключением. Не меняй баланс и подписки. По просьбе клиента или при затруднении позови администратора." } } : await post("/api/mini-app/admin/ai/settings", {});
+		state.adminAI.draft = { ...response.data, apiKey: "" };
+	} catch (error) { state.adminAI.error = error?.message || "Не удалось загрузить настройки ИИ"; showToast(state.adminAI.error, "danger"); }
+	finally { state.adminAI.busy = ""; if (state.adminSection === "ai") render({ preserveScroll: true }); }
+}
+
+async function checkAdminAI() {
+	const ai = state.adminAI;
+	if (!ai.draft || ai.busy) return;
+	if (!ai.draft.apiUrl.trim()) return showToast("Введите URL сервера", "danger");
+	if (!ai.draft.apiKey.trim() && !ai.draft.keyConfigured) return showToast("Введите API-ключ", "danger");
+	ai.busy = "check"; ai.error = ""; ai.verified = false;
+	render({ preserveScroll: true });
+	try {
+		const response = previewMode ? { data: { apiUrl: ai.draft.apiUrl, models: ["claude-opus", "gemini-pro", "gpt-mini", "gpt-pro"] } } : await post("/api/mini-app/admin/ai/models", { apiUrl: ai.draft.apiUrl, apiKey: ai.draft.apiKey });
+		ai.models = response.data.models || []; ai.draft.apiUrl = response.data.apiUrl; ai.verified = true;
+		if (!ai.models.includes(ai.draft.model)) ai.draft.model = "";
+		showToast(`Подключение проверено · моделей: ${ai.models.length}`, "success");
+	} catch (error) { ai.models = []; ai.error = error?.message || "Не удалось проверить подключение"; }
+	finally { ai.busy = ""; if (state.adminSection === "ai") render({ preserveScroll: true }); }
+}
+
+async function saveAdminAI() {
+	const ai = state.adminAI;
+	if (!ai.draft || ai.busy) return;
+	if (ai.draft.enabled && !ai.draft.model) return showToast("Проверьте подключение и выберите модель", "danger");
+	ai.busy = "save"; ai.error = ""; render({ preserveScroll: true });
+	try {
+		const response = previewMode ? { data: { ...ai.draft, keyConfigured: Boolean(ai.draft.apiKey || ai.draft.keyConfigured) } } : await post("/api/mini-app/admin/ai/update", { apiUrl: ai.draft.apiUrl, apiKey: ai.draft.apiKey, model: ai.draft.model, prompt: ai.draft.prompt, enabled: ai.draft.enabled });
+		ai.draft = { ...response.data, apiKey: "" };
+		showToast("Настройки ИИ сохранены", "success");
+	} catch (error) { ai.error = error?.message || "Не удалось сохранить настройки"; }
+	finally { ai.busy = ""; if (state.adminSection === "ai") render({ preserveScroll: true }); }
 }
 
 function renderAdminLocalizationPage() {
@@ -10163,11 +10209,12 @@ function renderSupportPendingMedia() {
 
 function renderSupportMessage(message) {
   const scopy = supportText();
-  const fromAdmin = message.authorRole === "admin";
+  const fromAI = message.authorRole === "ai";
+  const fromAdmin = message.authorRole === "admin" || fromAI;
   const viewerIsAdmin = Boolean(state.data?.support?.isAdmin);
-  const isMine = viewerIsAdmin ? fromAdmin : !fromAdmin;
+  const isMine = !fromAI && (viewerIsAdmin ? fromAdmin : !fromAdmin);
 	const peerName = String(state.activeSupportThread?.ticket?.customerName || "").trim() || localizedText("Пользователь", "Customer", "کاربر");
-  const authorLabel = isMine ? scopy.you : (fromAdmin ? scopy.admin : peerName);
+  const authorLabel = fromAI ? localizedText("ИИ-помощник", "AI assistant", "دستیار هوش مصنوعی") : isMine ? scopy.you : (fromAdmin ? scopy.admin : peerName);
 	const body = String(message.body || "");
 	const hasAttachment = Boolean(message.attachment?.type);
   return `
@@ -10460,6 +10507,7 @@ function bindRootActions() {
 		renderAdminTransition();
 		if (value === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 		if (value === "moynalog") void refreshAdminMoyNalog();
+		if (value === "ai") void loadAdminAI();
 		if (value === "finance") void refreshAdminFinance();
 		if (value === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
 		if (value === "status") void refreshAdminStatus();
@@ -10480,6 +10528,17 @@ function bindRootActions() {
 		return;
 	  }
 	  if (action === "close-admin-section") return closeAdminSection();
+		if (action === "admin-ai-check") return await checkAdminAI();
+		if (action === "admin-ai-load") return await loadAdminAI();
+		if (action === "admin-ai-save") return await saveAdminAI();
+		if (action === "admin-ai-model") {
+			if (!state.adminAI.busy && state.adminAI.models.includes(value)) { state.adminAI.draft.model = value; render({ preserveScroll: true }); }
+			return;
+		}
+		if (action === "admin-ai-reset") {
+			state.adminAI.draft.prompt = state.adminAI.draft.defaultPrompt;
+			render({ preserveScroll: true }); return;
+		}
 			if (action === "admin-push-enable") return await enableAdminPush();
 			if (action === "admin-push-disable") return await disableAdminPush();
 			if (action === "admin-push-test") return await testAdminPush();
@@ -11122,6 +11181,19 @@ function bindRootActions() {
 		}
 		const inputKey = target?.dataset?.input;
 		if (!inputKey) return;
+		if (inputKey.startsWith("admin-ai-")) {
+			const field = inputKey.slice("admin-ai-".length);
+			if (!state.adminAI.draft || state.adminAI.busy) return;
+			state.adminAI.draft[field] = field === "enabled" ? target.checked : String(target.value || "");
+			if (field === "apiUrl" || field === "apiKey") {
+				state.adminAI.verified = false; state.adminAI.models = []; state.adminAI.error = "";
+				const modelsDOM = app.querySelector(".admin-ai__models");
+				if (modelsDOM) modelsDOM.replaceChildren();
+				const readyDOM = app.querySelector(".admin-ai__card-title .is-ready");
+				if (readyDOM) { readyDOM.classList.remove("is-ready"); readyDOM.textContent = "API"; }
+			}
+			return;
+		}
 		if (inputKey === "admin-settings-search") {
 			state.adminSettingsSearchQuery = String(target.value || "").slice(0, 100);
 			const results = app.querySelector("#admin-settings-search-results");
@@ -16473,13 +16545,13 @@ function getPageTitle(page, short = false) {
 	if (page === "admin" && !short && state.adminSection !== "home") {
 		if (state.adminSection === "partners") return localizedText("Партнёры", "Partners", "همکاران");
 		const labels = state.locale === "fa" ? {
-			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", push: "اعلان‌های پوش", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", analytics: "تحلیل", users: "کاربران",
+			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", push: "اعلان‌های پوش", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", analytics: "تحلیل", ai: "هوش مصنوعی", users: "کاربران",
 		} : state.locale === "en" ? {
 			localization: "Language and font",
-			maintenance: "Maintenance", diagnostics: "Diagnostics", push: "Push notifications", features: "Functions", subpage: "Sub page", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", analytics: "Analytics", users: "Users",
+			maintenance: "Maintenance", diagnostics: "Diagnostics", push: "Push notifications", features: "Functions", subpage: "Sub page", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", analytics: "Analytics", ai: "AI", users: "Users",
 		} : {
 			localization: "Язык и шрифт",
-			maintenance: "Режим аварии", diagnostics: "Диагностика", push: "Push-уведомления", features: "Функции", subpage: "Sub page", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", analytics: "Аналитика", users: "Пользователи",
+			maintenance: "Режим аварии", diagnostics: "Диагностика", push: "Push-уведомления", features: "Функции", subpage: "Sub page", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", analytics: "Аналитика", ai: "ИИ", users: "Пользователи",
 		};
 		return labels[state.adminSection] || copy.pageAdmin || "Admin panel";
 	}
@@ -17626,6 +17698,7 @@ function icon(name) {
 		return `<span class="app-svg-icon app-svg-icon--${ADMIN_ICON_CLASSES[name]}" data-app-icon="${escapeAttribute(name)}" aria-hidden="true"></span>`;
 	}
   const icons = {
+    sparkles: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3ZM20 2v4M18 4h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 	accessPoint: `<svg data-preserve-color viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12 12v.01m2.828-2.838a4 4 0 0 1 0 5.656m2.829-8.485a8 8 0 0 1 0 11.314m-8.489-2.829a4 4 0 0 1 0-5.656m-2.831 8.485a8 8 0 0 1 0-11.314" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>`,
 	accessPointOff: `<svg data-preserve-color viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="m3 3 18 18M14.828 9.172A4 4 0 0 1 16 12m1.657-5.657a8 8 0 0 1 1.635 8.952m-10.124-.467a4 4 0 0 1 0-5.656m-2.831 8.485a8 8 0 0 1 0-11.314" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>`,
 	more: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>`,

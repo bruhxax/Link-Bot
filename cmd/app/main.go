@@ -156,6 +156,7 @@ func main() {
 	miniAppHandler.SetWebPushService(webPushService)
 	miniAppHandler.StartRealtime(ctx, config.DadaBaseUrl())
 	miniAppHandler.StartSupportAutoCloser(ctx)
+	miniAppHandler.StartSupportAI(ctx)
 	miniAppHandler.StartSubscriptionReissueCleaner(ctx)
 	operations.StartHealthMonitor(ctx, pool, remnawaveClient, errorReporter)
 
