@@ -35,6 +35,8 @@ const (
 	InvoiceTypeAntiloPay     InvoiceType = "antilopay"
 	InvoiceTypeTributeShop   InvoiceType = "tribute_shop"
 	InvoiceTypeCloudPayments InvoiceType = "cloudpayments"
+	InvoiceTypeDatagio       InvoiceType = "datagio"
+	InvoiceTypeKassaAI       InvoiceType = "kassaai"
 	InvoiceTypeP2P           InvoiceType = "p2p"
 	InvoiceTypeFree          InvoiceType = "free"
 	InvoiceTypeBalance       InvoiceType = "balance"

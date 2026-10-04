@@ -41,6 +41,8 @@ const (
 	ProviderTribute         = "tribute"
 	ProviderParityPay       = "paritypay"
 	ProviderCloudPayments   = "cloudpayments"
+	ProviderDatagio         = "datagio"
+	ProviderKassaAI         = "kassaai"
 	ProviderP2P             = "p2p"
 	ProviderMoyNalog        = "moynalog"
 )
@@ -56,7 +58,7 @@ const (
 var moyNalogPaymentMethods = []string{
 	ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega,
 	ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay,
-	ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments,
+	ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments, ProviderDatagio, ProviderKassaAI,
 	ProviderP2P, "telegram",
 }
 
@@ -378,16 +380,30 @@ var definitions = []ProviderDefinition{
 		},
 	},
 	{
-		ID: "datagio", Name: "Datagio", Description: "Подключение ожидает документацию сервиса", Logo: "/mini-app/assets/payment-datagio.png", Kind: "payment",
-		WebsiteURL: "https://datagio.finance", UnavailableReason: "Документация API по ссылкам на сайте Datagio недоступна. Для подключения нужны описание создания платежа и проверки уведомлений от сервиса.",
+		ID: ProviderDatagio, Name: "Datagio", Description: "СБП и криптовалюта через Datagio", Logo: "/mini-app/assets/payment-datagio.png", Kind: "payment",
+		WebsiteURL: "https://datagio.finance",
+		Fields: []FieldDefinition{
+			{Key: "shopId", Label: "ID магазина", Required: true},
+			{Key: "apiKey", Label: "Публичный API-ключ", Required: true, Secret: true, Placeholder: "pk_live_..."},
+			{Key: "apiSecret", Label: "Секрет API", Required: true, Secret: true, Placeholder: "sk_live_..."},
+			{Key: "webhookSecret", Label: "Секрет вебхука", Required: true, Secret: true, Help: "Задайте тот же секрет и Webhook URL в настройках магазина Datagio"},
+		},
 	},
 	{
 		ID: "paycore", Name: "Paycore", Description: "Подключение ожидает документацию сервиса", Logo: "/mini-app/assets/payment-paycore.png", Kind: "payment",
 		WebsiteURL: "https://paycore.pw", UnavailableReason: "Публичную документацию Paycore найти не удалось. Для подключения нужны описание создания платежа и проверки уведомлений.",
 	},
 	{
-		ID: "kassaai", Name: "Kassa AI", Description: "Подключение ожидает документацию сервиса", Logo: "/mini-app/assets/payment-kassaai.png", Kind: "payment",
-		WebsiteURL: "https://kassa.ai", UnavailableReason: "На сайте Kassa AI нет публичной документации API. Для подключения нужны описание создания платежа и проверки уведомлений от сервиса.",
+		ID: ProviderKassaAI, Name: "Kassa AI", Description: "СБП, карты и SberPay", Logo: "/mini-app/assets/payment-kassaai.png", Kind: "payment",
+		WebsiteURL: "https://kassa.ai",
+		Fields: []FieldDefinition{
+			{Key: "shopId", Label: "ID магазина", Required: true},
+			{Key: "apiKey", Label: "API-ключ", Required: true, Secret: true},
+			{Key: "secretWord2", Label: "Секретное слово №2", Required: true, Secret: true},
+			{Key: "paymentSystemId", Label: "Способ оплаты", Required: true, Placeholder: "44", Help: "44 — СБП, 36 — карты РФ, 43 — SberPay"},
+			{Key: "clientIP", Label: "IP для платежей из бота", Help: "IP, разрешённый в кассе. Mini App передаёт IP покупателя автоматически"},
+			{Key: "email", Label: "Email покупателя", Help: "Если не указан, используется Telegram ID покупателя @telegram.org"},
+		},
 	},
 	{
 		ID: ProviderP2P, Name: "P2P перевод", Description: "Ручная проверка перевода администратором", Logo: "/mini-app/assets/payment-p2p.png", Kind: "payment",
@@ -574,6 +590,22 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 			return ProviderView{}, errors.New("для cisPay укажите способ оплаты CARD или SBP")
 		}
 		rec.Config["paymentMethod"] = method
+	}
+	if provider == ProviderDatagio || provider == ProviderKassaAI {
+		if shopID := strings.TrimSpace(rec.Config["shopId"]); shopID != "" {
+			id, err := strconv.ParseInt(shopID, 10, 64)
+			if err != nil || id <= 0 {
+				return ProviderView{}, errors.New("ID магазина должен быть положительным числом")
+			}
+			rec.Config["shopId"] = strconv.FormatInt(id, 10)
+		}
+		if provider == ProviderKassaAI {
+			method := firstNonEmpty(rec.Config["paymentSystemId"], "44")
+			if method != "44" && method != "36" && method != "43" {
+				return ProviderView{}, errors.New("для Kassa AI укажите 44 (СБП), 36 (карты) или 43 (SberPay)")
+			}
+			rec.Config["paymentSystemId"] = method
+		}
 	}
 	if input.Enabled {
 		for _, field := range definition.Fields {
@@ -980,7 +1012,7 @@ func firstNonEmpty(values ...string) string {
 }
 
 func SortedPaymentProviders() []string {
-	items := []string{ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega, ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay, ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments, ProviderP2P}
+	items := []string{ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega, ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay, ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments, ProviderDatagio, ProviderKassaAI, ProviderP2P}
 	sort.Strings(items)
 	return items
 }

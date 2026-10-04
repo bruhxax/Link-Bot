@@ -3077,7 +3077,7 @@ func (h *Handler) handlePaymentIntegrationWebhook(w http.ResponseWriter, r *http
 		return
 	}
 	form := url.Values{}
-	if provider == integrations.ProviderFreeKassa || provider == integrations.ProviderPally || provider == integrations.ProviderCloudPayments {
+	if provider == integrations.ProviderFreeKassa || provider == integrations.ProviderKassaAI || provider == integrations.ProviderPally || provider == integrations.ProviderCloudPayments {
 		form, err = url.ParseQuery(string(raw))
 		if err != nil {
 			h.writeError(w, http.StatusBadRequest, "invalid_webhook", "Invalid webhook")
@@ -5462,6 +5462,10 @@ func paymentMethodFallbackTitle(invoiceType database.InvoiceType, language strin
 		return "AntiloPay"
 	case database.InvoiceTypeParityPay:
 		return "ParityPay"
+	case database.InvoiceTypeDatagio:
+		return "Datagio"
+	case database.InvoiceTypeKassaAI:
+		return "Kassa AI"
 	case database.InvoiceTypeCloudPayments:
 		return "CloudPayments"
 	case database.InvoiceTypeP2P:
@@ -6575,6 +6579,10 @@ func mapPaymentMethod(method string) (database.InvoiceType, error) {
 		return database.InvoiceTypeTributeShop, nil
 	case "mulenpay":
 		return database.InvoiceTypeMulenPay, nil
+	case "datagio":
+		return database.InvoiceTypeDatagio, nil
+	case "kassaai":
+		return database.InvoiceTypeKassaAI, nil
 	case "cloudpayments":
 		return database.InvoiceTypeCloudPayments, nil
 	case "p2p":

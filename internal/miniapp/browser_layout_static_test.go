@@ -59,9 +59,8 @@ func TestResponsiveCabinetAndAuthenticationSurfaces(t *testing.T) {
 		t.Fatal("wide browser navigation must be rendered in the app shell")
 	}
 
-	if strings.Contains(styles, `:root[data-client="telegram"] #app`) ||
-		strings.Contains(styles, `:root[data-client="telegram"] .modal`) {
-		t.Fatal("browser layout fix must not override the Telegram Mini App")
+	if strings.Contains(styles, `:root[data-client="telegram"] #app`) {
+		t.Fatal("browser width rules must not override the Telegram Mini App")
 	}
 
 	dashboardCoordinatePlane := `#page-dashboard.page.active {

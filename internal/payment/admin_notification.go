@@ -445,6 +445,10 @@ func (s PaymentService) paymentMethodLabel(purchase *database.Purchase) string {
 		return "AntiloPay"
 	case database.InvoiceTypeParityPay:
 		return "ParityPay"
+	case database.InvoiceTypeDatagio:
+		return "Datagio"
+	case database.InvoiceTypeKassaAI:
+		return "Kassa AI"
 	case database.InvoiceTypeCloudPayments:
 		return "CloudPayments"
 	case database.InvoiceTypeP2P:

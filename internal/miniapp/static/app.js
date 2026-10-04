@@ -11,6 +11,8 @@ import { renderSVG as renderQRCodeSVG } from "./uqr.mjs";
 import { defaultSourceCrop, legacySourceCrop, cropMediaGeometry, zoomCrop, resizeCropCorner, resizeBannerProportionally } from "./banner-crop.mjs";
 import { tokenizeSupportMessage } from "./support-message.mjs";
 
+import { syncTelegramLayout } from "./telegram-layout.mjs";
+
 const app = document.getElementById("app");
 const toast = document.getElementById("toast");
 const tg = window.Telegram?.WebApp;
@@ -1145,6 +1147,8 @@ const PAYMENT_LOGO_URLS = Object.freeze({
 	paritypay: "/mini-app/assets/payment-paritypay.png",
 	tribute: "/mini-app/assets/payment-tribute.png",
 	cloudpayments: "/mini-app/assets/payment-cloudpayments.png",
+	datagio: "/mini-app/assets/payment-datagio.png",
+	kassaai: "/mini-app/assets/payment-kassaai.png",
 	p2p: "/mini-app/assets/payment-p2p.png",
 });
 
@@ -3140,10 +3144,11 @@ function initTelegram() {
 	}
   if (!tg) return;
   tg.ready();
-  tg.expand();
   syncAppViewportHeight();
   if (typeof tg.onEvent === "function" && !initTelegram.viewportEventBound) {
-    tg.onEvent("viewportChanged", syncAppViewportHeight);
+    for (const event of ["viewportChanged", "fullscreenChanged", "safeAreaChanged", "contentSafeAreaChanged"]) {
+      tg.onEvent(event, syncAppViewportHeight);
+    }
     initTelegram.viewportEventBound = true;
   }
   if (tg.BackButton && !initTelegram.backButtonBound) {
@@ -3153,12 +3158,8 @@ function initTelegram() {
 }
 
 function syncAppViewportHeight() {
-  const telegramHeight = Number(tg?.viewportHeight || tg?.viewportStableHeight || 0);
-  const fallbackHeight = Number(window.innerHeight || document.documentElement.clientHeight || 0);
-  const nextHeight = telegramHeight > 0 ? telegramHeight : fallbackHeight;
-  if (nextHeight > 0) {
-    document.documentElement.style.setProperty("--app-viewport-height", `${Math.round(nextHeight)}px`);
-  }
+  syncTelegramLayout(document.documentElement, clientSurface === "telegram" ? tg : null,
+    window.innerHeight || document.documentElement.clientHeight || 0);
 }
 
 async function handlePostBootstrapFlow() {
@@ -5064,7 +5065,7 @@ const ADMIN_FINANCE_PROVIDERS = [
 	["platega", "Platega", "platega"], ["freekassa", "FreeKassa", "freekassa"],
 	["heleket", "Heleket", "heleket"], ["pally", "Pally", "pally"],
 	["rollypay", "RollyPay", "rollypay"], ["cispay", "cisPay", "cispay"],
-	["anore", "anore.cc", "anore"], ["mulenpay", "MulenPay", "mulenpay"], ["aurapay", "AuraPay", "aurapay"], ["antilopay", "AntiloPay", "antilopay"], ["paritypay", "ParityPay", "paritypay"], ["cloudpayments", "CloudPayments", "cloudpayments"],
+	["anore", "anore.cc", "anore"], ["mulenpay", "MulenPay", "mulenpay"], ["aurapay", "AuraPay", "aurapay"], ["antilopay", "AntiloPay", "antilopay"], ["paritypay", "ParityPay", "paritypay"], ["cloudpayments", "CloudPayments", "cloudpayments"], ["datagio", "Datagio", "datagio"], ["kassaai", "Kassa AI", "kassaai"],
 	["p2p", "P2P", "p2p"],
 ];
 
@@ -5982,7 +5983,7 @@ const MOYNALOG_PAYMENT_METHODS = [
 	["yookassa", "YooKassa"], ["lava", "LAVA"], ["wata", "WATA"],
 	["platega", "Platega"], ["freekassa", "FreeKassa"], ["cryptopay", "Crypto Pay"],
   ["heleket", "Heleket"], ["pally", "Pally"], ["rollypay", "RollyPay"], ["cispay", "cisPay"],
-  ["anore", "anore.cc"], ["mulenpay", "MulenPay"], ["aurapay", "AuraPay"], ["antilopay", "AntiloPay"], ["paritypay", "ParityPay"], ["cloudpayments", "CloudPayments"], ["p2p", "P2P"],
+  ["anore", "anore.cc"], ["mulenpay", "MulenPay"], ["aurapay", "AuraPay"], ["antilopay", "AntiloPay"], ["paritypay", "ParityPay"], ["cloudpayments", "CloudPayments"], ["datagio", "Datagio"], ["kassaai", "Kassa AI"], ["p2p", "P2P"],
 	["telegram", "Telegram Stars"], ["tribute", "Tribute"],
 ];
 
@@ -9653,7 +9654,7 @@ function paymentHistoryMethodMeta(item, copy) {
   const normalized = `${invoiceType} ${title}`.toLowerCase();
 	if (invoiceType === "free") return { id: "free", label: title || localizedText("Бесплатная активация", "Free activation", "فعال‌سازی رایگان"), logo: "" };
 	if (invoiceType === "balance") return { id: "balance", label: title || localizedText("Баланс", "Balance", "موجودی"), logo: PAYMENT_LOGO_URLS.balance };
-  const providers = ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments"];
+  const providers = ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai"];
   const provider = providers.find((name) => normalized.includes(name));
   if (provider) {
     const meta = paymentMethodMeta(provider);
@@ -16020,7 +16021,7 @@ function restoreSupportThreadScrollState(scrollState) {
 }
 
 function syncToastAnchor() {
-  document.documentElement.style.setProperty("--toast-top", "18px");
+  document.documentElement.style.setProperty("--toast-top", "calc(18px + var(--safe-top))");
 }
 
 function syncNativeBackButton() {
@@ -16619,7 +16620,7 @@ function getAdminPaymentMethods() {
 	if (enabled.has("p2p") && enabled.has("notification_bot")) methods.push("p2p");
 	if (getRuntimeSettings()?.features?.stars !== false) methods.push("stars");
 	if (enabled.has("cryptopay")) methods.push("crypto");
-	for (const id of ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments"]) {
+	for (const id of ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai"]) {
 		if (enabled.has(id)) methods.push(id);
 	}
 	return sortConfiguredPaymentMethods(methods.map((id) => ({ id })));
@@ -16687,6 +16688,8 @@ function paymentMethodMeta(id) {
 		antilopay: { id: "antilopay", label: "AntiloPay", hint: localizedText("Карты и СБП", "Cards and SBP", "کارت و SBP"), logo: PAYMENT_LOGO_URLS.antilopay },
 		paritypay: { id: "paritypay", label: "ParityPay", hint: localizedText("Карты и СБП", "Cards and SBP", "کارت و SBP"), logo: PAYMENT_LOGO_URLS.paritypay },
 		tribute: { id: "tribute", label: "Tribute", hint: localizedText("Оплата через Tribute", "Pay with Tribute", "پرداخت با Tribute"), logo: PAYMENT_LOGO_URLS.tribute },
+		datagio: { id: "datagio", label: "Datagio", hint: localizedText("СБП и криптовалюта", "SBP and cryptocurrency", "SBP و رمزارز"), logo: PAYMENT_LOGO_URLS.datagio },
+		kassaai: { id: "kassaai", label: "Kassa AI", hint: localizedText("СБП, карты и SberPay", "SBP, cards and SberPay", "SBP، کارت و SberPay"), logo: PAYMENT_LOGO_URLS.kassaai },
 		cloudpayments: { id: "cloudpayments", label: "CloudPayments", hint: localizedText("Оплата картой", "Card payment", "پرداخت با کارت"), logo: PAYMENT_LOGO_URLS.cloudpayments },
   };
   return map[id] || null;

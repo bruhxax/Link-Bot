@@ -13,6 +13,12 @@
 | ParityPay | ID кассы, секретный ключ №1, секретный ключ №2 | Адрес передаётся при создании счёта как `callback_url` | [ParityPay v2](https://docs.paritypay.net/) |
 | Tribute | API-ключ, Shop ID при нескольких магазинах | Вставьте Webhook URL в `callbackUrl` своего магазина | [Tribute Shop API](https://wiki.tribute.tg/for-shops/api/methods) |
 | CloudPayments | Public ID и API Secret | Настройте уведомление **Pay**, метод **POST**, формат **CloudPayments**, URL из Link-Bot | [CloudPayments](https://developers.cloudpayments.ru/) |
+| Datagio | ID магазина, публичный API-ключ, секрет API, секрет вебхука | Вставьте Webhook URL и тот же секрет вебхука в настройки магазина | [Datagio Finance](https://wiki.datagio.finance/api/payments-create/) · [Вебхуки](https://wiki.datagio.finance/api/webhooks/) |
+| Kassa AI | ID магазина, API-ключ, секретное слово №2, способ оплаты | Вставьте Webhook URL в кассу; адрес также передаётся как `notification_url` | [API `api.fk.life`](https://docs.freekassa.net/) |
+
+Datagio использует серверные ключи `pk_live_...` и `sk_live_...`, эндпоинт `/merchant/v1/payment-links`. Магазин должен пройти модерацию. Укажите `webhook_secret` в магазине: Link-Bot принимает только подписанные уведомления `payment.succeeded` со статусом `paid`. Сумма проверяется по цене товара `amount`, а не по зачислению после комиссии `merchant_credit`.
+
+Kassa AI использует отдельные реквизиты своей кассы и API `https://api.fk.life/v1/orders/create`: `44` — СБП, `36` — карты РФ, `43` — SberPay. Mini App передаёт IP покупателя; для оплаты непосредственно из Telegram-бота заполните поле «IP для платежей из бота». Email берётся из профиля/настроек или формируется как `TelegramID@telegram.org`. Задайте URL уведомлений в кассе; для переопределения `notification_url`, `success_url` и `failure_url` через API может потребоваться включение этой возможности поддержкой сервиса.
 
 AntiloPay использует два разных ключа: приватный ключ мерчанта для исходящих запросов и публичный ключ проекта для Callback. Вставляйте Base64-значение, выданное кабинетом, без заголовков PEM. Приватный ключ должен быть RSA PKCS8, публичный — RSA SubjectPublicKeyInfo. Email покупателя берётся из подтверждённого Google-профиля или запрашивается в Mini App перед оплатой. IP передаётся из запроса Mini App.
 
@@ -22,7 +28,7 @@ Tribute подключается через **Shop API**, с разовыми з
 
 ## Сервисы, для которых нужна документация
 
-В каталоге присутствуют [Datagio](https://datagio.finance/), [Paycore](https://paycore.pw/) и [Kassa AI](https://kassa.ai/), но включить их нельзя. На момент добавления доступную официальную документацию создания платежей и проверки уведомлений найти не удалось; ссылки Datagio на документацию отвечали 404. Paycore выбран по сайту `paycore.pw`; у других сервисов с таким названием API может отличаться.
+В каталоге присутствует [Paycore](https://paycore.pw/), но включить его пока нельзя: интеграция отложена до получения документации. У других сервисов с таким названием API может отличаться.
 
 Для продолжения нужны документация от поддержки сервиса или доступная ссылка на неё: создание счёта, авторизация, формат уведомления, подпись/проверка статуса и ответ на вебхук. До реализации такие сервисы не показываются покупателю среди способов оплаты.
 

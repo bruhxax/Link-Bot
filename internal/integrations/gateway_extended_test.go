@@ -182,7 +182,7 @@ func TestTributeShopOrder(t *testing.T) {
 
 func TestUnavailableProvidersCannotBeEnabled(t *testing.T) {
 	service := &Service{}
-	for _, provider := range []string{"datagio", "paycore", "kassaai"} {
+	for _, provider := range []string{"paycore"} {
 		if configured(provider, map[string]string{}) {
 			t.Errorf("%s is configured without an implemented API", provider)
 		}
