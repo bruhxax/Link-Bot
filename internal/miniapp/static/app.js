@@ -4359,7 +4359,7 @@ function transitionGlyphLayer(glyph, style, container, entering, direction) {
 	layer.className = "text-roll__glyph";
 	layer.dataset.character = glyph.character;
 	Object.assign(layer.style, {
-		...style, lineHeight: `${container.clientHeight}px`,
+		...style, lineHeight: `${container.clientHeight}px`, webkitTextFillColor: "currentColor",
 		transform: entering ? `translateY(${-direction * 100}%)` : "translateY(0)",
 	});
 	container.appendChild(layer);
@@ -4389,7 +4389,7 @@ function changedTransitionCharacters(oldCharacters, nextCharacters) {
 		} else if (oldIndex < oldCharacters.length && newIndex < nextCharacters.length && costs[oldIndex][newIndex] === 1 + costs[oldIndex + 1][newIndex + 1]) {
 			changes.push({ oldIndex: oldIndex++, newIndex: newIndex++ });
 		} else if (oldIndex < oldCharacters.length && costs[oldIndex][newIndex] === 1 + costs[oldIndex + 1][newIndex]) {
-			changes.push({ oldIndex: oldIndex++, newIndex: null });
+			changes.push({ oldIndex: oldIndex++, newIndex: null, at: newIndex });
 		} else {
 			changes.push({ oldIndex: null, newIndex: newIndex++ });
 		}
@@ -4406,52 +4406,60 @@ function playTextTransition(before, node, delay = 0) {
 	const oldGlyphs = before.glyphs;
 	const nextCharacters = splitTransitionText(value);
 	const changes = changedTransitionCharacters(oldGlyphs.map((glyph) => glyph.character), nextCharacters);
-	const changedIndexes = new Set(changes.map((change) => change.newIndex).filter((index) => index !== null));
+	const changedIndexes = new Map(changes.filter((change) => change.newIndex !== null).map((change) => [change.newIndex, change]));
 	const raw = textNode.textContent;
 	const start = raw.indexOf(value);
 	const masks = new Map();
 	const replacementNodes = [];
 	let unchangedText = raw.slice(0, start);
-	for (let index = 0; index < nextCharacters.length; index++) {
-		if (!changedIndexes.has(index)) {
-			unchangedText += nextCharacters[index];
-			continue;
-		}
+	const addCell = (change, character) => {
 		if (unchangedText) replacementNodes.push(document.createTextNode(unchangedText));
 		unchangedText = "";
 		const mask = document.createElement("i");
+		mask.className = "text-transition-cell";
 		mask.dataset.textTransitionMask = "";
-		mask.textContent = nextCharacters[index];
-		Object.assign(mask.style, { fontStyle: "inherit", color: "transparent", webkitTextFillColor: "transparent", textShadow: "none" });
-		masks.set(index, mask);
+		mask.textContent = character;
+		Object.assign(mask.style, {
+			fontStyle: "inherit", color: "transparent", webkitTextFillColor: "transparent", textShadow: "none",
+			width: `${change.oldIndex === null ? 0 : oldGlyphs[change.oldIndex].rect.width}px`,
+		});
+		masks.set(change, mask);
 		replacementNodes.push(mask);
+	};
+	for (let index = 0; index <= nextCharacters.length; index++) {
+		for (const change of changes) {
+			if (change.newIndex === null && change.at === index) addCell(change, "");
+		}
+		if (index === nextCharacters.length) break;
+		if (changedIndexes.has(index)) addCell(changedIndexes.get(index), nextCharacters[index]);
+		else unchangedText += nextCharacters[index];
 	}
 	unchangedText += raw.slice(start + value.length);
 	if (unchangedText) replacementNodes.push(document.createTextNode(unchangedText));
 	textNode.replaceWith(...replacementNodes);
-	const newGlyphs = new Map([...masks].map(([index, mask]) => [index, transitionGlyphs(mask.firstChild, mask.textContent)[0]]));
+	const newGlyphs = new Map([...masks].map(([change, mask]) => [change, change.newIndex === null ? null : transitionGlyphs(mask.firstChild, mask.textContent)[0]]));
 	const style = transitionTextStyle(node);
-	const oldPosition = node.style.position;
-	if (window.getComputedStyle(node).position === "static") node.style.position = "relative";
 	node.classList.add("text-transition-host");
-	const overlay = document.createElement("span");
-	overlay.className = "text-roll";
-	overlay.setAttribute("aria-hidden", "true");
-	node.appendChild(overlay);
 	const animations = [];
+	const timing = { duration: 500, delay, easing: "cubic-bezier(.4,0,.2,1)", fill: "both" };
 	for (let index = 0; index < changes.length; index++) {
 		const change = changes[index];
+		const cell = masks.get(change);
 		const oldGlyph = change.oldIndex === null ? null : oldGlyphs[change.oldIndex];
-		const newGlyph = newGlyphs.get(change.newIndex);
-		const anchor = newGlyph || oldGlyph;
-		if (!anchor) continue;
-		const origin = newGlyph ? rect : before.rect;
+		const newGlyph = newGlyphs.get(change);
+		const oldWidth = oldGlyph?.rect.width || 0;
+		const newWidth = newGlyph?.rect.width || 0;
+		cell.style.width = `${newWidth}px`;
+		if (oldWidth !== newWidth) animations.push(cell.animate([{ width: `${oldWidth}px` }, { width: `${newWidth}px` }], timing));
+		const overlay = document.createElement("span");
+		overlay.className = "text-roll";
+		overlay.setAttribute("aria-hidden", "true");
+		cell.appendChild(overlay);
 		const slot = document.createElement("span");
 		slot.className = "text-roll__window";
 		Object.assign(slot.style, {
-			left: `${anchor.rect.left - origin.left - node.clientLeft}px`,
-			top: `${anchor.rect.top - origin.top - node.clientTop}px`,
-			width: `${Math.max(oldGlyph?.rect.width || 0, newGlyph?.rect.width || 0)}px`,
+			left: "0", top: `${newGlyph ? newGlyph.rect.top - cell.getBoundingClientRect().top : 0}px`,
+			width: "100%",
 			height: `${Math.max(oldGlyph?.rect.height || 0, newGlyph?.rect.height || 0)}px`,
 		});
 		overlay.appendChild(slot);
@@ -4462,7 +4470,7 @@ function playTextTransition(before, node, delay = 0) {
 			animations.push(layer.animate(entering
 				? [{ transform: `translateY(${-direction * 100}%)` }, { transform: "translateY(0)" }]
 				: [{ transform: "translateY(0)" }, { transform: `translateY(${direction * 100}%)` }],
-				{ duration: 500, delay, easing: "cubic-bezier(.4,0,.2,1)", fill: "both" }));
+				timing));
 		}
 	}
 	const transition = {
@@ -4471,9 +4479,7 @@ function playTextTransition(before, node, delay = 0) {
 			activeTextTransitions.delete(node);
 			runningTextTransitions.delete(transition);
 			animations.forEach((animation) => animation.cancel());
-			overlay.remove();
 			node.classList.remove("text-transition-host");
-			node.style.position = oldPosition;
 			for (const mask of masks.values()) mask.replaceWith(document.createTextNode(mask.textContent));
 			node.normalize();
 		},

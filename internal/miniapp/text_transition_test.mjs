@@ -90,7 +90,9 @@ function harness() {
   const node = new Element("span");
   node.textContent = "Оплатить 199 ₽";
   document.body.appendChild(node);
-  return { context, node, animations, document, reducedMotionMedia,
+  return { context, node, document, reducedMotionMedia,
+    get animations() { return animations.filter(animation => animation.element.className === "text-roll__glyph"); },
+    get widthAnimations() { return animations.filter(animation => animation.element.className === "text-transition-cell"); },
     update: value => context.updateAnimatedText(node, value),
     finish: async () => { animations.forEach(animation => animation.finish()); await new Promise(setImmediate); },
   };
@@ -105,7 +107,7 @@ test("rapid changes keep the newest animation alive when cancelled promises sett
   }
   await new Promise(setImmediate);
   assert.equal(page.node.textContent, "Оплатить 6000 ₽");
-  assert.equal(page.node.children.filter(child => child.className === "text-roll").length, 1);
+  assert.ok(page.node.children.some(child => child.className === "text-transition-cell"));
   assert.equal(page.document.body.children.length, 1, "glyphs stay inside the text, below surrounding navigation");
   await page.finish();
   assert.equal(page.node.textContent, "Оплатить 6000 ₽");
@@ -157,6 +159,34 @@ test("changing a plan word length leaves its unchanged letters and label unanima
   assert.equal(page.node.textContent, "3 месяца · Безлимит");
   await page.finish();
   assert.equal(page.node.textContent, "3 месяца · Безлимит");
+});
+
+test("inserted and removed symbols keep their reels inside cells that resize with the text", async () => {
+  for (const [before, after] of [
+    ["1 месяц · Безлимит", "12 месяцев · Безлимит"],
+    ["12 месяцев · Безлимит", "1 месяц · Безлимит"],
+    ["Оплатить 700 ₽", "Оплатить 6000 ₽"],
+    ["Оплатить 6000 ₽", "Оплатить 700 ₽"],
+  ]) {
+    const page = harness();
+    page.node.textContent = before;
+    page.update(after);
+    assert.equal(page.node.textContent, after);
+    assert.ok(page.widthAnimations.length > 0, "insertion/removal resizes in-flow cells");
+    for (const animation of page.animations) {
+      const slot = animation.element.parentElement;
+      const overlay = slot.parentElement;
+      const cell = overlay.parentElement;
+      assert.equal(cell.className, "text-transition-cell");
+      assert.equal(cell.parentElement, page.node);
+      assert.equal(slot.style.width, "100%", "each reel is clipped to its own cell, never its neighbour");
+      assert.equal(slot.style.left, "0");
+    }
+    assert.ok(page.widthAnimations.some(animation => animation.frames.some(frame => frame.width === "0px")));
+    await page.finish();
+    assert.equal(page.node.textContent, after);
+    assert.equal(page.node.children.length, 0);
+  }
 });
 
 test("repeating the current value and hiding the page leave no stale text or layers", async () => {
