@@ -16723,8 +16723,8 @@ function applyAppearance() {
 		"--grid2-line": colors.grid2Line,
 		"--grid2-glow": colors.grid2Glow,
 		"--blocks-background": colors.blocksBackground || "#0a0a0c",
-		"--blocks-left": colors.blocksLeft || "#161619",
-		"--blocks-right": colors.blocksRight || "#0c0c0e",
+		"--blocks-texture": blocksBackgroundTexture(colors.blocksLeft, colors.blocksRight),
+		"--blocks-preview-texture": blocksBackgroundTexture(colors.blocksLeft, colors.blocksRight, 22),
 		"--morphic-background": colors.morphicBackground || "#000000",
 		"--morphic-ball": colors.morphicBall || "#ff69b4",
 		"--twinkle-background": colors.twinkleBackground || "#000000",
@@ -16734,7 +16734,7 @@ function applyAppearance() {
 		"--background-dimming": String(backgroundDimming / 100),
 		"--background-animation-duration": `${backgroundDuration.toFixed(2)}s`,
 		"--background-texture-duration": `${(backgroundDuration * 3.4).toFixed(2)}s`,
-		"--blocks-duration": `${(backgroundDuration * 7).toFixed(2)}s`,
+		"--blocks-duration": `${(backgroundDuration * 1.6).toFixed(2)}s`,
 	};
 	Object.entries(variables).forEach(([name, value]) => { if (value) document.documentElement.style.setProperty(name, value); });
   document.documentElement.style.setProperty("--accent", accent.accent);
@@ -16844,6 +16844,15 @@ function updateWaveColorFilter(backgroundHex, dotHex) {
 		return [delta * 0.2126, delta * 0.7152, delta * 0.0722, 0, base / 255];
 	});
 	matrix.setAttribute("values", [...rows.flat(), 0, 0, 0, 1, 0].map((value) => Number(value).toFixed(6)).join(" "));
+}
+
+function blocksBackgroundTexture(left, right, step = 72) {
+	const leftColor = `rgb(${hexToRGBComponents(left, [22, 22, 25]).join(",")})`;
+	const rightColor = `rgb(${hexToRGBComponents(right, [12, 12, 14]).join(",")})`;
+	// Rasterize one row once; the compositor only translates the repeated image.
+	// No viewBox: pattern units stay fixed in pixels on every screen width.
+	const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="${step}"><defs><linearGradient id="color"><stop stop-color="${leftColor}"/><stop offset="1" stop-color="${rightColor}"/></linearGradient><pattern id="tiles" x="${-step / 4}" width="${step}" height="${step}" patternUnits="userSpaceOnUse"><rect x="${step * .06}" y="${step * .06}" width="${step * .88}" height="${step * .88}" rx="${step * .22}" fill="white"/></pattern><mask id="shape"><rect width="100%" height="100%" fill="url(#tiles)"/></mask></defs><rect width="100%" height="100%" fill="url(#color)" mask="url(#shape)"/></svg>`;
+	return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 
 function hexToRGBComponents(hex, fallback) {

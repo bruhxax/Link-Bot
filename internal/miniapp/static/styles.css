@@ -2175,11 +2175,9 @@ img { display: block; max-width: 100%; }
 [data-preview-background="blocks"]::before {
   content: "";
   position: absolute;
-  background: linear-gradient(to right, var(--blocks-left, #161619), var(--blocks-right, #0c0c0e));
-  -webkit-mask: url("./assets/blocks-mask.svg") repeat;
-  mask: url("./assets/blocks-mask.svg") repeat;
-  -webkit-mask-size: var(--blocks-step) var(--blocks-step);
-  mask-size: var(--blocks-step) var(--blocks-step);
+  background-image: var(--blocks-texture);
+  background-size: 100% var(--blocks-step);
+  background-repeat: repeat-y;
 }
 .bg-media__blocks::before {
   inset: calc(-1 * var(--blocks-step)) 0 0;
@@ -2191,7 +2189,7 @@ img { display: block; max-width: 100%; }
   to { transform: translate3d(0, var(--blocks-step), 0); }
 }
 [data-preview-background="blocks"] { position: relative; overflow: hidden; background: var(--blocks-background, #0a0a0c); }
-[data-preview-background="blocks"]::before { --blocks-step: 22px; inset: 0; }
+[data-preview-background="blocks"]::before { --blocks-step: 22px; inset: 0; background-image: var(--blocks-preview-texture); }
 :root[data-performance="low"] .bg-media__blocks::before { animation-duration: calc(var(--blocks-duration, 40s) * 1.5); }
 :root[data-page-active="false"] .bg-media__blocks::before { animation-play-state: paused; }
 :root[data-performance="reduced"] .bg-media__blocks::before { animation: none; will-change: auto; }
