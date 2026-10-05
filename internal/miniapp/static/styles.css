@@ -12794,18 +12794,19 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   }
 
   :root[data-layout="wide"] .desktop-sidebar__brand {
-    min-height: 48px;
+    min-height: 64px;
     padding: 0 10px 16px;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 11px;
     border-bottom: 1px solid var(--line);
   }
 
   :root[data-layout="wide"] .desktop-sidebar__brand img {
-    width: 29px;
-    height: 29px;
-    flex: 0 0 29px;
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
     object-fit: contain;
   }
 
@@ -12816,6 +12817,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     font-size: 17px;
     font-weight: 800;
     line-height: 1.2;
+    text-align: center;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
