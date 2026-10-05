@@ -12795,7 +12795,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 
   :root[data-layout="wide"] .desktop-sidebar__brand {
     min-height: 64px;
-    padding: 0 10px 16px;
+    padding: 0 30px 16px 10px;
     display: flex;
     align-items: center;
     justify-content: center;
