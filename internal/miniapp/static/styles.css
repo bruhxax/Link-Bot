@@ -12857,6 +12857,39 @@ body.is-layout-editing .layout-editor-grid { background: none; }
    Compact windows keep the single-column Mini App layout. */
 .desktop-sidebar { display: none; }
 
+.browser-logout {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  border: 1px solid rgba(239, 68, 68, .24);
+  border-radius: 9px;
+  background: rgba(239, 68, 68, .09);
+  color: #ef4444;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color .16s ease;
+}
+.browser-logout:hover { background: rgba(239, 68, 68, .16); }
+.browser-logout:focus-visible { outline: 2px solid #ef4444; outline-offset: 3px; }
+.browser-logout__icon {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+  background: currentColor;
+  mask: url("./assets/door-enter.svg") center / contain no-repeat;
+  -webkit-mask: url("./assets/door-enter.svg") center / contain no-repeat;
+}
+.browser-logout--sidebar { margin-top: auto; }
+.browser-logout--profile { margin-top: 12px; }
+@media (min-width: 760px) { .browser-logout--profile { display: none; } }
+
 @media (min-width: 760px) {
   :root[data-layout="wide"] #app {
     width: 100%;

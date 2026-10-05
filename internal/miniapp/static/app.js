@@ -93,6 +93,10 @@ const STORAGE_KEYS = {
 	notificationRead: "link-bot-notification-read",
 };
 
+const BROWSER_LOGOUT_KEY = "link-bot-browser-logout";
+const browserLogoutStamp = readSetting(BROWSER_LOGOUT_KEY, "");
+let browserLoggingOut = false;
+
 consumeTelegramLoginRedirect();
 
 let telegramLoginScriptPromise = null;
@@ -268,8 +272,36 @@ function clearGoogleAuth() {
 }
 
 function hasAuth() {
+  if (!isBrowserSessionCurrent()) return false;
   return Boolean(hasTelegramAuth() || readGoogleAuth());
 }
+
+function isBrowserSessionCurrent() {
+	return clientSurface !== "browser" || (!browserLoggingOut && readSetting(BROWSER_LOGOUT_KEY, "") === browserLogoutStamp);
+}
+
+function logoutBrowser({ broadcast = true } = {}) {
+	if (clientSurface !== "browser" || browserLoggingOut) return;
+	browserLoggingOut = true;
+	if (broadcast) writeSetting(BROWSER_LOGOUT_KEY, globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`);
+	// Clear both stores independently, including credentials from older versions.
+	for (const key of [STORAGE_KEYS.telegramIDToken, STORAGE_KEYS.telegramLogin, STORAGE_KEYS.googleLogin]) {
+		try { window.localStorage.removeItem(key); } catch { /* storage may be unavailable */ }
+		try { window.sessionStorage.removeItem(key); } catch { /* keep clearing the other store */ }
+	}
+	realtimeAbortController?.abort();
+	stopTelegramQRLogin({ reset: true });
+	try { window.google?.accounts?.id?.disableAutoSelect?.(); } catch { /* optional SDK */ }
+	state.data = null;
+	closeSupportThreadState();
+	writeSetting(STORAGE_KEYS.page, "dashboard");
+	// A new document also drops pending requests, account state and auth URL data.
+	window.location.replace("/mini-app/?cabinet=1");
+}
+
+window.addEventListener("storage", (event) => {
+	if (clientSurface === "browser" && event.key === BROWSER_LOGOUT_KEY && event.newValue !== browserLogoutStamp) logoutBrowser({ broadcast: false });
+});
 
 function isInstallGuideMode() {
   return installGuideMode;
@@ -3776,12 +3808,14 @@ async function post(url, body, extraHeaders = null) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), requestTimeoutForURL(url));
   try {
+    const browserHeaders = tg?.initData ? {} : await getBrowserAuthHeaders();
+    if (!isBrowserSessionCurrent()) throw new Error("Browser session ended");
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-Telegram-Init-Data": tg?.initData || "",
-        ...(tg?.initData ? {} : await getBrowserAuthHeaders()),
+        ...browserHeaders,
         ...(extraHeaders || {}),
       },
       body: JSON.stringify(body || {}),
@@ -3789,6 +3823,7 @@ async function post(url, body, extraHeaders = null) {
     });
     persistBrowserSessionFromResponse(response);
     const payload = await response.json().catch(() => null);
+    if (!isBrowserSessionCurrent()) throw new Error("Browser session ended");
     if (!response.ok || !payload?.ok) {
       const err = new Error(mapApiErrorMessage(payload?.error?.code, payload?.error?.message || "Request failed"));
       err.code = payload?.error?.code || "";
@@ -3811,17 +3846,20 @@ async function postForm(url, body) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), requestTimeoutForURL(url));
   try {
+    const browserHeaders = tg?.initData ? {} : await getBrowserAuthHeaders();
+    if (!isBrowserSessionCurrent()) throw new Error("Browser session ended");
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "X-Telegram-Init-Data": tg?.initData || "",
-        ...(tg?.initData ? {} : await getBrowserAuthHeaders()),
+        ...browserHeaders,
       },
       body,
       signal: controller.signal,
     });
     persistBrowserSessionFromResponse(response);
     const payload = await response.json().catch(() => null);
+    if (!isBrowserSessionCurrent()) throw new Error("Browser session ended");
     if (!response.ok || !payload?.ok) {
       const error = new Error(mapApiErrorMessage(payload?.error?.code, payload?.error?.message || "Request failed"));
       error.code = payload?.error?.code || "";
@@ -4601,7 +4639,13 @@ function renderDesktopSidebar() {
 			${group(localizedText("Аккаунт", "Account", "حساب"), [pageItem("login-methods", "profileKey", localizedText("Способы входа", "Sign-in methods", "روش‌های ورود")), profileItem("web_version", "open-web-version", "profileExternal", localizedText("Веб версия", "Web version", "نسخه وب")), profileItem("pwa_install", "open-install-guide", "profileDownload", localizedText("Рабочий стол", "Home screen", "صفحه اصلی")), pageItem("admin", "grid", copy.pageAdmin)])}
 			${group(localizedText("Дополнительно", "More", "بیشتر"), extraProfileItems)}
 		</nav>
+		${renderBrowserLogoutButton("browser-logout--sidebar")}
 	</aside>`;
+}
+
+function renderBrowserLogoutButton(extraClass = "") {
+	if (clientSurface !== "browser" || state.adminLayoutEditing) return "";
+	return `<button class="browser-logout ${extraClass}" type="button" data-action="browser-logout"><span class="browser-logout__icon" aria-hidden="true"></span><span>${escapeHtml(localizedText("Выйти", "Sign out", "خروج"))}</span></button>`;
 }
 
 function renderPages() {
@@ -8759,6 +8803,7 @@ function renderSettingsPage() {
 					<div class="profile-group__rows">${items.map(renderProfileItem).join("")}${state.adminLayoutEditing && !items.length ? `<div class="profile-group__empty">${state.locale === "en" ? "Drag a button here" : "Перетащите кнопку сюда"}</div>` : ""}</div>
 				</section>
 			`).join("")}
+			${renderBrowserLogoutButton("browser-logout--profile")}
 		</section>
 	`;
 }
@@ -10729,6 +10774,7 @@ function bindRootActions() {
 			if (action === "admin-delete-profile-button") return deleteAdminProfileButton();
 			if (action === "admin-add-legal-section") return addAdminLegalSection();
 			if (action === "admin-remove-legal-section") return removeAdminLegalSection(Number(value));
+      if (action === "browser-logout") return logoutBrowser();
       if (action === "go-home") return setPage("dashboard");
 	  if (action === "profile-language") return setProfileLanguage(value);
 	  if (action === "go-page") return setPage(value);
@@ -17509,6 +17555,7 @@ function persistNavigationState() {
 }
 
 function readSessionSetting(key, fallback) {
+  if ([STORAGE_KEYS.telegramIDToken, STORAGE_KEYS.telegramLogin, STORAGE_KEYS.googleLogin].includes(key) && !isBrowserSessionCurrent()) return fallback;
   try {
     const persistent = window.localStorage.getItem(key);
     if (persistent) return persistent;
@@ -17523,6 +17570,7 @@ function readSessionSetting(key, fallback) {
 }
 
 function writeSessionSetting(key, value) {
+  if ([STORAGE_KEYS.telegramIDToken, STORAGE_KEYS.telegramLogin, STORAGE_KEYS.googleLogin].includes(key) && !isBrowserSessionCurrent()) return;
   try {
     if (value) window.localStorage.setItem(key, value);
     else window.localStorage.removeItem(key);
@@ -17536,6 +17584,7 @@ function writeSessionSetting(key, value) {
 }
 
 function persistBrowserSessionFromResponse(response) {
+  if (!isBrowserSessionCurrent()) return;
   const sessionData = String(response?.headers?.get?.("X-Telegram-Session-Data") || "").trim();
   if (!sessionData) return;
   writeSessionSetting(STORAGE_KEYS.telegramLogin, sessionData);
