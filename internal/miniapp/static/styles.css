@@ -10345,6 +10345,40 @@ body.has-open-modal .admin-save-bar {
   color: currentColor;
 }
 
+.modal--support-chat .modal__backdrop {
+  background: rgba(0, 0, 0, .55);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.modal--support-chat .modal__sheet { will-change: transform; }
+.modal--support-chat.modal--animate .modal__sheet {
+  opacity: 1;
+  transform: translateY(0);
+  animation: supportChatIn .24s cubic-bezier(.22, 1, .36, 1);
+}
+.modal--support-chat.modal--closing .modal__sheet {
+  opacity: 1;
+  animation: supportChatOut .22s ease forwards;
+}
+@keyframes supportChatIn {
+  from { transform: translateY(16px); }
+  to { transform: translateY(0); }
+}
+@keyframes supportChatOut {
+  from { transform: translateY(0); }
+  to { transform: translateY(16px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal--support-chat.modal--animate .modal__sheet,
+  .modal--support-chat.modal--closing .modal__sheet { animation: none; transform: none; }
+}
+.support-thread__loading {
+  margin: auto;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
 .modal__sheet--thread {
   width: min(calc(100vw - 20px), 430px);
   height: min(82dvh, 720px);

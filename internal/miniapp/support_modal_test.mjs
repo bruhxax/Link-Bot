@@ -189,6 +189,20 @@ test("closing and reopening the composer prevents a late create from opening a c
   assert.equal(page.state.supportThreadOpen, false);
 });
 
+test("creating a ticket requires only its message and sends no subject", async () => {
+  const page = harness();
+  page.context.closeSupportThreadState();
+  page.context.openSupportComposer();
+  page.state.supportDraftMessage = "  Не подключается VPN  ";
+  const pending = page.context.submitSupportTicket();
+  assert.equal(page.requests[0].path, "/api/mini-app/support/create");
+  assert.deepEqual(JSON.parse(JSON.stringify(page.requests[0].body)), { message: "Не подключается VPN" });
+  page.requests[0].resolve({ data: thread(3) });
+  await pending;
+  assert.equal(page.state.supportComposeOpen, false);
+  assert.equal(page.state.activeSupportThread.ticket.id, 3);
+});
+
 test("repeated close clicks keep one animation and block background work", async () => {
   const page = harness();
   page.close(); page.close();

@@ -2631,7 +2631,6 @@ const state = {
   activeSupportThread: null,
   supportBusy: "",
   deviceBusyHwid: "",
-  supportDraftSubject: "",
   supportDraftMessage: "",
   supportReplyDraft: "",
   supportPendingMedia: null,
@@ -4292,7 +4291,30 @@ function syncDesktopSidebar(current, next) {
 	});
 }
 
+function updateMountedSupportModal(markup) {
+	if (!["support-compose", "support-thread"].includes(getActiveModalName())) return false;
+	if (app.querySelector(".modal:not(.modal--support-chat)")) return false;
+	const current = app.querySelector(".modal--support-chat[data-support-modal]");
+	if (!current) return false;
+	const template = document.createElement("template");
+	template.innerHTML = markup.trim();
+	const next = template.content.querySelector(".modal--support-chat[data-support-modal]");
+	if (!next || next.dataset.supportModal !== current.dataset.supportModal) return false;
+	const sheet = current.querySelector(".modal__sheet");
+	const nextSheet = next.querySelector(".modal__sheet");
+	if (!sheet || !nextSheet) return false;
+	// Keep the connected sheet and backdrop: loading data must not interrupt
+	// their entrance animation or change the glass compositing layer.
+	const closing = next.classList.contains("modal--closing");
+	current.classList.toggle("modal--closing", closing);
+	if (closing) current.classList.remove("modal--animate");
+	sheet.setAttribute("aria-busy", nextSheet.getAttribute("aria-busy") || "false");
+	sheet.replaceChildren(...nextSheet.childNodes);
+	return true;
+}
+
 function mountCabinetShell(markup) {
+	if (updateMountedSupportModal(markup)) return;
 	const currentShell = app.firstElementChild;
 	if (!isWideCabinet() || !currentShell?.classList.contains("app-shell") || state.adminLayoutEditing || currentShell.classList.contains("app-shell--layout-editor")) {
 		app.innerHTML = markup;
@@ -10340,16 +10362,12 @@ function renderSupportComposerModal() {
   const scopy = supportText();
 	const closeLabel = localizedText("Закрыть", "Close", "بستن");
   return `
-    <div class="modal open ${modalStateClass("support-compose")}">
+    <div class="modal open modal--support-chat ${modalStateClass("support-compose")}" data-support-modal="compose">
       <button class="modal__backdrop" type="button" data-action="close-support-compose" aria-label="${escapeAttribute(closeLabel)}"></button>
       <div class="modal__sheet modal__sheet--support">
         <div class="modal__header support-compose__header">
           <div class="modal__title">${escapeHtml(scopy.createTitle)}</div>
         </div>
-        <label class="support-field">
-          <span class="support-field__label">${escapeHtml(scopy.subject)}</span>
-          <input class="support-field__input" type="text" maxlength="120" placeholder="${escapeAttribute(scopy.subjectPlaceholder)}" value="${escapeAttribute(state.supportDraftSubject)}" data-input="support-subject" autofocus>
-        </label>
         <label class="support-field">
           <span class="support-field__label">${escapeHtml(scopy.message)}</span>
           <textarea class="support-field__textarea" rows="5" maxlength="2000" placeholder="${escapeAttribute(scopy.messagePlaceholder)}" data-input="support-message">${escapeHtml(state.supportDraftMessage)}</textarea>
@@ -10361,24 +10379,13 @@ function renderSupportComposerModal() {
 }
 
 function renderSupportThreadModal() {
-  const thread = state.activeSupportThread;
+  const loading = !state.activeSupportThread;
   const scopy = supportText();
 	const closeLabel = localizedText("Закрыть", "Close", "بستن");
-  if (!thread) {
-    return `
-      <div class="modal open ${modalStateClass("support-thread")}">
-        <button class="modal__backdrop" type="button" data-action="close-support-thread" aria-label="${escapeAttribute(closeLabel)}"></button>
-        <div class="modal__sheet modal__sheet--thread">
-          <div class="modal__header support-thread__header support-thread__header--loading">
-            <div class="modal__title">${escapeHtml(scopy.loadingThread)}</div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  const ticket = thread.ticket || {};
-  const support = state.data.support || {};
+  const support = state.data?.support || {};
+  const listedTicket = [...(support.openTickets || []), ...(support.historyTickets || [])].find((item) => Number(item.id) === Number(state.activeSupportTicketId));
+  const ticket = state.activeSupportThread?.ticket || listedTicket || { id: state.activeSupportTicketId, status: "open" };
+  const thread = state.activeSupportThread || { ticket, messages: [], canReply: ticket.status === "open", canClose: Boolean(support.isAdmin && ticket.status === "open") };
   const title = supportTicketTitle(ticket);
   const metaLines = [];
   if (support.isAdmin) {
@@ -10388,20 +10395,20 @@ function renderSupportThreadModal() {
   }
 
   return `
-    <div class="modal open ${modalStateClass("support-thread")}">
+    <div class="modal open modal--support-chat ${modalStateClass("support-thread")}" data-support-modal="thread-${escapeAttribute(ticket.id)}">
       <button class="modal__backdrop" type="button" data-action="close-support-thread" aria-label="${escapeAttribute(closeLabel)}"></button>
-      <div class="modal__sheet modal__sheet--thread">
+      <div class="modal__sheet modal__sheet--thread" aria-busy="${loading}">
         <div class="modal__header support-thread__header">
           <div class="support-thread__headcopy">
             <div class="modal__title">${escapeHtml(title)}</div>
             ${metaLines.length ? `<div class="support-thread__meta">${metaLines.map((line) => `<span>${escapeHtml(line)}</span>`).join("")}</div>` : ""}
           </div>
           <div class="support-thread__headactions">
-            ${thread.canClose ? `<button class="support-thread__close" type="button" data-action="close-support-ticket" ${state.supportBusy ? "disabled" : ""}>${escapeHtml(scopy.closeTicket)}</button>` : ""}
+            ${thread.canClose ? `<button class="support-thread__close" type="button" data-action="close-support-ticket" ${loading || state.supportBusy ? "disabled" : ""}>${escapeHtml(scopy.closeTicket)}</button>` : ""}
           </div>
         </div>
         <div class="support-thread__messages" id="support-thread-messages">
-          ${(thread.messages || []).map((message) => renderSupportMessage(message)).join("")}
+          ${loading ? `<div class="support-thread__loading" role="status">${escapeHtml(scopy.loadingThread)}</div>` : (thread.messages || []).map((message) => renderSupportMessage(message)).join("")}
         </div>
         <div class="support-ai-thinking" id="support-ai-thinking" role="status" aria-live="polite" ${thread.aiThinking && !support.isAdmin && ticket.status === "open" ? "" : "hidden"}><span class="support-ai-thinking__dots" aria-hidden="true"><i></i><i></i><i></i></span><span>${escapeHtml(localizedText("ИИ думает", "AI is thinking", "هوش مصنوعی در حال فکر کردن است"))}</span></div>
         ${thread.canReply ? `
@@ -10409,11 +10416,11 @@ function renderSupportThreadModal() {
             ${renderSupportPendingMedia()}
             <div class="support-reply__row">
               <label class="support-reply__attach ${state.supportBusy === "send-support-media" ? "is-loading" : ""}" aria-label="${escapeAttribute(scopy.attachMedia)}">
-                <input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" data-input="support-media-file" ${state.supportBusy ? "disabled" : ""}>
+                <input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" data-input="support-media-file" ${loading || state.supportBusy ? "disabled" : ""}>
                 ${icon(state.supportBusy === "send-support-media" ? "refresh" : "paperclip")}
               </label>
-              <textarea class="support-reply__textarea" rows="1" maxlength="2000" placeholder="${escapeAttribute(scopy.replyPlaceholder)}" data-input="support-reply">${escapeHtml(state.supportReplyDraft)}</textarea>
-              <button class="support-reply__send" type="button" data-action="send-support-message" ${state.supportBusy ? "disabled" : ""} aria-label="${escapeAttribute(scopy.send)}">${icon(state.supportBusy ? "refresh" : "mapArrow")}</button>
+              <textarea class="support-reply__textarea" rows="1" maxlength="2000" placeholder="${escapeAttribute(scopy.replyPlaceholder)}" data-input="support-reply" ${loading ? "disabled" : ""}>${escapeHtml(state.supportReplyDraft)}</textarea>
+              <button class="support-reply__send" type="button" data-action="send-support-message" ${loading || state.supportBusy ? "disabled" : ""} aria-label="${escapeAttribute(scopy.send)}">${icon(state.supportBusy ? "refresh" : "mapArrow")}</button>
             </div>
             ${state.supportBusy === "send-support-media" ? `<span class="support-reply__status" role="status">${escapeHtml(scopy.mediaSending)}</span>` : ""}
           </div>
@@ -11650,7 +11657,6 @@ function bindRootActions() {
         return;
       }
 
-      if (inputKey === "support-subject") state.supportDraftSubject = target.value;
       if (inputKey === "support-message") state.supportDraftMessage = target.value;
       if (inputKey === "support-reply") state.supportReplyDraft = target.value;
       if (inputKey === "review-reward-toggle" && state.reviewRewardDraft && !state.reviewRewardSaving) { const field = target.dataset.field; if (field === "promo.enabled") state.reviewRewardDraft.promo.enabled = target.checked; else { state.reviewRewardDraft[field] = target.checked; const valueField = { daysEnabled: "days", trafficEnabled: "trafficGb", balanceEnabled: "balanceRub" }[field]; if (target.checked && !Number(state.reviewRewardDraft[valueField])) state.reviewRewardDraft[valueField] = { days: 2, trafficGb: 20, balanceRub: 100 }[valueField]; } render({ preserveScroll: true }); return; }
@@ -14942,7 +14948,6 @@ function openSupportComposer() {
 function closeSupportComposeState() {
 	supportComposeVersion++;
 	state.supportComposeOpen = false;
-	state.supportDraftSubject = "";
 	state.supportDraftMessage = "";
 }
 
@@ -15131,13 +15136,11 @@ async function submitSupportTicket() {
   render();
   try {
     const response = await post("/api/mini-app/support/create", {
-      subject: state.supportDraftSubject.trim(),
       message: state.supportDraftMessage.trim(),
     });
     if (!finishSupportOperation(operation) || version !== supportComposeVersion || !state.supportComposeOpen || closingModalName === "support-compose") return;
     invalidateSupportThreadRequests();
     state.supportComposeOpen = false;
-    state.supportDraftSubject = "";
     state.supportDraftMessage = "";
     state.activeSupportThread = response.data;
     state.activeSupportTicketId = response.data?.ticket?.id || 0;
