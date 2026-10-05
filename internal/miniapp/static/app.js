@@ -4303,6 +4303,7 @@ document.addEventListener("visibilitychange", () => {
 	pendingLanguageTextTransition = false;
 	cancelAllTextTransitions();
 });
+window.addEventListener("resize", cancelAllTextTransitions, { passive: true });
 
 function splitTransitionText(value) {
 	return textTransitionSegmenter ? [...textTransitionSegmenter.segment(value)].map((part) => part.segment) : Array.from(value);
@@ -4347,23 +4348,23 @@ function captureTextTransitionNode(node, path = null) {
 	const style = window.getComputedStyle(node);
 	if (style.visibility === "hidden" || style.opacity === "0") return null;
 	return {
-		path, value, tag: node.tagName,
+		path, value, tag: node.tagName, identity: `${node.tagName}:${node.id}:${node.className}:${node.dataset.action || ""}`,
+		rect: { left: rect.left, top: rect.top },
 		glyphs: transitionGlyphs(textNode, value),
 		style: transitionTextStyle(node),
 	};
 }
 
-function transitionGlyphLayer(glyph, style) {
+function transitionGlyphLayer(glyph, style, container, entering, direction) {
 	if (!glyph?.character.trim() || glyph.rect.width < 1 || glyph.rect.height < 1) return null;
 	const layer = document.createElement("span");
-	layer.textContent = glyph.character;
-	layer.setAttribute("aria-hidden", "true");
+	layer.className = "text-roll__glyph";
+	layer.dataset.character = glyph.character;
 	Object.assign(layer.style, {
-		position: "fixed", pointerEvents: "none", zIndex: "9999",
-		left: `${glyph.rect.left}px`, top: `${glyph.rect.top}px`,
-		whiteSpace: "pre", ...style,
+		...style, lineHeight: `${container.clientHeight}px`,
+		transform: entering ? `translateY(${-direction * 100}%)` : "translateY(0)",
 	});
-	document.body.appendChild(layer);
+	container.appendChild(layer);
 	return layer;
 }
 
@@ -4390,55 +4391,56 @@ function playTextTransition(before, node, delay = 0) {
 	textNode.replaceWith(document.createTextNode(raw.slice(0, start) + nextCharacters.slice(0, prefix).join("")), mask, document.createTextNode(nextCharacters.slice(nextCharacters.length - suffix).join("") + raw.slice(start + value.length)));
 	const newGlyphs = changedCharacters ? transitionGlyphs(mask.firstChild, changedCharacters) : [];
 	const style = transitionTextStyle(node);
-	const layers = [];
-	const outgoingLayers = [];
-	const incomingLayers = [];
+	const oldPosition = node.style.position;
+	if (window.getComputedStyle(node).position === "static") node.style.position = "relative";
+	node.classList.add("text-transition-host");
+	const overlay = document.createElement("span");
+	overlay.className = "text-roll";
+	overlay.setAttribute("aria-hidden", "true");
+	node.appendChild(overlay);
 	const animations = [];
-	const finishingAnimations = [];
-	const animateGlyph = (glyph, entering, index, glyphStyle) => {
-		const layer = transitionGlyphLayer(glyph, glyphStyle);
-		if (!layer) return;
-		layers.push(layer);
-		(entering ? incomingLayers : outgoingLayers).push(layer);
+	const changedOldGlyphs = oldGlyphs.slice(prefix, oldGlyphs.length - suffix);
+	for (let index = 0; index < Math.max(changedOldGlyphs.length, newGlyphs.length); index++) {
+		const oldGlyph = changedOldGlyphs[index];
+		const newGlyph = newGlyphs[index];
+		const anchor = newGlyph || oldGlyph;
+		if (!anchor) continue;
+		const origin = newGlyph ? rect : before.rect;
+		const slot = document.createElement("span");
+		slot.className = "text-roll__window";
+		Object.assign(slot.style, {
+			left: `${anchor.rect.left - origin.left - node.clientLeft}px`,
+			top: `${anchor.rect.top - origin.top - node.clientTop}px`,
+			width: `${Math.max(oldGlyph?.rect.width || 0, newGlyph?.rect.width || 0)}px`,
+			height: `${Math.max(oldGlyph?.rect.height || 0, newGlyph?.rect.height || 0)}px`,
+		});
+		overlay.appendChild(slot);
 		const direction = index % 2 === 0 ? -1 : 1;
-		animations.push(layer.animate(entering
-			? [{ transform: `translateY(${-direction * 0.55}em)`, opacity: 0 }, { transform: "translateY(0)", opacity: 1 }]
-			: [{ transform: "translateY(0)", opacity: 1 }, { transform: `translateY(${direction * 0.55}em)`, opacity: 0 }],
-			{ duration: entering ? 260 : 180, delay: delay + Math.min(index * 7, 98) + (entering ? 120 : 0), easing: entering ? "cubic-bezier(.22,1,.36,1)" : "cubic-bezier(.4,0,1,1)", fill: "both" }));
-	};
-	oldGlyphs.slice(prefix, oldGlyphs.length - suffix).forEach((glyph, index) => animateGlyph(glyph, false, index, before.style));
-	newGlyphs.forEach((glyph, index) => animateGlyph(glyph, true, index, style));
+		for (const [glyph, entering, glyphStyle] of [[oldGlyph, false, before.style], [newGlyph, true, style]]) {
+			const layer = transitionGlyphLayer(glyph, glyphStyle, slot, entering, direction);
+			if (!layer) continue;
+			animations.push(layer.animate(entering
+				? [{ transform: `translateY(${-direction * 100}%)` }, { transform: "translateY(0)" }]
+				: [{ transform: "translateY(0)" }, { transform: `translateY(${direction * 100}%)` }],
+				{ duration: 280, delay, easing: "cubic-bezier(.22,1,.36,1)", fill: "both" }));
+		}
+	}
 	const transition = {
 		cleanup() {
 			if (activeTextTransitions.get(node) !== transition) return;
 			activeTextTransitions.delete(node);
 			runningTextTransitions.delete(transition);
-			[...animations, ...finishingAnimations].forEach((animation) => animation.cancel());
-			layers.forEach((layer) => layer.remove());
+			animations.forEach((animation) => animation.cancel());
+			overlay.remove();
+			node.classList.remove("text-transition-host");
+			node.style.position = oldPosition;
 			mask.replaceWith(document.createTextNode(changedCharacters));
 			node.normalize();
-		},
-		reveal() {
-			if (activeTextTransitions.get(node) !== transition) return;
-			outgoingLayers.forEach((layer) => layer.remove());
-			mask.style.color = "inherit";
-			mask.style.webkitTextFillColor = "currentColor";
-			mask.style.textShadow = "";
-			mask.style.opacity = "0";
-			finishingAnimations.push(mask.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 110, easing: "ease-out", fill: "both" }));
-			incomingLayers.forEach((layer) => finishingAnimations.push(layer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 110, easing: "ease-out", fill: "both" })));
-			Promise.allSettled(finishingAnimations.map((animation) => animation.finished)).then(() => {
-				if (activeTextTransitions.get(node) !== transition) return;
-				mask.style.opacity = "";
-				[...animations, ...finishingAnimations].forEach((animation) => animation.cancel());
-				layers.forEach((layer) => layer.remove());
-				runningTextTransitions.delete(transition);
-			});
 		},
 	};
 	activeTextTransitions.set(node, transition);
 	runningTextTransitions.add(transition);
-	if (animations.length) Promise.allSettled(animations.map((animation) => animation.finished)).then(() => transition.reveal());
+	if (animations.length) Promise.allSettled(animations.map((animation) => animation.finished)).then(() => transition.cleanup());
 	else transition.cleanup();
 }
 
@@ -4455,35 +4457,34 @@ function nodeAtTextPath(root, path) {
 }
 
 function captureRenderTextTransitions(language) {
-	const roots = language ? [".page.active", ".desktop-sidebar", ".bottom-nav"] : [".page.active"];
+	const roots = [".page.active", ".desktop-sidebar", ".bottom-nav"];
 	return roots.flatMap((selector) => {
 		const root = app.querySelector(selector);
 		if (!root) return [];
-		if (language) root.querySelectorAll("[data-text-transition-mask]").forEach((mask) => activeTextTransitions.get(mask.parentElement)?.cleanup());
-		const candidates = language
-			? root.querySelectorAll("button, div, h1, h2, h3, label, p, small, span, strong")
-			: root.querySelectorAll("[data-price-transition]");
-		return [...candidates].filter((node) => !language || node.childElementCount === 0 || node.matches(".profile-group__title"))
-			.map((node) => ({ selector, rootID: root.id, priceKey: language ? "" : (node.dataset.giftPlanPrice || "checkout"), ...captureTextTransitionNode(node, textNodePath(node, root)) }))
+		root.querySelectorAll("[data-text-transition-mask]").forEach((mask) => activeTextTransitions.get(mask.parentElement)?.cleanup());
+		const candidates = root.querySelectorAll("button, div, h1, h2, h3, label, p, small, span, strong");
+		return [...candidates].filter((node) => (node.childElementCount === 0 || node.matches(".profile-group__title")) && !node.closest(".support-message, [contenteditable]"))
+			.map((node) => ({ selector, rootID: root.id, transitionKey: node.dataset.giftPlanPrice || node.dataset.textTransition || (node.hasAttribute("data-price-transition") ? "checkout-price" : ""), ...captureTextTransitionNode(node, textNodePath(node, root)) }))
 			.filter((item) => item.path);
 	});
 }
 
 function playRenderTextTransitions(snapshots, language) {
-	let count = 0;
 	for (const snapshot of snapshots) {
 		const root = app.querySelector(snapshot.selector);
 		if (!root || root.id !== snapshot.rootID) continue;
-		const node = language
-			? nodeAtTextPath(root, snapshot.path)
-			: [...root.querySelectorAll("[data-price-transition]")].find((item) => (item.dataset.giftPlanPrice || "checkout") === snapshot.priceKey);
-		if (!(node instanceof HTMLElement) || node.tagName !== snapshot.tag || (language && node.childElementCount !== 0 && !node.matches(".profile-group__title"))) continue;
-		playTextTransition(snapshot, node, language ? Math.min(count++ * 6, 90) : 0);
+		const node = snapshot.transitionKey
+			? [...root.querySelectorAll("[data-price-transition], [data-text-transition]")].find((item) => (item.dataset.giftPlanPrice || item.dataset.textTransition || "checkout-price") === snapshot.transitionKey)
+			: nodeAtTextPath(root, snapshot.path);
+		if (!(node instanceof HTMLElement) || node.tagName !== snapshot.tag || `${node.tagName}:${node.id}:${node.className}:${node.dataset.action || ""}` !== snapshot.identity || (node.childElementCount !== 0 && !node.matches(".profile-group__title"))) continue;
+		playTextTransition(snapshot, node);
 	}
 }
 
 function updateAnimatedText(node, value) {
-	if (!node || node.textContent === value) return;
+	if (!node) return;
+	activeTextTransitions.get(node)?.cleanup();
+	if (node.textContent === value) return;
 	const before = captureTextTransitionNode(node);
 	node.textContent = value;
 	playTextTransition(before, node);
@@ -8226,7 +8227,7 @@ function renderBuyPage() {
 	: method?.hint || copy.noPaymentMethodsHint;
   const checkoutDisabled = !plan || (!freeCheckout && !method) || state.busyMethod || state.adminPlanEditing;
   const checkout = `<div class="card card--checkout">
-		<div class="summary-row checkout-summary"><div><div class="summary-row__title">${copy.selectedPlan}</div><div class="summary-row__value">${plan ? getPlanDisplayTitle(plan, state.locale) : "—"}</div></div>${plan?.recommended ? `<span class="badge badge--inline">${copy.best}</span>` : plan?.savingsPercent ? `<span class="badge badge--inline">${copy.savings(plan.savingsPercent)}</span>` : ""}</div>
+		<div class="summary-row checkout-summary"><div><div class="summary-row__title">${copy.selectedPlan}</div><div class="summary-row__value" data-text-transition="checkout-plan">${plan ? getPlanDisplayTitle(plan, state.locale) : "—"}</div></div>${plan?.recommended ? `<span class="badge badge--inline">${copy.best}</span>` : plan?.savingsPercent ? `<span class="badge badge--inline">${copy.savings(plan.savingsPercent)}</span>` : ""}</div>
 		${devicePack ? `<div class="summary-row checkout-summary"><div><div class="summary-row__title">${localizedText("Устройства", "Devices", "دستگاه‌ها")}</div><div class="summary-row__value">${escapeHtml(devicePackTitle(devicePack.devices))}</div></div></div>` : ""}
 		${trafficPack ? `<div class="summary-row checkout-summary"><div><div class="summary-row__title">${localizedText("Трафик", "Traffic", "ترافیک")}</div><div class="summary-row__value">${escapeHtml(trafficPackTitle(trafficPack.trafficGb))}</div></div></div>` : ""}
         <div class="payment-stack">
@@ -8246,8 +8247,6 @@ function renderBuyPage() {
 	return `<section class="page ${state.adminPlanEditing ? "page-buy--admin-editor" : ""} ${pageClass("buy")}" id="page-buy">${devicePackTrigger}${trafficPackTrigger}${planList}${displayedPlans.length ? checkout : ""}</section>`;
 }
 
-let lastPlanSelectionAt = 0;
-
 function syncSelectedPlanUI() {
 	const page = app.querySelector("#page-buy.active");
 	const currentCheckout = page?.querySelector(".card--checkout");
@@ -8264,9 +8263,10 @@ function syncSelectedPlanUI() {
 	const currentAction = currentCheckout.querySelector(".buy-action");
 	const nextAction = nextCheckout.querySelector(".buy-action");
 	const nextLabel = nextAction?.querySelector("[data-price-transition]")?.textContent;
-	const now = performance.now();
-	const animatePrice = now - lastPlanSelectionAt > 450;
-	lastPlanSelectionAt = now;
+	const currentTitle = currentCheckout.querySelector('[data-text-transition="checkout-plan"]');
+	const nextTitle = nextCheckout.querySelector('[data-text-transition="checkout-plan"]');
+	const nextTitleText = nextTitle?.textContent;
+	if (currentTitle && nextTitle) nextTitle.replaceWith(currentTitle);
 	if (currentAction && nextAction) {
 		currentAction.disabled = nextAction.disabled;
 		currentAction.setAttribute("aria-disabled", String(nextAction.disabled));
@@ -8274,13 +8274,8 @@ function syncSelectedPlanUI() {
 	}
 	currentCheckout.replaceWith(nextCheckout);
 	const label = currentAction?.querySelector("[data-price-transition]");
-	if (label && nextLabel != null) {
-		if (animatePrice) updateAnimatedText(label, nextLabel);
-		else {
-			activeTextTransitions.get(label)?.cleanup();
-			label.textContent = nextLabel;
-		}
-	}
+	if (label && nextLabel != null) updateAnimatedText(label, nextLabel);
+	if (currentTitle && nextTitleText != null) updateAnimatedText(currentTitle, nextTitleText);
 	return true;
 }
 

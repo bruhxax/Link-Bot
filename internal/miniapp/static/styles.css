@@ -13756,3 +13756,25 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 :root .gift-plan-row.is-selected {
   border: 1px solid var(--accent) !important;
 }
+
+/* Text reels belong to their label, so scrolling and the navigation dock keep
+   the same stacking order throughout the transition. Each cell clips its row. */
+[data-price-transition] { display: inline-block; }
+.text-transition-host { isolation: isolate; }
+.text-roll {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+.text-roll__window {
+  position: absolute;
+  overflow: hidden;
+}
+.text-roll__glyph {
+  position: absolute;
+  inset: 0;
+  white-space: pre;
+}
+.text-roll__glyph::before { content: attr(data-character); }
