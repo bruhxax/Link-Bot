@@ -4397,7 +4397,69 @@ function changedTransitionCharacters(oldCharacters, nextCharacters) {
 	return changes;
 }
 
-function playTextTransition(before, node, delay = 0) {
+function playLanguageTextTransition(before, node, textNode, value, changes, delay) {
+	const style = transitionTextStyle(node);
+	// Show the new language immediately if its font is still loading; measuring
+	// a fallback font would leave reels at outdated positions after the swap.
+	if (document.fonts?.check && !document.fonts.check(style.font, value)) return;
+	const raw = textNode.textContent;
+	// Preserve native shaping/kerning for the whole translated label. Splitting
+	// it into inline cells would change its width until the cells are removed.
+	const run = document.createElement("i");
+	run.className = "text-transition-run";
+	run.dataset.textTransitionMask = "";
+	run.textContent = raw;
+	Object.assign(run.style, { display: "inline-block", position: "relative", color: "transparent", webkitTextFillColor: "transparent", textShadow: "none" });
+	textNode.replaceWith(run);
+	const glyphs = transitionGlyphs(run.firstChild, value);
+	const rect = run.getBoundingClientRect();
+	const changedIndexes = new Map(changes.filter((change) => change.newIndex !== null).map((change) => [change.newIndex, change]));
+	const overlay = document.createElement("span");
+	overlay.className = "text-roll";
+	overlay.setAttribute("aria-hidden", "true");
+	run.appendChild(overlay);
+	node.classList.add("text-transition-host");
+	const animations = [];
+	const timing = { duration: 500, delay, easing: "cubic-bezier(.4,0,.2,1)", fill: "both" };
+	for (let index = 0; index < glyphs.length; index++) {
+		const glyph = glyphs[index];
+		const change = changedIndexes.get(index);
+		const oldGlyph = change?.oldIndex != null ? before.glyphs[change.oldIndex] : null;
+		const slot = document.createElement("span");
+		slot.className = "text-roll__window";
+		Object.assign(slot.style, { left: `${glyph.rect.left - rect.left}px`, top: `${glyph.rect.top - rect.top}px`, width: `${glyph.rect.width}px`, height: `${glyph.rect.height}px` });
+		overlay.appendChild(slot);
+		const direction = index % 2 === 0 ? -1 : 1;
+		if (!change) {
+			transitionGlyphLayer(glyph, style, slot, false, direction);
+			continue;
+		}
+		for (const [character, entering, characterStyle] of [[oldGlyph, false, before.style], [glyph, true, style]]) {
+			const layer = transitionGlyphLayer(character, characterStyle, slot, entering, direction);
+			if (!layer) continue;
+			animations.push(layer.animate(entering
+				? [{ transform: `translateY(${-direction * 100}%)` }, { transform: "translateY(0)" }]
+				: [{ transform: "translateY(0)" }, { transform: `translateY(${direction * 100}%)` }], timing));
+		}
+	}
+	const transition = {
+		cleanup() {
+			if (activeTextTransitions.get(node) !== transition) return;
+			activeTextTransitions.delete(node);
+			runningTextTransitions.delete(transition);
+			animations.forEach((animation) => animation.cancel());
+			node.classList.remove("text-transition-host");
+			run.replaceWith(document.createTextNode(raw));
+			node.normalize();
+		},
+	};
+	activeTextTransitions.set(node, transition);
+	runningTextTransitions.add(transition);
+	if (animations.length) Promise.allSettled(animations.map((animation) => animation.finished)).then(() => transition.cleanup());
+	else transition.cleanup();
+}
+
+function playTextTransition(before, node, delay = 0, { fixedLayout = false } = {}) {
 	if (!before || !(node instanceof HTMLElement) || before.value === node.textContent?.trim() || reducedMotionMedia?.matches || typeof node.animate !== "function") return;
 	const rect = node.getBoundingClientRect();
 	const textNode = transitionTextNode(node);
@@ -4405,7 +4467,9 @@ function playTextTransition(before, node, delay = 0) {
 	if (!value || value !== node.textContent.trim() || rect.width < 2 || rect.height < 2 || rect.bottom < 0 || rect.top > window.innerHeight) return;
 	const oldGlyphs = before.glyphs;
 	const nextCharacters = splitTransitionText(value);
+	const targetGlyphs = transitionGlyphs(textNode, value);
 	const changes = changedTransitionCharacters(oldGlyphs.map((glyph) => glyph.character), nextCharacters);
+	if (fixedLayout) return playLanguageTextTransition(before, node, textNode, value, changes, delay);
 	const changedIndexes = new Map(changes.filter((change) => change.newIndex !== null).map((change) => [change.newIndex, change]));
 	const raw = textNode.textContent;
 	const start = raw.indexOf(value);
@@ -4436,8 +4500,16 @@ function playTextTransition(before, node, delay = 0) {
 	}
 	unchangedText += raw.slice(start + value.length);
 	if (unchangedText) replacementNodes.push(document.createTextNode(unchangedText));
-	textNode.replaceWith(...replacementNodes);
-	const newGlyphs = new Map([...masks].map(([change, mask]) => [change, change.newIndex === null ? null : transitionGlyphs(mask.firstChild, mask.textContent)[0]]));
+	// Keep the text as one layout item: flex/grid gaps must not separate letters.
+	const run = document.createElement("i");
+	run.className = "text-transition-run";
+	for (const child of replacementNodes) run.appendChild(child);
+	textNode.replaceWith(run);
+	const newGlyphs = new Map([...masks].map(([change, mask]) => {
+		const glyph = change.newIndex === null ? null : transitionGlyphs(mask.firstChild, mask.textContent)[0];
+		if (glyph) glyph.rect.width = targetGlyphs[change.newIndex].rect.width;
+		return [change, glyph];
+	}));
 	const style = transitionTextStyle(node);
 	node.classList.add("text-transition-host");
 	const animations = [];
@@ -4481,6 +4553,7 @@ function playTextTransition(before, node, delay = 0) {
 			animations.forEach((animation) => animation.cancel());
 			node.classList.remove("text-transition-host");
 			for (const mask of masks.values()) mask.replaceWith(document.createTextNode(mask.textContent));
+			run.replaceWith(...run.childNodes);
 			node.normalize();
 		},
 	};
@@ -4507,7 +4580,7 @@ function captureRenderTextTransitions() {
 	return roots.flatMap((selector) => {
 		const root = app.querySelector(selector);
 		if (!root) return [];
-		root.querySelectorAll("[data-text-transition-mask]").forEach((mask) => activeTextTransitions.get(mask.parentElement)?.cleanup());
+		root.querySelectorAll("[data-text-transition-mask]").forEach((mask) => activeTextTransitions.get(mask.closest(".text-transition-host"))?.cleanup());
 		const candidates = root.querySelectorAll("button, div, h1, h2, h3, label, p, small, span, strong");
 		return [...candidates].filter((node) => (node.childElementCount === 0 || node.matches(".profile-group__title")) && !node.closest(".support-message, [contenteditable]"))
 			.map((node) => ({ selector, rootID: root.id, transitionKey: node.dataset.giftPlanPrice || node.dataset.textTransition || (node.hasAttribute("data-price-transition") ? "checkout-price" : ""), ...captureTextTransitionNode(node, textNodePath(node, root)) }))
@@ -4515,7 +4588,7 @@ function captureRenderTextTransitions() {
 	});
 }
 
-function playRenderTextTransitions(snapshots) {
+function playRenderTextTransitions(snapshots, textTransitionMode = "content") {
 	for (const snapshot of snapshots) {
 		const root = app.querySelector(snapshot.selector);
 		if (!root || root.id !== snapshot.rootID) continue;
@@ -4523,7 +4596,7 @@ function playRenderTextTransitions(snapshots) {
 			? [...root.querySelectorAll("[data-price-transition], [data-text-transition]")].find((item) => (item.dataset.giftPlanPrice || item.dataset.textTransition || "checkout-price") === snapshot.transitionKey)
 			: nodeAtTextPath(root, snapshot.path);
 		if (!(node instanceof HTMLElement) || node.tagName !== snapshot.tag || `${node.tagName}:${node.id}:${node.className}:${node.dataset.action || ""}` !== snapshot.identity || (node.childElementCount !== 0 && !node.matches(".profile-group__title"))) continue;
-		playTextTransition(snapshot, node);
+		playTextTransition(snapshot, node, 0, { fixedLayout: textTransitionMode === "language" });
 	}
 }
 
@@ -4536,7 +4609,7 @@ function updateAnimatedText(node, value) {
 	playTextTransition(before, node);
 }
 
-function render({ preserveScroll = true, scrollTop = null, preserveInteraction = false } = {}) {
+function render({ preserveScroll = true, scrollTop = null, preserveInteraction = false, textTransitionMode = "content" } = {}) {
 	const transitionGeneration = ++textTransitionRenderGeneration;
 	cancelAllTextTransitions();
 	const textTransitions = state.data && !document.hidden ? captureRenderTextTransitions() : [];
@@ -4662,7 +4735,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
   restoreScrollPosition(nextScrollTop);
 	mountRuntimeLayout();
 	if (textTransitions.length) requestAnimationFrame(() => {
-		if (transitionGeneration === textTransitionRenderGeneration && !document.hidden) playRenderTextTransitions(textTransitions);
+		if (transitionGeneration === textTransitionRenderGeneration && !document.hidden) playRenderTextTransitions(textTransitions, textTransitionMode);
 	});
 	mountBannerMedia();
   syncBottomNavIndicator();
@@ -9002,7 +9075,7 @@ function setProfileLanguage(language) {
 	state.locale = language;
 	haptic("light");
 	syncLocalizationFromSettings();
-	render({ preserveScroll: true });
+	render({ preserveScroll: true, textTransitionMode: "language" });
 }
 
 function getProfileItems() {

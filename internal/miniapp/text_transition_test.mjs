@@ -107,7 +107,8 @@ test("rapid changes keep the newest animation alive when cancelled promises sett
   }
   await new Promise(setImmediate);
   assert.equal(page.node.textContent, "Оплатить 6000 ₽");
-  assert.ok(page.node.children.some(child => child.className === "text-transition-cell"));
+  assert.equal(page.node.children.length, 1);
+  assert.equal(page.node.children[0].className, "text-transition-run");
   assert.equal(page.document.body.children.length, 1, "glyphs stay inside the text, below surrounding navigation");
   await page.finish();
   assert.equal(page.node.textContent, "Оплатить 6000 ₽");
@@ -178,7 +179,8 @@ test("inserted and removed symbols keep their reels inside cells that resize wit
       const overlay = slot.parentElement;
       const cell = overlay.parentElement;
       assert.equal(cell.className, "text-transition-cell");
-      assert.equal(cell.parentElement, page.node);
+      assert.equal(cell.parentElement.className, "text-transition-run");
+      assert.equal(cell.parentElement.parentElement, page.node);
       assert.equal(slot.style.width, "100%", "each reel is clipped to its own cell, never its neighbour");
       assert.equal(slot.style.left, "0");
     }
@@ -187,6 +189,54 @@ test("inserted and removed symbols keep their reels inside cells that resize wit
     assert.equal(page.node.textContent, after);
     assert.equal(page.node.children.length, 0);
   }
+});
+
+test("language reels use the target widths and one layout item, without horizontal resizing", async () => {
+  for (const [before, after] of [
+    ["Покупки и бонусы", "Purchases and bonuses"],
+    ["Interface language", "Язык интерфейса"],
+    ["Реферальная система", "Referral system"],
+  ]) {
+    const page = harness();
+    page.node.textContent = before;
+    const snapshot = page.context.captureTextTransitionNode(page.node);
+    page.node.textContent = after;
+    page.context.playTextTransition(snapshot, page.node, 0, { fixedLayout: true });
+    assert.equal(page.widthAnimations.length, 0, "changing fonts/languages must not expand then collapse letters");
+    assert.equal(page.node.children.length, 1, "flex/grid gets one text item rather than one per glyph");
+    assert.equal(page.node.textContent, after);
+    assert.ok(page.animations.length > 0, "language still rolls immediately");
+    await page.finish();
+    assert.equal(page.node.textContent, after);
+    assert.equal(page.node.children.length, 0);
+  }
+});
+
+test("an unloaded language font shows native text immediately instead of using stale glyph positions", () => {
+  const page = harness();
+  page.document.fonts = { check: () => false };
+  const snapshot = page.context.captureTextTransitionNode(page.node);
+  page.node.textContent = "Interface language";
+  page.context.playTextTransition(snapshot, page.node, 0, { fixedLayout: true });
+  assert.equal(page.node.textContent, "Interface language");
+  assert.equal(page.animations.length, 0);
+  assert.equal(page.node.children.length, 0);
+});
+
+test("rapid language switches keep the latest native text when old reels finish", async () => {
+  const page = harness();
+  page.node.textContent = "Язык интерфейса";
+  for (const value of ["Interface language", "Язык интерфейса", "Interface language"]) {
+    const snapshot = page.context.captureTextTransitionNode(page.node);
+    page.node.textContent = value;
+    page.context.playTextTransition(snapshot, page.node, 0, { fixedLayout: true });
+  }
+  await new Promise(setImmediate);
+  assert.equal(page.node.textContent, "Interface language");
+  assert.equal(page.node.children.length, 1);
+  await page.finish();
+  assert.equal(page.node.textContent, "Interface language");
+  assert.equal(page.node.children.length, 0);
 });
 
 test("repeating the current value and hiding the page leave no stale text or layers", async () => {
@@ -261,11 +311,12 @@ test("language changes render immediately and persist the latest selection witho
   const stored = new Map();
   const state = { data: { user: { id: 7 } }, locale: "ru" };
   const renders = [];
+  const renderOptions = [];
   const context = vm.createContext({
     state, STORAGE_KEYS: { languageOverride: "locale" },
     getRuntimeSettings: () => ({ localization: { language: "ru" } }),
     pickLocale: value => value, haptic() {}, syncLocalizationFromSettings() {},
-    render: () => renders.push(state.locale),
+    render: options => { renders.push(state.locale); renderOptions.push(options); },
     window: { localStorage: {
       setItem: (key, value) => stored.set(key, value), removeItem: key => stored.delete(key),
     } },
@@ -274,9 +325,11 @@ test("language changes render immediately and persist the latest selection witho
   context.setProfileLanguage("en");
   assert.deepEqual(renders, ["en"]);
   assert.equal(stored.get("locale:7"), "en");
+  assert.equal(renderOptions[0].textTransitionMode, "language");
   context.setProfileLanguage("ru");
   assert.deepEqual(renders, ["en", "ru"]);
   assert.equal(stored.has("locale:7"), false);
+  assert.equal(renderOptions[1].textTransitionMode, "language");
   context.setProfileLanguage("invalid");
   assert.deepEqual(renders, ["en", "ru"]);
 });

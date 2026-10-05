@@ -13761,6 +13761,10 @@ body.is-layout-editing .layout-editor-grid { background: none; }
    the same stacking order throughout the transition. Each cell clips its row. */
 [data-price-transition] { display: inline-block; }
 .text-transition-host { isolation: isolate; }
+.text-transition-run {
+  font-style: inherit;
+  white-space: inherit;
+}
 .text-transition-cell {
   position: relative;
   display: inline-block;
