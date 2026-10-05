@@ -2166,7 +2166,7 @@ img { display: block; max-width: 100%; }
 }
 
 .bg-media__blocks {
-  --blocks-step: clamp(80px, 20vw, 240px);
+  --blocks-step: 72px;
   background: var(--blocks-background, #0a0a0c);
   overflow: hidden;
   contain: paint;
