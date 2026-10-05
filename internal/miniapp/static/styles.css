@@ -10354,19 +10354,19 @@ body.has-open-modal .admin-save-bar {
 .modal--support-chat.modal--animate .modal__sheet {
   opacity: 1;
   transform: translateY(0);
-  animation: supportChatIn .24s cubic-bezier(.22, 1, .36, 1);
+  animation: supportChatIn .34s cubic-bezier(.22, 1, .36, 1);
 }
 .modal--support-chat.modal--closing .modal__sheet {
   opacity: 1;
-  animation: supportChatOut .22s ease forwards;
+  animation: supportChatOut .22s cubic-bezier(.4, 0, 1, 1) forwards;
 }
 @keyframes supportChatIn {
-  from { transform: translateY(16px); }
+  from { transform: translateY(var(--app-viewport-height, 100dvh)); }
   to { transform: translateY(0); }
 }
 @keyframes supportChatOut {
   from { transform: translateY(0); }
-  to { transform: translateY(16px); }
+  to { transform: translateY(var(--app-viewport-height, 100dvh)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .modal--support-chat.modal--animate .modal__sheet,
