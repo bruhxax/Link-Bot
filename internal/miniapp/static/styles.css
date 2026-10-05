@@ -107,9 +107,8 @@
 }
 .device-pack-card.pricing-card.is-wide { grid-column: 1 / -1; min-height: 96px; }
 .device-pack-card.pricing-card.selected {
-  border-color: var(--control-border);
-  background: var(--surface-strong);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--icon-color) 42%, transparent);
+  border-color: var(--accent);
+  background: var(--control-bg);
 }
 .device-pack-card .pricing-card__content { gap: 6px; }
 .device-pack-card .pricing-card__copy { gap: 4px; }
@@ -330,10 +329,6 @@
   --twinkle-star: #ffffff;
   --wave-background: #000000;
   --wave-dot: #ebebeb;
-  --liquid-color-1: #000000;
-  --liquid-color-2: #1646ff;
-  --liquid-color-3: #7226ff;
-  --liquid-color-4: #ffffff;
   --background-dimming: .12;
   --background-animation-duration: 5.85s;
   --background-texture-duration: 19.89s;
@@ -381,9 +376,6 @@
   display: none;
 }
 
-:root:not([data-background="liquid1"]):not([data-background="liquid2"]) .bg-media__liquid {
-  display: none;
-}
 
 .bg-media__video { display: none; }
 :root[data-background="backtyan"] .bg-media__video { display: block; }
@@ -397,7 +389,6 @@
 :root[data-background="pending"] .bg-media__grid2,
 :root[data-background="pending"] .bg-media__morphic,
 :root[data-background="pending"] .bg-media__twinkle,
-:root[data-background="pending"] .bg-media__liquid,
 :root[data-background="pending"] .bg-media__shade {
   visibility: hidden;
 }
@@ -414,12 +405,6 @@
 :root[data-background="twinkle"] .bg-media__canvas,
 :root[data-background="twinkle"] .bg-media__scrim,
 :root[data-background="twinkle"] .bg-media__fade,
-:root[data-background="liquid1"] .bg-media__canvas,
-:root[data-background="liquid1"] .bg-media__scrim,
-:root[data-background="liquid1"] .bg-media__fade,
-:root[data-background="liquid2"] .bg-media__canvas,
-:root[data-background="liquid2"] .bg-media__scrim,
-:root[data-background="liquid2"] .bg-media__fade,
 :root[data-background="backtyan"] .bg-media__canvas,
 :root[data-background="backtyan"] .bg-media__scrim,
 :root[data-background="backtyan"] .bg-media__fade {
@@ -1037,23 +1022,23 @@ select:focus-visible {
 .admin-preset {
   min-width: 0;
   min-height: 54px;
-  padding: 9px 10px;
+  padding: 0;
+  overflow: hidden;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+  align-items: stretch;
+  gap: 0;
   border: 1px solid var(--line-soft);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--control-bg);
   color: var(--button-text);
-  text-align: center;
+  text-align: left;
 }
 .admin-preset:hover { border-color: var(--line); }
-.admin-preset:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.admin-preset.is-selected { border-color: var(--accent); background: var(--surface-strong); color: var(--text); }
-.admin-preset__swatches { width: 34px; height: 26px; display: grid; grid-template-columns: repeat(2, 1fr); overflow: hidden; border: 1px solid var(--line); border-radius: 5px; }
+.admin-preset:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.admin-preset.is-selected { border-color: var(--accent); }
+.admin-preset__swatches { width: 40px; flex: 0 0 40px; align-self: stretch; display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); overflow: hidden; border-radius: 7px 0 0 7px; }
 .admin-preset__swatches i { background: var(--preset-color); }
-.admin-preset__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 800; }
+.admin-preset__name { min-width: 0; padding: 9px; display: flex; align-items: center; overflow-wrap: anywhere; font-size: 10px; line-height: 1.35; font-weight: 800; }
 
 .admin-background-picker { margin-top: 0; }
 .admin-background-picker__hint { margin: -3px 0 12px; color: var(--muted); font-size: 9px; line-height: 1.45; }
@@ -1124,21 +1109,6 @@ select:focus-visible {
 }
 [data-preview-background="solid"] { background: var(--bg); }
 [data-preview-background="backtyan"] { background: #62676d url("./assets/background-backtyan-poster.jpg") center 42% / cover no-repeat; }
-[data-preview-background="liquid1"],
-[data-preview-background="liquid2"] {
-  background:
-    radial-gradient(ellipse 86% 90% at 16% 26%, color-mix(in srgb, var(--preview-liquid-2) 48%, transparent), transparent 77%),
-    radial-gradient(ellipse 88% 92% at 86% 82%, color-mix(in srgb, var(--preview-liquid-3) 38%, transparent), transparent 78%),
-    linear-gradient(112deg, transparent 19%, color-mix(in srgb, var(--preview-liquid-4) 29%, transparent) 39%, transparent 53%, color-mix(in srgb, var(--preview-liquid-4) 13%, transparent) 69%, transparent 80%),
-    var(--preview-liquid-1);
-}
-[data-preview-background="liquid2"] {
-  background:
-    radial-gradient(ellipse 84% 90% at 22% 30%, color-mix(in srgb, var(--preview-liquid-2) 25%, transparent), transparent 78%),
-    radial-gradient(ellipse 95% 92% at 80% 84%, color-mix(in srgb, var(--preview-liquid-3) 24%, transparent), transparent 77%),
-    linear-gradient(107deg, transparent 28%, color-mix(in srgb, var(--preview-liquid-4) 20%, transparent) 49%, transparent 61%, color-mix(in srgb, var(--preview-liquid-4) 11%, transparent) 74%, transparent 83%),
-    var(--preview-liquid-1);
-}
 
 .admin-background-settings { border-top: 1px solid var(--line-soft); }
 .admin-background-settings__heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
@@ -2156,7 +2126,6 @@ img { display: block; max-width: 100%; }
 .bg-media__grid2,
 .bg-media__morphic,
 .bg-media__twinkle,
-.bg-media__liquid,
 .bg-media__video,
 .bg-media__shade {
   position: absolute;
@@ -2377,46 +2346,6 @@ img { display: block; max-width: 100%; }
   display: block;
   transform: translateZ(0);
 }
-
-.bg-media__liquid {
-  overflow: hidden;
-  contain: strict;
-  isolation: isolate;
-  background: var(--liquid-color-1);
-}
-
-:root[data-background="liquid1"] .bg-media__liquid,
-:root[data-background="liquid2"] .bg-media__liquid {
-  display: block;
-}
-
-.bg-media__liquid-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-  transform: translateZ(0);
-}
-
-:root[data-liquid-fallback="true"] .bg-media__liquid {
-  background:
-    radial-gradient(ellipse 80% 90% at 16% 26%, color-mix(in srgb, var(--liquid-color-2) 43%, transparent), transparent 78%),
-    radial-gradient(ellipse 88% 90% at 84% 80%, color-mix(in srgb, var(--liquid-color-3) 36%, transparent), transparent 78%),
-    linear-gradient(112deg, transparent 20%, color-mix(in srgb, var(--liquid-color-4) 27%, transparent) 40%, transparent 55%, color-mix(in srgb, var(--liquid-color-4) 12%, transparent) 70%, transparent 81%),
-    var(--liquid-color-1);
-}
-
-:root[data-liquid-fallback="true"][data-background="liquid2"] .bg-media__liquid {
-  background:
-    radial-gradient(ellipse 90% 90% at 24% 30%, color-mix(in srgb, var(--liquid-color-2) 25%, transparent), transparent 78%),
-    radial-gradient(ellipse 92% 92% at 78% 85%, color-mix(in srgb, var(--liquid-color-3) 23%, transparent), transparent 79%),
-    linear-gradient(108deg, transparent 29%, color-mix(in srgb, var(--liquid-color-4) 20%, transparent) 50%, transparent 63%, color-mix(in srgb, var(--liquid-color-4) 10%, transparent) 75%, transparent 84%),
-    var(--liquid-color-1);
-}
-
-:root[data-background="liquid1"] .bg-media__shade::after,
-:root[data-background="liquid2"] .bg-media__shade::after { display: none; }
 
 .bg-media__shade {
   z-index: 6;
@@ -4341,8 +4270,8 @@ body:not(.is-layout-editing) .runtime-layout-item[data-runtime-id="subscription_
   min-height: 124px;
 }
 .pricing-card.selected {
-  border-color: var(--line);
-  background: var(--glass-selected);
+  border-color: var(--accent);
+  background: var(--control-bg);
   box-shadow: var(--shadow);
   transform: none;
 }
@@ -7381,7 +7310,6 @@ body.is-install-guide #app {
   background: var(--control-bg);
 }
 
-.pricing-card.selected,
 .bottom-nav__item.active,
 .tab.active,
 .pay-row.selected,
@@ -9634,7 +9562,6 @@ body.is-plan-editing .page-scroll {
   color: var(--button-text);
 }
 
-.pricing-card.selected,
 .pay-row.selected,
 .platform-btn.selected,
 .segment.active,
@@ -9738,10 +9665,6 @@ body.is-plan-editing .page-scroll {
   border-color: var(--line);
   background: var(--control-bg) !important;
   color: var(--button-text);
-}
-
-.page-buy .pricing-list > .pricing-card.selected {
-  background: var(--surface-strong) !important;
 }
 
 .pricing-card :where(.pricing-card__name, .pricing-card__price-line strong, .pricing-card__stars-line) {
@@ -10916,8 +10839,7 @@ body.has-open-modal .admin-save-bar {
 .gift-plan-row__copy { min-width: 0; display: grid; gap: 3px; }
 .gift-plan-row__copy small { color: var(--muted); font-size: 10px; font-weight: 500; line-height: 1.2; }
 .gift-plan-row .gift-plan-row__price { color: var(--accent); font-size: 14px; font-weight: 800; white-space: nowrap; }
-.gift-plan-row.is-selected { border-color: var(--accent); background: var(--accent); color: var(--accent-contrast, #ffffff); }
-.gift-plan-row.is-selected .gift-plan-row__price, .gift-plan-row.is-selected .gift-plan-row__copy small { color: currentColor; }
+.gift-plan-row.is-selected { border-color: var(--accent); }
 .gift-plan-row:active { transform: scale(.992); }
 .gift-plan-row:focus-visible,
 .gift-payment-row:focus-visible,
@@ -13343,11 +13265,6 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   backdrop-filter: blur(16px) saturate(1.12) !important;
   -webkit-backdrop-filter: blur(16px) saturate(1.12) !important;
 }
-:root[data-glass="on"] .gift-plan-row.is-selected {
-  background: color-mix(in srgb, var(--accent) 78%, transparent) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent-contrast, #ffffff);
-}
 :root[data-glass="on"] .gift-username:focus-within {
   border-color: var(--accent) !important;
   box-shadow: 0 0 0 3px var(--accent-soft), var(--glass-surface-shadow) !important;
@@ -13830,4 +13747,11 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 }
 :root[data-client="telegram"] .bottom-nav {
   bottom: calc(12px + var(--safe-bottom) + var(--telegram-viewport-bottom));
+}
+
+/* A selection remains visible even when decorative frames are disabled.
+   Keep the same surface as unselected plans, including the glass texture. */
+:root .pricing-card.selected,
+:root .gift-plan-row.is-selected {
+  border: 1px solid var(--accent) !important;
 }

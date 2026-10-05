@@ -1755,8 +1755,12 @@ func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings, 
 	if value.BackgroundMode == "" {
 		value.BackgroundMode = defaults.BackgroundMode
 	}
-	if value.BackgroundMode != "animated" && value.BackgroundMode != "grid" && value.BackgroundMode != "grid2" && value.BackgroundMode != "morphic" && value.BackgroundMode != "twinkle" && value.BackgroundMode != "liquid1" && value.BackgroundMode != "liquid2" && value.BackgroundMode != "backtyan" && value.BackgroundMode != "solid" {
-		return errors.New("background mode must be animated, grid, grid2, morphic, twinkle, liquid1, liquid2, backtyan or solid")
+	// Older installations may still store a background that is no longer offered.
+	if value.BackgroundMode == "liquid1" || value.BackgroundMode == "liquid2" {
+		value.BackgroundMode = defaults.BackgroundMode
+	}
+	if value.BackgroundMode != "animated" && value.BackgroundMode != "grid" && value.BackgroundMode != "grid2" && value.BackgroundMode != "morphic" && value.BackgroundMode != "twinkle" && value.BackgroundMode != "backtyan" && value.BackgroundMode != "solid" {
+		return errors.New("background mode must be animated, grid, grid2, morphic, twinkle, backtyan or solid")
 	}
 	if value.Colors == nil {
 		value.Colors = map[string]string{}

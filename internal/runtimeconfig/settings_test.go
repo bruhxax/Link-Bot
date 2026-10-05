@@ -1102,6 +1102,27 @@ func TestBackTyanVideoBackgroundSurvivesSettingsRoundTrip(t *testing.T) {
 	}
 }
 
+func TestRetiredBackgroundsFallBackWithoutResettingAppearance(t *testing.T) {
+	for _, mode := range []string{"liquid1", "liquid2"} {
+		t.Run(mode, func(t *testing.T) {
+			settings := DefaultSettings()
+			settings.Appearance.BackgroundMode = mode
+			settings.Appearance.Colors["accent"] = "#123456"
+			settings.Appearance.Glass = true
+			settings.Appearance.ShowFrames = false
+			if err := NormalizeAndValidate(&settings); err != nil {
+				t.Fatalf("NormalizeAndValidate() error = %v", err)
+			}
+			if settings.Appearance.BackgroundMode != "animated" {
+				t.Fatalf("retired background = %q, want animated", settings.Appearance.BackgroundMode)
+			}
+			if settings.Appearance.Colors["accent"] != "#123456" || !settings.Appearance.Glass || settings.Appearance.ShowFrames {
+				t.Fatal("unrelated appearance settings were reset")
+			}
+		})
+	}
+}
+
 func TestNormalizeAndValidateLiquidBackgroundAppearance(t *testing.T) {
 	settings := DefaultSettings()
 	defaults := DefaultSettings()

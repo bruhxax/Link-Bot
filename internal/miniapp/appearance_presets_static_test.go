@@ -19,15 +19,20 @@ func TestAppearancePresetsHaveReadableContrast(t *testing.T) {
 	}
 
 	matches := appearancePresetBlockPattern.FindAllStringSubmatch(string(raw), -1)
-	if len(matches) < 13 {
-		t.Fatalf("appearance presets = %d, want at least 13", len(matches))
+	if len(matches) < 18 {
+		t.Fatalf("appearance presets = %d, want at least 18", len(matches))
 	}
 	requiredNewPresets := map[string]bool{
-		"black-blue":   false,
-		"graphite-sky": false,
-		"black-amber":  false,
-		"slate-violet": false,
-		"ivory-navy":   false,
+		"black-blue":     false,
+		"graphite-sky":   false,
+		"black-amber":    false,
+		"slate-violet":   false,
+		"ivory-navy":     false,
+		"graphite-mint":  false,
+		"night-rose":     false,
+		"espresso-peach": false,
+		"cloud-lavender": false,
+		"sand-teal":      false,
 	}
 	seen := make(map[string]struct{}, len(matches))
 	for _, match := range matches {

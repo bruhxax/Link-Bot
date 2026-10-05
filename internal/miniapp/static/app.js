@@ -1955,19 +1955,12 @@ const ADMIN_LAYOUT_DEFAULTS = [
 ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "promo_widget", order: 18, visible: false, width: 42, height: 92, framed: false, align: "center", offsetX: 0, offsetY: 0, promoCode: "", iconBubble: true, cornerRadius: 10, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 });
 ADMIN_LAYOUT_DEFAULTS.push({ area: "dashboard", id: "notification_widget", order: 19, visible: false, width: 42, height: 92, framed: false, align: "center", offsetX: 0, offsetY: 0, notificationText: "", iconBubble: true, cornerRadius: 10, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 });
 
-const DEFAULT_LIQUID_BACKGROUNDS = Object.freeze({
-	liquid1: { colors: ["#07111d", "#407f8d", "#88799e", "#e9eeea"], dimming: 16, speed: 35 },
-	liquid2: { colors: ["#05090d", "#334f5b", "#566b76", "#cfddd9"], dimming: 22, speed: 30 },
-});
-
 const DEFAULT_BACKGROUND_MOTION = Object.freeze({
 	animated: { dimming: 12, speed: 45 },
 	grid: { dimming: 14, speed: 50 },
 	grid2: { dimming: 14, speed: 50 },
 	morphic: { dimming: 0, speed: 42 },
 	twinkle: { dimming: 0, speed: 38 },
-	liquid1: { dimming: 16, speed: 35 },
-	liquid2: { dimming: 22, speed: 30 },
 	backtyan: { dimming: 65, speed: 50 },
 	solid: { dimming: 0, speed: 50 },
 });
@@ -1978,28 +1971,24 @@ const ADMIN_BACKGROUND_OPTIONS = [
 	["grid2", "Сетка 2", "Вертикальная сетка и свечение"],
 	["morphic", "Морфинг", "Мягкие поднимающиеся капли"],
 	["twinkle", "Мерцающие звёзды", "Маленькие светящиеся круги"],
-	["liquid1", "Жидкое стекло 1", "Мягкий перламутровый перелив"],
-	["liquid2", "Жидкое стекло 2", "Тёмное стекло с тонкими бликами"],
 	["backtyan", "BackTyan", "Зацикленное видео без звука"],
 	["solid", "Сплошной цвет", "Чистый однотонный фон"],
 ];
 
 const ADMIN_BACKGROUND_COLOR_FIELDS = Object.freeze({
-	animated: [["appearance.colors.waveBackground", "Цвет фона"], ["appearance.colors.waveDot", "Цвет точек"]],
-	grid: [["appearance.colors.gridBackground", "Цвет фона"], ["appearance.colors.gridLine", "Цвет линий"], ["appearance.colors.gridGlowLeft", "Свечение слева"], ["appearance.colors.gridGlowRight", "Свечение справа"]],
-	grid2: [["appearance.colors.grid2Background", "Цвет фона"], ["appearance.colors.grid2Line", "Цвет сетки"], ["appearance.colors.grid2Glow", "Нижняя подсветка"]],
-	morphic: [["appearance.colors.morphicBackground", "Цвет фона"], ["appearance.colors.morphicBall", "Цвет капель"]],
-	twinkle: [["appearance.colors.twinkleBackground", "Цвет фона"], ["appearance.colors.twinkleStar", "Цвет звёзд"]],
-	liquid1: [["appearance.liquid.liquid1.colors.0", "Цвет 1 · основа"], ["appearance.liquid.liquid1.colors.1", "Цвет 2 · холодный свет"], ["appearance.liquid.liquid1.colors.2", "Цвет 3 · перелив"], ["appearance.liquid.liquid1.colors.3", "Цвет 4 · блик"]],
-	liquid2: [["appearance.liquid.liquid2.colors.0", "Цвет 1 · основа"], ["appearance.liquid.liquid2.colors.1", "Цвет 2 · холодный свет"], ["appearance.liquid.liquid2.colors.2", "Цвет 3 · перелив"], ["appearance.liquid.liquid2.colors.3", "Цвет 4 · блик"]],
+	animated: [["appearance.colors.waveBackground", "Фон"], ["appearance.colors.waveDot", "Точки"]],
+	grid: [["appearance.colors.gridBackground", "Фон"], ["appearance.colors.gridLine", "Линии сетки"], ["appearance.colors.gridGlowLeft", "Свечение слева"], ["appearance.colors.gridGlowRight", "Свечение справа"]],
+	grid2: [["appearance.colors.grid2Background", "Фон"], ["appearance.colors.grid2Line", "Линии сетки"], ["appearance.colors.grid2Glow", "Свечение снизу"]],
+	morphic: [["appearance.colors.morphicBackground", "Фон"], ["appearance.colors.morphicBall", "Капли"]],
+	twinkle: [["appearance.colors.twinkleBackground", "Фон"], ["appearance.colors.twinkleStar", "Звёзды"]],
 	backtyan: [],
-	solid: [["appearance.colors.background", "Цвет фона"]],
+	solid: [["appearance.colors.background", "Фон"]],
 });
 
 const ADMIN_APPEARANCE_PRESETS = [
 	{
 		id: "black-white",
-		name: "Black | White",
+		name: "Чёрный · Белый",
 		colors: {
 			background: "#000000",
 			surface: "#000000",
@@ -2027,7 +2016,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 	},
 	{
 		id: "black-orange",
-		name: "Black | Orange",
+		name: "Чёрный · Оранжевый",
 		colors: {
 			background: "#000000",
 			surface: "#000000",
@@ -2055,7 +2044,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 	},
 	{
 		id: "white-red",
-		name: "White | Red",
+		name: "Белый · Красный",
 		colors: {
 			background: "#ffffff",
 			surface: "#fffafa",
@@ -2083,7 +2072,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 	},
 	{
 		id: "white-black",
-		name: "White | Black",
+		name: "Белый · Чёрный",
 		colors: {
 			background: "#ffffff",
 			surface: "#fafafa",
@@ -2111,7 +2100,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 	},
 	{
 		id: "black-red",
-		name: "Black | Red",
+		name: "Чёрный · Красный",
 		colors: {
 			background: "#000000",
 			surface: "#080808",
@@ -2139,7 +2128,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 	},
 	{
 		id: "black-lime",
-		name: "Black | Lime",
+		name: "Чёрный · Лайм",
 		colors: {
 			background: "#000000",
 			surface: "#070907",
@@ -2167,7 +2156,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 	},
 	{
 		id: "green-yellow",
-		name: "Green | Yellow",
+		name: "Зелёный · Жёлтый",
 		colors: {
 			background: "#06150e",
 			surface: "#0a1d13",
@@ -2195,7 +2184,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 	},
 	{
 		id: "white-blue",
-		name: "White | Blue",
+		name: "Белый · Синий",
 		colors: {
 			background: "#ffffff",
 			surface: "#f8faff",
@@ -2223,7 +2212,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 	},
 	{
 		id: "black-blue",
-		name: "Black | Blue",
+		name: "Чёрный · Голубой",
 		colors: {
 			background: "#02060d",
 			surface: "#07101c",
@@ -2251,7 +2240,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 	},
 	{
 		id: "graphite-sky",
-		name: "Graphite | Sky",
+		name: "Графит · Небо",
 		colors: {
 			background: "#0b0c0e",
 			surface: "#121519",
@@ -2279,7 +2268,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 	},
 	{
 		id: "black-amber",
-		name: "Black | Amber",
+		name: "Чёрный · Янтарь",
 		colors: {
 			background: "#050504",
 			surface: "#0d0c09",
@@ -2307,7 +2296,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 	},
 	{
 		id: "slate-violet",
-		name: "Slate | Violet",
+		name: "Тёмный · Фиолетовый",
 		colors: {
 			background: "#09090d",
 			surface: "#111117",
@@ -2335,7 +2324,7 @@ const ADMIN_APPEARANCE_PRESETS = [
 	},
 	{
 		id: "ivory-navy",
-		name: "Ivory | Navy",
+		name: "Светлый · Морской",
 		colors: {
 			background: "#f8f7f2",
 			surface: "#ffffff",
@@ -2361,6 +2350,166 @@ const ADMIN_APPEARANCE_PRESETS = [
 			waveDot: "#214f86",
 		},
 	},
+	{
+		id: "graphite-mint",
+		name: "Графит · Мята",
+		colors: {
+			background: "#0b1212",
+			surface: "#121d1c",
+			surfaceStrong: "#1a2926",
+			text: "#f1fbf8",
+			muted: "#a9beb8",
+			border: "#3b554c",
+			button: "#172521",
+			buttonText: "#f1fbf8",
+			icon: "#a2eed2",
+			accent: "#6cdcb3",
+			success: "#79df9d",
+			danger: "#ff969e",
+			unlimitedBadge: "#6cdcb3",
+			gridBackground: "#0b1212",
+			gridLine: "#6cdcb3",
+			gridGlowLeft: "#6cdcb3",
+			gridGlowRight: "#6cdcb3",
+			grid2Background: "#0b1212",
+			grid2Line: "#6cdcb3",
+			grid2Glow: "#6cdcb3",
+			waveBackground: "#0b1212",
+			waveDot: "#a2eed2",
+			morphicBackground: "#0b1212",
+			morphicBall: "#6cdcb3",
+			twinkleBackground: "#0b1212",
+			twinkleStar: "#a2eed2",
+		},
+	},
+	{
+		id: "night-rose",
+		name: "Ночь · Роза",
+		colors: {
+			background: "#140b14",
+			surface: "#211321",
+			surfaceStrong: "#2b1c2b",
+			text: "#fff5fb",
+			muted: "#cfb5c9",
+			border: "#614355",
+			button: "#271727",
+			buttonText: "#fff5fb",
+			icon: "#f7b3d4",
+			accent: "#ef9bbf",
+			success: "#86e0ae",
+			danger: "#ff9b9b",
+			unlimitedBadge: "#ef9bbf",
+			gridBackground: "#140b14",
+			gridLine: "#ef9bbf",
+			gridGlowLeft: "#ef9bbf",
+			gridGlowRight: "#ef9bbf",
+			grid2Background: "#140b14",
+			grid2Line: "#ef9bbf",
+			grid2Glow: "#ef9bbf",
+			waveBackground: "#140b14",
+			waveDot: "#f7b3d4",
+			morphicBackground: "#140b14",
+			morphicBall: "#ef9bbf",
+			twinkleBackground: "#140b14",
+			twinkleStar: "#f7b3d4",
+		},
+	},
+	{
+		id: "espresso-peach",
+		name: "Кофе · Персик",
+		colors: {
+			background: "#140e0c",
+			surface: "#211814",
+			surfaceStrong: "#2d211a",
+			text: "#fff7ee",
+			muted: "#c8b5a7",
+			border: "#624b3c",
+			button: "#281c16",
+			buttonText: "#fff7ee",
+			icon: "#f2c09a",
+			accent: "#e8ad7f",
+			success: "#8adba4",
+			danger: "#ff9c91",
+			unlimitedBadge: "#e8ad7f",
+			gridBackground: "#140e0c",
+			gridLine: "#e8ad7f",
+			gridGlowLeft: "#e8ad7f",
+			gridGlowRight: "#e8ad7f",
+			grid2Background: "#140e0c",
+			grid2Line: "#e8ad7f",
+			grid2Glow: "#e8ad7f",
+			waveBackground: "#140e0c",
+			waveDot: "#f2c09a",
+			morphicBackground: "#140e0c",
+			morphicBall: "#e8ad7f",
+			twinkleBackground: "#140e0c",
+			twinkleStar: "#f2c09a",
+		},
+	},
+	{
+		id: "cloud-lavender",
+		name: "Облако · Лаванда",
+		colors: {
+			background: "#f6f4fb",
+			surface: "#ffffff",
+			surfaceStrong: "#eae5f5",
+			text: "#20192f",
+			muted: "#625570",
+			border: "#c4b7d7",
+			button: "#eee9f7",
+			buttonText: "#34244f",
+			icon: "#69468f",
+			accent: "#714a9d",
+			success: "#176c42",
+			danger: "#a52643",
+			unlimitedBadge: "#714a9d",
+			gridBackground: "#f6f4fb",
+			gridLine: "#714a9d",
+			gridGlowLeft: "#714a9d",
+			gridGlowRight: "#714a9d",
+			grid2Background: "#f6f4fb",
+			grid2Line: "#714a9d",
+			grid2Glow: "#714a9d",
+			waveBackground: "#f6f4fb",
+			waveDot: "#69468f",
+			morphicBackground: "#f6f4fb",
+			morphicBall: "#714a9d",
+			twinkleBackground: "#f6f4fb",
+			twinkleStar: "#69468f",
+		},
+	},
+	{
+		id: "sand-teal",
+		name: "Песок · Бирюза",
+		colors: {
+			background: "#faf6ed",
+			surface: "#fffcf5",
+			surfaceStrong: "#eee8d9",
+			text: "#26251d",
+			muted: "#626257",
+			border: "#b7c2ae",
+			button: "#eee8d9",
+			buttonText: "#203f39",
+			icon: "#24685d",
+			accent: "#217465",
+			success: "#21643d",
+			danger: "#a02f38",
+			unlimitedBadge: "#217465",
+			gridBackground: "#faf6ed",
+			gridLine: "#217465",
+			gridGlowLeft: "#217465",
+			gridGlowRight: "#217465",
+			grid2Background: "#faf6ed",
+			grid2Line: "#217465",
+			grid2Glow: "#217465",
+			waveBackground: "#faf6ed",
+			waveDot: "#24685d",
+			morphicBackground: "#faf6ed",
+			morphicBall: "#217465",
+			twinkleBackground: "#faf6ed",
+			twinkleStar: "#24685d",
+		},
+	},
 ];
 
 function buildPreviewRuntimeSettings() {
@@ -2382,7 +2531,7 @@ function buildPreviewRuntimeSettings() {
 			},
 			paymentNotification: { text: "💳 <b>Оплата:</b> <b>{{price}}</b>\n\n▦ <b>Тариф:</b> <b>{{sub}}</b>\n▦ <b>Доп. устройства:</b> <b>{{device}}</b>\n✈ <b>Telegram:</b> <b>{{username}}</b>\n◷ <b>Время:</b> <b>{{data}}</b>\n⚙ <b>Способ:</b> <b>{{integration}}</b>\n🏷 <b>Промокод:</b> <b>{{promo}}</b>\n▣ <b>Заказ:</b> <code>{{number}}</code>", openUserButton: { enabled: true, text: "Открыть пользователя в панели", iconCustomEmojiId: "", style: "primary" }, profileButton: { enabled: true, text: "Профиль", iconCustomEmojiId: "", style: "" } },
 		},
-		appearance: { backgroundMode: "animated", compact: true, showFrames: true, glass: urlParams.get("glass") === "1", liquid: deepClone(DEFAULT_LIQUID_BACKGROUNDS), backgroundMotion: deepClone(DEFAULT_BACKGROUND_MOTION), colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", morphicBackground: "#000000", morphicBall: "#ff69b4", twinkleBackground: "#000000", twinkleStar: "#ffffff", waveBackground: "#000000", waveDot: "#ebebeb" } },
+		appearance: { backgroundMode: "animated", compact: true, showFrames: true, glass: urlParams.get("glass") === "1", backgroundMotion: deepClone(DEFAULT_BACKGROUND_MOTION), colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", morphicBackground: "#000000", morphicBall: "#ff69b4", twinkleBackground: "#000000", twinkleStar: "#ffffff", waveBackground: "#000000", waveDot: "#ebebeb" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
 		subPage: { includeBuiltIns: true, priorityBuiltIns: [], clients: [] },
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, titleFa: `${plan.months} \u0645\u0627\u0647`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
@@ -6868,13 +7017,6 @@ function renderAdminAppearancePresets() {
 	</section>`;
 }
 
-function getAdminLiquidSettings(mode) {
-	const fallback = DEFAULT_LIQUID_BACKGROUNDS[mode] || DEFAULT_LIQUID_BACKGROUNDS.liquid1;
-	const current = getDeepValue(state.adminSettingsDraft, `appearance.liquid.${mode}`, {}) || {};
-	const colors = Array.from({ length: 4 }, (_, index) => String(current.colors?.[index] || fallback.colors[index]));
-	return { colors };
-}
-
 function getAdminBackgroundMotion(mode) {
 	const fallback = DEFAULT_BACKGROUND_MOTION[mode] || DEFAULT_BACKGROUND_MOTION.animated;
 	const current = getDeepValue(state.adminSettingsDraft, `appearance.backgroundMotion.${mode}`, {}) || {};
@@ -6884,11 +7026,6 @@ function getAdminBackgroundMotion(mode) {
 	};
 }
 
-function liquidPreviewStyle(mode) {
-	const settings = getAdminLiquidSettings(mode);
-	return settings.colors.map((color, index) => `--preview-liquid-${index + 1}:${color}`).join(";");
-}
-
 function renderAdminBackgroundOptions(currentMode) {
 	return `<section class="admin-editor__section admin-background-picker">
 		<h3>Фон</h3>
@@ -6896,9 +7033,8 @@ function renderAdminBackgroundOptions(currentMode) {
 		<div class="admin-background-options" role="radiogroup" aria-label="Стиль фона">
 			${ADMIN_BACKGROUND_OPTIONS.map(([mode, label, hint]) => {
 				const selected = currentMode === mode;
-				const previewStyle = mode.startsWith("liquid") ? ` style="${escapeAttribute(liquidPreviewStyle(mode))}"` : "";
 				return `<button class="admin-background-option ${selected ? "is-selected" : ""}" type="button" role="radio" aria-checked="${selected}" data-action="admin-background-mode" data-value="${escapeAttribute(mode)}" data-selection-feedback>
-					<span class="admin-background-option__preview" data-preview-background="${escapeAttribute(mode)}"${previewStyle} aria-hidden="true"><i></i></span>
+					<span class="admin-background-option__preview" data-preview-background="${escapeAttribute(mode)}" aria-hidden="true"><i></i></span>
 					<span class="admin-background-option__copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(hint)}</small></span>
 				</button>`;
 			}).join("")}
@@ -6910,14 +7046,13 @@ function renderAdminBackgroundControls(mode) {
 	const option = ADMIN_BACKGROUND_OPTIONS.find(([value]) => value === mode) || ADMIN_BACKGROUND_OPTIONS[0];
 	const motion = getAdminBackgroundMotion(mode);
 	const colorFields = ADMIN_BACKGROUND_COLOR_FIELDS[mode] || ADMIN_BACKGROUND_COLOR_FIELDS.animated;
-	const previewStyle = mode.startsWith("liquid") ? ` style="${escapeAttribute(liquidPreviewStyle(mode))}"` : "";
 	const speedHint = mode === "twinkle"
 		? "Частота изменения яркости звёзд"
 		: mode === "solid"
 			? "Скорость едва заметного движения текстуры"
 			: "Плавность движения без резких рывков";
 	return `<section class="admin-editor__section admin-background-settings">
-		<div class="admin-background-settings__heading"><div><h3>Настройка фона</h3><p>Отдельные параметры для «${escapeHtml(option[1])}»</p></div><span class="admin-background-settings__sample" data-preview-background="${escapeAttribute(mode)}"${previewStyle} aria-hidden="true"><i></i></span></div>
+		<div class="admin-background-settings__heading"><div><h3>Настройка фона</h3><p>Отдельные параметры для «${escapeHtml(option[1])}»</p></div><span class="admin-background-settings__sample" data-preview-background="${escapeAttribute(mode)}" aria-hidden="true"><i></i></span></div>
 		${colorFields.length ? `<div class="admin-color-grid">${colorFields.map(([path, label]) => renderAdminColorField(label, path)).join("")}</div>` : ""}
 		<div class="admin-background-settings__ranges">
 			${renderAdminRangeField("Затемнение", "От светлого к глубокому тёмному фону", `appearance.backgroundMotion.${mode}.dimming`, { value: motion.dimming, min: 0, max: 80, suffix: "%", minLabel: "Светлее", maxLabel: "Темнее" })}
@@ -6927,12 +7062,13 @@ function renderAdminBackgroundControls(mode) {
 }
 
 function renderAdminAppearancePage() {
-	const currentMode = String(getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode", "animated"));
+	const savedMode = String(getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode", "animated"));
+	const currentMode = ADMIN_BACKGROUND_OPTIONS.some(([mode]) => mode === savedMode) ? savedMode : "animated";
 	const groups = [
-		["Основа интерфейса", [["text", "Название подписки, дата и выбранный тариф"], ["muted", "Описания и подписи"], ["border", "Рамки"]]],
-		["Карточки", [["surface", "Обычные карточки"], ["surfaceStrong", "Выбранные элементы"]]],
-		["Кнопки и навигация", [["button", "Фон кнопок и тарифов"], ["buttonText", "Текст кнопок и тарифов"], ["icon", "Все SVG-иконки"], ["accent", "Акцент"]]],
-		["Состояния", [["success", "Успех"], ["danger", "Ошибка"], ["unlimitedBadge", "Метка «Безлимит»"]]],
+		["Текст", [["text", "Основной текст"], ["muted", "Второстепенный текст"]]],
+		["Карточки и рамки", [["surface", "Фон карточек"], ["border", "Рамки элементов"]]],
+		["Кнопки и навигация", [["button", "Фон кнопок и тарифов"], ["buttonText", "Текст кнопок и тарифов"], ["icon", "Иконки"], ["accent", "Акцент и рамка выбора"]]],
+		["Состояния", [["success", "Успешные действия"], ["danger", "Ошибки и удаление"], ["unlimitedBadge", "Значок «Безлимит»"]]],
 	];
 	return renderAdminEditorPage(state.locale === "en" ? "Appearance" : "Оформление", `
 		${renderAdminBackgroundOptions(currentMode)}
@@ -11217,12 +11353,6 @@ function bindRootActions() {
 				if (type === "color") {
 					const colorValue = target.closest(".admin-color-field")?.querySelector("em");
 					if (colorValue) colorValue.textContent = target.value;
-					const liquidMatch = settingPath.match(/^appearance\.liquid\.(liquid[12])\.colors\.(\d)$/);
-					if (liquidMatch) {
-						app.querySelectorAll(`[data-preview-background="${liquidMatch[1]}"]`).forEach((preview) => {
-							preview.style.setProperty(`--preview-liquid-${Number(liquidMatch[2]) + 1}`, target.value);
-						});
-					}
 				}
 				applyAppearance();
 			}
@@ -16510,15 +16640,12 @@ function applyAppearance() {
 	};
   state.theme = "dark";
   document.documentElement.dataset.theme = "dark";
-	const backgroundMode = ["animated", "grid", "grid2", "morphic", "twinkle", "liquid1", "liquid2", "backtyan", "solid"].includes(appearance.backgroundMode) ? appearance.backgroundMode : "animated";
+	const backgroundMode = ADMIN_BACKGROUND_OPTIONS.map(([mode]) => mode).includes(appearance.backgroundMode) ? appearance.backgroundMode : "animated";
 	const motionFallback = DEFAULT_BACKGROUND_MOTION[backgroundMode] || DEFAULT_BACKGROUND_MOTION.animated;
 	const motionSettings = appearance.backgroundMotion?.[backgroundMode] || motionFallback;
 	const backgroundDimming = Math.max(0, Math.min(80, Number(motionSettings.dimming ?? motionFallback.dimming)));
 	const backgroundSpeed = Math.max(10, Math.min(100, Number(motionSettings.speed ?? motionFallback.speed)));
 	const backgroundDuration = 9.2 - ((backgroundSpeed - 10) / 90) * 6.7;
-	const liquidFallback = DEFAULT_LIQUID_BACKGROUNDS[backgroundMode] || DEFAULT_LIQUID_BACKGROUNDS.liquid1;
-	const liquidSettings = appearance.liquid?.[backgroundMode] || liquidFallback;
-	const liquidColors = Array.from({ length: 4 }, (_, index) => String(liquidSettings.colors?.[index] || liquidFallback.colors[index]));
 	document.documentElement.dataset.background = backgroundMode;
 	document.documentElement.dataset.frames = appearance.showFrames === false ? "off" : "on";
 	document.documentElement.dataset.compact = "on";
@@ -16554,10 +16681,6 @@ function applyAppearance() {
 		"--twinkle-star": colors.twinkleStar || "#ffffff",
 		"--wave-background": colors.waveBackground,
 		"--wave-dot": colors.waveDot,
-		"--liquid-color-1": liquidColors[0],
-		"--liquid-color-2": liquidColors[1],
-		"--liquid-color-3": liquidColors[2],
-		"--liquid-color-4": liquidColors[3],
 		"--background-dimming": String(backgroundDimming / 100),
 		"--background-animation-duration": `${backgroundDuration.toFixed(2)}s`,
 		"--background-texture-duration": `${(backgroundDuration * 3.4).toFixed(2)}s`,
@@ -16578,7 +16701,6 @@ function applyAppearance() {
 	waveMotionEngine.setSpeed(backgroundSpeed);
 	window.__linkBotMorphic?.setConfig({ color: colors.morphicBall || "#ff69b4", speed: backgroundSpeed });
 	window.__linkBotTwinkle?.setConfig({ color: colors.twinkleStar || "#ffffff", speed: backgroundSpeed });
-	window.__linkBotLiquid?.setConfig({ variant: backgroundMode, colors: liquidColors, speed: backgroundSpeed });
 	const telegramBackground = document.documentElement.dataset.accessScreen === "on" ? (colors.surface || "#08090c") : PALETTE.themeColor.dark;
 	if (themeMeta) themeMeta.setAttribute("content", telegramBackground);
 	if (tg) {
@@ -16650,7 +16772,6 @@ function syncBackgroundEngines() {
 	const reducedBackgroundMotion = Boolean(reducedMotionMedia?.matches || document.documentElement.dataset.performance === "reduced");
 	window.__linkBotMorphic?.setPaused(backgroundMode !== "morphic" || paused || reducedBackgroundMotion);
 	window.__linkBotTwinkle?.setPaused(backgroundMode !== "twinkle" || paused || reducedBackgroundMotion);
-	window.__linkBotLiquid?.setPaused(!backgroundMode.startsWith("liquid") || paused || reducedMotionMedia?.matches);
 	const video = document.querySelector(".bg-media__video");
 	if (video) {
 		if (backgroundMode === "backtyan") prepareBacktyanVideo(video);
