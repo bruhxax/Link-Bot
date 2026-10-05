@@ -4651,13 +4651,9 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
   if (state.loading && !state.data) {
 		if (state.currentPage === "dashboard" && hasAuth()) {
 			state.dashboardRevealPending = true;
-			app.innerHTML = `<div class="app-shell app-shell--dashboard-loading">
-				<aside class="desktop-sidebar dashboard-loading-sidebar" aria-hidden="true"><span class="dashboard-skeleton__shape dashboard-skeleton__sidebar-brand"></span><span class="dashboard-skeleton__shape dashboard-skeleton__sidebar-row"></span><span class="dashboard-skeleton__shape dashboard-skeleton__sidebar-row"></span></aside>
-				<div class="page-scroll"><section class="page active dashboard-loading" id="page-dashboard">${renderDashboardSkeleton()}</section></div>
-				${renderBottomNav()}
-			</div>`;
-			mountRuntimeLayout();
-			syncBottomNavIndicator();
+			// Account data and saved layout geometry are not known yet. Do not
+			// mount a guessed dashboard or navigation that changes after bootstrap.
+			app.innerHTML = `<div class="dashboard-loading-screen">${renderDashboardLoading()}</div>`;
 			return;
 		}
 		return void (app.innerHTML = renderStateScreen("loading"));
@@ -8088,34 +8084,14 @@ function dashboardWidgetVisible(item, contentKey) {
 	return item?.visible !== false && (Boolean(String(item?.[contentKey] || "").trim()) || state.adminLayoutEditing);
 }
 
-function renderDashboardSkeleton() {
-	const shape = (name) => `<span class="dashboard-skeleton__shape dashboard-skeleton__${name}" aria-hidden="true"></span>`;
-	const logoWidth = Math.max(48, Math.min(220, Number(getRuntimeSettings()?.layout?.logoWidth || 188)));
-	// Fast bootstrap has not checked the subscription yet. Only reserve elements
-	// whose presence is confirmed, rather than guessing an active subscription.
-	const active = !state.dashboardHydrating && isSubscriptionActive();
-	const secondaryAction = state.data && !state.dashboardHydrating ? getDashboardSecondaryAction() : "";
-	const trafficLabel = active ? formatTrafficBadgeLabel(state.data.subscription.trafficUsedBytes, state.data.subscription.trafficLimitBytes, state.locale) : "";
-	const deviceLabel = active ? formatDeviceBadgeLabel(state.data.subscription.deviceUsedCount, state.data.subscription.deviceLimitCount, state.locale) : "";
-	const blocks = {
-		...(featureEnabled("additional_subscriptions") || state.adminLayoutEditing ? { subscription_switcher: `<div class="subscription-switcher">${shape("switcher")}</div>` } : {}),
-		brand: `<div class="hero-center hero-center--brand">${renderLayoutDetail("dashboard", "logo", `<div class="hero-brand" style="--runtime-logo-width:${logoWidth}px">${shape("logo")}</div>`, "runtime-detail-item--logo")}${renderLayoutDetail("dashboard", "username", shape("username"), "runtime-detail-item--username")}</div>`,
-		...(active ? { subscription: `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", shape("plan"), "runtime-detail-item--status runtime-detail-item--plan")}${renderLayoutDetail("dashboard", "expires", shape("date"), "runtime-detail-item--status")}</div><div class="sub-bar__row sub-bar__row--pills">${trafficLabel ? renderLayoutDetail("dashboard", "traffic", shape("pill"), "runtime-detail-item--pill") : ""}${deviceLabel ? renderLayoutDetail("dashboard", "devices", shape("pill"), "runtime-detail-item--pill") : ""}</div></div></div></div>` } : {}),
-		actions: `<div class="dashboard-compact"><div class="action-stack action-stack--dashboard">${renderLayoutDetail("dashboard", "primary_action", shape("action"), "runtime-detail-item--action")}${secondaryAction ? renderLayoutDetail("dashboard", "secondary_action", shape("action"), "runtime-detail-item--action") : ""}</div></div>`,
-	};
-	for (const item of getLayoutElements("dashboard")) {
-		if ((item.id === "promo_widget" && dashboardWidgetVisible(item, "promoCode"))
-			|| (item.id === "notification_widget" && dashboardWidgetVisible(item, "notificationText"))
-			|| (isBannerLayoutID(item.id) && item.bannerUrl)) blocks[item.id] = shape("widget");
-		if (isEmptyLayoutCardID(item.id)) blocks[item.id] = '<div class="empty-design-card" aria-hidden="true"></div>';
-	}
-	return `<div class="dashboard-skeleton" role="status" aria-busy="true" aria-label="${escapeAttribute(localizedText("Загружаем главную страницу", "Loading dashboard", "در حال بارگذاری صفحه اصلی"))}">${renderRuntimeLayoutArea("dashboard", blocks)}</div>`;
+function renderDashboardLoading() {
+	return `<div class="dashboard-loading-status" role="status" aria-busy="true"><span class="sr-only">${escapeHtml(localizedText("Загружаем главную страницу", "Loading dashboard", "در حال بارگذاری صفحه اصلی"))}</span><span class="dashboard-loading-status__dots" aria-hidden="true"><i></i><i></i><i></i></span></div>`;
 }
 
 function renderDashboardPage() {
 	if (state.dashboardHydrating) {
 		if (state.currentPage === "dashboard") state.dashboardRevealPending = true;
-		return `<section class="page ${pageClass("dashboard")} dashboard-loading" id="page-dashboard">${renderDashboardSkeleton()}</section>`;
+		return `<section class="page ${pageClass("dashboard")} dashboard-loading" id="page-dashboard">${renderDashboardLoading()}</section>`;
 	}
   const copy = t();
   const active = isSubscriptionActive();

@@ -41,7 +41,7 @@ function harness({ data = null, hydrating = false, elements = [], features = {},
     pageClass: () => "active",
   });
   vm.runInContext(dashboardSource, context);
-  return { skeleton: () => context.renderDashboardSkeleton(), page: () => context.renderDashboardPage() };
+  return { state: context.state, context, loading: () => context.renderDashboardLoading(), page: () => context.renderDashboardPage() };
 }
 
 const userData = (status, trial = { enabled: false, eligible: false }, user = {}) => ({
@@ -49,33 +49,60 @@ const userData = (status, trial = { enabled: false, eligible: false }, user = {}
 });
 const details = html => [...html.matchAll(/data-detail="([^"]+)"/g)].map(match => match[1]);
 
-test("unknown account loads only common elements without inventing subscription or trial", () => {
-  const html = harness().skeleton();
-  assert.deepEqual(details(html), ["logo", "username", "primary_action"]);
-  assert.doesNotMatch(html, /data-block="subscription"|dashboard-skeleton__(plan|date|pill)/);
+test("unknown account has a neutral accessible indicator without guessing dashboard geometry", () => {
+  const html = harness().loading();
+  assert.deepEqual(details(html), []);
+  assert.match(html, /role="status" aria-busy="true"/);
+  assert.match(html, /Загружаем главную страницу/);
+  assert.doesNotMatch(html, /data-block=|data-runtime-layout-key=|dashboard-skeleton|<button|<img/);
 });
 
-for (const [name, data] of [
-  ["no subscription or trial", userData("none")],
-  ["expired subscription and used trial", userData("expired", { enabled: true, eligible: false })],
-  ["eligible trial", userData("none", { enabled: true, eligible: true })],
-  ["email user needs Telegram link for trial", userData("none", { enabled: true, eligible: false }, { email: "test@example.com", telegramLinked: false })],
-  ["active subscription", userData("active")],
+test("initial authenticated load mounts no fake dashboard, sidebar or guessed navigation", () => {
+  const view = harness();
+  view.state.loading = true;
+  view.context.app = { innerHTML: "" };
+  view.context.hasAuth = () => true;
+  view.context.renderBottomNav = () => { throw new Error("navigation requires account roles"); };
+  view.context.mountRuntimeLayout = () => { throw new Error("geometry requires real dashboard content"); };
+  const start = source.indexOf("if (state.loading && !state.data) {");
+  const end = source.indexOf("if (!state.data && (state.maintenance", start);
+  assert.ok(start >= 0 && end > start);
+  vm.runInContext(`function renderInitialDashboard() { ${source.slice(start, end)} }`, view.context);
+  view.context.renderInitialDashboard();
+  assert.match(view.context.app.innerHTML, /dashboard-loading-status/);
+  assert.doesNotMatch(view.context.app.innerHTML, /bottom-nav|desktop-sidebar|data-runtime|dashboard-skeleton/);
+  assert.equal(view.state.dashboardRevealPending, true);
+});
+
+for (const [name, data, secondaryExpected] of [
+  ["no subscription or trial", userData("none"), false],
+  ["expired subscription and used trial", userData("expired", { enabled: true, eligible: false }), false],
+  ["eligible trial", userData("none", { enabled: true, eligible: true }), true],
+  ["email user needs Telegram link for trial", userData("none", { enabled: true, eligible: false }, { email: "test@example.com", telegramLinked: false }), true],
+  ["active subscription", userData("active"), true],
 ]) {
-  test(`skeleton matches actual dashboard elements: ${name}`, () => {
+  test(`ready dashboard has only the account's actual elements: ${name}`, () => {
     const view = harness({ data });
-    assert.deepEqual(details(view.skeleton()), details(view.page()));
-    assert.equal(view.skeleton().includes('data-detail="plan_name"'), data.subscription.status === "active");
+    const html = view.page();
+    assert.equal(html.includes('data-detail="plan_name"'), data.subscription.status === "active");
+    assert.equal(html.includes('data-detail="secondary_action"'), secondaryExpected);
+    assert.doesNotMatch(html, /dashboard-loading-status|dashboard-skeleton/);
   });
 }
 
 test("fast bootstrap does not guess optional elements before subscription check", () => {
   const view = harness({ data: userData("active"), hydrating: true });
-  assert.deepEqual(details(view.skeleton()), ["logo", "username", "primary_action"]);
-  assert.equal(view.page().includes(view.skeleton()), true);
+  assert.deepEqual(details(view.page()), []);
+  assert.equal(view.page().includes(view.loading()), true);
+  view.state.dashboardHydrating = false;
+  const html = view.page();
+  assert.match(html, /data-detail="plan_name"/);
+  assert.match(html, /data-detail="secondary_action"/);
+  assert.match(html, /dashboard-reveal/);
+  assert.doesNotMatch(html, /dashboard-loading-status/);
 });
 
-test("empty and hidden widgets have no loading placeholders; configured widgets remain", () => {
+test("empty and hidden widgets stay absent in the ready dashboard; configured widgets remain", () => {
   const elements = [
     { id: "promo_widget", promoCode: "   " },
     { id: "notification_widget", notificationText: "", visible: true },
@@ -85,31 +112,28 @@ test("empty and hidden widgets have no loading placeholders; configured widgets 
     { id: "empty_card_1" },
   ];
   const view = harness({ data: userData("none"), elements });
-  assert.doesNotMatch(view.skeleton(), /data-block="(?:promo_widget|notification_widget|banner_1|banner_2)"/);
-  assert.match(view.skeleton(), /data-block="banner_3"/);
-  assert.match(view.skeleton(), /empty-design-card/);
+  assert.doesNotMatch(view.page(), /data-block="(?:promo_widget|notification_widget|banner_1|banner_2)"/);
+  assert.match(view.page(), /data-block="banner_3"/);
+  assert.match(view.page(), /empty-design-card/);
   elements[0].promoCode = "GIFT";
   elements[1].notificationText = "News";
-  for (const html of [view.skeleton(), view.page()]) {
-    assert.match(html, /data-block="promo_widget"/);
-    assert.match(html, /data-block="notification_widget"/);
-  }
+  const html = view.page();
+  assert.match(html, /data-block="promo_widget"/);
+  assert.match(html, /data-block="notification_widget"/);
 });
 
-test("hidden details and unavailable badges have no skeleton; disabled switcher stays absent", () => {
+test("hidden details, unavailable badges and disabled switcher stay absent", () => {
   const data = userData("active");
   data.subscription.trafficLimitBytes = "invalid";
   data.subscription.deviceLimitCount = "invalid";
   const view = harness({ data, elements: [{ id: "expires", visible: false }], features: { additional_subscriptions: false } });
-  assert.deepEqual(details(view.skeleton()), details(view.page()));
-  assert.doesNotMatch(view.skeleton(), /data-detail="(?:expires|traffic|devices)"|data-block="subscription_switcher"/);
+  assert.doesNotMatch(view.page(), /data-detail="(?:expires|traffic|devices)"|data-block="subscription_switcher"/);
 });
 
 test("layout editor still shows configured editable widgets and switcher", () => {
   const view = harness({ data: userData("none"), editing: true, features: { additional_subscriptions: false }, elements: [{ id: "promo_widget" }, { id: "notification_widget" }] });
-  for (const html of [view.skeleton(), view.page()]) {
-    assert.match(html, /data-block="subscription_switcher"/);
-    assert.match(html, /data-block="promo_widget"/);
-    assert.match(html, /data-block="notification_widget"/);
-  }
+  const html = view.page();
+  assert.match(html, /data-block="subscription_switcher"/);
+  assert.match(html, /data-block="promo_widget"/);
+  assert.match(html, /data-block="notification_widget"/);
 });
