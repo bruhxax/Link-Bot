@@ -9862,11 +9862,11 @@ function renderPlanCard(plan, selected) {
 	const title = hasDuration ? getPlanBaseTitle(plan, state.locale) : localizedText("Новый тариф", "New plan", "تعرفه جدید");
 	const price = Number(plan?.priceRub || 0) > 0 ? formatCurrency(plan.priceRub, state.locale) : localizedText("Бесплатно", "Free", "رایگان");
   const content = `
+      ${unlimited ? `<span class="pricing-card__unlimited-badge">${localizedText("Безлимит", "Unlimited", "نامحدود")}</span>` : ""}
       <div class="pricing-card__content">
         <div class="pricing-card__copy">
           <div class="pricing-card__name-row">
 			<div class="pricing-card__name">${escapeHtml(title)}</div>
-			${unlimited ? `<span class="pricing-card__unlimited-badge">${localizedText("Безлимит", "Unlimited", "نامحدود")}</span>` : ""}
           </div>
 		  ${hasDuration && planHasCustomTitle(plan, state.locale) ? `<div class="pricing-card__spec">${escapeHtml(getPlanDurationTitle(plan.months, plan.days, state.locale))}</div>` : ""}
 		  <div class="pricing-card__spec">${escapeHtml(hasDuration ? details.traffic : localizedText("Укажите трафик", "Set traffic", "ترافیک را مشخص کنید"))}</div>

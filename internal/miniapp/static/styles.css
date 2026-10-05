@@ -7349,7 +7349,7 @@ body.is-install-guide #app {
 }
 
 .pricing-card--unlimited .pricing-card__name-row {
-  padding-right: 68px;
+  padding-right: 60px;
 }
 
 .pricing-card__unlimited-badge {
@@ -7360,14 +7360,15 @@ body.is-install-guide #app {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 60px;
-  height: 20px;
-  min-width: 60px;
-  min-height: 20px;
-  padding: 0;
+  width: 64px;
+  height: 24px;
+  min-width: 64px;
+  min-height: 24px;
+  padding: 0 8px;
   box-sizing: border-box;
   border: 0;
-  border-radius: 999px;
+  border-radius: 0 0 0 16px;
+  border-top-right-radius: inherit;
   background: var(--unlimited-badge-bg, rgba(148, 148, 148, .3));
   color: #ffffff;
   font-size: 9px;
