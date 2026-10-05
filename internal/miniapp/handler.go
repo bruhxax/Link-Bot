@@ -639,8 +639,9 @@ type adminWithdrawalResolveRequest struct {
 }
 
 type adminWebPushSubscriptionRequest struct {
-	Endpoint string `json:"endpoint"`
-	Keys     struct {
+	Endpoint       string   `json:"endpoint"`
+	ExpirationTime *float64 `json:"expirationTime"`
+	Keys           struct {
 		P256DH string `json:"p256dh"`
 		Auth   string `json:"auth"`
 	} `json:"keys"`

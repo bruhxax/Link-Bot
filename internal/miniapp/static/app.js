@@ -1959,6 +1959,7 @@ const DEFAULT_BACKGROUND_MOTION = Object.freeze({
 	animated: { dimming: 12, speed: 45 },
 	grid: { dimming: 14, speed: 50 },
 	grid2: { dimming: 14, speed: 50 },
+	blocks: { dimming: 0, speed: 35 },
 	morphic: { dimming: 0, speed: 42 },
 	twinkle: { dimming: 0, speed: 38 },
 	backtyan: { dimming: 65, speed: 50 },
@@ -1969,6 +1970,7 @@ const ADMIN_BACKGROUND_OPTIONS = [
 	["animated", "Волны", "Точки и мягкие волны"],
 	["grid", "Движущаяся сетка", "Диагональное движение"],
 	["grid2", "Сетка 2", "Вертикальная сетка и свечение"],
+	["blocks", "Кубики", "Скруглённые квадраты, плавное движение вниз"],
 	["morphic", "Морфинг", "Мягкие поднимающиеся капли"],
 	["twinkle", "Мерцающие звёзды", "Маленькие светящиеся круги"],
 	["backtyan", "BackTyan", "Зацикленное видео без звука"],
@@ -1979,11 +1981,24 @@ const ADMIN_BACKGROUND_COLOR_FIELDS = Object.freeze({
 	animated: [["appearance.colors.waveBackground", "Фон"], ["appearance.colors.waveDot", "Точки"]],
 	grid: [["appearance.colors.gridBackground", "Фон"], ["appearance.colors.gridLine", "Линии сетки"], ["appearance.colors.gridGlowLeft", "Свечение слева"], ["appearance.colors.gridGlowRight", "Свечение справа"]],
 	grid2: [["appearance.colors.grid2Background", "Фон"], ["appearance.colors.grid2Line", "Линии сетки"], ["appearance.colors.grid2Glow", "Свечение снизу"]],
+	blocks: [["appearance.colors.blocksBackground", "Фон"], ["appearance.colors.blocksLeft", "Кубики слева"], ["appearance.colors.blocksRight", "Кубики справа"]],
 	morphic: [["appearance.colors.morphicBackground", "Фон"], ["appearance.colors.morphicBall", "Капли"]],
 	twinkle: [["appearance.colors.twinkleBackground", "Фон"], ["appearance.colors.twinkleStar", "Звёзды"]],
 	backtyan: [],
 	solid: [["appearance.colors.background", "Фон"]],
 });
+
+function darkAppearancePreset(id, name, colors) {
+	return { id, name, colors: {
+		...colors, buttonText: colors.text, unlimitedBadge: colors.accent,
+		gridBackground: colors.background, gridLine: colors.border, gridGlowLeft: colors.accent, gridGlowRight: colors.accent,
+		grid2Background: colors.background, grid2Line: colors.border, grid2Glow: colors.accent,
+		blocksBackground: colors.background, blocksLeft: colors.surfaceStrong, blocksRight: colors.surface,
+		waveBackground: colors.background, waveDot: colors.icon,
+		morphicBackground: colors.background, morphicBall: colors.accent,
+		twinkleBackground: colors.background, twinkleStar: colors.icon,
+	} };
+}
 
 const ADMIN_APPEARANCE_PRESETS = [
 	{
@@ -2512,6 +2527,24 @@ const ADMIN_APPEARANCE_PRESETS = [
 	},
 ];
 
+// Official palette sources: github.com/catppuccin/catppuccin,
+// nordtheme.com/docs/colors-and-palettes, spec.draculatheme.com,
+// github.com/tokyo-night/tokyo-night-vscode-theme.
+ADMIN_APPEARANCE_PRESETS.push(
+	darkAppearancePreset("catppuccin-mocha", "Mocha · Лаванда", {
+		background: "#11111b", surface: "#1e1e2e", surfaceStrong: "#313244", text: "#cdd6f4", muted: "#bac2de", border: "#45475a", button: "#181825", icon: "#b4befe", accent: "#cba6f7", success: "#a6e3a1", danger: "#f38ba8",
+	}),
+	darkAppearancePreset("nord-frost", "Nord · Лёд", {
+		background: "#2e3440", surface: "#3b4252", surfaceStrong: "#434c5e", text: "#eceff4", muted: "#d8dee9", border: "#4c566a", button: "#3b4252", icon: "#88c0d0", accent: "#81a1c1", success: "#a3be8c", danger: "#bf616a",
+	}),
+	darkAppearancePreset("dracula", "Dracula · Орхидея", {
+		background: "#21222c", surface: "#282a36", surfaceStrong: "#44475a", text: "#f8f8f2", muted: "#bd93f9", border: "#6272a4", button: "#282a36", icon: "#8be9fd", accent: "#ff79c6", success: "#50fa7b", danger: "#ff5555",
+	}),
+	darkAppearancePreset("tokyo-night", "Tokyo Night · Синий", {
+		background: "#1a1b26", surface: "#24283b", surfaceStrong: "#414868", text: "#c0caf5", muted: "#a9b1d6", border: "#565f89", button: "#24283b", icon: "#7dcfff", accent: "#7aa2f7", success: "#9ece6a", danger: "#f7768e",
+	}),
+);
+
 function buildPreviewRuntimeSettings() {
 	const features = Object.fromEntries(["mini_app", "additional_subscriptions", "stars", "trials", "google", "email_auth", "support", "faq", "reviews", "referrals", "promocodes", "promo_code", "partner", "media", "server_status", "payments_history", "gifts", "news", "login_methods", "terms", "privacy", "web_version", "pwa_install"].map((name) => [name, true]));
 	return {
@@ -2531,7 +2564,7 @@ function buildPreviewRuntimeSettings() {
 			},
 			paymentNotification: { text: "💳 <b>Оплата:</b> <b>{{price}}</b>\n\n▦ <b>Тариф:</b> <b>{{sub}}</b>\n▦ <b>Доп. устройства:</b> <b>{{device}}</b>\n✈ <b>Telegram:</b> <b>{{username}}</b>\n◷ <b>Время:</b> <b>{{data}}</b>\n⚙ <b>Способ:</b> <b>{{integration}}</b>\n🏷 <b>Промокод:</b> <b>{{promo}}</b>\n▣ <b>Заказ:</b> <code>{{number}}</code>", openUserButton: { enabled: true, text: "Открыть пользователя в панели", iconCustomEmojiId: "", style: "primary" }, profileButton: { enabled: true, text: "Профиль", iconCustomEmojiId: "", style: "" } },
 		},
-		appearance: { backgroundMode: "animated", compact: true, showFrames: true, glass: urlParams.get("glass") === "1", backgroundMotion: deepClone(DEFAULT_BACKGROUND_MOTION), colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", morphicBackground: "#000000", morphicBall: "#ff69b4", twinkleBackground: "#000000", twinkleStar: "#ffffff", waveBackground: "#000000", waveDot: "#ebebeb" } },
+		appearance: { backgroundMode: "animated", compact: true, showFrames: true, glass: urlParams.get("glass") === "1", backgroundMotion: deepClone(DEFAULT_BACKGROUND_MOTION), colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", blocksBackground: "#0a0a0c", blocksLeft: "#161619", blocksRight: "#0c0c0e", morphicBackground: "#000000", morphicBall: "#ff69b4", twinkleBackground: "#000000", twinkleStar: "#ffffff", waveBackground: "#000000", waveDot: "#ebebeb" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
 		subPage: { includeBuiltIns: true, priorityBuiltIns: [], clients: [] },
 		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, titleFa: `${plan.months} \u0645\u0627\u0647`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
@@ -5642,7 +5675,11 @@ async function currentAdminPushSubscription() {
 
 async function syncAdminPushSubscription(subscription) {
 	if (!subscription || typeof subscription.toJSON !== "function") throw new Error("iPhone не создал подписку на уведомления");
-	const response = await post("/api/mini-app/admin/push/subscribe", subscription.toJSON());
+	const serialized = subscription.toJSON();
+	const response = await post("/api/mini-app/admin/push/subscribe", {
+		endpoint: serialized.endpoint,
+		keys: { p256dh: serialized.keys?.p256dh, auth: serialized.keys?.auth },
+	});
 	return response.data || {};
 }
 
@@ -9045,6 +9082,7 @@ function getProfileItems() {
 	const order = configured.length ? [...configured, ...missingBuiltIns, ...missingCustom] : Object.keys(definitions).map((id, index) => ({ id, order: index, visible: true, width: 100, height: 48, framed: true }));
 	const items = order.map((layout) => {
 		const item = definitions[layout.id];
+		if (layout.id === "web_version" && clientSurface === "browser" && !state.adminLayoutEditing) return null;
 		if (!item || ((!item.value && item.action === "open-link") || (item.feature && !featureEnabled(item.feature)))) return null;
 		return { ...item, group: layout.group || item.group, id: layout.id, layout };
 	}).filter(Boolean);
@@ -11948,7 +11986,7 @@ function applyAdminAppearancePreset(id) {
 	if (!preset) return;
 	if (!state.adminSettingsDraft.appearance) state.adminSettingsDraft.appearance = {};
 	const current = state.adminSettingsDraft.appearance.colors || {};
-	state.adminSettingsDraft.appearance.colors = { ...current, ...deepClone(preset.colors) };
+	state.adminSettingsDraft.appearance.colors = { ...current, blocksBackground: preset.colors.background, blocksLeft: preset.colors.surfaceStrong || preset.colors.surface, blocksRight: preset.colors.surface, ...deepClone(preset.colors) };
 	state.adminSettingsDirty = true;
 	haptic("light");
 	render({ preserveScroll: true });
@@ -16684,6 +16722,9 @@ function applyAppearance() {
 		"--grid2-background": colors.grid2Background,
 		"--grid2-line": colors.grid2Line,
 		"--grid2-glow": colors.grid2Glow,
+		"--blocks-background": colors.blocksBackground || "#0a0a0c",
+		"--blocks-left": colors.blocksLeft || "#161619",
+		"--blocks-right": colors.blocksRight || "#0c0c0e",
 		"--morphic-background": colors.morphicBackground || "#000000",
 		"--morphic-ball": colors.morphicBall || "#ff69b4",
 		"--twinkle-background": colors.twinkleBackground || "#000000",
@@ -16693,6 +16734,7 @@ function applyAppearance() {
 		"--background-dimming": String(backgroundDimming / 100),
 		"--background-animation-duration": `${backgroundDuration.toFixed(2)}s`,
 		"--background-texture-duration": `${(backgroundDuration * 3.4).toFixed(2)}s`,
+		"--blocks-duration": `${(backgroundDuration * 7).toFixed(2)}s`,
 	};
 	Object.entries(variables).forEach(([name, value]) => { if (value) document.documentElement.style.setProperty(name, value); });
   document.documentElement.style.setProperty("--accent", accent.accent);

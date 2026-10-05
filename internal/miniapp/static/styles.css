@@ -368,6 +368,8 @@
   display: none;
 }
 
+:root:not([data-background="blocks"]) .bg-media__blocks { display: none; }
+
 :root:not([data-background="morphic"]) .bg-media__morphic {
   display: none;
 }
@@ -387,6 +389,7 @@
 :root[data-background="pending"] .bg-media__fade,
 :root[data-background="pending"] .bg-media__grid,
 :root[data-background="pending"] .bg-media__grid2,
+:root[data-background="pending"] .bg-media__blocks,
 :root[data-background="pending"] .bg-media__morphic,
 :root[data-background="pending"] .bg-media__twinkle,
 :root[data-background="pending"] .bg-media__shade {
@@ -399,6 +402,9 @@
 :root[data-background="grid2"] .bg-media__canvas,
 :root[data-background="grid2"] .bg-media__scrim,
 :root[data-background="grid2"] .bg-media__fade,
+:root[data-background="blocks"] .bg-media__canvas,
+:root[data-background="blocks"] .bg-media__scrim,
+:root[data-background="blocks"] .bg-media__fade,
 :root[data-background="morphic"] .bg-media__canvas,
 :root[data-background="morphic"] .bg-media__scrim,
 :root[data-background="morphic"] .bg-media__fade,
@@ -2124,6 +2130,7 @@ img { display: block; max-width: 100%; }
 .bg-media__fade,
 .bg-media__grid,
 .bg-media__grid2,
+.bg-media__blocks,
 .bg-media__morphic,
 .bg-media__twinkle,
 .bg-media__video,
@@ -2157,6 +2164,38 @@ img { display: block; max-width: 100%; }
 .bg-media__fade {
   display: none;
 }
+
+.bg-media__blocks {
+  --blocks-step: clamp(80px, 20vw, 240px);
+  background: var(--blocks-background, #0a0a0c);
+  overflow: hidden;
+  contain: paint;
+}
+.bg-media__blocks::before,
+[data-preview-background="blocks"]::before {
+  content: "";
+  position: absolute;
+  background: linear-gradient(to right, var(--blocks-left, #161619), var(--blocks-right, #0c0c0e));
+  -webkit-mask: url("./assets/blocks-mask.svg") repeat;
+  mask: url("./assets/blocks-mask.svg") repeat;
+  -webkit-mask-size: var(--blocks-step) var(--blocks-step);
+  mask-size: var(--blocks-step) var(--blocks-step);
+}
+.bg-media__blocks::before {
+  inset: calc(-1 * var(--blocks-step)) 0 0;
+  will-change: transform;
+  animation: runtime-blocks-fall var(--blocks-duration, 40s) linear infinite;
+}
+@keyframes runtime-blocks-fall {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, var(--blocks-step), 0); }
+}
+[data-preview-background="blocks"] { position: relative; overflow: hidden; background: var(--blocks-background, #0a0a0c); }
+[data-preview-background="blocks"]::before { --blocks-step: 22px; inset: 0; }
+:root[data-performance="low"] .bg-media__blocks::before { animation-duration: calc(var(--blocks-duration, 40s) * 1.5); }
+:root[data-page-active="false"] .bg-media__blocks::before { animation-play-state: paused; }
+:root[data-performance="reduced"] .bg-media__blocks::before { animation: none; will-change: auto; }
+@media (prefers-reduced-motion: reduce) { .bg-media__blocks::before { animation: none; will-change: auto; } }
 
 .bg-media__grid {
   display: none;

@@ -57,6 +57,17 @@ test("permission is requested immediately before network or worker awaits; only 
   assert.deepEqual(h.calls, ["permission", "/api/mini-app/admin/push/state", "worker", "get-subscription", "subscribe-local", "/api/mini-app/admin/push/subscribe"]);
 });
 
+test("browser expirationTime and extra serialization fields cannot break the subscription API", async () => {
+  const h = harness();
+  h.subscription.toJSON = () => ({ endpoint: h.subscription.endpoint, expirationTime: null, keys: { p256dh: "public-key", auth: "auth-key" }, extraBrowserField: "ignored" });
+  const requests = [];
+  h.context.post = async (url, body) => { requests.push({ url, body: JSON.parse(JSON.stringify(body)) }); return { data: { available: true, publicKey: "AA" } }; };
+  await h.context.setAdminPushEnabled(true);
+  const request = requests.find(item => item.url.endsWith("/subscribe"));
+  assert.deepEqual(request.body, { endpoint: h.subscription.endpoint, keys: { p256dh: "public-key", auth: "auth-key" } });
+  assert.equal(h.input.checked, true);
+});
+
 for (const permission of ["denied", "default"]) {
   test(`declining or dismissing permission keeps switch off: ${permission}`, async () => {
     const h = harness({ response: permission });
