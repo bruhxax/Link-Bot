@@ -8077,17 +8077,37 @@ function renderAdminPromocodesPage() {
   `;
 }
 
+function getDashboardSecondaryAction() {
+	if (isSubscriptionActive()) return "setup";
+	if (state.data?.user?.email && state.data?.user?.telegramLinked === false && state.data?.trial?.enabled) return "login-methods";
+	if (state.data?.trial?.enabled && state.data?.trial?.eligible) return "activate-trial";
+	return "";
+}
+
+function dashboardWidgetVisible(item, contentKey) {
+	return item?.visible !== false && (Boolean(String(item?.[contentKey] || "").trim()) || state.adminLayoutEditing);
+}
+
 function renderDashboardSkeleton() {
 	const shape = (name) => `<span class="dashboard-skeleton__shape dashboard-skeleton__${name}" aria-hidden="true"></span>`;
 	const logoWidth = Math.max(48, Math.min(220, Number(getRuntimeSettings()?.layout?.logoWidth || 188)));
+	// Fast bootstrap has not checked the subscription yet. Only reserve elements
+	// whose presence is confirmed, rather than guessing an active subscription.
+	const active = !state.dashboardHydrating && isSubscriptionActive();
+	const secondaryAction = state.data && !state.dashboardHydrating ? getDashboardSecondaryAction() : "";
+	const trafficLabel = active ? formatTrafficBadgeLabel(state.data.subscription.trafficUsedBytes, state.data.subscription.trafficLimitBytes, state.locale) : "";
+	const deviceLabel = active ? formatDeviceBadgeLabel(state.data.subscription.deviceUsedCount, state.data.subscription.deviceLimitCount, state.locale) : "";
 	const blocks = {
-		...(featureEnabled("additional_subscriptions") ? { subscription_switcher: `<div class="subscription-switcher">${shape("switcher")}</div>` } : {}),
+		...(featureEnabled("additional_subscriptions") || state.adminLayoutEditing ? { subscription_switcher: `<div class="subscription-switcher">${shape("switcher")}</div>` } : {}),
 		brand: `<div class="hero-center hero-center--brand">${renderLayoutDetail("dashboard", "logo", `<div class="hero-brand" style="--runtime-logo-width:${logoWidth}px">${shape("logo")}</div>`, "runtime-detail-item--logo")}${renderLayoutDetail("dashboard", "username", shape("username"), "runtime-detail-item--username")}</div>`,
-		subscription: `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", shape("plan"), "runtime-detail-item--status runtime-detail-item--plan")}${renderLayoutDetail("dashboard", "expires", shape("date"), "runtime-detail-item--status")}</div><div class="sub-bar__row sub-bar__row--pills">${renderLayoutDetail("dashboard", "traffic", shape("pill"), "runtime-detail-item--pill")}${renderLayoutDetail("dashboard", "devices", shape("pill"), "runtime-detail-item--pill")}</div></div></div></div>`,
-		actions: `<div class="dashboard-compact"><div class="action-stack action-stack--dashboard">${renderLayoutDetail("dashboard", "primary_action", shape("action"), "runtime-detail-item--action")}${renderLayoutDetail("dashboard", "secondary_action", shape("action"), "runtime-detail-item--action")}</div></div>`,
+		...(active ? { subscription: `<div class="dashboard-compact"><div class="card card--status card--status-compact"><div class="sub-bar sub-bar--status"><div class="sub-bar__row">${renderLayoutDetail("dashboard", "plan_name", shape("plan"), "runtime-detail-item--status runtime-detail-item--plan")}${renderLayoutDetail("dashboard", "expires", shape("date"), "runtime-detail-item--status")}</div><div class="sub-bar__row sub-bar__row--pills">${trafficLabel ? renderLayoutDetail("dashboard", "traffic", shape("pill"), "runtime-detail-item--pill") : ""}${deviceLabel ? renderLayoutDetail("dashboard", "devices", shape("pill"), "runtime-detail-item--pill") : ""}</div></div></div></div>` } : {}),
+		actions: `<div class="dashboard-compact"><div class="action-stack action-stack--dashboard">${renderLayoutDetail("dashboard", "primary_action", shape("action"), "runtime-detail-item--action")}${secondaryAction ? renderLayoutDetail("dashboard", "secondary_action", shape("action"), "runtime-detail-item--action") : ""}</div></div>`,
 	};
 	for (const item of getLayoutElements("dashboard")) {
-		if (["promo_widget", "notification_widget"].includes(item.id) || (isBannerLayoutID(item.id) && item.bannerUrl)) blocks[item.id] = shape("widget");
+		if ((item.id === "promo_widget" && dashboardWidgetVisible(item, "promoCode"))
+			|| (item.id === "notification_widget" && dashboardWidgetVisible(item, "notificationText"))
+			|| (isBannerLayoutID(item.id) && item.bannerUrl)) blocks[item.id] = shape("widget");
+		if (isEmptyLayoutCardID(item.id)) blocks[item.id] = '<div class="empty-design-card" aria-hidden="true"></div>';
 	}
 	return `<div class="dashboard-skeleton" role="status" aria-busy="true" aria-label="${escapeAttribute(localizedText("Загружаем главную страницу", "Loading dashboard", "در حال بارگذاری صفحه اصلی"))}">${renderRuntimeLayoutArea("dashboard", blocks)}</div>`;
 }
@@ -8108,18 +8128,19 @@ function renderDashboardPage() {
 	const primaryAction = active
 		? `<button class="btn" type="button" data-action="go-page" data-value="buy">${icon("cartShopping")}<span class="runtime-editable-text">${escapeHtml(copy.extend)}</span></button>`
 		: `<button class="btn ${trialEligible ? "" : "btn--green"}" type="button" data-action="go-page" data-value="buy">${icon("cart")}<span class="runtime-editable-text">${escapeHtml(copy.buySubscription)}</span></button>`;
-	const secondaryAction = active
+	const secondaryActionKind = getDashboardSecondaryAction();
+	const secondaryAction = secondaryActionKind === "setup"
 		? `<button class="btn btn--green" type="button" data-action="go-page" data-value="setup">${icon("arrowDownSquare")}<span class="runtime-editable-text">${escapeHtml(copy.setup)}</span></button>`
-		: state.data?.user?.email && state.data?.user?.telegramLinked === false && state.data?.trial?.enabled
+		: secondaryActionKind === "login-methods"
 			? `<button class="btn btn--green btn--trial" type="button" data-action="go-page" data-value="login-methods">${icon("telegram")}<span class="runtime-editable-text">${escapeHtml(emailAuthText("Привязать Telegram, чтобы получить пробный период", "Link Telegram to unlock a free trial"))}</span></button>`
-		: trialEligible
+		: secondaryActionKind === "activate-trial"
 			? `<button class="btn btn--green btn--trial" type="button" data-action="activate-trial">${icon("gift")}<span class="runtime-editable-text">${escapeHtml(copy.activateTrial)}</span></button>`
 			: "";
 	const actionStack = `<div class="action-stack action-stack--dashboard">${renderLayoutDetail("dashboard", "primary_action", primaryAction, "runtime-detail-item--action")}${secondaryAction ? renderLayoutDetail("dashboard", "secondary_action", secondaryAction, "runtime-detail-item--action") : ""}</div>`;
 	const promoWidgetItem = getLayoutElement("dashboard", "promo_widget");
-	const promoWidgetVisible = promoWidgetItem?.visible !== false && (Boolean(promoWidgetItem?.promoCode) || state.adminLayoutEditing);
+	const promoWidgetVisible = dashboardWidgetVisible(promoWidgetItem, "promoCode");
 	const notificationWidgetItem = getLayoutElement("dashboard", "notification_widget");
-	const notificationWidgetVisible = notificationWidgetItem?.visible !== false && (Boolean(String(notificationWidgetItem?.notificationText || "").trim()) || state.adminLayoutEditing);
+	const notificationWidgetVisible = dashboardWidgetVisible(notificationWidgetItem, "notificationText");
 	const subscriptionSwitcher = featureEnabled("additional_subscriptions") || state.adminLayoutEditing ? renderSubscriptionSwitcher() : "";
 
 	const blocks = {
