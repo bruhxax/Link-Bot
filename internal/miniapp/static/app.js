@@ -4287,7 +4287,6 @@ function mountCabinetShell(markup) {
 	currentShell.append(...nextShell.childNodes);
 }
 
-let pendingLanguageTextTransition = false;
 const activeTextTransitions = new WeakMap();
 const runningTextTransitions = new Set();
 let textTransitionRenderGeneration = 0;
@@ -4300,7 +4299,6 @@ function cancelAllTextTransitions() {
 document.addEventListener("visibilitychange", () => {
 	if (!document.hidden) return;
 	textTransitionRenderGeneration++;
-	pendingLanguageTextTransition = false;
 	cancelAllTextTransitions();
 });
 window.addEventListener("resize", cancelAllTextTransitions, { passive: true });
@@ -4368,6 +4366,37 @@ function transitionGlyphLayer(glyph, style, container, entering, direction) {
 	return layer;
 }
 
+function changedTransitionCharacters(oldCharacters, nextCharacters) {
+	if (oldCharacters.length === nextCharacters.length) {
+		return oldCharacters.flatMap((character, index) => character === nextCharacters[index] ? [] : [{ oldIndex: index, newIndex: index }]);
+	}
+	// Align insertions and removals without rolling the letters between changes.
+	const costs = Array.from({ length: oldCharacters.length + 1 }, () => new Uint16Array(nextCharacters.length + 1));
+	for (let oldIndex = oldCharacters.length; oldIndex >= 0; oldIndex--) {
+		for (let newIndex = nextCharacters.length; newIndex >= 0; newIndex--) {
+			if (oldIndex === oldCharacters.length) costs[oldIndex][newIndex] = nextCharacters.length - newIndex;
+			else if (newIndex === nextCharacters.length) costs[oldIndex][newIndex] = oldCharacters.length - oldIndex;
+			else costs[oldIndex][newIndex] = oldCharacters[oldIndex] === nextCharacters[newIndex]
+				? costs[oldIndex + 1][newIndex + 1]
+				: 1 + Math.min(costs[oldIndex + 1][newIndex + 1], costs[oldIndex + 1][newIndex], costs[oldIndex][newIndex + 1]);
+		}
+	}
+	const changes = [];
+	let oldIndex = 0, newIndex = 0;
+	while (oldIndex < oldCharacters.length || newIndex < nextCharacters.length) {
+		if (oldIndex < oldCharacters.length && newIndex < nextCharacters.length && oldCharacters[oldIndex] === nextCharacters[newIndex]) {
+			oldIndex++; newIndex++;
+		} else if (oldIndex < oldCharacters.length && newIndex < nextCharacters.length && costs[oldIndex][newIndex] === 1 + costs[oldIndex + 1][newIndex + 1]) {
+			changes.push({ oldIndex: oldIndex++, newIndex: newIndex++ });
+		} else if (oldIndex < oldCharacters.length && costs[oldIndex][newIndex] === 1 + costs[oldIndex + 1][newIndex]) {
+			changes.push({ oldIndex: oldIndex++, newIndex: null });
+		} else {
+			changes.push({ oldIndex: null, newIndex: newIndex++ });
+		}
+	}
+	return changes;
+}
+
 function playTextTransition(before, node, delay = 0) {
 	if (!before || !(node instanceof HTMLElement) || before.value === node.textContent?.trim() || reducedMotionMedia?.matches || typeof node.animate !== "function") return;
 	const rect = node.getBoundingClientRect();
@@ -4376,20 +4405,31 @@ function playTextTransition(before, node, delay = 0) {
 	if (!value || value !== node.textContent.trim() || rect.width < 2 || rect.height < 2 || rect.bottom < 0 || rect.top > window.innerHeight) return;
 	const oldGlyphs = before.glyphs;
 	const nextCharacters = splitTransitionText(value);
-	// Keep unchanged text in place; a price change should roll only its digits.
-	let prefix = 0;
-	while (prefix < oldGlyphs.length && prefix < nextCharacters.length && oldGlyphs[prefix].character === nextCharacters[prefix]) prefix++;
-	let suffix = 0;
-	while (suffix < oldGlyphs.length - prefix && suffix < nextCharacters.length - prefix && oldGlyphs[oldGlyphs.length - 1 - suffix].character === nextCharacters[nextCharacters.length - 1 - suffix]) suffix++;
-	const changedCharacters = nextCharacters.slice(prefix, nextCharacters.length - suffix).join("");
+	const changes = changedTransitionCharacters(oldGlyphs.map((glyph) => glyph.character), nextCharacters);
+	const changedIndexes = new Set(changes.map((change) => change.newIndex).filter((index) => index !== null));
 	const raw = textNode.textContent;
 	const start = raw.indexOf(value);
-	const mask = document.createElement("i");
-	mask.dataset.textTransitionMask = "";
-	mask.textContent = changedCharacters;
-	Object.assign(mask.style, { fontStyle: "inherit", color: "transparent", webkitTextFillColor: "transparent", textShadow: "none" });
-	textNode.replaceWith(document.createTextNode(raw.slice(0, start) + nextCharacters.slice(0, prefix).join("")), mask, document.createTextNode(nextCharacters.slice(nextCharacters.length - suffix).join("") + raw.slice(start + value.length)));
-	const newGlyphs = changedCharacters ? transitionGlyphs(mask.firstChild, changedCharacters) : [];
+	const masks = new Map();
+	const replacementNodes = [];
+	let unchangedText = raw.slice(0, start);
+	for (let index = 0; index < nextCharacters.length; index++) {
+		if (!changedIndexes.has(index)) {
+			unchangedText += nextCharacters[index];
+			continue;
+		}
+		if (unchangedText) replacementNodes.push(document.createTextNode(unchangedText));
+		unchangedText = "";
+		const mask = document.createElement("i");
+		mask.dataset.textTransitionMask = "";
+		mask.textContent = nextCharacters[index];
+		Object.assign(mask.style, { fontStyle: "inherit", color: "transparent", webkitTextFillColor: "transparent", textShadow: "none" });
+		masks.set(index, mask);
+		replacementNodes.push(mask);
+	}
+	unchangedText += raw.slice(start + value.length);
+	if (unchangedText) replacementNodes.push(document.createTextNode(unchangedText));
+	textNode.replaceWith(...replacementNodes);
+	const newGlyphs = new Map([...masks].map(([index, mask]) => [index, transitionGlyphs(mask.firstChild, mask.textContent)[0]]));
 	const style = transitionTextStyle(node);
 	const oldPosition = node.style.position;
 	if (window.getComputedStyle(node).position === "static") node.style.position = "relative";
@@ -4399,10 +4439,10 @@ function playTextTransition(before, node, delay = 0) {
 	overlay.setAttribute("aria-hidden", "true");
 	node.appendChild(overlay);
 	const animations = [];
-	const changedOldGlyphs = oldGlyphs.slice(prefix, oldGlyphs.length - suffix);
-	for (let index = 0; index < Math.max(changedOldGlyphs.length, newGlyphs.length); index++) {
-		const oldGlyph = changedOldGlyphs[index];
-		const newGlyph = newGlyphs[index];
+	for (let index = 0; index < changes.length; index++) {
+		const change = changes[index];
+		const oldGlyph = change.oldIndex === null ? null : oldGlyphs[change.oldIndex];
+		const newGlyph = newGlyphs.get(change.newIndex);
 		const anchor = newGlyph || oldGlyph;
 		if (!anchor) continue;
 		const origin = newGlyph ? rect : before.rect;
@@ -4422,7 +4462,7 @@ function playTextTransition(before, node, delay = 0) {
 			animations.push(layer.animate(entering
 				? [{ transform: `translateY(${-direction * 100}%)` }, { transform: "translateY(0)" }]
 				: [{ transform: "translateY(0)" }, { transform: `translateY(${direction * 100}%)` }],
-				{ duration: 280, delay, easing: "cubic-bezier(.22,1,.36,1)", fill: "both" }));
+				{ duration: 500, delay, easing: "cubic-bezier(.4,0,.2,1)", fill: "both" }));
 		}
 	}
 	const transition = {
@@ -4434,7 +4474,7 @@ function playTextTransition(before, node, delay = 0) {
 			overlay.remove();
 			node.classList.remove("text-transition-host");
 			node.style.position = oldPosition;
-			mask.replaceWith(document.createTextNode(changedCharacters));
+			for (const mask of masks.values()) mask.replaceWith(document.createTextNode(mask.textContent));
 			node.normalize();
 		},
 	};
@@ -4456,7 +4496,7 @@ function nodeAtTextPath(root, path) {
 	return path.reduce((node, index) => node?.children[index], root);
 }
 
-function captureRenderTextTransitions(language) {
+function captureRenderTextTransitions() {
 	const roots = [".page.active", ".desktop-sidebar", ".bottom-nav"];
 	return roots.flatMap((selector) => {
 		const root = app.querySelector(selector);
@@ -4469,7 +4509,7 @@ function captureRenderTextTransitions(language) {
 	});
 }
 
-function playRenderTextTransitions(snapshots, language) {
+function playRenderTextTransitions(snapshots) {
 	for (const snapshot of snapshots) {
 		const root = app.querySelector(snapshot.selector);
 		if (!root || root.id !== snapshot.rootID) continue;
@@ -4493,9 +4533,7 @@ function updateAnimatedText(node, value) {
 function render({ preserveScroll = true, scrollTop = null, preserveInteraction = false } = {}) {
 	const transitionGeneration = ++textTransitionRenderGeneration;
 	cancelAllTextTransitions();
-	const languageTextTransition = pendingLanguageTextTransition && !document.hidden;
-	pendingLanguageTextTransition = false;
-	const textTransitions = state.data && !document.hidden ? captureRenderTextTransitions(languageTextTransition) : [];
+	const textTransitions = state.data && !document.hidden ? captureRenderTextTransitions() : [];
 	realtimeRenderPending = false;
 	window.clearTimeout(realtimeRenderTimer);
 	const realtimeFocus = realtimeRefreshRunning || preserveInteraction ? captureRealtimeFocus() : null;
@@ -4618,7 +4656,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
   restoreScrollPosition(nextScrollTop);
 	mountRuntimeLayout();
 	if (textTransitions.length) requestAnimationFrame(() => {
-		if (transitionGeneration === textTransitionRenderGeneration && !document.hidden) playRenderTextTransitions(textTransitions, languageTextTransition);
+		if (transitionGeneration === textTransitionRenderGeneration && !document.hidden) playRenderTextTransitions(textTransitions);
 	});
 	mountBannerMedia();
   syncBottomNavIndicator();
@@ -8945,8 +8983,6 @@ function renderProfileLanguageSwitch() {
 	return `<div class="profile-row profile-language-row" data-language="${active}"><span class="profile-row__icon">${icon("language")}</span><span class="profile-row__body"><strong>${escapeHtml(label)}</strong></span><span class="profile-language-switch" role="group" aria-label="${escapeAttribute(label)}"><span class="profile-language-switch__light" aria-hidden="true"></span><button type="button" data-action="profile-language" data-value="ru" aria-label="Русский" aria-pressed="${active === "ru"}">RU</button><button type="button" data-action="profile-language" data-value="en" aria-label="English" aria-pressed="${active === "en"}">EN</button></span></div>`;
 }
 
-let profileLanguageRenderTimer = null;
-
 function setProfileLanguage(language) {
 	if (language !== "ru" && language !== "en") return;
 	const userID = state.data?.user?.id;
@@ -8958,20 +8994,9 @@ function setProfileLanguage(language) {
 		else window.localStorage.setItem(key, language);
 	} catch { /* language remains selected for this session */ }
 	state.locale = language;
-	const row = app.querySelector(".profile-language-row");
-	if (row) {
-		row.dataset.language = language;
-		row.querySelectorAll("[data-action='profile-language']").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.value === language)));
-	}
 	haptic("light");
-	window.clearTimeout(profileLanguageRenderTimer);
-	const sourcePage = state.currentPage;
-	const sourceGeneration = textTransitionRenderGeneration;
-	profileLanguageRenderTimer = window.setTimeout(() => {
-		syncLocalizationFromSettings();
-		pendingLanguageTextTransition = state.currentPage === sourcePage && textTransitionRenderGeneration === sourceGeneration && !document.hidden;
-		render({ preserveScroll: true });
-	}, 240);
+	syncLocalizationFromSettings();
+	render({ preserveScroll: true });
 }
 
 function getProfileItems() {

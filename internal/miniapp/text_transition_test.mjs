@@ -86,7 +86,7 @@ function harness() {
       getComputedStyle: node => ({ position: node.style.position || "static", visibility: "visible", opacity: "1", font: "14px sans-serif", color: "white", lineHeight: "20px" }),
     },
   });
-  vm.runInContext(section("let pendingLanguageTextTransition =", "function textNodePath(") + section("function updateAnimatedText(", "function render("), context);
+  vm.runInContext(section("const activeTextTransitions =", "function textNodePath(") + section("function updateAnimatedText(", "function render("), context);
   const node = new Element("span");
   node.textContent = "Оплатить 199 ₽";
   document.body.appendChild(node);
@@ -128,6 +128,35 @@ test("letters and digits roll in adjacent opposite directions without fades or d
   assert.equal(moving[3].frames[0].transform, "translateY(-100%)");
   await page.finish();
   assert.equal(page.node.textContent, "Pay 800 ₽");
+});
+
+test("price changes roll only the changed digit positions, including separated changes", async () => {
+  for (const [before, after, expected] of [
+    ["Оплатить 3000 ₽", "Оплатить 4000 ₽", ["3", "4"]],
+    ["Оплатить 3010 ₽", "Оплатить 4020 ₽", ["3", "4", "1", "2"]],
+    ["Оплатить 1234 ₽", "Оплатить 2345 ₽", ["1", "2", "2", "3", "3", "4", "4", "5"]],
+  ]) {
+    const page = harness();
+    page.node.textContent = before;
+    page.update(after);
+    assert.deepEqual(page.animations.map(animation => animation.element.dataset.character), expected);
+    assert.ok(page.animations.every(animation => animation.options.duration >= 450));
+    assert.equal(page.node.textContent, after);
+    await page.finish();
+    assert.equal(page.node.textContent, after);
+  }
+});
+
+test("changing a plan word length leaves its unchanged letters and label unanimated", async () => {
+  const page = harness();
+  page.node.textContent = "6 месяцев · Безлимит";
+  page.update("3 месяца · Безлимит");
+  const movingCharacters = page.animations.map(animation => animation.element.dataset.character);
+  assert.ok(movingCharacters.includes("6") && movingCharacters.includes("3"));
+  assert.ok(movingCharacters.every(character => "63ева".includes(character)));
+  assert.equal(page.node.textContent, "3 месяца · Безлимит");
+  await page.finish();
+  assert.equal(page.node.textContent, "3 месяца · Безлимит");
 });
 
 test("repeating the current value and hiding the page leave no stale text or layers", async () => {
@@ -196,4 +225,28 @@ test("fast plan selection animates both price and title while preserving the pay
   }
   assert.equal(calls.length, 10, "each selection animates both labels even within a single frame");
   assert.equal(originalAction.querySelector().textContent, "Pay 600");
+});
+
+test("language changes render immediately and persist the latest selection without timers", () => {
+  const stored = new Map();
+  const state = { data: { user: { id: 7 } }, locale: "ru" };
+  const renders = [];
+  const context = vm.createContext({
+    state, STORAGE_KEYS: { languageOverride: "locale" },
+    getRuntimeSettings: () => ({ localization: { language: "ru" } }),
+    pickLocale: value => value, haptic() {}, syncLocalizationFromSettings() {},
+    render: () => renders.push(state.locale),
+    window: { localStorage: {
+      setItem: (key, value) => stored.set(key, value), removeItem: key => stored.delete(key),
+    } },
+  });
+  vm.runInContext(section("function setProfileLanguage(", "function getProfileItems("), context);
+  context.setProfileLanguage("en");
+  assert.deepEqual(renders, ["en"]);
+  assert.equal(stored.get("locale:7"), "en");
+  context.setProfileLanguage("ru");
+  assert.deepEqual(renders, ["en", "ru"]);
+  assert.equal(stored.has("locale:7"), false);
+  context.setProfileLanguage("invalid");
+  assert.deepEqual(renders, ["en", "ru"]);
 });
