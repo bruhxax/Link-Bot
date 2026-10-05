@@ -23,12 +23,9 @@ func TestAdminWebPushUIRequiresDirectPermissionGestureAndHomeScreen(t *testing.T
 		`userVisibleOnly: true`,
 		`applicationServerKey: urlBase64ToUint8Array`,
 		`updateViaCache: "none"`,
-		`renewAdminPushSubscription()`,
-		`push_subscription_stale`,
-		`if (subscription) remoteState = await syncAdminPushSubscription(subscription);`,
+		`syncAdminPushSubscription(subscription)`,
 		`/api/mini-app/admin/push/subscribe`,
 		`/api/mini-app/admin/push/unsubscribe`,
-		`/api/mini-app/admin/push/test`,
 		`Добавьте сайт на экран «Домой»`,
 	} {
 		if !strings.Contains(source, required) {

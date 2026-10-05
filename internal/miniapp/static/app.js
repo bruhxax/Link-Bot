@@ -3292,6 +3292,7 @@ async function boot() {
 	closeSupportThreadState();
   writeSetting(STORAGE_KEYS.page, state.currentPage);
   await refreshDashboard({ initial: true, silent: paymentReturn });
+	if (isAdminUser()) void refreshAdminPush();
 	if (isAdminUser() && state.currentPage === "admin" && !["broadcast", "user-message"].includes(urlParams.get("admin"))) refreshRestoredAdminSection();
   await handlePostBootstrapFlow();
 }
@@ -3300,7 +3301,6 @@ function refreshRestoredAdminSection() {
 	if (state.adminSection === "finance") void refreshAdminFinance().catch((error) => showToast(error?.message || "Не удалось загрузить финансы", "danger"));
 	if (state.adminSection === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
 	if (state.adminSection === "status") void refreshAdminStatus();
-	if (state.adminSection === "push") void refreshAdminPush().catch((error) => showToast(error?.message || "Не удалось загрузить уведомления", "danger"));
 	if (state.adminSection === "users") void refreshAdminUsers();
 	if (state.adminSection === "partners") void refreshAdminPartners();
 	if (state.adminSection === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
@@ -3533,7 +3533,7 @@ async function refreshRealtimeData() {
 				case "partners": await refreshAdminPartners({ silent: true }); break;
 				case "moynalog": await refreshAdminMoyNalog({ silent: true }); break;
 				case "broadcast": await refreshAdminBroadcast({ silent: true }); break;
-				case "push": await refreshAdminPush({ live: true }); break;
+				case "home": await refreshAdminPush(); break;
 				case "users":
 					if (state.adminUserDetail?.customerId) {
 						const customerId = state.adminUserDetail.customerId;
@@ -3756,7 +3756,7 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
 		state.adminUserPreviewDetail = deepClone(state.adminUserDetail);
 		if (urlParams.get("detail") !== "1") state.adminUserDetail = null;
 		const previewSection = String(urlParams.get("section") || "");
-		if (["integrations", "referrals", "partners", "moynalog", "finance", "analytics", "ai", "push", "users", "appearance"].includes(previewSection)) {
+		if (["home", "integrations", "referrals", "partners", "moynalog", "finance", "analytics", "ai", "users", "appearance"].includes(previewSection)) {
 			state.currentPage = "admin";
 			state.adminSection = previewSection;
 			state.adminLayoutEditing = false;
@@ -4959,7 +4959,6 @@ function renderAdminPage() {
 	if (state.adminSection === "ai") return `<section class="page admin-page ${pageClass("admin")}" id="page-admin">${renderAISettings(state.adminAI, { escapeHtml, escapeAttribute, icon })}</section>`;
 	if (state.adminSection === "status") return renderAdminStatusPage();
 	if (state.adminSection === "partners") return renderAdminPartnersPage();
-	if (state.adminSection === "push") return renderAdminPushPage();
 	if (state.adminSection === "users") return renderAdminUsersPage();
 	return `
 		<section class="page admin-page ${pageClass("admin")}" id="page-admin">
@@ -4969,7 +4968,7 @@ function renderAdminPage() {
 				[localizedText("Язык и шрифт", "Language and font", "زبان و فونت"), "", "localization", "language"],
 				[localizedText("Режим аварии", "Maintenance mode", "حالت تعمیر"), "", "maintenance", "adminMaintenance"],
 				[localizedText("Диагностика", "Diagnostics", "عیب‌یابی"), "", "diagnostics", "adminDiagnostics"],
-				[localizedText("Push-уведомления", "Push notifications", "اعلان‌های پوش"), "", "push", "adminPush"],
+				[localizedText("Push-уведомления", "Push notifications", "اعلان‌های پوش"), "", "push-toggle", "adminPush"],
 				[localizedText("Управление функциями", "Functions", "مدیریت امکانات"), "", "features", "adminFeatures"],
 				[localizedText("Триал", "Trial", "آزمایشی"), "", "trial", "adminTrial"],
 				[localizedText("Доступ после окончания", "Access after expiry", "دسترسی پس از انقضا"), "", "grace", "adminTrial"],
@@ -5006,7 +5005,6 @@ const ADMIN_SEARCH_SECTIONS = [
 	["localization", "Язык и шрифт", "локализация язык шрифт"],
 	["maintenance", "Режим аварии", "технические работы"],
 	["diagnostics", "Диагностика", "ошибки события"],
-	["push", "Push-уведомления", "уведомления пуш"],
 	["features", "Управление функциями", "включить отключить функции"],
 	["trial", "Триал", "пробный период"],
 	["grace", "Доступ после окончания", "подписка истекла"],
@@ -5114,7 +5112,6 @@ function openAdminSettingsSearchResult(index) {
 	if (item.section === "finance") void refreshAdminFinance();
 	if (item.section === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
 	if (item.section === "status") void refreshAdminStatus();
-	if (item.section === "push") void refreshAdminPush().catch((error) => showToast(error?.message || "Не удалось загрузить уведомления", "danger"));
 	if (item.section === "users") void refreshAdminUsers();
 	if (item.section === "partners") void refreshAdminPartners();
 	if (item.section === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
@@ -5608,36 +5605,28 @@ function adminPushEnvironment() {
 	};
 }
 
-function adminPushStatusCopy() {
-	const push = state.adminPush || {};
-	const environment = adminPushEnvironment();
-	if (environment.insideTelegram) return ["Откройте сайт в Safari", "Push подключается в веб-версии, добавленной на экран «Домой». "];
-	if (environment.installRequired) return ["Добавьте сайт на экран «Домой»", "В Safari нажмите «Поделиться», затем «На экран Домой» и откройте новую иконку Link-Bot."];
-	if (!environment.supported) return ["Уведомления не поддерживаются", "Откройте сайт в актуальной версии Safari или другом браузере с поддержкой Web Push."];
-	if (!push.available) return ["Сервис временно недоступен", "Перезапустите Link-Bot после применения миграций и попробуйте снова."];
-	if (push.permission === "denied") return ["Уведомления заблокированы", "Разрешите уведомления для Link-Bot в настройках iPhone, затем вернитесь сюда."];
-	if (state.adminPushError) return ["Не удалось включить уведомления", state.adminPushError];
-	if (push.subscribed) return ["Уведомления включены", "Сайт можно закрыть — важные события всё равно появятся на экране блокировки."];
-	return ["Уведомления выключены", "Включите их один раз на этом устройстве. Telegram для доставки не используется."];
+function renderAdminPushToggle(title) {
+	const enabled = Boolean(state.adminPush?.subscribed && state.adminPush?.permission === "granted");
+	return `<label class="menu-row admin-toggle admin-push-toggle"><span class="menu-row__icon" aria-hidden="true">${icon("adminPush")}</span><span class="menu-row__body"><strong>${escapeHtml(title)}</strong></span><input type="checkbox" role="switch" aria-label="${escapeAttribute(title)}" data-input="admin-push-toggle" ${enabled ? "checked" : ""} ${state.adminPushBusy ? "disabled" : ""}><i aria-hidden="true"></i></label>`;
 }
 
-function renderAdminPushPage() {
-	const push = state.adminPush || {};
-	const environment = adminPushEnvironment();
-	const [statusTitle, statusText] = adminPushStatusCopy();
-	const loading = state.adminPushBusy === "state" && !state.adminPush;
-	const enabled = Boolean(push.subscribed && push.permission === "granted");
-	const canEnable = !loading && !state.adminPushBusy && environment.supported && !environment.insideTelegram && !environment.installRequired && push.available && push.permission !== "denied";
-	const count = Number(push.subscriptionCount || 0);
-	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-push ${loading ? "is-loading" : ""}">
-		<header class="admin-push__header"><span>СИСТЕМА</span><h2>Push-уведомления</h2><p>Системные уведомления для администратора без отдельного приложения.</p></header>
-		<section class="admin-push__surface" aria-labelledby="admin-push-status-title" aria-busy="${Boolean(state.adminPushBusy)}">
-			<div class="admin-push__status ${enabled ? "is-enabled" : ""}" aria-live="polite" ${state.adminPushError ? `role="alert"` : ""}><span class="admin-push__status-icon" aria-hidden="true">${icon("adminPush")}<i></i></span><div><h3 id="admin-push-status-title">${escapeHtml(statusTitle)}</h3><p>${escapeHtml(statusText)}</p></div></div>
-			<div class="admin-push__events" aria-label="События для уведомлений"><div><span aria-hidden="true">${icon("wallet")}</span><p><strong>Оплаты</strong><small>Сумма, тариф, способ оплаты и @username</small></p></div><div><span aria-hidden="true">${icon("sms")}</span><p><strong>Обращения</strong><small>Новые тикеты и ответы пользователей</small></p></div><div><span aria-hidden="true">${icon("alert")}</span><p><strong>Диагностика</strong><small>Ошибки и важные сбои сервисов</small></p></div></div>
-			<div class="admin-push__footer"><p>${count > 0 ? `Подключено устройств: <strong>${count.toLocaleString("ru-RU")}</strong>` : "Подключённых устройств пока нет"}</p><div class="admin-push__actions">${push.subscribed ? `${enabled ? `<button type="button" class="is-primary" data-action="admin-push-test" ${state.adminPushBusy ? "disabled" : ""}>${icon(state.adminPushBusy === "test" ? "refresh" : "send")}<span>Проверить</span></button>` : ""}<button type="button" data-action="admin-push-disable" ${state.adminPushBusy ? "disabled" : ""}>Отключить на этом устройстве</button>` : `<button type="button" class="is-primary" data-action="admin-push-enable" ${canEnable ? "" : "disabled"}>${icon(state.adminPushBusy === "enable" ? "refresh" : "adminPush")}<span>${state.adminPushError ? "Повторить" : "Включить уведомления"}</span></button>`}</div></div>
-		</section>
-		<p class="admin-push__privacy">Текст уведомления может быть виден на экране блокировки. Секреты, токены и содержимое обращения в push не отправляются.</p>
-	</div></section>`;
+function syncAdminPushToggle() {
+	const input = app.querySelector('[data-input="admin-push-toggle"]');
+	if (!input) return;
+	input.checked = Boolean(state.adminPush?.subscribed && state.adminPush?.permission === "granted");
+	input.disabled = Boolean(state.adminPushBusy);
+}
+
+async function setAdminPushEnabled(enabled) {
+	if (!isAdminUser() || state.adminPushBusy) return;
+	try {
+		if (enabled) await enableAdminPush();
+		else await disableAdminPush();
+	} catch (error) {
+		state.adminPushError = adminPushErrorMessage(error);
+		showToast(state.adminPushError, "danger");
+		syncAdminPushToggle();
+	}
 }
 
 async function currentAdminPushSubscription() {
@@ -5657,78 +5646,35 @@ async function syncAdminPushSubscription(subscription) {
 	return response.data || {};
 }
 
-async function renewAdminPushSubscription() {
-	const registration = await getPWAServiceWorkerRegistration();
-	if (!registration?.pushManager) throw new Error("Service Worker недоступен");
-	const current = await withWebPushTimeout(
-		registration.pushManager.getSubscription(),
-		WEB_PUSH_WORKER_TIMEOUT_MS,
-		"iPhone не ответил на запрос уведомлений",
-		"push_subscription_state_timeout",
-	);
-	if (current) {
-		await withWebPushTimeout(
-			current.unsubscribe(),
-			WEB_PUSH_WORKER_TIMEOUT_MS,
-			"iPhone не удалил устаревшую подписку",
-			"push_unsubscribe_timeout",
-		);
-	}
-	const subscription = await withWebPushTimeout(
-		registration.pushManager.subscribe({
-			userVisibleOnly: true,
-			applicationServerKey: urlBase64ToUint8Array(state.adminPush.publicKey),
-		}),
-		WEB_PUSH_SUBSCRIPTION_TIMEOUT_MS,
-		"iPhone не создал новую подписку на уведомления",
-		"push_subscribe_timeout",
-	);
-	const data = await syncAdminPushSubscription(subscription);
-	state.adminPush = { ...data, subscribed: true, permission: Notification.permission };
-	return subscription;
-}
-
 function adminPushErrorMessage(error) {
-	if (error?.code === "push_subscribe_timeout") return "iPhone не завершил подписку. Нажмите «Повторить»; если не поможет, полностью закройте Link-Bot и откройте снова.";
-	if (error?.name === "InvalidStateError") return "iPhone ещё не активировал сайт. Полностью закройте Link-Bot, откройте снова и нажмите «Повторить».";
-	if (error?.name === "NotAllowedError") return "Разрешите уведомления для Link-Bot в настройках iPhone и повторите.";
-	return error?.message || "Не удалось подключить уведомления. Нажмите «Повторить».";
+	if (error?.name === "NotAllowedError") return localizedText("Разрешите уведомления в настройках браузера.", "Allow notifications in your browser settings.", "اعلان‌ها را در تنظیمات مرورگر مجاز کنید.");
+	return error?.message || localizedText("Не удалось подключить уведомления. Попробуйте ещё раз.", "Could not enable notifications. Try again.", "فعال‌سازی اعلان‌ها ممکن نشد. دوباره تلاش کنید.");
 }
 
-async function refreshAdminPush({ live = false } = {}) {
-	if (state.adminPushBusy) return;
-	const previous = live ? JSON.stringify(state.adminPush || {}) : "";
+async function refreshAdminPush() {
+	if (!isAdminUser() || state.adminPushBusy) return;
 	if (previewMode) {
-		state.adminPush = { available: true, publicKey: "preview", subscriptionCount: 1, subscribed: true, permission: "granted" };
-		render({ preserveScroll: true });
+		state.adminPush ||= { available: true, publicKey: "preview", subscribed: false, permission: "default" };
+		syncAdminPushToggle();
 		return;
 	}
+	const environment = adminPushEnvironment();
+	if (!environment.supported || environment.insideTelegram || environment.installRequired) return;
 	state.adminPushBusy = "state";
-	state.adminPushError = "";
-	if (!live) render({ preserveScroll: true });
+	syncAdminPushToggle();
 	try {
 		const response = await post("/api/mini-app/admin/push/state", {});
 		let remoteState = response.data || {};
-		const environment = adminPushEnvironment();
-		let subscription = null;
-		if (environment.supported && !environment.insideTelegram && !environment.installRequired) {
-			subscription = await currentAdminPushSubscription();
-			if (!live) {
-				if (subscription) remoteState = await syncAdminPushSubscription(subscription);
-			}
-		}
-		state.adminPush = {
-			...remoteState,
-			subscribed: Boolean(subscription),
-			permission: "Notification" in window ? Notification.permission : "default",
-		};
+		const subscription = Notification.permission === "granted" ? await currentAdminPushSubscription() : null;
+		if (subscription && !state.adminPush?.subscribed) remoteState = await syncAdminPushSubscription(subscription);
+		state.adminPush = { ...remoteState, subscribed: Boolean(subscription), permission: Notification.permission };
+		state.adminPushError = "";
 	} catch (error) {
 		state.adminPushError = adminPushErrorMessage(error);
-		throw error;
 	} finally {
 		state.adminPushBusy = "";
-		if (live) { if (previous !== JSON.stringify(state.adminPush || {})) renderRealtime(); }
-		else render({ preserveScroll: true });
+		// Update only the switch. Device checks must not remount another page.
+		syncAdminPushToggle();
 	}
 }
 
@@ -5741,103 +5687,66 @@ function urlBase64ToUint8Array(value) {
 
 async function enableAdminPush() {
 	const environment = adminPushEnvironment();
-	if (!environment.supported || environment.insideTelegram || environment.installRequired || !state.adminPush?.available) return;
-	state.adminPushError = "";
-	const permission = await Notification.requestPermission();
-	if (permission !== "granted") {
-		state.adminPush = { ...(state.adminPush || {}), permission, subscribed: false };
-		render({ preserveScroll: true });
-		showToast(permission === "denied" ? "Уведомления заблокированы в настройках" : "Разрешение не выдано", "danger");
-		return;
+	if (!previewMode) {
+		if (environment.insideTelegram) throw new Error(localizedText("Откройте веб-версию для включения Push.", "Open the web version to enable Push.", "برای فعال‌سازی پوش، نسخه وب را باز کنید."));
+		if (environment.installRequired) throw new Error(localizedText("Добавьте сайт на экран «Домой» в Safari и откройте его оттуда.", "Add this site to your Home Screen in Safari and open it there.", "در Safari سایت را به صفحه اصلی اضافه کرده و از آنجا باز کنید."));
+		if (!environment.supported) throw new Error(localizedText("Этот браузер не поддерживает Push-уведомления.", "This browser does not support Push notifications.", "این مرورگر از اعلان‌های پوش پشتیبانی نمی‌کند."));
 	}
 	state.adminPushBusy = "enable";
-	render({ preserveScroll: true });
-	let subscription = null;
+	state.adminPushError = "";
 	try {
+		// Ask directly from the switch gesture, before any network or worker await.
+		const permissionPromise = previewMode ? Promise.resolve("granted") : Notification.requestPermission();
+		syncAdminPushToggle();
+		const permission = await permissionPromise;
+		if (permission !== "granted") {
+			state.adminPush = { ...(state.adminPush || {}), permission, subscribed: false };
+			showToast(permission === "denied" ? localizedText("Уведомления заблокированы в настройках браузера.", "Notifications are blocked in browser settings.", "اعلان‌ها در تنظیمات مرورگر مسدود شده‌اند.") : localizedText("Разрешение не выдано.", "Permission was not granted.", "مجوز صادر نشد."));
+			return;
+		}
+		if (previewMode) {
+			state.adminPush = { available: true, subscribed: true, permission };
+			return;
+		}
+		if (!state.adminPush?.publicKey || !state.adminPush?.available) {
+			const response = await post("/api/mini-app/admin/push/state", {});
+			state.adminPush = { ...(response.data || {}), subscribed: false, permission };
+		}
+		if (!state.adminPush.available || !state.adminPush.publicKey) throw new Error(localizedText("Push-уведомления временно недоступны.", "Push notifications are temporarily unavailable.", "اعلان‌های پوش موقتاً در دسترس نیستند."));
 		const registration = await getPWAServiceWorkerRegistration();
 		if (!registration?.pushManager) throw new Error("Service Worker недоступен");
-		subscription = await withWebPushTimeout(
-			registration.pushManager.getSubscription(),
-			WEB_PUSH_WORKER_TIMEOUT_MS,
-			"iPhone не ответил на запрос уведомлений. Полностью закройте Link-Bot, откройте снова и повторите.",
-			"push_subscription_state_timeout",
-		);
-		if (!subscription) {
-			const subscriptionPromise = registration.pushManager.subscribe({
-				userVisibleOnly: true,
-				applicationServerKey: urlBase64ToUint8Array(state.adminPush.publicKey),
-			});
-			try {
-				subscription = await withWebPushTimeout(
-					subscriptionPromise,
-					WEB_PUSH_SUBSCRIPTION_TIMEOUT_MS,
-					"iPhone не завершил подписку на уведомления",
-					"push_subscribe_timeout",
-				);
-			} catch (error) {
-				if (error?.code === "push_subscribe_timeout") {
-					void subscriptionPromise.then(async (lateSubscription) => {
-						try {
-							const data = await syncAdminPushSubscription(lateSubscription);
-							state.adminPush = { ...data, subscribed: true, permission: "granted" };
-							state.adminPushError = "";
-							render({ preserveScroll: true });
-							showToast("Push-уведомления включены", "success");
-						} catch (_) { /* the retry button will resync the local subscription */ }
-					}).catch(() => {});
-				}
-				throw error;
-			}
-		}
+		let subscription = await withWebPushTimeout(registration.pushManager.getSubscription(), WEB_PUSH_WORKER_TIMEOUT_MS, "Не удалось проверить подписку на уведомления", "push_subscription_state_timeout");
+		if (!subscription) subscription = await withWebPushTimeout(registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(state.adminPush.publicKey) }), WEB_PUSH_SUBSCRIPTION_TIMEOUT_MS, "Не удалось включить уведомления. Попробуйте ещё раз.", "push_subscribe_timeout");
 		const data = await syncAdminPushSubscription(subscription);
-		state.adminPush = { ...data, subscribed: true, permission: "granted" };
-		state.adminPushError = "";
-		showToast("Push-уведомления включены", "success");
-	} catch (error) {
-		state.adminPush = { ...(state.adminPush || {}), subscribed: false, permission: Notification.permission };
-		state.adminPushError = adminPushErrorMessage(error);
-		showToast(state.adminPushError, "danger");
+		state.adminPush = { ...data, subscribed: true, permission };
+		showToast(localizedText("Уведомления включены", "Notifications enabled", "اعلان‌ها فعال شدند"), "success");
 	} finally {
 		state.adminPushBusy = "";
-		render({ preserveScroll: true });
+		syncAdminPushToggle();
 	}
 }
 
 async function disableAdminPush() {
 	state.adminPushBusy = "disable";
-	render({ preserveScroll: true });
+	state.adminPushError = "";
+	syncAdminPushToggle();
 	try {
+		if (previewMode) {
+			state.adminPush = { ...(state.adminPush || {}), subscribed: false };
+			return;
+		}
 		const subscription = await currentAdminPushSubscription();
 		if (subscription) {
-			const response = await post("/api/mini-app/admin/push/unsubscribe", { endpoint: subscription.endpoint });
-			await subscription.unsubscribe();
-			state.adminPush = { ...(response.data || {}), subscribed: false, permission: Notification.permission };
-		} else {
+			const removed = await withWebPushTimeout(subscription.unsubscribe(), WEB_PUSH_WORKER_TIMEOUT_MS, "Не удалось отключить уведомления. Попробуйте ещё раз.", "push_unsubscribe_timeout");
+			if (!removed) throw new Error("Не удалось отключить уведомления");
 			state.adminPush = { ...(state.adminPush || {}), subscribed: false, permission: Notification.permission };
-		}
-		showToast("Уведомления отключены");
+			const response = await post("/api/mini-app/admin/push/unsubscribe", { endpoint: subscription.endpoint });
+			state.adminPush = { ...(response.data || {}), subscribed: false, permission: Notification.permission };
+		} else state.adminPush = { ...(state.adminPush || {}), subscribed: false, permission: Notification.permission };
+		showToast(localizedText("Уведомления отключены", "Notifications disabled", "اعلان‌ها غیرفعال شدند"));
 	} finally {
 		state.adminPushBusy = "";
-		render({ preserveScroll: true });
-	}
-}
-
-async function testAdminPush() {
-	state.adminPushBusy = "test";
-	render({ preserveScroll: true });
-	try {
-		let response;
-		try {
-			response = await post("/api/mini-app/admin/push/test", {});
-		} catch (error) {
-			if (error?.code !== "push_subscription_stale") throw error;
-			await renewAdminPushSubscription();
-			response = await post("/api/mini-app/admin/push/test", {});
-		}
-		showToast(response.message || "Тестовое уведомление отправлено", "success");
-	} finally {
-		state.adminPushBusy = "";
-		render({ preserveScroll: true });
+		syncAdminPushToggle();
 	}
 }
 
@@ -6291,7 +6200,7 @@ function renderAdminLocalizationPage() {
 }
 
 function renderAdminMenuGroup(label, items) {
-	return `<section class="admin-menu-group"><h2 class="admin-menu-group__title"><span></span>${escapeHtml(label)}</h2><div class="admin-menu-group__rows">${items.map(([title, , value, iconName]) => renderMenuRow(title, "", "open-admin-section", value, iconName, { showTail: true, compact: true })).join("")}</div></section>`;
+	return `<section class="admin-menu-group"><h2 class="admin-menu-group__title"><span></span>${escapeHtml(label)}</h2><div class="admin-menu-group__rows">${items.map(([title, , value, iconName]) => value === "push-toggle" ? renderAdminPushToggle(title) : renderMenuRow(title, "", "open-admin-section", value, iconName, { showTail: true, compact: true })).join("")}</div></section>`;
 }
 
 function parseP2PDestinationDrafts(raw) {
@@ -10800,7 +10709,7 @@ function bindRootActions() {
 		if (action === "open-admin-section") {
 		if (value === "layout") return enterAdminLayoutEditor();
 		if (value === "plans") return enterAdminPlanEditor();
-		state.adminSection = value || "home";
+		state.adminSection = value === "push" ? "home" : value || "home";
 		haptic("light");
 		renderAdminTransition();
 		if (value === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
@@ -10809,7 +10718,6 @@ function bindRootActions() {
 		if (value === "finance") void refreshAdminFinance();
 		if (value === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
 		if (value === "status") void refreshAdminStatus();
-		if (value === "push") void refreshAdminPush().catch((error) => showToast(error?.message || "Не удалось загрузить уведомления", "danger"));
 		if (value === "users") void refreshAdminUsers();
 		if (value === "partners") void refreshAdminPartners();
 		return;
@@ -10837,9 +10745,6 @@ function bindRootActions() {
 			state.adminAI.draft.prompt = state.adminAI.draft.defaultPrompt;
 			render({ preserveScroll: true }); return;
 		}
-			if (action === "admin-push-enable") return await enableAdminPush();
-			if (action === "admin-push-disable") return await disableAdminPush();
-			if (action === "admin-push-test") return await testAdminPush();
 			if (action === "admin-finance-period-toggle" || action === "admin-analytics-period-toggle") {
 				state.adminFinancePeriodMenuOpen = !state.adminFinancePeriodMenuOpen;
 				haptic("light");
@@ -11238,6 +11143,12 @@ function bindRootActions() {
 	app.addEventListener("change", (event) => {
 		const input = event.target;
 		if (!(input instanceof HTMLInputElement)) return;
+		if (input.dataset.input === "admin-push-toggle") {
+			const enabled = input.checked;
+			input.checked = Boolean(state.adminPush?.subscribed && state.adminPush?.permission === "granted");
+			void setAdminPushEnabled(enabled);
+			return;
+		}
 		if (input.dataset.input === "support-media-file") {
 			const file = input.files?.[0];
 			input.value = "";
@@ -16446,7 +16357,7 @@ function setPage(page) {
 		const sameEditorPage = nextPage === state.currentPage;
 		state.adminLayoutAddMenuOpen = false;
 		state.currentPage = nextPage;
-  if (!samePage) window.dispatchEvent(new CustomEvent("miniapp:pageview", { detail: { page: nextPage } }));
+		if (!sameEditorPage) window.dispatchEvent(new CustomEvent("miniapp:pageview", { detail: { page: nextPage } }));
 		state.adminLayoutCategory = nextPage === "settings" ? "profile" : nextPage;
 		state.adminLayoutSelection = "";
 		previousBottomNavIndex = sameEditorPage ? previousBottomNavIndex : -1;
@@ -16508,6 +16419,7 @@ function setPage(page) {
 		state.animatePageEntry = false;
 	}
   render({ preserveScroll: samePage, scrollTop: samePage ? state.scrollTopByPage[state.currentPage] ?? 0 : 0 });
+	if (nextPage === "admin" && state.adminSection === "home") void refreshAdminPush();
 	if (nextPage === "partner") void refreshPartner({ loadingShown: true });
 }
 
@@ -16921,13 +16833,13 @@ function getPageTitle(page, short = false) {
 	if (page === "admin" && !short && state.adminSection !== "home") {
 		if (state.adminSection === "partners") return localizedText("Партнёры", "Partners", "همکاران");
 		const labels = state.locale === "fa" ? {
-			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", push: "اعلان‌های پوش", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", analytics: "تحلیل", ai: "هوش مصنوعی", users: "کاربران",
+			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", analytics: "تحلیل", ai: "هوش مصنوعی", users: "کاربران",
 		} : state.locale === "en" ? {
 			localization: "Language and font",
-			maintenance: "Maintenance", diagnostics: "Diagnostics", push: "Push notifications", features: "Functions", subpage: "Sub page", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", analytics: "Analytics", ai: "AI", users: "Users",
+			maintenance: "Maintenance", diagnostics: "Diagnostics", features: "Functions", subpage: "Sub page", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", analytics: "Analytics", ai: "AI", users: "Users",
 		} : {
 			localization: "Язык и шрифт",
-			maintenance: "Режим аварии", diagnostics: "Диагностика", push: "Push-уведомления", features: "Функции", subpage: "Sub page", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", analytics: "Аналитика", ai: "ИИ", users: "Пользователи",
+			maintenance: "Режим аварии", diagnostics: "Диагностика", features: "Функции", subpage: "Sub page", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", analytics: "Аналитика", ai: "ИИ", users: "Пользователи",
 		};
 		return labels[state.adminSection] || copy.pageAdmin || "Admin panel";
 	}
@@ -17824,7 +17736,7 @@ function getEntryPage() {
 
 function getEntryAdminSection() {
 	const requested = String(urlParams.get("section") || "");
-	if (!isPageReload() && ["finance", "analytics", "diagnostics", "push"].includes(requested)) return requested;
+	if (!isPageReload() && ["finance", "analytics", "diagnostics"].includes(requested)) return requested;
 	if (!isPageReload()) return "home";
 	const saved = readSetting(STORAGE_KEYS.adminSection, "home");
 	return saved === "home" || ADMIN_SEARCH_SECTIONS.some(([section]) => section === saved) ? saved : "home";
