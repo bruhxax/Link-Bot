@@ -13757,6 +13757,56 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   border: 1px solid var(--accent) !important;
 }
 
+/* A faint halo follows the frame palette; selections keep the accent even
+   when ordinary decorative frames are hidden. */
+:root[data-glow="on"] {
+  --frame-glow-color: var(--line);
+  --frame-glow-shadow: var(--shadow);
+}
+:root[data-glow="on"][data-glass="on"] {
+  --frame-glow-color: var(--glass-border);
+  --frame-glow-shadow: var(--glass-surface-shadow);
+}
+:root[data-glow="on"][data-frames="on"] :where(
+  .card:not(.card--status), .pricing-card, .menu-row, .profile-row, .pay-row,
+  .platform-btn, .quick-link, .pay-selector, .menu-card, .support-ticket-card,
+  .support-message__bubble, .payments-switch, .payment-item, .promo-box,
+  .metric, .server-summary-card, .server-card, .state-card, .faq-item,
+  .referral-metrics, .referral-invite-card, .wallet-withdrawal, .wallet-history,
+  .review-card, .review-detail__comment, .login-method-card, .media-empty-card,
+  .empty-design-card, .partner-application-card, .admin-integrations__list,
+  .admin-finance-card, .admin-finance-history__surface, .admin-finance-provider,
+  .admin-users__list, .admin-user-subscriptions__list, .admin-partner-entry,
+  .admin-push__surface, .admin-status__overview, .admin-status__service,
+  .admin-status__section, .admin-status__error, .admin-user-direct,
+  .admin-settings-search__field, .admin-settings-search__results,
+  .admin-settings-search__empty, .admin-background-option,
+  .modal__sheet, .desktop-sidebar, .browser-auth, .bottom-nav,
+  .subscription-switcher__menu, .notification-popover, .runtime-layout-item--framed,
+  .btn, .sub-pill, .header__btn, .chip, .tab, .segment, .tabs,
+  .device-pack-trigger-row, .setup-link-button, .browser-auth__qr-button,
+  .gift-username, .gift-plan-row, .gift-payment-row, .gift-submit,
+  .browser-email__field input, .promo-box__input
+) {
+  box-shadow: var(--frame-glow-shadow), 0 0 7px color-mix(in srgb, var(--frame-glow-color) 38%, transparent) !important;
+}
+:root[data-glow="on"] :is(
+  .pricing-card.selected, .gift-plan-row.is-selected
+),
+:root[data-glow="on"][data-frames="on"] :is(
+  .pay-row.selected, .platform-btn.selected, .tab.active, .segment.active,
+  .admin-background-option.is-selected, .gift-payment-row.is-selected,
+  .gift-username:focus-within
+) {
+  --frame-glow-color: var(--accent);
+  box-shadow: var(--frame-glow-shadow), 0 0 8px color-mix(in srgb, var(--accent) 28%, transparent) !important;
+}
+:root .pricing-card[data-selection-feedback] {
+  transition: border-color 90ms ease, box-shadow 120ms ease,
+    background-color 220ms ease, color 220ms ease, transform 120ms ease;
+}
+:root .pricing-card.is-selection-feedback { animation-duration: 160ms; }
+
 /* Text reels belong to their label, so scrolling and the navigation dock keep
    the same stacking order throughout the transition. Each cell clips its row. */
 [data-price-transition] { display: inline-block; }

@@ -7191,7 +7191,7 @@ function renderAdminAppearancePage() {
 	return renderAdminEditorPage(state.locale === "en" ? "Appearance" : "Оформление", `
 		${renderAdminBackgroundOptions(currentMode)}
 		${renderAdminBackgroundControls(currentMode)}
-		<div class="admin-toggle-list">${renderAdminToggle("Показывать рамки", "appearance.showFrames")}${renderAdminToggle(localizedText("Стекло", "Glass", "شیشه"), "appearance.glass")}</div>
+		<div class="admin-toggle-list">${renderAdminToggle("Показывать рамки", "appearance.showFrames")}${renderAdminToggle(localizedText("Свечение", "Glow", "درخشش"), "appearance.glow")}${renderAdminToggle(localizedText("Стекло", "Glass", "شیشه"), "appearance.glass")}</div>
 		${renderAdminAppearancePresets()}
 		<div class="admin-appearance-groups">${groups.map(([title, colors]) => `<section class="admin-editor__section admin-appearance-group"><h3>${escapeHtml(title)}</h3><div class="admin-color-grid">${colors.map(([key, label]) => renderAdminColorField(label, `appearance.colors.${key}`)).join("")}</div></section>`).join("")}</div>
 	`);
@@ -11463,7 +11463,7 @@ function bindRootActions() {
 			if (settingPath === "content.logoUrl") scheduleAdminLogoPreview(target.value);
 			if (settingPath === "content.webPage.faviconUrl") scheduleAdminFaviconPreview(target.value);
 			state.adminSettingsDirty = true;
-			if (settingPath === "appearance.showFrames" || settingPath === "appearance.glass" || settingPath === "subPage.includeBuiltIns" || enabledClient) {
+			if (settingPath === "appearance.showFrames" || settingPath === "appearance.glow" || settingPath === "appearance.glass" || settingPath === "subPage.includeBuiltIns" || enabledClient) {
                 render({ preserveScroll: true });
                 return;
             }
@@ -16747,6 +16747,7 @@ function applyAppearance() {
 	const backgroundDuration = 9.2 - ((backgroundSpeed - 10) / 90) * 6.7;
 	document.documentElement.dataset.background = backgroundMode;
 	document.documentElement.dataset.frames = appearance.showFrames === false ? "off" : "on";
+	document.documentElement.dataset.glow = appearance.glow === true ? "on" : "off";
 	document.documentElement.dataset.compact = "on";
 	document.documentElement.dataset.glass = appearance.glass === true ? "on" : "off";
 	const variables = {
