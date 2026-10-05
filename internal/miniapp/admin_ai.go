@@ -44,7 +44,7 @@ func (h *Handler) adminAIView() map[string]any {
 }
 
 func (h *Handler) handleAdminAI(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Недостаточно прав")
 		return
 	}

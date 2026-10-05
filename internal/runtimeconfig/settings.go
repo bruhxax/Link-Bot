@@ -993,6 +993,54 @@ func (s *Service) FontFamily() string {
 func (s *Service) Update(ctx context.Context, next Settings, updatedBy int64) (Settings, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.updateLocked(ctx, next, updatedBy)
+}
+
+// UpdateFields merges a permitted settings section into the latest snapshot
+// under the same lock as persistence, preserving edits made by other admins.
+func (s *Service) UpdateFields(ctx context.Context, next Settings, fields []string, updatedBy int64) (Settings, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	merged, err := MergeSettingsFields(s.Snapshot(), next, fields)
+	if err != nil {
+		return Settings{}, err
+	}
+	return s.updateLocked(ctx, merged, updatedBy)
+}
+
+func MergeSettingsFields(current, next Settings, fields []string) (Settings, error) {
+	baseRaw, err := json.Marshal(current)
+	if err != nil {
+		return Settings{}, err
+	}
+	nextRaw, err := json.Marshal(next)
+	if err != nil {
+		return Settings{}, err
+	}
+	var base, incoming map[string]json.RawMessage
+	if err := json.Unmarshal(baseRaw, &base); err != nil {
+		return Settings{}, err
+	}
+	if err := json.Unmarshal(nextRaw, &incoming); err != nil {
+		return Settings{}, err
+	}
+	for _, field := range fields {
+		value, ok := incoming[field]
+		if !ok || field == "version" || field == "hiddenServerNodes" || field == "reviewRewards" {
+			return Settings{}, fmt.Errorf("invalid settings field: %s", field)
+		}
+		base[field] = value
+	}
+	raw, err := json.Marshal(base)
+	if err != nil {
+		return Settings{}, err
+	}
+	var merged Settings
+	err = json.Unmarshal(raw, &merged)
+	return merged, err
+}
+
+func (s *Service) updateLocked(ctx context.Context, next Settings, updatedBy int64) (Settings, error) {
 
 	// The server controls save independently from the appearance editor. A stale
 	// editor draft must not restore an older visibility list.

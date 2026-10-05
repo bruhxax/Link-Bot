@@ -8,6 +8,8 @@ import (
 )
 
 type AdminUserSummary struct {
+	AdminRole        string
+	AdminColor       string
 	CustomerID       int64
 	TelegramID       int64
 	TelegramUsername string
@@ -50,8 +52,9 @@ func (cr *CustomerRepository) SearchAdminUsers(ctx context.Context, query string
 	rows, err := cr.pool.Query(ctx, `
 		SELECT c.id, c.telegram_id, COALESCE(c.telegram_username, ''), c.created_at,
 		       c.trial_used, c.is_blocked, COALESCE(active_subscription.display_name, ''),
-		       COALESCE(active_subscription.expire_at, c.expire_at)
+		       COALESCE(active_subscription.expire_at, c.expire_at), COALESCE(a.role_name,''), COALESCE(a.color,'')
 		FROM customer c
+		LEFT JOIN administrator a ON a.customer_id=c.id
 		LEFT JOIN LATERAL (
 			SELECT s.display_name, s.expire_at
 			FROM customer_subscription s
@@ -89,6 +92,8 @@ func (cr *CustomerRepository) SearchAdminUsers(ctx context.Context, query string
 			&item.IsBlocked,
 			&item.SubscriptionName,
 			&item.ExpireAt,
+			&item.AdminRole,
+			&item.AdminColor,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan admin user: %w", err)
 		}

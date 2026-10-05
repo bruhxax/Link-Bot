@@ -123,8 +123,13 @@ func (h *Handler) handleSupportMediaUpload(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	if sess.canAdmin("support.view") && !sess.canAdmin("support.reply") {
+		removeCreated()
+		h.writeError(w, http.StatusForbidden, "forbidden", "Нет права отвечать в поддержку")
+		return
+	}
 	var stored *database.SupportMessage
-	if h.isAdmin(sess.User.ID) {
+	if sess.canAdmin("support.view") {
 		stored, err = h.supportRepository.AddAdminMediaMessage(r.Context(), ticket.ID, sess.User.ID, caption, attachment)
 	} else {
 		highestPurchase, purchaseErr := h.purchaseRepository.FindHighestSuccessfulPurchaseByCustomer(r.Context(), customer.ID)
@@ -153,7 +158,7 @@ func (h *Handler) handleSupportMediaUpload(w http.ResponseWriter, r *http.Reques
 	}
 
 	notificationText := supportMediaNotificationText(caption, attachment.Type)
-	if h.isAdmin(sess.User.ID) {
+	if sess.canAdmin("support.view") {
 		h.notifySupportAsync(func(ctx context.Context) {
 			h.notifyCustomerAboutSupportReply(ctx, ticket, notificationText)
 		})

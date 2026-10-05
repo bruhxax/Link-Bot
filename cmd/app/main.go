@@ -228,16 +228,27 @@ func main() {
 	}, h.AllcomCommandHandler, isAdminMiddleware)
 
 	b.RegisterHandlerMatchFunc(func(update *models.Update) bool {
-		return update.Message != nil && update.Message.From != nil &&
-			update.Message.From.ID == config.GetAdminTelegramId()
+		if update.Message == nil || update.Message.From == nil || update.Message.Chat.ID != update.Message.From.ID || update.Message.SuccessfulPayment != nil {
+			return false
+		}
+		accessCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		return miniAppHandler.HasAdminPermission(accessCtx, update.Message.From.ID, "users.message", "broadcast")
 	}, func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		directCaptured, directErr := broadcastService.CaptureDirectMessage(ctx, update.Message)
+		var directCaptured bool
+		var directErr error
+		if miniAppHandler.HasAdminPermission(ctx, update.Message.From.ID, "users.message") {
+			directCaptured, directErr = broadcastService.CaptureDirectMessage(ctx, update.Message)
+		}
 		if directErr != nil {
 			slog.Error("direct message capture failed", "error", directErr)
 			_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: update.Message.Chat.ID, Text: "Не удалось сохранить личное сообщение. Попробуйте ещё раз."})
 			return
 		}
 		if directCaptured {
+			return
+		}
+		if !miniAppHandler.HasAdminPermission(ctx, update.Message.From.ID, "broadcast") {
 			return
 		}
 		captured, err := broadcastService.CaptureMessage(ctx, update.Message)

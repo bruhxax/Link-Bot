@@ -111,6 +111,9 @@ func (s *Service) CaptureMessage(ctx context.Context, message *models.Message) (
 	if err != nil || draft == nil || draft.Status != database.BroadcastStatusAwaitingMessage {
 		return false, err
 	}
+	if !canCaptureBroadcastSource(draft, message) {
+		return false, nil
+	}
 	rawText := strings.TrimSpace(message.Text)
 	if rawText == "" {
 		rawText = strings.TrimSpace(message.Caption)
@@ -163,6 +166,11 @@ func (s *Service) CaptureMessage(ctx context.Context, message *models.Message) (
 		ReplyMarkup: replyMarkup,
 	})
 	return true, nil
+}
+
+func canCaptureBroadcastSource(draft *database.BroadcastDraft, message *models.Message) bool {
+	return draft != nil && draft.Status == database.BroadcastStatusAwaitingMessage && draft.UpdatedBy != nil &&
+		message != nil && message.From != nil && message.Chat.ID == message.From.ID && *draft.UpdatedBy == message.From.ID
 }
 
 func (s *Service) SaveButtons(ctx context.Context, adminID int64, buttons []database.BroadcastButton) (*database.BroadcastDraft, error) {

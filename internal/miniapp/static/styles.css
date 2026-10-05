@@ -11249,6 +11249,61 @@ body.has-open-modal .admin-save-bar {
 .admin-users,
 .admin-user-detail { display: grid; gap: 18px; padding: 2px 4px 104px; }
 .admin-users__header { min-height: 47px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.admin-role-dot { display: inline-block; flex: 0 0 8px; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--role-color); vertical-align: 1px; }
+.admin-access { display: grid; gap: 14px; }
+.admin-access-card { display: grid; gap: 14px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.admin-access__header { justify-content: flex-start; align-items: center; gap: 12px; }
+.admin-access__back { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--control-bg); color: var(--text); }
+.admin-access__back svg { width: 18px; height: 18px; }
+.admin-access__person { display: flex; align-items: center; gap: 12px; }
+.admin-access__person > div { display: grid; min-width: 0; gap: 5px; flex: 1; }
+.admin-access__person strong { overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+.admin-access__person small { color: var(--muted); font-size: 10px; }
+.admin-access__person .admin-role-dot { width: 12px; height: 12px; flex-basis: 12px; margin-right: 0; }
+.admin-access__label { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .08em; }
+.admin-access__presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.admin-access__presets button { padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--control-bg); color: var(--muted); font-size: 10px; font-weight: 700; }
+.admin-access__presets button.is-selected { border-color: var(--accent); color: var(--text); }
+.admin-access__color { display: grid; gap: 12px; }
+.admin-access__color > span { color: var(--muted); font-size: 11px; }
+.admin-access__color > div { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.admin-access__color button { width: 25px; height: 25px; padding: 0; border: 3px solid var(--surface); outline: 1px solid transparent; border-radius: 50%; background: var(--role-color); }
+.admin-access__color button.is-selected { outline-color: var(--text); }
+.admin-access__color label { display: grid; place-items: center; width: 29px; height: 29px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.admin-access__color input { width: 34px; height: 34px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.admin-access__permissions-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 2px 0; }
+.admin-access__permissions-head > div { display: grid; gap: 4px; }
+.admin-access__permissions-head strong { font-size: 13px; }
+.admin-access__permissions-head small { color: var(--muted); font-size: 10px; }
+.admin-access__permissions-head button, .admin-access__permissions header button { border: 0; border-radius: 6px; padding: 7px; color: var(--accent); background: transparent; font-size: 10px; font-weight: 750; }
+.admin-access__permissions { gap: 0; padding-top: 10px; padding-bottom: 5px; }
+.admin-access__permissions header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 8px; }
+.admin-access__permissions h3 { margin: 0; color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.admin-access__permission { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 43px; padding: 9px 0; cursor: pointer; }
+.admin-access__permission + .admin-access__permission { border-top: 1px solid var(--line-soft); }
+.admin-access__permission > span { font-size: 11px; font-weight: 650; line-height: 1.4; }
+.admin-access__permission input { position: absolute; right: 0; width: 21px; height: 21px; margin: 0; opacity: 0; cursor: pointer; }
+.admin-access__permission > i { display: grid; place-items: center; flex-shrink: 0; width: 21px; height: 21px; border: 1px solid var(--line); border-radius: 6px; color: transparent; background: var(--control-bg); transition: background-color 120ms ease, border-color 120ms ease; pointer-events: none; }
+.admin-access__permission svg { width: 14px; height: 14px; opacity: 0; }
+.admin-access__permission input:checked + i { border-color: var(--accent); color: var(--button-text); background: var(--accent); }
+.admin-access__permission input:checked + i svg { opacity: 1; color: var(--button-text); }
+.admin-access__permission input:focus-visible + i { outline: 2px solid var(--text); outline-offset: 3px; }
+.admin-access__permission input:disabled + i { opacity: .6; }
+.admin-access__save, .admin-access__add { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 44px; font-size: 12px; }
+.admin-access__save svg, .admin-access__add svg { width: 17px; height: 17px; }
+.admin-access__remove { display: grid; gap: 10px; padding: 10px 0; text-align: center; }
+.admin-access__remove > button { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.admin-access__remove button { padding: 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--danger); background: var(--surface); font-size: 11px; }
+.admin-access__remove svg { width: 15px; height: 15px; }
+.admin-access__remove > strong { font-size: 12px; }
+.admin-access__remove > p, .admin-access__hint { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.admin-access__remove > div { display: flex; gap: 8px; justify-content: center; }
+.admin-access__remove button[data-action="administrators-cancel-remove"] { color: var(--text); }
+.admin-access__error { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--danger); border-radius: 10px; font-size: 11px; color: var(--danger); }
+.admin-access__error button { justify-self: start; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); }
+.admin-user-row.admin-access__row { grid-template-columns: 42px minmax(0, 1fr) minmax(64px, 100px) 17px; }
+.admin-access__row .admin-user-row__subscription { display: grid; max-width: 100px; }
+.admin-user-controls [hidden] { display: none !important; }
 .admin-users__header > div { min-width: 0; }
 .admin-users__header span,
 .admin-user-section-head span { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .08em; }

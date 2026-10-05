@@ -90,7 +90,7 @@ func (h *Handler) SetStatusInfo(version, commit, buildDate string, startedAt tim
 }
 
 func (h *Handler) handleAdminStatus(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}

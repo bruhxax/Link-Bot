@@ -13,7 +13,7 @@ func (h *Handler) handleAdminGiftTest(w http.ResponseWriter, r *http.Request, se
 		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
 		return
 	}
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}

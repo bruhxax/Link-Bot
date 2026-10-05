@@ -57,40 +57,41 @@ var (
 )
 
 type Handler struct {
-	customerRepository     *database.CustomerRepository
-	purchaseRepository     *database.PurchaseRepository
-	subscriptionRepository *database.SubscriptionRepository
-	promoCodeRepository    *database.PromoCodeRepository
-	referralRepository     *database.ReferralRepository
-	partnerRepository      *database.PartnerRepository
-	walletRepository       *database.WalletRepository
-	supportRepository      *database.SupportRepository
-	reviewRepository       *database.ReviewRepository
-	paymentService         *payment.PaymentService
-	remnawaveClient        *remnawave.Client
-	telegramBot            *bot.Bot
-	staticFS               fs.FS
-	assetVersion           string
-	publicBaseURL          string
-	cabinetBaseURL         string
-	rateLimiter            *requestRateLimiter
-	channelSubCache        *cache.Cache
-	runtimeSettings        *runtimeconfig.Service
-	errorReporter          *operations.Reporter
-	broadcastService       *broadcast.Service
-	subscriptionService    *notification.SubscriptionService
-	integrationSettings    *integrations.Service
-	translation            *translation.Manager
-	logoUploadDir          string
-	webLogin               *webauth.Service
-	webPush                *webpush.Service
-	webPushNotifier        adminnotify.Notifier
-	realtime               *realtimeHub
-	landingNodesMu         sync.Mutex
-	landingNodes           []landingNodePayload
-	landingNodesCheckedAt  time.Time
-	landingNodesAvailable  bool
-	adminStatus            adminStatusInfo
+	administratorRepository administratorLookup
+	customerRepository      *database.CustomerRepository
+	purchaseRepository      *database.PurchaseRepository
+	subscriptionRepository  *database.SubscriptionRepository
+	promoCodeRepository     *database.PromoCodeRepository
+	referralRepository      *database.ReferralRepository
+	partnerRepository       *database.PartnerRepository
+	walletRepository        *database.WalletRepository
+	supportRepository       *database.SupportRepository
+	reviewRepository        *database.ReviewRepository
+	paymentService          *payment.PaymentService
+	remnawaveClient         *remnawave.Client
+	telegramBot             *bot.Bot
+	staticFS                fs.FS
+	assetVersion            string
+	publicBaseURL           string
+	cabinetBaseURL          string
+	rateLimiter             *requestRateLimiter
+	channelSubCache         *cache.Cache
+	runtimeSettings         *runtimeconfig.Service
+	errorReporter           *operations.Reporter
+	broadcastService        *broadcast.Service
+	subscriptionService     *notification.SubscriptionService
+	integrationSettings     *integrations.Service
+	translation             *translation.Manager
+	logoUploadDir           string
+	webLogin                *webauth.Service
+	webPush                 *webpush.Service
+	webPushNotifier         adminnotify.Notifier
+	realtime                *realtimeHub
+	landingNodesMu          sync.Mutex
+	landingNodes            []landingNodePayload
+	landingNodesCheckedAt   time.Time
+	landingNodesAvailable   bool
+	adminStatus             adminStatusInfo
 }
 
 func lockPromoPurchase(code string) func() {
@@ -296,6 +297,7 @@ type paymentsPayload struct {
 }
 
 type adminPayload struct {
+	Access       adminAccess                  `json:"access"`
 	PromoCodes   []promoCodePayload           `json:"promoCodes"`
 	Settings     runtimeconfig.Settings       `json:"settings"`
 	Events       []database.OperationalEvent  `json:"events"`
@@ -602,6 +604,7 @@ type adminSubscriptionTargetRequest struct {
 }
 
 type adminSettingsUpdateRequest struct {
+	Section  string                 `json:"section"`
 	Settings runtimeconfig.Settings `json:"settings"`
 }
 
@@ -827,6 +830,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/push/subscribe", h.withSession(h.handleAdminWebPushSubscribe))
 	mux.HandleFunc("/api/mini-app/admin/push/unsubscribe", h.withSession(h.handleAdminWebPushUnsubscribe))
 	mux.HandleFunc("/api/mini-app/admin/push/test", h.withSession(h.handleAdminWebPushTest))
+	for _, action := range []string{"list", "save", "remove"} {
+		mux.HandleFunc("/api/mini-app/admin/administrators/"+action, h.withSession(h.handleAdministrators))
+	}
 	mux.HandleFunc("/api/mini-app/admin/users/search", h.withSession(h.handleAdminUsersSearch))
 	mux.HandleFunc("/api/mini-app/admin/users/detail", h.withSession(h.handleAdminUserDetail))
 	mux.HandleFunc("/api/mini-app/admin/users/balance", h.withSession(h.handleAdminUserBalance))
@@ -1164,6 +1170,16 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 			h.writeError(w, http.StatusUnauthorized, "unauthorized", "Authorize with Telegram")
 			return
 		}
+		if err := h.resolveAdminAccess(r.Context(), sess); err != nil {
+			slog.Error("mini app: resolve administrator access", "error", err)
+			h.writeError(w, http.StatusServiceUnavailable, "access_unavailable", "Не удалось проверить доступ")
+			return
+		}
+		if !adminRouteAllowed(sess.access(), r.URL.Path) {
+			h.writeError(w, http.StatusForbidden, "forbidden", "Недостаточно прав")
+			return
+		}
+		r = r.WithContext(context.WithValue(r.Context(), adminAccessContextKey{}, sess.access()))
 		if sess.Provider == sessionProviderEmail {
 			customer, err = h.customerRepository.FindByEmailIdentity(r.Context(), sess.User.ID, sess.Email)
 			if err != nil || customer == nil || customer.TelegramID != sess.User.ID {
@@ -1178,11 +1194,11 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 		}
 		if h.runtimeSettings != nil {
 			maintenance := runtimeconfig.LocalizeMaintenanceDefaults(h.runtimeSettings.Maintenance(), h.runtimeSettings.Language())
-			if maintenance.Enabled && !h.isAdmin(sess.User.ID) && !realtimeRequest {
+			if maintenance.Enabled && !sess.isAdministrator() && !realtimeRequest {
 				h.writeErrorWithMeta(w, http.StatusServiceUnavailable, "maintenance", "Service is under maintenance", maintenance)
 				return
 			}
-			if !h.runtimeSettings.FeatureEnabled("mini_app") && !h.isAdmin(sess.User.ID) && !realtimeRequest {
+			if !h.runtimeSettings.FeatureEnabled("mini_app") && !sess.isAdministrator() && !realtimeRequest {
 				h.writeError(w, http.StatusServiceUnavailable, "feature_disabled", "Mini app is temporarily unavailable")
 				return
 			}
@@ -1205,7 +1221,7 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 				return
 			}
 		}
-		if customer.IsBlocked && !h.isAdmin(sess.User.ID) && !realtimeRequest {
+		if customer.IsBlocked && !sess.access().IsOwner && !realtimeRequest {
 			reason := ""
 			if customer.BlockedReason != nil && strings.TrimSpace(*customer.BlockedReason) != "" {
 				reason = strings.TrimSpace(*customer.BlockedReason)
@@ -2129,7 +2145,7 @@ func (h *Handler) handleWalletWithdraw(w http.ResponseWriter, r *http.Request, _
 }
 
 func (h *Handler) handleAdminWithdrawalResolve(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -2348,7 +2364,7 @@ func (h *Handler) handleApplyPromoCode(w http.ResponseWriter, r *http.Request, s
 }
 
 func (h *Handler) handleAdminCreatePromoCode(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -2434,7 +2450,7 @@ func (h *Handler) handleAdminCreatePromoCode(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *Handler) handleAdminValidatePromoCode(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -2475,7 +2491,7 @@ func (h *Handler) handleAdminValidatePromoCode(w http.ResponseWriter, r *http.Re
 }
 
 func (h *Handler) handleAdminDeletePromoCode(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -2519,7 +2535,7 @@ func (h *Handler) handleAdminDeletePromoCode(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *Handler) handleAdminFindSubscription(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -2559,7 +2575,7 @@ func (h *Handler) handleAdminFindSubscription(w http.ResponseWriter, r *http.Req
 }
 
 func (h *Handler) handleAdminSubscriptionTarget(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -2645,7 +2661,7 @@ func buildAdminSubscriptionTargetPayload(telegramID int64, subscriptions []datab
 }
 
 func (h *Handler) handleAdminRebindSubscription(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -2870,7 +2886,7 @@ func adminSubscriptionToPayload(subscription *remnawave.AdminSubscription) admin
 }
 
 func (h *Handler) handleAdminSettingsUpdate(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -2884,7 +2900,18 @@ func (h *Handler) handleAdminSettingsUpdate(w http.ResponseWriter, r *http.Reque
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "Invalid settings")
 		return
 	}
-	settings, err := h.runtimeSettings.Update(r.Context(), req.Settings, sess.User.ID)
+	var settings runtimeconfig.Settings
+	var err error
+	if req.Section == "" && sess.access().IsOwner {
+		settings, err = h.runtimeSettings.Update(r.Context(), req.Settings, sess.User.ID)
+	} else {
+		fields, known := adminSettingsFields[req.Section]
+		if !known || !sess.canAdmin(req.Section) {
+			h.writeError(w, http.StatusForbidden, "forbidden", "Нет доступа к настройкам раздела")
+			return
+		}
+		settings, err = h.runtimeSettings.UpdateFields(r.Context(), req.Settings, fields, sess.User.ID)
+	}
 	if err != nil {
 		slog.Warn("mini app: invalid runtime settings", "error", err, "telegramId", utils.MaskHalfInt64(sess.User.ID))
 		h.writeError(w, http.StatusBadRequest, "invalid_settings", err.Error())
@@ -2901,12 +2928,12 @@ func (h *Handler) handleAdminSettingsUpdate(w http.ResponseWriter, r *http.Reque
 	h.writeJSON(w, http.StatusOK, map[string]any{
 		"ok":      true,
 		"message": "settings_updated",
-		"data":    settings,
+		"data":    adminSettingsForAccess(settings, sess.access()),
 	})
 }
 
 func (h *Handler) handleAdminServerVisibility(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -2970,7 +2997,7 @@ func (h *Handler) applyTelegramLocalization(ctx context.Context) {
 }
 
 func (h *Handler) handleAdminIntegrationUpdate(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -2987,6 +3014,10 @@ func (h *Handler) handleAdminIntegrationUpdate(w http.ResponseWriter, r *http.Re
 		h.writeError(w, http.StatusBadRequest, "invalid_integration", "Используйте настройки во вкладке ИИ")
 		return
 	}
+	if !sess.canAdmin(adminIntegrationPermission(req.Provider)) {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Нет доступа к этой интеграции")
+		return
+	}
 	view, err := h.integrationSettings.Update(r.Context(), strings.TrimSpace(req.Provider), integrations.UpdateInput{Enabled: req.Enabled, Fields: req.Fields}, sess.User.ID)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid_integration", err.Error())
@@ -2996,7 +3027,7 @@ func (h *Handler) handleAdminIntegrationUpdate(w http.ResponseWriter, r *http.Re
 }
 
 func (h *Handler) handleAdminMoyNalogState(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -3009,7 +3040,7 @@ func (h *Handler) handleAdminMoyNalogState(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) handleAdminMoyNalogTest(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -3027,7 +3058,7 @@ func (h *Handler) handleAdminMoyNalogTest(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleAdminMoyNalogRetry(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -3117,7 +3148,7 @@ func (h *Handler) handlePaymentIntegrationWebhook(w http.ResponseWriter, r *http
 }
 
 func (h *Handler) handleAdminEventResolve(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -3141,7 +3172,7 @@ func (h *Handler) handleAdminEventResolve(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleAdminWebPushState(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -3163,7 +3194,7 @@ func (h *Handler) handleAdminWebPushState(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleAdminWebPushSubscribe(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -3199,7 +3230,7 @@ func (h *Handler) handleAdminWebPushSubscribe(w http.ResponseWriter, r *http.Req
 }
 
 func (h *Handler) handleAdminWebPushUnsubscribe(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -3230,7 +3261,7 @@ func (h *Handler) handleAdminWebPushUnsubscribe(w http.ResponseWriter, r *http.R
 }
 
 func (h *Handler) handleAdminWebPushTest(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -3661,7 +3692,7 @@ func (h *Handler) handleCreateReview(w http.ResponseWriter, r *http.Request, ses
 }
 
 func (h *Handler) handleAdminDeleteReview(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -3870,7 +3901,11 @@ func (h *Handler) handleSupportSend(w http.ResponseWriter, r *http.Request, sess
 		return
 	}
 
-	isAdmin := h.isAdmin(sess.User.ID)
+	isAdmin := sess.canAdmin("support.view")
+	if isAdmin && !sess.canAdmin("support.reply") {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Нет права отвечать в поддержку")
+		return
+	}
 	if isAdmin {
 		if _, err := h.supportRepository.AddAdminMessage(r.Context(), ticket.ID, sess.User.ID, body); err != nil {
 			slog.Error("mini app: support admin reply failed", "error", err, "ticketId", ticket.ID)
@@ -3930,7 +3965,7 @@ func (h *Handler) handleSupportClose(w http.ResponseWriter, r *http.Request, ses
 		return
 	}
 
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.canAdmin("support.close") {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Недостаточно прав")
 		return
 	}
@@ -4199,7 +4234,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		go func() {
 			serverCtx, serverCancel := context.WithTimeout(ctx, 3*time.Second)
 			defer serverCancel()
-			payload, loadErr := h.buildServersPayload(serverCtx, h.isAdmin(sess.User.ID))
+			payload, loadErr := h.buildServersPayload(serverCtx, sess.canAdmin("servers.view"))
 			loaded <- serverLoadResult{payload: payload, err: loadErr}
 		}()
 	}
@@ -4209,7 +4244,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		err     error
 	}
 	var adminLoad <-chan adminLoadResult
-	if h.isAdmin(sess.User.ID) {
+	if sess.isAdministrator() {
 		loaded := make(chan adminLoadResult, 1)
 		adminLoad = loaded
 		go func() {
@@ -4274,7 +4309,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 	}
 
 	supportData := supportPayload{
-		IsAdmin:        h.isAdmin(sess.User.ID),
+		IsAdmin:        sess.canAdmin("support.view"),
 		OpenTickets:    []supportTicketPayload{},
 		HistoryTickets: []supportTicketPayload{},
 	}
@@ -4364,7 +4399,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 
 	referralInviteURL := buildReferralInviteURL(customer.TelegramID, referralEnabled)
 	runtimeForUser := settings
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.canAdmin("servers.view") {
 		runtimeForUser.HiddenServerNodes = nil
 	}
 	return &bootstrapResponse{
@@ -5048,7 +5083,9 @@ func (h *Handler) buildWalletPayload(ctx context.Context, customer *database.Cus
 }
 
 func (h *Handler) buildAdminPayload(ctx context.Context) (*adminPayload, error) {
+	access := accessFromContext(ctx)
 	payload := &adminPayload{
+		Access:       access,
 		PromoCodes:   []promoCodePayload{},
 		Settings:     runtimeconfig.DefaultSettings(),
 		Events:       []database.OperationalEvent{},
@@ -5056,7 +5093,7 @@ func (h *Handler) buildAdminPayload(ctx context.Context) (*adminPayload, error) 
 		Squads:       remnawave.SquadCatalog{Internal: []remnawave.SquadOption{}, External: []remnawave.SquadOption{}},
 		Withdrawals:  []database.BalanceWithdrawal{},
 	}
-	if h.walletRepository != nil {
+	if h.walletRepository != nil && access.can("wallet.withdrawals") {
 		withdrawals, err := h.walletRepository.ListPendingWithdrawals(ctx, 100)
 		if err != nil {
 			return nil, err
@@ -5064,19 +5101,24 @@ func (h *Handler) buildAdminPayload(ctx context.Context) (*adminPayload, error) 
 		payload.Withdrawals = withdrawals
 	}
 	if h.integrationSettings != nil {
-		payload.Integrations = h.integrationSettings.ListAdmin()
+		for _, view := range h.integrationSettings.ListAdmin() {
+			if access.can(adminIntegrationPermission(view.ID)) {
+				payload.Integrations = append(payload.Integrations, view)
+			}
+		}
 	}
 	if h.runtimeSettings != nil {
 		payload.Settings = h.runtimeSettings.Snapshot()
 	}
-	if h.remnawaveClient != nil {
+	payload.Settings = adminSettingsForAccess(payload.Settings, access)
+	if h.remnawaveClient != nil && (access.can("plans") || access.can("trial")) {
 		squads, err := h.remnawaveClient.ListSquads(ctx)
 		payload.Squads = squads
 		if err != nil {
 			slog.Warn("mini app: load squads for admin failed", "error", err)
 		}
 	}
-	if h.errorReporter != nil {
+	if h.errorReporter != nil && access.can("diagnostics") {
 		events, err := h.errorReporter.List(ctx, 60, false)
 		if err != nil {
 			return nil, err
@@ -5084,7 +5126,7 @@ func (h *Handler) buildAdminPayload(ctx context.Context) (*adminPayload, error) 
 		payload.Events = events
 	}
 
-	if h.promoCodeRepository != nil {
+	if h.promoCodeRepository != nil && access.can("promocodes") {
 		items, err := h.promoCodeRepository.ListLatest(ctx, 40)
 		if err != nil {
 			return nil, err
@@ -5610,13 +5652,13 @@ func roundRating(value float64) float64 {
 func (h *Handler) buildSupportPayload(ctx context.Context, sess *session, customer *database.Customer, highestPurchase *database.Purchase) (supportPayload, error) {
 	if h.supportRepository == nil {
 		return supportPayload{
-			IsAdmin:        h.isAdmin(sess.User.ID),
+			IsAdmin:        sess.canAdmin("support.view"),
 			OpenTickets:    []supportTicketPayload{},
 			HistoryTickets: []supportTicketPayload{},
 		}, nil
 	}
 
-	isAdmin := h.isAdmin(sess.User.ID)
+	isAdmin := sess.canAdmin("support.view")
 	var (
 		openTickets    []database.SupportTicket
 		historyTickets []database.SupportTicket
@@ -5654,7 +5696,7 @@ func (h *Handler) buildSupportPayload(ctx context.Context, sess *session, custom
 }
 
 func (h *Handler) buildSupportThreadPayload(ctx context.Context, sess *session, customer *database.Customer, ticket *database.SupportTicket) (*supportThreadPayload, error) {
-	isAdmin := h.isAdmin(sess.User.ID)
+	isAdmin := sess.canAdmin("support.view")
 	h.enrichSupportTicketTelegramUsername(ctx, sess, ticket, isAdmin)
 	h.enrichSupportTicket(ctx, ticket)
 	messages, err := h.supportRepository.ListMessagesByTicket(ctx, ticket.ID)
@@ -5685,8 +5727,8 @@ func (h *Handler) buildSupportThreadPayload(ctx context.Context, sess *session, 
 		AIThinking: thinking,
 		Ticket:     h.buildSupportTicketPayload(*ticket, isAdmin, ""),
 		Messages:   buildSupportMessagePayloads(messages),
-		CanReply:   ticket.Status == database.SupportTicketStatusOpen,
-		CanClose:   isAdmin && ticket.Status == database.SupportTicketStatusOpen,
+		CanReply:   ticket.Status == database.SupportTicketStatusOpen && (!isAdmin || sess.canAdmin("support.reply")),
+		CanClose:   sess.canAdmin("support.close") && ticket.Status == database.SupportTicketStatusOpen,
 	}, nil
 }
 
@@ -5816,7 +5858,7 @@ func (h *Handler) loadSupportTicketForViewer(ctx context.Context, sess *session,
 		return ticket, err
 	}
 
-	if h.isAdmin(sess.User.ID) {
+	if sess.canAdmin("support.view") {
 		return ticket, nil
 	}
 	if customer != nil && ticket.CustomerID == customer.ID {
@@ -5824,10 +5866,6 @@ func (h *Handler) loadSupportTicketForViewer(ctx context.Context, sess *session,
 	}
 
 	return nil, nil
-}
-
-func (h *Handler) isAdmin(telegramID int64) bool {
-	return telegramID != 0 && telegramID == config.GetAdminTelegramId()
 }
 
 func (h *Handler) buildSubscriptionLabel(customer *database.Customer, highestPurchase *database.Purchase) string {

@@ -198,7 +198,7 @@ func adminFinanceStatus(item database.AdminFinancePayment) string {
 }
 
 func (h *Handler) handleAdminFinance(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}

@@ -21,7 +21,7 @@ type emailBroadcastPreviewRequest struct {
 }
 
 func (h *Handler) requireEmailBroadcastAdmin(w http.ResponseWriter, sess *session) bool {
-	if sess == nil || !h.isAdmin(sess.User.ID) {
+	if sess == nil || !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Недостаточно прав")
 		return false
 	}

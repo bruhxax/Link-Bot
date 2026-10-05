@@ -11,6 +11,29 @@ import (
 	"link-bot/internal/database"
 )
 
+func TestBroadcastCaptureAcceptsOnlyDraftOwnerInPrivateChat(t *testing.T) {
+	adminID := int64(22)
+	draft := &database.BroadcastDraft{Status: database.BroadcastStatusAwaitingMessage, UpdatedBy: &adminID}
+	for _, tc := range []struct {
+		name       string
+		from, chat int64
+		allowed    bool
+	}{
+		{"owner", 22, 22, true}, {"another admin", 33, 33, false}, {"group", 22, -100, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			message := &models.Message{From: &models.User{ID: tc.from}, Chat: models.Chat{ID: tc.chat}}
+			if got := canCaptureBroadcastSource(draft, message); got != tc.allowed {
+				t.Fatalf("capture=%v want %v", got, tc.allowed)
+			}
+		})
+	}
+	draft.UpdatedBy = nil
+	if canCaptureBroadcastSource(draft, &models.Message{From: &models.User{ID: 22}, Chat: models.Chat{ID: 22}}) {
+		t.Fatal("draft without owner can be captured")
+	}
+}
+
 func TestValidateHTMLAcceptsTelegramMarkup(t *testing.T) {
 	t.Parallel()
 

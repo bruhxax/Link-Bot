@@ -49,6 +49,8 @@ type adminUserSearchPayload struct {
 }
 
 type adminUserSummaryPayload struct {
+	AdminRole          string `json:"adminRole,omitempty"`
+	AdminColor         string `json:"adminColor,omitempty"`
 	CustomerID         int64  `json:"customerId"`
 	TelegramID         int64  `json:"telegramId"`
 	Username           string `json:"username"`
@@ -116,7 +118,7 @@ func adminSubscriptionStatus(expireAt *time.Time, blocked bool) string {
 }
 
 func (h *Handler) handleAdminUsersSearch(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -140,8 +142,14 @@ func (h *Handler) handleAdminUsersSearch(w http.ResponseWriter, r *http.Request,
 	}
 	payload := adminUserSearchPayload{Items: make([]adminUserSummaryPayload, 0, len(items)), Total: total, Limit: req.Limit, Offset: req.Offset}
 	for _, item := range items {
+		if item.TelegramID == config.GetAdminTelegramId() {
+			item.AdminRole = "Главный администратор"
+			item.AdminColor = "#69a8d4"
+		}
 		payload.Items = append(payload.Items, adminUserSummaryPayload{
 			CustomerID:         item.CustomerID,
+			AdminRole:          item.AdminRole,
+			AdminColor:         item.AdminColor,
 			TelegramID:         item.TelegramID,
 			Username:           strings.TrimSpace(item.TelegramUsername),
 			AvatarURL:          adminUserAvatarURL(item.TelegramUsername),
@@ -155,7 +163,7 @@ func (h *Handler) handleAdminUsersSearch(w http.ResponseWriter, r *http.Request,
 }
 
 func (h *Handler) handleAdminUserDetail(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -178,7 +186,7 @@ func (h *Handler) handleAdminUserDetail(w http.ResponseWriter, r *http.Request, 
 }
 
 func (h *Handler) handleAdminUserBalance(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -227,7 +235,7 @@ func adminBalanceTransaction(amountRub int64, action string) (int64, string, str
 }
 
 func (h *Handler) handleAdminUserSelectSubscription(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -252,7 +260,7 @@ func (h *Handler) handleAdminUserSelectSubscription(w http.ResponseWriter, r *ht
 }
 
 func (h *Handler) handleAdminUserSubscription(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -301,13 +309,17 @@ func (h *Handler) handleAdminUserSubscription(w http.ResponseWriter, r *http.Req
 }
 
 func (h *Handler) handleAdminUserBlock(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
 	var req adminUserActionRequest
 	if err := h.decodeJSONRequest(w, r, 2048, &req); err != nil || req.CustomerID <= 0 {
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "Выберите пользователя")
+		return
+	}
+	if req.DeleteSubscription && !sess.canAdmin("users.subscription") {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Нет права удалять подписки")
 		return
 	}
 	customer, err := h.customerRepository.FindById(r.Context(), req.CustomerID)
@@ -317,6 +329,10 @@ func (h *Handler) handleAdminUserBlock(w http.ResponseWriter, r *http.Request, s
 	}
 	if customer.TelegramID == sess.User.ID {
 		h.writeError(w, http.StatusConflict, "admin_self_block", "Нельзя заблокировать свой аккаунт администратора")
+		return
+	}
+	if customer.TelegramID == config.GetAdminTelegramId() && !sess.access().IsOwner {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Нельзя заблокировать главного администратора")
 		return
 	}
 	reason := strings.TrimSpace(req.Reason)
@@ -394,7 +410,7 @@ func (h *Handler) setAdminUserSubscriptionBlocked(ctx context.Context, customer 
 }
 
 func (h *Handler) handleAdminUserDeleteSubscription(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}

@@ -21,7 +21,7 @@ func (h *Handler) handleAdminPaymentNotificationTest(w http.ResponseWriter, r *h
 		h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
 		return
 	}
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}

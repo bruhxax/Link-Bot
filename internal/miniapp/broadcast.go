@@ -90,7 +90,7 @@ func (h *Handler) handleAdminBroadcastReset(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) requireBroadcastAdmin(w http.ResponseWriter, sess *session) bool {
-	if sess == nil || !h.isAdmin(sess.User.ID) {
+	if sess == nil || !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Недостаточно прав")
 		return false
 	}

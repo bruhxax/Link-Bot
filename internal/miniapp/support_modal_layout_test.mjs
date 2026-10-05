@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import test from "node:test";
+import { canAdmin as accessAllows } from "./static/administrators.mjs";
 
 const source = fs.readFileSync(new URL("./static/app.js", import.meta.url), "utf8");
 function section(start, end) {
@@ -13,6 +14,7 @@ test("loading a historical ticket keeps its title, metadata and closed footer", 
   const state = { data: { support: { isAdmin: true, historyTickets: [ticket] } }, activeSupportTicketId: 95, activeSupportThread: null };
   const context = vm.createContext({ state, supportText: () => ({ loadingThread: "Загрузка", customer: "Пользователь", subscription: "Подписка", closed: "Закрыто", closedHint: "История" }),
     localizedText: ru => ru, modalStateClass: () => "", escapeHtml: String, escapeAttribute: String,
+    canAdmin: permission => accessAllows({ isAdmin: true, isOwner: true }, permission),
     supportTicketTitle: ticket => ticket.subject, formatTelegramUsername: value => `@${value}`,
     renderSupportMessage: () => "message", renderSupportPendingMedia: () => "", icon: () => "",
   });
@@ -26,6 +28,18 @@ test("loading a historical ticket keeps its title, metadata and closed footer", 
   assert.match(ready, /aria-busy="false"/);
   assert.match(loading, /support-thread__closed/);
   assert.doesNotMatch(loading, /support-reply__textarea/);
+});
+
+test("a support viewer never sees reply or close controls, including while loading", () => {
+  const ticket = { id: 95, subject: "Вопрос", status: "open", customerName: "test" };
+  const state = { data: { support: { isAdmin: true, openTickets: [ticket] } }, activeSupportTicketId: 95, activeSupportThread: null };
+  const context = vm.createContext({ state, supportText: () => ({}), localizedText: ru => ru, modalStateClass: () => "", escapeHtml: String, escapeAttribute: String,
+    canAdmin: permission => accessAllows({ isAdmin: true, permissions: ["support.view"] }, permission),
+    supportTicketTitle: ticket => ticket.subject, formatTelegramUsername: String, renderSupportMessage: () => "", renderSupportPendingMedia: () => "", icon: () => "",
+  });
+  vm.runInContext(section("function renderSupportThreadModal()", "function formatSupportMediaSize("), context);
+  const html = context.renderSupportThreadModal();
+  assert.doesNotMatch(html, /support-reply__textarea|data-action="close-support-ticket"/);
 });
 
 test("the new ticket form contains a message field without a subject field", () => {

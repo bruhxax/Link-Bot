@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import test from "node:test";
+import { canAdmin as accessAllows } from "./static/administrators.mjs";
 
 const source = fs.readFileSync(new URL("./static/app.js", import.meta.url), "utf8");
 const pushSource = source.slice(source.indexOf("function adminPushEnvironment()"), source.indexOf("function adminUserDisplayName("));
+const accessSource = source.slice(source.indexOf("function canAdmin(permission)"), source.indexOf("function getBottomNavPages("));
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
-function harness({ permission = "default", response = "granted", current = null, surface = "browser", ios = false } = {}) {
+function harness({ permission = "default", response = "granted", current = null, surface = "browser", ios = false, access = { isAdmin: true, isOwner: true } } = {}) {
   const calls = [], errors = [];
   const input = { checked: false, disabled: false };
   const subscription = { endpoint: "https://push.example/current-device", toJSON() { return { endpoint: this.endpoint, keys: { p256dh: "key", auth: "auth" } }; }, async unsubscribe() { calls.push("unsubscribe-local"); return true; } };
@@ -16,13 +18,13 @@ function harness({ permission = "default", response = "granted", current = null,
   };
   const notification = { permission, requestPermission() { calls.push("permission"); return Promise.resolve(response).then(value => { notification.permission = value; return value; }); } };
   const context = vm.createContext({
-    state: { currentPage: "admin", adminSection: "home", adminPush: null, adminPushBusy: "" },
+    state: { currentPage: "admin", adminSection: "home", adminPush: null, adminPushBusy: "", data: { admin: { access } } },
     app: { querySelector: () => input },
     navigator: { userAgent: ios ? "iPhone" : "Browser", serviceWorker: {} },
     window: { isSecureContext: true, PushManager: {}, Notification: notification, atob: () => "\0" },
     Notification: notification, clientSurface: surface, standaloneWebApp: false, previewMode: false,
     WEB_PUSH_WORKER_TIMEOUT_MS: 100, WEB_PUSH_SUBSCRIPTION_TIMEOUT_MS: 100,
-    isAdminUser: () => true, localizedText: ru => ru, escapeAttribute: String, escapeHtml: String, icon: () => "",
+    isAdminUser: () => true, accessAllows, localizedText: ru => ru, escapeAttribute: String, escapeHtml: String, icon: () => "",
     showToast: message => errors.push(message),
     render: () => { throw new Error("push must not remount the page"); },
     renderRealtime: () => { throw new Error("push must not remount the page"); },
@@ -30,7 +32,7 @@ function harness({ permission = "default", response = "granted", current = null,
     withWebPushTimeout: promise => promise,
     async post(url, body) { calls.push(url); if (url.endsWith("unsubscribe")) assert.equal(body.endpoint, subscription.endpoint); return { data: { available: true, publicKey: "AA", subscriptionCount: 4 } }; },
   });
-  vm.runInContext(pushSource, context);
+  vm.runInContext(accessSource + "\n" + pushSource, context);
   return { context, calls, errors, input, notification, manager, subscription };
 }
 
@@ -140,3 +142,12 @@ for (const options of [{ surface: "telegram" }, { ios: true }]) {
     assert.equal(h.errors.length, 1);
   });
 }
+
+
+test("a status-only administrator cannot request push permission or load push state", async () => {
+  const h = harness({ access: { isAdmin: true, permissions: ["status"] } });
+  await h.context.setAdminPushEnabled(true);
+  await h.context.refreshAdminPush();
+  assert.deepEqual(h.calls, []);
+  assert.equal(h.input.checked, false);
+});

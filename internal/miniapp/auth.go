@@ -36,6 +36,7 @@ type telegramUser struct {
 }
 
 type session struct {
+	AdminAccess         adminAccess
 	QueryID             string
 	StartParam          string
 	AuthDate            time.Time

@@ -47,7 +47,7 @@ func (h *Handler) handleAdminFaviconUpload(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) handleAdminBannerUpload(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
@@ -108,7 +108,7 @@ func (h *Handler) handleAdminBannerUpload(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleAdminImageUpload(w http.ResponseWriter, r *http.Request, sess *session, field, label string) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}

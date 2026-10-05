@@ -15,6 +15,9 @@ import { reviewRewardDraft, reviewRewardsFromDraft, reviewRewardSummary } from "
 
 import { syncTelegramLayout } from "./telegram-layout.mjs";
 import { renderAISettings } from "./admin-ai.mjs";
+import { canAdmin as accessAllows, changePermission, ROLE_PRESETS, presetPermissions, roleDot, renderAdministrators } from "./administrators.mjs";
+
+const administrators = { items: [], total: 0, catalog: [], query: "", candidates: [], candidateTotal: 0, pickQuery: "", picking: false, editor: null, confirmRemove: false, busy: "", error: "", requestID: 0, searchTimer: null };
 
 const app = document.getElementById("app");
 const toast = document.getElementById("toast");
@@ -794,7 +797,12 @@ async function verifyEmailLink() {
   app.querySelector('[data-action="email-link-verify"]')?.setAttribute("disabled", "");
   try {
     const response = await post("/api/mini-app/auth/email/link/verify", { challengeId: emailLink.challengeId, code });
+    const previousAdminAccess = JSON.stringify(state.data?.admin?.access || null);
     state.data = response.data;
+	if (previousAdminAccess !== JSON.stringify(state.data?.admin?.access || null)) {
+		adminSettingsSearchCatalog = null;
+		adminSettingsSearchResults = [];
+	}
     emailLink.open = false;
     emailLink.stage = "credentials";
     emailLink.password = "";
@@ -3324,12 +3332,13 @@ async function boot() {
 	closeSupportThreadState();
   writeSetting(STORAGE_KEYS.page, state.currentPage);
   await refreshDashboard({ initial: true, silent: paymentReturn });
-	if (isAdminUser()) void refreshAdminPush();
+	if (canAdmin("push")) void refreshAdminPush();
 	if (isAdminUser() && state.currentPage === "admin" && !["broadcast", "user-message"].includes(urlParams.get("admin"))) refreshRestoredAdminSection();
   await handlePostBootstrapFlow();
 }
 
 function refreshRestoredAdminSection() {
+	if (state.adminSection === "administrators") void refreshAdministrators();
 	if (state.adminSection === "finance") void refreshAdminFinance().catch((error) => showToast(error?.message || "Не удалось загрузить финансы", "danger"));
 	if (state.adminSection === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
 	if (state.adminSection === "status") void refreshAdminStatus();
@@ -3402,7 +3411,7 @@ async function handlePostBootstrapFlow() {
   clearPendingPayment();
 	if (isPageReload()) return;
 
-	if (urlParams.get("admin") === "broadcast" && isAdminUser()) {
+	if (urlParams.get("admin") === "broadcast" && canAdmin("broadcast")) {
 		state.currentPage = "admin";
 		state.adminSection = "broadcast";
 		writeSetting(STORAGE_KEYS.page, "admin");
@@ -3410,7 +3419,7 @@ async function handlePostBootstrapFlow() {
 		await refreshAdminBroadcast({ forceButtons: true });
 		return;
 	}
-	if (urlParams.get("admin") === "user-message" && isAdminUser()) {
+	if (urlParams.get("admin") === "user-message" && canAdmin("users.message")) {
 		const customerID = Number(urlParams.get("customerId") || 0);
 		state.currentPage = "admin";
 		state.adminSection = "users";
@@ -3565,7 +3574,8 @@ async function refreshRealtimeData() {
 				case "partners": await refreshAdminPartners({ silent: true }); break;
 				case "moynalog": await refreshAdminMoyNalog({ silent: true }); break;
 				case "broadcast": await refreshAdminBroadcast({ silent: true }); break;
-				case "home": await refreshAdminPush(); break;
+				case "home": if (canAdmin("push")) await refreshAdminPush(); break;
+				case "administrators": if (!administrators.editor && !administrators.picking && !administrators.busy) await refreshAdministrators({ silent: true }); break;
 				case "users":
 					if (state.adminUserDetail?.customerId) {
 						const customerId = state.adminUserDetail.customerId;
@@ -3788,7 +3798,7 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
 		state.adminUserPreviewDetail = deepClone(state.adminUserDetail);
 		if (urlParams.get("detail") !== "1") state.adminUserDetail = null;
 		const previewSection = String(urlParams.get("section") || "");
-		if (["home", "integrations", "referrals", "partners", "moynalog", "finance", "analytics", "ai", "users", "appearance"].includes(previewSection)) {
+		if (["home", "integrations", "referrals", "partners", "moynalog", "finance", "analytics", "ai", "users", "appearance", "administrators", "status"].includes(previewSection)) {
 			state.currentPage = "admin";
 			state.adminSection = previewSection;
 			state.adminLayoutEditing = false;
@@ -4189,6 +4199,13 @@ function ensureSelections() {
     writeSetting(STORAGE_KEYS.payMethod, state.paymentMethod);
   }
 
+  if (state.currentPage === "admin" && isAdminUser() && state.adminSection !== "home" && !canAdmin(state.adminSection)) {
+        state.adminSection = "home";
+        state.adminLayoutEditing = false;
+        state.adminPlanEditing = false;
+        state.adminSettingsDirty = false;
+        administrators.editor = null;
+    }
   if (state.currentPage === "admin" && !isAdminUser()) {
     state.currentPage = "dashboard";
 		state.adminSection = "home";
@@ -4209,7 +4226,12 @@ function syncGiftReceiptState() {
 }
 
 function isAdminUser() {
-  return Boolean(state.data?.support?.isAdmin);
+  return Boolean(state.data?.admin?.access?.isAdmin ?? state.data?.support?.isAdmin);
+}
+
+function canAdmin(permission) {
+    const access = state.data?.admin?.access;
+    return access ? accessAllows(access, permission) : Boolean(state.data?.support?.isAdmin);
 }
 
 function getBottomNavPages() {
@@ -5015,6 +5037,7 @@ function renderAdminPage() {
 	if (state.adminSection === "status") return renderAdminStatusPage();
 	if (state.adminSection === "partners") return renderAdminPartnersPage();
 	if (state.adminSection === "users") return renderAdminUsersPage();
+    if (state.adminSection === "administrators") return `<section class="page admin-page ${pageClass("admin")}" id="page-admin">${renderAdministrators(administrators, { escapeHtml, escapeAttribute, icon, avatar: adminUserAvatar, displayName: adminUserDisplayName, loading: renderAdminUsersLoading })}</section>`;
 	return `
 		<section class="page admin-page ${pageClass("admin")}" id="page-admin">
 			${renderAdminSettingsSearch()}
@@ -5041,6 +5064,7 @@ function renderAdminPage() {
 			])}
 			${renderAdminMenuGroup(localizedText("Операции", "Operations", "عملیات"), [
 				[localizedText("Пользователи", "Users", "کاربران"), "", "users", "users"],
+				[localizedText("Администраторы", "Administrators", "مدیران"), "", "administrators", "users"],
 				[localizedText("Финансы", "Finance", "امور مالی"), "", "finance", "chartLine"],
 				[localizedText("Аналитика", "Analytics", "تحلیل"), "", "analytics", "google"],
 				[localizedText("Рефералы и баланс", "Referrals and balance", "دعوت و موجودی"), "", "referrals", "users"],
@@ -5048,6 +5072,7 @@ function renderAdminPage() {
 				[localizedText("Рассылка", "Broadcast", "ارسال همگانی"), "", "broadcast", "adminBroadcast"],
 				[localizedText("Промокоды", "Promo codes", "کدهای تخفیف"), "", "promocodes", "adminPromocodes"],
 			])}
+            ${renderAdminExtraAccess()}
 		</section>
 	`;
 }
@@ -5073,6 +5098,7 @@ const ADMIN_SEARCH_SECTIONS = [
 	["layout", "Конструктор UI", "расположение элементов"],
 	["plans", "Тарифы", "цена устройства трафик пакеты"],
 	["users", "Пользователи", "баланс подписки блокировка"],
+	["administrators", "Администраторы", "роли права доступ цвет"],
 	["finance", "Финансы", "история платежей выручка"],
 	["analytics", "Аналитика", "Google Analytics GA4 посещения пользователи сеансы просмотры"],
 	["referrals", "Рефералы и баланс", "бонусы приглашения"],
@@ -5111,6 +5137,7 @@ function buildAdminSettingsSearchCatalog() {
 		}
 	};
 	for (const [contentSection, title, group] of ADMIN_SEARCH_CONTENT_SECTIONS) {
+		if (!canAdmin("content")) continue;
 		catalog.push({ section: "content", contentSection, title, context: `Редактор контента · ${group}`, aliases: title === "Главное меню" ? "текст главного меню бот старт меню" : "", path: "" });
 		collect(renderAdminContentSection(contentSection), "content", title, contentSection);
 	}
@@ -5124,16 +5151,16 @@ function buildAdminSettingsSearchCatalog() {
 			["referrals", "Рефералы и баланс", renderAdminReferralsPage],
 			["localization", "Язык и шрифт", renderAdminLocalizationPage],
 			["subpage", "Sub page", renderAdminSubPagePage],
-		]) collect(renderer(), section, title);
+		]) if (canAdmin(section)) collect(renderer(), section, title);
 	}
-	return catalog;
+	return catalog.filter((item) => canAdmin(item.section));
 }
 
 function findAdminSettings(query) {
 	const words = String(query || "").toLocaleLowerCase("ru-RU").trim().split(/\s+/).filter(Boolean);
 	if (!words.length) return [];
 	adminSettingsSearchCatalog ||= buildAdminSettingsSearchCatalog();
-	return adminSettingsSearchCatalog.map((item) => {
+	return adminSettingsSearchCatalog.filter((item) => canAdmin(item.section)).map((item) => {
 		const title = item.title.toLocaleLowerCase("ru-RU");
 		const haystack = `${title} ${item.context} ${item.aliases || ""} ${item.path || ""}`.toLocaleLowerCase("ru-RU");
 		if (!words.every((word) => haystack.includes(word))) return null;
@@ -5156,7 +5183,7 @@ function renderAdminSettingsSearch() {
 
 function openAdminSettingsSearchResult(index) {
 	const item = adminSettingsSearchResults[index];
-	if (!item) return;
+	if (!item || !canAdmin(item.section)) return;
 	state.adminSettingsSearchQuery = "";
 	if (item.section === "layout") return enterAdminLayoutEditor();
 	if (item.section === "plans") return enterAdminPlanEditor();
@@ -5167,6 +5194,7 @@ function openAdminSettingsSearchResult(index) {
 	if (item.section === "finance") void refreshAdminFinance();
 	if (item.section === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
 	if (item.section === "status") void refreshAdminStatus();
+	if (item.section === "administrators") void refreshAdministrators();
 	if (item.section === "users") void refreshAdminUsers();
 	if (item.section === "partners") void refreshAdminPartners();
 	if (item.section === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
@@ -5673,7 +5701,7 @@ function syncAdminPushToggle() {
 }
 
 async function setAdminPushEnabled(enabled) {
-	if (!isAdminUser() || state.adminPushBusy) return;
+	if (!canAdmin("push") || state.adminPushBusy) return;
 	try {
 		if (enabled) await enableAdminPush();
 		else await disableAdminPush();
@@ -5711,7 +5739,7 @@ function adminPushErrorMessage(error) {
 }
 
 async function refreshAdminPush() {
-	if (!isAdminUser() || state.adminPushBusy) return;
+	if (!canAdmin("push") || state.adminPushBusy) return;
 	if (previewMode) {
 		state.adminPush ||= { available: true, publicKey: "preview", subscribed: false, permission: "default" };
 		syncAdminPushToggle();
@@ -5825,6 +5853,183 @@ function adminUserStatusCopy(status) {
 	return ({ active: "Активна", expired: "Истекла", blocked: "Заблокирован", unavailable: "Нет связи", none: "Нет подписки" })[status] || "Нет подписки";
 }
 
+function renderAdminExtraAccess() {
+	const items = [
+		["support.view", "Обращения", "go-page", "support", "chat"],
+		["servers.view", "Список нод", "go-page", "servers", "server"],
+		["reviews.rewards", "Вознаграждение за отзыв", "open-review-rewards", "", "star"],
+		["reviews.delete", "Отзывы", "go-page", "reviews", "star"],
+	].filter(([permission]) => canAdmin(permission));
+	if (!items.length) return "";
+	return `<section class="admin-menu-group"><h2 class="admin-menu-group__title"><span></span>Другие действия</h2><div class="admin-menu-group__rows">${items.map(([, title, action, value, glyph]) => renderMenuRow(title, "", action, value, glyph, { showTail: true, compact: true })).join("")}</div></section>`;
+}
+
+function renderAdministratorsPreservingFocus() {
+	const focused = document.activeElement;
+	const key = focused?.dataset.input;
+	const selection = key?.startsWith("administrators-") ? [focused.selectionStart, focused.selectionEnd] : null;
+	render({ preserveScroll: true });
+	if (!selection) return;
+	const input = app.querySelector(`[data-input="${key}"]`);
+	input?.focus({ preventScroll: true });
+	try { input?.setSelectionRange(...selection); } catch (_) {}
+}
+
+async function refreshAdministrators({ append = false, silent = false } = {}) {
+	if (!canAdmin("administrators") || state.adminSection !== "administrators") return;
+	const picking = administrators.picking;
+	const query = picking ? administrators.pickQuery : administrators.query;
+	const offset = append ? (picking ? administrators.candidates.length : administrators.items.length) : 0;
+	const requestID = ++administrators.requestID;
+	administrators.busy = "search";
+	administrators.error = "";
+	if (!silent) renderAdministratorsPreservingFocus();
+	try {
+		const response = await post(picking ? "/api/mini-app/admin/users/search" : "/api/mini-app/admin/administrators/list", { query, limit: 30, offset });
+		if (requestID !== administrators.requestID || picking !== administrators.picking || state.adminSection !== "administrators") return;
+		const data = response.data || {};
+		if (picking) {
+			administrators.candidates = append ? [...administrators.candidates, ...(data.items || [])] : (data.items || []);
+			administrators.candidateTotal = Number(data.total || 0);
+		} else {
+			administrators.items = append ? [...administrators.items, ...(data.items || [])] : (data.items || []);
+			administrators.total = Number(data.total || 0);
+			administrators.catalog = data.permissions || administrators.catalog;
+		}
+	} catch (error) {
+		if (requestID !== administrators.requestID) return;
+		administrators.error = error.message || "Не удалось загрузить список";
+	} finally {
+		if (requestID === administrators.requestID) {
+			administrators.busy = "";
+			if (state.adminSection === "administrators") renderAdministratorsPreservingFocus();
+		}
+	}
+}
+
+function editAdministrator(user, isNew = false) {
+	administrators.requestID += 1;
+	administrators.editor = {
+		...deepClone(user), isNew, preset: isNew ? "support" : "custom",
+		role: isNew ? "Поддержка" : user.role,
+		color: isNew ? "#55c58a" : user.color,
+		permissions: isNew ? presetPermissions("support", administrators.catalog) : [...(user.permissions || [])],
+	};
+	administrators.confirmRemove = false;
+	administrators.busy = "";
+	administrators.error = "";
+	renderAdminTransition();
+}
+
+async function handleAdministratorsAction(action, value) {
+	if (!canAdmin("administrators") || state.adminSection !== "administrators") return;
+	if (administrators.busy && !["administrators-refresh", "administrators-back"].includes(action)) return;
+	if (action === "administrators-back") {
+		if (["save", "remove"].includes(administrators.busy)) return;
+		administrators.requestID += 1;
+		window.clearTimeout(administrators.searchTimer);
+		administrators.editor = null;
+		administrators.picking = false;
+		administrators.busy = "";
+		administrators.error = "";
+		renderAdminTransition();
+		return await refreshAdministrators();
+	}
+	if (action === "administrators-add") {
+		administrators.picking = true;
+		administrators.editor = null;
+		administrators.pickQuery = "";
+		administrators.candidates = [];
+		renderAdminTransition();
+		return await refreshAdministrators();
+	}
+	if (action === "administrators-refresh" || action === "administrators-more") return await refreshAdministrators({ append: action === "administrators-more" });
+	if (action === "administrators-edit") {
+		const user = administrators.items.find((item) => item.customerId === Number(value));
+		if (user) editAdministrator(user);
+		return;
+	}
+	if (action === "administrators-pick") {
+		const user = administrators.candidates.find((item) => item.customerId === Number(value));
+		if (!user) return;
+		if (user.isBlocked) { showToast("Сначала разблокируйте пользователя", "danger"); return; }
+		let existing = administrators.items.find((item) => item.customerId === user.customerId);
+		if (!existing && user.adminRole) {
+			administrators.busy = "search";
+			try {
+				const response = await post("/api/mini-app/admin/administrators/list", { query: String(user.telegramId), limit: 30, offset: 0 });
+				if (state.adminSection !== "administrators" || !administrators.picking) return;
+				existing = response.data?.items?.find((item) => item.customerId === user.customerId);
+			} finally { administrators.busy = ""; }
+		}
+		editAdministrator(existing || user, !existing);
+		return;
+	}
+	const draft = administrators.editor;
+	if (!draft || draft.isOwner) return;
+	if (action === "administrators-preset") {
+		const preset = ROLE_PRESETS.find((item) => item.id === value);
+		if (!preset) return;
+		draft.preset = value; draft.role = preset.name; draft.color = preset.color;
+		draft.permissions = presetPermissions(value, administrators.catalog);
+	} else if (action === "administrators-color") draft.color = value;
+	else if (action === "administrators-all") {
+		draft.permissions = draft.permissions.length === administrators.catalog.length ? [] : administrators.catalog.map((item) => item.id);
+		draft.preset = "custom";
+	} else if (action === "administrators-group") {
+		const group = administrators.catalog.filter((item) => item.group === value);
+		const enable = !group.every((item) => draft.permissions.includes(item.id));
+		for (const item of group) draft.permissions = changePermission(draft.permissions, item.id, enable, administrators.catalog);
+		draft.preset = "custom";
+	} else if (action === "administrators-confirm-remove") administrators.confirmRemove = true;
+	else if (action === "administrators-cancel-remove") administrators.confirmRemove = false;
+	else if (action === "administrators-save" || action === "administrators-remove") {
+		if (action === "administrators-remove" && (!administrators.confirmRemove || draft.isNew)) return;
+		administrators.busy = action === "administrators-save" ? "save" : "remove";
+		administrators.error = "";
+		render({ preserveScroll: true });
+		try {
+			await post(`/api/mini-app/admin/administrators/${action === "administrators-save" ? "save" : "remove"}`, action === "administrators-save" ? { customerId: draft.customerId, role: draft.role.trim(), color: draft.color, permissions: draft.permissions } : { customerId: draft.customerId });
+			administrators.editor = null; administrators.picking = false; administrators.busy = "";
+			if (state.adminSection === "administrators") await refreshAdministrators();
+			showToast(action === "administrators-save" ? "Роль сохранена" : "Права администратора сняты", "success");
+		} catch (error) {
+			administrators.busy = ""; administrators.error = error.message || "Не удалось сохранить изменения";
+			render({ preserveScroll: true });
+		}
+		return;
+	}
+	render({ preserveScroll: true });
+}
+
+function handleAdministratorsInput(input) {
+	if (!canAdmin("administrators") || ["save", "remove"].includes(administrators.busy)) return;
+	const key = input.dataset.input;
+	if (key === "administrators-search" || key === "administrators-pick-search") {
+		administrators[key === "administrators-search" ? "query" : "pickQuery"] = input.value.slice(0, 100);
+		administrators.requestID += 1;
+		window.clearTimeout(administrators.searchTimer);
+		administrators.searchTimer = window.setTimeout(() => { void refreshAdministrators(); }, 280);
+		return;
+	}
+	const draft = administrators.editor;
+	if (!draft || draft.isOwner) return;
+	if (key === "administrators-role") {
+		draft.role = input.value; draft.preset = "custom";
+		app.querySelectorAll(".admin-access__presets .is-selected").forEach((node) => node.classList.remove("is-selected"));
+		const save = app.querySelector('[data-action="administrators-save"]');
+		if (save) save.disabled = !draft.role.trim() || !draft.permissions.length;
+	} else if (key === "administrators-color") {
+		draft.color = input.value;
+		app.querySelectorAll(".admin-access__person .admin-role-dot").forEach((node) => node.style.setProperty("--role-color", draft.color));
+	} else if (key === "administrators-permission") {
+		draft.permissions = changePermission(draft.permissions, input.dataset.value, input.checked, administrators.catalog);
+		draft.preset = "custom";
+		render({ preserveScroll: true });
+		app.querySelector(`[data-input="administrators-permission"][data-value="${input.dataset.value}"]`)?.focus({ preventScroll: true });
+	}
+}
+
 function renderAdminUsersPage() {
 	if (state.adminUserDetail) return renderAdminUserDetailPage(state.adminUserDetail);
 	if (state.adminUserPending) return renderAdminUserDetailLoading(state.adminUserPending);
@@ -5848,7 +6053,7 @@ function renderAdminUserRow(user, index) {
 	const subscription = String(user.subscriptionName || "").trim() || "Без подписки";
 	return `<button class="admin-user-row" type="button" data-action="admin-user-open" data-value="${Number(user.customerId || 0)}" style="--admin-user-index:${Math.min(index, 10)}" aria-label="Открыть ${escapeAttribute(adminUserDisplayName(user))}">
 		${adminUserAvatar(user)}
-		<span class="admin-user-row__identity"><strong>${escapeHtml(adminUserDisplayName(user))}</strong><small>Telegram ID: ${escapeHtml(String(user.telegramId || "—"))}</small></span>
+		<span class="admin-user-row__identity"><strong>${roleDot(user.adminColor, user.adminRole, { escapeAttribute })}${escapeHtml(adminUserDisplayName(user))}</strong><small>Telegram ID: ${escapeHtml(String(user.telegramId || "—"))}</small></span>
 		<span class="admin-user-row__subscription"><strong>${escapeHtml(subscription)}</strong><small class="is-${escapeAttribute(status)}">${escapeHtml(adminUserStatusCopy(status))}</small></span>
 		${icon("chevronRight")}
 	</button>`;
@@ -5879,10 +6084,10 @@ function renderAdminUserDetailPage(user) {
 			${subscriptions.length ? `<div class="admin-user-subscriptions__tabs" role="group" aria-label="Подписки пользователя">${subscriptions.map((item) => `<button class="admin-user-subscriptions__tab ${selected?.id === item.id ? "is-active" : ""}" type="button" aria-pressed="${selected?.id === item.id}" data-action="admin-user-view-subscription" data-value="${Number(item.id || 0)}"><strong>${escapeHtml(item.name || "Подписка")}</strong><small>${item.isSelected ? "Выбрана в Mini App" : item.isPrimary ? "Основная" : "Дополнительная"}</small></button>`).join("")}</div>${selected ? renderAdminUserSubscription(selected) : ""}` : `<div class="admin-users__empty admin-users__empty--compact"><strong>Подписок пока нет</strong></div>`}
 		</section>
 		<section class="admin-user-controls" aria-labelledby="admin-user-controls-title"><div class="admin-user-section-head"><div><span>ФУНКЦИИ БОТА</span><h3 id="admin-user-controls-title">Управление пользователем</h3></div></div>
-			${renderAdminDirectMessage(user)}
-			<div class="admin-user-controls__group admin-user-controls__group--balance"><div><strong>Баланс Mini App</strong><span>Сейчас доступно ${escapeHtml(formatMoneyCents(referrals.balanceCents || 0))}. Операции сохраняются в истории.</span></div><label class="admin-user-balance-input"><span>Сумма, ₽</span><input type="number" min="1" max="1000000" step="1" inputmode="numeric" value="${escapeAttribute(state.adminUserBalanceDraft)}" data-input="admin-user-balance" placeholder="Например, 500"></label><div class="admin-user-balance-actions"><button class="is-credit" type="button" data-action="admin-user-credit" ${busy ? "disabled" : ""}>${icon("plus")}Пополнить</button><button class="is-debit" type="button" data-action="admin-user-debit" ${busy || Number(referrals.balanceCents || 0) < 100 ? "disabled" : ""}>${icon("minus")}Списать</button></div></div>
-			<div class="admin-user-controls__group ${user.isBlocked || !selected ? "is-disabled" : ""}"><div><strong>Изменить подписку</strong><span>${selected ? escapeHtml(selected.name || "Выбранная подписка") : "Нет доступной подписки"}</span></div><div class="admin-user-control-grid"><div class="admin-user-control-row"><label><span>Продлить, дней</span><input type="number" min="1" max="3650" inputmode="numeric" value="${escapeAttribute(state.adminUserDaysDraft)}" data-input="admin-user-days" placeholder="30" ${user.isBlocked || !selected ? "disabled" : ""}></label><button type="button" data-action="admin-user-extend" ${busy || user.isBlocked || !selected ? "disabled" : ""}>Продлить</button></div><div class="admin-user-control-row"><label><span>Добавить, ГБ</span><input type="number" min="1" max="1000000" inputmode="numeric" value="${escapeAttribute(state.adminUserTrafficDraft)}" data-input="admin-user-traffic" placeholder="50" ${user.isBlocked || !selected ? "disabled" : ""}></label><button type="button" data-action="admin-user-traffic" ${busy || user.isBlocked || !selected ? "disabled" : ""}>Добавить</button></div></div><div class="admin-user-controls__reissue"><span>Создать новую ссылку с остатком срока и трафика. Старая работает ещё 10 минут.</span><button type="button" data-action="admin-user-reissue-subscription" ${busy || user.isBlocked || !selected || selected.status !== "active" ? "disabled" : ""}>${icon("refresh")}Перевыпустить</button></div><div class="admin-user-controls__delete"><span>Удаление аннулирует доступ в панели и не может быть отменено.</span><button type="button" data-action="admin-user-delete-subscription" ${busy || user.isBlocked || !selected ? "disabled" : ""}>${icon("trash")}Удалить подписку</button></div></div>
-			<div class="admin-user-controls__danger"><div><strong>${user.isBlocked ? "Разблокировать пользователя" : "Заблокировать пользователя"}</strong><span>${user.isBlocked ? `Причина: ${escapeHtml(user.blockedReason || "не указана")}` : (state.adminUserDeleteSubscriptionOnBlock ? "Доступ будет закрыт, а подписки безвозвратно удалены." : "Доступ в панели будет выключен. Подписки и их срок сохранятся.")}</span></div>${user.isBlocked ? "" : `<label class="admin-user-block-reason"><span>Причина блокировки</span><textarea maxlength="500" rows="3" data-input="admin-user-block-reason" placeholder="Укажите причину для истории блокировки">${escapeHtml(state.adminUserBlockReasonDraft)}</textarea></label><label class="admin-user-block-delete"><input type="checkbox" data-input="admin-user-block-delete" ${state.adminUserDeleteSubscriptionOnBlock ? "checked" : ""}><span><strong>Удалить подписку</strong><small>Безвозвратно удалить доступ из панели вместо временного отключения</small></span></label>`}<button type="button" class="${user.isBlocked ? "is-unblock" : "is-block"}" data-action="admin-user-block" data-blocked="${user.isBlocked ? "false" : "true"}" ${busy ? "disabled" : ""}>${user.isBlocked ? "Разблокировать" : "Заблокировать"}</button></div>
+			${canAdmin("users.message") ? renderAdminDirectMessage(user) : ""}
+			<div class="admin-user-controls__group admin-user-controls__group--balance" ${canAdmin("users.balance") ? "" : "hidden"}><div><strong>Баланс Mini App</strong><span>Сейчас доступно ${escapeHtml(formatMoneyCents(referrals.balanceCents || 0))}. Операции сохраняются в истории.</span></div><label class="admin-user-balance-input"><span>Сумма, ₽</span><input type="number" min="1" max="1000000" step="1" inputmode="numeric" value="${escapeAttribute(state.adminUserBalanceDraft)}" data-input="admin-user-balance" placeholder="Например, 500"></label><div class="admin-user-balance-actions"><button class="is-credit" type="button" data-action="admin-user-credit" ${busy ? "disabled" : ""}>${icon("plus")}Пополнить</button><button class="is-debit" type="button" data-action="admin-user-debit" ${busy || Number(referrals.balanceCents || 0) < 100 ? "disabled" : ""}>${icon("minus")}Списать</button></div></div>
+			<div class="admin-user-controls__group ${user.isBlocked || !selected ? "is-disabled" : ""}" ${canAdmin("users.subscription") ? "" : "hidden"}><div><strong>Изменить подписку</strong><span>${selected ? escapeHtml(selected.name || "Выбранная подписка") : "Нет доступной подписки"}</span></div><div class="admin-user-control-grid"><div class="admin-user-control-row"><label><span>Продлить, дней</span><input type="number" min="1" max="3650" inputmode="numeric" value="${escapeAttribute(state.adminUserDaysDraft)}" data-input="admin-user-days" placeholder="30" ${user.isBlocked || !selected ? "disabled" : ""}></label><button type="button" data-action="admin-user-extend" ${busy || user.isBlocked || !selected ? "disabled" : ""}>Продлить</button></div><div class="admin-user-control-row"><label><span>Добавить, ГБ</span><input type="number" min="1" max="1000000" inputmode="numeric" value="${escapeAttribute(state.adminUserTrafficDraft)}" data-input="admin-user-traffic" placeholder="50" ${user.isBlocked || !selected ? "disabled" : ""}></label><button type="button" data-action="admin-user-traffic" ${busy || user.isBlocked || !selected ? "disabled" : ""}>Добавить</button></div></div><div class="admin-user-controls__reissue"><span>Создать новую ссылку с остатком срока и трафика. Старая работает ещё 10 минут.</span><button type="button" data-action="admin-user-reissue-subscription" ${busy || user.isBlocked || !selected || selected.status !== "active" ? "disabled" : ""}>${icon("refresh")}Перевыпустить</button></div><div class="admin-user-controls__delete"><span>Удаление аннулирует доступ в панели и не может быть отменено.</span><button type="button" data-action="admin-user-delete-subscription" ${busy || user.isBlocked || !selected ? "disabled" : ""}>${icon("trash")}Удалить подписку</button></div></div>
+			<div class="admin-user-controls__danger" ${canAdmin("users.block") ? "" : "hidden"}><div><strong>${user.isBlocked ? "Разблокировать пользователя" : "Заблокировать пользователя"}</strong><span>${user.isBlocked ? `Причина: ${escapeHtml(user.blockedReason || "не указана")}` : (state.adminUserDeleteSubscriptionOnBlock ? "Доступ будет закрыт, а подписки безвозвратно удалены." : "Доступ в панели будет выключен. Подписки и их срок сохранятся.")}</span></div>${user.isBlocked ? "" : `<label class="admin-user-block-reason"><span>Причина блокировки</span><textarea maxlength="500" rows="3" data-input="admin-user-block-reason" placeholder="Укажите причину для истории блокировки">${escapeHtml(state.adminUserBlockReasonDraft)}</textarea></label><label class="admin-user-block-delete" ${canAdmin("users.subscription") ? "" : "hidden"}><input type="checkbox" data-input="admin-user-block-delete" ${state.adminUserDeleteSubscriptionOnBlock ? "checked" : ""}><span><strong>Удалить подписку</strong><small>Безвозвратно удалить доступ из панели вместо временного отключения</small></span></label>`}<button type="button" class="${user.isBlocked ? "is-unblock" : "is-block"}" data-action="admin-user-block" data-blocked="${user.isBlocked ? "false" : "true"}" ${busy ? "disabled" : ""}>${user.isBlocked ? "Разблокировать" : "Заблокировать"}</button></div>
 		</section>
 	</div></section>`;
 }
@@ -5913,7 +6118,7 @@ function renderAdminUserSubscription(item) {
 		<div class="admin-user-subscription__traffic"><div><span>Трафик</span><strong>${escapeHtml(traffic)}</strong></div><div class="admin-user-subscription__progress" role="progressbar" aria-label="Использование трафика" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(progress)}"><span style="width:${progress}%"></span></div></div>
 		<div class="admin-user-subscription__facts"><span>${icon("calendar")}<small>Окончание</small><b>${item.expiresAt ? escapeHtml(formatDateLabel(item.expiresAt, state.locale)) : "Срок не задан"}</b></span><span>${icon("device")}<small>Устройства</small><b>${escapeHtml(devices)}</b></span></div>
 		${item.subscriptionLink ? `<div class="admin-user-subscription__link"><div><span>Ссылка на подписку</span><code>${escapeHtml(item.subscriptionLink)}</code></div><button type="button" data-action="admin-user-copy-subscription" data-value="${escapeAttribute(item.subscriptionLink)}" aria-label="Скопировать ссылку">${icon("copy")}</button></div>` : ""}
-		${item.isSelected ? `<div class="admin-user-subscription__current">${icon("check")}Выбрана у пользователя в Mini App</div>` : `<button class="admin-user-subscription__activate" type="button" data-action="admin-user-activate-subscription" ${state.adminUsersBusy ? "disabled" : ""}>Сделать выбранной в Mini App</button>`}
+		${item.isSelected ? `<div class="admin-user-subscription__current">${icon("check")}Выбрана у пользователя в Mini App</div>` : !canAdmin("users.subscription") ? "" : `<button class="admin-user-subscription__activate" type="button" data-action="admin-user-activate-subscription" ${state.adminUsersBusy ? "disabled" : ""}>Сделать выбранной в Mini App</button>`}
 	</article>`;
 }
 
@@ -6051,7 +6256,7 @@ function closeAdminUserDetail() {
 }
 
 async function refreshAdminDirectMessage(customerID = Number(state.adminUserDetail?.customerId || 0)) {
-	if (!customerID || state.adminSection !== "users") return;
+	if (!canAdmin("users.message") || !customerID || state.adminSection !== "users") return;
 	const requestID = ++adminDirectRequestID;
 	try {
 		const response = await post("/api/mini-app/admin/users/message/state", { customerId: customerID });
@@ -6182,7 +6387,7 @@ async function reissueAdminUserSubscription() {
 
 async function setAdminUserBlocked(blocked) {
 	const reason = String(state.adminUserBlockReasonDraft || "").trim();
-	const deleteSubscription = Boolean(blocked && state.adminUserDeleteSubscriptionOnBlock);
+	const deleteSubscription = canAdmin("users.subscription") && Boolean(blocked && state.adminUserDeleteSubscriptionOnBlock);
 	const question = blocked
 		? (deleteSubscription ? "Заблокировать пользователя и безвозвратно удалить его подписки?" : "Заблокировать пользователя и выключить его подписки в панели?")
 		: "Разблокировать пользователя и включить действующие подписки?";
@@ -6259,6 +6464,8 @@ function renderAdminLocalizationPage() {
 }
 
 function renderAdminMenuGroup(label, items) {
+    items = items.filter((item) => canAdmin(item[2] === "push-toggle" ? "push" : item[2]));
+    if (!items.length) return "";
 	return `<section class="admin-menu-group"><h2 class="admin-menu-group__title"><span></span>${escapeHtml(label)}</h2><div class="admin-menu-group__rows">${items.map(([title, , value, iconName]) => value === "push-toggle" ? renderAdminPushToggle(title) : renderMenuRow(title, "", "open-admin-section", value, iconName, { showTail: true, compact: true })).join("")}</div></section>`;
 }
 
@@ -8808,7 +9015,7 @@ function renderReviewsPage() {
   return `
     <section class="page ${pageClass("reviews")}" id="page-reviews">
       <div class="card reviews-hero">
-        ${isAdminUser() ? `<button class="reviews-reward-settings" type="button" data-action="open-review-rewards" aria-label="Настроить вознаграждение" title="Настроить вознаграждение">${icon("pencil")}</button>` : ""}
+        ${canAdmin("reviews.rewards") ? `<button class="reviews-reward-settings" type="button" data-action="open-review-rewards" aria-label="Настроить вознаграждение" title="Настроить вознаграждение">${icon("pencil")}</button>` : ""}
         <div class="reviews-hero__score">${formatAverageRating(reviews.average || 0, state.locale)}</div>
         <div class="reviews-hero__stars">${renderRatingStars(Math.round(reviews.average || 0), false, "reviews-hero__star")}</div>
         <div class="reviews-hero__meta">${escapeHtml(countLabel)}</div>
@@ -9722,7 +9929,7 @@ function renderSupportLinkRows() {
 function renderServerCard(server) {
   const flag = countryFlag(server.countryCode);
   const flagURL = countryFlagURL(server.countryCode);
-  const canControlVisibility = isAdminUser() && Boolean(server.id);
+  const canControlVisibility = canAdmin("servers.manage") && Boolean(server.id);
   const visibilityLabel = server.hidden
     ? localizedText("Нода скрыта. Показать пользователям", "Node hidden. Show to users", "گره پنهان است. نمایش به کاربران")
     : localizedText("Нода видна. Скрыть от пользователей", "Node visible. Hide from users", "گره نمایان است. پنهان کردن از کاربران");
@@ -9743,7 +9950,7 @@ function renderServerCard(server) {
 }
 
 async function toggleServerVisibility(id, button) {
-  if (!isAdminUser() || state.serverVisibilityBusy || !button) return;
+  if (!canAdmin("servers.manage") || state.serverVisibilityBusy || !button) return;
   const server = getServerItems().find((item) => item.id === id);
   if (!server) return;
   const hidden = !Boolean(server.hidden);
@@ -10234,7 +10441,7 @@ function reviewRewardHint() {
 }
 
 function renderReviewRewardSettingsModal() {
-  if (!isAdminUser() || !state.reviewRewardDraft) return "";
+  if (!canAdmin("reviews.rewards") || !state.reviewRewardDraft) return "";
   const d = state.reviewRewardDraft, p = d.promo, busy = state.reviewRewardSaving;
   const input = (field, value, label, max, disabled = false, min = 1) => `<label class="review-reward-field"><span>${label}</span><input type="number" data-input="review-reward-value" data-field="${field}" min="${min}" max="${max}" step="1" inputmode="numeric" value="${escapeAttribute(value)}" ${disabled || busy ? "disabled" : ""}></label>`;
   const option = (key, name, hint, value, max, unit) => `<section class="review-reward-option ${d[key] ? "is-selected" : ""}"><label class="review-reward-option__toggle"><input type="checkbox" data-input="review-reward-toggle" data-field="${key}" ${d[key] ? "checked" : ""} ${busy ? "disabled" : ""}><span><strong>${name}</strong><small>${hint}</small></span></label>${input(key === "daysEnabled" ? "days" : key === "trafficEnabled" ? "trafficGb" : "balanceRub", value, unit, max, !d[key])}</section>`;
@@ -10247,7 +10454,7 @@ function renderReviewRewardSettingsModal() {
 }
 
 async function saveReviewRewardSettings() {
-  if (!isAdminUser() || state.reviewRewardSaving) return;
+  if (!canAdmin("reviews.rewards") || state.reviewRewardSaving) return;
   let rewards;
   try { rewards = reviewRewardsFromDraft(state.reviewRewardDraft); } catch (error) { showToast(error.message, "danger"); return; }
   state.reviewRewardSaving = true;
@@ -10320,7 +10527,7 @@ function renderReviewDetailModal() {
         <div class="review-detail__stars">${renderRatingStars(Number(review.rating || 0), false, "review-detail__star")}</div>
         <div class="review-detail__comment">${escapeHtml(review.comment || "")}</div>
         ${review.isMine && state.data?.reviews?.myReview?.rewardPromoCode ? `<div class="review-personal-code"><span>Ваш личный промокод · одно использование</span><button type="button" data-action="copy-review-promo">${escapeHtml(state.data.reviews.myReview.rewardPromoCode)}${icon("copy")}</button><small>${escapeHtml(reviewPersonalPromoHint())}</small></div>` : ""}
-        ${isAdminUser() ? `
+        ${canAdmin("reviews.delete") ? `
           <div class="review-detail__actions">
             <button class="btn btn--ghost review-detail__delete" type="button" data-action="admin-delete-review" data-value="${escapeAttribute(String(review.id || 0))}" ${deleteBusy ? "disabled" : ""}>${icon(deleteBusy ? "refresh" : "trash")}${escapeHtml(copy.delete)}</button>
           </div>
@@ -10385,7 +10592,7 @@ function renderSupportThreadModal() {
   const support = state.data?.support || {};
   const listedTicket = [...(support.openTickets || []), ...(support.historyTickets || [])].find((item) => Number(item.id) === Number(state.activeSupportTicketId));
   const ticket = state.activeSupportThread?.ticket || listedTicket || { id: state.activeSupportTicketId, status: "open" };
-  const thread = state.activeSupportThread || { ticket, messages: [], canReply: ticket.status === "open", canClose: Boolean(support.isAdmin && ticket.status === "open") };
+  const thread = state.activeSupportThread || { ticket, messages: [], canReply: ticket.status === "open" && (!support.isAdmin || canAdmin("support.reply")), canClose: Boolean(support.isAdmin && canAdmin("support.close") && ticket.status === "open") };
   const title = supportTicketTitle(ticket);
   const metaLines = [];
   if (support.isAdmin) {
@@ -10752,6 +10959,7 @@ function bindRootActions() {
 		if (action === "close-subscription-delete") return closeSubscriptionDelete();
 		if (action === "confirm-subscription-delete") return await deleteActiveSubscription();
 		if (action === "open-admin-section") {
+		if (!canAdmin(value === "push" ? "push" : value)) return;
 		if (value === "layout") return enterAdminLayoutEditor();
 		if (value === "plans") return enterAdminPlanEditor();
 		state.adminSection = value === "push" ? "home" : value || "home";
@@ -10764,6 +10972,7 @@ function bindRootActions() {
 		if (value === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
 		if (value === "status") void refreshAdminStatus();
 		if (value === "users") void refreshAdminUsers();
+		if (value === "administrators") void refreshAdministrators();
 		if (value === "partners") void refreshAdminPartners();
 		return;
 	  }
@@ -10778,6 +10987,7 @@ function bindRootActions() {
 		render({ preserveScroll: true });
 		return;
 	  }
+	  if (action.startsWith("administrators-")) return await handleAdministratorsAction(action, value);
 	  if (action === "close-admin-section") return closeAdminSection();
 		if (action === "admin-ai-check") return await checkAdminAI();
 		if (action === "admin-ai-load") return await loadAdminAI();
@@ -10963,7 +11173,7 @@ function bindRootActions() {
 		if (action === "open-banner") return openDashboardBanner(value);
 		if (action === "open-promo-widget-checkout") return await openPromoWidgetCheckout(value);
 		if (action === "open-notification-widget") return toggleNotificationPopover(target);
-      if (action === "open-review-rewards") { if (!isAdminUser()) return; state.reviewRewardDraft = reviewRewardDraft(currentReviewRewards()); state.reviewRewardSettingsOpen = true; render(); return; }
+      if (action === "open-review-rewards") { if (!canAdmin("reviews.rewards")) return; state.reviewRewardDraft = reviewRewardDraft(currentReviewRewards()); state.reviewRewardSettingsOpen = true; render(); return; }
       if (action === "close-review-rewards") { if (state.reviewRewardSaving) return; return requestModalClose("review-rewards", () => { state.reviewRewardSettingsOpen = false; }); }
       if (action === "save-review-rewards") return await saveReviewRewardSettings();
       if (action === "retry-review-reward") return await retryReviewReward();
@@ -11187,6 +11397,7 @@ function bindRootActions() {
 
 	app.addEventListener("change", (event) => {
 		const input = event.target;
+        if (input.dataset.input === "administrators-color") { render({ preserveScroll: true }); return; }
 		if (!(input instanceof HTMLInputElement)) return;
 		if (input.dataset.input === "admin-push-toggle") {
 			const enabled = input.checked;
@@ -11216,6 +11427,7 @@ function bindRootActions() {
 
 	app.addEventListener("input", (event) => {
       const target = event.target;
+        if (target.dataset.input?.startsWith("administrators-")) { handleAdministratorsInput(target); return; }
 		if (target.matches?.("[data-admin-email-subject]")) { state.adminEmailDraftSubject = target.value; state.adminEmailDraftDirty = true; return; }
 		if (target.matches?.("[data-admin-email-body]")) { state.adminEmailDraftBody = target.value; state.adminEmailDraftDirty = true; return; }
 		if (target.matches?.("[data-admin-email-preview]")) { state.adminEmailPreviewAddress = target.value; return; }
@@ -12012,7 +12224,7 @@ async function saveAdminSettings() {
 	state.adminBusy = "save-settings";
 	syncAdminSaveBarDOM();
 	try {
-		const response = await post("/api/mini-app/admin/settings/update", { settings: state.adminSettingsDraft });
+		const response = await post("/api/mini-app/admin/settings/update", { settings: state.adminSettingsDraft, section: state.data?.admin?.access?.isOwner ? "" : state.adminLayoutEditing ? "layout" : state.adminPlanEditing ? "plans" : state.adminSection });
 		state.publicSettings = response.data;
 		if (state.data) {
 			state.data.runtime = response.data;
@@ -14872,7 +15084,7 @@ async function submitReview() {
 }
 
 async function deleteAdminReview(id) {
-  if (!id || !isAdminUser()) return;
+  if (!id || !canAdmin("reviews.delete")) return;
   state.reviewBusy = `delete-review-${id}`;
   render();
   try {
@@ -15082,8 +15294,8 @@ async function openSupportTicket(ticketId, { silent = false } = {}) {
 		state.activeSupportTicketId = ticketId;
 		state.activeSupportThread = {
 			ticket,
-			canReply: ticket.status === "open",
-			canClose: Boolean(support.isAdmin && ticket.status === "open"),
+			canReply: ticket.status === "open" && (!support.isAdmin || canAdmin("support.reply")),
+			canClose: Boolean(support.isAdmin && canAdmin("support.close") && ticket.status === "open"),
 			messages: [
 				{ id: 1001, authorRole: "customer", body: "На iPhone не импортируется конфиг.", createdAt: new Date(now.getTime() - 180000).toISOString() },
 				{ id: 1002, authorRole: "customer", body: "Вот скриншот ошибки", createdAt: new Date(now.getTime() - 120000).toISOString(), attachment: { type: "image", mime: "image/webp", name: "screenshot.webp", sizeBytes: 248320, previewURL: "./assets/miniapp-bg-poster.webp" } },
@@ -15262,7 +15474,7 @@ function appendOptimisticSupportMessage(message) {
       ...messages,
       {
         id: -Date.now(),
-        authorRole: isAdminUser() ? "admin" : "customer",
+        authorRole: state.data?.support?.isAdmin ? "admin" : "customer",
         body: message,
         createdAt: new Date().toISOString(),
         pending: true,

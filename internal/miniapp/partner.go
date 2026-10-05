@@ -190,7 +190,7 @@ func (h *Handler) handlePartnerApply(w http.ResponseWriter, r *http.Request, ses
 }
 
 func (h *Handler) adminPartnersAllowed(w http.ResponseWriter, sess *session) bool {
-	if h.isAdmin(sess.User.ID) {
+	if sess.isAdministrator() {
 		return true
 	}
 	h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")

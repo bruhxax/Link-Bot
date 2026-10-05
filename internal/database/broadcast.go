@@ -90,7 +90,7 @@ func (r *BroadcastRepository) SaveSource(ctx context.Context, chatID int64, mess
 		    source_kind = $3, source_preview = $4, source_html = $5, recipient_count = 0, sent_count = 0,
 		    failed_count = 0, last_error = '', started_at = NULL, finished_at = NULL,
 		    updated_by = $6, updated_at = NOW()
-		WHERE id = 1 AND status = 'awaiting_message'
+		WHERE id = 1 AND status = 'awaiting_message' AND updated_by = $6
 		RETURNING status, source_chat_id, source_message_id, source_kind, source_preview, source_html,
 		          buttons, recipient_count, sent_count, failed_count, last_error,
 		          updated_by, started_at, finished_at, updated_at

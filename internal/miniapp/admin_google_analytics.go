@@ -110,7 +110,7 @@ func (h *Handler) loadAdminGA4(ctx context.Context, from, to time.Time) adminGA4
 }
 
 func (h *Handler) handleAdminAnalytics(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
-	if !h.isAdmin(sess.User.ID) {
+	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 		return
 	}
