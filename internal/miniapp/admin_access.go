@@ -187,7 +187,7 @@ func adminRouteAllowed(a adminAccess, path string) bool {
 		return a.can("content")
 	case "events/resolve":
 		return a.can("diagnostics")
-	case "users/search", "users/detail":
+	case "users/search", "users/detail", "users/open":
 		return a.can("users")
 	case "users/balance":
 		return a.can("users.balance")
@@ -200,7 +200,7 @@ func adminRouteAllowed(a adminAccess, path string) bool {
 		"ai":            {"ai/settings", "ai/models", "ai/update", "ai/toggle"},
 		"smtp":          {"smtp/settings", "smtp/update", "smtp/check", "smtp/test"},
 		"promocodes":    {"promocodes/create", "promocodes/validate", "promocodes/delete"},
-		"subscriptions": {"subscriptions/find", "subscriptions/target", "subscriptions/rebind"},
+		"subscriptions": {"subscriptions/find", "subscriptions/find/refresh", "subscriptions/target", "subscriptions/target/refresh", "subscriptions/rebind"},
 		"moynalog":      {"moynalog/state", "moynalog/test", "moynalog/retry"},
 		"partners":      {"partners/state", "partners/review", "partners/create", "partners/update"},
 		"push":          {"push/state", "push/subscribe", "push/unsubscribe", "push/test"},

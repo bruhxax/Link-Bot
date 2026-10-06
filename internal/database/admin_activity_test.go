@@ -57,6 +57,14 @@ func TestAdminActivityPersistenceAndStablePagination(t *testing.T) {
 	second := insert(22, "support", "Закрыл обращение")
 	third := insert(22, "settings", "Изменил триал")
 	insert(33, "users", "Другой администратор")
+	// Earlier versions mislabeled background detail reads as card visits. Keep
+	// their raw history, but never show this unreliable noise in the journal.
+	for i := 0; i < 10; i++ {
+		_, err := repo.CreateAdminActivity(ctx, AdminActivity{ActorTelegramID: 22, ActorName: "operator", Action: "users/detail", Category: "users", Title: "Открыл карточку пользователя", TargetTelegramID: 8544649953, TargetName: "tester", Status: "success"})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := repo.FinishAdminActivity(ctx, AdminActivity{ID: first, Title: "Изменил баланс", TargetTelegramID: 8544649953, TargetName: "tester", Details: []AdminActivityDetail{{Label: "Баланс", Before: "0", After: "100"}}, Status: "success"}); err != nil {
 		t.Fatal(err)
 	}

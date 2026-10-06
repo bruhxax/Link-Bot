@@ -55,3 +55,45 @@ test("history fetch is forbidden when owner access is lost", async () => {
   const { context, pending } = setup(); context.canAdmin = () => false;
   await context.refreshAdministratorActivity(); assert.equal(pending.length, 0);
 });
+
+test("one card visit and ten realtime refreshes request exactly one audited open", async () => {
+  const calls = [];
+  const detail = { customerId: 9, subscriptions: [] };
+  const context = vm.createContext({
+    state: { data: {}, currentPage: "admin", adminSection: "users", adminUsers: { items: [] } },
+    window: { clearTimeout() {} }, document: { hidden: false }, previewMode: false,
+    adminUsersSearchTimer: 0, adminUsersSearchRequestID: 0, adminUserDetailRequestID: 0,
+    realtimeRefreshRunning: false, realtimeRefreshPending: false, realtimeBatching: false, realtimeBatchRenderRequested: false, realtimeLastRefresh: 0,
+    hasAuth: () => true, isAdminUser: () => true, haptic() {}, render() {}, renderRealtime() {}, refreshDashboard: async () => {}, refreshAdminDirectMessage() {},
+    post: async (url, body) => { calls.push({ url, body }); return { data: detail }; },
+  });
+  vm.runInContext(source.slice(source.indexOf("async function openAdminUser("), source.indexOf("function closeAdminUserDetail(")), context);
+  vm.runInContext(source.slice(source.indexOf("async function refreshRealtimeData("), source.indexOf("async function startRealtimeSync(")), context);
+  await context.openAdminUser(9);
+  for (let i = 0; i < 10; i++) await context.refreshRealtimeData();
+  assert.equal(calls.filter(call => call.url.endsWith("/users/open")).length, 1);
+  assert.equal(calls.filter(call => call.url.endsWith("/users/detail")).length, 10);
+  assert.ok(calls.every(call => call.body.customerId === 9));
+  assert.equal(context.state.adminUserDetail.customerId, 9);
+  await context.openAdminUser(9);
+  assert.equal(calls.filter(call => call.url.endsWith("/users/open")).length, 2);
+});
+
+test("live subscription reconciliation uses reads while user searches remain audited", async () => {
+  const calls = [];
+  const context = vm.createContext({
+    state: { data: {}, currentPage: "admin", adminSection: "subscriptions", adminSubscriptionQuery: "tester", adminSubscriptionResult: { id: 9 }, adminSubscriptionTargetResult: {}, adminSubscriptionTargetTelegramID: 22 },
+    document: { hidden: false }, previewMode: false, hasAuth: () => true, isAdminUser: () => true,
+    realtimeRefreshRunning: false, realtimeRefreshPending: false, realtimeBatching: false, realtimeBatchRenderRequested: false, realtimeLastRefresh: 0,
+    refreshDashboard: async () => {}, renderRealtime() {}, render() {},
+    post: async (url) => { calls.push(url); return { data: { id: 9 } }; },
+  });
+  vm.runInContext(source.slice(source.indexOf("async function refreshRealtimeData("), source.indexOf("async function startRealtimeSync(")), context);
+  for (let i = 0; i < 5; i++) await context.refreshRealtimeData();
+  assert.equal(calls.length, 10);
+  assert.ok(calls.every(url => url.endsWith("/refresh")));
+  context.showToast = () => {}; context.mapApiErrorMessage = value => value;
+  vm.runInContext(source.slice(source.indexOf("async function findAdminSubscription("), source.indexOf("async function loadAdminSubscriptionTarget(")), context);
+  await context.findAdminSubscription();
+  assert.equal(calls.at(-1), "/api/mini-app/admin/subscriptions/find");
+});

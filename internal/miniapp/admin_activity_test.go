@@ -81,6 +81,71 @@ func TestActivityFailurePreventsUnauditedMutation(t *testing.T) {
 	}
 }
 
+func TestActivityOneUserOpenSurvivesRepeatedBackgroundRefreshes(t *testing.T) {
+	repo := &activityMemory{}
+	h := &Handler{adminActivityRepository: repo}
+	request := func(route, body string) {
+		t.Helper()
+		r := httptest.NewRequest("POST", "/api/mini-app/admin/"+route, strings.NewReader(body))
+		w := httptest.NewRecorder()
+		h.runAdminActivity(w, r, activitySession(false), nil, func(w http.ResponseWriter, r *http.Request, _ *session, _ *database.Customer) {
+			var payload adminUserActionRequest
+			if err := h.decodeJSONRequest(w, r, 4096, &payload); err != nil {
+				t.Fatal(err)
+			}
+			w.WriteHeader(http.StatusOK)
+		})
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: status %d", route, w.Code)
+		}
+	}
+	request("users/open", `{"customerId":9}`)
+	for i := 0; i < 10; i++ {
+		request("users/detail", `{"customerId":9}`)
+	}
+	request("users/subscription", `{"customerId":9,"days":7}`)
+	for i := 0; i < 10; i++ {
+		request("users/detail", `{"customerId":9}`)
+	}
+	if len(repo.finished) != 2 || repo.finished[0].Action != "users/open" || repo.finished[0].TargetCustomerID != 9 || repo.finished[1].Action != "users/subscription" {
+		t.Fatalf("background reads polluted audit: %+v", repo.finished)
+	}
+	// Returning to the list and opening again is a separate real action.
+	request("users/open", `{"customerId":9}`)
+	if len(repo.finished) != 3 || repo.finished[2].Action != "users/open" {
+		t.Fatal("genuine second visit was lost")
+	}
+	access := adminAccess{IsAdmin: true, Permissions: []string{"users"}}
+	if !adminRouteAllowed(access, "/api/mini-app/admin/users/open") || adminRouteAllowed(adminAccess{IsAdmin: true, Permissions: []string{"status"}}, "/api/mini-app/admin/users/open") {
+		t.Fatal("opening policy differs from user detail access")
+	}
+}
+
+func TestActivitySubscriptionRefreshesNeverReplaceManualSearchLogs(t *testing.T) {
+	repo := &activityMemory{}
+	h := &Handler{adminActivityRepository: repo}
+	for i := 0; i < 10; i++ {
+		for _, route := range []string{"subscriptions/find/refresh", "subscriptions/target/refresh"} {
+			called := false
+			h.runAdminActivity(httptest.NewRecorder(), httptest.NewRequest("POST", "/api/mini-app/admin/"+route, nil), activitySession(false), nil, func(w http.ResponseWriter, _ *http.Request, _ *session, _ *database.Customer) {
+				called = true
+				w.WriteHeader(200)
+			})
+			if !called {
+				t.Fatal("refresh stopped working")
+			}
+		}
+	}
+	if len(repo.created) != 0 || len(repo.finished) != 0 {
+		t.Fatal("subscription polling is recorded")
+	}
+	for _, route := range []string{"subscriptions/find", "subscriptions/target", "subscriptions/rebind"} {
+		if _, record := activityRoute("/api/mini-app/admin/" + route); !record {
+			t.Fatalf("manual %s lost audit", route)
+		}
+	}
+}
+
 func TestActivityPrivacyAndReadableDiff(t *testing.T) {
 	h := &Handler{}
 	capture := &activityCapture{entry: database.AdminActivity{Action: "smtp/update"}}
@@ -143,7 +208,7 @@ func TestEveryAdminActionIsAuditedAndReadsAreExcluded(t *testing.T) {
 	if _, record := activityRoute("/api/mini-app/admin/new/future-mutation"); !record {
 		t.Fatal("future mutation not audited")
 	}
-	for _, route := range []string{"status", "users/search", "administrators/logs", "broadcast/state"} {
+	for _, route := range []string{"status", "users/search", "users/detail", "subscriptions/find/refresh", "subscriptions/target/refresh", "administrators/logs", "broadcast/state"} {
 		if _, record := activityRoute("/api/mini-app/admin/" + route); record {
 			t.Errorf("polling recorded %s", route)
 		}

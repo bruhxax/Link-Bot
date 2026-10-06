@@ -35,10 +35,11 @@ var activityReadRoutes = map[string]bool{
 	"smtp/settings": true, "moynalog/state": true, "partners/state": true, "push/state": true,
 	"broadcast/state": true, "broadcast/email/state": true, "users/message/state": true,
 	"users/search": true, "administrators/list": true, "administrators/logs": true,
+	"users/detail": true, "subscriptions/find/refresh": true, "subscriptions/target/refresh": true,
 }
 var activityActions = map[string]activityAction{
 	"settings/update":            {"Изменил настройки", "settings", "section"},
-	"users/detail":               {"Открыл карточку пользователя", "users", "customerId"},
+	"users/open":                 {"Открыл карточку пользователя", "users", "customerId"},
 	"users/balance":              {"Изменил баланс пользователя", "users", "customerId balanceAction amountRub"},
 	"users/block":                {"Изменил блокировку пользователя", "users", "customerId blocked reason deleteSubscription"},
 	"users/subscription":         {"Изменил подписку пользователя", "users", "customerId subscriptionId days trafficGb"},

@@ -67,8 +67,10 @@ func (cr *CustomerRepository) FinishAdminActivity(ctx context.Context, entry Adm
 }
 
 func (cr *CustomerRepository) ListAdminActivity(ctx context.Context, q AdminActivityQuery) ([]AdminActivity, bool, error) {
+	// Legacy detail requests mixed real visits with background refreshes. Hide
+	// these unreliable entries without removing raw history from the database.
 	rows, err := cr.pool.Query(ctx, `SELECT id,actor_telegram_id,actor_name,actor_role,action,category,title,target_customer_id,target_telegram_id,target_name,details,status,created_at,finished_at
- FROM admin_activity WHERE actor_telegram_id=$1 AND ($2=0 OR id<$2) AND ($3='' OR category=$3)
+ FROM admin_activity WHERE actor_telegram_id=$1 AND action<>'users/detail' AND ($2=0 OR id<$2) AND ($3='' OR category=$3)
  AND ($4='' OR title ILIKE $5 OR target_name ILIKE $5 OR target_telegram_id::TEXT ILIKE $5 OR details::TEXT ILIKE $5)
  ORDER BY id DESC LIMIT $6`, q.TelegramID, q.BeforeID, q.Category, q.Query, "%"+q.Query+"%", q.Limit+1)
 	if err != nil {

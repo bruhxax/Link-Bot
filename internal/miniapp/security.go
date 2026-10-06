@@ -100,7 +100,7 @@ func miniAppRateLimitRule(path string) rateLimitRule {
 		return rateLimitRule{Limit: 20, Window: time.Minute}
 	case "/api/mini-app/admin/promocodes/create", "/api/mini-app/admin/promocodes/delete":
 		return rateLimitRule{Limit: 20, Window: time.Minute}
-	case "/api/mini-app/admin/users/search", "/api/mini-app/admin/users/detail":
+	case "/api/mini-app/admin/users/search", "/api/mini-app/admin/users/detail", "/api/mini-app/admin/users/open":
 		return rateLimitRule{Limit: 120, Window: time.Minute}
 	case "/api/mini-app/admin/users/message/state":
 		return rateLimitRule{Limit: 120, Window: time.Minute}

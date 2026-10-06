@@ -3610,11 +3610,11 @@ async function refreshRealtimeData() {
 				case "subscriptions":
 					if (state.adminSubscriptionResult && state.adminSubscriptionQuery.trim()) {
 						const previous = JSON.stringify([state.adminSubscriptionResult, state.adminSubscriptionTargetResult]);
-						const found = await post("/api/mini-app/admin/subscriptions/find", { query: state.adminSubscriptionQuery.trim() });
+						const found = await post("/api/mini-app/admin/subscriptions/find/refresh", { query: state.adminSubscriptionQuery.trim() });
 						if (state.adminSection === "subscriptions") {
 							state.adminSubscriptionResult = found.data || null;
 							if (state.adminSubscriptionTargetResult && state.adminSubscriptionTargetTelegramID && found.data) {
-								const target = await post("/api/mini-app/admin/subscriptions/target", {
+								const target = await post("/api/mini-app/admin/subscriptions/target/refresh", {
 									userId: Number(found.data.id || 0),
 									userUuid: String(found.data.userUuid || ""),
 									subscriptionLink: String(found.data.subscriptionLink || ""),
@@ -6332,7 +6332,7 @@ async function openAdminUser(customerID) {
 	haptic("light");
 	render({ preserveScroll: false, scrollTop: 0 });
 	try {
-		const response = await post("/api/mini-app/admin/users/detail", { customerId: customerID });
+		const response = await post("/api/mini-app/admin/users/open", { customerId: customerID });
 		if (detailRequestID !== adminUserDetailRequestID || state.adminSection !== "users") return;
 		state.adminUserDetail = response.data || null;
 		state.adminUserPending = null;
