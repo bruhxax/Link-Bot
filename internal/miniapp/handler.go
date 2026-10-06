@@ -1801,15 +1801,7 @@ func (h *Handler) handleCreatePurchase(w http.ResponseWriter, r *http.Request, s
 		return
 	}
 
-	action := "open_link"
-	switch invoiceType {
-	case database.InvoiceTypeTelegram:
-		action = "open_invoice"
-	case database.InvoiceTypeYookasa:
-		action = "open_in_app"
-	case database.InvoiceTypeP2P:
-		action = "p2p_pending"
-	}
+	action := paymentLaunchAction(invoiceType)
 
 	h.writeJSON(w, http.StatusOK, map[string]any{
 		"ok": true,
@@ -2109,17 +2101,7 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	action := "open_link"
-	switch invoiceType {
-	case database.InvoiceTypeFree, database.InvoiceTypeBalance:
-		action = "completed"
-	case database.InvoiceTypeTelegram:
-		action = "open_invoice"
-	case database.InvoiceTypeYookasa:
-		action = "open_in_app"
-	case database.InvoiceTypeP2P:
-		action = "p2p_pending"
-	}
+	action := paymentLaunchAction(invoiceType)
 
 	h.writeJSON(w, http.StatusOK, map[string]any{
 		"ok": true,
@@ -2322,14 +2304,8 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 		h.writeError(w, http.StatusInternalServerError, "gift_purchase_failed", "Не удалось создать оплату подарка")
 		return
 	}
-	action := "open_link"
-	if invoiceType == database.InvoiceTypeTelegram {
-		action = "open_invoice"
-	} else if invoiceType == database.InvoiceTypeYookasa {
-		action = "open_in_app"
-	} else if invoiceType == database.InvoiceTypeP2P {
-		action = "p2p_pending"
-	}
+	action := paymentLaunchAction(invoiceType)
+
 	h.writeJSON(w, http.StatusOK, map[string]any{
 		"ok":   true,
 		"data": purchaseResponse{Action: action, URL: paymentURL, PurchaseID: purchaseID},

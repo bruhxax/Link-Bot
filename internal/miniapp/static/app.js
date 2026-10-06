@@ -16354,34 +16354,10 @@ async function startPayment({ deviceOnly = false, trafficOnly = false } = {}) {
         });
       }
       else openExternal(url);
-    } else if (action === "open_in_app") {
-      state.appliedPromo = null;
-      state.promoCodeDraft = "";
-      if (shouldLaunchYookassaInBrowser()) {
-        state.payModalOpen = false;
-        state.paymentLaunchURL = "";
-        state.paymentLaunchPurchaseId = 0;
-        state.paymentLaunchModalOpen = false;
-        const numericPurchaseId = Number(purchaseId) || 0;
-        if (numericPurchaseId > 0) {
-          storePendingPayment({
-            purchaseId: numericPurchaseId,
-            startedAt: Date.now(),
-          });
-        }
-        openExternal(url);
-        showToast(t().paymentOpened);
-        setTimeout(() => safeRefresh(), 4000);
-      } else {
-        navigatingAway = true;
-        navigateInMiniApp(url);
-      }
     } else {
       state.appliedPromo = null;
       state.promoCodeDraft = "";
-      openExternal(url);
-      showToast(t().paymentOpened);
-      setTimeout(() => safeRefresh(), 4000);
+      navigatingAway = launchPaymentPage(url, purchaseId, t().paymentOpened);
     }
   } catch (error) {
     if (String(error?.code || "").startsWith("promo_")) {
@@ -16444,21 +16420,8 @@ async function startGiftPayment() {
 			} else {
 				openExternal(url);
 			}
-		} else if (action === "open_in_app") {
-			if (shouldLaunchYookassaInBrowser()) {
-				const numericPurchaseId = Number(purchaseId) || 0;
-				if (numericPurchaseId > 0) storePendingPayment({ purchaseId: numericPurchaseId, startedAt: Date.now() });
-				openExternal(url);
-				showToast(copy.giftPaymentStarted);
-				setTimeout(() => safeRefresh(), 4000);
-			} else {
-				navigatingAway = true;
-				navigateInMiniApp(url);
-			}
 		} else {
-			openExternal(url);
-			showToast(copy.giftPaymentStarted);
-			setTimeout(() => safeRefresh(), 4000);
+			navigatingAway = launchPaymentPage(url, purchaseId, copy.giftPaymentStarted);
 		}
 	} catch (error) {
 		if (String(error?.code || "").startsWith("promo_")) state.appliedPromo = null;
@@ -17791,11 +17754,30 @@ function openSelectedSetupApp() {
   }
 }
 
-function shouldLaunchYookassaInBrowser() {
+function shouldLaunchPaymentInBrowser() {
   const platform = String(tg?.platform || "").toLowerCase();
   if (platform === "android" || platform === "ios") return true;
   const ua = String(navigator.userAgent || "").toLowerCase();
-  return /android|iphone|ipad|ipod/.test(ua);
+  return /android|iphone|ipad|ipod|windows phone/.test(ua)
+    || (/macintosh|macintel/.test(`${ua} ${String(navigator.platform || "").toLowerCase()}`) && Number(navigator.maxTouchPoints || 0) > 1);
+}
+
+function launchPaymentPage(url, purchaseId, openedMessage = t().paymentOpened) {
+  if (!url) throw new Error(t().paymentUnavailable);
+  state.payModalOpen = false;
+  state.paymentLaunchURL = "";
+  state.paymentLaunchPurchaseId = 0;
+  state.paymentLaunchModalOpen = false;
+  const numericPurchaseId = Number(purchaseId) || 0;
+  if (numericPurchaseId > 0) storePendingPayment({ purchaseId: numericPurchaseId, startedAt: Date.now() });
+  if (shouldLaunchPaymentInBrowser()) {
+    openBrowserExternal(url);
+    showToast(openedMessage);
+    setTimeout(() => safeRefresh(), 4000);
+    return false;
+  }
+  navigateInMiniApp(url);
+  return true;
 }
 
 function openPreparedPaymentInBrowser() {

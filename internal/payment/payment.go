@@ -1115,8 +1115,12 @@ func (s PaymentService) createCryptoInvoice(ctx context.Context, amount float64,
 		return "", 0, err
 	}
 
+	checkoutURL, err := cryptoInvoiceLaunchURL(invoice, options.ReturnTarget)
+	if err != nil {
+		return "", 0, err
+	}
 	updates := map[string]interface{}{
-		"crypto_invoice_url": invoice.BotInvoiceUrl,
+		"crypto_invoice_url": checkoutURL,
 		"crypto_invoice_id":  invoice.InvoiceID,
 		"status":             database.PurchaseStatusPending,
 	}
@@ -1127,7 +1131,7 @@ func (s PaymentService) createCryptoInvoice(ctx context.Context, amount float64,
 		return "", 0, err
 	}
 
-	return invoice.BotInvoiceUrl, purchaseId, nil
+	return checkoutURL, purchaseId, nil
 }
 
 func (s PaymentService) createYookasaInvoice(ctx context.Context, amount float64, months int, customer *database.Customer, options CreatePurchaseOptions) (url string, purchaseId int64, err error) {
