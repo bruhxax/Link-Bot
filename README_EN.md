@@ -78,6 +78,25 @@ Replace `bot.example.com` with your domain. Caddy sets up HTTPS automatically. I
 
 Send `/start` to your bot, open the Mini App as the administrator, then configure plans and payments in **Admin**. [Login and additional settings →](docs/configuration.md) (Russian)
 
+## Migration from Bedolaga
+
+Imports **users, balances, referrals and active/trial subscriptions**. Both bots must use the same Remnawave panel, and the Bedolaga PostgreSQL database must be reachable from the Link-Bot container.
+
+First install and start Link-Bot, stop the Bedolaga bot and back up both databases. Run from `/opt/Link-Bot`, replacing the URL placeholders with your Bedolaga database connection details:
+
+```bash
+export BEDOLAGA_DATABASE_URL='postgres://USER:PASSWORD@BEDOLAGA_HOST:5432/DBNAME'
+
+# Preview without changing data
+docker compose --profile tools run --rm migrate-bedolaga
+
+# Review the report, then apply the migration
+docker compose --profile tools run --rm migrate-bedolaga --apply
+unset BEDOLAGA_DATABASE_URL
+```
+
+Repeating the import does not credit balances twice. Payment history, settings and inactive subscriptions are not imported. [Details and backup command →](docs/maintenance.md#перенос-из-bedolaga) (Russian)
+
 ## Commands
 
 Run from `/opt/Link-Bot`.

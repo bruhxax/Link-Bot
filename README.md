@@ -78,6 +78,25 @@ curl https://bot.example.com/healthcheck
 
 Отправьте боту `/start`, откройте Mini App под аккаунтом администратора и настройте тарифы и платежи в **Админке**. [Подключение входа и дополнительные настройки →](docs/configuration.md)
 
+## Перенос из Bedolaga
+
+Переносятся **пользователи, баланс, рефералы и активные/пробные подписки**. Оба бота должны использовать одну панель Remnawave; база PostgreSQL Bedolaga должна быть доступна контейнеру Link-Bot.
+
+Сначала установите и запустите Link-Bot, остановите бот Bedolaga и сделайте резервные копии баз. Выполните из `/opt/Link-Bot`, подставив в ссылку данные базы Bedolaga:
+
+```bash
+export BEDOLAGA_DATABASE_URL='postgres://USER:PASSWORD@BEDOLAGA_HOST:5432/DBNAME'
+
+# Проверка без изменения данных
+docker compose --profile tools run --rm migrate-bedolaga
+
+# Проверьте отчёт и примените перенос
+docker compose --profile tools run --rm migrate-bedolaga --apply
+unset BEDOLAGA_DATABASE_URL
+```
+
+Повторный импорт не зачисляет баланс дважды. История платежей, настройки и недействующие подписки не переносятся. [Подробности и команда бэкапа →](docs/maintenance.md#перенос-из-bedolaga)
+
 ## Команды
 
 Выполняйте из `/opt/Link-Bot`.
