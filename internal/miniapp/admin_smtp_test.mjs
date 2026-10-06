@@ -5,11 +5,10 @@ import fs from "node:fs";
 import vm from "node:vm";
 const escape = s => String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[c]);
 const helpers = { escapeHtml: escape, escapeAttribute: escape, icon: () => "" };
-test("SMTP editor provides health checks and test mail with masked saved credentials", () => {
+test("SMTP connection editor provides health checks without a duplicate test form", () => {
   const html = renderSMTPSettings({draft:{host:'smtp.example.com',port:'587',enabled:true,passwordConfigured:true,proxyConfigured:true},busy:""},helpers);
   assert.match(html,/data-action="admin-smtp-check"/);
-  assert.match(html,/data-action="admin-smtp-test"/);
-  assert.match(html,/data-input="admin-smtp-testEmail"/);
+  assert.doesNotMatch(html,/admin-smtp-test|testEmail/);
   assert.match(html,/Сохранён · введите новый/);
   assert.match(html,/type="password" data-input="admin-smtp-password" value=""/);
 });
@@ -17,13 +16,13 @@ test("SMTP fields escape server input and an operation disables duplicate submis
   const html=renderSMTPSettings({draft:{host:'\"><script>alert(1)</script>'},busy:'test'},helpers);
   assert.doesNotMatch(html,/<script>/);
   assert.match(html,/&lt;script&gt;/);
-  assert.match(html,/data-action="admin-smtp-test" disabled/);
+  assert.match(html,/data-action="admin-smtp-check" disabled/);
 });
 
 test("SMTP requests send only fields accepted by the strict server decoder", async () => {
   const source=fs.readFileSync(new URL("./static/app.js",import.meta.url),"utf8");
   let payload;
-  const state={adminSection:"broadcast",adminBroadcastTab:"email",adminEmailBroadcast:{configured:false},adminSMTP:{draft:{host:"smtp.example.com",port:587,user:"sender",password:"",from:"sender@example.com",proxyUrl:"",enabled:true,passwordConfigured:true,proxyConfigured:true,source:"admin"},busy:"",testEmail:"test@example.com"}};
+  const state={adminSection:"broadcast",adminBroadcastTab:"email",adminEmailPreviewAddress:"test@example.com",adminEmailBroadcast:{configured:false},adminSMTP:{draft:{host:"smtp.example.com",port:587,user:"sender",password:"",from:"sender@example.com",proxyUrl:"",enabled:true,passwordConfigured:true,proxyConfigured:true,source:"admin"},busy:""}};
   const context=vm.createContext({state,canAdmin:()=>true,render(){},showToast(){},previewMode:false,post:async(path,body)=>{payload={path,body};return{data:{host:"smtp.example.com",enabled:true,passwordConfigured:true}}}});
   vm.runInContext(source.slice(source.indexOf("async function submitAdminSMTP("),source.indexOf("async function checkAdminAI(")),context);
   await context.submitAdminSMTP("save");
@@ -36,7 +35,7 @@ test("SMTP requests send only fields accepted by the strict server decoder", asy
 
 test("SMTP settings are inside email broadcast and remain independently restricted", async () => {
   const source=fs.readFileSync(new URL("./static/app.js",import.meta.url),"utf8");
-  const state={locale:"ru",adminSMTP:{expanded:true,draft:{host:"smtp.example.com"}},adminEmailBroadcast:{},adminBroadcastTab:"email"};
+  const state={locale:"ru",adminSMTP:{draft:{host:"smtp.example.com"}},adminEmailBroadcast:{},adminBroadcastTab:"email",adminEmailEditorTab:"message"};
   let permissions=new Set(["smtp"]);
   const context=vm.createContext({state,canAdmin:p=>permissions.has(p),emailAuthText:s=>s,...helpers,pageClass:()=>"",renderSMTPSettings, broadcastStatusLabel:()=>"Пусто"});
   vm.runInContext(source.slice(source.indexOf("function canAdminSection("),source.indexOf("function getBottomNavPages(")),context);
@@ -50,6 +49,26 @@ test("SMTP settings are inside email broadcast and remain independently restrict
   assert.match(broadcastOnly,/data-admin-email-subject/);
   assert.doesNotMatch(broadcastOnly,/admin-smtp-host|admin-smtp-toggle/);
   permissions=new Set(["broadcast","smtp"]);
+  state.adminEmailEditorTab="connection";
   assert.match(context.renderAdminEmailBroadcastPage(),/admin-smtp-host/);
+  state.adminEmailEditorTab="test";
+  const testPanel=context.renderAdminEmailBroadcastPage();
+  assert.equal((testPanel.match(/data-admin-email-preview/g)||[]).length,1);
+  assert.equal((testPanel.match(/data-action="admin-email-test"/g)||[]).length,1);
+  assert.doesNotMatch(testPanel,/admin-smtp-test|admin-email-preview-send/);
   assert.doesNotMatch(source,/\[localizedText\("Почта \/ SMTP"/);
+});
+
+test("test email saves the latest editor content then previews that same draft", async () => {
+  const source=fs.readFileSync(new URL("./static/app.js",import.meta.url),"utf8");
+  const requests=[];
+  const state={adminEmailDraftDirty:true,adminEmailDraftSubject:"Тема",adminEmailDraftBody:"Новый текст",adminEmailPreviewAddress:"test@example.com",adminEmailBusy:"",adminEmailBroadcast:{}};
+  const context=vm.createContext({state,render(){},showToast(){},emailAuthText:s=>s,post:async(path,body)=>{requests.push({path,body});return{data:{subject:body.subject,body:body.body}}}});
+  vm.runInContext(source.slice(source.indexOf("async function saveAdminEmailBroadcast("),source.indexOf("async function sendAdminEmailBroadcast(")),context);
+  await context.previewAdminEmailBroadcast();
+  assert.equal(requests.length,2);
+  assert.equal(requests[0].path,"/api/mini-app/admin/broadcast/email/save");
+  assert.equal(requests[0].body.body,"Новый текст");
+  assert.equal(requests[1].path,"/api/mini-app/admin/broadcast/email/preview");
+  assert.equal(requests[1].body.email,"test@example.com");
 });

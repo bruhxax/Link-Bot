@@ -2729,6 +2729,7 @@ const state = {
 	adminBroadcast: null,
 	adminBroadcastTab: readSetting(STORAGE_KEYS.adminBroadcastTab, "telegram") === "email" ? "email" : "telegram",
 	adminEmailBroadcast: null,
+	adminEmailEditorTab: "message",
 	adminEmailDraftSubject: "",
 	adminEmailDraftBody: "",
 	adminEmailPreviewAddress: "",
@@ -2752,7 +2753,7 @@ const state = {
 	adminFinancePeriodMenuOpen: false,
 	adminFinanceAnimate: false,
 	adminAnalytics: null,
-	adminSMTP: { expanded: null, draft: null, busy: "", error: "", checked: false, testEmail: "" },
+	adminSMTP: { draft: null, busy: "", error: "", checked: false },
 	adminAI: { draft: null, models: [], verified: false, busy: "", error: "" },
 	adminAnalyticsBusy: false,
 	adminAnalyticsPeriod: "7d",
@@ -5297,7 +5298,7 @@ function renderAdminStatusService(title, service, iconName, details) {
 
 function renderAdminStatusPage() {
 	const data = state.adminStatus;
-	if (!data) return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-status"><header class="admin-status__header"><div><span>СИСТЕМА</span><h2>Статус</h2></div></header>${state.adminStatusError ? `<div class="admin-status__error"><strong>Не удалось загрузить статус</strong><span>${escapeHtml(state.adminStatusError)}</span><button type="button" data-action="admin-status-refresh">Повторить</button></div>` : `<div class="admin-status__skeleton" aria-label="Проверяем сервисы" aria-busy="true"><i></i><i></i><i></i></div>`}</div></section>`;
+	if (!data) return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-status">${state.adminStatusError ? `<div class="admin-status__error"><strong>Не удалось загрузить статус</strong><span>${escapeHtml(state.adminStatusError)}</span><button type="button" data-action="admin-status-refresh">Повторить</button></div>` : `<div class="admin-status__skeleton" aria-label="Проверяем сервисы" aria-busy="true"><i></i><i></i><i></i></div>`}</div></section>`;
 	const bot = data.bot || {};
 	const panel = data.panel || {};
 	const database = data.database || {};
@@ -5311,7 +5312,7 @@ function renderAdminStatusPage() {
 	const checked = new Date(data.checkedAt || "");
 	const checkedText = Number.isNaN(checked.getTime()) ? "—" : new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(checked);
 	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-status">
-		<header class="admin-status__header"><div><span>СИСТЕМА</span><h2>Статус</h2></div><button type="button" data-action="admin-status-refresh" aria-label="Обновить статус" ${state.adminStatusBusy ? "disabled" : ""}>${icon("refresh")}</button></header>
+		<header class="admin-section-tools"><button type="button" data-action="admin-status-refresh" aria-label="Обновить статус" ${state.adminStatusBusy ? "disabled" : ""}>${icon("refresh")}</button></header>
 		<div class="admin-status__overview ${healthy ? "is-healthy" : "is-attention"}"><i aria-hidden="true"></i><div><strong>${healthy ? "Сервисы доступны" : "Проверьте состояние сервисов"}</strong><span>Данные обновлены в ${checkedText}</span></div></div>
 		<div class="admin-status__grid">
 			${renderAdminStatusService("Бот", bot, "server", [["Время работы", adminStatusDuration(bot.uptimeSeconds)], ["Память Go", adminStatusMemory(data.heapBytes)]])}
@@ -5461,7 +5462,7 @@ function renderAdminFinanceHistory(items) {
 }
 
 function renderAdminFinanceLoading() {
-	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-finance is-loading" aria-busy="true"><header class="admin-finance__header"><span><b></b><i></i></span></header><section class="admin-finance-card"><div class="admin-finance__metrics">${Array.from({ length: 3 }, () => `<div><b></b><i></i></div>`).join("")}</div><div class="admin-finance__chart-skeleton"></div></section><div class="admin-finance__history-skeleton">${Array.from({ length: 5 }, () => `<i></i>`).join("")}</div></div></section>`;
+	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-finance is-loading" aria-busy="true"><section class="admin-finance-card"><div class="admin-finance__metrics">${Array.from({ length: 3 }, () => `<div><b></b><i></i></div>`).join("")}</div><div class="admin-finance__chart-skeleton"></div></section><div class="admin-finance__history-skeleton">${Array.from({ length: 5 }, () => `<i></i>`).join("")}</div></div></section>`;
 }
 
 const ADMIN_FINANCE_PERIODS = [
@@ -5540,7 +5541,7 @@ function renderAdminFinancePage() {
 	const custom = state.adminFinancePeriod === "custom";
 	const changing = state.adminFinanceBusy === "refresh";
 	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-finance">
-		<header class="admin-finance__header"><div><span>ПЛАТЕЖИ</span><h2>Финансы</h2></div></header>
+
 		<section class="admin-finance-card ${changing ? "is-updating" : ""} ${state.adminFinanceAnimate ? "is-entering" : ""}" aria-busy="${changing}">
 			<div class="admin-finance__metrics" aria-label="Финансовые показатели"><div class="is-revenue"><span>Выручка</span><strong>${escapeHtml(formatFinanceRub(summary.revenueRub))}</strong>${Number(summary.revenueStars || 0) ? `<small>+ ${escapeHtml(formatFinanceAmount(summary.revenueStars, "STARS"))}</small>` : ""}</div><div><span>Возвраты</span><strong>${escapeHtml(formatFinanceRub(summary.refundsRub))}</strong>${Number(summary.refundsStars || 0) ? `<small>+ ${escapeHtml(formatFinanceAmount(summary.refundsStars, "STARS"))}</small>` : ""}</div><div><span>Платежи</span><strong>${Number(summary.paymentCount || 0).toLocaleString("ru-RU")}</strong><small>${escapeHtml(financeDate(data.from, { day: "numeric", month: "short" }))} — ${escapeHtml(financeDate(data.to, { day: "numeric", month: "short" }))}</small></div></div>
 			<div class="admin-finance-card__body"><div class="admin-finance__toolbar"><h3 id="admin-finance-chart-title">Выручка по дням</h3>${renderAdminFinancePeriodPicker()}</div>
@@ -5563,7 +5564,7 @@ function renderAdminAnalyticsPage() {
 	const loading = !data || state.adminAnalyticsBusy;
 
 	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-finance admin-analytics">
-		<header class="admin-finance__header"><div><span>ДАННЫЕ САЙТА</span><h2>Аналитика</h2></div>${renderAdminFinancePeriodPicker()}</header>
+		<div class="admin-section-tools">${renderAdminFinancePeriodPicker()}</div>
 		${custom ? `<div class="admin-finance__custom"><label><span>С</span><input type="date" data-input="admin-analytics-from" value="${escapeAttribute(state.adminAnalyticsFrom || data?.from || "")}" max="${escapeAttribute(financeTodayISO())}"></label><i aria-hidden="true">—</i><label><span>По</span><input type="date" data-input="admin-analytics-to" value="${escapeAttribute(state.adminAnalyticsTo || data?.to || "")}" max="${escapeAttribute(financeTodayISO())}"></label><button type="button" data-action="admin-analytics-apply" ${state.adminAnalyticsBusy ? "disabled" : ""}>Показать</button></div>` : ""}
 		${loading ? renderAdminAnalyticsLoading("google") + renderAdminAnalyticsLoading("yandex") : renderAdminSiteAnalytics(data.google) + renderAdminSiteAnalytics(data.yandex, "yandex")}
 	</div></section>`;
@@ -6062,8 +6063,8 @@ function renderAdminUsersPage() {
 	const items = Array.isArray(data.items) ? data.items : [];
 	const busy = state.adminUsersBusy === "search";
 	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-users">
-		<header class="admin-users__header"><div><span>УПРАВЛЕНИЕ</span><h2>Пользователи</h2></div><strong>${Number(data.total || 0).toLocaleString("ru-RU")}</strong></header>
-		<label class="admin-users__search"><span class="sr-only">Найти пользователя</span>${icon("search")}<input type="search" value="${escapeAttribute(state.adminUsersQuery)}" data-input="admin-users-search" placeholder="@username, Telegram ID или подписка" autocomplete="off" enterkeyhint="search"><i class="${busy ? "is-visible" : ""}" aria-hidden="true"></i></label>
+
+		<label class="admin-users__search"><span class="sr-only">Найти пользователя</span>${icon("search")}<input type="search" value="${escapeAttribute(state.adminUsersQuery)}" data-input="admin-users-search" placeholder="@username, Telegram ID или подписка" autocomplete="off" enterkeyhint="search"><i class="${busy ? "is-visible" : ""}" aria-hidden="true"></i><span class="admin-list-count" aria-label="Всего пользователей">${Number(data.total || 0).toLocaleString("ru-RU")}</span></label>
 		<div class="admin-users__result" aria-live="polite">${busy && !items.length ? renderAdminUsersLoading() : items.length ? `<div class="admin-users__list">${items.map(renderAdminUserRow).join("")}</div>` : `<div class="admin-users__empty">${icon("users")}<strong>Никого не нашли</strong><span>Проверьте username, ID или название подписки</span></div>`}</div>
 		${items.length < Number(data.total || 0) ? `<button class="admin-users__more" type="button" data-action="admin-users-more" ${state.adminUsersBusy ? "disabled" : ""}>${state.adminUsersBusy === "more" ? icon("refresh") : icon("arrowDown")}<span>Показать ещё</span></button>` : ""}
 	</div></section>`;
@@ -6444,12 +6445,12 @@ async function loadAdminSMTP() {
 async function submitAdminSMTP(action) {
 	const smtp = state.adminSMTP;
 	if (!canAdmin("smtp") || !smtp.draft || smtp.busy) return;
-	if (action === "test" && !smtp.testEmail.trim()) return showToast("Введите адрес получателя", "danger");
+	if (action === "test" && !String(state.adminEmailPreviewAddress || "").trim()) return showToast("Введите адрес получателя", "danger");
 	smtp.busy = action; smtp.error = "";
 	render({ preserveScroll: true });
 	try {
 		const { host, port, user, password, from, proxyUrl, enabled, clearProxy } = smtp.draft;
-		const response = previewMode ? { data: { ...smtp.draft } } : await post(`/api/mini-app/admin/smtp/${action === "save" ? "update" : action}`, { host, port: String(port || "587"), user, password, from, proxyUrl, enabled: Boolean(enabled), clearProxy: Boolean(clearProxy), email: smtp.testEmail });
+		const response = previewMode ? { data: { ...smtp.draft } } : await post(`/api/mini-app/admin/smtp/${action === "save" ? "update" : action}`, { host, port: String(port || "587"), user, password, from, proxyUrl, enabled: Boolean(enabled), clearProxy: Boolean(clearProxy), email: state.adminEmailPreviewAddress || "" });
 		if (action === "save") {
             smtp.draft = { ...response.data, password: "", proxyUrl: "", clearProxy: false };
             if (state.adminEmailBroadcast) state.adminEmailBroadcast.configured = Boolean(smtp.draft.enabled && smtp.draft.host);
@@ -6593,7 +6594,7 @@ function renderAdminIntegrationsPage() {
 		["Служебные интеграции", items.filter((item) => item.kind !== "payment")],
 	];
 	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-integrations">
-		<header class="admin-integrations__header"><span>ИНТЕГРАЦИИ</span><h2>Платежи и уведомления</h2></header>
+
 		${groups.map(([label, providers]) => providers.length ? `<section class="admin-integrations__group"><h3>${escapeHtml(label)}</h3><div class="admin-integrations__list">${providers.map(renderAdminIntegrationRow).join("")}</div></section>` : "").join("")}
 	</div></section>`;
 }
@@ -6631,7 +6632,7 @@ function renderAdminMoyNalogPage() {
 	const passwordField = (item.fields || []).find((field) => field.key === "password");
 	const status = item.enabled && item.configured ? "Работает" : item.configured ? "Выключено" : "Не настроено";
 	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-moynalog">
-		<header class="admin-moynalog__header"><div><span>ЧЕКИ ФНС</span><h2>Мой налог</h2><p>Доход регистрируется автоматически после подтверждённой оплаты.</p></div><i class="admin-moynalog__status ${item.enabled && item.configured ? "is-active" : ""}">${escapeHtml(status)}</i></header>
+		<header class="admin-section-tools"><i class="admin-moynalog__status ${item.enabled && item.configured ? "is-active" : ""}">${escapeHtml(status)}</i></header>
 		<div class="admin-moynalog__metrics" aria-label="Состояние чеков"><div><strong>${receipts.length}</strong><span>В журнале</span></div><div><strong>${succeeded}</strong><span>Создано</span></div><div class="${attention ? "has-attention" : ""}"><strong>${attention}</strong><span>Требуют внимания</span></div></div>
 		<section class="admin-moynalog__settings" aria-labelledby="moynalog-settings-title">
 			<div class="admin-moynalog__section-head"><div><h3 id="moynalog-settings-title">Автоматические чеки</h3><p>Включите после проверки доступа к кабинету.</p></div><label class="admin-moynalog__switch"><span class="sr-only">Включить автоматические чеки</span><input type="checkbox" data-integration-provider="moynalog" data-integration-enabled ${draft.enabled ? "checked" : ""}></label></div>
@@ -6693,8 +6694,7 @@ function renderAdminBroadcastPage() {
 		<section class="page admin-page ${pageClass("admin")}" id="page-admin">
 			<div class="admin-broadcast">
 				${renderAdminBroadcastTabs()}
-				<header class="admin-broadcast__header">
-					<div><span>${english ? "Delivery" : "Рассылка"}</span><h2>${english ? "Message to users" : "Сообщение пользователям"}</h2></div>
+				<header class="admin-section-tools">
 					<span class="admin-broadcast__status admin-broadcast__status--${escapeAttribute(draft.status || "idle")}">${escapeHtml(broadcastStatusLabel(draft.status, english))}</span>
 				</header>
 
@@ -6736,45 +6736,49 @@ function renderAdminBroadcastTabs() {
 }
 
 function renderAdminMailSettings() {
-  if (!canAdmin("smtp")) return "";
-  const expanded = state.adminSMTP.expanded ?? !canAdmin("broadcast");
-  return `<section class="admin-broadcast__section admin-email-settings">
-    <button class="admin-email-settings__toggle" type="button" data-action="admin-smtp-toggle" aria-expanded="${expanded}" aria-controls="admin-smtp-editor">
-      ${icon("profileLetter")}<span class="admin-email-settings__copy"><strong>${emailAuthText("Настройки почты", "Mail settings")}</strong><small>SMTP · ${emailAuthText("Подключение и тестовое письмо", "Connection and test email")}</small></span>${icon("chevron")}
-    </button>
-    ${expanded ? `<div id="admin-smtp-editor">${renderSMTPSettings(state.adminSMTP, { escapeHtml, escapeAttribute, icon })}</div>` : ""}
-  </section>`;
+  return canAdmin("smtp") ? renderSMTPSettings(state.adminSMTP, { escapeHtml, escapeAttribute, icon }) : "";
 }
 
 function renderAdminEmailBroadcastPage() {
-  if (!canAdmin("broadcast")) return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-broadcast">${renderAdminMailSettings()}</div></section>`;
   const english = state.locale === "en";
+  const canBroadcast = canAdmin("broadcast");
+  const tabs = [
+    ...(canBroadcast ? [["message", english ? "Message" : "Письмо"]] : []),
+    ...(canAdmin("smtp") ? [["connection", english ? "Connection" : "Подключение"]] : []),
+    ["test", english ? "Test" : "Тест"],
+  ];
+  const selected = tabs.some(([id]) => id === state.adminEmailEditorTab) ? state.adminEmailEditorTab : tabs[0][0];
   const draft = state.adminEmailBroadcast?.draft || { status: "idle", recipientCount: 0, sentCount: 0, failedCount: 0 };
-  const configured = state.adminEmailBroadcast?.configured !== false;
+  const configured = state.adminEmailBroadcast?.configured === true;
   const running = draft.status === "running";
-  const busy = Boolean(state.adminEmailBusy);
+  const busy = Boolean(state.adminEmailBusy || state.adminSMTP.busy);
   const total = Math.max(0, Number(draft.recipientCount || 0));
   const processed = Number(draft.sentCount || 0) + Number(draft.failedCount || 0);
   const progress = total ? Math.min(100, Math.round(processed / total * 100)) : 0;
-  return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-broadcast">
-    ${renderAdminBroadcastTabs()}
-    <header class="admin-broadcast__header"><div><span>${english ? "Delivery" : "Рассылка"}</span><h2>${english ? "Email to users" : "Письмо пользователям"}</h2></div><span class="admin-broadcast__status admin-broadcast__status--${escapeAttribute(draft.status)}">${escapeHtml(broadcastStatusLabel(draft.status, english))}</span></header>
-    ${renderAdminMailSettings()}
-    <section class="admin-broadcast__section admin-email-broadcast__compose">
-      <div class="admin-broadcast__section-head"><div><span>1</span><div><strong>${english ? "Compose email" : "Написать письмо"}</strong><small>${english ? "All users with verified email" : "Всем пользователям с подтверждённой почтой"}</small></div></div></div>
+  const message = `<div class="admin-mail__form">
       <label class="admin-email-broadcast__field"><span>${english ? "Subject" : "Тема"}</span><input data-admin-email-subject maxlength="160" placeholder="${english ? "Email subject" : "Тема письма"}" value="${escapeAttribute(state.adminEmailDraftSubject)}" ${running ? "disabled" : ""}></label>
-      <label class="admin-email-broadcast__field"><span>${english ? "Message" : "Текст письма"}</span><textarea data-admin-email-body maxlength="20000" rows="9" placeholder="${english ? "Write the message" : "Напишите текст письма"}" ${running ? "disabled" : ""}>${escapeHtml(state.adminEmailDraftBody)}</textarea></label>
-      <button class="admin-broadcast__primary" type="button" data-action="admin-email-save" ${running || busy ? "disabled" : ""}>${icon("check")}<span>${english ? "Save email" : "Сохранить письмо"}</span></button>
-    </section>
-    <section class="admin-broadcast__section admin-broadcast__section--delivery">
-      <div class="admin-broadcast__section-head"><div><span>2</span><div><strong>${english ? "Preview and send" : "Проверка и отправка"}</strong><small>${english ? "Send a test copy before launch" : "Сначала отправьте себе тестовое письмо"}</small></div></div></div>
-      ${!configured ? `<p class="admin-broadcast__error">${english ? "Configure SMTP before sending" : "Для отправки настройте SMTP"}</p>` : ""}
-      <p class="admin-broadcast__empty">${english ? "Verified email addresses" : "Подтверждённых адресов"}: ${Number(state.adminEmailBroadcast?.availableRecipients || 0)}</p>
-      <label class="admin-email-broadcast__field"><span>${english ? "Preview address" : "Адрес для проверки"}</span><input data-admin-email-preview type="email" autocomplete="email" placeholder="you@example.com" value="${escapeAttribute(state.adminEmailPreviewAddress)}"></label>
+      <label class="admin-email-broadcast__field"><span>${english ? "Message" : "Текст письма"}</span><textarea data-admin-email-body maxlength="20000" rows="4" placeholder="${english ? "Write the message" : "Напишите текст письма"}" ${running ? "disabled" : ""}>${escapeHtml(state.adminEmailDraftBody)}</textarea></label>
+      <button class="admin-mail__button" type="button" data-action="admin-email-save" ${running || busy ? "disabled" : ""}>${icon("check")}<span>${english ? "Save email" : "Сохранить письмо"}</span></button>
+
+  </div>`;
+  const test = `<div class="admin-mail__form">
+    <p class="admin-mail__hint">${canBroadcast ? (english ? "Send the email from the editor to yourself." : "Отправьте себе письмо из редактора.") : (english ? "Check delivery to your email address." : "Проверьте доставку на свою почту.")}</p>
+    <label class="admin-email-broadcast__field"><span>${english ? "Recipient" : "Получатель"}</span><input data-admin-email-preview type="email" autocomplete="email" placeholder="you@example.com" value="${escapeAttribute(state.adminEmailPreviewAddress)}" ${busy ? "disabled" : ""}></label>
+    <button class="admin-mail__button" type="button" data-action="admin-email-test" ${running || busy || (canBroadcast && !configured) ? "disabled" : ""}>${icon("profileLetter")}<span>${state.adminEmailBusy === "preview" || state.adminSMTP.busy === "test" ? (english ? "Sending…" : "Отправляем…") : (english ? "Send test email" : "Отправить тестовое письмо")}</span></button>
+    ${!canBroadcast && state.adminSMTP.error ? `<p class="admin-ai__error" role="alert">${escapeHtml(state.adminSMTP.error)}</p>` : ""}
+  </div>`;
+  return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-broadcast admin-mail">
+    ${renderAdminBroadcastTabs()}
+    <div class="admin-mail__tabs" role="tablist" aria-label="${english ? "Email editor" : "Редактор письма"}">${tabs.map(([id,label]) => `<button type="button" role="tab" aria-selected="${id === selected}" class="${id === selected ? "is-active" : ""}" data-action="admin-email-editor-tab" data-value="${id}">${label}</button>`).join("")}</div>
+    <div class="admin-mail__panel" role="tabpanel">${selected === "connection" ? renderAdminMailSettings() : selected === "test" ? test : message}</div>
+    ${canBroadcast ? `<div class="admin-mail__delivery">
+      <div class="admin-mail__summary"><small>${english ? "Recipients" : "Получателей"}: ${Number(state.adminEmailBroadcast?.availableRecipients || 0)}</small><span class="admin-broadcast__status admin-broadcast__status--${escapeAttribute(draft.status)}">${escapeHtml(broadcastStatusLabel(draft.status, english))}</span></div>
+      ${!configured ? `<p class="admin-mail__hint">${english ? "Configure SMTP in Connection before sending." : "Для отправки настройте SMTP в «Подключении»."}</p>` : ""}
       ${running || total > 0 ? `<div class="admin-broadcast__progress"><div><span>${english ? "Progress" : "Прогресс"}</span><strong>${progress}%</strong></div><i><b style="width:${progress}%"></b></i><p>${english ? "Sent" : "Отправлено"}: ${Number(draft.sentCount || 0)} · ${english ? "Errors" : "Ошибок"}: ${Number(draft.failedCount || 0)} · ${english ? "Total" : "Всего"}: ${total}</p></div>` : ""}
       ${draft.lastError ? `<p class="admin-broadcast__error">${escapeHtml(draft.lastError)}</p>` : ""}
-      <div class="admin-broadcast__actions"><button type="button" data-action="admin-email-preview-send" ${running || busy || !configured ? "disabled" : ""}>${icon("eye")}<span>${english ? "Send preview" : "Отправить себе"}</span></button><button class="admin-broadcast__send" type="button" data-action="admin-email-open-confirm" ${running || busy || !configured || !state.adminEmailBroadcast?.availableRecipients ? "disabled" : ""}>${icon("send")}<span>${english ? "Send to all" : "Отправить всем"}</span></button></div>
-    </section>
+
+      <button class="admin-mail__button admin-mail__button--primary" type="button" data-action="admin-email-open-confirm" ${running || busy || !configured || !state.adminEmailBroadcast?.availableRecipients ? "disabled" : ""}>${icon("send")}<span>${english ? "Send to all" : "Отправить всем"}</span></button>
+    </div>` : ""}
   </div>${state.adminEmailConfirmOpen ? `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-email-close-confirm"></button><div class="modal__sheet admin-broadcast-confirm" role="dialog" aria-modal="true"><div class="modal__header"><div class="modal__title">${english ? "Send email to all users?" : "Отправить письмо всем пользователям?"}</div></div><p>${english ? `Recipients with verified email: ${Number(state.adminEmailBroadcast?.availableRecipients || 0)}. Check the preview first.` : `Получателей с подтверждённой почтой: ${Number(state.adminEmailBroadcast?.availableRecipients || 0)}. Проверьте тестовое письмо перед запуском.`}</p><div class="admin-broadcast-confirm__actions"><button type="button" data-action="admin-email-close-confirm">${english ? "Cancel" : "Отмена"}</button><button class="admin-broadcast-confirm__send" type="button" data-action="admin-email-send">${icon("send")}<span>${english ? "Start" : "Запустить"}</span></button></div></div></div>` : ""}</section>`;
 }
 
@@ -7774,7 +7778,7 @@ function renderAdminEvent(event) {
 }
 
 function renderAdminEditorPage(title, body) {
-	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-editor"><h2 class="admin-editor__title">${escapeHtml(title)}</h2>${body}</div></section>`;
+	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-editor" aria-label="${escapeAttribute(title)}">${body}</div></section>`;
 }
 
 function getSelectedDashboardStyleItem() {
@@ -11062,15 +11066,17 @@ function bindRootActions() {
 	  }
 	  if (action.startsWith("administrators-")) return await handleAdministratorsAction(action, value);
 	  if (action === "close-admin-section") return closeAdminSection();
-      if (action === "admin-smtp-toggle") {
-        if (!canAdmin("smtp")) return;
-        state.adminSMTP.expanded = !(state.adminSMTP.expanded ?? !canAdmin("broadcast"));
+      if (action === "admin-email-editor-tab") {
+        if (!["message", "connection", "test"].includes(value)) return;
+        if (value === "message" && !canAdmin("broadcast") || value === "connection" && !canAdmin("smtp")) return;
+        state.adminEmailEditorTab = value;
         render({ preserveScroll: true });
-        if (state.adminSMTP.expanded) await loadAdminSMTP();
+        if (value === "connection" || value === "test" && !canAdmin("broadcast")) await loadAdminSMTP();
         return;
       }
+      if (action === "admin-email-test") return canAdmin("broadcast") ? await previewAdminEmailBroadcast() : await submitAdminSMTP("test");
 		if (action === "admin-smtp-load") return await loadAdminSMTP();
-		if (["admin-smtp-save", "admin-smtp-check", "admin-smtp-test"].includes(action)) return await submitAdminSMTP(action.slice("admin-smtp-".length));
+		if (["admin-smtp-save", "admin-smtp-check"].includes(action)) return await submitAdminSMTP(action.slice("admin-smtp-".length));
 		if (action === "admin-ai-check") return await checkAdminAI();
 		if (action === "admin-ai-load") return await loadAdminAI();
 		if (action === "admin-ai-save") return await saveAdminAI();
@@ -11389,7 +11395,6 @@ function bindRootActions() {
 			if (action === "admin-broadcast-capture") return await startAdminBroadcastCapture();
 			if (action === "admin-broadcast-tab" && ["telegram", "email"].includes(value)) { state.adminBroadcastTab = value; state.adminEmailConfirmOpen = false; render({ preserveScroll: true }); return await refreshAdminBroadcast({ forceButtons: true }); }
 			if (action === "admin-email-save") return await saveAdminEmailBroadcast();
-			if (action === "admin-email-preview-send") return await previewAdminEmailBroadcast();
 			if (action === "admin-email-open-confirm") { state.adminEmailConfirmOpen = true; render({ preserveScroll: true }); return; }
 			if (action === "admin-email-close-confirm") { state.adminEmailConfirmOpen = false; render({ preserveScroll: true }); return; }
 			if (action === "admin-email-send") return await sendAdminEmailBroadcast();
@@ -11729,8 +11734,8 @@ function bindRootActions() {
 			const field = inputKey.slice("admin-smtp-".length);
 			const smtp = state.adminSMTP;
 			if (!smtp.draft || smtp.busy) return;
-			if (field === "testEmail") smtp.testEmail = String(target.value || "");
-			else { smtp.draft[field] = ["enabled", "clearProxy"].includes(field) ? target.checked : String(target.value || ""); smtp.checked = false; }
+			smtp.draft[field] = ["enabled", "clearProxy"].includes(field) ? target.checked : String(target.value || "");
+			smtp.checked = false;
 			return;
 		}
 		if (inputKey.startsWith("admin-ai-")) {
@@ -12520,7 +12525,7 @@ async function refreshAdminBroadcast({ silent = false, forceButtons = false } = 
 }
 
 async function refreshAdminEmailBroadcast({ silent = false } = {}) {
-  if (state.adminSMTP.expanded || !canAdmin("broadcast")) void loadAdminSMTP();
+  if (state.adminEmailEditorTab === "connection" || !canAdmin("broadcast")) void loadAdminSMTP();
   if (!canAdmin("broadcast")) return;
   if (state.adminSection !== "broadcast" || state.adminEmailBusy === "state") return;
   const previous = JSON.stringify(state.adminEmailBroadcast || {});
@@ -18121,7 +18126,7 @@ function getEntryAdminSection() {
 	const saved = readSetting(STORAGE_KEYS.adminSection, "home");
     if (saved === "smtp") {
         state.adminBroadcastTab = "email";
-        state.adminSMTP.expanded = true;
+        state.adminEmailEditorTab = "connection";
         return "broadcast";
     }
 	return saved === "home" || ADMIN_SEARCH_SECTIONS.some(([section]) => section === saved) ? saved : "home";
