@@ -2813,6 +2813,7 @@ const state = {
   theme: "dark",
   animatePageEntry: false,
   scrollTopByPage: {},
+  adminMenuScrollTop: 0,
   supportThreadScrollTop: 0,
 };
 
@@ -5209,6 +5210,7 @@ function renderAdminSettingsSearch() {
 function openAdminSettingsSearchResult(index) {
 	const item = adminSettingsSearchResults[index];
 	if (!item || !canAdminSection(item.section)) return;
+	rememberAdminMenuScroll();
 	state.adminSettingsSearchQuery = "";
 	if (item.section === "layout") return enterAdminLayoutEditor();
 	if (item.section === "plans") return enterAdminPlanEditor();
@@ -11037,6 +11039,7 @@ function bindRootActions() {
 		if (action === "confirm-subscription-delete") return await deleteActiveSubscription();
 		if (action === "open-admin-section") {
 		if (!canAdminSection(value === "push" ? "push" : value)) return;
+		rememberAdminMenuScroll();
 		if (value === "layout") return enterAdminLayoutEditor();
 		if (value === "plans") return enterAdminPlanEditor();
 		state.adminSection = value === "push" ? "home" : value || "home";
@@ -13813,6 +13816,7 @@ function syncAdminLayoutBackgroundAnimation() {
 function enterAdminPlanEditor() {
 	syncAdminSettingsDraft();
 	if (!state.adminSettingsDraft) return;
+	rememberAdminMenuScroll();
 	state.adminPlanBaseline = deepClone(state.adminSettingsDraft.plans || []);
 	state.adminPlanBaselinePaymentOrder = deepClone(state.adminSettingsDraft.paymentMethodOrder || []);
 	state.adminPlanBaselineDirty = state.adminSettingsDirty;
@@ -14108,6 +14112,7 @@ function resetAdminPlans() {
 function enterAdminLayoutEditor() {
 	syncAdminSettingsDraft();
 	if (!state.adminSettingsDraft) return;
+	rememberAdminMenuScroll();
 	window.clearTimeout(notificationPopoverTimer);
 	state.notificationPopoverOpen = false;
 	state.notificationPopoverClosing = false;
@@ -16688,7 +16693,13 @@ function moveToDashboard() {
   render({ preserveScroll: false, scrollTop: 0 });
 }
 
-function renderAdminTransition({ preserveScroll = false, scrollTop = 0 } = {}) {
+function rememberAdminMenuScroll() {
+	if (state.currentPage !== "admin" || state.adminSection !== "home") return;
+	const top = getCurrentScrollTop();
+	if (top !== null) state.adminMenuScrollTop = top;
+}
+
+function renderAdminTransition({ preserveScroll = false, scrollTop = state.currentPage === "admin" && state.adminSection === "home" ? state.adminMenuScrollTop : 0 } = {}) {
 	state.animatePageEntry = true;
 	render({ preserveScroll, scrollTop });
 }
@@ -16930,8 +16941,7 @@ function handleNativeBackButton() {
   if (state.reviewComposeOpen) return requestModalClose("review-compose", () => { state.reviewComposeOpen = false; state.reviewDraftRating = 0; state.reviewDraftComment = ""; state.reviewBusy = ""; });
   if (state.reviewDetailOpen) return requestModalClose("review-detail", () => { state.activeReviewId = 0; state.reviewDetailOpen = false; });
   if (state.currentPage === "admin" && state.adminSection !== "home") {
-    state.adminSection = "home";
-    return renderAdminTransition();
+    return closeAdminSection();
   }
   return setPage(getNativeBackTargetPage());
 }
