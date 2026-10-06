@@ -10499,7 +10499,6 @@ body.has-open-modal .admin-save-bar {
 .support-reply__send svg {
   width: 20px;
   height: 20px;
-  transform: translateY(-1px);
 }
 
 .support-reply__send:focus-visible {
@@ -12348,17 +12347,27 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 /* Support chat media: compact composer, secure previews and a focused viewer. */
 .support-reply__row {
 	position: relative;
-	display: block;
+	display: grid;
+	grid-template-columns: 48px minmax(0, 1fr) 48px;
+	align-items: center;
 }
 
 .support-reply__textarea {
+	grid-column: 1 / -1;
+	grid-row: 1;
+	display: block;
+	min-width: 0;
+	margin: 0;
 	padding-inline: 48px !important;
 }
 
 .support-reply__attach,
 .support-reply__send {
-	position: absolute;
-	bottom: 5px;
+	position: relative;
+	grid-row: 1;
+	justify-self: center;
+	z-index: 1;
+	inset: auto;
 	width: 36px;
 	height: 36px;
 	min-height: 0;
@@ -12373,11 +12382,12 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 	transition: background-color 220ms ease, opacity 220ms ease, transform 220ms ease;
 }
 
-.support-reply__attach { left: 6px; }
-.support-reply__send { right: 6px; }
+.support-reply__attach { grid-column: 1; }
+.support-reply__send { grid-column: 3; }
 
 .support-reply__attach svg,
 .support-reply__send svg {
+	display: block;
 	width: 20px;
 	height: 20px;
 }
