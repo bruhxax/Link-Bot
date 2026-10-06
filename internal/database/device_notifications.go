@@ -70,7 +70,9 @@ func deviceNotificationChanges(previous deviceNotificationState, snapshot Device
 			added++
 		}
 	}
-	limitReached = snapshot.DeviceLimit > 0 && len(snapshot.DeviceHWIDs) >= snapshot.DeviceLimit && !previous.LimitReached
+	// A successful connection already includes the used/available count. Do not
+	// send a second alert for the same connection (including the first 1/1).
+	limitReached = added == 0 && snapshot.DeviceLimit > 0 && len(snapshot.DeviceHWIDs) >= snapshot.DeviceLimit && !previous.LimitReached
 	return added, limitReached, true
 }
 

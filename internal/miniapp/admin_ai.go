@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,11 +16,12 @@ import (
 )
 
 type adminAIRequest struct {
-	APIURL  string `json:"apiUrl"`
-	APIKey  string `json:"apiKey"`
-	Model   string `json:"model"`
-	Prompt  string `json:"prompt"`
-	Enabled bool   `json:"enabled"`
+	HandoffAfter int    `json:"handoffAfter"`
+	APIURL       string `json:"apiUrl"`
+	APIKey       string `json:"apiKey"`
+	Model        string `json:"model"`
+	Prompt       string `json:"prompt"`
+	Enabled      bool   `json:"enabled"`
 }
 
 func resolveAIKey(apiURL, enteredKey string, stored map[string]string) string {
@@ -40,7 +42,7 @@ func (h *Handler) adminAIView() map[string]any {
 	if prompt == "" {
 		prompt = supportai.DefaultPrompt
 	}
-	return map[string]any{"apiUrl": fields["apiUrl"], "keyConfigured": fields["apiKey"] != "", "model": fields["model"], "prompt": prompt, "defaultPrompt": supportai.DefaultPrompt, "enabled": enabled}
+	return map[string]any{"apiUrl": fields["apiUrl"], "keyConfigured": fields["apiKey"] != "", "model": fields["model"], "prompt": prompt, "defaultPrompt": supportai.DefaultPrompt, "enabled": enabled, "handoffAfter": supportAIHandoffAfter(fields)}
 }
 
 func (h *Handler) handleAdminAI(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
@@ -136,11 +138,18 @@ func (h *Handler) handleAdminAI(w http.ResponseWriter, r *http.Request, sess *se
 			return
 		}
 	}
+	if req.HandoffAfter == 0 {
+		req.HandoffAfter = supportAIHandoffAfter(stored)
+	}
+	if req.HandoffAfter < 1 || req.HandoffAfter > 20 {
+		h.writeError(w, http.StatusBadRequest, "invalid_handoff_after", "Укажите от 1 до 20 ответов ИИ")
+		return
+	}
 	prompt := strings.TrimSpace(req.Prompt)
 	if prompt == "" {
 		prompt = supportai.DefaultPrompt
 	}
-	_, err := h.integrationSettings.Update(r.Context(), integrations.ProviderSupportAI, integrations.UpdateInput{Enabled: req.Enabled, Fields: map[string]string{"apiUrl": base, "apiKey": key, "model": strings.TrimSpace(req.Model), "prompt": prompt}}, sess.User.ID)
+	_, err := h.integrationSettings.Update(r.Context(), integrations.ProviderSupportAI, integrations.UpdateInput{Enabled: req.Enabled, Fields: map[string]string{"apiUrl": base, "apiKey": key, "model": strings.TrimSpace(req.Model), "prompt": prompt, "handoffAfter": strconv.Itoa(req.HandoffAfter)}}, sess.User.ID)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "ai_save_failed", "Не удалось сохранить настройки ИИ")
 		return

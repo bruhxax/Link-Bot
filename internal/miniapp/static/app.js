@@ -14,6 +14,8 @@ import { tokenizeSupportMessage } from "./support-message.mjs";
 import { reviewRewardDraft, reviewRewardsFromDraft, reviewRewardSummary } from "./review-rewards.mjs";
 
 import { syncTelegramLayout } from "./telegram-layout.mjs";
+import { renderSMTPSettings } from "./admin-smtp.mjs";
+import { reuseAdminUserRows } from "./stable-user-rows.mjs";
 import { renderAISettings } from "./admin-ai.mjs";
 import { canAdmin as accessAllows, changePermission, ROLE_PRESETS, presetPermissions, roleDot, renderAdministrators } from "./administrators.mjs";
 
@@ -2750,6 +2752,7 @@ const state = {
 	adminFinancePeriodMenuOpen: false,
 	adminFinanceAnimate: false,
 	adminAnalytics: null,
+	adminSMTP: { draft: null, busy: "", error: "", checked: false, testEmail: "" },
 	adminAI: { draft: null, models: [], verified: false, busy: "", error: "" },
 	adminAnalyticsBusy: false,
 	adminAnalyticsPeriod: "7d",
@@ -3338,6 +3341,8 @@ async function boot() {
 }
 
 function refreshRestoredAdminSection() {
+	if (state.adminSection === "smtp") void loadAdminSMTP();
+	if (state.adminSection === "ai") void loadAdminAI();
 	if (state.adminSection === "administrators") void refreshAdministrators();
 	if (state.adminSection === "finance") void refreshAdminFinance().catch((error) => showToast(error?.message || "Не удалось загрузить финансы", "danger"));
 	if (state.adminSection === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
@@ -3488,6 +3493,20 @@ function patchRealtimeSupportMessages() {
 function patchRealtimeSupportThinking() {
 	const indicator = app.querySelector("#support-ai-thinking");
 	if (indicator) indicator.hidden = !state.activeSupportThread?.aiThinking || Boolean(state.data?.support?.isAdmin) || state.activeSupportThread?.ticket?.status !== "open";
+	const sheet = indicator?.closest(".modal__sheet");
+	if (!sheet) return;
+	const template = document.createElement("template");
+	template.innerHTML = renderSupportThreadModal();
+	const current = sheet.querySelector(".support-call-human");
+	const next = template.content.querySelector(".support-call-human");
+	if (next && !current) indicator.after(next);
+	else if (!next && current) current.remove();
+	for (const selector of [".support-thread__meta", ".support-thread__headactions"]) {
+		const oldNode = sheet.querySelector(selector);
+		const newNode = template.content.querySelector(selector);
+		if (oldNode && newNode && oldNode.innerHTML !== newNode.innerHTML) oldNode.replaceWith(newNode);
+		else if (!oldNode && newNode) sheet.querySelector(".support-thread__headcopy")?.append(newNode);
+	}
 }
 
 function renderRealtime() {
@@ -3798,10 +3817,11 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
 		state.adminUserPreviewDetail = deepClone(state.adminUserDetail);
 		if (urlParams.get("detail") !== "1") state.adminUserDetail = null;
 		const previewSection = String(urlParams.get("section") || "");
-		if (["home", "integrations", "referrals", "partners", "moynalog", "finance", "analytics", "ai", "users", "appearance", "administrators", "status"].includes(previewSection)) {
+		if (["home", "integrations", "referrals", "partners", "moynalog", "finance", "analytics", "ai", "smtp", "users", "appearance", "administrators", "status"].includes(previewSection)) {
 			state.currentPage = "admin";
 			state.adminSection = previewSection;
 			state.adminLayoutEditing = false;
+			if (previewSection === "smtp") void loadAdminSMTP();
 			if (previewSection === "ai") void loadAdminAI();
 		} else {
 			state.currentPage = "dashboard";
@@ -4338,17 +4358,18 @@ function updateMountedSupportModal(markup) {
 function mountCabinetShell(markup) {
 	if (updateMountedSupportModal(markup)) return;
 	const currentShell = app.firstElementChild;
-	if (!isWideCabinet() || !currentShell?.classList.contains("app-shell") || state.adminLayoutEditing || currentShell.classList.contains("app-shell--layout-editor")) {
-		app.innerHTML = markup;
-		return;
-	}
 	const template = document.createElement("template");
 	template.innerHTML = markup.trim();
+	reuseAdminUserRows(app, template.content);
+	if (!isWideCabinet() || !currentShell?.classList.contains("app-shell") || state.adminLayoutEditing || currentShell.classList.contains("app-shell--layout-editor")) {
+		app.replaceChildren(...template.content.childNodes);
+		return;
+	}
 	const nextShell = template.content.firstElementChild;
 	const currentSidebar = currentShell.querySelector(":scope > .desktop-sidebar");
 	const nextSidebar = nextShell.querySelector(":scope > .desktop-sidebar");
 	if (!currentSidebar || !nextSidebar) {
-		app.innerHTML = markup;
+		app.replaceChildren(...template.content.childNodes);
 		return;
 	}
 	currentShell.className = nextShell.className;
@@ -5033,6 +5054,7 @@ function renderAdminPage() {
 	if (state.adminSection === "moynalog") return renderAdminMoyNalogPage();
 	if (state.adminSection === "finance") return renderAdminFinancePage();
 	if (state.adminSection === "analytics") return renderAdminAnalyticsPage();
+	if (state.adminSection === "smtp") return `<section class="page admin-page ${pageClass("admin")}" id="page-admin">${renderSMTPSettings(state.adminSMTP, { escapeHtml, escapeAttribute, icon })}</section>`;
 	if (state.adminSection === "ai") return `<section class="page admin-page ${pageClass("admin")}" id="page-admin">${renderAISettings(state.adminAI, { escapeHtml, escapeAttribute, icon })}</section>`;
 	if (state.adminSection === "status") return renderAdminStatusPage();
 	if (state.adminSection === "partners") return renderAdminPartnersPage();
@@ -5053,6 +5075,7 @@ function renderAdminPage() {
 				[localizedText("Привязка подписок", "Subscription binding", "اتصال اشتراک‌ها"), "", "subscriptions", "adminSubscriptions"],
 				[localizedText("Интеграции", "Integrations", "یکپارچه‌سازی‌ها"), "", "integrations", "adminIntegrations"],
 				[localizedText("Мой налог", "My Tax", "مالیات من"), "", "moynalog", "adminIntegrations"],
+				[localizedText("Почта / SMTP", "Mail / SMTP", "ایمیل / SMTP"), "", "smtp", "mail"],
 				[localizedText("ИИ", "AI", "هوش مصنوعی"), "", "ai", "sparkles"],
 			])}
 			${renderAdminMenuGroup(localizedText("Интерфейс", "Interface", "رابط کاربری"), [
@@ -5091,6 +5114,7 @@ const ADMIN_SEARCH_SECTIONS = [
 	["subscriptions", "Привязка подписок", "привязать подписку"],
 	["integrations", "Интеграции", "оплата платежи"],
 	["moynalog", "Мой налог", "чеки"],
+	["smtp", "Почта / SMTP", "почта email письма сервер пароль тест"],
 	["ai", "ИИ", "нейросеть AI модели API ключ промпт поддержка оператор"],
 	["content", "Редактор контента", "тексты кнопки сообщения"],
 	["subpage", "Sub page", "клиенты подключения"],
@@ -5199,6 +5223,7 @@ function openAdminSettingsSearchResult(index) {
 	if (item.section === "partners") void refreshAdminPartners();
 	if (item.section === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 	if (item.section === "moynalog") void refreshAdminMoyNalog();
+	if (item.section === "smtp") void loadAdminSMTP();
 	if (item.section === "ai") void loadAdminAI();
 	if (!item.path) return;
 	window.setTimeout(() => {
@@ -5877,11 +5902,12 @@ function renderAdministratorsPreservingFocus() {
 
 async function refreshAdministrators({ append = false, silent = false } = {}) {
 	if (!canAdmin("administrators") || state.adminSection !== "administrators") return;
+	const previous = JSON.stringify([administrators.items, administrators.total, administrators.catalog, administrators.candidates, administrators.candidateTotal, administrators.error]);
 	const picking = administrators.picking;
 	const query = picking ? administrators.pickQuery : administrators.query;
 	const offset = append ? (picking ? administrators.candidates.length : administrators.items.length) : 0;
 	const requestID = ++administrators.requestID;
-	administrators.busy = "search";
+	if (!silent) administrators.busy = "search";
 	administrators.error = "";
 	if (!silent) renderAdministratorsPreservingFocus();
 	try {
@@ -5902,7 +5928,7 @@ async function refreshAdministrators({ append = false, silent = false } = {}) {
 	} finally {
 		if (requestID === administrators.requestID) {
 			administrators.busy = "";
-			if (state.adminSection === "administrators") renderAdministratorsPreservingFocus();
+			if (state.adminSection === "administrators" && (!silent || previous !== JSON.stringify([administrators.items, administrators.total, administrators.catalog, administrators.candidates, administrators.candidateTotal, administrators.error]))) renderAdministratorsPreservingFocus();
 		}
 	}
 }
@@ -6405,6 +6431,33 @@ async function loadAdminAI() {
 	finally { state.adminAI.busy = ""; if (state.adminSection === "ai") render({ preserveScroll: true }); }
 }
 
+async function loadAdminSMTP() {
+	const smtp = state.adminSMTP;
+	if (!canAdmin("smtp") || smtp.draft || smtp.busy) return;
+	smtp.busy = "load"; smtp.error = "";
+	try {
+		const response = previewMode ? { data: { host: "", port: "587", user: "", from: "", enabled: false } } : await post("/api/mini-app/admin/smtp/settings", {});
+		smtp.draft = { ...response.data, password: "", proxyUrl: "", clearProxy: false };
+	} catch (error) { smtp.error = error?.message || "Не удалось загрузить почту"; }
+	finally { smtp.busy = ""; if (state.adminSection === "smtp") render({ preserveScroll: true }); }
+}
+
+async function submitAdminSMTP(action) {
+	const smtp = state.adminSMTP;
+	if (!canAdmin("smtp") || !smtp.draft || smtp.busy) return;
+	if (action === "test" && !smtp.testEmail.trim()) return showToast("Введите адрес получателя", "danger");
+	smtp.busy = action; smtp.error = "";
+	render({ preserveScroll: true });
+	try {
+		const { host, port, user, password, from, proxyUrl, enabled, clearProxy } = smtp.draft;
+		const response = previewMode ? { data: { ...smtp.draft } } : await post(`/api/mini-app/admin/smtp/${action === "save" ? "update" : action}`, { host, port: String(port || "587"), user, password, from, proxyUrl, enabled: Boolean(enabled), clearProxy: Boolean(clearProxy), email: smtp.testEmail });
+		if (action === "save") smtp.draft = { ...response.data, password: "", proxyUrl: "", clearProxy: false };
+		if (action === "check") smtp.checked = true;
+		showToast(action === "save" ? "Настройки почты сохранены" : action === "test" ? "Тестовое письмо отправлено" : "SMTP работает", "success");
+	} catch (error) { smtp.error = error?.message || "Не удалось выполнить проверку"; }
+	finally { smtp.busy = ""; if (state.adminSection === "smtp") render({ preserveScroll: true }); }
+}
+
 async function checkAdminAI() {
 	const ai = state.adminAI;
 	if (!ai.draft || ai.busy) return;
@@ -6427,7 +6480,7 @@ async function saveAdminAI() {
 	if (ai.draft.enabled && !ai.draft.model) return showToast("Проверьте подключение и выберите модель", "danger");
 	ai.busy = "save"; ai.error = ""; render({ preserveScroll: true });
 	try {
-		const response = previewMode ? { data: { ...ai.draft, keyConfigured: Boolean(ai.draft.apiKey || ai.draft.keyConfigured) } } : await post("/api/mini-app/admin/ai/update", { apiUrl: ai.draft.apiUrl, apiKey: ai.draft.apiKey, model: ai.draft.model, prompt: ai.draft.prompt, enabled: ai.draft.enabled });
+		const response = previewMode ? { data: { ...ai.draft, keyConfigured: Boolean(ai.draft.apiKey || ai.draft.keyConfigured) } } : await post("/api/mini-app/admin/ai/update", { apiUrl: ai.draft.apiUrl, apiKey: ai.draft.apiKey, model: ai.draft.model, prompt: ai.draft.prompt, handoffAfter: Number(ai.draft.handoffAfter || 4), enabled: ai.draft.enabled });
 		ai.draft = { ...response.data, apiKey: "" };
 		showToast("Настройки ИИ сохранены", "success");
 	} catch (error) { ai.error = error?.message || "Не удалось сохранить настройки"; }
@@ -6532,7 +6585,7 @@ function renderAdminP2PIntegrationFields(draft) {
 }
 
 function renderAdminIntegrationsPage() {
-	const items = Array.isArray(state.data?.admin?.integrations) ? state.data.admin.integrations.filter((item) => item.id !== "moynalog") : [];
+	const items = Array.isArray(state.data?.admin?.integrations) ? state.data.admin.integrations.filter((item) => !["moynalog", "support_ai", "smtp"].includes(item.id)) : [];
 	const groups = [
 		["Платёжные системы", items.filter((item) => item.kind === "payment")],
 		["Служебные интеграции", items.filter((item) => item.kind !== "payment")],
@@ -8987,7 +9040,7 @@ function renderSupportTicketCard(ticket, isAdmin) {
       </div>
       <div class="support-ticket-card__preview">${escapeHtml(ticket.preview || (isAdmin ? scopy.admin : scopy.you))}</div>
       <div class="support-ticket-card__bottom">
-        <span>${escapeHtml(formatSupportStatus(ticket.status))}</span>
+        <span>${escapeHtml(ticket.operatorName && ticket.status === "open" ? `${localizedText("В работе", "Assigned", "اپراتور")}: ${ticket.operatorName}` : formatSupportStatus(ticket.status))}</span>
         <span>${escapeHtml(formatSupportDate(ticket.updatedAt))}</span>
       </div>
     </button>
@@ -10599,6 +10652,7 @@ function renderSupportThreadModal() {
     if (ticket.customerName) metaLines.push(`${scopy.customer}: ${ticket.customerName}`);
     if (ticket.customerUsername) metaLines.push(`Telegram: ${formatTelegramUsername(ticket.customerUsername)}`);
     if (ticket.subscriptionLabel) metaLines.push(`${scopy.subscription}: ${ticket.subscriptionLabel}`);
+    if (ticket.operatorName) metaLines.push(`${localizedText("В работе", "Assigned", "اپراتور")}: ${ticket.operatorName}`);
   }
 
   return `
@@ -10611,6 +10665,7 @@ function renderSupportThreadModal() {
             ${metaLines.length ? `<div class="support-thread__meta">${metaLines.map((line) => `<span>${escapeHtml(line)}</span>`).join("")}</div>` : ""}
           </div>
           <div class="support-thread__headactions">
+            ${thread.canClaim || thread.canRelease ? `<button class="support-thread__close" type="button" data-action="support-operator" data-value="${thread.canRelease ? "release" : "claim"}" ${state.supportBusy ? "disabled" : ""}>${escapeHtml(thread.canRelease ? localizedText("Вернуть в очередь", "Release ticket", "آزاد کردن") : localizedText("Взять в работу", "Take ticket", "پذیرش تیکت"))}</button>` : ""}
             ${thread.canClose ? `<button class="support-thread__close" type="button" data-action="close-support-ticket" ${loading || state.supportBusy ? "disabled" : ""}>${escapeHtml(scopy.closeTicket)}</button>` : ""}
           </div>
         </div>
@@ -10618,6 +10673,7 @@ function renderSupportThreadModal() {
           ${loading ? `<div class="support-thread__loading" role="status">${escapeHtml(scopy.loadingThread)}</div>` : (thread.messages || []).map((message) => renderSupportMessage(message)).join("")}
         </div>
         <div class="support-ai-thinking" id="support-ai-thinking" role="status" aria-live="polite" ${thread.aiThinking && !support.isAdmin && ticket.status === "open" ? "" : "hidden"}><span class="support-ai-thinking__dots" aria-hidden="true"><i></i><i></i><i></i></span><span>${escapeHtml(localizedText("ИИ думает", "AI is thinking", "هوش مصنوعی در حال فکر کردن است"))}</span></div>
+        ${thread.canHandoff ? `<button class="support-call-human" type="button" data-action="support-handoff" ${state.supportBusy ? "disabled" : ""}>${icon("users")}${escapeHtml(localizedText("Позвать человека", "Call a person", "درخواست اپراتور"))}</button>` : ""}
         ${thread.canReply ? `
           <div class="support-reply ${state.supportPendingMedia ? "support-reply--has-media" : ""}">
             ${renderSupportPendingMedia()}
@@ -10967,6 +11023,7 @@ function bindRootActions() {
 		renderAdminTransition();
 		if (value === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 		if (value === "moynalog") void refreshAdminMoyNalog();
+		if (value === "smtp") void loadAdminSMTP();
 		if (value === "ai") void loadAdminAI();
 		if (value === "finance") void refreshAdminFinance();
 		if (value === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
@@ -10989,6 +11046,8 @@ function bindRootActions() {
 	  }
 	  if (action.startsWith("administrators-")) return await handleAdministratorsAction(action, value);
 	  if (action === "close-admin-section") return closeAdminSection();
+		if (action === "admin-smtp-load") return await loadAdminSMTP();
+		if (["admin-smtp-save", "admin-smtp-check", "admin-smtp-test"].includes(action)) return await submitAdminSMTP(action.slice("admin-smtp-".length));
 		if (action === "admin-ai-check") return await checkAdminAI();
 		if (action === "admin-ai-load") return await loadAdminAI();
 		if (action === "admin-ai-save") return await saveAdminAI();
@@ -11192,6 +11251,7 @@ function bindRootActions() {
       if (action === "open-support-compose") return openSupportComposer();
       if (action === "close-support-compose") return requestModalClose("support-compose", closeSupportComposeState);
       if (action === "open-support-ticket") return await openSupportTicket(Number(value));
+      if (action === "support-operator" || action === "support-handoff") return await changeSupportHandling(action, value);
       if (action === "close-support-thread") return requestModalClose("support-thread", closeSupportThreadState);
       if (action === "submit-support-ticket") return await submitSupportTicket();
       if (action === "send-support-message") return await sendSupportMessage();
@@ -11642,6 +11702,14 @@ function bindRootActions() {
 		}
 		const inputKey = target?.dataset?.input;
 		if (!inputKey) return;
+		if (inputKey.startsWith("admin-smtp-")) {
+			const field = inputKey.slice("admin-smtp-".length);
+			const smtp = state.adminSMTP;
+			if (!smtp.draft || smtp.busy) return;
+			if (field === "testEmail") smtp.testEmail = String(target.value || "");
+			else { smtp.draft[field] = ["enabled", "clearProxy"].includes(field) ? target.checked : String(target.value || ""); smtp.checked = false; }
+			return;
+		}
 		if (inputKey.startsWith("admin-ai-")) {
 			const field = inputKey.slice("admin-ai-".length);
 			if (!state.adminAI.draft || state.adminAI.busy) return;
@@ -15401,6 +15469,26 @@ async function sendSupportMessage() {
   }
 }
 
+async function changeSupportHandling(action, value) {
+	if (state.supportBusy || !state.supportThreadOpen || closingModalName === "support-thread" || !state.activeSupportTicketId) return;
+	const ticketId = state.activeSupportTicketId;
+	const version = supportThreadVersion;
+	const operation = beginSupportOperation(action);
+	render();
+	try {
+		const response = await post(action === "support-handoff" ? "/api/mini-app/support/handoff" : "/api/mini-app/support/operator", action === "support-handoff" ? { ticketId } : { ticketId, release: value === "release" });
+		if (!finishSupportOperation(operation) || !isCurrentSupportThread(version, ticketId)) return;
+		state.activeSupportThread = response.data;
+		render();
+		void refreshSupport({ silent: true });
+	} catch (error) {
+		if (!finishSupportOperation(operation) || !isCurrentSupportThread(version, ticketId)) return;
+		render();
+		void openSupportTicket(ticketId, { silent: true });
+		throw error;
+	}
+}
+
 async function sendSupportMediaMessage(file, caption) {
 	const scopy = supportText();
 	if (state.supportBusy || !state.supportThreadOpen || closingModalName === "support-thread") return;
@@ -17099,13 +17187,13 @@ function getPageTitle(page, short = false) {
 	if (page === "admin" && !short && state.adminSection !== "home") {
 		if (state.adminSection === "partners") return localizedText("Партнёры", "Partners", "همکاران");
 		const labels = state.locale === "fa" ? {
-			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", analytics: "تحلیل", ai: "هوش مصنوعی", users: "کاربران",
+			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", analytics: "تحلیل", smtp: "ایمیل / SMTP", ai: "هوش مصنوعی", users: "کاربران",
 		} : state.locale === "en" ? {
 			localization: "Language and font",
-			maintenance: "Maintenance", diagnostics: "Diagnostics", features: "Functions", subpage: "Sub page", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", analytics: "Analytics", ai: "AI", users: "Users",
+			maintenance: "Maintenance", diagnostics: "Diagnostics", features: "Functions", subpage: "Sub page", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", analytics: "Analytics", smtp: "Mail / SMTP", ai: "AI", users: "Users",
 		} : {
 			localization: "Язык и шрифт",
-			maintenance: "Режим аварии", diagnostics: "Диагностика", features: "Функции", subpage: "Sub page", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", analytics: "Аналитика", ai: "ИИ", users: "Пользователи",
+			maintenance: "Режим аварии", diagnostics: "Диагностика", features: "Функции", subpage: "Sub page", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", analytics: "Аналитика", smtp: "Почта / SMTP", ai: "ИИ", users: "Пользователи",
 		};
 		return labels[state.adminSection] || copy.pageAdmin || "Admin panel";
 	}

@@ -42,7 +42,7 @@ func TestAISupportPersistentFlow(t *testing.T) {
 	if _, err := pool.Exec(ctx, `CREATE TABLE customer(id BIGINT PRIMARY KEY); INSERT INTO customer VALUES (1)`); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"000006_support_tickets.up.sql", "000035_support_message_media.up.sql", "000050_support_ai.up.sql", "000051_support_ai_knowledge.up.sql"} {
+	for _, name := range []string{"000006_support_tickets.up.sql", "000035_support_message_media.up.sql", "000050_support_ai.up.sql", "000051_support_ai_knowledge.up.sql", "000053_support_operator.up.sql"} {
 		raw, err := os.ReadFile(filepath.Join("..", "..", "db", "migrations", name))
 		if err != nil {
 			t.Fatal(err)
@@ -159,6 +159,40 @@ func TestAISupportPersistentFlow(t *testing.T) {
 
 	ticket = create()
 	pending = claim()
+	if err := repo.SetOperator(ctx, ticket.ID, 99, "Оператор", false, false); err != nil {
+		t.Fatal(err)
+	}
+	if committed, err := repo.FinishAIMessage(ctx, *pending, "Ответ после взятия в работу", false); err != nil || committed {
+		t.Fatalf("AI replied after claim: %v %v", committed, err)
+	}
+	if err := repo.SetOperator(ctx, ticket.ID, 100, "Другой", false, false); err != ErrSupportOperatorConflict {
+		t.Fatalf("second operator stole ticket: %v", err)
+	}
+	if err := repo.SetOperator(ctx, ticket.ID, 100, "Другой", true, false); err != ErrSupportOperatorConflict {
+		t.Fatalf("second operator released ticket: %v", err)
+	}
+	loaded, err := repo.FindTicketByID(ctx, ticket.ID)
+	if err != nil || loaded.OperatorTelegramID != 99 || loaded.OperatorName != "Оператор" {
+		t.Fatalf("operator not persisted: %+v %v", loaded, err)
+	}
+	listed, err := repo.ListTicketsForAdmin(ctx, SupportTicketStatusOpen)
+	if err != nil || len(listed) == 0 || listed[0].OperatorTelegramID != 99 {
+		t.Fatalf("operator missing from list: %+v %v", listed, err)
+	}
+	assertThinking(ticket.ID, false)
+	add(ticket.ID, "Оператор ещё разбирается")
+	empty()
+	if err := repo.SetOperator(ctx, ticket.ID, 99, "", true, false); err != nil {
+		t.Fatal(err)
+	}
+	add(ticket.ID, "Вернулся в очередь")
+	empty()
+	if err := repo.CloseTicket(ctx, ticket.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	ticket = create()
+	pending = claim()
 	if _, err := repo.AddAdminMessage(ctx, ticket.ID, 99, "Отвечает человек"); err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +261,7 @@ func TestAISupportPersistentFlow(t *testing.T) {
 		t.Fatalf("invalid resolved cases: %+v %v", examples, err)
 	}
 	history, err := repo.AICustomerHistory(ctx, 1, ticket.ID, "happ OR windows")
-	if err != nil || history.TotalTickets != 5 || len(history.Recent) != 4 || history.Recent[0]["subject"] != ownCase.Subject {
+	if err != nil || history.TotalTickets != 6 || len(history.Recent) != 5 || history.Recent[0]["subject"] != ownCase.Subject {
 		t.Fatalf("invalid owner history: %+v %v", history, err)
 	}
 	msgs, ok := history.Recent[0]["messages"].([]map[string]any)

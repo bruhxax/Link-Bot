@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -74,7 +75,7 @@ func (h *Handler) handleStartEmailAuth(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "JSON required")
 		return
 	}
-	settings, configured := emailSMTPSettingsFromEnv()
+	settings, configured := h.emailSMTPSettings()
 	if !configured {
 		h.writeError(w, http.StatusServiceUnavailable, "email_not_configured", "Email login is not configured")
 		return
@@ -231,6 +232,7 @@ func (h *Handler) handleVerifyEmailAuth(w http.ResponseWriter, r *http.Request) 
 
 type emailSMTPSettings struct {
 	host, port, user, password, from, proxyURL string
+	rootCAs                                    *x509.CertPool
 }
 
 type emailDeliveryError struct {
@@ -276,7 +278,7 @@ func sendSMTPMessage(ctx context.Context, settings emailSMTPSettings, recipient,
 	return err
 }
 
-func sendSMTPMessageOnce(ctx context.Context, settings emailSMTPSettings, recipient, subject, body string) error {
+func connectSMTP(ctx context.Context, settings emailSMTPSettings) (*smtp.Client, error) {
 	address := net.JoinHostPort(settings.host, settings.port)
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	var conn net.Conn
@@ -284,40 +286,60 @@ func sendSMTPMessageOnce(ctx context.Context, settings emailSMTPSettings, recipi
 	if settings.proxyURL != "" {
 		conn, err = dialSMTPViaHTTPProxy(ctx, dialer, settings.proxyURL, address)
 		if err != nil {
-			return emailDeliveryFailure("email_smtp_proxy_failed", err)
+			return nil, emailDeliveryFailure("email_smtp_proxy_failed", err)
 		}
 	} else {
 		conn, err = dialer.DialContext(ctx, "tcp", address)
 		if err != nil {
-			return emailDeliveryFailure("email_smtp_connection_failed", err)
+			return nil, emailDeliveryFailure("email_smtp_connection_failed", err)
 		}
 	}
-	defer conn.Close()
-	_ = conn.SetDeadline(time.Now().Add(15 * time.Second))
+	connected := false
+	defer func() {
+		if !connected {
+			conn.Close()
+		}
+	}()
+	deadline := time.Now().Add(15 * time.Second)
+	if contextDeadline, ok := ctx.Deadline(); ok && contextDeadline.Before(deadline) {
+		deadline = contextDeadline
+	}
+	_ = conn.SetDeadline(deadline)
+	tlsConfig := &tls.Config{ServerName: settings.host, MinVersion: tls.VersionTLS12, RootCAs: settings.rootCAs}
 	if settings.port == "465" {
-		secureConn := tls.Client(conn, &tls.Config{ServerName: settings.host, MinVersion: tls.VersionTLS12})
+		secureConn := tls.Client(conn, tlsConfig)
 		if err = secureConn.HandshakeContext(ctx); err != nil {
-			return emailDeliveryFailure("email_smtp_tls_failed", err)
+			return nil, emailDeliveryFailure("email_smtp_tls_failed", err)
 		}
 		conn = secureConn
 	}
 	client, err := smtp.NewClient(conn, settings.host)
 	if err != nil {
-		return emailDeliveryFailure("email_smtp_connection_failed", err)
+		return nil, emailDeliveryFailure("email_smtp_connection_failed", err)
 	}
-	defer client.Close()
+
 	if settings.port != "465" {
 		ok, _ := client.Extension("STARTTLS")
 		if !ok {
-			return emailDeliveryFailure("email_smtp_tls_failed", errors.New("SMTP server does not support STARTTLS"))
+			return nil, emailDeliveryFailure("email_smtp_tls_failed", errors.New("SMTP server does not support STARTTLS"))
 		}
-		if err = client.StartTLS(&tls.Config{ServerName: settings.host, MinVersion: tls.VersionTLS12}); err != nil {
-			return emailDeliveryFailure("email_smtp_tls_failed", err)
+		if err = client.StartTLS(tlsConfig); err != nil {
+			return nil, emailDeliveryFailure("email_smtp_tls_failed", err)
 		}
 	}
 	if err = client.Auth(smtp.PlainAuth("", settings.user, settings.password, settings.host)); err != nil {
-		return emailDeliveryFailure("email_smtp_auth_failed", err)
+		return nil, emailDeliveryFailure("email_smtp_auth_failed", err)
 	}
+	connected = true
+	return client, nil
+}
+
+func sendSMTPMessageOnce(ctx context.Context, settings emailSMTPSettings, recipient, subject, body string) error {
+	client, err := connectSMTP(ctx, settings)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
 	from, _ := mail.ParseAddress(settings.from)
 	if err = client.Mail(from.Address); err != nil {
 		return emailDeliveryFailure("email_smtp_sender_failed", err)

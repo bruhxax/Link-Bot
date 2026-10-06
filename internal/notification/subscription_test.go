@@ -399,7 +399,7 @@ func TestSubscriptionService_ProcessSubscriptionExpiration_SkipsAutoRenewWhenNot
 }
 
 func TestSubscriptionService_ProcessSubscriptionExpiration_SkipsAutoRenewWhenLastTributeCancelled(t *testing.T) {
-	expireAt := time.Now().Add(24 * time.Hour)
+	expireAt := time.Now().Add(3 * time.Hour)
 	customers := []database.Customer{{ID: 9, ExpireAt: &expireAt}}
 	tributes := []database.Purchase{}
 

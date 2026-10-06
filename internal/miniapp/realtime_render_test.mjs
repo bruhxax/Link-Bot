@@ -87,7 +87,7 @@ test("background updates batch into one render", () => {
 
 test("thinking changes live without remounting messages or the composer", () => {
 	const page = harness({modal:true, thread:true});
-	const indicator = {hidden:true};
+	const indicator = {hidden:true, closest: () => null};
 	const query = page.context.app.querySelector;
 	page.context.app.querySelector = selector => selector === '#support-ai-thinking' ? indicator : query(selector);
 	page.context.state.activeSupportThread = {messages:[{id:1}],ticket:{status:'open'},aiThinking:true};

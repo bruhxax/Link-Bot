@@ -107,7 +107,7 @@ func (h *Handler) handleStartEmailLink(w http.ResponseWriter, r *http.Request, s
 		h.writeError(w, http.StatusConflict, "email_already_linked", "Email is already linked")
 		return
 	}
-	settings, configured := emailSMTPSettingsFromEnv()
+	settings, configured := h.emailSMTPSettings()
 	if !configured {
 		h.writeError(w, http.StatusServiceUnavailable, "email_not_configured", "Email is not configured")
 		return

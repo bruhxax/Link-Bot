@@ -403,6 +403,7 @@ type supportPayload struct {
 }
 
 type supportTicketPayload struct {
+	OperatorName      string `json:"operatorName,omitempty"`
 	ID                int64  `json:"id"`
 	Subject           string `json:"subject"`
 	Preview           string `json:"preview"`
@@ -431,6 +432,10 @@ type supportAttachmentPayload struct {
 }
 
 type supportThreadPayload struct {
+	CanClaim   bool                    `json:"canClaim"`
+	CanRelease bool                    `json:"canRelease"`
+	CanHandoff bool                    `json:"canHandoff"`
+	HandedOff  bool                    `json:"handedOff"`
 	AIThinking bool                    `json:"aiThinking"`
 	Ticket     supportTicketPayload    `json:"ticket"`
 	Messages   []supportMessagePayload `json:"messages"`
@@ -811,6 +816,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/payment-notifications/test", h.withSession(h.handleAdminPaymentNotificationTest))
 	mux.HandleFunc("/api/mini-app/admin/gifts/test", h.withSession(h.handleAdminGiftTest))
 	mux.HandleFunc("/api/mini-app/admin/events/resolve", h.withSession(h.handleAdminEventResolve))
+	mux.HandleFunc("/api/mini-app/admin/smtp/settings", h.withSession(h.handleAdminSMTP))
+	mux.HandleFunc("/api/mini-app/admin/smtp/update", h.withSession(h.handleAdminSMTP))
+	mux.HandleFunc("/api/mini-app/admin/smtp/check", h.withSession(h.handleAdminSMTP))
+	mux.HandleFunc("/api/mini-app/admin/smtp/test", h.withSession(h.handleAdminSMTP))
 	mux.HandleFunc("/api/mini-app/admin/integrations/update", h.withSession(h.handleAdminIntegrationUpdate))
 	mux.HandleFunc("/api/mini-app/admin/ai/settings", h.withSession(h.handleAdminAI))
 	mux.HandleFunc("/api/mini-app/admin/ai/models", h.withSession(h.handleAdminAI))
@@ -861,6 +870,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/support/send", h.withSession(h.handleSupportSend))
 	mux.HandleFunc("/api/mini-app/support/send-media", h.withSession(h.handleSupportMediaUpload, "multipart/form-data"))
 	mux.HandleFunc("/api/mini-app/support/media-link", h.withSession(h.handleSupportMediaLink))
+	mux.HandleFunc("/api/mini-app/support/operator", h.withSession(h.handleSupportOperator))
+	mux.HandleFunc("/api/mini-app/support/handoff", h.withSession(h.handleSupportHandoff))
 	mux.HandleFunc("/api/mini-app/support/close", h.withSession(h.handleSupportClose))
 	mux.HandleFunc("/api/payments/webhook/", h.handlePaymentIntegrationWebhook)
 }
@@ -3012,6 +3023,10 @@ func (h *Handler) handleAdminIntegrationUpdate(w http.ResponseWriter, r *http.Re
 	}
 	if strings.TrimSpace(req.Provider) == integrations.ProviderSupportAI {
 		h.writeError(w, http.StatusBadRequest, "invalid_integration", "Используйте настройки во вкладке ИИ")
+		return
+	}
+	if strings.TrimSpace(req.Provider) == integrations.ProviderSMTP {
+		h.writeError(w, http.StatusBadRequest, "invalid_integration", "Используйте настройки во вкладке Почта / SMTP")
 		return
 	}
 	if !sess.canAdmin(adminIntegrationPermission(req.Provider)) {
@@ -5717,13 +5732,23 @@ func (h *Handler) buildSupportThreadPayload(ctx context.Context, sess *session, 
 	}
 
 	thinking := false
+	canHandoff := false
+	handedOff, err := h.supportRepository.AIHandedOff(ctx, ticket.ID)
+	if err != nil {
+		return nil, err
+	}
 	if !isAdmin && h.integrationSettings != nil {
-		_, enabled := h.integrationSettings.SupportAISettings()
+		fields, enabled := h.integrationSettings.SupportAISettings()
 		if enabled {
+			canHandoff = !handedOff && ticket.Status == database.SupportTicketStatusOpen && supportAIAnswerCount(messages) >= supportAIHandoffAfter(fields)
 			thinking, _ = h.supportRepository.AIThinking(ctx, ticket.ID)
 		}
 	}
 	return &supportThreadPayload{
+		CanClaim:   sess.canAdmin("support.reply") && ticket.Status == database.SupportTicketStatusOpen && ticket.OperatorTelegramID == 0,
+		CanRelease: sess.canAdmin("support.reply") && ticket.Status == database.SupportTicketStatusOpen && ticket.OperatorTelegramID != 0 && (ticket.OperatorTelegramID == sess.User.ID || sess.access().IsOwner),
+		CanHandoff: canHandoff,
+		HandedOff:  handedOff,
 		AIThinking: thinking,
 		Ticket:     h.buildSupportTicketPayload(*ticket, isAdmin, ""),
 		Messages:   buildSupportMessagePayloads(messages),
@@ -5813,6 +5838,7 @@ func (h *Handler) buildSupportTicketPayload(ticket database.SupportTicket, isAdm
 	}
 
 	return supportTicketPayload{
+		OperatorName:      ticket.OperatorName,
 		ID:                ticket.ID,
 		Subject:           strings.TrimSpace(ticket.Subject),
 		Preview:           strings.TrimSpace(ticket.LastMessagePreview),

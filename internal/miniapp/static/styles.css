@@ -11319,7 +11319,7 @@ body.has-open-modal .admin-save-bar {
 .admin-users__search > i { width: 15px; height: 15px; border: 2px solid var(--line); border-top-color: var(--text); border-radius: 50%; opacity: 0; animation: adminUsersSpin .8s linear infinite; }
 .admin-users__search > i.is-visible { opacity: 1; }
 .admin-users__list { overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-.admin-user-row { width: 100%; min-height: 64px; padding: 9px 12px; display: grid; grid-template-columns: 42px minmax(0, 1fr) minmax(72px, auto) 17px; align-items: center; gap: 10px; border: 0; border-radius: 0; color: var(--text); background: transparent; text-align: left; animation: adminUserRowIn 380ms cubic-bezier(.2,.75,.25,1) both; animation-delay: calc(var(--admin-user-index, 0) * 24ms); transition: background-color 220ms ease, transform 220ms ease; }
+.admin-user-row { width: 100%; min-height: 64px; padding: 9px 12px; display: grid; grid-template-columns: 42px minmax(0, 1fr) minmax(72px, auto) 17px; align-items: center; gap: 10px; border: 0; border-radius: 0; color: var(--text); background: transparent; text-align: left; transition: background-color 220ms ease, transform 220ms ease; }
 .admin-user-row + .admin-user-row { border-top: 1px solid var(--line-soft); }
 .admin-user-row:hover { background: var(--control-bg); }
 .admin-user-row:active { transform: translateX(2px); }
@@ -11457,6 +11457,14 @@ body.has-open-modal .admin-save-bar {
 
 @keyframes adminUsersSpin { to { transform: rotate(360deg); } }
 @keyframes adminUserRowIn { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+
+.support-thread__headactions { flex-wrap: wrap; }
+.support-call-human { margin: 4px 14px 8px; min-height: 32px; display: flex; align-items: center; justify-content: center; gap: 7px; color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 9px; font: inherit; font-size: 11px; cursor: pointer; }
+.support-call-human svg { width: 14px; height: 14px; }
+.support-call-human:disabled { opacity: .55; cursor: default; }
+.admin-smtp__server { display: grid; grid-template-columns: minmax(0, 1fr) 86px; gap: 12px; }
+.admin-smtp details { margin-top: 14px; }
+.admin-smtp summary { color: var(--muted); cursor: pointer; font-size: 12px; margin-bottom: 12px; }
 @keyframes adminUserDetailIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes adminUserSkeleton { from { opacity: .42; } to { opacity: .9; } }
 

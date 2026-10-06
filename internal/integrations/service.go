@@ -568,7 +568,7 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 		allowed[field.Key] = field
 		if raw, exists := input.Fields[field.Key]; exists {
 			value := strings.TrimSpace(raw)
-			if field.Secret && value == "" {
+			if field.Secret && value == "" && !(provider == ProviderSMTP && field.Key == "proxyUrl") {
 				continue
 			}
 			rec.Config[field.Key] = value
@@ -581,6 +581,11 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 	}
 	if provider == ProviderP2P {
 		if err := normalizeP2PConfig(rec.Config, input.Enabled); err != nil {
+			return ProviderView{}, err
+		}
+	}
+	if provider == ProviderSMTP {
+		if err := ValidateSMTP(rec.Config, input.Enabled); err != nil {
 			return ProviderView{}, err
 		}
 	}

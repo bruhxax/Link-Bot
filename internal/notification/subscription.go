@@ -163,6 +163,9 @@ func (s *SubscriptionService) ProcessSubscriptionExpiration() error {
 		if _, ok := tributesProcessed[customer.ID]; ok {
 			continue
 		}
+		if !expirationReminderDue(now, customer.ExpireAt) {
+			continue
+		}
 
 		sent, err := s.sendClaimedNotification(ctx, customer, "expiring")
 		if err != nil {
@@ -313,6 +316,12 @@ func (s *SubscriptionService) getDaysUntilExpiration(now time.Time, expireAt tim
 
 	duration := expireDate.Sub(nowDate)
 	return int(duration.Hours() / 24)
+}
+
+// Keep the broader query window for automatic renewal, but remind customers
+// only near the actual expiry, including short trial subscriptions.
+func expirationReminderDue(now time.Time, expireAt *time.Time) bool {
+	return expireAt != nil && expireAt.After(now) && expireAt.Sub(now) <= 4*time.Hour
 }
 
 func (s *SubscriptionService) sendNotification(ctx context.Context, customer database.Customer) error {

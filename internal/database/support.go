@@ -27,6 +27,8 @@ const (
 )
 
 type SupportTicket struct {
+	OperatorTelegramID  int64               `db:"operator_telegram_id"`
+	OperatorName        string              `db:"operator_name"`
 	ID                  int64               `db:"id"`
 	CustomerID          int64               `db:"customer_id"`
 	Status              SupportTicketStatus `db:"status"`
@@ -92,7 +94,7 @@ func (r *SupportRepository) CreateTicket(ctx context.Context, ticket *SupportTic
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $7, $8, 1, 0)
 		RETURNING id, customer_id, status, subject, customer_name, customer_username, subscription_label,
-		          created_at, updated_at, last_message_at, closed_at, last_message_preview, admin_unread_count, customer_unread_count
+		          created_at, updated_at, last_message_at, closed_at, last_message_preview, admin_unread_count, customer_unread_count, operator_telegram_id, operator_name
 	`
 
 	createdTicket := &SupportTicket{}
@@ -122,6 +124,8 @@ func (r *SupportRepository) CreateTicket(ctx context.Context, ticket *SupportTic
 		&createdTicket.LastMessagePreview,
 		&createdTicket.AdminUnreadCount,
 		&createdTicket.CustomerUnreadCount,
+		&createdTicket.OperatorTelegramID,
+		&createdTicket.OperatorName,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert support ticket: %w", err)
@@ -162,7 +166,7 @@ func (r *SupportRepository) CreateTicket(ctx context.Context, ticket *SupportTic
 func (r *SupportRepository) FindTicketByID(ctx context.Context, id int64) (*SupportTicket, error) {
 	query := sq.Select(
 		"id", "customer_id", "status", "subject", "customer_name", "customer_username", "subscription_label",
-		"created_at", "updated_at", "last_message_at", "closed_at", "last_message_preview", "admin_unread_count", "customer_unread_count",
+		"created_at", "updated_at", "last_message_at", "closed_at", "last_message_preview", "admin_unread_count", "customer_unread_count", "operator_telegram_id", "operator_name",
 	).
 		From("support_ticket").
 		Where(sq.Eq{"id": id}).
@@ -189,6 +193,8 @@ func (r *SupportRepository) FindTicketByID(ctx context.Context, id int64) (*Supp
 		&ticket.LastMessagePreview,
 		&ticket.AdminUnreadCount,
 		&ticket.CustomerUnreadCount,
+		&ticket.OperatorTelegramID,
+		&ticket.OperatorName,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -203,7 +209,7 @@ func (r *SupportRepository) FindTicketByID(ctx context.Context, id int64) (*Supp
 func (r *SupportRepository) ListTicketsByCustomer(ctx context.Context, customerID int64, status SupportTicketStatus) ([]SupportTicket, error) {
 	query := sq.Select(
 		"id", "customer_id", "status", "subject", "customer_name", "customer_username", "subscription_label",
-		"created_at", "updated_at", "last_message_at", "closed_at", "last_message_preview", "admin_unread_count", "customer_unread_count",
+		"created_at", "updated_at", "last_message_at", "closed_at", "last_message_preview", "admin_unread_count", "customer_unread_count", "operator_telegram_id", "operator_name",
 	).
 		From("support_ticket").
 		Where(sq.And{sq.Eq{"customer_id": customerID}, sq.Eq{"status": status}}).
@@ -216,7 +222,7 @@ func (r *SupportRepository) ListTicketsByCustomer(ctx context.Context, customerI
 func (r *SupportRepository) ListTicketsForAdmin(ctx context.Context, status SupportTicketStatus) ([]SupportTicket, error) {
 	query := sq.Select(
 		"id", "customer_id", "status", "subject", "customer_name", "customer_username", "subscription_label",
-		"created_at", "updated_at", "last_message_at", "closed_at", "last_message_preview", "admin_unread_count", "customer_unread_count",
+		"created_at", "updated_at", "last_message_at", "closed_at", "last_message_preview", "admin_unread_count", "customer_unread_count", "operator_telegram_id", "operator_name",
 	).
 		From("support_ticket").
 		Where(sq.Eq{"status": status}).
@@ -256,6 +262,8 @@ func (r *SupportRepository) listTickets(ctx context.Context, query sq.SelectBuil
 			&ticket.LastMessagePreview,
 			&ticket.AdminUnreadCount,
 			&ticket.CustomerUnreadCount,
+			&ticket.OperatorTelegramID,
+			&ticket.OperatorName,
 		); err != nil {
 			return nil, fmt.Errorf("scan support ticket: %w", err)
 		}
@@ -494,7 +502,7 @@ func (r *SupportRepository) CloseInactiveAdminRepliedTickets(ctx context.Context
 		ctx,
 		`SELECT st.id, st.customer_id, st.status, st.subject, st.customer_name, st.customer_username,
 		        st.subscription_label, st.created_at, st.updated_at, st.last_message_at, st.closed_at,
-		        st.last_message_preview, st.admin_unread_count, st.customer_unread_count
+		        st.last_message_preview, st.admin_unread_count, st.customer_unread_count, st.operator_telegram_id, st.operator_name
 		 FROM support_ticket st
 		 JOIN LATERAL (
 		     SELECT sm.author_role, sm.created_at
@@ -536,6 +544,8 @@ func (r *SupportRepository) CloseInactiveAdminRepliedTickets(ctx context.Context
 			&ticket.LastMessagePreview,
 			&ticket.AdminUnreadCount,
 			&ticket.CustomerUnreadCount,
+			&ticket.OperatorTelegramID,
+			&ticket.OperatorName,
 		); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("scan inactive support ticket: %w", err)

@@ -23,6 +23,7 @@ func init() {
 			{Key: "apiKey", Label: "API ключ", Required: true, Secret: true},
 			{Key: "model", Label: "Модель"},
 			{Key: "prompt", Label: "Промпт"},
+			{Key: "handoffAfter", Label: "Ответов ИИ до вызова человека"},
 		},
 	})
 }

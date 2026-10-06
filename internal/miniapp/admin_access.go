@@ -28,6 +28,7 @@ var adminPermissions = []adminPermission{
 	{"trial", "Триал", "Система", nil}, {"grace", "Доступ после окончания", "Система", nil},
 	{"subscriptions", "Привязка подписок", "Система", nil}, {"integrations", "Платёжные интеграции", "Система", nil},
 	{"moynalog", "Мой налог", "Система", nil}, {"ai", "ИИ", "Система", nil},
+	{"smtp", "Почта / SMTP", "Система", nil},
 	{"content", "Редактор контента", "Интерфейс", nil}, {"subpage", "Sub page", "Интерфейс", nil},
 	{"appearance", "Оформление", "Интерфейс", nil}, {"layout", "Конструктор UI", "Интерфейс", nil},
 	{"plans", "Тарифы", "Интерфейс", nil},
@@ -197,6 +198,7 @@ func adminRouteAllowed(a adminAccess, path string) bool {
 	}
 	for permission, routes := range map[string][]string{
 		"ai":            {"ai/settings", "ai/models", "ai/update", "ai/toggle"},
+		"smtp":          {"smtp/settings", "smtp/update", "smtp/check", "smtp/test"},
 		"promocodes":    {"promocodes/create", "promocodes/validate", "promocodes/delete"},
 		"subscriptions": {"subscriptions/find", "subscriptions/target", "subscriptions/rebind"},
 		"moynalog":      {"moynalog/state", "moynalog/test", "moynalog/retry"},
@@ -222,6 +224,8 @@ func adminIntegrationPermission(provider string) string {
 		return "moynalog"
 	case integrations.ProviderSupportAI:
 		return "ai"
+	case integrations.ProviderSMTP:
+		return "smtp"
 	default:
 		return "integrations"
 	}

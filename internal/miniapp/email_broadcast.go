@@ -37,7 +37,7 @@ func (h *Handler) handleAdminEmailBroadcastState(w http.ResponseWriter, r *http.
 		h.writeError(w, http.StatusInternalServerError, "email_broadcast_failed", "Не удалось загрузить рассылку")
 		return
 	}
-	_, configured := emailSMTPSettingsFromEnv()
+	_, configured := h.emailSMTPSettings()
 	recipients, err := h.customerRepository.EmailBroadcastRecipients(r.Context())
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "email_broadcast_failed", "Не удалось посчитать адреса")
@@ -86,7 +86,7 @@ func (h *Handler) handleAdminEmailBroadcastPreview(w http.ResponseWriter, r *htt
 		h.writeError(w, http.StatusBadRequest, "invalid_email", "Укажите адрес для предпросмотра")
 		return
 	}
-	settings, configured := emailSMTPSettingsFromEnv()
+	settings, configured := h.emailSMTPSettings()
 	if !configured {
 		h.writeError(w, http.StatusServiceUnavailable, "email_not_configured", "SMTP не настроен")
 		return
@@ -108,7 +108,7 @@ func (h *Handler) handleAdminEmailBroadcastSend(w http.ResponseWriter, r *http.R
 	if !h.requireEmailBroadcastAdmin(w, sess) {
 		return
 	}
-	settings, configured := emailSMTPSettingsFromEnv()
+	settings, configured := h.emailSMTPSettings()
 	if !configured {
 		h.writeError(w, http.StatusServiceUnavailable, "email_not_configured", "SMTP не настроен")
 		return
