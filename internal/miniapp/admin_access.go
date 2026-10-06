@@ -28,13 +28,13 @@ var adminPermissions = []adminPermission{
 	{"trial", "Триал", "Система", nil}, {"grace", "Доступ после окончания", "Система", nil},
 	{"subscriptions", "Привязка подписок", "Система", nil}, {"integrations", "Платёжные интеграции", "Система", nil},
 	{"moynalog", "Мой налог", "Система", nil}, {"ai", "ИИ", "Система", nil},
-	{"smtp", "Почта / SMTP", "Система", nil},
 	{"content", "Редактор контента", "Интерфейс", nil}, {"subpage", "Sub page", "Интерфейс", nil},
 	{"appearance", "Оформление", "Интерфейс", nil}, {"layout", "Конструктор UI", "Интерфейс", nil},
 	{"plans", "Тарифы", "Интерфейс", nil},
 	{"users", "Просмотр пользователей", "Операции", nil}, {"finance", "Финансы", "Операции", nil},
 	{"analytics", "Аналитика", "Операции", nil}, {"referrals", "Рефералы и баланс", "Операции", nil},
 	{"partners", "Партнёры", "Операции", nil}, {"broadcast", "Рассылка", "Операции", nil}, {"promocodes", "Промокоды", "Операции", nil},
+	{"smtp", "Настраивать почту / SMTP", "Другие действия", nil},
 	{"users.balance", "Изменять баланс", "Действия с пользователями", []string{"users"}},
 	{"users.subscription", "Изменять и удалять подписки", "Действия с пользователями", []string{"users"}},
 	{"users.block", "Блокировать пользователей", "Действия с пользователями", []string{"users"}},
@@ -328,7 +328,7 @@ func (h *Handler) handleAdministrators(w http.ResponseWriter, r *http.Request, s
 			h.writeError(w, 500, "list_failed", "Не удалось загрузить администраторов")
 			return
 		}
-		h.writeJSON(w, 200, map[string]any{"ok": true, "data": map[string]any{"items": items, "total": total, "permissions": adminPermissions}})
+		h.writeJSON(w, 200, map[string]any{"ok": true, "data": map[string]any{"items": administratorListItems(items), "total": total, "permissions": adminPermissions}})
 		return
 	default:
 		h.writeError(w, 404, "not_found", "Not found")
@@ -338,6 +338,19 @@ func (h *Handler) handleAdministrators(w http.ResponseWriter, r *http.Request, s
 		h.realtime.publish()
 	}
 	h.writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+type administratorListItem struct {
+	database.Administrator
+	AvatarURL string `json:"avatarUrl,omitempty"`
+}
+
+func administratorListItems(items []database.Administrator) []administratorListItem {
+	result := make([]administratorListItem, 0, len(items))
+	for _, item := range items {
+		result = append(result, administratorListItem{Administrator: item, AvatarURL: adminUserAvatarURL(item.Username)})
+	}
+	return result
 }
 
 // Public runtime settings already contain the appearance/content fields; private

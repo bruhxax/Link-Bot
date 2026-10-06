@@ -11463,6 +11463,13 @@ body.has-open-modal .admin-save-bar {
 .support-call-human svg { width: 14px; height: 14px; }
 .support-call-human:disabled { opacity: .55; cursor: default; }
 .admin-smtp__server { display: grid; grid-template-columns: minmax(0, 1fr) 86px; gap: 12px; }
+.admin-email-settings__toggle { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; text-align: start; cursor: pointer; }
+.admin-email-settings__toggle > svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--icon); }
+.admin-email-settings__toggle[aria-expanded="true"] > svg:last-child { transform: rotate(180deg); }
+.admin-email-settings__copy { display: grid; gap: 5px; flex: 1; min-width: 0; }
+.admin-email-settings__toggle strong { font-size: 13px; }
+.admin-email-settings__toggle small { color: var(--muted); font-size: 11px; }
+.admin-email-settings #admin-smtp-editor { margin-top: 20px; }
 .admin-smtp details { margin-top: 14px; }
 .admin-smtp summary { color: var(--muted); cursor: pointer; font-size: 12px; margin-bottom: 12px; }
 @keyframes adminUserDetailIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }

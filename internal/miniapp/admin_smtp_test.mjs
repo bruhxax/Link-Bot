@@ -23,12 +23,33 @@ test("SMTP fields escape server input and an operation disables duplicate submis
 test("SMTP requests send only fields accepted by the strict server decoder", async () => {
   const source=fs.readFileSync(new URL("./static/app.js",import.meta.url),"utf8");
   let payload;
-  const state={adminSection:"smtp",adminSMTP:{draft:{host:"smtp.example.com",port:587,user:"sender",password:"",from:"sender@example.com",proxyUrl:"",enabled:true,passwordConfigured:true,proxyConfigured:true,source:"admin"},busy:"",testEmail:"test@example.com"}};
-  const context=vm.createContext({state,canAdmin:()=>true,render(){},showToast(){},previewMode:false,post:async(path,body)=>{payload={path,body};return{data:{host:"smtp.example.com",passwordConfigured:true}}}});
+  const state={adminSection:"broadcast",adminBroadcastTab:"email",adminEmailBroadcast:{configured:false},adminSMTP:{draft:{host:"smtp.example.com",port:587,user:"sender",password:"",from:"sender@example.com",proxyUrl:"",enabled:true,passwordConfigured:true,proxyConfigured:true,source:"admin"},busy:"",testEmail:"test@example.com"}};
+  const context=vm.createContext({state,canAdmin:()=>true,render(){},showToast(){},previewMode:false,post:async(path,body)=>{payload={path,body};return{data:{host:"smtp.example.com",enabled:true,passwordConfigured:true}}}});
   vm.runInContext(source.slice(source.indexOf("async function submitAdminSMTP("),source.indexOf("async function checkAdminAI(")),context);
   await context.submitAdminSMTP("save");
   assert.equal(payload.path,"/api/mini-app/admin/smtp/update");
   assert.deepEqual(Object.keys(payload.body).sort(),["clearProxy","email","enabled","from","host","password","port","proxyUrl","user"]);
   assert.equal(payload.body.port,"587");
   assert.equal(state.adminSMTP.draft.password,"");
+  assert.equal(state.adminEmailBroadcast.configured,true);
+});
+
+test("SMTP settings are inside email broadcast and remain independently restricted", async () => {
+  const source=fs.readFileSync(new URL("./static/app.js",import.meta.url),"utf8");
+  const state={locale:"ru",adminSMTP:{expanded:true,draft:{host:"smtp.example.com"}},adminEmailBroadcast:{},adminBroadcastTab:"email"};
+  let permissions=new Set(["smtp"]);
+  const context=vm.createContext({state,canAdmin:p=>permissions.has(p),emailAuthText:s=>s,...helpers,pageClass:()=>"",renderSMTPSettings, broadcastStatusLabel:()=>"Пусто"});
+  vm.runInContext(source.slice(source.indexOf("function canAdminSection("),source.indexOf("function getBottomNavPages(")),context);
+  vm.runInContext(source.slice(source.indexOf("function renderAdminBroadcastTabs("),source.indexOf("function renderAdminBroadcastButton(")),context);
+  assert.equal(context.canAdminSection("broadcast"),true);
+  const smtpOnly=context.renderAdminEmailBroadcastPage();
+  assert.match(smtpOnly,/data-input="admin-smtp-host"/);
+  assert.doesNotMatch(smtpOnly,/admin-email-send|admin-email-save|data-value="telegram"/);
+  permissions=new Set(["broadcast"]);
+  const broadcastOnly=context.renderAdminEmailBroadcastPage();
+  assert.match(broadcastOnly,/data-admin-email-subject/);
+  assert.doesNotMatch(broadcastOnly,/admin-smtp-host|admin-smtp-toggle/);
+  permissions=new Set(["broadcast","smtp"]);
+  assert.match(context.renderAdminEmailBroadcastPage(),/admin-smtp-host/);
+  assert.doesNotMatch(source,/\[localizedText\("Почта \/ SMTP"/);
 });

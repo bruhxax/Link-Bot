@@ -2752,7 +2752,7 @@ const state = {
 	adminFinancePeriodMenuOpen: false,
 	adminFinanceAnimate: false,
 	adminAnalytics: null,
-	adminSMTP: { draft: null, busy: "", error: "", checked: false, testEmail: "" },
+	adminSMTP: { expanded: null, draft: null, busy: "", error: "", checked: false, testEmail: "" },
 	adminAI: { draft: null, models: [], verified: false, busy: "", error: "" },
 	adminAnalyticsBusy: false,
 	adminAnalyticsPeriod: "7d",
@@ -3341,7 +3341,6 @@ async function boot() {
 }
 
 function refreshRestoredAdminSection() {
-	if (state.adminSection === "smtp") void loadAdminSMTP();
 	if (state.adminSection === "ai") void loadAdminAI();
 	if (state.adminSection === "administrators") void refreshAdministrators();
 	if (state.adminSection === "finance") void refreshAdminFinance().catch((error) => showToast(error?.message || "Не удалось загрузить финансы", "danger"));
@@ -3817,11 +3816,10 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
 		state.adminUserPreviewDetail = deepClone(state.adminUserDetail);
 		if (urlParams.get("detail") !== "1") state.adminUserDetail = null;
 		const previewSection = String(urlParams.get("section") || "");
-		if (["home", "integrations", "referrals", "partners", "moynalog", "finance", "analytics", "ai", "smtp", "users", "appearance", "administrators", "status"].includes(previewSection)) {
+		if (["home", "integrations", "referrals", "partners", "moynalog", "finance", "analytics", "ai", "broadcast", "users", "appearance", "administrators", "status"].includes(previewSection)) {
 			state.currentPage = "admin";
 			state.adminSection = previewSection;
 			state.adminLayoutEditing = false;
-			if (previewSection === "smtp") void loadAdminSMTP();
 			if (previewSection === "ai") void loadAdminAI();
 		} else {
 			state.currentPage = "dashboard";
@@ -4219,7 +4217,7 @@ function ensureSelections() {
     writeSetting(STORAGE_KEYS.payMethod, state.paymentMethod);
   }
 
-  if (state.currentPage === "admin" && isAdminUser() && state.adminSection !== "home" && !canAdmin(state.adminSection)) {
+  if (state.currentPage === "admin" && isAdminUser() && state.adminSection !== "home" && !canAdminSection(state.adminSection)) {
         state.adminSection = "home";
         state.adminLayoutEditing = false;
         state.adminPlanEditing = false;
@@ -4252,6 +4250,11 @@ function isAdminUser() {
 function canAdmin(permission) {
     const access = state.data?.admin?.access;
     return access ? accessAllows(access, permission) : Boolean(state.data?.support?.isAdmin);
+}
+
+// SMTP remains a separate action permission inside the broadcast section.
+function canAdminSection(section) {
+    return canAdmin(section) || (section === "broadcast" && canAdmin("smtp"));
 }
 
 function getBottomNavPages() {
@@ -5054,7 +5057,6 @@ function renderAdminPage() {
 	if (state.adminSection === "moynalog") return renderAdminMoyNalogPage();
 	if (state.adminSection === "finance") return renderAdminFinancePage();
 	if (state.adminSection === "analytics") return renderAdminAnalyticsPage();
-	if (state.adminSection === "smtp") return `<section class="page admin-page ${pageClass("admin")}" id="page-admin">${renderSMTPSettings(state.adminSMTP, { escapeHtml, escapeAttribute, icon })}</section>`;
 	if (state.adminSection === "ai") return `<section class="page admin-page ${pageClass("admin")}" id="page-admin">${renderAISettings(state.adminAI, { escapeHtml, escapeAttribute, icon })}</section>`;
 	if (state.adminSection === "status") return renderAdminStatusPage();
 	if (state.adminSection === "partners") return renderAdminPartnersPage();
@@ -5075,7 +5077,6 @@ function renderAdminPage() {
 				[localizedText("Привязка подписок", "Subscription binding", "اتصال اشتراک‌ها"), "", "subscriptions", "adminSubscriptions"],
 				[localizedText("Интеграции", "Integrations", "یکپارچه‌سازی‌ها"), "", "integrations", "adminIntegrations"],
 				[localizedText("Мой налог", "My Tax", "مالیات من"), "", "moynalog", "adminIntegrations"],
-				[localizedText("Почта / SMTP", "Mail / SMTP", "ایمیل / SMTP"), "", "smtp", "mail"],
 				[localizedText("ИИ", "AI", "هوش مصنوعی"), "", "ai", "sparkles"],
 			])}
 			${renderAdminMenuGroup(localizedText("Интерфейс", "Interface", "رابط کاربری"), [
@@ -5114,7 +5115,6 @@ const ADMIN_SEARCH_SECTIONS = [
 	["subscriptions", "Привязка подписок", "привязать подписку"],
 	["integrations", "Интеграции", "оплата платежи"],
 	["moynalog", "Мой налог", "чеки"],
-	["smtp", "Почта / SMTP", "почта email письма сервер пароль тест"],
 	["ai", "ИИ", "нейросеть AI модели API ключ промпт поддержка оператор"],
 	["content", "Редактор контента", "тексты кнопки сообщения"],
 	["subpage", "Sub page", "клиенты подключения"],
@@ -5127,7 +5127,7 @@ const ADMIN_SEARCH_SECTIONS = [
 	["analytics", "Аналитика", "Google Analytics GA4 посещения пользователи сеансы просмотры"],
 	["referrals", "Рефералы и баланс", "бонусы приглашения"],
 	["partners", "Партнёры", "заявки"],
-	["broadcast", "Рассылка", "отправить сообщение"],
+	["broadcast", "Рассылка", "отправить сообщение почта email письма SMTP сервер пароль тест"],
 	["promocodes", "Промокоды", "скидки купоны"],
 ];
 
@@ -5177,14 +5177,14 @@ function buildAdminSettingsSearchCatalog() {
 			["subpage", "Sub page", renderAdminSubPagePage],
 		]) if (canAdmin(section)) collect(renderer(), section, title);
 	}
-	return catalog.filter((item) => canAdmin(item.section));
+	return catalog.filter((item) => canAdminSection(item.section));
 }
 
 function findAdminSettings(query) {
 	const words = String(query || "").toLocaleLowerCase("ru-RU").trim().split(/\s+/).filter(Boolean);
 	if (!words.length) return [];
 	adminSettingsSearchCatalog ||= buildAdminSettingsSearchCatalog();
-	return adminSettingsSearchCatalog.filter((item) => canAdmin(item.section)).map((item) => {
+	return adminSettingsSearchCatalog.filter((item) => canAdminSection(item.section)).map((item) => {
 		const title = item.title.toLocaleLowerCase("ru-RU");
 		const haystack = `${title} ${item.context} ${item.aliases || ""} ${item.path || ""}`.toLocaleLowerCase("ru-RU");
 		if (!words.every((word) => haystack.includes(word))) return null;
@@ -5207,7 +5207,7 @@ function renderAdminSettingsSearch() {
 
 function openAdminSettingsSearchResult(index) {
 	const item = adminSettingsSearchResults[index];
-	if (!item || !canAdmin(item.section)) return;
+	if (!item || !canAdminSection(item.section)) return;
 	state.adminSettingsSearchQuery = "";
 	if (item.section === "layout") return enterAdminLayoutEditor();
 	if (item.section === "plans") return enterAdminPlanEditor();
@@ -5223,7 +5223,6 @@ function openAdminSettingsSearchResult(index) {
 	if (item.section === "partners") void refreshAdminPartners();
 	if (item.section === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 	if (item.section === "moynalog") void refreshAdminMoyNalog();
-	if (item.section === "smtp") void loadAdminSMTP();
 	if (item.section === "ai") void loadAdminAI();
 	if (!item.path) return;
 	window.setTimeout(() => {
@@ -6439,7 +6438,7 @@ async function loadAdminSMTP() {
 		const response = previewMode ? { data: { host: "", port: "587", user: "", from: "", enabled: false } } : await post("/api/mini-app/admin/smtp/settings", {});
 		smtp.draft = { ...response.data, password: "", proxyUrl: "", clearProxy: false };
 	} catch (error) { smtp.error = error?.message || "Не удалось загрузить почту"; }
-	finally { smtp.busy = ""; if (state.adminSection === "smtp") render({ preserveScroll: true }); }
+	finally { smtp.busy = ""; if (state.adminSection === "broadcast" && state.adminBroadcastTab === "email") render({ preserveScroll: true }); }
 }
 
 async function submitAdminSMTP(action) {
@@ -6451,11 +6450,14 @@ async function submitAdminSMTP(action) {
 	try {
 		const { host, port, user, password, from, proxyUrl, enabled, clearProxy } = smtp.draft;
 		const response = previewMode ? { data: { ...smtp.draft } } : await post(`/api/mini-app/admin/smtp/${action === "save" ? "update" : action}`, { host, port: String(port || "587"), user, password, from, proxyUrl, enabled: Boolean(enabled), clearProxy: Boolean(clearProxy), email: smtp.testEmail });
-		if (action === "save") smtp.draft = { ...response.data, password: "", proxyUrl: "", clearProxy: false };
+		if (action === "save") {
+            smtp.draft = { ...response.data, password: "", proxyUrl: "", clearProxy: false };
+            if (state.adminEmailBroadcast) state.adminEmailBroadcast.configured = Boolean(smtp.draft.enabled && smtp.draft.host);
+        }
 		if (action === "check") smtp.checked = true;
 		showToast(action === "save" ? "Настройки почты сохранены" : action === "test" ? "Тестовое письмо отправлено" : "SMTP работает", "success");
 	} catch (error) { smtp.error = error?.message || "Не удалось выполнить проверку"; }
-	finally { smtp.busy = ""; if (state.adminSection === "smtp") render({ preserveScroll: true }); }
+	finally { smtp.busy = ""; if (state.adminSection === "broadcast" && state.adminBroadcastTab === "email") render({ preserveScroll: true }); }
 }
 
 async function checkAdminAI() {
@@ -6517,7 +6519,7 @@ function renderAdminLocalizationPage() {
 }
 
 function renderAdminMenuGroup(label, items) {
-    items = items.filter((item) => canAdmin(item[2] === "push-toggle" ? "push" : item[2]));
+    items = items.filter((item) => canAdminSection(item[2] === "push-toggle" ? "push" : item[2]));
     if (!items.length) return "";
 	return `<section class="admin-menu-group"><h2 class="admin-menu-group__title"><span></span>${escapeHtml(label)}</h2><div class="admin-menu-group__rows">${items.map(([title, , value, iconName]) => value === "push-toggle" ? renderAdminPushToggle(title) : renderMenuRow(title, "", "open-admin-section", value, iconName, { showTail: true, compact: true })).join("")}</div></section>`;
 }
@@ -6671,6 +6673,7 @@ function renderAdminIntegrationRow(item) {
 }
 
 function renderAdminBroadcastPage() {
+    if (!canAdmin("broadcast")) state.adminBroadcastTab = "email";
 	if (state.adminBroadcastTab === "email") return renderAdminEmailBroadcastPage();
 	const english = state.locale === "en";
 	const draft = state.adminBroadcast || { status: "idle", buttons: [], recipientCount: 0, sentCount: 0, failedCount: 0 };
@@ -6724,6 +6727,7 @@ function renderAdminBroadcastPage() {
 }
 
 function renderAdminBroadcastTabs() {
+  if (!canAdmin("broadcast")) return "";
   const email = state.adminBroadcastTab === "email";
   return `<div class="admin-broadcast__tabs" role="tablist" aria-label="${escapeAttribute(emailAuthText("Тип рассылки", "Broadcast type"))}">
     <button type="button" role="tab" aria-selected="${!email}" class="${!email ? "is-active" : ""}" data-action="admin-broadcast-tab" data-value="telegram">${icon("telegram")}<span>Telegram</span></button>
@@ -6731,7 +6735,19 @@ function renderAdminBroadcastTabs() {
   </div>`;
 }
 
+function renderAdminMailSettings() {
+  if (!canAdmin("smtp")) return "";
+  const expanded = state.adminSMTP.expanded ?? !canAdmin("broadcast");
+  return `<section class="admin-broadcast__section admin-email-settings">
+    <button class="admin-email-settings__toggle" type="button" data-action="admin-smtp-toggle" aria-expanded="${expanded}" aria-controls="admin-smtp-editor">
+      ${icon("profileLetter")}<span class="admin-email-settings__copy"><strong>${emailAuthText("Настройки почты", "Mail settings")}</strong><small>SMTP · ${emailAuthText("Подключение и тестовое письмо", "Connection and test email")}</small></span>${icon("chevron")}
+    </button>
+    ${expanded ? `<div id="admin-smtp-editor">${renderSMTPSettings(state.adminSMTP, { escapeHtml, escapeAttribute, icon })}</div>` : ""}
+  </section>`;
+}
+
 function renderAdminEmailBroadcastPage() {
+  if (!canAdmin("broadcast")) return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-broadcast">${renderAdminMailSettings()}</div></section>`;
   const english = state.locale === "en";
   const draft = state.adminEmailBroadcast?.draft || { status: "idle", recipientCount: 0, sentCount: 0, failedCount: 0 };
   const configured = state.adminEmailBroadcast?.configured !== false;
@@ -6743,6 +6759,7 @@ function renderAdminEmailBroadcastPage() {
   return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-broadcast">
     ${renderAdminBroadcastTabs()}
     <header class="admin-broadcast__header"><div><span>${english ? "Delivery" : "Рассылка"}</span><h2>${english ? "Email to users" : "Письмо пользователям"}</h2></div><span class="admin-broadcast__status admin-broadcast__status--${escapeAttribute(draft.status)}">${escapeHtml(broadcastStatusLabel(draft.status, english))}</span></header>
+    ${renderAdminMailSettings()}
     <section class="admin-broadcast__section admin-email-broadcast__compose">
       <div class="admin-broadcast__section-head"><div><span>1</span><div><strong>${english ? "Compose email" : "Написать письмо"}</strong><small>${english ? "All users with verified email" : "Всем пользователям с подтверждённой почтой"}</small></div></div></div>
       <label class="admin-email-broadcast__field"><span>${english ? "Subject" : "Тема"}</span><input data-admin-email-subject maxlength="160" placeholder="${english ? "Email subject" : "Тема письма"}" value="${escapeAttribute(state.adminEmailDraftSubject)}" ${running ? "disabled" : ""}></label>
@@ -11015,7 +11032,7 @@ function bindRootActions() {
 		if (action === "close-subscription-delete") return closeSubscriptionDelete();
 		if (action === "confirm-subscription-delete") return await deleteActiveSubscription();
 		if (action === "open-admin-section") {
-		if (!canAdmin(value === "push" ? "push" : value)) return;
+		if (!canAdminSection(value === "push" ? "push" : value)) return;
 		if (value === "layout") return enterAdminLayoutEditor();
 		if (value === "plans") return enterAdminPlanEditor();
 		state.adminSection = value === "push" ? "home" : value || "home";
@@ -11023,7 +11040,6 @@ function bindRootActions() {
 		renderAdminTransition();
 		if (value === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 		if (value === "moynalog") void refreshAdminMoyNalog();
-		if (value === "smtp") void loadAdminSMTP();
 		if (value === "ai") void loadAdminAI();
 		if (value === "finance") void refreshAdminFinance();
 		if (value === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
@@ -11046,6 +11062,13 @@ function bindRootActions() {
 	  }
 	  if (action.startsWith("administrators-")) return await handleAdministratorsAction(action, value);
 	  if (action === "close-admin-section") return closeAdminSection();
+      if (action === "admin-smtp-toggle") {
+        if (!canAdmin("smtp")) return;
+        state.adminSMTP.expanded = !(state.adminSMTP.expanded ?? !canAdmin("broadcast"));
+        render({ preserveScroll: true });
+        if (state.adminSMTP.expanded) await loadAdminSMTP();
+        return;
+      }
 		if (action === "admin-smtp-load") return await loadAdminSMTP();
 		if (["admin-smtp-save", "admin-smtp-check", "admin-smtp-test"].includes(action)) return await submitAdminSMTP(action.slice("admin-smtp-".length));
 		if (action === "admin-ai-check") return await checkAdminAI();
@@ -12476,6 +12499,7 @@ function setAdminBroadcastDraft(draft, { forceButtons = false } = {}) {
 }
 
 async function refreshAdminBroadcast({ silent = false, forceButtons = false } = {}) {
+    if (!canAdmin("broadcast")) state.adminBroadcastTab = "email";
 	if (state.adminBroadcastTab === "email") return refreshAdminEmailBroadcast({ silent });
 	if (state.adminSection !== "broadcast" || state.adminBroadcastBusy === "state") return;
 	const previous = silent ? JSON.stringify(state.adminBroadcast || {}) : "";
@@ -12496,6 +12520,8 @@ async function refreshAdminBroadcast({ silent = false, forceButtons = false } = 
 }
 
 async function refreshAdminEmailBroadcast({ silent = false } = {}) {
+  if (state.adminSMTP.expanded || !canAdmin("broadcast")) void loadAdminSMTP();
+  if (!canAdmin("broadcast")) return;
   if (state.adminSection !== "broadcast" || state.adminEmailBusy === "state") return;
   const previous = JSON.stringify(state.adminEmailBroadcast || {});
   if (!silent) { state.adminEmailBusy = "state"; render({ preserveScroll: true }); }
@@ -17187,13 +17213,13 @@ function getPageTitle(page, short = false) {
 	if (page === "admin" && !short && state.adminSection !== "home") {
 		if (state.adminSection === "partners") return localizedText("Партнёры", "Partners", "همکاران");
 		const labels = state.locale === "fa" ? {
-			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", analytics: "تحلیل", smtp: "ایمیل / SMTP", ai: "هوش مصنوعی", users: "کاربران",
+			localization: "زبان و فونت", maintenance: "حالت تعمیر", diagnostics: "عیب‌یابی", features: "امکانات", subpage: "Sub page", content: "محتوا", appearance: "ظاهر", layout: "سازنده رابط", plans: "تعرفه‌ها", trial: "آزمایشی", referrals: "دعوت و موجودی", grace: "دسترسی پس از انقضا", broadcast: "ارسال همگانی", subscriptions: "اتصال اشتراک‌ها", promocodes: "کدهای تخفیف", integrations: "یکپارچه‌سازی‌ها", moynalog: "مالیات من", finance: "امور مالی", analytics: "تحلیل", ai: "هوش مصنوعی", users: "کاربران",
 		} : state.locale === "en" ? {
 			localization: "Language and font",
-			maintenance: "Maintenance", diagnostics: "Diagnostics", features: "Functions", subpage: "Sub page", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", analytics: "Analytics", smtp: "Mail / SMTP", ai: "AI", users: "Users",
+			maintenance: "Maintenance", diagnostics: "Diagnostics", features: "Functions", subpage: "Sub page", content: "Content", appearance: "Appearance", layout: "UI builder", plans: "Plans", trial: "Trial", referrals: "Referrals and balance", grace: "Access after expiry", broadcast: "Broadcast", subscriptions: "Subscription binding", promocodes: "Promo codes", integrations: "Integrations", moynalog: "My Tax", finance: "Finance", analytics: "Analytics", ai: "AI", users: "Users",
 		} : {
 			localization: "Язык и шрифт",
-			maintenance: "Режим аварии", diagnostics: "Диагностика", features: "Функции", subpage: "Sub page", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", analytics: "Аналитика", smtp: "Почта / SMTP", ai: "ИИ", users: "Пользователи",
+			maintenance: "Режим аварии", diagnostics: "Диагностика", features: "Функции", subpage: "Sub page", content: "Контент", appearance: "Оформление", layout: "Конструктор UI", plans: "Тарифы", trial: "Триал", referrals: "Рефералы и баланс", grace: "Доступ после окончания", broadcast: "Рассылка", subscriptions: "Привязка подписок", promocodes: "Промокоды", integrations: "Интеграции", moynalog: "Мой налог", finance: "Финансы", analytics: "Аналитика", ai: "ИИ", users: "Пользователи",
 		};
 		return labels[state.adminSection] || copy.pageAdmin || "Admin panel";
 	}
@@ -18093,6 +18119,11 @@ function getEntryAdminSection() {
 	if (!isPageReload() && ["finance", "analytics", "diagnostics"].includes(requested)) return requested;
 	if (!isPageReload()) return "home";
 	const saved = readSetting(STORAGE_KEYS.adminSection, "home");
+    if (saved === "smtp") {
+        state.adminBroadcastTab = "email";
+        state.adminSMTP.expanded = true;
+        return "broadcast";
+    }
 	return saved === "home" || ADMIN_SEARCH_SECTIONS.some(([section]) => section === saved) ? saved : "home";
 }
 

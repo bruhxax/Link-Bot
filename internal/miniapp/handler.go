@@ -3026,7 +3026,7 @@ func (h *Handler) handleAdminIntegrationUpdate(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if strings.TrimSpace(req.Provider) == integrations.ProviderSMTP {
-		h.writeError(w, http.StatusBadRequest, "invalid_integration", "Используйте настройки во вкладке Почта / SMTP")
+		h.writeError(w, http.StatusBadRequest, "invalid_integration", "Используйте настройки почты в разделе Рассылка → Рассылка по почте")
 		return
 	}
 	if !sess.canAdmin(adminIntegrationPermission(req.Provider)) {
