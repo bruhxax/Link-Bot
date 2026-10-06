@@ -37,6 +37,7 @@ const (
 	InvoiceTypeCloudPayments InvoiceType = "cloudpayments"
 	InvoiceTypeDatagio       InvoiceType = "datagio"
 	InvoiceTypeKassaAI       InvoiceType = "kassaai"
+	InvoiceTypePayHot        InvoiceType = "payhot"
 	InvoiceTypeP2P           InvoiceType = "p2p"
 	InvoiceTypeFree          InvoiceType = "free"
 	InvoiceTypeBalance       InvoiceType = "balance"

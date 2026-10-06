@@ -135,6 +135,7 @@ func adminFinanceProvider(item database.AdminFinancePayment) string {
 		database.InvoiceTypeTributeShop:   "Tribute",
 		database.InvoiceTypeMulenPay:      "MulenPay",
 		database.InvoiceTypeCloudPayments: "CloudPayments",
+		database.InvoiceTypePayHot:        "PayHot",
 		database.InvoiceTypeDatagio:       "Datagio",
 		database.InvoiceTypeKassaAI:       "Kassa AI",
 		database.InvoiceTypeP2P:           "P2P",

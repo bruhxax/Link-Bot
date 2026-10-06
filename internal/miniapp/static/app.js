@@ -1194,6 +1194,7 @@ const PAYMENT_LOGO_URLS = Object.freeze({
 	cloudpayments: "/mini-app/assets/payment-cloudpayments.png",
 	datagio: "/mini-app/assets/payment-datagio.png",
 	kassaai: "/mini-app/assets/payment-kassaai.png",
+	payhot: "/mini-app/assets/payment-payhot.png",
 	p2p: "/mini-app/assets/payment-p2p.png",
 });
 
@@ -5549,7 +5550,7 @@ const ADMIN_FINANCE_PROVIDERS = [
 	["platega", "Platega", "platega"], ["freekassa", "FreeKassa", "freekassa"],
 	["heleket", "Heleket", "heleket"], ["pally", "Pally", "pally"],
 	["rollypay", "RollyPay", "rollypay"], ["cispay", "cisPay", "cispay"],
-	["anore", "anore.cc", "anore"], ["mulenpay", "MulenPay", "mulenpay"], ["aurapay", "AuraPay", "aurapay"], ["antilopay", "AntiloPay", "antilopay"], ["paritypay", "ParityPay", "paritypay"], ["cloudpayments", "CloudPayments", "cloudpayments"], ["datagio", "Datagio", "datagio"], ["kassaai", "Kassa AI", "kassaai"],
+	["anore", "anore.cc", "anore"], ["mulenpay", "MulenPay", "mulenpay"], ["aurapay", "AuraPay", "aurapay"], ["antilopay", "AntiloPay", "antilopay"], ["paritypay", "ParityPay", "paritypay"], ["cloudpayments", "CloudPayments", "cloudpayments"], ["datagio", "Datagio", "datagio"], ["kassaai", "Kassa AI", "kassaai"], ["payhot", "PayHot", "payhot"],
 	["p2p", "P2P", "p2p"],
 ];
 
@@ -6697,7 +6698,7 @@ const MOYNALOG_PAYMENT_METHODS = [
 	["yookassa", "YooKassa"], ["lava", "LAVA"], ["wata", "WATA"],
 	["platega", "Platega"], ["freekassa", "FreeKassa"], ["cryptopay", "Crypto Pay"],
   ["heleket", "Heleket"], ["pally", "Pally"], ["rollypay", "RollyPay"], ["cispay", "cisPay"],
-  ["anore", "anore.cc"], ["mulenpay", "MulenPay"], ["aurapay", "AuraPay"], ["antilopay", "AntiloPay"], ["paritypay", "ParityPay"], ["cloudpayments", "CloudPayments"], ["datagio", "Datagio"], ["kassaai", "Kassa AI"], ["p2p", "P2P"],
+  ["anore", "anore.cc"], ["mulenpay", "MulenPay"], ["aurapay", "AuraPay"], ["antilopay", "AntiloPay"], ["paritypay", "ParityPay"], ["cloudpayments", "CloudPayments"], ["datagio", "Datagio"], ["kassaai", "Kassa AI"], ["payhot", "PayHot"], ["p2p", "P2P"],
 	["telegram", "Telegram Stars"], ["tribute", "Tribute"],
 ];
 
@@ -6749,6 +6750,15 @@ function renderAdminMoyNalogReceipt(receipt) {
 	return `<article class="admin-moynalog-receipt admin-moynalog-receipt--${escapeAttribute(receipt.status || "processing")}"><div class="admin-moynalog-receipt__main"><span><strong>${escapeHtml(receipt.itemName || "Чек")}</strong><small>#${Number(receipt.purchaseId || 0)} · ${escapeHtml(formatPaymentDate(receipt.updatedAt || receipt.createdAt))}</small></span><b>${Number(receipt.amount || 0).toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽</b></div><div class="admin-moynalog-receipt__state"><i>${escapeHtml(labels[receipt.status] || receipt.status || "—")}</i><span>${receipt.receiptUuid ? `UUID: ${escapeHtml(receipt.receiptUuid)}` : escapeHtml(receipt.error || "Ожидаем ответ ФНС")}</span>${canRetry ? `<button type="button" data-action="admin-moynalog-retry" data-value="${Number(receipt.purchaseId || 0)}" ${state.adminMoyNalogBusy ? "disabled" : ""}>Повторить</button>` : ""}</div></article>`;
 }
 
+function renderAdminIntegrationField(item, field, draft) {
+	if (item.id === "payhot" && field.key === "paymentMethod") {
+		const methods = [["sbp", "СБП"], ["card", "Банковская карта"], ["sberpay", "SberPay"], ["crypto", "Криптовалюта"], ["applepay", "Apple Pay"], ["googlepay", "Google Pay"]];
+		const selected = draft.fields.paymentMethod || "sbp";
+		return `<label class="admin-field"><span>${escapeHtml(field.label)} *</span><select class="admin-field__control" data-integration-provider="payhot" data-integration-field="paymentMethod">${methods.map(([value, label]) => `<option value="${value}" ${selected === value ? "selected" : ""}>${label}</option>`).join("")}</select><small>${escapeHtml(field.help || "")}</small></label>`;
+	}
+	return `<label class="admin-field"><span>${escapeHtml(field.label)}${field.required ? " *" : ""}</span><input class="admin-field__control" type="${field.secret ? "password" : "text"}" autocomplete="off" spellcheck="false" data-integration-provider="${escapeAttribute(item.id)}" data-integration-field="${escapeAttribute(field.key)}" value="${escapeAttribute(draft.fields[field.key] || "")}" placeholder="${escapeAttribute(field.secret && field.configured ? "Ключ сохранён — оставьте пустым" : (field.placeholder || ""))}">${field.help ? `<small>${escapeHtml(field.help)}</small>` : ""}</label>`;
+}
+
 function renderAdminIntegrationRow(item) {
 	const draft = integrationDraft(item);
 	const open = state.adminIntegrationOpen === item.id;
@@ -6760,7 +6770,7 @@ function renderAdminIntegrationRow(item) {
 		</button>
 		${open && item.unavailableReason ? `<div class="admin-integration__body"><p class="note">${escapeHtml(item.unavailableReason)}</p><a class="admin-integration__save" href="${escapeAttribute(item.websiteUrl)}" target="_blank" rel="noopener noreferrer">Сайт сервиса ${icon("external")}</a></div>` : open ? `<div class="admin-integration__body">
 			<label class="admin-integration__toggle"><span><strong>Включить интеграцию</strong><small>${item.kind === "payment" ? "Показывать этот способ оплаты" : "Отправлять уведомления об оплатах"}</small></span><input type="checkbox" data-integration-provider="${escapeAttribute(item.id)}" data-integration-enabled ${draft.enabled ? "checked" : ""}></label>
-			${item.id === "p2p" ? renderAdminP2PIntegrationFields(draft) : `<div class="admin-integration__fields">${(item.fields || []).map((field) => `<label class="admin-field"><span>${escapeHtml(field.label)}${field.required ? " *" : ""}</span><input class="admin-field__control" type="${field.secret ? "password" : "text"}" autocomplete="off" spellcheck="false" data-integration-provider="${escapeAttribute(item.id)}" data-integration-field="${escapeAttribute(field.key)}" value="${escapeAttribute(draft.fields[field.key] || "")}" placeholder="${escapeAttribute(field.secret && field.configured ? "Ключ сохранён — оставьте пустым" : (field.placeholder || ""))}">${field.help ? `<small>${escapeHtml(field.help)}</small>` : ""}</label>`).join("")}</div>`}
+			${item.id === "p2p" ? renderAdminP2PIntegrationFields(draft) : `<div class="admin-integration__fields">${(item.fields || []).map((field) => renderAdminIntegrationField(item, field, draft)).join("")}</div>`}
 			${item.webhookUrl ? `<div class="admin-integration__webhook"><span>Webhook URL</span><code>${escapeHtml(item.webhookUrl)}</code><button type="button" data-action="admin-integration-copy-webhook" data-value="${escapeAttribute(item.webhookUrl)}" aria-label="Скопировать webhook">${icon("copy")}</button></div>` : ""}
 			<button class="admin-integration__save" type="button" data-action="admin-integration-save" data-value="${escapeAttribute(item.id)}" ${busy ? "disabled" : ""}><span>${busy ? "Сохраняем" : "Сохранить"}</span></button>
 		</div>` : ""}
@@ -10360,7 +10370,7 @@ function paymentHistoryMethodMeta(item, copy) {
   const normalized = `${invoiceType} ${title}`.toLowerCase();
 	if (invoiceType === "free") return { id: "free", label: title || localizedText("Бесплатная активация", "Free activation", "فعال‌سازی رایگان"), logo: "" };
 	if (invoiceType === "balance") return { id: "balance", label: title || localizedText("Баланс", "Balance", "موجودی"), logo: PAYMENT_LOGO_URLS.balance };
-  const providers = ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai"];
+  const providers = ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai", "payhot"];
   const provider = providers.find((name) => normalized.includes(name));
   if (provider) {
     const meta = paymentMethodMeta(provider);
@@ -17560,7 +17570,7 @@ function getAdminPaymentMethods() {
 	if (enabled.has("p2p") && enabled.has("notification_bot")) methods.push("p2p");
 	if (getRuntimeSettings()?.features?.stars !== false) methods.push("stars");
 	if (enabled.has("cryptopay")) methods.push("crypto");
-	for (const id of ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai"]) {
+	for (const id of ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai", "payhot"]) {
 		if (enabled.has(id)) methods.push(id);
 	}
 	return sortConfiguredPaymentMethods(methods.map((id) => ({ id })));
@@ -17629,6 +17639,7 @@ function paymentMethodMeta(id) {
 		paritypay: { id: "paritypay", label: "ParityPay", hint: localizedText("Карты и СБП", "Cards and SBP", "کارت و SBP"), logo: PAYMENT_LOGO_URLS.paritypay },
 		tribute: { id: "tribute", label: "Tribute", hint: localizedText("Оплата через Tribute", "Pay with Tribute", "پرداخت با Tribute"), logo: PAYMENT_LOGO_URLS.tribute },
 		datagio: { id: "datagio", label: "Datagio", hint: localizedText("СБП и криптовалюта", "SBP and cryptocurrency", "SBP و رمزارز"), logo: PAYMENT_LOGO_URLS.datagio },
+		payhot: { id: "payhot", label: "PayHot", hint: localizedText("Оплата через PayHot", "Pay with PayHot", "پرداخت با PayHot"), logo: PAYMENT_LOGO_URLS.payhot },
 		kassaai: { id: "kassaai", label: "Kassa AI", hint: localizedText("СБП, карты и SberPay", "SBP, cards and SberPay", "SBP، کارت و SberPay"), logo: PAYMENT_LOGO_URLS.kassaai },
 		cloudpayments: { id: "cloudpayments", label: "CloudPayments", hint: localizedText("Оплата картой", "Card payment", "پرداخت با کارت"), logo: PAYMENT_LOGO_URLS.cloudpayments },
   };

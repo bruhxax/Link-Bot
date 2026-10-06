@@ -13,6 +13,7 @@
 | ParityPay | ID кассы, секретный ключ №1, секретный ключ №2 | Адрес передаётся при создании счёта как `callback_url` | [ParityPay v2](https://docs.paritypay.net/) |
 | Tribute | API-ключ, Shop ID при нескольких магазинах | Вставьте Webhook URL в `callbackUrl` своего магазина | [Tribute Shop API](https://wiki.tribute.tg/for-shops/api/methods) |
 | CloudPayments | Public ID и API Secret | Настройте уведомление **Pay**, метод **POST**, формат **CloudPayments**, URL из Link-Bot | [CloudPayments](https://developers.cloudpayments.ru/) |
+| PayHot | Рабочий API-ключ кассы, секрет вебхука, способ оплаты | Вставьте Webhook URL в кабинете PayHot и выберите `payment.succeeded` | [API](https://docs.pay.hot/overview) · [Вебхуки](https://docs.pay.hot/webhooks) |
 | Datagio | ID магазина, публичный API-ключ, секрет API, секрет вебхука | Вставьте Webhook URL и тот же секрет вебхука в настройки магазина | [Datagio Finance](https://wiki.datagio.finance/api/payments-create/) · [Вебхуки](https://wiki.datagio.finance/api/webhooks/) |
 | Kassa AI | ID магазина, API-ключ, секретное слово №2, способ оплаты | Вставьте Webhook URL в кассу; адрес также передаётся как `notification_url` | [API `api.fk.life`](https://docs.freekassa.net/) |
 
@@ -32,6 +33,14 @@ Tribute подключается через **Shop API**, с разовыми з
 
 Для продолжения нужны документация от поддержки сервиса или доступная ссылка на неё: создание счёта, авторизация, формат уведомления, подпись/проверка статуса и ответ на вебхук. До реализации такие сервисы не показываются покупателю среди способов оплаты.
 
+## PayHot
+
+В **Админке → Интеграции → PayHot** укажите рабочий API-ключ кассы (`phk_v2_…`), выданный PayHot **Webhook signing secret** и выберите способ оплаты. Ключу нужно право `merchant.payments.create`; выбранный способ и **RUB** должны быть подключены к кассе. Скопируйте показанный Webhook URL в раздел **Webhook** проекта PayHot и выберите `payment.succeeded`, затем включите и сохраните интеграцию.
+
+Доступны СБП, карты, SberPay, криптовалюта, Apple Pay и Google Pay — в зависимости от настроек кассы. Email при необходимости покупатель вводит на странице оплаты. Тестовые ключи и события Sandbox не зачисляют реальные платежи.
+
+Используется API v2, суммы в копейках и постоянный ключ идемпотентности для заказа. Подпись HMAC-SHA256 проверяется по исходному телу с допуском времени 5 минут. Оплата подтверждается только по `payment.succeeded` с полной списанной суммой, совпавшими заказом, ID платежа и валютой. Повторные уведомления не зачисляются повторно. При смене секрета обновите его в Link-Bot перед включением нового webhook endpoint.
+
 ## Официальные логотипы
 
 Файлы `internal/miniapp/static/assets/payment-*.png` имеют размер 512×512. Логотипы скачаны с сайтов сервисов; SVG преобразованы в PNG, для некоторых выделен фирменный знак из полного логотипа. Для тёмных надписей сохранён белый фон. Новые логотипы не рисовались и не генерировались.
@@ -48,3 +57,5 @@ Tribute подключается через **Shop API**, с разовыми з
 | `payment-tribute.png` | [Логотип в официальной документации Tribute](https://wiki.tribute.tg/) |
 | `payment-kassaai.png` | [SVG](https://kassa.ai/assets/images/logo.svg) |
 | `payment-cloudpayments.png` | [SVG с официального сайта CloudPayments](https://cdn.t-static.ru/static/pages/files/55eadcf3-411d-41f4-96ba-e893f9a4ca17.svg) |
+
+Логотип PayHot: [официальная иконка кабинета](https://app.pay.hot/favicon-payhot.png), файл `payment-payhot.png`.

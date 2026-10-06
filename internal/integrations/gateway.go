@@ -76,6 +76,8 @@ func (g *Gateway) Create(ctx context.Context, input CreatePaymentRequest) (Creat
 		input.Currency = "RUB"
 	}
 	switch input.Provider {
+	case ProviderPayHot:
+		return g.createPayHot(ctx, cfg, input)
 	case ProviderDatagio:
 		return g.createDatagio(ctx, cfg, input)
 	case ProviderKassaAI:
@@ -121,6 +123,8 @@ func (g *Gateway) HandleWebhook(ctx context.Context, provider string, headers ht
 		return WebhookPayment{}, errors.New("integration is disabled")
 	}
 	switch provider {
+	case ProviderPayHot:
+		return parsePayHotWebhook(cfg, headers, raw)
 	case ProviderDatagio:
 		return parseDatagioWebhook(cfg, headers, raw)
 	case ProviderKassaAI:

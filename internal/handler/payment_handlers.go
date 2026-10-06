@@ -348,6 +348,11 @@ func (h Handler) buildPaymentMethodsKeyboard(ctx context.Context, langCode strin
 			button,
 		})
 	}
+	if h.isPaymentMethodAllowedForPlan(methods, plan, database.InvoiceTypePayHot) {
+		button := models.InlineKeyboardButton{Text: "PayHot", IconCustomEmojiID: botPaymentCardEmojiID,
+			CallbackData: fmt.Sprintf("%s?planId=%s&invoiceType=%s", CallbackPayment, plan.ID, database.InvoiceTypePayHot)}
+		kb = append(kb, []models.InlineKeyboardButton{button})
+	}
 	kb = append(kb, []models.InlineKeyboardButton{h.premiumBackButton(CallbackBuy)})
 
 	return kb, nil
@@ -564,6 +569,7 @@ func (h Handler) availablePaymentMethods(ctx context.Context, customer *database
 	cryptoEnabled := h.paymentService != nil && h.paymentService.IsProviderEnabled("cryptopay")
 	methods := map[string]bool{
 		"card":   yookassaEnabled,
+		"payhot": h.paymentService != nil && h.paymentService.IsProviderEnabled("payhot"),
 		"crypto": cryptoEnabled,
 		"stars":  h.featureEnabled("stars"),
 	}
@@ -585,6 +591,8 @@ func (h Handler) isPaymentMethodAllowedForPlan(methods map[string]bool, plan pla
 		return methods["card"] && plan.PriceRub > 0
 	case database.InvoiceTypeCrypto:
 		return methods["crypto"] && plan.PriceRub > 0
+	case database.InvoiceTypePayHot:
+		return methods["payhot"] && plan.PriceRub > 0
 	case database.InvoiceTypeTelegram:
 		return methods["stars"] && plan.PriceStars > 0
 	default:

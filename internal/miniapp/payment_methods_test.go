@@ -72,7 +72,7 @@ func TestMapPaymentMethodRoutesRollyPayAndCisPay(t *testing.T) {
 		"antilopay":     database.InvoiceTypeAntiloPay,
 		"tribute":       database.InvoiceTypeTributeShop,
 		"cloudpayments": database.InvoiceTypeCloudPayments,
-		"datagio":       database.InvoiceTypeDatagio, "kassaai": database.InvoiceTypeKassaAI,
+		"datagio":       database.InvoiceTypeDatagio, "kassaai": database.InvoiceTypeKassaAI, "payhot": database.InvoiceTypePayHot,
 	}
 	for method, want := range tests {
 		invoiceType, err := mapPaymentMethod(method)

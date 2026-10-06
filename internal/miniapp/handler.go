@@ -3156,7 +3156,12 @@ func (h *Handler) handlePaymentIntegrationWebhook(w http.ResponseWriter, r *http
 	ack, err := h.paymentService.ProcessExternalWebhook(r.Context(), provider, r.Header, raw, form)
 	if err != nil {
 		slog.Warn("payment integration webhook rejected", "provider", provider, "error", err)
-		h.writeError(w, http.StatusBadRequest, "invalid_webhook", "Invalid webhook")
+		status := http.StatusBadRequest
+		if provider == integrations.ProviderPayHot && !errors.Is(err, integrations.ErrInvalidPayHotWebhook) {
+			// A storage/fulfilment failure must cause PayHot to retry delivery.
+			status = http.StatusInternalServerError
+		}
+		h.writeError(w, status, "invalid_webhook", "Invalid webhook")
 		return
 	}
 	if provider == integrations.ProviderCloudPayments {
@@ -5569,6 +5574,8 @@ func paymentMethodFallbackTitle(invoiceType database.InvoiceType, language strin
 		return "AntiloPay"
 	case database.InvoiceTypeParityPay:
 		return "ParityPay"
+	case database.InvoiceTypePayHot:
+		return "PayHot"
 	case database.InvoiceTypeDatagio:
 		return "Datagio"
 	case database.InvoiceTypeKassaAI:
@@ -6642,6 +6649,8 @@ func mapPaymentMethod(method string) (database.InvoiceType, error) {
 		return database.InvoiceTypeTributeShop, nil
 	case "mulenpay":
 		return database.InvoiceTypeMulenPay, nil
+	case "payhot":
+		return database.InvoiceTypePayHot, nil
 	case "datagio":
 		return database.InvoiceTypeDatagio, nil
 	case "kassaai":

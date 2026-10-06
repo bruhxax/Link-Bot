@@ -43,6 +43,7 @@ const (
 	ProviderCloudPayments   = "cloudpayments"
 	ProviderDatagio         = "datagio"
 	ProviderKassaAI         = "kassaai"
+	ProviderPayHot          = "payhot"
 	ProviderP2P             = "p2p"
 	ProviderMoyNalog        = "moynalog"
 )
@@ -58,7 +59,7 @@ const (
 var moyNalogPaymentMethods = []string{
 	ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega,
 	ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay,
-	ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments, ProviderDatagio, ProviderKassaAI,
+	ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments, ProviderDatagio, ProviderKassaAI, ProviderPayHot,
 	ProviderP2P, "telegram",
 }
 
@@ -406,6 +407,15 @@ var definitions = []ProviderDefinition{
 		},
 	},
 	{
+		ID: ProviderPayHot, Name: "PayHot", Description: "СБП, карты и криптовалюта через PayHot", Logo: "/mini-app/assets/payment-payhot.png", Kind: "payment",
+		WebsiteURL: "https://pay.hot/",
+		Fields: []FieldDefinition{
+			{Key: "apiKey", Label: "API-ключ", Required: true, Secret: true, Placeholder: "phk_v2_...", Help: "Рабочий ключ кассы PayHot с правом merchant.payments.create"},
+			{Key: "webhookSecret", Label: "Секрет вебхука", Required: true, Secret: true, Help: "Webhook signing secret из кабинета PayHot. Подключите событие payment.succeeded"},
+			{Key: "paymentMethod", Label: "Способ оплаты", Required: true, Placeholder: "sbp", Help: "Способ и RUB должны быть подключены к кассе"},
+		},
+	},
+	{
 		ID: ProviderP2P, Name: "P2P перевод", Description: "Ручная проверка перевода администратором", Logo: "/mini-app/assets/payment-p2p.png", Kind: "payment",
 		Fields: []FieldDefinition{
 			{Key: "destinations", Label: "Реквизиты", Required: true, Help: "Добавьте хотя бы один способ перевода"},
@@ -600,6 +610,11 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 			return ProviderView{}, errors.New("для cisPay укажите способ оплаты CARD или SBP")
 		}
 		rec.Config["paymentMethod"] = method
+	}
+	if provider == ProviderPayHot {
+		if err := normalizePayHotConfig(rec.Config); err != nil {
+			return ProviderView{}, err
+		}
 	}
 	if provider == ProviderDatagio || provider == ProviderKassaAI {
 		if shopID := strings.TrimSpace(rec.Config["shopId"]); shopID != "" {
@@ -1022,7 +1037,7 @@ func firstNonEmpty(values ...string) string {
 }
 
 func SortedPaymentProviders() []string {
-	items := []string{ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega, ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay, ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments, ProviderDatagio, ProviderKassaAI, ProviderP2P}
+	items := []string{ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega, ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay, ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments, ProviderDatagio, ProviderKassaAI, ProviderPayHot, ProviderP2P}
 	sort.Strings(items)
 	return items
 }

@@ -18,6 +18,9 @@ func TestWebhookAmountMatches(t *testing.T) {
 		{name: "exact Platega amount", provider: integrations.ProviderPlatega, paid: 200, expected: 200, want: true},
 		{name: "Platega customer commission", provider: integrations.ProviderPlatega, paid: 211, expected: 200, want: true},
 		{name: "Platega underpayment", provider: integrations.ProviderPlatega, paid: 199, expected: 200, want: false},
+		{name: "PayHot exact cents", provider: integrations.ProviderPayHot, paid: 170.50, expected: 170.50, want: true},
+		{name: "PayHot one kopeck short", provider: integrations.ProviderPayHot, paid: 170.49, expected: 170.50, want: false},
+		{name: "PayHot missing amount", provider: integrations.ProviderPayHot, paid: 0, expected: 170.50, want: false},
 		{name: "other provider exact amount", provider: integrations.ProviderLava, paid: 200, expected: 200, want: true},
 		{name: "other provider overpayment", provider: integrations.ProviderLava, paid: 211, expected: 200, want: false},
 	}
