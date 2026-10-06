@@ -536,11 +536,10 @@ select:focus-visible {
   border-radius: 7px;
   background: color-mix(in srgb, var(--accent) 48%, var(--control-bg));
   box-shadow: 0 0 13px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 1px 0 rgba(255,255,255,.2);
-  opacity: 0;
-  transition: transform .24s cubic-bezier(.2,.8,.2,1), opacity .2s ease;
+  opacity: 1;
+  transform-origin: left center;
+  pointer-events: none;
 }
-.profile-language-row[data-language="ru"] .profile-language-switch__light { opacity: 1; }
-.profile-language-row[data-language="en"] .profile-language-switch__light { opacity: 1; transform: translateX(42px); }
 .profile-language-switch button {
   position: relative;
   min-height: 28px;
@@ -10717,6 +10716,35 @@ body.has-open-modal .admin-save-bar {
 .server-tabs .tab.active {
   border-color: var(--control-border) !important;
   background: var(--glass-selected) !important;
+}
+
+/* Keep selection on a separate surface so it can travel between buttons. */
+:root .tabs[data-animated-switch] .tab {
+  position: relative;
+  z-index: 1;
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transition: color 180ms ease;
+}
+:root .tabs[data-animated-switch] .tab::before { display: none !important; }
+.switch-selection {
+  position: absolute;
+  z-index: 0 !important;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  background: var(--glass-selected);
+  box-shadow: var(--control-glow);
+  transform-origin: left center;
+  pointer-events: none;
+}
+.tabs--support .switch-selection {
+  border-color: var(--line);
+  background: var(--surface-strong);
+  box-shadow: var(--glass-shadow-soft);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root .tabs[data-animated-switch] .tab { transition: none; }
 }
 
 /* The narrow support thread leaves horizontal breathing room; split it evenly

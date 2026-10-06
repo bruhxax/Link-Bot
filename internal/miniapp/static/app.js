@@ -4712,7 +4712,55 @@ function updateAnimatedText(node, value) {
 	playTextTransition(before, node);
 }
 
+function captureSwitchSelections() {
+	const selections = new Map();
+	if (reducedMotionMedia?.matches || document.hidden) return selections;
+	for (const control of app.querySelectorAll("[data-animated-switch]")) {
+		const indicator = control.querySelector("[data-switch-indicator]");
+		if (!indicator) continue;
+		const rect = indicator.getBoundingClientRect();
+		const parent = control.getBoundingClientRect();
+		if (!rect.width || !rect.height) continue;
+		const animation = indicator.getAnimations?.().find(item => item.playState === "running");
+		selections.set(control.dataset.animatedSwitch, {
+			value: indicator.dataset.selected,
+			left: rect.left - parent.left, top: rect.top - parent.top, width: rect.width,
+			remaining: animation ? Math.max(0, Number(animation.effect?.getTiming().duration || 240) - Number(animation.currentTime || 0)) : 0,
+		});
+	}
+	return selections;
+}
+
+function mountSwitchSelections(previous = new Map()) {
+	for (const control of app.querySelectorAll("[data-animated-switch]")) {
+		const indicator = control.querySelector("[data-switch-indicator]");
+		const selected = control.querySelector('.tab.active, button[aria-pressed="true"]');
+		if (!indicator || !selected) continue;
+		indicator.style.left = `${selected.offsetLeft}px`;
+		indicator.style.top = `${selected.offsetTop}px`;
+		indicator.style.width = `${selected.offsetWidth}px`;
+		indicator.style.height = `${selected.offsetHeight}px`;
+		indicator.dataset.selected = selected.dataset.value;
+		const before = previous.get(control.dataset.animatedSwitch);
+		if (!before || reducedMotionMedia?.matches || typeof indicator.animate !== "function") continue;
+		const duration = before.value !== selected.dataset.value ? 240 : before.remaining;
+		if (!duration) continue;
+		const rect = indicator.getBoundingClientRect();
+		const parent = control.getBoundingClientRect();
+		if (!rect.width) continue;
+		const dx = before.left - (rect.left - parent.left);
+		const dy = before.top - (rect.top - parent.top);
+		const scale = before.width / rect.width;
+		if (Math.abs(dx) < .1 && Math.abs(dy) < .1 && Math.abs(scale - 1) < .001) continue;
+		indicator.animate([
+			{ transform: `translate3d(${dx}px, ${dy}px, 0) scaleX(${scale})` },
+			{ transform: "translate3d(0, 0, 0) scaleX(1)" },
+		], { duration, easing: "cubic-bezier(.2,.8,.2,1)" });
+	}
+}
+
 function render({ preserveScroll = true, scrollTop = null, preserveInteraction = false, textTransitionMode = "content" } = {}) {
+	const switchSelections = captureSwitchSelections();
 	const transitionGeneration = ++textTransitionRenderGeneration;
 	cancelAllTextTransitions();
 	const textTransitions = state.data && !document.hidden ? captureRenderTextTransitions() : [];
@@ -4833,6 +4881,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
   mountAdminContentTabs();
   restoreScrollPosition(nextScrollTop);
 	mountRuntimeLayout();
+	mountSwitchSelections(switchSelections);
 	if (textTransitions.length) requestAnimationFrame(() => {
 		if (transitionGeneration === textTransitionRenderGeneration && !document.hidden) playRenderTextTransitions(textTransitions, textTransitionMode);
 	});
@@ -9036,7 +9085,7 @@ function renderSupportPage() {
 		</button>` : ""}
         </div>
       `;
-	const tabs = `<div class="tabs tabs--support">${SUPPORT_TABS.map((tab) => `<button class="tab ${state.supportTab === tab ? "active" : ""}" type="button" data-action="switch-support-tab" data-value="${tab}">${tab === "open" ? scopy.open : scopy.history}</button>`).join("")}</div>`;
+	const tabs = `<div class="tabs tabs--support" data-animated-switch="support"><span class="switch-selection" data-switch-indicator aria-hidden="true"></span>${SUPPORT_TABS.map((tab) => `<button class="tab ${state.supportTab === tab ? "active" : ""}" type="button" data-action="switch-support-tab" data-value="${tab}" aria-pressed="${state.supportTab === tab}">${tab === "open" ? scopy.open : scopy.history}</button>`).join("")}</div>`;
 	const ticketContent = tickets.length ? `<div class="support-ticket-list">${tickets.map((ticket) => renderSupportTicketCard(ticket, support.isAdmin)).join("")}</div>` : `<div class="card"><div class="empty-state"><div class="empty-state__icon">${icon(emptyIcon)}</div><div class="empty-state__title">${emptyTitle}</div><div class="empty-state__desc">${emptyHint}</div></div></div>`;
   return `<section class="page page-support ${pageClass("support")}" id="page-support">${actions}${tabs}${ticketContent}</section>`;
 }
@@ -9266,10 +9315,11 @@ function renderServersPage() {
         <div class="server-summary-item server-summary-item--offline"><strong>${formatNumber(counts.offline, state.locale)}</strong><span>${copy.serverOffline}</span></div>
       </div>
       <div class="server-toolbar">
-        <div class="tabs server-tabs">
-          <button class="tab ${state.serverFilter === "all" ? "active" : ""}" type="button" data-action="set-server-filter" data-value="all">${copy.serverAll}</button>
-          <button class="tab ${state.serverFilter === "online" ? "active" : ""}" type="button" data-action="set-server-filter" data-value="online">${copy.serverOnline}</button>
-          <button class="tab ${state.serverFilter === "offline" ? "active" : ""}" type="button" data-action="set-server-filter" data-value="offline">${copy.serverOffline}</button>
+        <div class="tabs server-tabs" data-animated-switch="servers">
+          <span class="switch-selection" data-switch-indicator aria-hidden="true"></span>
+          <button class="tab ${state.serverFilter === "all" ? "active" : ""}" type="button" data-action="set-server-filter" data-value="all" aria-pressed="${state.serverFilter === "all"}">${copy.serverAll}</button>
+          <button class="tab ${state.serverFilter === "online" ? "active" : ""}" type="button" data-action="set-server-filter" data-value="online" aria-pressed="${state.serverFilter === "online"}">${copy.serverOnline}</button>
+          <button class="tab ${state.serverFilter === "offline" ? "active" : ""}" type="button" data-action="set-server-filter" data-value="offline" aria-pressed="${state.serverFilter === "offline"}">${copy.serverOffline}</button>
         </div>
       </div>
       ${items.length ? `<div class="server-list">${items.map((item) => renderServerCard(item)).join("")}</div>` : `<div class="card"><div class="empty-state"><div class="empty-state__icon">${icon("server")}</div><div class="empty-state__title">${copy.serverStatusEmpty}</div><div class="empty-state__desc">${copy.serverStatusHint}</div></div></div>`}
@@ -9307,7 +9357,7 @@ function renderSettingsPage() {
 function renderProfileLanguageSwitch() {
 	const active = state.locale === "ru" || state.locale === "en" ? state.locale : "";
 	const label = localizedText("Язык интерфейса", "Interface language", "زبان برنامه");
-	return `<div class="profile-row profile-language-row" data-language="${active}"><span class="profile-row__icon">${icon("language")}</span><span class="profile-row__body"><strong>${escapeHtml(label)}</strong></span><span class="profile-language-switch" role="group" aria-label="${escapeAttribute(label)}"><span class="profile-language-switch__light" aria-hidden="true"></span><button type="button" data-action="profile-language" data-value="ru" aria-label="Русский" aria-pressed="${active === "ru"}">RU</button><button type="button" data-action="profile-language" data-value="en" aria-label="English" aria-pressed="${active === "en"}">EN</button></span></div>`;
+	return `<div class="profile-row profile-language-row" data-language="${active}"><span class="profile-row__icon">${icon("language")}</span><span class="profile-row__body"><strong>${escapeHtml(label)}</strong></span><span class="profile-language-switch" data-animated-switch="language" role="group" aria-label="${escapeAttribute(label)}"><span class="profile-language-switch__light" data-switch-indicator aria-hidden="true"></span><button type="button" data-action="profile-language" data-value="ru" aria-label="Русский" aria-pressed="${active === "ru"}">RU</button><button type="button" data-action="profile-language" data-value="en" aria-label="English" aria-pressed="${active === "en"}">EN</button></span></div>`;
 }
 
 function setProfileLanguage(language) {
@@ -12162,6 +12212,7 @@ function bindRootActions() {
 
   window.addEventListener("resize", () => {
     syncToastAnchor();
+    mountSwitchSelections();
   });
 }
 
