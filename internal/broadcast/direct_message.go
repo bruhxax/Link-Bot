@@ -96,6 +96,7 @@ func (s *Service) CaptureDirectMessage(ctx context.Context, message *models.Mess
 	if draft == nil {
 		return true, ErrDirectState
 	}
+	s.recordCapturedActivity(ctx, message, kind, draft.CustomerID)
 	var replyMarkup models.ReplyMarkup
 	if link := adminDirectURL(draft.CustomerID); link != "" {
 		replyMarkup = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{Text: "Открыть карточку пользователя", WebApp: &models.WebAppInfo{URL: link}}}}}

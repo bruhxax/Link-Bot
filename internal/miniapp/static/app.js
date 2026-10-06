@@ -4685,7 +4685,7 @@ function captureRenderTextTransitions() {
 		if (!root) return [];
 		root.querySelectorAll("[data-text-transition-mask]").forEach((mask) => activeTextTransitions.get(mask.closest(".text-transition-host"))?.cleanup());
 		const candidates = root.querySelectorAll("button, div, h1, h2, h3, label, p, small, span, strong");
-		return [...candidates].filter((node) => (node.childElementCount === 0 || node.matches(".profile-group__title")) && !node.closest(".support-message, [contenteditable]"))
+		return [...candidates].filter((node) => (node.childElementCount === 0 || node.matches(".profile-group__title")) && !node.closest(".support-message, .admin-activity, [contenteditable]"))
 			.map((node) => ({ selector, rootID: root.id, transitionKey: node.dataset.giftPlanPrice || node.dataset.textTransition || (node.hasAttribute("data-price-transition") ? "checkout-price" : ""), ...captureTextTransitionNode(node, textNodePath(node, root)) }))
 			.filter((item) => item.path);
 	});
@@ -5984,7 +5984,35 @@ async function refreshAdministrators({ append = false, silent = false } = {}) {
 	}
 }
 
+async function refreshAdministratorActivity({ append = false } = {}) {
+	const activity = administrators.activity;
+	const telegramId = Number(administrators.editor?.telegramId || 0);
+	if (!canAdmin("administrators") || state.currentPage !== "admin" || state.adminSection !== "administrators" || administrators.editorTab !== "activity" || !telegramId || !activity || (append && activity.loading)) return;
+	const requestID = ++activity.requestID;
+	activity.loading = true;
+	activity.error = "";
+	const beforeId = append ? Number(activity.items.at(-1)?.id || 0) : 0;
+	renderAdministratorsPreservingFocus();
+	const current = () => activity === administrators.activity && requestID === activity.requestID && Number(administrators.editor?.telegramId) === telegramId && state.currentPage === "admin" && state.adminSection === "administrators" && administrators.editorTab === "activity";
+	try {
+		const response = await post("/api/mini-app/admin/administrators/logs", { telegramId, beforeId, limit: 30, query: activity.query, category: activity.category });
+		if (!current()) return;
+		const items = response.data?.items || [];
+		activity.items = append ? [...activity.items, ...items.filter(item => !activity.items.some(previous => previous.id === item.id))] : items;
+		activity.hasMore = Boolean(response.data?.hasMore);
+	} catch (error) {
+		if (current()) activity.error = error.message || "Не удалось загрузить активность";
+	} finally {
+		if (requestID === activity.requestID) {
+			activity.loading = false;
+			if (current()) renderAdministratorsPreservingFocus();
+		}
+	}
+}
+
 function editAdministrator(user, isNew = false) {
+	administrators.editorTab = "role";
+	administrators.activity = { items: [], hasMore: false, query: "", category: "", loading: false, error: "", requestID: (administrators.activity?.requestID || 0) + 1 };
 	administrators.requestID += 1;
 	administrators.editor = {
 		...deepClone(user), isNew, preset: isNew ? "support" : "custom",
@@ -6000,6 +6028,13 @@ function editAdministrator(user, isNew = false) {
 
 async function handleAdministratorsAction(action, value) {
 	if (!canAdmin("administrators") || state.adminSection !== "administrators") return;
+	if (action === "administrators-tab" && administrators.editor && !administrators.editor.isNew) {
+		administrators.editorTab = value === "activity" ? "activity" : "role";
+		render({ preserveScroll: false, scrollTop: 0 });
+		if (administrators.editorTab === "activity") return await refreshAdministratorActivity();
+		return;
+	}
+	if (action === "administrators-activity-refresh" || action === "administrators-activity-more") return await refreshAdministratorActivity({ append: action.endsWith("-more") });
 	if (administrators.busy && !["administrators-refresh", "administrators-back"].includes(action)) return;
 	if (action === "administrators-back") {
 		if (["save", "remove"].includes(administrators.busy)) return;
@@ -6082,6 +6117,14 @@ async function handleAdministratorsAction(action, value) {
 function handleAdministratorsInput(input) {
 	if (!canAdmin("administrators") || ["save", "remove"].includes(administrators.busy)) return;
 	const key = input.dataset.input;
+	if (key === "administrators-activity-search" || key === "administrators-activity-category") {
+		if (!administrators.activity || administrators.editorTab !== "activity") return;
+		administrators.activity[key.endsWith("search") ? "query" : "category"] = input.value.slice(0, 100);
+		administrators.activity.requestID += 1;
+		window.clearTimeout(administrators.activitySearchTimer);
+		administrators.activitySearchTimer = window.setTimeout(() => void refreshAdministratorActivity(), key.endsWith("search") ? 280 : 0);
+		return;
+	}
 	if (key === "administrators-search" || key === "administrators-pick-search") {
 		administrators[key === "administrators-search" ? "query" : "pickQuery"] = input.value.slice(0, 100);
 		administrators.requestID += 1;

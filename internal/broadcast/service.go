@@ -151,6 +151,7 @@ func (s *Service) CaptureMessage(ctx context.Context, message *models.Message) (
 	if draft == nil {
 		return true, errors.New("broadcast capture is no longer active")
 	}
+	s.recordCapturedActivity(ctx, message, kind, 0)
 
 	replyMarkup := models.ReplyMarkup(nil)
 	if miniAppURL := adminBroadcastURL(); miniAppURL != "" {

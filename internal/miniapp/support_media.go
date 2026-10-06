@@ -71,6 +71,7 @@ func (h *Handler) handleSupportMediaUpload(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	caption := strings.TrimSpace(r.FormValue("caption"))
+	h.captureAdminActivityPayload(r, map[string]any{"ticketId": ticketID})
 	if len([]rune(caption)) > 2000 {
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "Некорректный запрос")
 		return

@@ -13889,6 +13889,48 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 }
 :root .pricing-card.is-selection-feedback { animation-duration: 160ms; }
 
+/* Administrator activity uses the same compact surfaces as the role editor. */
+.admin-access__tabs { margin: 0; padding: 4px; }
+.admin-access__tabs .tab { min-height: 34px; font-size: 12px; }
+.admin-activity { display: grid; gap: 12px; min-width: 0; }
+.admin-activity__toolbar { display: grid; grid-template-columns: minmax(0, 1fr) 40px; gap: 8px; }
+.admin-activity__toolbar .admin-users__search { margin: 0; }
+.admin-activity__toolbar > button { display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--control-bg); color: var(--icon-color); }
+.admin-activity__toolbar > button svg { width: 18px; height: 18px; }
+.admin-activity__filter { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.admin-activity__filter select { min-width: 0; max-width: 70%; min-height: 34px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--control-bg); color: var(--text); font: inherit; font-size: 11px; }
+.admin-activity__filter small { font-size: 10px; color: var(--muted); text-align: right; }
+.admin-activity__list { display: grid; gap: 8px; min-width: 0; }
+.admin-activity__day { margin: 8px 0 2px; padding-left: 2px; font-size: 10px; font-weight: 750; color: var(--muted); }
+.admin-activity__entry { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.admin-activity__entry > summary { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 12px 10px; cursor: pointer; list-style: none; }
+.admin-activity__entry > summary::-webkit-details-marker { display: none; }
+.admin-activity__icon { display: grid; place-items: center; color: var(--icon-color); }
+.admin-activity__icon svg { width: 19px; height: 19px; }
+.admin-activity__identity { display: grid; gap: 4px; min-width: 0; }
+.admin-activity__identity strong { font-size: 11px; line-height: 1.4; font-weight: 750; overflow-wrap: anywhere; }
+.admin-activity__identity small { font-size: 9px; color: var(--muted); overflow-wrap: anywhere; }
+.admin-activity__inline-status { font-weight: 650; }
+.admin-activity__time { display: grid; justify-items: end; gap: 5px; font-size: 9px; color: var(--muted); }
+.admin-activity__time svg { width: 13px; height: 13px; color: var(--icon-color); transition: transform 180ms ease; }
+.admin-activity__entry[open] .admin-activity__time svg { transform: rotate(90deg); }
+.admin-activity__entry summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+.admin-activity__body { display: grid; gap: 10px; padding: 0 12px 12px; }
+.admin-activity__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 9px; color: var(--muted); }
+.admin-activity__status { padding: 4px 7px; border-radius: 5px; background: var(--surface-strong); font-weight: 750; }
+.admin-activity__status--success { color: #55c58a; }
+.admin-activity__status--failed { color: #ef8796; }
+.admin-activity__status--pending { color: #e4b567; }
+.admin-activity__body dl { display: grid; gap: 9px; margin: 0; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.admin-activity__detail { display: grid; gap: 4px; }
+.admin-activity__detail dt { font-size: 9px; color: var(--muted); overflow-wrap: anywhere; }
+.admin-activity__detail dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 0; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-wrap; }
+.admin-activity__detail dd > span { max-width: 100%; }
+.admin-activity__before { color: var(--muted); }
+.admin-activity__arrow { color: var(--icon-color); }
+.admin-activity__target, .admin-activity__note { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.admin-activity__body footer { padding-top: 8px; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 9px; overflow-wrap: anywhere; }
+
 /* Text reels belong to their label, so scrolling and the navigation dock keep
    the same stacking order throughout the transition. Each cell clips its row. */
 [data-price-transition] { display: inline-block; }

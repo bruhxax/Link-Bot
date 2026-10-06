@@ -57,6 +57,8 @@ var (
 )
 
 type Handler struct {
+	activitySettingsMu      sync.Mutex
+	adminActivityRepository adminActivityRepository
 	administratorRepository administratorLookup
 	customerRepository      *database.CustomerRepository
 	purchaseRepository      *database.PurchaseRepository
@@ -842,6 +844,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	for _, action := range []string{"list", "save", "remove"} {
 		mux.HandleFunc("/api/mini-app/admin/administrators/"+action, h.withSession(h.handleAdministrators))
 	}
+	mux.HandleFunc("/api/mini-app/admin/administrators/logs", h.withSession(h.handleAdminActivity))
 	mux.HandleFunc("/api/mini-app/admin/users/search", h.withSession(h.handleAdminUsersSearch))
 	mux.HandleFunc("/api/mini-app/admin/users/detail", h.withSession(h.handleAdminUserDetail))
 	mux.HandleFunc("/api/mini-app/admin/users/balance", h.withSession(h.handleAdminUserBalance))
@@ -1255,7 +1258,7 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 			return
 		}
 
-		next(w, r, sess, customer)
+		h.runAdminActivity(w, r, sess, customer, next)
 	}
 }
 
@@ -6781,6 +6784,7 @@ func (h *Handler) decodeJSONRequest(w http.ResponseWriter, r *http.Request, maxB
 		return fmt.Errorf("request body must contain a single JSON object")
 	}
 
+	h.captureAdminActivityPayload(r, target)
 	return nil
 }
 
