@@ -1794,6 +1794,9 @@ func (h *Handler) handleCreatePurchase(w http.ResponseWriter, r *http.Request, s
 	})
 	if err != nil {
 		slog.Error("mini app: create purchase", "error", err, "method", req.PaymentMethod, "months", req.Months)
+		if h.writePayHotPurchaseError(w, sess, err) {
+			return
+		}
 		h.writeError(w, http.StatusInternalServerError, "purchase_failed", "Не удалось создать оплату")
 		return
 	}
@@ -2099,7 +2102,10 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 			return
 		}
 		slog.Error("mini app: create purchase", "error", err, "method", req.PaymentMethod, "months", req.Months)
-		h.writeError(w, http.StatusInternalServerError, "purchase_failed", "Failed to create purchase")
+		if h.writePayHotPurchaseError(w, sess, err) {
+			return
+		}
+		h.writeError(w, http.StatusInternalServerError, "purchase_failed", "Не удалось создать оплату")
 		return
 	}
 
@@ -2310,6 +2316,9 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 	})
 	if err != nil {
 		slog.Error("mini app: create gift purchase", "error", err, "method", req.PaymentMethod, "months", req.Months)
+		if h.writePayHotPurchaseError(w, sess, err) {
+			return
+		}
 		h.writeError(w, http.StatusInternalServerError, "gift_purchase_failed", "Не удалось создать оплату подарка")
 		return
 	}

@@ -24,6 +24,80 @@ var ErrInvalidPayHotWebhook = errors.New("invalid PayHot webhook")
 var payHotSignaturePattern = regexp.MustCompile(`^t=([0-9]{1,12}),v2=([a-f0-9]{64})$`)
 var payHotDecimalPattern = regexp.MustCompile(`^[1-9][0-9]*$`)
 
+// PayHot selects the checkout domain. Match its documented URL format instead
+// of pinning app.pay.hot: https://docs.pay.hot/openapi.json (CheckoutSessionURL).
+var payHotCheckoutPattern = regexp.MustCompile(`^https://[a-z0-9.-]+/pay/[0-9a-f-]{36}#token=phc_v2\.[A-Za-z0-9_-]{43}$`)
+var payHotErrorCodePattern = regexp.MustCompile(`^[a-zA-Z0-9_.-]{1,80}$`)
+var payHotRequestIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$`)
+
+type PayHotPaymentError struct {
+	StatusCode int
+	Code       string
+	RequestID  string
+}
+
+func (e *PayHotPaymentError) Error() string {
+	text := fmt.Sprintf("PayHot: %s (HTTP %d)", e.Code, e.StatusCode)
+	if e.RequestID != "" {
+		text += "; request_id=" + e.RequestID
+	}
+	return text
+}
+
+func (e *PayHotPaymentError) PublicMessage() string {
+	if e.Code == "payment_amount_out_of_range" {
+		return "PayHot не принимает эту сумму. Выберите другой тариф или способ оплаты."
+	}
+	return "Не удалось создать платёж PayHot. Попробуйте позже или выберите другой способ оплаты."
+}
+
+func (e *PayHotPaymentError) AdminMessage() string {
+	message := e.PublicMessage()
+	switch {
+	case e.StatusCode == http.StatusUnauthorized:
+		message = "PayHot: проверьте рабочий API-ключ кассы — сервис не принял ключ."
+	case e.StatusCode == http.StatusForbidden:
+		message = "PayHot: проверьте права API-ключа и доступность кассы для приёма платежей."
+	case e.Code == "invalid_checkout_url":
+		message = "PayHot вернул ссылку оплаты в неподдерживаемом формате."
+	case e.Code == "payment_response_mismatch":
+		message = "Ответ PayHot не совпадает с созданным заказом."
+	}
+	return message + " " + e.Error()
+}
+
+func (g *Gateway) doPayHotJSON(ctx context.Context, endpoint string, body []byte, headers map[string]string, target any) error {
+	err := g.doJSON(ctx, http.MethodPost, endpoint, body, headers, target)
+	if err == nil {
+		return nil
+	}
+	var apiErr *PaymentAPIError
+	if !errors.As(err, &apiErr) {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return &PayHotPaymentError{Code: "payment_api_unavailable"}
+	}
+	var envelope struct {
+		Error struct {
+			Code      string `json:"code"`
+			RequestID string `json:"request_id"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal(apiErr.Body, &envelope)
+	code := "payment_api_error"
+	if payHotErrorCodePattern.MatchString(envelope.Error.Code) {
+		code = envelope.Error.Code
+	}
+	requestID := ""
+	if payHotRequestIDPattern.MatchString(envelope.Error.RequestID) {
+		requestID = envelope.Error.RequestID
+	}
+	// Never expose the raw API body, credentials, checkout tokens or customer
+	// details through the purchase endpoint or diagnostic notifications.
+	return &PayHotPaymentError{StatusCode: apiErr.StatusCode, Code: code, RequestID: requestID}
+}
+
 type payHotPayment struct {
 	ID       string `json:"id"`
 	Order    string `json:"merchant_order_reference"`
@@ -94,7 +168,7 @@ func (g *Gateway) createPayHot(ctx context.Context, cfg map[string]string, input
 	base := strings.TrimRight(firstNonEmpty(cfg["apiUrl"], "https://app.pay.hot"), "/")
 	headers := map[string]string{"Authorization": "Bearer " + cfg["apiKey"], "Idempotency-Key": "link-bot-payhot-order-" + order}
 	var response payHotCheckoutResponse
-	if err := g.doJSON(ctx, http.MethodPost, base+"/api/v2/payments", raw, headers, &response); err != nil {
+	if err := g.doPayHotJSON(ctx, base+"/api/v2/payments", raw, headers, &response); err != nil {
 		return CreatedPayment{}, err
 	}
 	validate := func() bool {
@@ -102,23 +176,22 @@ func (g *Gateway) createPayHot(ctx context.Context, cfg map[string]string, input
 		return err == nil && response.Payment.Order == order && response.Payment.Amount == strconv.FormatInt(minor, 10) && response.Payment.Currency == "RUB"
 	}
 	if !validate() {
-		return CreatedPayment{}, errors.New("PayHot returned a mismatched payment")
+		return CreatedPayment{}, &PayHotPaymentError{Code: "payment_response_mismatch"}
 	}
 	if response.Checkout.ReissueRequired {
 		// A replay returns no access token. Reissue access to the same payment,
 		// rather than creating another order after a lost response.
 		id := response.Payment.ID
 		response = payHotCheckoutResponse{}
-		if err := g.doJSON(ctx, http.MethodPost, base+"/api/v2/payments/"+url.PathEscape(id)+"/checkout-sessions", nil, map[string]string{"Authorization": headers["Authorization"]}, &response); err != nil {
+		if err := g.doPayHotJSON(ctx, base+"/api/v2/payments/"+url.PathEscape(id)+"/checkout-sessions", nil, map[string]string{"Authorization": headers["Authorization"]}, &response); err != nil {
 			return CreatedPayment{}, err
 		}
 		if response.Payment.ID != id || !validate() {
-			return CreatedPayment{}, errors.New("PayHot returned a mismatched checkout session")
+			return CreatedPayment{}, &PayHotPaymentError{Code: "payment_response_mismatch"}
 		}
 	}
-	u, err := url.Parse(response.Checkout.URL)
-	if err != nil || !validCheckoutURL(response.Checkout.URL) || u.Host != "app.pay.hot" || !strings.HasPrefix(u.Path, "/pay/") || !strings.HasPrefix(u.Fragment, "token=") || len(u.Fragment) <= len("token=") {
-		return CreatedPayment{}, errors.New("PayHot did not return a valid payment link")
+	if !payHotCheckoutPattern.MatchString(response.Checkout.URL) || !validCheckoutURL(response.Checkout.URL) {
+		return CreatedPayment{}, &PayHotPaymentError{Code: "invalid_checkout_url"}
 	}
 	return CreatedPayment{ExternalID: response.Payment.ID, URL: response.Checkout.URL}, nil
 }

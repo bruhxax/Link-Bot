@@ -54,6 +54,17 @@ type CreatedPayment struct {
 	URL        string
 }
 
+// PaymentAPIError preserves the response for provider-specific error decoding.
+// Only providers that understand the response format expose a safe explanation.
+type PaymentAPIError struct {
+	StatusCode int
+	Body       []byte
+}
+
+func (e *PaymentAPIError) Error() string {
+	return fmt.Sprintf("payment API returned HTTP %d: %s", e.StatusCode, strings.TrimSpace(string(e.Body)))
+}
+
 type WebhookPayment struct {
 	PurchaseID int64
 	ExternalID string
@@ -532,7 +543,7 @@ func (g *Gateway) doJSON(ctx context.Context, method, endpoint string, body []by
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("payment API returned HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+		return &PaymentAPIError{StatusCode: resp.StatusCode, Body: raw}
 	}
 	if target != nil && len(raw) > 0 {
 		if err := json.Unmarshal(raw, target); err != nil {

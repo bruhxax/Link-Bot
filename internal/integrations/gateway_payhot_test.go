@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -15,7 +16,7 @@ import (
 )
 
 const payHotTestID = "76666666-6666-4666-8666-666666666666"
-const payHotTestURL = "https://app.pay.hot/pay/75555555-5555-4555-8555-555555555555#token=phc_v2.test"
+const payHotTestURL = "https://app.pay.hot/pay/75555555-5555-4555-8555-555555555555#token=phc_v2.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 func TestPayHotCreateAndReplay(t *testing.T) {
 	for _, replay := range []bool{false, true} {
@@ -159,7 +160,7 @@ func TestPayHotRejectsMismatchedPaymentAndUnsafeCheckout(t *testing.T) {
 		{"missing token", payHotTestID, "1", "10000", "RUB", "https://app.pay.hot/pay/1"},
 		{"empty token", payHotTestID, "1", "10000", "RUB", "https://app.pay.hot/pay/1#token="},
 		{"HTTP checkout", payHotTestID, "1", "10000", "RUB", "http://app.pay.hot/pay/1#token=test"},
-		{"untrusted checkout", payHotTestID, "1", "10000", "RUB", "https://example.com/pay/1#token=test"},
+		{"malformed checkout path", payHotTestID, "1", "10000", "RUB", "https://example.com/pay/1#token=test"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -169,6 +170,57 @@ func TestPayHotRejectsMismatchedPaymentAndUnsafeCheckout(t *testing.T) {
 			gateway := &Gateway{httpClient: server.Client()}
 			if _, err := gateway.createPayHot(context.Background(), map[string]string{"apiKey": "phk_v2_fixture", "apiUrl": server.URL}, CreatePaymentRequest{PurchaseID: 1, Amount: 100, Currency: "RUB"}); err == nil {
 				t.Fatal("accepted invalid payment response")
+			}
+		})
+	}
+}
+
+func TestPayHotUsesCheckoutDomainSelectedByProvider(t *testing.T) {
+	for _, host := range []string{"app.pay.hot", "checkout.pay.hot", "checkout.example.com"} {
+		t.Run(host, func(t *testing.T) {
+			link := strings.Replace(payHotTestURL, "app.pay.hot", host, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_ = json.NewEncoder(w).Encode(map[string]any{"payment": map[string]string{"id": payHotTestID, "merchant_order_reference": "1", "amount_minor": "10000", "currency": "RUB"}, "checkout": map[string]string{"url": link}})
+			}))
+			defer server.Close()
+			gateway := &Gateway{httpClient: server.Client()}
+			created, err := gateway.createPayHot(context.Background(), map[string]string{"apiKey": "phk_v2_fixture", "apiUrl": server.URL}, CreatePaymentRequest{PurchaseID: 1, Amount: 100, Currency: "RUB"})
+			if err != nil || created.URL != link {
+				t.Fatalf("valid provider checkout rejected: %v", err)
+			}
+		})
+	}
+}
+
+func TestPayHotAPIErrorsAreSafeAndActionable(t *testing.T) {
+	for _, tc := range []struct {
+		name                  string
+		status                int
+		body, code, requestID string
+	}{
+		{"amount limit", 422, `{"error":{"code":"payment_amount_out_of_range","message":"private-fixture-secret","request_id":"req-100","details":{"api_key":"private-fixture-secret"}}}`, "payment_amount_out_of_range", "req-100"},
+		{"authentication", 401, `{"error":{"code":"authentication_failed","request_id":"req-101"}}`, "authentication_failed", "req-101"},
+		{"permissions", 403, `{"error":{"code":"permission_denied","request_id":"req-102"}}`, "permission_denied", "req-102"},
+		{"non-JSON failure", 503, `<html>private-fixture-secret</html>`, "payment_api_error", ""},
+		{"malformed diagnostic fields", 422, `{"error":{"code":"private-fixture-secret with spaces","request_id":"private-fixture-secret with spaces"}}`, "payment_api_error", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+			gateway := &Gateway{httpClient: server.Client()}
+			_, err := gateway.createPayHot(context.Background(), map[string]string{"apiKey": "phk_v2_fixture", "apiUrl": server.URL}, CreatePaymentRequest{PurchaseID: 1, Amount: 100, Currency: "RUB"})
+			var paymentErr *PayHotPaymentError
+			if !errors.As(err, &paymentErr) || paymentErr.StatusCode != tc.status || paymentErr.Code != tc.code || paymentErr.RequestID != tc.requestID {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if strings.Contains(err.Error()+paymentErr.AdminMessage()+paymentErr.PublicMessage(), "private-fixture-secret") {
+				t.Fatal("exposed raw provider error")
+			}
+			if tc.name == "amount limit" && !strings.Contains(paymentErr.PublicMessage(), "сумму") {
+				t.Fatal("did not explain amount limit")
 			}
 		})
 	}
