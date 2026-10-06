@@ -3044,7 +3044,19 @@ func (h *Handler) handleAdminIntegrationUpdate(w http.ResponseWriter, r *http.Re
 		h.writeError(w, http.StatusBadRequest, "invalid_integration", err.Error())
 		return
 	}
-	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "integration_updated", "data": view})
+	response := map[string]any{"ok": true, "message": "integration_updated", "data": view}
+	// Checkout keeps its methods in the bootstrap snapshot. Return the current
+	// customer's methods so saving an integration updates checkout immediately.
+	if methods, err := h.availablePaymentMethods(r.Context(), customer); err == nil {
+		order := runtimeconfig.DefaultPaymentMethodOrder()
+		if h.runtimeSettings != nil {
+			order = h.runtimeSettings.Snapshot().PaymentMethodOrder
+		}
+		response["paymentMethods"] = mapPaymentMethods(methods, order)
+	} else {
+		slog.Warn("mini app: refresh payment methods after integration update failed", "error", err)
+	}
+	h.writeJSON(w, http.StatusOK, response)
 }
 
 func (h *Handler) handleAdminMoyNalogState(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {

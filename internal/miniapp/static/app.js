@@ -16575,6 +16575,7 @@ async function saveAdminIntegration(provider) {
 		const integrations = state.data?.admin?.integrations || [];
 		const index = integrations.findIndex((item) => item.id === provider);
 		if (index >= 0) integrations[index] = response.data;
+		if (Array.isArray(response.paymentMethods)) state.data.paymentMethods = response.paymentMethods;
 		const nextDraft = {
 			enabled: Boolean(response.data?.enabled),
 			fields: Object.fromEntries((response.data?.fields || []).map((field) => [field.key, field.secret ? "" : String(field.value || "")])),
@@ -16589,7 +16590,10 @@ async function saveAdminIntegration(provider) {
 		}
 		state.adminIntegrationBusy = "";
 		render({ preserveScroll: true });
-		showToast("Интеграция сохранена", "success");
+		const message = response.data?.kind === "payment"
+			? (response.data.enabled ? "Способ оплаты включён" : "Настройки сохранены. Способ оплаты выключен")
+			: "Интеграция сохранена";
+		showToast(message, "success");
 	} catch (error) {
 		state.adminIntegrationBusy = "";
 		render({ preserveScroll: true });
