@@ -10,6 +10,38 @@ import (
 	"link-bot/internal/database"
 )
 
+func TestBottomNavStyleDefaultsValidationAndRoundTrip(t *testing.T) {
+	for _, style := range []string{"", "classic", "contour", "notch", "capsule"} {
+		t.Run(style, func(t *testing.T) {
+			settings := DefaultSettings()
+			settings.Appearance.BottomNavStyle = style
+			if err := NormalizeAndValidate(&settings); err != nil {
+				t.Fatal(err)
+			}
+			want := style
+			if want == "" {
+				want = "classic"
+			}
+			data, err := json.Marshal(settings)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var restored Settings
+			if err := json.Unmarshal(data, &restored); err != nil {
+				t.Fatal(err)
+			}
+			if restored.Appearance.BottomNavStyle != want {
+				t.Fatalf("style = %q, want %q", restored.Appearance.BottomNavStyle, want)
+			}
+		})
+	}
+	settings := DefaultSettings()
+	settings.Appearance.BottomNavStyle = "invalid"
+	if err := NormalizeAndValidate(&settings); err == nil {
+		t.Fatal("invalid navigation style accepted")
+	}
+}
+
 func TestNormalizeAndValidatePaymentMethodOrder(t *testing.T) {
 	settings := DefaultSettings()
 	settings.PaymentMethodOrder = []string{"stars", "CARD", "stars", "unknown", "sbp"}

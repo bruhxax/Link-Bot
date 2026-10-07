@@ -4762,6 +4762,7 @@ function mountSwitchSelections(previous = new Map()) {
 
 function render({ preserveScroll = true, scrollTop = null, preserveInteraction = false, textTransitionMode = "content" } = {}) {
 	const switchSelections = captureSwitchSelections();
+	const bottomNavSelection = captureBottomNavSelection();
 	const transitionGeneration = ++textTransitionRenderGeneration;
 	cancelAllTextTransitions();
 	const textTransitions = state.data && !document.hidden ? captureRenderTextTransitions() : [];
@@ -4887,7 +4888,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
 		if (transitionGeneration === textTransitionRenderGeneration && !document.hidden) playRenderTextTransitions(textTransitions, textTransitionMode);
 	});
 	mountBannerMedia();
-  syncBottomNavIndicator();
+  syncBottomNavIndicator(bottomNavSelection);
   restoreSupportThreadScrollState(supportThreadScrollState);
   hydrateSupportMedia();
   syncToastAnchor();
@@ -7528,6 +7529,27 @@ function renderAdminBackgroundControls(mode) {
 	</section>`;
 }
 
+const BOTTOM_NAV_STYLES = [
+  ["classic", "Обычное", "Classic", "معمولی"],
+  ["contour", "Контур", "Contour", "خط دور"],
+  ["notch", "Выемка", "Notch", "فرورفتگی"],
+  ["capsule", "Капсула", "Capsule", "کپسول"],
+];
+
+function bottomNavStyle(value = getRuntimeSettings()?.appearance?.bottomNavStyle) {
+  return BOTTOM_NAV_STYLES.some(([style]) => style === value) ? value : "classic";
+}
+
+function bottomNavDecoration(style, activePage = "dashboard") {
+  if (style === "contour") return '<svg class="bottom-nav__contour" viewBox="0 0 72 50" aria-hidden="true"><path d="M-500 49 H0 C14 49 14 4 29 4 H43 C58 4 58 49 72 49 H572" /></svg>';
+  return style === "notch" ? icon(bottomNavIcon(activePage)) : "";
+}
+
+function renderAdminBottomNavStyles() {
+  const selected = bottomNavStyle(getDeepValue(state.adminSettingsDraft, "appearance.bottomNavStyle", "classic"));
+  return `<section class="admin-editor__section admin-nav-picker"><h3>${escapeHtml(localizedText("Нижнее меню", "Bottom menu", "منوی پایین"))}</h3><p>${escapeHtml(localizedText("Для узких экранов. Цвета и стекло — из вашей темы.", "For narrow screens. Uses your theme colors and glass.", "برای صفحه‌های باریک، با رنگ و شیشه پوسته شما."))}</p><div class="admin-nav-options" role="radiogroup" aria-label="${escapeAttribute(localizedText("Дизайн меню", "Menu design", "طرح منو"))}">${BOTTOM_NAV_STYLES.map(([style, ru, en, fa]) => `<button type="button" class="admin-nav-option ${style === selected ? "is-selected" : ""}" role="radio" aria-checked="${style === selected}" data-action="admin-nav-style" data-value="${style}"><span class="admin-nav-preview" data-nav-style="${style}" aria-hidden="true"><span class="bottom-nav__surface"></span><span class="bottom-nav__indicator">${bottomNavDecoration(style)}</span>${["houseLine", "shop", "sms", "userAlt", "grid"].map((name, i) => `<span class="bottom-nav__item ${i === 0 ? "active" : ""}"><span class="bottom-nav__icon">${icon(name)}</span></span>`).join("")}</span><strong>${escapeHtml(localizedText(ru, en, fa))}</strong></button>`).join("")}</div></section>`;
+}
+
 function renderAdminAppearancePage() {
 	const savedMode = String(getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode", "animated"));
 	const currentMode = ADMIN_BACKGROUND_OPTIONS.some(([mode]) => mode === savedMode) ? savedMode : "animated";
@@ -7541,6 +7563,7 @@ function renderAdminAppearancePage() {
 		${renderAdminBackgroundOptions(currentMode)}
 		${renderAdminBackgroundControls(currentMode)}
 		<div class="admin-toggle-list">${renderAdminToggle("Показывать рамки", "appearance.showFrames")}${renderAdminToggle(localizedText("Свечение", "Glow", "درخشش"), "appearance.glow")}${renderAdminToggle(localizedText("Стекло", "Glass", "شیشه"), "appearance.glass")}</div>
+		${renderAdminBottomNavStyles()}
 		${renderAdminAppearancePresets()}
 		<div class="admin-appearance-groups">${groups.map(([title, colors]) => `<section class="admin-editor__section admin-appearance-group"><h3>${escapeHtml(title)}</h3><div class="admin-color-grid">${colors.map(([key, label]) => renderAdminColorField(label, `appearance.colors.${key}`)).join("")}</div></section>`).join("")}</div>
 	`);
@@ -10003,6 +10026,7 @@ function renderBottomNav(dockMode = getBottomDockMode(), dockModeChanged = false
 		return `${dock}${renderEditorScreenSwitches(dockModeChanged)}`;
 	}
   const pages = getBottomNavPages();
+  const style = bottomNavStyle();
   const activePage = getBottomNavActivePage();
   let activeIndex = pages.indexOf(activePage);
   if (activeIndex < 0) activeIndex = previousBottomNavIndex >= 0 ? previousBottomNavIndex : 0;
@@ -10015,8 +10039,9 @@ function renderBottomNav(dockMode = getBottomDockMode(), dockModeChanged = false
   previousBottomNavIndex = activeIndex;
 
   return `
-    <nav class="bottom-nav ${dockModeChanged ? "bottom-nav--entering" : ""}" style="--nav-active-index: ${activeIndex}; --nav-prev-index: ${previousIndex}; --nav-count: ${pages.length};" data-active-index="${activeIndex}" data-prev-index="${previousIndex}" aria-label="${escapeAttribute(localizedText("Навигация", "Navigation", "پیمایش"))}">
-      <span class="bottom-nav__indicator" aria-hidden="true"></span>
+    <nav data-nav-style="${style}" class="bottom-nav ${dockModeChanged ? "bottom-nav--entering" : ""}" style="--nav-active-index: ${activeIndex}; --nav-prev-index: ${previousIndex}; --nav-count: ${pages.length};" data-active-index="${activeIndex}" data-prev-index="${previousIndex}" aria-label="${escapeAttribute(localizedText("Навигация", "Navigation", "پیمایش"))}">
+      <span class="bottom-nav__surface" aria-hidden="true"></span>
+      <span class="bottom-nav__indicator" aria-hidden="true">${bottomNavDecoration(style, activePage)}</span>
       ${pages.map((page) => renderBottomNavItem(page, activePage)).join("")}
     </nav>
   `;
@@ -10024,61 +10049,67 @@ function renderBottomNav(dockMode = getBottomDockMode(), dockModeChanged = false
 
 function renderBottomNavItem(page, activePage = getBottomNavActivePage()) {
   const label = getPageTitle(page, true);
-  return `<button class="bottom-nav__item ${activePage === page ? "active" : ""}" type="button" data-action="go-page" data-value="${page}" aria-label="${escapeAttribute(label)}" title="${escapeAttribute(label)}"><span class="bottom-nav__icon">${icon(bottomNavIcon(page))}</span><span class="bottom-nav__label">${escapeHtml(label)}</span></button>`;
+  return `<button class="bottom-nav__item ${activePage === page ? "active" : ""}" type="button" data-action="go-page" data-value="${page}" aria-label="${escapeAttribute(label)}" title="${escapeAttribute(label)}" ${activePage === page ? 'aria-current="page"' : ""}><span class="bottom-nav__icon">${icon(bottomNavIcon(page))}</span><span class="bottom-nav__label">${escapeHtml(label)}</span></button>`;
 }
 
-function syncBottomNavIndicator() {
-  const nav = app.querySelector(".bottom-nav");
+function captureBottomNavSelection() {
+  const nav = app.querySelector(".bottom-nav[data-nav-style]");
+  if (!nav) return null;
+  const x = parseFloat(getComputedStyle(nav).getPropertyValue("--nav-selection-x"));
+  if (!Number.isFinite(x)) return null;
+  const animation = nav.getAnimations?.().find((item) => item.playState === "running" && item.effect?.getKeyframes?.().some((frame) => "--nav-selection-x" in frame));
+  const remaining = animation ? Math.max(0, Number(animation.effect.getTiming().duration) - Number(animation.currentTime || 0)) : Math.max(0, Number(nav.dataset.selectionEnds || 0) - performance.now());
+  return { x, remaining, style: nav.dataset.navStyle, width: nav.offsetWidth, index: Number(nav.dataset.activeIndex) };
+}
+
+function syncBottomNavIndicator(before = null) {
+  for (const preview of app.querySelectorAll(".admin-nav-preview")) {
+    const item = preview.querySelector(".bottom-nav__item");
+    if (item) preview.style.setProperty("--nav-selection-x", `${item.offsetLeft + item.offsetWidth / 2}px`);
+  }
+  const nav = app.querySelector(".bottom-nav[data-nav-style]");
   const indicator = nav?.querySelector(".bottom-nav__indicator");
   const items = nav ? Array.from(nav.querySelectorAll(".bottom-nav__item")) : [];
   if (!nav || !indicator || !items.length) return;
-
   const pending = pendingBottomNavAnimation;
   pendingBottomNavAnimation = null;
+  for (const animation of nav.getAnimations?.() || []) {
+    if (animation.effect?.getKeyframes?.().some((frame) => "--nav-selection-x" in frame)) animation.cancel();
+  }
   const activeIndex = clampIndex(Number(nav.dataset.activeIndex), items.length);
   const previousIndex = clampIndex(Number(nav.dataset.prevIndex), items.length, activeIndex);
-  const activeItem = items[activeIndex] || items[0];
-  const previousItem = items[previousIndex] || activeItem;
-  const indicatorWidth = 22;
-  const indicatorHeight = 3;
-  // Layout offsets stay stable while the dock entrance animation scales the nav.
-  // Viewport rectangles do not, which used to place the indicator under a
-  // neighbouring icon after returning from an admin settings screen.
-  const from = Math.round(previousItem.offsetLeft + ((previousItem.offsetWidth - indicatorWidth) / 2));
-  const to = Math.round(activeItem.offsetLeft + ((activeItem.offsetWidth - indicatorWidth) / 2));
-  const reduceMotion = Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
-
-  (indicator.getAnimations?.() || []).forEach((animation) => animation.cancel());
-  indicator.style.width = `${indicatorWidth}px`;
-  indicator.style.height = `${indicatorHeight}px`;
-  indicator.style.transition = "none";
-
-  if (!pending?.shouldAnimate || reduceMotion || from === to) {
-    indicator.style.transform = `translate3d(${to}px, 0, 0)`;
-    return;
-  }
-
-  const fromTransform = `translate3d(${from}px, 0, 0) scaleX(.9)`;
-  const toTransform = `translate3d(${to}px, 0, 0) scaleX(1)`;
-  indicator.style.transform = fromTransform;
-
-  if (typeof indicator.animate === "function") {
-    const animation = indicator.animate(
-      [{ transform: fromTransform }, { transform: toTransform }],
-      { duration: 340, easing: "cubic-bezier(.22, 1, .36, 1)", fill: "both" },
-    );
-    animation.onfinish = () => {
-      indicator.style.transform = `translate3d(${to}px, 0, 0)`;
-      animation.cancel();
+  const center = (item) => item.offsetLeft + item.offsetWidth / 2;
+  const to = center(items[activeIndex]);
+  const matching = before?.style === nav.dataset.navStyle && before.width === nav.offsetWidth;
+  const from = matching ? before.x : center(items[previousIndex]);
+  const continuing = matching && before.index === activeIndex;
+  const duration = continuing ? before.remaining : 380;
+  const animate = continuing ? duration > 0 : pending?.shouldAnimate;
+  const reduced = Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
+  nav.style.setProperty("--nav-selection-x", `${to}px`);
+  if (!animate || reduced || Math.abs(from - to) < .1) return;
+  if (typeof CSS === "undefined" || typeof CSS.registerProperty !== "function" || typeof nav.animate !== "function") {
+    // Older Telegram webviews cannot interpolate registered CSS properties.
+    const start = performance.now();
+    nav.dataset.selectionEnds = String(start + duration);
+    const step = (now) => {
+      if (!nav.isConnected) return;
+      const progress = Math.min(1, Math.max(0, (now - start) / duration));
+      const eased = 1 - Math.pow(1 - progress, 3);
+      nav.style.setProperty("--nav-selection-x", `${from + (to - from) * eased}px`);
+      if (progress < 1) requestAnimationFrame(step);
+      else delete nav.dataset.selectionEnds;
     };
+    nav.style.setProperty("--nav-selection-x", `${from}px`);
+    requestAnimationFrame(step);
     return;
   }
-
-  indicator.offsetWidth;
-  indicator.style.transition = "transform .34s cubic-bezier(.22, 1, .36, 1)";
-  requestAnimationFrame(() => {
-    indicator.style.transform = toTransform;
-  });
+  // One inherited, registered coordinate moves both the cutout and the selection.
+  // Capture it before replacing the DOM so rapid taps and polling do not jump.
+  nav.animate([
+    { "--nav-selection-x": `${from}px` },
+    { "--nav-selection-x": `${to}px` },
+  ], { duration, easing: "cubic-bezier(.22, 1, .36, 1)" });
 }
 
 function clampIndex(value, length, fallback = 0) {
@@ -11161,6 +11192,14 @@ function bindRootActions() {
 	  }
 	  if (action === "admin-settings-search-open") return openAdminSettingsSearchResult(Number(value));
 	  if (action === "admin-status-refresh") return await refreshAdminStatus(true);
+	  if (action === "admin-nav-style") {
+        if (!state.adminSettingsDraft || !BOTTOM_NAV_STYLES.some(([style]) => style === value)) return;
+        setDeepValue(state.adminSettingsDraft, "appearance.bottomNavStyle", value);
+        state.adminSettingsDirty = true;
+        haptic("light");
+        render({ preserveScroll: true });
+        return;
+      }
 	  if (action === "admin-background-mode") {
 		if (!state.adminSettingsDraft || !ADMIN_BACKGROUND_OPTIONS.some(([mode]) => mode === value)) return;
 		setDeepValue(state.adminSettingsDraft, "appearance.backgroundMode", value);
@@ -12266,6 +12305,7 @@ function bindRootActions() {
   window.addEventListener("resize", () => {
     syncToastAnchor();
     mountSwitchSelections();
+    syncBottomNavIndicator();
   });
 }
 

@@ -241,6 +241,7 @@ type TelegramButtonSettings struct {
 }
 
 type AppearanceSettings struct {
+	BottomNavStyle   string                              `json:"bottomNavStyle"`
 	BackgroundMode   string                              `json:"backgroundMode"`
 	Colors           map[string]string                   `json:"colors"`
 	Liquid           map[string]LiquidBackgroundSettings `json:"liquid"`
@@ -614,6 +615,7 @@ func DefaultSettings() Settings {
 			},
 		},
 		Appearance: AppearanceSettings{
+			BottomNavStyle: "classic",
 			BackgroundMode: "animated",
 			Compact:        true,
 			ShowFrames:     true,
@@ -1803,6 +1805,18 @@ func normalizedRequiredText(value, fallback string, max int) string {
 }
 
 func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings, migrating bool) error {
+	value.BottomNavStyle = strings.ToLower(strings.TrimSpace(value.BottomNavStyle))
+	if value.BottomNavStyle == "" {
+		value.BottomNavStyle = defaults.BottomNavStyle
+	}
+	switch value.BottomNavStyle {
+	case "classic", "contour", "notch", "capsule":
+	default:
+		if !migrating {
+			return errors.New("bottom navigation style must be classic, contour, notch or capsule")
+		}
+		value.BottomNavStyle = defaults.BottomNavStyle
+	}
 	value.Compact = true
 	value.BackgroundMode = strings.ToLower(strings.TrimSpace(value.BackgroundMode))
 	if value.BackgroundMode == "" {
