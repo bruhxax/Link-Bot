@@ -35,7 +35,7 @@ var (
 	errBannerTooLarge       = errors.New("banner is too large")
 	errBannerUnsupported    = errors.New("unsupported banner format")
 	errBannerDimensions     = errors.New("invalid banner dimensions")
-	uploadedMediaNameRegexp = regexp.MustCompile(`^(?:(?:logo|favicon)-[0-9a-f]{16}\.(?:png|jpg|webp)|banner-[0-9a-f]{16}\.(?:png|gif|mp4))$`)
+	uploadedMediaNameRegexp = regexp.MustCompile(`^(?:(?:logo|favicon)-[0-9a-f]{16}\.(?:png|jpg|webp)|banner-[0-9a-f]{16}\.(?:png|gif|mp4)|background-[0-9a-f]{16}\.(?:png|jpg|gif|webp|avif|bmp|svg|mp4|webm|mov|ogv))$`)
 )
 
 func (h *Handler) handleAdminLogoUpload(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
@@ -381,6 +381,19 @@ func (h *Handler) serveUploadedLogo(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/gif")
 	case ".mp4":
 		w.Header().Set("Content-Type", "video/mp4")
+	case ".avif":
+		w.Header().Set("Content-Type", "image/avif")
+	case ".bmp":
+		w.Header().Set("Content-Type", "image/bmp")
+	case ".svg":
+		w.Header().Set("Content-Type", "image/svg+xml")
+		w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; style-src 'unsafe-inline'")
+	case ".webm":
+		w.Header().Set("Content-Type", "video/webm")
+	case ".mov":
+		w.Header().Set("Content-Type", "video/quicktime")
+	case ".ogv":
+		w.Header().Set("Content-Type", "video/ogg")
 	}
 	http.ServeContent(w, r, fileName, info.ModTime(), file)
 }

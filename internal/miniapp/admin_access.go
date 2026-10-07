@@ -183,6 +183,8 @@ func adminRouteAllowed(a adminAccess, path string) bool {
 		return a.can("servers.manage")
 	case "wallet/withdrawal/resolve":
 		return a.can("wallet.withdrawals")
+	case "background/upload", "background/import":
+		return a.can("appearance")
 	case "logo/upload", "favicon/upload", "banner/upload", "reminders/test", "success/test", "payment-notifications/test", "gifts/test":
 		return a.can("content")
 	case "events/resolve":

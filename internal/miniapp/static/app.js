@@ -15,6 +15,8 @@ import { reviewRewardDraft, reviewRewardsFromDraft, reviewRewardSummary } from "
 
 import { syncTelegramLayout } from "./telegram-layout.mjs";
 import { renderSMTPSettings } from "./admin-smtp.mjs";
+import { syncCustomBackground, probeBackground, draggedPosition } from "./custom-background.mjs";
+import { renderCustomBackgroundEditor } from "./custom-background-editor.mjs";
 import { reuseAdminUserRows } from "./stable-user-rows.mjs";
 import { renderAISettings } from "./admin-ai.mjs";
 import { canAdmin as accessAllows, changePermission, ROLE_PRESETS, presetPermissions, roleDot, renderAdministrators } from "./administrators.mjs";
@@ -1985,6 +1987,7 @@ const ADMIN_BACKGROUND_OPTIONS = [
 	["morphic", "Морфинг", "Мягкие поднимающиеся капли"],
 	["twinkle", "Мерцающие звёзды", "Маленькие светящиеся круги"],
 	["backtyan", "BackTyan", "Зацикленное видео без звука"],
+	["custom", "Свой фон", "Изображение, GIF или видео"],
 	["solid", "Сплошной цвет", "Чистый однотонный фон"],
 ];
 
@@ -4008,6 +4011,7 @@ async function getBrowserAuthHeaders() {
 
 function requestTimeoutForURL(url) {
   const path = String(url || "");
+  if (path.includes("/api/mini-app/admin/background/")) return 120000;
   if (path.includes("/api/mini-app/auth/email/start")) return 40000;
   if (path.includes("/api/mini-app/auth/email/link/start") || path.includes("/api/mini-app/admin/broadcast/email/preview")) return 40000;
   if (path.includes("/api/mini-app/bootstrap")) return 30000;
@@ -4890,6 +4894,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
 		if (transitionGeneration === textTransitionRenderGeneration && !document.hidden) playRenderTextTransitions(textTransitions, textTransitionMode);
 	});
 	mountBannerMedia();
+	mountCustomBackgroundPreview();
   syncBottomNavIndicator(bottomNavSelection);
   restoreSupportThreadScrollState(supportThreadScrollState);
   hydrateSupportMedia();
@@ -7513,6 +7518,7 @@ function renderAdminBackgroundOptions(currentMode) {
 }
 
 function renderAdminBackgroundControls(mode) {
+	if (mode === "custom") return renderCustomBackgroundEditor(state.adminSettingsDraft.appearance, { html: escapeHtml, attr: escapeAttribute, icon, range: renderAdminRangeField, text: localizedText }, adminBackgroundBusy, adminBackgroundURL);
 	const option = ADMIN_BACKGROUND_OPTIONS.find(([value]) => value === mode) || ADMIN_BACKGROUND_OPTIONS[0];
 	const motion = getAdminBackgroundMotion(mode);
 	const colorFields = ADMIN_BACKGROUND_COLOR_FIELDS[mode] || ADMIN_BACKGROUND_COLOR_FIELDS.animated;
@@ -7529,6 +7535,134 @@ function renderAdminBackgroundControls(mode) {
 			${renderAdminRangeField("Скорость", speedHint, `appearance.backgroundMotion.${mode}.speed`, { value: motion.speed, min: 10, max: 100, suffix: "%", minLabel: "Медленно", maxLabel: "Быстрее" })}
 		</div>
 	</section>`;
+}
+
+let adminBackgroundBusy = false;
+let adminBackgroundURL = "";
+let backgroundPreviewController = null;
+
+function selectedCustomBackground() {
+	const appearance = state.adminSettingsDraft?.appearance;
+	return appearance?.customBackgrounds?.find(item => item.id === appearance.activeBackground);
+}
+
+function mountCustomBackgroundPreview() {
+	const host = app.querySelector("[data-custom-bg-preview]");
+	if (!host) { syncCustomBackground(null, null); backgroundPreviewController = null; return; }
+	host.style.setProperty("--custom-preview-width", `${Math.round(300 * window.innerWidth / window.innerHeight)}px`);
+	host.style.setProperty("--custom-preview-ratio", `${window.innerWidth} / ${window.innerHeight}`);
+	const errorOutput = app.querySelector("[data-custom-bg-error]");
+	backgroundPreviewController = syncCustomBackground(host, selectedCustomBackground(), {
+		paused: document.hidden || Boolean(reducedMotionMedia?.matches),
+		onError: message => { if (errorOutput) errorOutput.textContent = message; },
+	});
+	if (errorOutput) errorOutput.textContent = host.dataset.error || "";
+	if (host.dataset.dragBound) return;
+	host.dataset.dragBound = "true";
+	let drag = null;
+	host.addEventListener("pointerdown", event => {
+		if (drag || event.button !== 0 || !backgroundPreviewController?.geometry) return;
+		const item = selectedCustomBackground();
+		if (!item) return;
+		drag = { id:event.pointerId, x:event.clientX, y:event.clientY, px:item.positionX, py:item.positionY, geometry:{...backgroundPreviewController.geometry} };
+		host.setPointerCapture(event.pointerId);
+		event.preventDefault();
+	});
+	host.addEventListener("pointermove", event => {
+		const item = selectedCustomBackground();
+		if (!drag || event.pointerId !== drag.id || !item) return;
+		item.positionX = Math.round(draggedPosition(drag.px, event.clientX - drag.x, host.clientWidth, drag.geometry.width));
+		item.positionY = Math.round(draggedPosition(drag.py, event.clientY - drag.y, host.clientHeight, drag.geometry.height));
+		customBackgroundPositionChanged();
+	});
+	const endDrag = () => { drag = null; };
+	host.addEventListener("pointerup", endDrag);
+	host.addEventListener("pointercancel", endDrag);
+	host.addEventListener("lostpointercapture", endDrag);
+	host.addEventListener("keydown", event => {
+		const item = selectedCustomBackground();
+		if (!item || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+		event.preventDefault();
+		const step = event.shiftKey ? 10 : 1;
+		const field = ["ArrowLeft", "ArrowRight"].includes(event.key) ? "positionX" : "positionY";
+		const geometry = backgroundPreviewController?.geometry;
+		if (!geometry) return;
+		const delta = ["ArrowLeft", "ArrowUp"].includes(event.key) ? -step : step;
+		item[field] = Math.round(draggedPosition(item[field], delta, field === "positionX" ? host.clientWidth : host.clientHeight, field === "positionX" ? geometry.width : geometry.height));
+		customBackgroundPositionChanged();
+	});
+}
+
+function customBackgroundPositionChanged() {
+	const item = selectedCustomBackground();
+	if (!item) return;
+	state.adminSettingsDirty = true;
+	for (const field of ["positionX", "positionY"]) {
+		const input = app.querySelector(`[data-setting-path$=".${field}"]`);
+		if (!input) continue;
+		input.value = item[field]; input.style.setProperty("--range-progress", `${item[field]}%`); input.setAttribute("aria-valuetext", `${item[field]}%`);
+		const output = input.closest(".admin-range-field")?.querySelector("output"); if (output) output.textContent = `${item[field]}%`;
+	}
+	applyAppearance(); syncAdminSaveBarDOM();
+}
+
+async function handleCustomBackgroundAction(action, value) {
+	if (adminBackgroundBusy || !state.adminSettingsDraft?.appearance) return;
+	if (action === "admin-background-import") return addAdminBackground(null);
+	const appearance = state.adminSettingsDraft.appearance;
+	const item = selectedCustomBackground();
+	if (action === "admin-background-select") {
+		if (!appearance.customBackgrounds?.some(item => item.id === value)) return;
+		appearance.activeBackground = value;
+		appearance.backgroundMode = "custom";
+	} else if (action === "admin-background-remove") {
+		appearance.customBackgrounds = (appearance.customBackgrounds || []).filter(item => item.id !== value);
+		appearance.activeBackground = appearance.customBackgrounds[0]?.id || "";
+		// Keep the empty editor visible; use the base colour until a new file is added.
+	} else if (action === "admin-background-reset" && item) {
+		Object.assign(item, { fit:"cover", scale:100, positionX:50, positionY:50, speed:100, dimming:35 });
+	}
+	state.adminSettingsDirty = true;
+	applyAppearance(); render({ preserveScroll:true });
+}
+
+async function addAdminBackground(file) {
+	if (adminBackgroundBusy || !state.adminSettingsDraft?.appearance) return;
+	const appearance = state.adminSettingsDraft.appearance;
+	if ((appearance.customBackgrounds || []).length >= 20) { showToast("Можно сохранить до 20 фонов", "danger"); return; }
+	if (file && file.size > 50 * 1024 * 1024) { showToast("Фон должен быть не больше 50 МБ", "danger"); return; }
+	let url;
+	if (!file) {
+		try { url = new URL(adminBackgroundURL.trim()); if (!["https:", "http:"].includes(url.protocol)) throw new Error(); }
+		catch { showToast("Укажите прямую HTTP/HTTPS-ссылку на файл", "danger"); return; }
+	}
+	adminBackgroundBusy = true;
+	render({ preserveScroll:true });
+	try {
+		let response;
+		if (file) { const form = new FormData(); form.append("background", file); response = await postForm("/api/mini-app/admin/background/upload", form); }
+		else response = await post("/api/mini-app/admin/background/import", { url:url.href });
+		const uploaded = response.data;
+		await probeBackground(uploaded.url, uploaded.type);
+		// Use the current draft: the admin may have navigated away while uploading.
+		const current = state.adminSettingsDraft?.appearance;
+		if (!current) return;
+		current.customBackgrounds ||= [];
+		if (current.customBackgrounds.length >= 20) throw new Error("Можно сохранить до 20 фонов");
+		const existing = current.customBackgrounds.find(item => item.url === uploaded.url);
+		let name = file ? file.name || "Свой фон" : url.pathname.split("/").pop() || "Свой фон";
+		if (!file) { try { name = decodeURIComponent(name); } catch { /* keep a usable filename even for a malformed escape */ } }
+		const entry = existing || { id:`bg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`, name:Array.from(name).slice(0,100).join(""), url:uploaded.url, poster:uploaded.poster || "", type:uploaded.type, fit:"cover", scale:100, positionX:50, positionY:50, speed:100, dimming:35 };
+		if (uploaded.poster) entry.poster = uploaded.poster;
+		if (!existing) current.customBackgrounds.push(entry);
+		current.activeBackground = entry.id;
+		current.backgroundMode = "custom";
+		adminBackgroundURL = "";
+		state.adminSettingsDirty = true;
+		applyAppearance();
+		showToast(localizedText("Фон добавлен. Сохраните оформление", "Background added. Save appearance", "پس‌زمینه اضافه شد؛ تنظیمات را ذخیره کنید"), "success");
+	} catch (error) { showToast(error.message || "Не удалось добавить фон", "danger"); }
+	finally { adminBackgroundBusy = false; render({ preserveScroll:true }); }
 }
 
 const BOTTOM_NAV_STYLES = [
@@ -7981,7 +8115,7 @@ function renderAdminLayoutStyleModal() {
 
 function renderAdminSaveBar(className = "", entering = false) {
 	const saving = state.adminBusy === "save-settings";
-	const busy = Boolean(state.adminBusy);
+	const busy = Boolean(state.adminBusy || adminBackgroundBusy);
 	const status = state.adminBusy === "upload-logo"
 		? localizedText("Загружаем логотип...", "Uploading logo...", "در حال بارگذاری لوگو...")
 		: saving
@@ -11252,6 +11386,7 @@ function bindRootActions() {
         render({ preserveScroll: true });
         return;
       }
+	  if (["admin-background-import", "admin-background-select", "admin-background-remove", "admin-background-reset"].includes(action)) return handleCustomBackgroundAction(action, value);
 	  if (action === "admin-background-mode") {
 		if (!state.adminSettingsDraft || !ADMIN_BACKGROUND_OPTIONS.some(([mode]) => mode === value)) return;
 		setDeepValue(state.adminSettingsDraft, "appearance.backgroundMode", value);
@@ -11708,10 +11843,12 @@ function bindRootActions() {
 			const file = input.files?.[0];
 			if (file) void uploadAdminBanner(file);
 		}
+		if (input.dataset.input === "admin-background-file" && input.files?.[0]) void addAdminBackground(input.files[0]);
 	});
 
 	app.addEventListener("input", (event) => {
       const target = event.target;
+		if (target.dataset.input === "admin-background-url") { adminBackgroundURL = target.value; return; }
         if (target.dataset.input?.startsWith("administrators-")) { handleAdministratorsInput(target); return; }
 		if (target.matches?.("[data-admin-email-subject]")) { state.adminEmailDraftSubject = target.value; state.adminEmailDraftDirty = true; return; }
 		if (target.matches?.("[data-admin-email-body]")) { state.adminEmailDraftBody = target.value; state.adminEmailDraftDirty = true; return; }
@@ -11904,6 +12041,7 @@ function bindRootActions() {
 					if (colorValue) colorValue.textContent = target.value;
 				}
 				applyAppearance();
+				mountCustomBackgroundPreview();
 			}
 			if (settingPath.endsWith(".balanceMode")) {
 				state.adminSettingsDirty = true;
@@ -12358,6 +12496,7 @@ function bindRootActions() {
     syncToastAnchor();
     mountSwitchSelections();
     syncBottomNavIndicator();
+	mountCustomBackgroundPreview();
   });
 }
 
@@ -12507,6 +12646,7 @@ function applyAdminAppearancePreset(id) {
 }
 
 async function saveAdminSettings() {
+	if (adminBackgroundBusy) return;
 	if (!state.adminSettingsDraft || state.adminBusy) return;
 	for (const [path, raw] of Object.entries(state.adminJSONDrafts)) {
 		try {
@@ -12674,7 +12814,7 @@ async function uploadAdminFavicon(file) {
 }
 
 function syncAdminSaveBarDOM() {
-	const busy = Boolean(state.adminBusy);
+	const busy = Boolean(state.adminBusy || adminBackgroundBusy);
 	const status = state.adminBusy === "upload-logo"
 		? localizedText("Загружаем логотип...", "Uploading logo...", "در حال بارگذاری لوگو...")
 		: state.adminBusy === "upload-favicon"
@@ -17195,8 +17335,9 @@ function applyAppearance() {
   document.documentElement.dataset.theme = "dark";
 	const backgroundMode = ADMIN_BACKGROUND_OPTIONS.map(([mode]) => mode).includes(appearance.backgroundMode) ? appearance.backgroundMode : "animated";
 	const motionFallback = DEFAULT_BACKGROUND_MOTION[backgroundMode] || DEFAULT_BACKGROUND_MOTION.animated;
-	const motionSettings = appearance.backgroundMotion?.[backgroundMode] || motionFallback;
-	const backgroundDimming = Math.max(0, Math.min(80, Number(motionSettings.dimming ?? motionFallback.dimming)));
+	const customBackground = appearance.customBackgrounds?.find(item => item.id === appearance.activeBackground);
+	const motionSettings = backgroundMode === "custom" ? customBackground || motionFallback : appearance.backgroundMotion?.[backgroundMode] || motionFallback;
+	const backgroundDimming = Math.max(0, Math.min(backgroundMode === "custom" ? 90 : 80, Number(motionSettings.dimming ?? motionFallback.dimming)));
 	const backgroundSpeed = Math.max(10, Math.min(100, Number(motionSettings.speed ?? motionFallback.speed)));
 	const backgroundDuration = 9.2 - ((backgroundSpeed - 10) / 90) * 6.7;
 	document.documentElement.dataset.background = backgroundMode;
@@ -17328,6 +17469,10 @@ function syncBackgroundEngines() {
 	wave?.pause?.();
 	waveMotionEngine.setPaused(!waveShouldRun);
 	const reducedBackgroundMotion = Boolean(reducedMotionMedia?.matches || document.documentElement.dataset.performance === "reduced");
+	const appearance = getRuntimeSettings()?.appearance;
+	const customBackground = backgroundMode === "custom" ? appearance?.customBackgrounds?.find(item => item.id === appearance.activeBackground) : null;
+	syncCustomBackground(document.querySelector(".bg-media__custom"), customBackground, { paused: paused || reducedBackgroundMotion });
+	mountCustomBackgroundPreview();
 	window.__linkBotMorphic?.setPaused(backgroundMode !== "morphic" || paused || reducedBackgroundMotion);
 	window.__linkBotTwinkle?.setPaused(backgroundMode !== "twinkle" || paused || reducedBackgroundMotion);
 	const video = document.querySelector(".bg-media__video");

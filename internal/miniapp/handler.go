@@ -815,6 +815,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/logo/upload", h.withSession(h.handleAdminLogoUpload, "multipart/form-data"))
 	mux.HandleFunc("/api/mini-app/admin/favicon/upload", h.withSession(h.handleAdminFaviconUpload, "multipart/form-data"))
 	mux.HandleFunc("/api/mini-app/admin/banner/upload", h.withSession(h.handleAdminBannerUpload, "multipart/form-data"))
+	mux.HandleFunc("/api/mini-app/admin/background/upload", h.withSession(h.handleAdminBackgroundUpload, "multipart/form-data"))
+	mux.HandleFunc("/api/mini-app/admin/background/import", h.withSession(h.handleAdminBackgroundImport))
 	mux.HandleFunc("/api/mini-app/admin/reminders/test", h.withSession(h.handleAdminReminderTest))
 	mux.HandleFunc("/api/mini-app/admin/success/test", h.withSession(h.handleAdminSuccessTest))
 	mux.HandleFunc("/api/mini-app/admin/payment-notifications/test", h.withSession(h.handleAdminPaymentNotificationTest))

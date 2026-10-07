@@ -241,15 +241,32 @@ type TelegramButtonSettings struct {
 }
 
 type AppearanceSettings struct {
-	BottomNavStyle   string                              `json:"bottomNavStyle"`
-	BackgroundMode   string                              `json:"backgroundMode"`
-	Colors           map[string]string                   `json:"colors"`
-	Liquid           map[string]LiquidBackgroundSettings `json:"liquid"`
-	BackgroundMotion map[string]BackgroundMotionSettings `json:"backgroundMotion"`
-	Compact          bool                                `json:"compact"`
-	ShowFrames       bool                                `json:"showFrames"`
-	Glow             bool                                `json:"glow"`
-	Glass            bool                                `json:"glass"`
+	CustomBackgrounds []CustomBackgroundSettings          `json:"customBackgrounds"`
+	ActiveBackground  string                              `json:"activeBackground"`
+	BottomNavStyle    string                              `json:"bottomNavStyle"`
+	BackgroundMode    string                              `json:"backgroundMode"`
+	Colors            map[string]string                   `json:"colors"`
+	Liquid            map[string]LiquidBackgroundSettings `json:"liquid"`
+	BackgroundMotion  map[string]BackgroundMotionSettings `json:"backgroundMotion"`
+	Compact           bool                                `json:"compact"`
+	ShowFrames        bool                                `json:"showFrames"`
+	Glow              bool                                `json:"glow"`
+	Glass             bool                                `json:"glass"`
+}
+
+// Each uploaded background keeps its own framing and playback settings.
+type CustomBackgroundSettings struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	URL       string `json:"url"`
+	Poster    string `json:"poster,omitempty"`
+	Type      string `json:"type"`
+	Fit       string `json:"fit"`
+	Scale     int    `json:"scale"`
+	PositionX int    `json:"positionX"`
+	PositionY int    `json:"positionY"`
+	Speed     int    `json:"speed"`
+	Dimming   int    `json:"dimming"`
 }
 
 type LiquidBackgroundSettings struct {
@@ -1826,8 +1843,11 @@ func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings, 
 	if value.BackgroundMode == "liquid1" || value.BackgroundMode == "liquid2" {
 		value.BackgroundMode = defaults.BackgroundMode
 	}
-	if value.BackgroundMode != "animated" && value.BackgroundMode != "grid" && value.BackgroundMode != "grid2" && value.BackgroundMode != "blocks" && value.BackgroundMode != "morphic" && value.BackgroundMode != "twinkle" && value.BackgroundMode != "backtyan" && value.BackgroundMode != "solid" {
-		return errors.New("background mode must be animated, grid, grid2, blocks, morphic, twinkle, backtyan or solid")
+	if value.BackgroundMode != "custom" && value.BackgroundMode != "animated" && value.BackgroundMode != "grid" && value.BackgroundMode != "grid2" && value.BackgroundMode != "blocks" && value.BackgroundMode != "morphic" && value.BackgroundMode != "twinkle" && value.BackgroundMode != "backtyan" && value.BackgroundMode != "solid" {
+		return errors.New("background mode must be animated, grid, grid2, blocks, morphic, twinkle, backtyan, custom or solid")
+	}
+	if err := validateCustomBackgrounds(value); err != nil {
+		return err
 	}
 	if value.Colors == nil {
 		value.Colors = map[string]string{}
