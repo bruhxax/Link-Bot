@@ -2834,6 +2834,8 @@ let subscriptionMenuTimer = 0;
 let notificationPopoverTimer = 0;
 let previousBottomNavIndex = -1;
 let pendingBottomNavAnimation = null;
+const bottomNavMotions = new WeakMap();
+let bottomNavMaskSequence = 0;
 let promoApplyTimer = 0;
 let promoApplySeq = 0;
 let profilePromoCheckTimer = 0;
@@ -7541,13 +7543,20 @@ function bottomNavStyle(value = getRuntimeSettings()?.appearance?.bottomNavStyle
 }
 
 function bottomNavDecoration(style, activePage = "dashboard") {
-  if (style === "contour") return '<svg class="bottom-nav__contour" viewBox="0 0 72 50" aria-hidden="true"><path d="M-500 49 H0 C14 49 14 4 29 4 H43 C58 4 58 49 72 49 H572" /></svg>';
-  return style === "notch" ? icon(bottomNavIcon(activePage)) : "";
+  if (style === "contour") return '<svg class="bottom-nav__contour" aria-hidden="true"><path data-nav-curve /></svg>';
+  if (style === "notch") return `<span class="bottom-nav__travelling-icon" data-nav-icon-old></span><span class="bottom-nav__travelling-icon" data-nav-icon-new>${icon(bottomNavIcon(activePage))}</span>`;
+  return "";
+}
+
+function bottomNavSurface(style) {
+  if (style !== "notch") return '<span class="bottom-nav__surface" aria-hidden="true"></span>';
+  const id = `bottom-nav-cutout-${++bottomNavMaskSequence}`;
+  return `<span class="bottom-nav__surface" style="clip-path:url(#${id});-webkit-clip-path:url(#${id})" aria-hidden="true"></span><svg class="bottom-nav__shape" aria-hidden="true"><defs><clipPath id="${id}" clipPathUnits="userSpaceOnUse"><path data-nav-cutout /></clipPath></defs><path data-nav-rim /></svg>`;
 }
 
 function renderAdminBottomNavStyles() {
   const selected = bottomNavStyle(getDeepValue(state.adminSettingsDraft, "appearance.bottomNavStyle", "classic"));
-  return `<section class="admin-editor__section admin-nav-picker"><h3>${escapeHtml(localizedText("Нижнее меню", "Bottom menu", "منوی پایین"))}</h3><p>${escapeHtml(localizedText("Для узких экранов. Цвета и стекло — из вашей темы.", "For narrow screens. Uses your theme colors and glass.", "برای صفحه‌های باریک، با رنگ و شیشه پوسته شما."))}</p><div class="admin-nav-options" role="radiogroup" aria-label="${escapeAttribute(localizedText("Дизайн меню", "Menu design", "طرح منو"))}">${BOTTOM_NAV_STYLES.map(([style, ru, en, fa]) => `<button type="button" class="admin-nav-option ${style === selected ? "is-selected" : ""}" role="radio" aria-checked="${style === selected}" data-action="admin-nav-style" data-value="${style}"><span class="admin-nav-preview" data-nav-style="${style}" aria-hidden="true"><span class="bottom-nav__surface"></span><span class="bottom-nav__indicator">${bottomNavDecoration(style)}</span>${["houseLine", "shop", "sms", "userAlt", "grid"].map((name, i) => `<span class="bottom-nav__item ${i === 0 ? "active" : ""}"><span class="bottom-nav__icon">${icon(name)}</span></span>`).join("")}</span><strong>${escapeHtml(localizedText(ru, en, fa))}</strong></button>`).join("")}</div></section>`;
+  return `<section class="admin-editor__section admin-nav-picker"><h3>${escapeHtml(localizedText("Нижнее меню", "Bottom menu", "منوی پایین"))}</h3><p>${escapeHtml(localizedText("Для узких экранов. Цвета и стекло — из вашей темы.", "For narrow screens. Uses your theme colors and glass.", "برای صفحه‌های باریک، با رنگ و شیشه پوسته شما."))}</p><div class="admin-nav-options" role="radiogroup" aria-label="${escapeAttribute(localizedText("Дизайн меню", "Menu design", "طرح منو"))}">${BOTTOM_NAV_STYLES.map(([style, ru, en, fa]) => `<button type="button" class="admin-nav-option ${style === selected ? "is-selected" : ""}" role="radio" aria-checked="${style === selected}" data-action="admin-nav-style" data-value="${style}"><span class="admin-nav-preview" data-nav-style="${style}" aria-hidden="true">${bottomNavSurface(style)}<span class="bottom-nav__indicator">${bottomNavDecoration(style)}</span>${["houseLine", "shop", "sms", "userAlt", "grid"].map((name, i) => `<span class="bottom-nav__item ${i === 0 ? "active" : ""}"><span class="bottom-nav__icon">${icon(name)}</span></span>`).join("")}</span><strong>${escapeHtml(localizedText(ru, en, fa))}</strong></button>`).join("")}</div></section>`;
 }
 
 function renderAdminAppearancePage() {
@@ -10040,7 +10049,7 @@ function renderBottomNav(dockMode = getBottomDockMode(), dockModeChanged = false
 
   return `
     <nav data-nav-style="${style}" class="bottom-nav ${dockModeChanged ? "bottom-nav--entering" : ""}" style="--nav-active-index: ${activeIndex}; --nav-prev-index: ${previousIndex}; --nav-count: ${pages.length};" data-active-index="${activeIndex}" data-prev-index="${previousIndex}" aria-label="${escapeAttribute(localizedText("Навигация", "Navigation", "پیمایش"))}">
-      <span class="bottom-nav__surface" aria-hidden="true"></span>
+      ${bottomNavSurface(style)}
       <span class="bottom-nav__indicator" aria-hidden="true">${bottomNavDecoration(style, activePage)}</span>
       ${pages.map((page) => renderBottomNavItem(page, activePage)).join("")}
     </nav>
@@ -10054,62 +10063,105 @@ function renderBottomNavItem(page, activePage = getBottomNavActivePage()) {
 
 function captureBottomNavSelection() {
   const nav = app.querySelector(".bottom-nav[data-nav-style]");
-  if (!nav) return null;
-  const x = parseFloat(getComputedStyle(nav).getPropertyValue("--nav-selection-x"));
-  if (!Number.isFinite(x)) return null;
-  const animation = nav.getAnimations?.().find((item) => item.playState === "running" && item.effect?.getKeyframes?.().some((frame) => "--nav-selection-x" in frame));
-  const remaining = animation ? Math.max(0, Number(animation.effect.getTiming().duration) - Number(animation.currentTime || 0)) : Math.max(0, Number(nav.dataset.selectionEnds || 0) - performance.now());
-  return { x, remaining, style: nav.dataset.navStyle, width: nav.offsetWidth, index: Number(nav.dataset.activeIndex) };
+  const motion = nav && bottomNavMotions.get(nav);
+  if (!motion) return null;
+  return { ...motion, weights: [...motion.weights], style: nav.dataset.navStyle,
+    width: nav.clientWidth, index: Number(nav.dataset.activeIndex),
+    remaining: Math.max(0, motion.ends - performance.now()) };
+}
+
+function bottomNavCurve(width, height, x, depth, notch = false) {
+  const baseline = notch ? 0 : height - 5;
+  const half = notch ? 29 : 30;
+  const left = x - half, right = x + half;
+  const peak = baseline + (notch ? depth : -depth);
+  // The shoulders change height as the selection travels: this is a deforming
+  // curve, not a rigid shape translated between tabs.
+  return `M0 ${baseline} H${left} C${x - 15} ${baseline} ${x - 19} ${peak} ${x} ${peak} C${x + 19} ${peak} ${x + 15} ${baseline} ${right} ${baseline} H${width}`;
+}
+
+function paintBottomNavMotion(nav, items, motion) {
+  const width = nav.clientWidth, height = nav.clientHeight;
+  const style = nav.dataset.navStyle;
+  const depth = (style === "notch" ? 23 : Math.max(0, height - 9)) * motion.bend;
+  const indicator = nav.querySelector(".bottom-nav__indicator");
+  const active = items[clampIndex(Number(nav.dataset.activeIndex), items.length)];
+  const centerY = active.offsetTop + active.offsetHeight / 2;
+  const indicatorY = style === "classic" ? height - 6.5 : style === "notch" ? 2 + 7 * (1 - motion.bend) : centerY;
+  nav.style.setProperty("--nav-selection-x", `${motion.x}px`);
+  nav.style.setProperty("--nav-selection-y", `${indicatorY}px`);
+  if (style === "contour") {
+    indicator.querySelector("[data-nav-curve]")?.setAttribute("d", bottomNavCurve(width, height, motion.x, depth));
+  } else if (style === "notch") {
+    const curve = bottomNavCurve(width, height, motion.x, depth, true);
+    nav.querySelector("[data-nav-cutout]")?.setAttribute("d", `${curve} V${height} H0 Z`);
+    nav.querySelector("[data-nav-rim]")?.setAttribute("d", curve);
+    const mix = motion.mix ?? 1;
+    indicator.querySelector("[data-nav-icon-old]").style.opacity = String(1 - mix);
+    indicator.querySelector("[data-nav-icon-new]").style.opacity = String(mix);
+  }
+  items.forEach((item, i) => {
+    const weight = motion.weights[i] || 0;
+    item.style.setProperty("--nav-icon-lift", `${(style === "notch" ? centerY - 2 : style === "contour" ? 3 : 0) * weight}px`);
+    item.style.setProperty("--nav-icon-selection", String(weight));
+    item.style.setProperty("--nav-icon-opacity", String(style === "notch" ? 1 - weight : 1));
+  });
+  bottomNavMotions.set(nav, motion);
 }
 
 function syncBottomNavIndicator(before = null) {
   for (const preview of app.querySelectorAll(".admin-nav-preview")) {
-    const item = preview.querySelector(".bottom-nav__item");
-    if (item) preview.style.setProperty("--nav-selection-x", `${item.offsetLeft + item.offsetWidth / 2}px`);
+    const items = Array.from(preview.querySelectorAll(".bottom-nav__item"));
+    if (items.length) paintBottomNavMotion(preview, items, {x: items[0].offsetLeft + items[0].offsetWidth / 2, bend: 1, weights: items.map((_, i) => i === 0 ? 1 : 0), ends: 0});
   }
   const nav = app.querySelector(".bottom-nav[data-nav-style]");
-  const indicator = nav?.querySelector(".bottom-nav__indicator");
   const items = nav ? Array.from(nav.querySelectorAll(".bottom-nav__item")) : [];
-  if (!nav || !indicator || !items.length) return;
+  if (!nav || !items.length || !nav.clientWidth) return;
   const pending = pendingBottomNavAnimation;
   pendingBottomNavAnimation = null;
-  for (const animation of nav.getAnimations?.() || []) {
-    if (animation.effect?.getKeyframes?.().some((frame) => "--nav-selection-x" in frame)) animation.cancel();
-  }
   const activeIndex = clampIndex(Number(nav.dataset.activeIndex), items.length);
   const previousIndex = clampIndex(Number(nav.dataset.prevIndex), items.length, activeIndex);
   const center = (item) => item.offsetLeft + item.offsetWidth / 2;
   const to = center(items[activeIndex]);
-  const matching = before?.style === nav.dataset.navStyle && before.width === nav.offsetWidth;
+  const matching = before?.style === nav.dataset.navStyle && before.width === nav.clientWidth && before.weights.length === items.length;
   const from = matching ? before.x : center(items[previousIndex]);
   const continuing = matching && before.index === activeIndex;
-  const duration = continuing ? before.remaining : 380;
-  const animate = continuing ? duration > 0 : pending?.shouldAnimate;
+  const duration = continuing ? before.remaining : 520;
   const reduced = Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
-  nav.style.setProperty("--nav-selection-x", `${to}px`);
-  if (!animate || reduced || Math.abs(from - to) < .1) return;
-  if (typeof CSS === "undefined" || typeof CSS.registerProperty !== "function" || typeof nav.animate !== "function") {
-    // Older Telegram webviews cannot interpolate registered CSS properties.
-    const start = performance.now();
-    nav.dataset.selectionEnds = String(start + duration);
-    const step = (now) => {
-      if (!nav.isConnected) return;
-      const progress = Math.min(1, Math.max(0, (now - start) / duration));
-      const eased = 1 - Math.pow(1 - progress, 3);
-      nav.style.setProperty("--nav-selection-x", `${from + (to - from) * eased}px`);
-      if (progress < 1) requestAnimationFrame(step);
-      else delete nav.dataset.selectionEnds;
-    };
-    nav.style.setProperty("--nav-selection-x", `${from}px`);
-    requestAnimationFrame(step);
+  const weights = items.map((_, i) => i === activeIndex ? 1 : 0);
+  const settled = { x: to, bend: 1, weights, ends: 0 };
+  const shouldAnimate = continuing ? duration > 0 : pending?.shouldAnimate;
+  if (!shouldAnimate || reduced) {
+    paintBottomNavMotion(nav, items, settled);
     return;
   }
-  // One inherited, registered coordinate moves both the cutout and the selection.
-  // Capture it before replacing the DOM so rapid taps and polling do not jump.
-  nav.animate([
-    { "--nav-selection-x": `${from}px` },
-    { "--nav-selection-x": `${to}px` },
-  ], { duration, easing: "cubic-bezier(.22, 1, .36, 1)" });
+  const timeline = continuing && before.timeline ? before.timeline : {
+    from, initialWeights: matching ? before.weights : items.map((_, i) => i === previousIndex ? 1 : 0),
+    initialBend: matching ? before.bend : 1, start: performance.now(), duration,
+    oldIcon: items[matching ? before.weights.indexOf(Math.max(...before.weights)) : previousIndex].querySelector(".bottom-nav__icon")?.innerHTML || "",
+    newIcon: items[activeIndex].querySelector(".bottom-nav__icon")?.innerHTML || "",
+  };
+  const { initialWeights, initialBend, start } = timeline;
+  const ends = start + timeline.duration;
+  if (nav.dataset.navStyle === "notch") {
+    nav.querySelector("[data-nav-icon-old]").innerHTML = timeline.oldIcon;
+    nav.querySelector("[data-nav-icon-new]").innerHTML = timeline.newIcon;
+  }
+  const first = {x: from, bend: matching ? before.bend : initialBend, weights: matching ? before.weights : initialWeights, ends, timeline, mix: continuing ? before.mix : 0};
+  paintBottomNavMotion(nav, items, first);
+  const step = (now) => {
+    // A render or resize replaces this motion; its old callback must stop.
+    if (!nav.isConnected || bottomNavMotions.get(nav)?.ends !== ends) return;
+    const progress = Math.min(1, Math.max(0, (now - start) / timeline.duration));
+    const eased = progress * progress * progress * (progress * (progress * 6 - 15) + 10);
+    const bend = initialBend + (1 - initialBend) * eased - .32 * Math.sin(Math.PI * progress);
+    paintBottomNavMotion(nav, items, progress === 1 ? settled : {
+      x: timeline.from + (to - timeline.from) * eased, bend,
+      weights: weights.map((value, i) => initialWeights[i] + (value - initialWeights[i]) * eased), ends, timeline, mix: eased,
+    });
+    if (progress < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 function clampIndex(value, length, fallback = 0) {
