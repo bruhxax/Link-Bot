@@ -13977,15 +13977,17 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   transform: translate3d(calc(var(--nav-selection-x) - 50%), calc(var(--nav-selection-y) - 50%), 0);
   will-change: transform;
 }
-:is(.bottom-nav, .admin-nav-preview)[data-nav-style]:not([data-nav-style="classic"]) .bottom-nav__icon {
+:is(.bottom-nav, .admin-nav-preview)[data-nav-style] .bottom-nav__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transform: translate3d(0, calc(-1 * var(--nav-icon-lift, 0px)), 0);
   opacity: var(--nav-icon-opacity, 1);
-  color: color-mix(in srgb, var(--accent) calc(var(--nav-icon-selection, 0) * 100%), var(--icon-color));
   transition: none;
   will-change: transform;
+}
+:is(.bottom-nav, .admin-nav-preview)[data-nav-style]:not([data-nav-style="classic"]) .bottom-nav__icon {
+  color: color-mix(in srgb, var(--accent) calc(var(--nav-icon-selection, 0) * 100%), var(--icon-color));
 }
 :is(.bottom-nav, .admin-nav-preview)[data-nav-style]:not([data-nav-style="classic"]) .bottom-nav__icon svg { color: inherit; }
 .bottom-nav[data-nav-style] .bottom-nav__item:focus-visible {

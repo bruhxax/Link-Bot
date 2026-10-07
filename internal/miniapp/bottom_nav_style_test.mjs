@@ -46,7 +46,7 @@ test("every design finishes exactly at the selected button center", () => {
     const h = harness({style});
     h.context.syncBottomNavIndicator();
     assert.equal(h.properties.get("--nav-selection-x"), "36px");
-    h.tick(520);
+    h.tick(260);
     assert.equal(h.properties.get("--nav-selection-x"), "198px");
     assert.equal(h.properties.get("--nav-selection-y"), style === "notch" ? "2px" : style === "classic" ? "43.5px" : "25px");
   }
@@ -57,63 +57,63 @@ test("the contour changes shape while travelling instead of sliding a rigid SVG"
   h.context.syncBottomNavIndicator();
   const original = h.paths.get("contour");
   assert.ok(original.includes(" 4 "));
-  h.tick(260);
+  h.tick(130);
   assert.equal(h.properties.get("--nav-selection-x"), "117px");
   assert.ok(h.paths.get("contour").includes("17.12"));
   assert.notEqual(h.paths.get("contour"), original);
-  h.tick(520);
+  h.tick(260);
   assert.ok(h.paths.get("contour").includes(" 4 "));
 });
 
 test("the notch, old icon descent and new icon ascent share intermediate motion", () => {
   const h = harness();
   h.context.syncBottomNavIndicator();
-  h.tick(260);
+  h.tick(130);
   assert.equal(h.nav.items[0].style.values.get("--nav-icon-lift"), "11.5px");
   assert.equal(h.nav.items[3].style.values.get("--nav-icon-lift"), "11.5px");
   assert.equal(h.paths.get("[data-nav-cutout]"), h.paths.get("[data-nav-rim]") + " V50 H0 Z");
-  h.tick(520);
+  h.tick(260);
   assert.equal(h.nav.items[0].style.values.get("--nav-icon-lift"), "0px");
   assert.equal(h.nav.items[3].style.values.get("--nav-icon-lift"), "23px");
 });
 
 test("rapid reversal resumes the visible curve and icon lifts without jumping", () => {
   const h = harness();
-  h.context.syncBottomNavIndicator(); h.tick(260);
+  h.context.syncBottomNavIndicator(); h.tick(130);
   const before = h.context.captureBottomNavSelection();
   h.replace().dataset.activeIndex = 0;
   h.context.pendingBottomNavAnimation = {shouldAnimate: true};
   h.context.syncBottomNavIndicator(before);
   assert.equal(h.properties.get("--nav-selection-x"), "117px");
   assert.equal(h.nav.items[3].style.values.get("--nav-icon-lift"), "11.5px");
-  h.tick(300); // Disconnected old nav callback.
-  h.tick(780);
+  h.tick(150); // Disconnected old nav callback.
+  h.tick(390);
   assert.equal(h.properties.get("--nav-selection-x"), "36px");
 });
 
 test("polling keeps the original animation timeline and deformation phase", () => {
   const h = harness();
-  h.context.syncBottomNavIndicator(); h.tick(260);
+  h.context.syncBottomNavIndicator(); h.tick(130);
   const before = h.context.captureBottomNavSelection();
   h.replace(); h.context.syncBottomNavIndicator(before);
   assert.equal(h.properties.get("--nav-selection-x"), "117px");
-  h.tick(300); h.tick(390);
+  h.tick(150); h.tick(195);
   const expected = 36 + 162 * .896484375;
   assert.equal(parseFloat(h.properties.get("--nav-selection-x")), expected);
-  h.tick(520);
+  h.tick(260);
   assert.equal(h.properties.get("--nav-selection-x"), "198px");
 });
 
 test("selecting the tab currently under a travelling notch still eases its icon lift", () => {
   const h = harness({active: 4});
-  h.context.syncBottomNavIndicator(); h.tick(260);
+  h.context.syncBottomNavIndicator(); h.tick(130);
   const before = h.context.captureBottomNavSelection();
   h.replace().dataset.activeIndex = 2;
   h.context.pendingBottomNavAnimation = {shouldAnimate: true};
   h.context.syncBottomNavIndicator(before);
   assert.equal(h.properties.get("--nav-selection-x"), "144px");
   assert.equal(h.nav.items[2].style.values.get("--nav-icon-lift"), "0px");
-  h.tick(300); h.tick(780);
+  h.tick(150); h.tick(390);
   assert.equal(h.nav.items[2].style.values.get("--nav-icon-lift"), "23px");
 });
 
@@ -129,12 +129,25 @@ test("resize cancels a pending animation before aligning with new geometry", () 
   h.nav.items[3].offsetLeft += 20;
   h.context.syncBottomNavIndicator();
   assert.equal(h.properties.get("--nav-selection-x"), "218px");
-  h.tick(260);
+  h.tick(130);
   assert.equal(h.properties.get("--nav-selection-x"), "218px");
 });
 
 test("a removed tab clamps stale indices to the remaining navigation", () => {
   const h = harness({active: 4, previous: 4, count: 3}); h.context.syncBottomNavIndicator();
   assert.equal(h.properties.get("--nav-selection-x"), "144px");
+  assert.equal(h.frames.length, 0);
+});
+
+test("classic keeps its original icon lift while the underline travels in 260 ms", () => {
+  const h = harness({style: "classic"});
+  h.context.syncBottomNavIndicator();
+  assert.equal(h.nav.items[0].style.values.get("--nav-icon-lift"), "4.5px");
+  h.tick(130);
+  assert.equal(h.nav.items[0].style.values.get("--nav-icon-lift"), "2.25px");
+  assert.equal(h.nav.items[3].style.values.get("--nav-icon-lift"), "2.25px");
+  h.tick(260);
+  assert.equal(h.nav.items[0].style.values.get("--nav-icon-lift"), "0px");
+  assert.equal(h.nav.items[3].style.values.get("--nav-icon-lift"), "4.5px");
   assert.equal(h.frames.length, 0);
 });

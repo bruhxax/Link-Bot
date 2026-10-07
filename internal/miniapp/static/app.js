@@ -10102,7 +10102,7 @@ function paintBottomNavMotion(nav, items, motion) {
   }
   items.forEach((item, i) => {
     const weight = motion.weights[i] || 0;
-    item.style.setProperty("--nav-icon-lift", `${(style === "notch" ? centerY - 2 : style === "contour" ? 3 : 0) * weight}px`);
+    item.style.setProperty("--nav-icon-lift", `${(style === "notch" ? centerY - 2 : style === "classic" ? 4.5 : style === "contour" ? 3 : 0) * weight}px`);
     item.style.setProperty("--nav-icon-selection", String(weight));
     item.style.setProperty("--nav-icon-opacity", String(style === "notch" ? 1 - weight : 1));
   });
@@ -10126,7 +10126,7 @@ function syncBottomNavIndicator(before = null) {
   const matching = before?.style === nav.dataset.navStyle && before.width === nav.clientWidth && before.weights.length === items.length;
   const from = matching ? before.x : center(items[previousIndex]);
   const continuing = matching && before.index === activeIndex;
-  const duration = continuing ? before.remaining : 520;
+  const duration = continuing ? before.remaining : 260;
   const reduced = Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
   const weights = items.map((_, i) => i === activeIndex ? 1 : 0);
   const settled = { x: to, bend: 1, weights, ends: 0 };
