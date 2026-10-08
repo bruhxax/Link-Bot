@@ -52,6 +52,16 @@ test("unchanged chat messages keep their existing DOM and media", () => {
   assert.equal(page.hydrated, 0);
 });
 
+test("administration live updates preserve React-owned chat and editing controls", () => {
+  const page = harness({modal:true,thread:true,editing:true});
+  page.context.state.adminWorkspace=true;
+  page.context.isAdminUser=()=>true;
+  page.context.renderRealtime();
+  assert.equal(page.renders,1);
+  assert.equal(page.messages.innerHTML,"old");
+  assert.equal(page.hydrated,0);
+});
+
 test("new chat message appends without replacing previous messages", () => {
   const page = harness({ modal: true, thread: true });
   page.context.state.activeSupportThread.messages = [{ id: 1, body: "old" }, { id: 2, body: "new" }];

@@ -13,7 +13,7 @@ func TestGetSystemStats(t *testing.T) {
 			t.Errorf("path = %q", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"response":{"uptime":3601,"memory":{"used":1048576,"total":4194304}}}`))
+		_, _ = w.Write([]byte(`{"response":{"uptime":3601,"memory":{"used":1048576,"total":4194304},"users":{"totalUsers":123,"statusCounts":{"ACTIVE":100,"EXPIRED":15,"LIMITED":3,"DISABLED":5}}}}`))
 	}))
 	defer server.Close()
 	stats, err := NewClient(server.URL, "token", "remote").GetSystemStats(context.Background())
@@ -22,6 +22,9 @@ func TestGetSystemStats(t *testing.T) {
 	}
 	if stats.UptimeSeconds != 3601 || stats.MemoryUsedBytes != 1048576 || stats.MemoryTotalBytes != 4194304 {
 		t.Fatalf("unexpected stats: %+v", stats)
+	}
+	if stats.Users == nil || stats.Users.TotalUsers != 123 || stats.Users.StatusCounts["ACTIVE"] != 100 {
+		t.Fatalf("unexpected user counters: %+v", stats.Users)
 	}
 }
 

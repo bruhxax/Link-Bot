@@ -195,7 +195,7 @@ func adminRouteAllowed(a adminAccess, path string) bool {
 		return a.can("users.balance")
 	case "users/block":
 		return a.can("users.block")
-	case "users/subscription", "users/subscription/select", "users/subscription/delete", "users/subscription/reissue":
+	case "users/subscription", "users/subscription/settings", "users/subscription/select", "users/subscription/delete", "users/subscription/reissue":
 		return a.can("users.subscription")
 	}
 	for permission, routes := range map[string][]string{

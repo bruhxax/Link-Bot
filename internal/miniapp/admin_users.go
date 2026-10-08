@@ -42,10 +42,11 @@ type adminUserActionRequest struct {
 }
 
 type adminUserSearchPayload struct {
-	Items  []adminUserSummaryPayload `json:"items"`
-	Total  int                       `json:"total"`
-	Limit  int                       `json:"limit"`
-	Offset int                       `json:"offset"`
+	PanelCounts *remnawave.PanelUserCounts `json:"panelCounts,omitempty"`
+	Items       []adminUserSummaryPayload  `json:"items"`
+	Total       int                        `json:"total"`
+	Limit       int                        `json:"limit"`
+	Offset      int                        `json:"offset"`
 }
 
 type adminUserSummaryPayload struct {
@@ -57,6 +58,7 @@ type adminUserSummaryPayload struct {
 	AvatarURL          string `json:"avatarUrl,omitempty"`
 	SubscriptionName   string `json:"subscriptionName,omitempty"`
 	SubscriptionStatus string `json:"subscriptionStatus"`
+	ExpiresAt          string `json:"expiresAt,omitempty"`
 	CreatedAt          string `json:"createdAt"`
 	IsBlocked          bool   `json:"isBlocked"`
 }
@@ -82,18 +84,23 @@ type adminUserReferralPayload struct {
 }
 
 type adminUserSubscriptionPayload struct {
-	ID                int64  `json:"id"`
-	Name              string `json:"name"`
-	IsPrimary         bool   `json:"isPrimary"`
-	IsSelected        bool   `json:"isSelected"`
-	Status            string `json:"status"`
-	ExpiresAt         string `json:"expiresAt,omitempty"`
-	TrafficLimitBytes int64  `json:"trafficLimitBytes"`
-	UsedTrafficBytes  int64  `json:"usedTrafficBytes"`
-	DeviceLimit       int    `json:"deviceLimit"`
-	UsedDevices       int    `json:"usedDevices"`
-	PanelUsername     string `json:"panelUsername,omitempty"`
-	SubscriptionLink  string `json:"subscriptionLink,omitempty"`
+	Settings                 *remnawave.UserSettings `json:"settings,omitempty"`
+	PanelID                  int64                   `json:"panelId,omitempty"`
+	Devices                  []remnawave.UserDevice  `json:"devices,omitempty"`
+	DevicesLoaded            bool                    `json:"devicesLoaded"`
+	ID                       int64                   `json:"id"`
+	Name                     string                  `json:"name"`
+	IsPrimary                bool                    `json:"isPrimary"`
+	IsSelected               bool                    `json:"isSelected"`
+	Status                   string                  `json:"status"`
+	ExpiresAt                string                  `json:"expiresAt,omitempty"`
+	TrafficLimitBytes        int64                   `json:"trafficLimitBytes"`
+	UsedTrafficBytes         int64                   `json:"usedTrafficBytes"`
+	LifetimeUsedTrafficBytes int64                   `json:"lifetimeUsedTrafficBytes"`
+	DeviceLimit              int                     `json:"deviceLimit"`
+	UsedDevices              int                     `json:"usedDevices"`
+	PanelUsername            string                  `json:"panelUsername,omitempty"`
+	SubscriptionLink         string                  `json:"subscriptionLink,omitempty"`
 }
 
 func adminUserAvatarURL(username string) string {
@@ -141,7 +148,19 @@ func (h *Handler) handleAdminUsersSearch(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	payload := adminUserSearchPayload{Items: make([]adminUserSummaryPayload, 0, len(items)), Total: total, Limit: req.Limit, Offset: req.Offset}
+	if req.Offset <= 0 && strings.TrimSpace(req.Query) == "" && h.remnawaveClient != nil {
+		statsCtx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		stats, statsErr := h.remnawaveClient.GetSystemStats(statsCtx)
+		cancel()
+		if statsErr == nil {
+			payload.PanelCounts = stats.Users
+		}
+	}
 	for _, item := range items {
+		expiresAt := ""
+		if item.ExpireAt != nil {
+			expiresAt = item.ExpireAt.UTC().Format(time.RFC3339)
+		}
 		if item.TelegramID == config.GetAdminTelegramId() {
 			item.AdminRole = "Главный администратор"
 			item.AdminColor = "#69a8d4"
@@ -155,6 +174,7 @@ func (h *Handler) handleAdminUsersSearch(w http.ResponseWriter, r *http.Request,
 			AvatarURL:          adminUserAvatarURL(item.TelegramUsername),
 			SubscriptionName:   strings.TrimSpace(item.SubscriptionName),
 			SubscriptionStatus: adminSubscriptionStatus(item.ExpireAt, item.IsBlocked),
+			ExpiresAt:          expiresAt,
 			CreatedAt:          item.CreatedAt.UTC().Format(time.RFC3339),
 			IsBlocked:          item.IsBlocked || config.GetBlockedTelegramIds()[item.TelegramID],
 		})
@@ -576,12 +596,17 @@ func (h *Handler) loadAdminUserDetail(ctx context.Context, customerID int64) (*a
 					item.Status = "unavailable"
 				}
 			} else if panelState != nil && panelState.Exists {
+				item.Settings, _ = h.remnawaveClient.GetAdminUserSettings(ctx, panelState.UserID, panelState.UserUUID)
+				item.PanelID = panelState.UserID
+				item.Devices = panelState.Devices
+				item.DevicesLoaded = panelState.DevicesLoaded
 				item.PanelUsername = panelState.PanelUsername
 				if panelState.SubscriptionLink != nil {
 					item.SubscriptionLink = strings.TrimSpace(*panelState.SubscriptionLink)
 				}
 				item.TrafficLimitBytes = panelState.TrafficLimitBytes
 				item.UsedTrafficBytes = panelState.UsedTrafficBytes
+				item.LifetimeUsedTrafficBytes = panelState.LifetimeUsedTrafficBytes
 				item.DeviceLimit = panelState.DeviceLimit
 				item.UsedDevices = panelState.UsedDevices
 				if panelState.ExpireAt != nil {
@@ -589,6 +614,8 @@ func (h *Handler) loadAdminUserDetail(ctx context.Context, customerID int64) (*a
 				}
 				if result.IsBlocked {
 					item.Status = "blocked"
+				} else if status := strings.ToLower(panelState.PanelStatus); status == "limited" || status == "disabled" {
+					item.Status = status
 				} else if panelState.Active {
 					item.Status = "active"
 				} else {

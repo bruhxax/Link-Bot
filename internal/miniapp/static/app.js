@@ -21,6 +21,9 @@ import { reuseAdminUserRows } from "./stable-user-rows.mjs";
 import { renderAISettings } from "./admin-ai.mjs";
 import { canAdmin as accessAllows, changePermission, ROLE_PRESETS, presetPermissions, roleDot, renderAdministrators } from "./administrators.mjs";
 
+import { consoleRoute, visibleConsoleGroups } from "./admin-console.mjs";
+import { mountRemnaAdmin, unmountRemnaAdmin } from "./admin-loader.mjs";
+
 const administrators = { items: [], total: 0, catalog: [], query: "", candidates: [], candidateTotal: 0, pickQuery: "", picking: false, editor: null, confirmRemove: false, busy: "", error: "", requestID: 0, searchTimer: null };
 
 const app = document.getElementById("app");
@@ -38,6 +41,12 @@ document.documentElement.dataset.layout = cabinetWideMedia.matches ? "wide" : "c
 const telegramBotID = document.querySelector('meta[name="telegram-bot-id"]')?.content?.trim() || "";
 const googleMetaClientID = document.querySelector('meta[name="google-client-id"]')?.content?.trim() || "";
 const urlParams = new URLSearchParams(window.location.search);
+const adminBaseURL = document.querySelector('meta[name="admin-base-url"]')?.content || "";
+const cabinetBaseURL = document.querySelector('meta[name="cabinet-base-url"]')?.content || "";
+const adminEntry = document.querySelector('meta[name="admin-entry"]')?.content === "on";
+const adminDedicated = Boolean(adminBaseURL && window.location.origin === adminBaseURL);
+const pwaServiceWorkerScope = adminDedicated ? "/" : "/mini-app/";
+
 const previewMode = (() => {
   const enabled = urlParams.get("preview") === "1";
   if (!enabled) return false;
@@ -151,7 +160,7 @@ function preventMiniAppZoom() {
 
 function registerPWAServiceWorker() {
   if (!("serviceWorker" in navigator) || window.location.protocol !== "https:") return;
-	navigator.serviceWorker.register("/mini-app/sw.js", { scope: "/mini-app/", updateViaCache: "none" }).then((registration) => {
+	navigator.serviceWorker.register("/mini-app/sw.js", { scope: pwaServiceWorkerScope, updateViaCache: "none" }).then((registration) => {
 	registration.update().catch(() => {});
 	registration.active?.postMessage({ type: "CLEAR_APP_BADGE" });
   }).catch(() => {});
@@ -176,7 +185,7 @@ function withWebPushTimeout(promise, timeoutMs, message, code) {
 async function getPWAServiceWorkerRegistration() {
 	if (!("serviceWorker" in navigator) || window.location.protocol !== "https:") return null;
 	const registration = await withWebPushTimeout(
-		navigator.serviceWorker.register("/mini-app/sw.js", { scope: "/mini-app/", updateViaCache: "none" }),
+		navigator.serviceWorker.register("/mini-app/sw.js", { scope: pwaServiceWorkerScope, updateViaCache: "none" }),
 		WEB_PUSH_WORKER_TIMEOUT_MS,
 		"iPhone не завершил подготовку уведомлений. Полностью закройте Link-Bot, откройте снова и повторите.",
 		"push_worker_timeout",
@@ -2606,6 +2615,8 @@ const state = {
   error: "",
   currentPage: "dashboard",
   sidebarOpen: false,
+  adminWorkspace: adminEntry || urlParams.get("page") === "admin",
+  adminConsoleMenuOpen: false,
   payModalOpen: false,
 	p2pMenuStep: "",
 	p2pDestinationId: "",
@@ -2869,7 +2880,7 @@ function t() {
 }
 
 function getRuntimeSettings() {
-	if ((state.adminLayoutEditing || state.adminPlanEditing || state.adminSection === "appearance") && state.adminSettingsDraft) return state.adminSettingsDraft;
+	if ((state.adminLayoutEditing || state.adminPlanEditing || state.adminWorkspace && ["appearance", "plans", "layout"].includes(state.adminSection)) && state.adminSettingsDraft) return state.adminSettingsDraft;
 	return state.data?.runtime || state.publicSettings || state.adminSettingsDraft || null;
 }
 
@@ -3316,6 +3327,7 @@ async function boot() {
 	applyAppearance();
   const paymentReturn = Boolean(getPaymentReturnState());
   state.currentPage = getEntryPage();
+	if (state.currentPage === "admin") state.adminWorkspace = true;
 	state.adminSection = state.currentPage === "admin" ? getEntryAdminSection() : "home";
 	if (!ADMIN_SEARCH_CONTENT_SECTIONS.some(([section]) => section === state.adminContentSection)) state.adminContentSection = "start";
   state.sidebarOpen = false;
@@ -3343,12 +3355,14 @@ async function boot() {
 	closeSupportThreadState();
   writeSetting(STORAGE_KEYS.page, state.currentPage);
   await refreshDashboard({ initial: true, silent: paymentReturn });
-	if (canAdmin("push")) void refreshAdminPush();
+	if (canAdmin("push") && (!adminBaseURL || adminDedicated || previewMode)) void refreshAdminPush();
 	if (isAdminUser() && state.currentPage === "admin" && !["broadcast", "user-message"].includes(urlParams.get("admin"))) refreshRestoredAdminSection();
   await handlePostBootstrapFlow();
 }
 
 function refreshRestoredAdminSection() {
+	if (state.adminSection === "layout") return enterAdminLayoutEditor();
+	if (state.adminSection === "plans") return enterAdminPlanEditor();
 	if (state.adminSection === "ai") void loadAdminAI();
 	if (state.adminSection === "administrators") void refreshAdministrators();
 	if (state.adminSection === "finance") void refreshAdminFinance().catch((error) => showToast(error?.message || "Не удалось загрузить финансы", "danger"));
@@ -3518,6 +3532,11 @@ function patchRealtimeSupportThinking() {
 
 function renderRealtime() {
 	if (realtimeBatching) { realtimeBatchRenderRequested = true; return; }
+	if (state.adminWorkspace && isAdminUser()) {
+		// React retains mounted controls and owns the administration DOM.
+		render({ preserveInteraction: true });
+		return;
+	}
 	if (!state.data || state.maintenance || state.blocked || state.subscriptionGate || !app.querySelector(".app-shell")) {
 		realtimeRenderPending = false;
 		render();
@@ -3801,7 +3820,7 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
 				{ customerId: 13, telegramId: 7123456789, username: "maria_net", avatarUrl: "", subscriptionName: "Работа", subscriptionStatus: "active", createdAt: new Date(Date.now() - 32 * 86400000).toISOString(), isBlocked: false },
 				{ customerId: 14, telegramId: 7987654321, username: "ivan_test", avatarUrl: "", subscriptionName: "Основная", subscriptionStatus: "expired", createdAt: new Date(Date.now() - 12 * 86400000).toISOString(), isBlocked: true },
 			],
-			total: 3251,
+			total: 3251, panelCounts: {totalUsers:3251,statusCounts:{ACTIVE:2814,EXPIRED:302,LIMITED:86,DISABLED:49}},
 			limit: 30,
 			offset: 0,
 		};
@@ -3820,11 +3839,18 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
 				{ id: 32, name: "Работа", isPrimary: false, isSelected: false, status: "expired", expiresAt: new Date(Date.now() - 8 * 86400000).toISOString(), trafficLimitBytes: 53687091200, usedTrafficBytes: 42949672960, deviceLimit: 2, usedDevices: 1 },
 			],
 		};
-		state.adminUserSelectedSubscriptionID = "31";
+		for (const subscription of state.adminUserDetail.subscriptions) subscription.settings = {telegramId:6402520205,email:"demo@example.com",description:"",tag:"PREMIUM",trafficLimitBytes:subscription.trafficLimitBytes,trafficLimitStrategy:"MONTH",hwidDeviceLimit:subscription.deviceLimit,expireAt:subscription.expiresAt,activeInternalSquads:[],externalSquadUuid:null};
+		for (const subscription of state.adminUserDetail.subscriptions) { subscription.panelId = subscription.id; subscription.panelUsername = subscription.id === 31 ? "alexvpn" : "alexvpn_work"; subscription.subscriptionLink = "https://example.com/subscription/demo"; subscription.devicesLoaded = true; subscription.devices = [{Hwid:"demo-hwid-1",Platform:"iOS",OSVersion:"18.4",DeviceModel:"iPhone 16"}]; }
+        state.adminUserSelectedSubscriptionID = "31";
 		state.adminUserPreviewDetail = deepClone(state.adminUserDetail);
 		if (urlParams.get("detail") !== "1") state.adminUserDetail = null;
-		const previewSection = String(urlParams.get("section") || "");
-		if (["home", "integrations", "referrals", "partners", "moynalog", "finance", "analytics", "ai", "broadcast", "users", "appearance", "administrators", "status"].includes(previewSection)) {
+		const previewSection = String(urlParams.get("section") || (urlParams.get("page") === "admin" || adminEntry ? "home" : ""));
+		if (["support", "servers", "reviews"].includes(previewSection)) {
+			state.currentPage = previewSection;
+			state.adminWorkspace = true;
+			state.adminSection = "home";
+			state.adminLayoutEditing = false;
+		} else if (previewSection === "home" || previewSection === "push" || ADMIN_SEARCH_SECTIONS.some(([section]) => section === previewSection)) {
 			state.currentPage = "admin";
 			state.adminSection = previewSection;
 			state.adminLayoutEditing = false;
@@ -4368,6 +4394,47 @@ function updateMountedSupportModal(markup) {
 }
 
 function mountCabinetShell(markup) {
+	if (state.adminWorkspace && isAdminUser()) {
+		const template = document.createElement("template");
+		template.innerHTML = markup.trim();
+		const groups = visibleConsoleGroups(canAdmin);
+		mountRemnaAdmin(app, {
+			groups, section: state.adminSection, page: state.currentPage, locale: state.locale,
+			brand: state.data?.brand?.name || "Link-Bot", logo: state.data?.brand?.logoUrl, logout: Boolean(renderBrowserLogoutButton()),
+			save: state.currentPage === "admin" && ADMIN_SAVE_SECTIONS.has(state.adminSection),
+			dirty: state.adminSettingsDirty, busy: Boolean(state.adminBusy || adminBackgroundBusy),
+			plans: (state.adminSettingsDraft?.plans || state.data?.admin?.settings?.plans || []).map(plan => ({...plan})),
+			users: {...(state.adminUsers || {total: 0}), items: [...(state.adminUsers?.items || [])]}, usersQuery: state.adminUsersQuery,
+			servers: getServerItems().map(server => ({...server})), serverFilter: state.serverFilter,
+			canManageNodes: canAdmin("servers.manage"), nodeBusy: state.serverVisibilityBusy,
+			reviews: state.data?.reviews || {items:[],count:0,average:0},
+			canDeleteReviews: canAdmin("reviews.delete"), canRewardReviews: canAdmin("reviews.rewards"),
+			userDetail: Boolean(state.adminUserDetail || state.adminUserPending), user: state.adminUserDetail,
+			selectedSubscriptionID: adminUserSelectedSubscriptionID(), squads: adminSquads(),
+			canEditUser: canAdmin("users.subscription"), userBusy: Boolean(state.adminUsersBusy),
+			saveUserSettings: (subscriptionId, settings) => runAdminUserAction("/api/mini-app/admin/users/subscription/settings", {subscriptionId, settings}, "panel-settings"),
+			layout: state.adminSettingsDraft?.layout?.elements || [],
+			layoutArea: state.adminLayoutCategory,
+			setLayoutArea: area => setAdminLayoutCategory(area),
+			editProfileButton: id => openAdminProfileEditor(id),
+			profileButtons: getProfileItems(),
+			moveLayout: (key, x, y) => {
+				const item = state.adminSettingsDraft?.layout?.elements?.find(entry => `${entry.area}:${entry.id}` === key);
+				if (!item) return;
+				item.positionX = Math.round(Math.max(-2000, Math.min(2000, x)) * 100) / 100;
+				item.positionY = Math.round(Math.max(-2000, Math.min(4000, y)) * 100) / 100;
+				markAdminLayoutDirty(); render({preserveScroll:true});
+			},
+			searchHTML: renderAdminSettingsSearch(),
+			layoutEntries: (state.adminSettingsDraft?.layout?.elements || []).map((item,index) => ({...item,index,label:adminLayoutMeta(item.area,item.id)[0]})),
+			editLayout: key => {state.adminLayoutSelection = key;openAdminLayoutStyleEditor();},
+			paymentMethods: getAdminPaymentMethods(),
+			integrations: (state.data?.admin?.integrations || []).filter(item => item.enabled).length,
+			events: state.data?.admin?.events || [],
+		}, template.content.firstElementChild, () => render({preserveScroll:true}));
+		return;
+	}
+	unmountRemnaAdmin();
 	if (updateMountedSupportModal(markup)) return;
 	const currentShell = app.firstElementChild;
 	const template = document.createElement("template");
@@ -4771,7 +4838,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
 	const bottomNavSelection = captureBottomNavSelection();
 	const transitionGeneration = ++textTransitionRenderGeneration;
 	cancelAllTextTransitions();
-	const textTransitions = state.data && !document.hidden ? captureRenderTextTransitions() : [];
+	const textTransitions = state.data && !document.hidden && !(state.adminWorkspace && isAdminUser()) ? captureRenderTextTransitions() : [];
 	realtimeRenderPending = false;
 	window.clearTimeout(realtimeRenderTimer);
 	const realtimeFocus = realtimeRefreshRunning || preserveInteraction ? captureRealtimeFocus() : null;
@@ -4801,6 +4868,9 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
 	const publicMaintenance = !hasAuth() && Boolean(getRuntimeSettings()?.maintenance?.enabled) ? getRuntimeSettings().maintenance : null;
 	document.documentElement.dataset.accessScreen = !state.loading && !state.data && Boolean(state.maintenance || publicMaintenance || state.blocked) ? "on" : "off";
 	app.classList.toggle("app--browser-auth", !state.loading && !state.data && !hasAuth() && !previewMode && !state.maintenance && !publicMaintenance && !state.blocked && !state.error);
+  const consoleActive = (adminEntry && !state.data || state.adminWorkspace && isAdminUser());
+  if (!consoleActive || !state.data) unmountRemnaAdmin();
+  document.documentElement.dataset.adminConsole = consoleActive ? "on" : "off";
   applyAppearance();
   if (isInstallGuideMode()) {
     app.innerHTML = renderInstallGuidePage();
@@ -4847,16 +4917,21 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
     mountGoogleLoginWidgets();
     return;
   }
+  if (adminEntry && !isAdminUser()) {
+    app.innerHTML = `<div class="state-screen"><section class="rw-card"><h1>Доступ запрещён</h1><p>Войдите в аккаунт администратора.</p>${renderBrowserLogoutButton()}</section></div>`;
+    bindRootActions();
+    return;
+  }
 	persistNavigationState();
 	const dockMode = getBottomDockMode();
 	const dockModeChanged = dockMode !== lastBottomDockMode;
 	mountCabinetShell(`
-    <div class="app-shell ${state.adminLayoutEditing ? "app-shell--layout-editor" : ""}">
-      ${renderDesktopSidebar()}
+    <div class="app-shell ${consoleActive ? "rw-shell" : ""} ${state.adminLayoutEditing ? "app-shell--layout-editor" : ""}">
+      ${consoleActive ? "" : renderDesktopSidebar()}
       <div class="page-scroll">
-        ${renderPages()}
+        ${consoleActive ? renderConsolePage() : renderPages()}
       </div>
-      ${renderBottomNav(dockMode, dockModeChanged)}
+      ${consoleActive ? "" : renderBottomNav(dockMode, dockModeChanged)}
       ${isModalVisible("support-compose", state.supportComposeOpen) ? renderSupportComposerModal() : ""}
       ${isModalVisible("support-thread", state.supportThreadOpen) ? renderSupportThreadModal() : ""}
       ${isModalVisible("support-media-viewer", Boolean(state.supportMediaViewer)) ? renderSupportMediaViewerModal() : ""}
@@ -5095,9 +5170,24 @@ function renderPages() {
   ].join("");
 }
 
+function renderConsolePage() {
+  if (state.currentPage === "support") return renderSupportPage();
+  if (state.currentPage === "servers") return renderServersPage();
+  if (state.currentPage === "reviews") return renderReviewsPage();
+  return renderAdminPage();
+}
+
+function renderConsoleSaveBar() {
+  if (state.currentPage !== "admin" || !ADMIN_SAVE_SECTIONS.has(state.adminSection)) return "";
+  const saving = state.adminBusy === "save-settings";
+  const disabled = Boolean(state.adminBusy || adminBackgroundBusy);
+  return `<div class="rw-savebar" role="region" aria-label="Сохранение настроек"><span role="status">${state.adminSettingsDirty ? localizedText("Есть несохранённые изменения", "Unsaved changes", "تغییرات ذخیره نشده") : localizedText("Все изменения сохранены", "All changes saved", "تغییرات ذخیره شد")}</span><div><button class="rw-refresh" type="button" data-action="admin-cancel-settings" ${disabled || !state.adminSettingsDirty ? "disabled" : ""}>${localizedText("Отменить", "Discard", "لغو")}</button><button class="rw-save" type="button" data-action="admin-save-settings" ${disabled || !state.adminSettingsDirty ? "disabled" : ""}>${icon("check")}${saving ? localizedText("Сохранение…", "Saving…", "ذخیره…") : localizedText("Сохранить изменения", "Save changes", "ذخیره تغییرات")}</button></div></div>`;
+}
+
 function renderAdminPage() {
 	if (state.adminLayoutEditing || state.adminPlanEditing) return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"></section>`;
 	syncAdminSettingsDraft();
+  if (state.adminSection === "push") return renderAdminEditorPage(state.locale === "en" ? "Push notifications" : "Push-уведомления", `<section class="admin-editor__section">${renderAdminPushToggle(state.locale === "en" ? "Enable notifications" : "Включить уведомления")}<p>${escapeHtml(state.adminPushError || (state.locale === "en" ? "Receive alerts on this device" : "Получайте уведомления на этом устройстве"))}</p><button class="rw-refresh" type="button" data-action="admin-push-test">${state.locale === "en" ? "Send test" : "Отправить тест"}</button></section>`);
 	if (state.adminSection === "promocodes") return renderAdminPromocodesPage();
 	if (state.adminSection === "subscriptions") return renderAdminSubscriptionsPage();
 	if (state.adminSection === "localization") return renderAdminLocalizationPage();
@@ -5122,43 +5212,7 @@ function renderAdminPage() {
 	if (state.adminSection === "partners") return renderAdminPartnersPage();
 	if (state.adminSection === "users") return renderAdminUsersPage();
     if (state.adminSection === "administrators") return `<section class="page admin-page ${pageClass("admin")}" id="page-admin">${renderAdministrators(administrators, { escapeHtml, escapeAttribute, icon, avatar: adminUserAvatar, displayName: adminUserDisplayName, loading: renderAdminUsersLoading })}</section>`;
-	return `
-		<section class="page admin-page ${pageClass("admin")}" id="page-admin">
-			${renderAdminSettingsSearch()}
-			${renderAdminMenuGroup(localizedText("Система", "System", "سیستم"), [
-				[localizedText("Статус", "Status", "وضعیت"), "", "status", "server"],
-				[localizedText("Язык и шрифт", "Language and font", "زبان و فونت"), "", "localization", "language"],
-				[localizedText("Режим аварии", "Maintenance mode", "حالت تعمیر"), "", "maintenance", "adminMaintenance"],
-				[localizedText("Диагностика", "Diagnostics", "عیب‌یابی"), "", "diagnostics", "adminDiagnostics"],
-				[localizedText("Push-уведомления", "Push notifications", "اعلان‌های پوش"), "", "push-toggle", "adminPush"],
-				[localizedText("Управление функциями", "Functions", "مدیریت امکانات"), "", "features", "adminFeatures"],
-				[localizedText("Триал", "Trial", "آزمایشی"), "", "trial", "adminTrial"],
-				[localizedText("Доступ после окончания", "Access after expiry", "دسترسی پس از انقضا"), "", "grace", "adminTrial"],
-				[localizedText("Привязка подписок", "Subscription binding", "اتصال اشتراک‌ها"), "", "subscriptions", "adminSubscriptions"],
-				[localizedText("Интеграции", "Integrations", "یکپارچه‌سازی‌ها"), "", "integrations", "adminIntegrations"],
-				[localizedText("Мой налог", "My Tax", "مالیات من"), "", "moynalog", "adminIntegrations"],
-				[localizedText("ИИ", "AI", "هوش مصنوعی"), "", "ai", "sparkles"],
-			])}
-			${renderAdminMenuGroup(localizedText("Интерфейс", "Interface", "رابط کاربری"), [
-				[localizedText("Редактор контента", "Content", "ویرایشگر محتوا"), "", "content", "adminContent"],
-				["Sub page", "", "subpage", "adminSubscriptions"],
-				[localizedText("Оформление", "Appearance", "ظاهر"), "", "appearance", "adminAppearance"],
-				[localizedText("Конструктор UI", "UI builder", "سازنده رابط"), "", "layout", "grid"],
-				[localizedText("Тарифы", "Plans", "تعرفه‌ها"), "", "plans", "cartShopping"],
-			])}
-			${renderAdminMenuGroup(localizedText("Операции", "Operations", "عملیات"), [
-				[localizedText("Пользователи", "Users", "کاربران"), "", "users", "users"],
-				[localizedText("Администраторы", "Administrators", "مدیران"), "", "administrators", "users"],
-				[localizedText("Финансы", "Finance", "امور مالی"), "", "finance", "chartLine"],
-				[localizedText("Аналитика", "Analytics", "تحلیل"), "", "analytics", "google"],
-				[localizedText("Рефералы и баланс", "Referrals and balance", "دعوت و موجودی"), "", "referrals", "users"],
-				[localizedText("Партнёры", "Partners", "همکاران"), "", "partners", "users"],
-				[localizedText("Рассылка", "Broadcast", "ارسال همگانی"), "", "broadcast", "adminBroadcast"],
-				[localizedText("Промокоды", "Promo codes", "کدهای تخفیف"), "", "promocodes", "adminPromocodes"],
-			])}
-            ${renderAdminExtraAccess()}
-		</section>
-	`;
+  return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"></section>`;
 }
 
 let adminSettingsSearchCatalog = null;
@@ -6264,7 +6318,7 @@ async function refreshAdminUsers({ append = false, silent = false } = {}) {
 		if (requestID !== adminUsersSearchRequestID || (!append && query !== state.adminUsersQuery) || state.adminSection !== "users" || state.adminUserPending) return;
 		const next = response.data || { items: [], total: 0, limit: 30, offset };
 		state.adminUsers = {
-			...next,
+			...next, panelCounts: next.panelCounts || state.adminUsers?.panelCounts,
 			items: append ? [...(state.adminUsers?.items || []), ...(next.items || [])] : (next.items || []),
 		};
 		state.adminUsersBusy = "";
@@ -10148,7 +10202,7 @@ function renderStateScreen(kind, message = "", meta = null) {
 		const brandName = getRuntimeSettings()?.content?.brandName || "Link-Bot";
 		return `<div class="state-screen state-screen--access state-screen--blocked"><section class="access-state" aria-labelledby="access-state-title"><div class="access-state__icon" aria-hidden="true">${icon("accessLink")}</div><h1 class="access-state__title" id="access-state-title">${escapeHtml(brandName)}</h1><p class="access-state__text">${escapeHtml(localizedText("Доступ ограничен", "Access restricted", "دسترسی محدود است"))}</p><p class="access-state__reason"><span>${escapeHtml(localizedText("Причина:", "Reason:", "دلیل:"))}</span> ${escapeHtml(reason)}</p></section></div>`;
 	}
-  return `<div class="state-screen"><div class="state-card"><div class="state-card__eyebrow">${escapeHtml(t().appName)}</div><div class="state-card__title">${escapeHtml(t().errorTitle)}</div><div class="state-card__text">${escapeHtml(message)}</div><button class="btn mt-16" type="button" data-action="refresh">${icon("refresh")}${escapeHtml(t().retry)}</button></div></div>`;
+  return `<div class="state-screen"><div class="state-card"><div class="state-card__eyebrow">${escapeHtml(t().appName)}</div><div class="state-card__title">${escapeHtml(t().errorTitle)}</div><div class="state-card__text">${escapeHtml(message)}</div><button class="btn mt-16" type="button" data-action="refresh">${icon("refresh")}${escapeHtml(t().retry)}</button>${adminEntry ? renderBrowserLogoutButton("mt-16") : ""}</div></div>`;
 }
 
 function renderEditorScreenSwitches(entering = false) {
@@ -10374,6 +10428,7 @@ async function toggleServerVisibility(id, button) {
   } finally {
     state.serverVisibilityBusy = "";
     button.disabled = false;
+    if (state.adminWorkspace) render({preserveScroll:true});
   }
 }
 
@@ -11357,14 +11412,42 @@ function bindRootActions() {
 		if (action === "delete-subscription") return openSubscriptionDelete();
 		if (action === "close-subscription-delete") return closeSubscriptionDelete();
 		if (action === "confirm-subscription-delete") return await deleteActiveSubscription();
+    if (action === "admin-console-menu") { state.adminConsoleMenuOpen = !state.adminConsoleMenuOpen; render({ preserveScroll: true }); return; }
+    if (action === "admin-push-test") {
+      if (!canAdmin("push")) return;
+      await post("/api/mini-app/admin/push/test", {});
+      showToast(state.locale === "en" ? "Test notification sent" : "Тестовое уведомление отправлено", "success");
+      return;
+    }
+    if (action === "admin-console-exit") {
+      if (adminEntry) { window.location.assign(`${cabinetBaseURL || document.querySelector('meta[name="public-base-url"]')?.content || ""}/mini-app/?cabinet=1`); return; }
+      state.adminWorkspace = false;
+      state.adminConsoleMenuOpen = false;
+      const customerURL = new URL(window.location.href);
+      customerURL.searchParams.set("page", "dashboard");
+      customerURL.searchParams.delete("section");
+      window.history.replaceState(null, "", customerURL.pathname + customerURL.search + customerURL.hash);
+      setPage("dashboard"); return;
+    }
+    if (action === "admin-console-page") {
+      const route = consoleRoute(value);
+      if (!route || (!canAdmin(route[4]) && !(value === "reviews" && canAdmin("reviews.rewards")))) return;
+      state.adminConsoleMenuOpen = false;
+      state.adminWorkspace = true;
+      setPage(value); return;
+    }
 		if (action === "open-admin-section") {
-		if (!canAdminSection(value === "push" ? "push" : value)) return;
+    if (value !== "home" && !canAdminSection(value)) return;
+    state.currentPage = "admin";
+    state.adminWorkspace = true;
+    state.adminConsoleMenuOpen = false;
 		rememberAdminMenuScroll();
 		if (value === "layout") return enterAdminLayoutEditor();
 		if (value === "plans") return enterAdminPlanEditor();
-		state.adminSection = value === "push" ? "home" : value || "home";
+		state.adminSection = value || "home";
 		haptic("light");
 		renderAdminTransition();
+		if (value === "push") void refreshAdminPush();
 		if (value === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 		if (value === "moynalog") void refreshAdminMoyNalog();
 		if (value === "ai") void loadAdminAI();
@@ -12824,7 +12907,7 @@ function syncAdminSaveBarDOM() {
 		: state.adminSettingsDirty
 		? localizedText("Есть несохранённые изменения", "Unsaved changes", "تغییرات ذخیره‌نشده")
 		: localizedText("Все изменения сохранены", "All changes saved", "همه تغییرات ذخیره شد");
-	app.querySelectorAll(".admin-save-bar").forEach((bar) => {
+	app.querySelectorAll(".admin-save-bar, .rn-settings-actions").forEach((bar) => {
 		const label = bar.querySelector(":scope > span");
 		const button = bar.querySelector('[data-action="admin-save-settings"]');
 		if (label) label.textContent = status;
@@ -14157,7 +14240,8 @@ function enterAdminPlanEditor() {
 	state.adminPlanBaselinePaymentOrder = deepClone(state.adminSettingsDraft.paymentMethodOrder || []);
 	state.adminPlanBaselineDirty = state.adminSettingsDirty;
 	state.adminLayoutAddMenuOpen = false;
-	state.adminPlanEditing = true;
+	state.adminPlanEditing = false;
+	state.adminWorkspace = true;
 	state.adminLayoutEditing = false;
 	state.adminPlanEditorModalOpen = false;
 	state.payModalOpen = false;
@@ -14165,7 +14249,7 @@ function enterAdminPlanEditor() {
 	state.adminPlanEditingID = "";
 	state.adminPlanFormDraft = null;
 	state.adminSection = "plans";
-	state.currentPage = "buy";
+	state.currentPage = "admin";
 	state.sidebarOpen = false;
 	previousBottomNavIndex = -1;
 	ensureSelections();
@@ -14456,13 +14540,14 @@ function enterAdminLayoutEditor() {
 	state.adminLayoutBaselineDirty = state.adminSettingsDirty;
 	state.adminLayoutBaselineJSONDrafts = deepClone(state.adminJSONDrafts || {});
 	ensureAdminVisualLayoutDraft();
-	state.adminLayoutEditing = true;
+	state.adminLayoutEditing = false;
+	state.adminWorkspace = true;
 	state.adminLayoutAddMenuOpen = false;
 	state.adminLayoutStyleEditorOpen = false;
 	state.adminSection = "layout";
 	state.adminLayoutCategory = "dashboard";
 	state.adminLayoutSelection = "";
-	state.currentPage = "dashboard";
+	state.currentPage = "admin";
 	state.sidebarOpen = false;
 	previousBottomNavIndex = -1;
 	haptic("light");
@@ -17030,6 +17115,12 @@ function closeAdminSection() {
 }
 
 function setPage(page) {
+  if (page === "admin" && adminBaseURL && !adminDedicated && !previewMode) {
+    if (clientSurface === "telegram" && tg?.openLink) tg.openLink(adminBaseURL + "/");
+    else window.location.assign(adminBaseURL + "/");
+    return;
+  }
+  if (page === "admin") state.adminWorkspace = true;
 	const normalizedPage = normalizePage(page);
 	const nextPage = normalizedPage;
 	if (state.adminPlanEditing) {
@@ -17406,6 +17497,12 @@ function applyAppearance() {
     const color = telegramBackground;
     if (typeof tg.setHeaderColor === "function") tg.setHeaderColor(color);
     if (typeof tg.setBackgroundColor === "function") tg.setBackgroundColor(color);
+  }
+  if (document.documentElement.dataset.adminConsole === "on") {
+    document.documentElement.dataset.glass = "off";
+    document.documentElement.dataset.frames = "on";
+    document.documentElement.dataset.background = "none";
+    if (themeMeta) themeMeta.content = "#0d1117";
   }
 	syncBackgroundEngines();
 }
@@ -17790,7 +17887,7 @@ function sortConfiguredPaymentMethods(items) {
 }
 
 function moveAdminPaymentMethod(id, direction) {
-	if (!state.adminPlanEditing || !state.adminSettingsDraft || state.adminBusy) return;
+	if ((!state.adminPlanEditing && !(state.adminWorkspace && state.adminSection === "plans")) || !state.adminSettingsDraft || state.adminBusy) return;
 	const visible = getAdminPaymentMethods().map((method) => method.id);
 	const index = visible.indexOf(id);
 	const other = visible[index + direction];
@@ -18396,6 +18493,12 @@ function writeSetting(key, value) {
 let lastPersistedNavigation = "";
 
 function persistNavigationState() {
+	if (state.adminWorkspace && !state.adminLayoutEditing && !state.adminPlanEditing && ["admin", "support", "servers", "reviews"].includes(state.currentPage)) {
+		const current = new URL(window.location.href);
+		current.searchParams.set("page", "admin");
+		current.searchParams.set("section", state.currentPage === "admin" ? state.adminSection : state.currentPage);
+		window.history.replaceState(null, "", current.pathname + current.search + current.hash);
+	}
 	const values = [state.currentPage, state.adminSection, state.adminContentSection, state.adminBroadcastTab, state.activeCustomPageID];
 	const signature = JSON.stringify(values);
 	if (signature === lastPersistedNavigation) return;
@@ -18452,14 +18555,25 @@ function normalizePage(value) {
 }
 
 function getEntryPage() {
+  if (adminEntry) {
+    const requested = urlParams.get("page") === "admin" ? urlParams.get("section") : urlParams.get("page");
+    const saved = requested || (isPageReload() ? readSetting(STORAGE_KEYS.page, "admin") : "admin");
+    return ["support", "servers", "reviews"].includes(saved) ? saved : "admin";
+  }
   const requested = urlParams.get("page");
-  const page = isPageReload() ? readSetting(STORAGE_KEYS.page, "dashboard") : requested || "dashboard";
+  const page = requested || (isPageReload() ? readSetting(STORAGE_KEYS.page, "dashboard") : "dashboard");
+  if (page === "admin" && adminBaseURL && !adminDedicated && !previewMode) {
+    const section = urlParams.get("section");
+    window.location.replace(adminBaseURL + "/" + (section ? "?page=admin&section=" + encodeURIComponent(section) : ""));
+    return "dashboard";
+  }
+  if (page === "admin" && ["support", "servers", "reviews"].includes(urlParams.get("section"))) return urlParams.get("section");
   return PAGES.includes(page) ? page : "dashboard";
 }
 
 function getEntryAdminSection() {
 	const requested = String(urlParams.get("section") || "");
-	if (!isPageReload() && ["finance", "analytics", "diagnostics"].includes(requested)) return requested;
+	if (requested === "push" || ADMIN_SEARCH_SECTIONS.some(([section]) => section === requested)) return requested;
 	if (!isPageReload()) return "home";
 	const saved = readSetting(STORAGE_KEYS.adminSection, "home");
     if (saved === "smtp") {
@@ -18467,7 +18581,7 @@ function getEntryAdminSection() {
         state.adminEmailEditorTab = "connection";
         return "broadcast";
     }
-	return saved === "home" || ADMIN_SEARCH_SECTIONS.some(([section]) => section === saved) ? saved : "home";
+	return saved === "home" || saved === "push" || ADMIN_SEARCH_SECTIONS.some(([section]) => section === saved) ? saved : "home";
 }
 
 function isPageReload() {

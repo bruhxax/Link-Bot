@@ -76,6 +76,7 @@ type Handler struct {
 	assetVersion            string
 	publicBaseURL           string
 	cabinetBaseURL          string
+	adminBaseURL            string
 	rateLimiter             *requestRateLimiter
 	channelSubCache         *cache.Cache
 	runtimeSettings         *runtimeconfig.Service
@@ -718,6 +719,7 @@ func NewHandler(
 		assetVersion:           assetVersion,
 		publicBaseURL:          config.PublicBaseURL(),
 		cabinetBaseURL:         config.CabinetBaseURL(),
+		adminBaseURL:           config.AdminBaseURL(),
 		rateLimiter:            newRequestRateLimiter(),
 		channelSubCache:        cache.NewCache(30 * time.Minute),
 		runtimeSettings:        runtimeSettings,
@@ -747,6 +749,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	fileServer := http.FileServer(http.FS(h.staticFS))
 
 	mux.HandleFunc("/", h.serveRoot)
+	mux.HandleFunc("/admin", h.serveAdminEntry)
+	mux.HandleFunc("/admin/", h.serveAdminEntry)
 	mux.HandleFunc("/mini-app", h.serveIndex)
 	mux.HandleFunc("/mini-app/open-app", h.serveAppOpener)
 	mux.HandleFunc("/mini-app/payment-return", h.handlePaymentReturnRedirect)
@@ -761,6 +765,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 		}
 
 		setStaticHeaders(w, r, h.assetVersion)
+		if r.URL.Path == "/mini-app/sw.js" && h.isAdminHost(r) {
+			w.Header().Set("Service-Worker-Allowed", "/")
+		}
 		r.URL.Path = path.Clean(strings.TrimPrefix(r.URL.Path, "/mini-app"))
 		fileServer.ServeHTTP(w, r)
 	})
@@ -854,6 +861,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/users/open", h.withSession(h.handleAdminUserDetail))
 	mux.HandleFunc("/api/mini-app/admin/users/balance", h.withSession(h.handleAdminUserBalance))
 	mux.HandleFunc("/api/mini-app/admin/users/subscription", h.withSession(h.handleAdminUserSubscription))
+	mux.HandleFunc("/api/mini-app/admin/users/subscription/settings", h.withSession(h.handleAdminUserSettings))
 	mux.HandleFunc("/api/mini-app/admin/users/subscription/select", h.withSession(h.handleAdminUserSelectSubscription))
 	mux.HandleFunc("/api/mini-app/admin/users/subscription/delete", h.withSession(h.handleAdminUserDeleteSubscription))
 	mux.HandleFunc("/api/mini-app/admin/users/subscription/reissue", h.withSession(h.handleAdminUserReissueSubscription))
@@ -904,6 +912,10 @@ func (h *Handler) serveRoot(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if h.isAdminHost(r) {
+		h.serveIndex(w, r)
+		return
+	}
 	if h.cabinetBaseURL != "" && strings.EqualFold(r.Host, strings.TrimPrefix(h.cabinetBaseURL, "https://")) {
 		http.Redirect(w, r, "/mini-app/?cabinet=1", http.StatusFound)
 		return
@@ -912,6 +924,14 @@ func (h *Handler) serveRoot(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if h.adminBaseURL != "" && !h.isAdminHost(r) && r.URL.Query().Get("page") == "admin" {
+		h.redirectToAdmin(w, r)
+		return
+	}
 	data, err := fs.ReadFile(h.staticFS, "index.html")
 	if err != nil {
 		http.Error(w, "mini app is unavailable", http.StatusInternalServerError)
@@ -926,7 +946,7 @@ func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
 		settings = h.runtimeSettings.Snapshot()
 	}
 	page := settings.Content.WebPage
-	manifest := buildPWAManifest(settings, h.assetVersion)
+	manifest := h.pwaManifestForRequest(settings, r)
 	manifestData, _ := json.Marshal(manifest)
 	manifestHash := sha256.Sum256(manifestData)
 	manifestVersion := fmt.Sprintf("%x", manifestHash[:8])
@@ -939,12 +959,22 @@ func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
 	data = bytes.ReplaceAll(data, []byte("__GA4_MEASUREMENT_ID__"), []byte(ga4MeasurementID()))
 	data = bytes.ReplaceAll(data, []byte("__YANDEX_METRIKA_COUNTER_ID__"), []byte(yandexCounterID()))
 	data = bytes.ReplaceAll(data, []byte("__PUBLIC_BASE_URL__"), []byte(html.EscapeString(h.publicBaseURL)))
+	data = bytes.ReplaceAll(data, []byte("__ADMIN_BASE_URL__"), []byte(html.EscapeString(h.adminBaseURL)))
+	data = bytes.ReplaceAll(data, []byte("__CABINET_BASE_URL__"), []byte(html.EscapeString(h.cabinetBaseURL)))
+	adminEntry := "off"
+	if h.isAdminHost(r) || r.URL.Path == "/admin" || r.URL.Path == "/admin/" {
+		adminEntry = "on"
+	}
+	data = bytes.ReplaceAll(data, []byte("__ADMIN_ENTRY__"), []byte(adminEntry))
 	data = bytes.ReplaceAll(data, []byte("__PAGE_TITLE__"), []byte(html.EscapeString(page.Title)))
 	data = bytes.ReplaceAll(data, []byte("__PAGE_DESCRIPTION__"), []byte(html.EscapeString(page.Description)))
 	data = bytes.ReplaceAll(data, []byte("__FAVICON_URL__"), []byte(html.EscapeString(faviconURL)))
 	data = bytes.ReplaceAll(data, []byte("__PWA_NAME__"), []byte(html.EscapeString(manifest.Name)))
 	data = bytes.ReplaceAll(data, []byte("__PWA_BRAND_VERSION__"), []byte(manifestVersion))
 	data = bytes.ReplaceAll(data, []byte("__ASSET_VERSION__"), []byte(h.assetVersion))
+	if r.Method == http.MethodHead {
+		return
+	}
 	_, _ = w.Write(data)
 }
 
@@ -958,7 +988,7 @@ func (h *Handler) serveManifest(w http.ResponseWriter, r *http.Request) {
 	if h.runtimeSettings != nil {
 		settings = h.runtimeSettings.Snapshot()
 	}
-	payload, err := json.Marshal(buildPWAManifest(settings, h.assetVersion))
+	payload, err := json.Marshal(h.pwaManifestForRequest(settings, r))
 	if err != nil {
 		http.Error(w, "manifest is unavailable", http.StatusInternalServerError)
 		return
@@ -971,6 +1001,21 @@ func (h *Handler) serveManifest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = w.Write(payload)
+}
+
+func (h *Handler) pwaManifestForRequest(settings runtimeconfig.Settings, r *http.Request) pwaManifest {
+	manifest := buildPWAManifest(settings, h.assetVersion)
+	if h.isAdminHost(r) {
+		manifest.Name += " Admin"
+		manifest.ShortName = truncatePWAName(manifest.Name, 30)
+		manifest.ID = "/"
+		manifest.StartURL = "/"
+		manifest.Scope = "/"
+		manifest.BackgroundColor = "#0d1117"
+		manifest.ThemeColor = "#0d1117"
+		manifest.Orientation = "any"
+	}
+	return manifest
 }
 
 func buildPWAManifest(settings runtimeconfig.Settings, assetVersion string) pwaManifest {
@@ -1099,6 +1144,10 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		setAPIHeaders(w)
+		if h.adminBaseURL != "" && !h.isAdminHost(r) && strings.HasPrefix(r.URL.Path, "/api/mini-app/admin/") {
+			h.writeError(w, http.StatusForbidden, "admin_host_required", "Откройте отдельную панель администратора")
+			return
+		}
 		realtimeRequest := r.URL.Path == "/api/mini-app/realtime"
 
 		if r.Method != http.MethodPost {
@@ -1196,6 +1245,10 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 		}
 		if !adminRouteAllowed(sess.access(), r.URL.Path) {
 			h.writeError(w, http.StatusForbidden, "forbidden", "Недостаточно прав")
+			return
+		}
+		if h.isAdminHost(r) && !sess.isAdministrator() {
+			h.writeError(w, http.StatusForbidden, "forbidden", "Доступ к панели разрешён только администраторам")
 			return
 		}
 		r = r.WithContext(context.WithValue(r.Context(), adminAccessContextKey{}, sess.access()))
@@ -3301,7 +3354,7 @@ func (h *Handler) handleAdminWebPushTest(w http.ResponseWriter, r *http.Request,
 	if err := h.webPush.Notify(r.Context(), adminnotify.Event{
 		Title: "Тестовое уведомление",
 		Body:  "Push-уведомления Link-Bot работают",
-		URL:   "/mini-app/?page=admin&section=push",
+		URL:   config.AdminURL("push"),
 		Tag:   fmt.Sprintf("admin-push-test-%d", time.Now().UnixNano()),
 	}); err != nil {
 		slog.Warn("mini app: test admin web push", "error", err)
@@ -6074,10 +6127,14 @@ func (h *Handler) notifyAdminAboutSupportByPush(ctx context.Context, title strin
 		identity = fallbackText(ticket.CustomerName, "Пользователь")
 	}
 	body := strings.Join([]string{identity, fallbackText(ticket.Subject, "Без темы")}, " · ")
+	adminSupportURL := "/mini-app/?page=support"
+	if h.adminBaseURL != "" {
+		adminSupportURL = h.adminBaseURL + "/?page=support"
+	}
 	if err := h.webPushNotifier.Notify(ctx, adminnotify.Event{
 		Title: title,
 		Body:  body,
-		URL:   "/mini-app/?page=support",
+		URL:   adminSupportURL,
 		Tag:   fmt.Sprintf("%s-%d-%d", tagPrefix, ticket.ID, time.Now().UnixNano()),
 	}); err != nil {
 		slog.Warn("mini app: admin support web push failed", "ticketId", ticket.ID, "error", err)

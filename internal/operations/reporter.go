@@ -17,6 +17,7 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"link-bot/internal/adminnotify"
+	"link-bot/internal/config"
 	"link-bot/internal/database"
 )
 
@@ -158,7 +159,7 @@ func (r *Reporter) sendAdminAlert(_ context.Context, event *database.Operational
 		err := r.push.Notify(pushCtx, adminnotify.Event{
 			Title: title,
 			Body:  strings.Join([]string{event.Category, event.Operation, event.Message}, " · "),
-			URL:   "/mini-app/?page=admin&section=diagnostics",
+			URL:   config.AdminURL("diagnostics"),
 			Tag:   fmt.Sprintf("diagnostic-%s-%d", event.Fingerprint, event.OccurrenceCount),
 		})
 		cancel()

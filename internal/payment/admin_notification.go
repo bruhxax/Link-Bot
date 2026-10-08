@@ -201,7 +201,7 @@ func (s PaymentService) notifyAdminAboutPaymentByPush(purchase *database.Purchas
 	event := adminnotify.Event{
 		Title: "Новая оплата",
 		Body:  strings.Join([]string{formatPushPurchaseAmount(purchase), description, identity, method}, " · "),
-		URL:   "/mini-app/?page=admin&section=finance",
+		URL:   config.AdminURL("finance"),
 		Tag:   fmt.Sprintf("payment-%d", purchase.ID),
 	}
 	go func(purchaseID int64) {

@@ -60,19 +60,21 @@ type ProvisioningOptions struct {
 }
 
 type UserState struct {
-	Exists               bool
-	Active               bool
-	ExpireAt             *time.Time
-	SubscriptionLink     *string
-	PanelUsername        string
-	UserID               int64
-	UserUUID             uuid.UUID
-	TrafficLimitBytes    int64
-	TrafficLimitStrategy string
-	UsedTrafficBytes     int64
-	DeviceLimit          int
-	UsedDevices          int
-	Devices              []UserDevice
+	PanelStatus              string
+	LifetimeUsedTrafficBytes int64
+	Exists                   bool
+	Active                   bool
+	ExpireAt                 *time.Time
+	SubscriptionLink         *string
+	PanelUsername            string
+	UserID                   int64
+	UserUUID                 uuid.UUID
+	TrafficLimitBytes        int64
+	TrafficLimitStrategy     string
+	UsedTrafficBytes         int64
+	DeviceLimit              int
+	UsedDevices              int
+	Devices                  []UserDevice
 	// DevicesLoaded distinguishes a confirmed empty list from a failed HWID
 	// request. Only confirmed snapshots may advance notification state.
 	DevicesLoaded    bool
@@ -259,9 +261,15 @@ func (r *Client) Ping(ctx context.Context) error {
 }
 
 type SystemStats struct {
+	Users            *PanelUserCounts
 	UptimeSeconds    int64
 	MemoryUsedBytes  int64
 	MemoryTotalBytes int64
+}
+
+type PanelUserCounts struct {
+	TotalUsers   int64            `json:"totalUsers"`
+	StatusCounts map[string]int64 `json:"statusCounts"`
 }
 
 func (r *Client) GetVersion(ctx context.Context) (string, error) {
@@ -283,7 +291,8 @@ func (r *Client) GetVersion(ctx context.Context) (string, error) {
 func (r *Client) GetSystemStats(ctx context.Context) (SystemStats, error) {
 	var payload struct {
 		Response struct {
-			Uptime float64 `json:"uptime"`
+			Uptime float64          `json:"uptime"`
+			Users  *PanelUserCounts `json:"users"`
 			Memory struct {
 				Used  float64 `json:"used"`
 				Total float64 `json:"total"`
@@ -294,6 +303,7 @@ func (r *Client) GetSystemStats(ctx context.Context) (SystemStats, error) {
 		return SystemStats{}, err
 	}
 	return SystemStats{
+		Users:            payload.Response.Users,
 		UptimeSeconds:    int64(math.Max(0, payload.Response.Uptime)),
 		MemoryUsedBytes:  int64(math.Max(0, payload.Response.Memory.Used)),
 		MemoryTotalBytes: int64(math.Max(0, payload.Response.Memory.Total)),
@@ -515,18 +525,20 @@ func (r *Client) userStateFromPanelUser(ctx context.Context, user *PanelUser, lo
 
 	if (status == "DISABLED" || status == "EXPIRED") || user.ExpireAt.IsZero() || !user.ExpireAt.After(time.Now().UTC()) {
 		return &UserState{
-			Exists:            true,
-			Active:            false,
-			PanelUsername:     strings.TrimSpace(user.Username),
-			UserID:            user.ID,
-			UserUUID:          user.UUID,
-			TrafficLimitBytes: user.TrafficLimitBytes,
-			UsedTrafficBytes:  user.UserTraffic.UsedTrafficBytes,
-			DeviceLimit:       deviceLimit,
-			UsedDevices:       usedDevices,
-			Devices:           devices,
-			DevicesLoaded:     deviceErr == nil,
-			DevicesCheckedAt:  devicesCheckedAt,
+			PanelStatus:              status,
+			LifetimeUsedTrafficBytes: user.UserTraffic.LifetimeUsedTrafficBytes,
+			Exists:                   true,
+			Active:                   false,
+			PanelUsername:            strings.TrimSpace(user.Username),
+			UserID:                   user.ID,
+			UserUUID:                 user.UUID,
+			TrafficLimitBytes:        user.TrafficLimitBytes,
+			UsedTrafficBytes:         user.UserTraffic.UsedTrafficBytes,
+			DeviceLimit:              deviceLimit,
+			UsedDevices:              usedDevices,
+			Devices:                  devices,
+			DevicesLoaded:            deviceErr == nil,
+			DevicesCheckedAt:         devicesCheckedAt,
 		}, nil
 	}
 
@@ -538,21 +550,23 @@ func (r *Client) userStateFromPanelUser(ctx context.Context, user *PanelUser, lo
 
 	expireAt := user.ExpireAt.UTC()
 	return &UserState{
-		Exists:               true,
-		Active:               true,
-		ExpireAt:             &expireAt,
-		SubscriptionLink:     subscriptionLink,
-		PanelUsername:        panelUsername,
-		UserID:               user.ID,
-		UserUUID:             user.UUID,
-		TrafficLimitBytes:    user.TrafficLimitBytes,
-		TrafficLimitStrategy: user.TrafficLimitStrategy,
-		UsedTrafficBytes:     user.UserTraffic.UsedTrafficBytes,
-		DeviceLimit:          deviceLimit,
-		UsedDevices:          usedDevices,
-		Devices:              devices,
-		DevicesLoaded:        deviceErr == nil,
-		DevicesCheckedAt:     devicesCheckedAt,
+		PanelStatus:              status,
+		LifetimeUsedTrafficBytes: user.UserTraffic.LifetimeUsedTrafficBytes,
+		Exists:                   true,
+		Active:                   true,
+		ExpireAt:                 &expireAt,
+		SubscriptionLink:         subscriptionLink,
+		PanelUsername:            panelUsername,
+		UserID:                   user.ID,
+		UserUUID:                 user.UUID,
+		TrafficLimitBytes:        user.TrafficLimitBytes,
+		TrafficLimitStrategy:     user.TrafficLimitStrategy,
+		UsedTrafficBytes:         user.UserTraffic.UsedTrafficBytes,
+		DeviceLimit:              deviceLimit,
+		UsedDevices:              usedDevices,
+		Devices:                  devices,
+		DevicesLoaded:            deviceErr == nil,
+		DevicesCheckedAt:         devicesCheckedAt,
 	}, nil
 }
 

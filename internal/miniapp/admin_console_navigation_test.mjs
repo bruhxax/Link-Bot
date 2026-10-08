@@ -1,0 +1,80 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import test from "node:test";
+import vm from "node:vm";
+import { visibleConsoleGroups } from "./static/admin-console.mjs";
+import { canAdmin } from "./static/administrators.mjs";
+
+const source = fs.readFileSync(new URL("./static/app.js", import.meta.url), "utf8");
+const entry = source.slice(source.indexOf("function getEntryPage()"), source.indexOf("function getEntryAdminSection()"));
+function entryPage({ dedicated = false, adminURL = "", query = "", reload = false, saved = "dashboard" } = {}) {
+  const redirects = [];
+  const context = vm.createContext({ adminEntry: dedicated, adminDedicated: dedicated, adminBaseURL: adminURL, previewMode: false,
+    urlParams: new URLSearchParams(query), PAGES: ["dashboard", "admin", "support", "servers", "reviews", "buy"],
+    STORAGE_KEYS: { page: "page" }, isPageReload: () => reload, readSetting: () => saved,
+    window: { location: { replace: url => redirects.push(url) } } });
+  vm.runInContext(entry, context);
+  return { page: context.getEntryPage(), redirects };
+}
+
+test("empty admin host preserves customer navigation and the embedded admin entry", () => {
+  assert.equal(entryPage().page, "dashboard");
+  assert.equal(entryPage({ query: "page=admin" }).page, "admin");
+  assert.equal(entryPage({ query: "page=buy", reload: true, saved: "admin" }).page, "buy");
+});
+
+test("legacy and saved admin entry redirects to the configured origin without forwarding secrets", () => {
+  for (const options of [{ query: "page=admin&token=private" }, { reload: true, saved: "admin" }]) {
+    assert.deepEqual(entryPage({ ...options, adminURL: "https://admin.example.com" }), {
+      page: "dashboard", redirects: ["https://admin.example.com/"]
+    });
+  }
+});
+
+test("dedicated root opens administration and retains support deep links", () => {
+  assert.equal(entryPage({ dedicated: true }).page, "admin");
+  assert.equal(entryPage({ dedicated: true, query: "page=buy" }).page, "admin");
+  assert.equal(entryPage({ dedicated: true, query: "page=admin&section=support" }).page, "support");
+  assert.equal(entryPage({ dedicated: true, reload: true, saved: "reviews" }).page, "reviews");
+});
+
+test("embedded administration retains shared pages after a reload", () => {
+  for (const page of ["support", "servers", "reviews"]) {
+    assert.equal(entryPage({query: `page=admin&section=${page}`, reload:true}).page, page);
+    assert.deepEqual(entryPage({query:`page=admin&section=${page}&token=private`,adminURL:"https://admin.example.com"}), {
+      page:"dashboard",redirects:[`https://admin.example.com/?page=admin&section=${page}`]
+    });
+  }
+});
+
+test("shared administration pages keep the admin entry in their saved URL", () => {
+  const code = source.slice(source.indexOf("let lastPersistedNavigation ="),source.indexOf("function readSessionSetting("));
+  for (const page of ["support","servers","reviews"]) {
+    const paths=[];
+    const context=vm.createContext({URL,state:{adminWorkspace:true,currentPage:page,adminSection:"home"},
+      window:{location:{href:"https://example.com/mini-app/?page=admin&section=home"},history:{replaceState:(_,__,path)=>paths.push(path)}},
+      writeSetting:()=>{},STORAGE_KEYS:{page:"page"}});
+    vm.runInContext(code,context);context.persistNavigationState();
+    assert.deepEqual(paths,[`/mini-app/?page=admin&section=${page}`]);
+  }
+});
+
+test("console navigation honors restricted roles and the separate SMTP permission", () => {
+  const render = permissions => visibleConsoleGroups(permission => canAdmin({ isAdmin: true, isOwner: false, permissions }, permission)).flatMap(group => group[2]).map(route => route[0]);
+  const statusOnly = render(["status"]);
+  assert.deepEqual(statusOnly, ['status']);
+  const mailOnly = render(["smtp"]);
+  assert.deepEqual(mailOnly, ['broadcast']);
+});
+
+test('plan and layout editors stay in the administration workspace', () => {
+  for (const [name, next] of [['enterAdminPlanEditor', 'exitAdminPlanEditor'], ['enterAdminLayoutEditor', 'exitAdminLayoutEditor']]) {
+    const code = source.slice(source.indexOf(`function ${name}()`), source.indexOf(`function ${next}()`));
+    const state = {adminSettingsDraft:{plans:[],layout:{elements:[]}},adminJSONDrafts:{}};
+    const noop = () => {};
+    const context = vm.createContext({state,deepClone:structuredClone,syncAdminSettingsDraft:noop,rememberAdminMenuScroll:noop,ensureAdminVisualLayoutDraft:noop,ensureSelections:noop,haptic:noop,renderAdminTransition:noop,previousBottomNavIndex:0,notificationPopoverTimer:0,window:{clearTimeout:noop}});
+    vm.runInContext(code,context);context[name]();
+    assert.equal(state.currentPage,'admin');assert.equal(state.adminWorkspace,true);
+    assert.equal(state.adminLayoutEditing,false);assert.notEqual(state.adminPlanEditing,true);
+  }
+});

@@ -55,7 +55,7 @@ func TestResponsiveCabinetAndAuthenticationSurfaces(t *testing.T) {
 			t.Fatalf("browser layout fragment is missing: %q", fragment)
 		}
 	}
-	if !strings.Contains(appJS, `${renderDesktopSidebar()}`) || !strings.Contains(appJS, `function renderDesktopSidebar()`) {
+	if !strings.Contains(appJS, `: renderDesktopSidebar()}`) || !strings.Contains(appJS, `function renderDesktopSidebar()`) {
 		t.Fatal("wide browser navigation must be rendered in the app shell")
 	}
 

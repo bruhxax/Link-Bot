@@ -9730,15 +9730,15 @@ body.is-plan-editing .page-scroll {
 }
 
 /* Some imported SVGs contain fixed white presentation attributes. */
-.app-shell svg:not([data-preserve-color]) {
+:root:not([data-admin-console="on"]) .app-shell svg:not([data-preserve-color]) {
   color: var(--icon-color) !important;
 }
 
-.app-shell svg:not([data-preserve-color]) [stroke]:not([stroke="none"]) {
+:root:not([data-admin-console="on"]) .app-shell svg:not([data-preserve-color]) [stroke]:not([stroke="none"]) {
   stroke: currentColor !important;
 }
 
-.app-shell svg:not([data-preserve-color]) [fill]:not([fill="none"]) {
+:root:not([data-admin-console="on"]) .app-shell svg:not([data-preserve-color]) [fill]:not([fill="none"]) {
   fill: currentColor !important;
 }
 

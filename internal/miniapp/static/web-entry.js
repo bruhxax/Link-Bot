@@ -1,5 +1,6 @@
 (() => {
   "use strict";
+  if (document.querySelector('meta[name="admin-entry"]')?.content === "on") return;
   const path = window.location.pathname;
   if (path !== "/mini-app/" && path !== "/mini-app") return;
   if (String(window.Telegram?.WebApp?.initData || "").trim()) return;

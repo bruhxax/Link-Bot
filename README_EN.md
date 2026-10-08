@@ -78,6 +78,14 @@ Replace `bot.example.com` with your domain. Caddy sets up HTTPS automatically. I
 
 Send `/start` to your bot, open the Mini App as the administrator, then configure plans and payments in **Admin**. [Login and additional settings →](docs/configuration.md) (Russian)
 
+### Separate admin host
+
+Set `ADMIN_SUBDOMAIN=admin` in `.env` to serve administration at `https://admin.<PUBLIC_HOST>/`. The value is a single DNS label, without a protocol, dots or a path, and must differ from `CABINET_SUBDOMAIN`. Leave `ADMIN_SUBDOMAIN=` empty to keep `/mini-app/?page=admin`; `/admin` is also available.
+
+Create an A record for the admin hostname pointing to the Link-Bot server before running `bash update.sh` (or `bash update.sh --standalone`). Any AAAA record must reach the same server. The existing update workflow configures the managed or shared Caddy and verifies HTTPS. With a manually managed proxy, route the admin host to `bot:8080` and preserve the request Host.
+
+The admin UI uses React, Mantine and the Remnawave table library, with top navigation, a mobile drawer and separate forms. Plans and the UI builder open inside administration. User cards expose panel contacts, tags, description, HWID, traffic limits/reset, expiry and squads; existing bot operations remain available. Frontend sources and license notices are in admin-ui/. Run npm ci and npm run build there after source changes; the generated assets are embedded in Go, so production does not require Node.js. The new interface preserves existing operations and role permissions. The admin host rejects customer accounts, legacy admin links redirect, and admin API routes require the configured host. Customer URLs and payment webhooks remain on their original host. Sign in again on the new origin; Telegram QR uses the existing bot. Add the new origin and redirect URL to existing Telegram OIDC / Google provider settings when those login methods are used. Enable browser Push again on the new origin.
+
 ## Migration from Bedolaga
 
 Imports **users, balances, referrals and active/trial subscriptions**. Both bots must use the same Remnawave panel, and the Bedolaga PostgreSQL database must be reachable from the Link-Bot container.

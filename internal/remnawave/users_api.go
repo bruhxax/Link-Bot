@@ -30,6 +30,7 @@ type PanelUser struct {
 	ExpireAt             time.Time        `json:"expireAt"`
 	TelegramID           *int64           `json:"telegramId"`
 	Description          *string          `json:"description"`
+	Email                *string          `json:"email"`
 	SubscriptionURL      string           `json:"subscriptionUrl"`
 	TrafficLimitBytes    int64            `json:"trafficLimitBytes"`
 	TrafficLimitStrategy string           `json:"trafficLimitStrategy"`

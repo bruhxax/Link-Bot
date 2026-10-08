@@ -68,6 +68,7 @@ services:
     environment:
       PUBLIC_HOST: ${PUBLIC_HOST}
       CABINET_SUBDOMAIN: ${CABINET_SUBDOMAIN:-}
+      ADMIN_SUBDOMAIN: ${ADMIN_SUBDOMAIN:-}
     entrypoint: [ "/bin/sh", "/etc/caddy/start-link-bot.sh" ]
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

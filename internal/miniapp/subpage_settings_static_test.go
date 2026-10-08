@@ -23,7 +23,7 @@ func TestSubPageAdminAndDynamicCatalogAreWired(t *testing.T) {
 
 	app := string(appRaw)
 	for _, fragment := range []string{
-		`["Sub page", "", "subpage", "adminSubscriptions"]`,
+		`if (state.adminSection === "subpage") return renderAdminSubPagePage();`,
 		`function renderAdminSubPagePage()`,
 		`data-action="admin-add-subpage-client"`,
 		`data-action="admin-remove-subpage-client"`,

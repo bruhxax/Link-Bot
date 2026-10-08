@@ -1,0 +1,27 @@
+{
+  "name": "link-bot-admin-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@fontsource/fira-mono": "^5.3.0",
+    "@fontsource/unbounded": "^5.3.0",
+    "@kastov/mantine-react-table-open": "9.0.12",
+    "@mantine/core": "9.5.2",
+    "@mantine/dates": "9.5.2",
+    "@mantine/hooks": "9.5.2",
+    "dayjs": "1.11.23",
+    "motion": "12.42.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-icons": "5.7.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "fflate": "0.8.3",
+    "postcss": "8.5.26",
+    "prettier": "3.6.2"
+  }
+}

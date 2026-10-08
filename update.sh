@@ -38,6 +38,15 @@ read_env_value() {
 public_host=$(read_env_value PUBLIC_HOST)
 public_base_url=$(read_env_value PUBLIC_BASE_URL)
 cabinet_subdomain=$(read_env_value CABINET_SUBDOMAIN)
+admin_subdomain=$(read_env_value ADMIN_SUBDOMAIN)
+if [[ -n $admin_subdomain ]]; then
+  if [[ ! $admin_subdomain =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$ ]] ||
+     ((${#admin_subdomain} > 63)) || [[ ${admin_subdomain,,} == ${cabinet_subdomain,,} ]]; then
+    printf 'ADMIN_SUBDOMAIN must be a DNS label different from CABINET_SUBDOMAIN\n' >&2
+    exit 1
+  fi
+  admin_subdomain=${admin_subdomain,,}
+fi
 if [[ ! $public_host =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]] ||
    { [[ -n $cabinet_subdomain ]] && {
      [[ ! $cabinet_subdomain =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$ ]] ||
@@ -86,7 +95,7 @@ if [[ $mode == managed || $mode == new ]] &&
   exit 1
 fi
 
-if [[ $mode == shared && -n $cabinet_subdomain ]]; then
+if [[ $mode == shared && ( -n $cabinet_subdomain || -n $admin_subdomain ) ]]; then
   printf 'Shared Caddy detected; updating its existing site instead of starting bundled Caddy.\n'
   if [[ ! -f $caddyfile_mount || ! -w $caddyfile_mount ||
         $(docker inspect --format '{{.State.Running}}' link-bot-caddy) != true ]]; then
@@ -94,7 +103,6 @@ if [[ $mode == shared && -n $cabinet_subdomain ]]; then
     exit 1
   fi
 
-  cabinet_host="${cabinet_subdomain}.${public_host}"
   backup=$(mktemp "${caddyfile_mount}.link-bot-backup.XXXXXX")
   cp -p -- "$caddyfile_mount" "$backup"
 
@@ -103,11 +111,14 @@ if [[ $mode == shared && -n $cabinet_subdomain ]]; then
     docker exec link-bot-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 || true
   }
 
-  if ! bash ./scripts/ensure-caddy-host.sh "$caddyfile_mount" "$public_host" "$cabinet_host"; then
-    restore_caddyfile
-    printf 'Shared Caddyfile was not changed.\n' >&2
-    exit 1
-  fi
+  for extra_subdomain in "$cabinet_subdomain" "$admin_subdomain"; do
+    [[ -n $extra_subdomain ]] || continue
+    if ! bash ./scripts/ensure-caddy-host.sh "$caddyfile_mount" "$public_host" "${extra_subdomain}.${public_host}"; then
+      restore_caddyfile
+      printf 'Shared Caddyfile was not changed.\n' >&2
+      exit 1
+    fi
+  done
   if ! docker exec link-bot-caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile ||
      ! docker exec link-bot-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; then
     restore_caddyfile
@@ -129,6 +140,7 @@ export LINK_BOT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || printf 'none'
 phase_total=4
 if [[ $mode == managed || $mode == new ]]; then ((phase_total += 1)); fi
 if [[ -n $cabinet_subdomain ]]; then ((phase_total += 1)); fi
+if [[ -n $admin_subdomain ]]; then ((phase_total += 1)); fi
 phase_current=0
 animate_update=false
 if [[ -t 1 && ${TERM:-dumb} != dumb && ${LINK_BOT_UPDATE_VERBOSE:-0} != 1 ]]; then
@@ -216,4 +228,7 @@ verify_https() {
 run_phase 'Проверка HTTPS лендинга' verify_https "$public_host" / Landing
 if [[ -n $cabinet_subdomain ]]; then
   run_phase 'Проверка HTTPS кабинета' verify_https "${cabinet_subdomain}.${public_host}" /mini-app/ Cabinet
+fi
+if [[ -n $admin_subdomain ]]; then
+  run_phase 'Проверка HTTPS админки' verify_https "${admin_subdomain}.${public_host}" / Admin
 fi

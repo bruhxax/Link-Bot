@@ -10,6 +10,7 @@ link-bot-backup*.sql
 .DS_Store
 Thumbs.db
 tmp/
+node_modules/
 dist/
 uploads/*
 !uploads/.gitkeep

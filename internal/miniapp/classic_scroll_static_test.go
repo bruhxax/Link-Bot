@@ -18,7 +18,7 @@ func TestClassicInterfaceKeepsScrollablePageContainer(t *testing.T) {
 	appJS := string(appRaw)
 	stylesCSS := string(stylesRaw)
 	if !strings.Contains(appJS, `<div class="page-scroll">`) ||
-		!strings.Contains(appJS, `${renderPages()}`) {
+		!strings.Contains(appJS, `: renderPages()}`) {
 		t.Error("page-scroll must remain a direct child of app-shell")
 	}
 	for _, fragment := range []string{

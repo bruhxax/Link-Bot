@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -59,6 +60,7 @@ type config struct {
 	miniApp                                                   string
 	publicBaseURL                                             string
 	cabinetBaseURL                                            string
+	adminBaseURL                                              string
 	mediaUploadDir                                            string
 	enableAutoPayment                                         bool
 	paymentMethodDemoEnabled                                  bool
@@ -149,6 +151,36 @@ func PublicBaseURL() string {
 
 func CabinetBaseURL() string {
 	return conf.cabinetBaseURL
+}
+
+func AdminBaseURL() string { return conf.adminBaseURL }
+
+// AdminURL keeps notification links compatible when a separate host is disabled.
+func AdminURL(section string) string {
+	base := conf.adminBaseURL
+	path := "/mini-app/?page=admin"
+	if base != "" {
+		path = "/?page=admin"
+	}
+	if section != "" {
+		path += "&section=" + url.QueryEscape(section)
+	}
+	return base + path
+}
+
+func adminBaseURL(publicURL, subdomain string) (string, error) {
+	base, err := cabinetBaseURL(publicURL, subdomain)
+	if err != nil {
+		return "", fmt.Errorf("%s", strings.ReplaceAll(err.Error(), "CABINET_SUBDOMAIN", "ADMIN_SUBDOMAIN"))
+	}
+	if base != "" {
+		parsed, _ := url.Parse(publicURL)
+		if net.ParseIP(parsed.Hostname()) != nil {
+			return "", fmt.Errorf("ADMIN_SUBDOMAIN requires a DNS domain")
+		}
+		base = strings.ToLower(base)
+	}
+	return base, nil
 }
 
 func cabinetBaseURL(publicBaseURL, subdomain string) (string, error) {
@@ -584,6 +616,13 @@ func InitConfig() {
 	conf.cabinetBaseURL, err = cabinetBaseURL(conf.publicBaseURL, os.Getenv("CABINET_SUBDOMAIN"))
 	if err != nil {
 		panic(err)
+	}
+	conf.adminBaseURL, err = adminBaseURL(conf.publicBaseURL, os.Getenv("ADMIN_SUBDOMAIN"))
+	if err != nil {
+		panic(err)
+	}
+	if conf.adminBaseURL != "" && strings.EqualFold(conf.adminBaseURL, conf.cabinetBaseURL) {
+		panic("ADMIN_SUBDOMAIN and CABINET_SUBDOMAIN must be different")
 	}
 	conf.miniApp = strings.TrimSpace(os.Getenv("MINI_APP_URL"))
 	if conf.cabinetBaseURL != "" {

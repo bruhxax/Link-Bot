@@ -112,3 +112,5 @@ secrets/
 *.bak
 *.backup
 link-bot-backup*.sql
+**/node_modules
+tmp/
