@@ -25,6 +25,35 @@ await writeFile(
   (await readFile(out + ".mjs", "utf8")).replace(/[\t ]+$/gm, ""),
 );
 const css = postcss.parse(await readFile(out + ".css", "utf8"));
+// Cabinet editors use 7–11px labels. Keep their markup and behavior, but give
+// captions the same 12px minimum as Remnawave. These rules are scoped below,
+// so the original cabinet/administration retains its existing typography.
+const cabinetStyles = postcss.parse(
+  await readFile(path.join(path.dirname(out), "styles.css"), "utf8"),
+);
+const captionSelectors = new Set();
+cabinetStyles.walkRules((rule) => {
+  if (
+    !rule.nodes.some(
+      (node) =>
+        node.prop === "font-size" &&
+        /^\d+(\.\d+)?px$/.test(node.value) &&
+        parseFloat(node.value) < 12,
+    )
+  )
+    return;
+  rule.selectors
+    .filter((selector) =>
+      /\.(admin-|support-|custom-bg-|modal__)/.test(selector),
+    )
+    .forEach((selector) => captionSelectors.add(selector));
+});
+css.append(
+  postcss.rule({
+    selectors: [...captionSelectors],
+    nodes: [postcss.decl({ prop: "font-size", value: "12px" })],
+  }),
+);
 // Mantine's reset and tokens belong only to the administration surface.
 css.walkRules((rule) => {
   for (let ancestor = rule.parent; ancestor; ancestor = ancestor.parent) {

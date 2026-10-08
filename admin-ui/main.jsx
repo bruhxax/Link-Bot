@@ -78,6 +78,7 @@ import "@kastov/mantine-react-table-open/styles.css";
 import "./styles.css";
 import "./reference-theme.css";
 import { UserDialog } from "./user-dialog.jsx";
+import { FinanceChart } from "./finance-chart.jsx";
 import { LayoutEditor as Layout } from "./layout-editor.jsx";
 import {
   TbBrandGithub,
@@ -112,9 +113,9 @@ import {
 const theme = createTheme({
   fontFamily: "Montserrat, sans-serif",
   fontFamilyMonospace: '"Fira Mono", "JetBrains Mono", monospace',
-  fontSizes: { xs: "10px", sm: "11.5px", md: "12px", lg: "14px", xl: "16px" },
+  fontSizes: { xs: "12px", sm: "14px", md: "16px", lg: "18px", xl: "20px" },
   lineHeights: { xs: "1.3", sm: "1.4", md: "1.45", lg: "1.45", xl: "1.4" },
-  spacing: { xs: "6px", sm: "8px", md: "12px", lg: "16px", xl: "20px" },
+  spacing: { xs: "10px", sm: "12px", md: "16px", lg: "20px", xl: "32px" },
   primaryColor: "cyan",
   primaryShade: 8,
   autoContrast: true,
@@ -125,12 +126,12 @@ const theme = createTheme({
   headings: {
     fontWeight: "600",
     sizes: {
-      h1: { fontSize: "22px", lineHeight: "1.3" },
-      h2: { fontSize: "18px", lineHeight: "1.35" },
-      h3: { fontSize: "15px", lineHeight: "1.4" },
-      h4: { fontSize: "13px", lineHeight: "1.4" },
-      h5: { fontSize: "12px", lineHeight: "1.4" },
-      h6: { fontSize: "11px", lineHeight: "1.4" },
+      h1: { fontSize: "34px", lineHeight: "1.3" },
+      h2: { fontSize: "26px", lineHeight: "1.35" },
+      h3: { fontSize: "22px", lineHeight: "1.4" },
+      h4: { fontSize: "18px", lineHeight: "1.45" },
+      h5: { fontSize: "16px", lineHeight: "1.4" },
+      h6: { fontSize: "14px", lineHeight: "1.4" },
     },
   },
   focusRing: "auto",
@@ -161,18 +162,28 @@ const theme = createTheme({
     return defaultVariantColorsResolver(input);
   },
   components: {
-    TextInput: TextInput.extend({ defaultProps: { size: "xs" } }),
-    Textarea: Textarea.extend({ defaultProps: { size: "xs" } }),
-    NativeSelect: NativeSelect.extend({ defaultProps: { size: "xs" } }),
-    NumberInput: NumberInput.extend({ defaultProps: { size: "xs" } }),
-    Select: Select.extend({ defaultProps: { size: "xs" } }),
-    MultiSelect: MultiSelect.extend({ defaultProps: { size: "xs" } }),
+    TextInput: TextInput.extend({ defaultProps: { size: "sm" } }),
+    Textarea: Textarea.extend({ defaultProps: { size: "sm" } }),
+    NativeSelect: NativeSelect.extend({ defaultProps: { size: "sm" } }),
+    NumberInput: NumberInput.extend({ defaultProps: { size: "sm" } }),
+    Select: Select.extend({
+      defaultProps: {
+        size: "sm",
+        comboboxProps: { withinPortal: true, portalProps: { target: "#app" } },
+      },
+    }),
+    MultiSelect: MultiSelect.extend({
+      defaultProps: {
+        size: "sm",
+        comboboxProps: { withinPortal: true, portalProps: { target: "#app" } },
+      },
+    }),
     Button: Button.extend({
-      defaultProps: { variant: "light", radius: "md", size: "xs" },
+      defaultProps: { variant: "light", radius: "md", size: "sm" },
       styles: { root: { transition: "all .2s ease" } },
     }),
     ActionIcon: ActionIcon.extend({
-      defaultProps: { variant: "outline", radius: "md", size: "sm" },
+      defaultProps: { variant: "subtle", radius: "md", size: "lg" },
     }),
     Card: Card.extend({
       defaultProps: { withBorder: true, padding: "md", shadow: "none" },
@@ -181,16 +192,24 @@ const theme = createTheme({
       defaultProps: {
         centered: true,
         radius: "md",
-        withinPortal: false,
+        withinPortal: true,
+        portalProps: { target: "#app" },
         zIndex: 300,
         transitionProps: { transition: "fade", duration: 200 },
       },
     }),
     Menu: Menu.extend({
-      defaultProps: { withinPortal: false, shadow: "md", radius: "md" },
+      defaultProps: {
+        withinPortal: true,
+        portalProps: { target: "#app" },
+        shadow: "md",
+        radius: "md",
+      },
     }),
     Tooltip: Tooltip.extend({
       defaultProps: {
+        withinPortal: true,
+        portalProps: { target: "#app" },
         radius: "md",
         withArrow: true,
         transitionProps: { transition: "scale-x", duration: 300 },
@@ -337,6 +356,10 @@ function convert(node, key) {
     )
   )
     return null;
+  if (tag === "svg" && node.dataset.financeSeries)
+    return (
+      <FinanceChart key={key} series={JSON.parse(node.dataset.financeSeries)} />
+    );
   if (tag === "svg")
     return <svg {...p} dangerouslySetInnerHTML={{ __html: node.innerHTML }} />;
   if (node.dataset.appIcon && glyphs[node.dataset.appIcon]) {
@@ -376,7 +399,10 @@ function convert(node, key) {
       if (node.classList.contains("admin-settings-search__field")) {
         return (
           <div key={key} className="rn-search-field">
-            <Field node={control} leftSection={<PiMagnifyingGlass size={14} />} />
+            <Field
+              node={control}
+              leftSection={<PiMagnifyingGlass size={14} />}
+            />
           </div>
         );
       }
@@ -497,11 +523,11 @@ function Action({ action, value, label, children, ...props }) {
 }
 function IconAction({ action, value, label, children, ...props }) {
   return (
-    <Tooltip label={label} withinPortal={false}>
+    <Tooltip label={label}>
       <ActionIcon
         aria-label={label}
         {...actionProps(action, value)}
-        size="sm"
+        size="lg"
         {...props}
       >
         {children}
@@ -517,10 +543,10 @@ function Metric({
   caption,
 }) {
   return (
-    <Card className="rn-metric" p="sm">
+    <Card className="rn-metric" p="md">
       <Group wrap="nowrap" gap="sm">
-        <ThemeIcon size={30} radius="md" variant="soft" color={color}>
-          <Icon size={18} />
+        <ThemeIcon size={44} radius="md" variant="soft" color={color}>
+          <Icon size={24} />
         </ThemeIcon>
         <Stack gap={0}>
           <Text size="sm" c="dimmed">
@@ -589,16 +615,16 @@ function DataTable({ columns, data, id, extra }) {
     mantineTableProps: { highlightOnHover: true },
     mantineFilterTextInputProps: { variant: "unstyled", placeholder: "Filter" },
     mantineTableContainerProps: {
-      style: { maxHeight: "max(220px, calc(100dvh - 250px))" },
+      style: { maxHeight: "max(220px, calc(100dvh - 350px))" },
     },
     mantineTableHeadCellProps: {
-      style: { fontSize: 11, background: "#101113" },
+      style: { fontSize: 14, background: "#101113" },
     },
     mantineTopToolbarProps: { style: { background: "#101113" } },
     mantineBottomToolbarProps: { style: { background: "#101113" } },
     mantineTableBodyCellProps: ({ column }) => ({
       style: {
-        fontSize: 11.5,
+        fontSize: 14,
         background: column.getIsPinned() ? "#101113" : undefined,
       },
     }),
@@ -844,7 +870,7 @@ function Users({ model }) {
       {
         id: "username",
         header: "Юзернейм",
-        size: 130,
+        size: 180,
         accessorFn: (u) => u.username || u.firstName || String(u.telegramId),
         Cell: ({ row, cell }) => (
           <Action
@@ -856,12 +882,12 @@ function Users({ model }) {
           </Action>
         ),
       },
-      { accessorKey: "customerId", header: "ID", size: 80 },
-      { accessorKey: "telegramId", header: "Telegram ID", size: 130 },
+      { accessorKey: "customerId", header: "ID", size: 100 },
+      { accessorKey: "telegramId", header: "Telegram ID", size: 170 },
       {
         id: "status",
         header: "Статус",
-        size: 110,
+        size: 130,
         accessorFn: (u) =>
           u.isBlocked ? "blocked" : u.subscriptionStatus || "none",
         Cell: ({ cell }) => (
@@ -883,17 +909,25 @@ function Users({ model }) {
       {
         accessorKey: "subscriptionName",
         header: "Подписка",
-        size: 190,
+        size: 230,
         Cell: ({ row, cell }) => (
           <Stack gap={0} style={{ width: "100%", minWidth: 0 }}>
             <Group gap={4} wrap="nowrap">
-              <Tooltip label={row.original.panelUsername || cell.getValue() || "Без подписки"}>
+              <Tooltip
+                label={
+                  row.original.panelUsername ||
+                  cell.getValue() ||
+                  "Без подписки"
+                }
+              >
                 <Text size="sm" truncate style={{ minWidth: 0 }}>
                   {cell.getValue() || "Без подписки"}
                 </Text>
               </Tooltip>
               {row.original.subscriptionCount > 1 && (
-                <Tooltip label={`Всего подписок: ${row.original.subscriptionCount}`}>
+                <Tooltip
+                  label={`Всего подписок: ${row.original.subscriptionCount}`}
+                >
                   <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
                     +{row.original.subscriptionCount - 1}
                   </Text>
@@ -907,7 +941,7 @@ function Users({ model }) {
       {
         id: "traffic",
         header: "Трафик",
-        size: 155,
+        size: 210,
         accessorFn: (user) =>
           user.trafficLoaded ? user.usedTrafficBytes : null,
         Cell: ({ row }) => {
@@ -953,7 +987,7 @@ function Users({ model }) {
       {
         accessorKey: "expiresAt",
         header: "Дата окончания",
-        size: 150,
+        size: 180,
         Cell: ({ cell }) => (
           <Text size="xs">
             {cell.getValue()
@@ -996,6 +1030,8 @@ function Users({ model }) {
         extra={
           <TextInput
             m="xs"
+            w={320}
+            maw="100%"
             placeholder="@username, Telegram ID или подписка"
             aria-label="Найти пользователя"
             data-input="admin-users-search"
@@ -1357,7 +1393,7 @@ function Overview({ model }) {
                 }
                 value={r[0]}
                 variant="default"
-                h={34}
+                h={40}
                 leftSection={glyph(r[3])}
               >
                 {r[1]}
@@ -1390,6 +1426,7 @@ function Overview({ model }) {
 function Admin({ model, content, dialogs, dispatch }) {
   const [mobile, setMobile] = useState(false),
     [preferences, setPreferences] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebar, setSidebar] = useState(() => {
     try {
       return localStorage.getItem("admin.sidebar") === "true";
@@ -1460,6 +1497,7 @@ function Admin({ model, content, dialogs, dispatch }) {
       component="button"
       type="button"
       label={r[model.locale === "en" ? 2 : 1]}
+      variant="subtle"
       leftSection={glyph(r[3])}
       active={r[0] === active}
       onClick={() => setMobile(false)}
@@ -1475,6 +1513,7 @@ function Admin({ model, content, dialogs, dispatch }) {
         component="button"
         type="button"
         label="Главная"
+        variant="subtle"
         leftSection={<PiStar size={18} />}
         active={active === "home"}
         {...actionProps("open-admin-section", "home")}
@@ -1498,11 +1537,11 @@ function Admin({ model, content, dialogs, dispatch }) {
       cssVariablesSelector='html[data-admin-console="on"]'
     >
       <div
-        className={`app-shell rw-shell remna-admin ${sidebar ? "rn-sidebar-mode" : ""}`}
+        className={`app-shell rw-shell remna-admin ${sidebar ? "rn-sidebar-layout" : ""} ${sidebar && sidebarOpen ? "rn-sidebar-mode" : ""}`}
       >
         <header className="rn-header">
           <div className="rn-brand-row">
-            <Group gap="sm">
+            <Group gap="sm" className="rn-header-brand">
               <ActionIcon
                 className="rn-mobile-toggle"
                 aria-label="Открыть меню"
@@ -1519,8 +1558,21 @@ function Admin({ model, content, dialogs, dispatch }) {
                 {model.brand}
               </Text>
             </Group>
+            {sidebar && (
+              <ActionIcon
+                className="rn-desktop-toggle"
+                aria-label={
+                  sidebarOpen
+                    ? "Свернуть боковое меню"
+                    : "Развернуть боковое меню"
+                }
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+              >
+                {sidebarOpen ? <PiX size={24} /> : <PiList size={24} />}
+              </ActionIcon>
+            )}
             <Group gap="xs">
-              <Tooltip label="Документация Remnawave" withinPortal={false}>
+              <Tooltip label="Документация Remnawave">
                 <ActionIcon
                   component="a"
                   href="https://docs.rw/"
@@ -1532,7 +1584,7 @@ function Admin({ model, content, dialogs, dispatch }) {
                   <TbBook size={22} />
                 </ActionIcon>
               </Tooltip>
-              <Tooltip label="Статус системы" withinPortal={false}>
+              <Tooltip label="Статус системы">
                 <ActionIcon
                   className="rn-header-control rn-header-secondary"
                   aria-label="Статус системы"
@@ -1541,7 +1593,7 @@ function Admin({ model, content, dialogs, dispatch }) {
                   <TbChartBar size={22} />
                 </ActionIcon>
               </Tooltip>
-              <Tooltip label="Репозиторий Link-Bot" withinPortal={false}>
+              <Tooltip label="Репозиторий Link-Bot">
                 <ActionIcon
                   component="a"
                   href="https://github.com/bruhxax/Link-Bot"
@@ -1553,7 +1605,7 @@ function Admin({ model, content, dialogs, dispatch }) {
                   <TbBrandGithub size={22} />
                 </ActionIcon>
               </Tooltip>
-              <Tooltip label="Настройки интерфейса" withinPortal={false}>
+              <Tooltip label="Настройки интерфейса">
                 <ActionIcon
                   className="rn-header-control"
                   onClick={() => setPreferences(true)}
@@ -1639,16 +1691,35 @@ function Admin({ model, content, dialogs, dispatch }) {
             </nav>
           )}
         </header>
-        {sidebar && <aside className="rn-sidebar">{navigation}</aside>}
+        {sidebar && sidebarOpen && (
+          <aside className="rn-sidebar">
+            <div className="rn-sidebar-brand">
+              {model.logo ? (
+                <img className="rn-brand-logo" src={model.logo} alt="" />
+              ) : (
+                <PiShieldCheck size={24} />
+              )}
+              <Text className="rn-brand" fw={700}>
+                {model.brand}
+              </Text>
+            </div>
+            <nav
+              className="rn-sidebar-scroll"
+              aria-label="Навигация администратора"
+            >
+              {navigation}
+            </nav>
+          </aside>
+        )}
         <main className="page-scroll rn-main">
           <div className="rn-page">
             {active === "users" && <UserMetrics users={model.users} />}
-            <Card className="rn-page-header" mb="sm" p="sm">
+            <Card className="rn-page-header" mb="md" p="md">
               <Group justify="space-between" wrap="wrap">
                 <Group>
-                  <ThemeIcon size={30} variant="soft" radius="md">
+                  <ThemeIcon size={44} variant="soft" radius="md">
                     {active === "home" ? (
-                      <PiStar size={18} />
+                      <PiStar size={24} />
                     ) : (
                       glyph(route?.[3])
                     )}
@@ -1723,7 +1794,8 @@ function Admin({ model, content, dialogs, dispatch }) {
         <Drawer
           opened={mobile}
           onClose={() => setMobile(false)}
-          withinPortal={false}
+          withinPortal
+          portalProps={{ target: "#app" }}
           title={model.brand}
           size={300}
           className="rn-mobile-nav"

@@ -130,7 +130,7 @@ export function LayoutEditor({ model }) {
         <Card key={`${area}:${item.id}`}>
           <Group justify="space-between" mb="md">
             <Group gap="sm">
-              <Tooltip label="Переместить элемент" withinPortal={false}>
+              <Tooltip label="Переместить элемент">
                 <ActionIcon
                   variant="subtle"
                   aria-label={`Переместить: ${labels[item.id] || item.label}`}

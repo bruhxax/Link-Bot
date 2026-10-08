@@ -95,7 +95,7 @@ function Copy({ value, label = "Копировать" }) {
   return (
     <CopyButton value={value || ""}>
       {({ copied, copy }) => (
-        <Tooltip label={copied ? "Скопировано" : label} withinPortal={false}>
+        <Tooltip label={copied ? "Скопировано" : label}>
           <ActionIcon
             variant="subtle"
             color={copied ? "teal" : "gray"}
@@ -252,7 +252,7 @@ function Identification({ user, subscription, settings, squads }) {
             ["traffic", TbTimeline, "indigo"],
             ["devices", TbDevices2, "gray"],
           ].map(([key, Icon, color]) => (
-            <Tooltip key={key} label={titles[key]} withinPortal={false}>
+            <Tooltip key={key} label={titles[key]}>
               <ActionIcon
                 size="lg"
                 variant="soft"
@@ -289,7 +289,7 @@ function Identification({ user, subscription, settings, squads }) {
             value={limit ? Math.min(100, (used / limit) * 100) : 0}
           />
           <SimpleGrid cols={2} spacing="xs">
-            <Tooltip label="Дата окончания" withinPortal={false}>
+            <Tooltip label="Дата окончания">
               <Paper p="xs" withBorder style={expiryStyle}>
                 <Group gap="xs" justify="center" wrap="nowrap" c={expiryColor}>
                   <PiCalendarDuotone size={18} />
@@ -299,10 +299,7 @@ function Identification({ user, subscription, settings, squads }) {
                 </Group>
               </Paper>
             </Tooltip>
-            <Tooltip
-              label="Использовано трафика за всё время"
-              withinPortal={false}
-            >
+            <Tooltip label="Использовано трафика за всё время">
               <Paper
                 p="xs"
                 radius="md"
@@ -625,7 +622,10 @@ function Settings({ model, subscription, content, Legacy, dispatch }) {
                 ]}
                 value={draft.trafficLimitStrategy}
                 onChange={(v) => update("trafficLimitStrategy", v)}
-                comboboxProps={{ withinPortal: false }}
+                comboboxProps={{
+                  withinPortal: true,
+                  portalProps: { target: "#app" },
+                }}
                 disabled={disabled}
               />
             </Stack>
@@ -658,7 +658,7 @@ function Settings({ model, subscription, content, Legacy, dispatch }) {
                 disabled={disabled}
                 modalProps={{
                   centered: true,
-                  withinPortal: false,
+                  withinPortal: true,
                   zIndex: 330,
                   title: "Дата окончания",
                 }}
@@ -750,7 +750,10 @@ function Settings({ model, subscription, content, Legacy, dispatch }) {
                 }))}
                 value={draft.externalSquadUuid || null}
                 onChange={(v) => update("externalSquadUuid", v)}
-                comboboxProps={{ withinPortal: false }}
+                comboboxProps={{
+                  withinPortal: true,
+                  portalProps: { target: "#app" },
+                }}
                 disabled={disabled}
               />
             </Stack>

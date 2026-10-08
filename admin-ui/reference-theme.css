@@ -234,7 +234,6 @@ body,
 .mantine-ActionIcon-root[style*="mantine-color-indigo"] {
   --ai-color: var(--rwc-accent) !important;
   --ai-hover-color: var(--rwc-accent) !important;
-  --ai-bd: 1px solid rgba(var(--rwc-accent-rgb), 0.42) !important;
 }
 
 .mantine-ActionIcon-root[data-variant="light"][style*="mantine-color-cyan"],
@@ -250,6 +249,7 @@ body,
 .mantine-ActionIcon-root[data-variant="outline"][style*="mantine-color-cyan"],
 .mantine-ActionIcon-root[data-variant="outline"][style*="mantine-color-blue"],
 .mantine-ActionIcon-root[data-variant="outline"][style*="mantine-color-indigo"] {
+  --ai-bd: 1px solid rgba(var(--rwc-accent-rgb), 0.42) !important;
   --ai-bg: transparent !important;
   --ai-hover: rgba(var(--rwc-accent-rgb), 0.1) !important;
 }
