@@ -68,6 +68,7 @@ import {
   PiChartLine,
   PiDevices,
   PiLightning,
+  PiMagnifyingGlass,
   PiEye,
   PiEyeSlash,
 } from "react-icons/pi";
@@ -111,6 +112,9 @@ import {
 const theme = createTheme({
   fontFamily: "Montserrat, sans-serif",
   fontFamilyMonospace: '"Fira Mono", "JetBrains Mono", monospace',
+  fontSizes: { xs: "10px", sm: "11.5px", md: "12px", lg: "14px", xl: "16px" },
+  lineHeights: { xs: "1.3", sm: "1.4", md: "1.45", lg: "1.45", xl: "1.4" },
+  spacing: { xs: "6px", sm: "8px", md: "12px", lg: "16px", xl: "20px" },
   primaryColor: "cyan",
   primaryShade: 8,
   autoContrast: true,
@@ -118,7 +122,17 @@ const theme = createTheme({
   breakpoints: { xs: "30em", sm: "40em", md: "48em", lg: "64em", xl: "80em" },
   defaultRadius: "md",
   radius: { md: "6px", lg: "10px" },
-  headings: { fontWeight: "600" },
+  headings: {
+    fontWeight: "600",
+    sizes: {
+      h1: { fontSize: "22px", lineHeight: "1.3" },
+      h2: { fontSize: "18px", lineHeight: "1.35" },
+      h3: { fontSize: "15px", lineHeight: "1.4" },
+      h4: { fontSize: "13px", lineHeight: "1.4" },
+      h5: { fontSize: "12px", lineHeight: "1.4" },
+      h6: { fontSize: "11px", lineHeight: "1.4" },
+    },
+  },
   focusRing: "auto",
   colors: {
     dark: [
@@ -147,15 +161,21 @@ const theme = createTheme({
     return defaultVariantColorsResolver(input);
   },
   components: {
+    TextInput: TextInput.extend({ defaultProps: { size: "xs" } }),
+    Textarea: Textarea.extend({ defaultProps: { size: "xs" } }),
+    NativeSelect: NativeSelect.extend({ defaultProps: { size: "xs" } }),
+    NumberInput: NumberInput.extend({ defaultProps: { size: "xs" } }),
+    Select: Select.extend({ defaultProps: { size: "xs" } }),
+    MultiSelect: MultiSelect.extend({ defaultProps: { size: "xs" } }),
     Button: Button.extend({
-      defaultProps: { variant: "light", radius: "md" },
+      defaultProps: { variant: "light", radius: "md", size: "xs" },
       styles: { root: { transition: "all .2s ease" } },
     }),
     ActionIcon: ActionIcon.extend({
-      defaultProps: { variant: "outline", radius: "md" },
+      defaultProps: { variant: "outline", radius: "md", size: "sm" },
     }),
     Card: Card.extend({
-      defaultProps: { withBorder: true, padding: "md", shadow: "xl" },
+      defaultProps: { withBorder: true, padding: "md", shadow: "none" },
     }),
     Modal: Modal.extend({
       defaultProps: {
@@ -208,7 +228,7 @@ const glyphs = {
 };
 const glyph = (name) => {
   const Icon = glyphs[name] || PiSlidersHorizontal;
-  return <Icon size={18} />;
+  return <Icon size={16} />;
 };
 const actionProps = (action, value, extra = {}) => ({
   "data-action": action,
@@ -218,7 +238,7 @@ const actionProps = (action, value, extra = {}) => ({
 
 // Keep the authenticated application's event delegation and draft validation intact.
 // Native inputs remain uncontrolled: typing does not replace a field or lose its caret.
-function Field({ node, label, toggle = false }) {
+function Field({ node, label, toggle = false, ...props }) {
   const p = attributes(node),
     ref = useRef(null);
   const isCheck = node.type === "checkbox" || node.type === "radio";
@@ -238,6 +258,7 @@ function Field({ node, label, toggle = false }) {
   delete p.checked;
   const common = {
     ...p,
+    ...props,
     ref,
     label,
     defaultValue: isCheck || node.type === "file" ? undefined : node.value,
@@ -352,6 +373,13 @@ function convert(node, key) {
       ":scope > input,:scope > textarea,:scope > select",
     );
     if (control) {
+      if (node.classList.contains("admin-settings-search__field")) {
+        return (
+          <div key={key} className="rn-search-field">
+            <Field node={control} leftSection={<PiMagnifyingGlass size={14} />} />
+          </div>
+        );
+      }
       if (control.type === "file") {
         const fileProps = attributes(control);
         delete fileProps.defaultValue;
@@ -473,7 +501,7 @@ function IconAction({ action, value, label, children, ...props }) {
       <ActionIcon
         aria-label={label}
         {...actionProps(action, value)}
-        size="lg"
+        size="sm"
         {...props}
       >
         {children}
@@ -489,10 +517,10 @@ function Metric({
   caption,
 }) {
   return (
-    <Card className="rn-metric">
-      <Group wrap="nowrap" gap="md">
-        <ThemeIcon size="xl" radius="lg" variant="soft" color={color}>
-          <Icon size={24} />
+    <Card className="rn-metric" p="sm">
+      <Group wrap="nowrap" gap="sm">
+        <ThemeIcon size={30} radius="md" variant="soft" color={color}>
+          <Icon size={18} />
         </ThemeIcon>
         <Stack gap={0}>
           <Text size="sm" c="dimmed">
@@ -561,16 +589,16 @@ function DataTable({ columns, data, id, extra }) {
     mantineTableProps: { highlightOnHover: true },
     mantineFilterTextInputProps: { variant: "unstyled", placeholder: "Filter" },
     mantineTableContainerProps: {
-      style: { maxHeight: "calc(100dvh - 350px)" },
+      style: { maxHeight: "max(220px, calc(100dvh - 250px))" },
     },
     mantineTableHeadCellProps: {
-      style: { fontSize: 13, background: "#101113" },
+      style: { fontSize: 11, background: "#101113" },
     },
     mantineTopToolbarProps: { style: { background: "#101113" } },
     mantineBottomToolbarProps: { style: { background: "#101113" } },
     mantineTableBodyCellProps: ({ column }) => ({
       style: {
-        fontSize: 13,
+        fontSize: 11.5,
         background: column.getIsPinned() ? "#101113" : undefined,
       },
     }),
@@ -582,9 +610,10 @@ function UserMetrics({ users }) {
   const counts = users.panelCounts;
   return (
     <SimpleGrid
-      cols={{ base: 1, xs: 2, xl: 5 }}
+      className="rn-user-metrics"
+      cols={{ base: 2, md: 5 }}
       spacing="xs"
-      mb="md"
+      mb="sm"
       title="Статистика пользователей Remnawave"
     >
       {[
@@ -827,7 +856,7 @@ function Users({ model }) {
           </Action>
         ),
       },
-      { accessorKey: "customerId", header: "ID", size: 60 },
+      { accessorKey: "customerId", header: "ID", size: 80 },
       { accessorKey: "telegramId", header: "Telegram ID", size: 130 },
       {
         id: "status",
@@ -856,21 +885,22 @@ function Users({ model }) {
         header: "Подписка",
         size: 190,
         Cell: ({ row, cell }) => (
-          <Stack gap={2} style={{ width: "100%", minWidth: 0 }}>
-            <Text size="sm" truncate>
-              {cell.getValue() || "Без подписки"}
-            </Text>
+          <Stack gap={0} style={{ width: "100%", minWidth: 0 }}>
+            <Group gap={4} wrap="nowrap">
+              <Tooltip label={row.original.panelUsername || cell.getValue() || "Без подписки"}>
+                <Text size="sm" truncate style={{ minWidth: 0 }}>
+                  {cell.getValue() || "Без подписки"}
+                </Text>
+              </Tooltip>
+              {row.original.subscriptionCount > 1 && (
+                <Tooltip label={`Всего подписок: ${row.original.subscriptionCount}`}>
+                  <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
+                    +{row.original.subscriptionCount - 1}
+                  </Text>
+                </Tooltip>
+              )}
+            </Group>
             <SubscriptionLink value={row.original.subscriptionLink} />
-            {row.original.panelUsername && (
-              <Text size="xs" c="dimmed" truncate>
-                {row.original.panelUsername}
-              </Text>
-            )}
-            {row.original.subscriptionCount > 1 && (
-              <Text size="xs" c="dimmed">
-                Всего подписок: {row.original.subscriptionCount}
-              </Text>
-            )}
           </Stack>
         ),
       },
@@ -1284,11 +1314,11 @@ function Overview({ model }) {
   const search = document.createElement("div");
   search.innerHTML = model.searchHTML;
   return (
-    <Stack gap="md">
-      <Card>
+    <Stack gap="sm" className="rn-overview">
+      <Card className="rn-overview-search">
         <Legacy node={search} />
       </Card>
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
         {[
           [
             "Активные тарифы",
@@ -1303,10 +1333,10 @@ function Overview({ model }) {
         ))}
       </SimpleGrid>
       <Card>
-        <Title order={4} mb="md">
+        <Title order={4} mb="sm">
           Управление сервисом
         </Title>
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
           {model.groups
             .flatMap((g) => g[2])
             .filter((r) =>
@@ -1327,7 +1357,7 @@ function Overview({ model }) {
                 }
                 value={r[0]}
                 variant="default"
-                h={64}
+                h={34}
                 leftSection={glyph(r[3])}
               >
                 {r[1]}
@@ -1344,12 +1374,12 @@ function Overview({ model }) {
         </Group>
         {model.events.length ? (
           model.events.slice(0, 5).map((e, i) => (
-            <Text key={i} size="sm" mt="md">
+            <Text key={i} size="sm" mt="sm">
               {e.operation} · {e.message}
             </Text>
           ))
         ) : (
-          <Text c="dimmed" size="sm" mt="md">
+          <Text c="dimmed" size="sm" mt="sm">
             Нет открытых событий
           </Text>
         )}
@@ -1456,13 +1486,17 @@ function Admin({ model, content, dialogs, dispatch }) {
             {g[model.locale === "en" ? 1 : 0]}
           </Text>
           {g[2].map(navRoute)}
-          <Divider my="lg" variant="dashed" opacity={0.3} />
+          <Divider my="sm" variant="dashed" opacity={0.3} />
         </div>
       ))}
     </>
   );
   return (
-    <MantineProvider theme={theme} forceColorScheme="dark">
+    <MantineProvider
+      theme={theme}
+      forceColorScheme="dark"
+      cssVariablesSelector='html[data-admin-console="on"]'
+    >
       <div
         className={`app-shell rw-shell remna-admin ${sidebar ? "rn-sidebar-mode" : ""}`}
       >
@@ -1609,12 +1643,12 @@ function Admin({ model, content, dialogs, dispatch }) {
         <main className="page-scroll rn-main">
           <div className="rn-page">
             {active === "users" && <UserMetrics users={model.users} />}
-            <Card className="rn-page-header" mb="md">
+            <Card className="rn-page-header" mb="sm" p="sm">
               <Group justify="space-between" wrap="wrap">
                 <Group>
-                  <ThemeIcon size="xl" variant="soft" radius="lg">
+                  <ThemeIcon size={30} variant="soft" radius="md">
                     {active === "home" ? (
-                      <PiStar size={24} />
+                      <PiStar size={18} />
                     ) : (
                       glyph(route?.[3])
                     )}

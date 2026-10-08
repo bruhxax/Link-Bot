@@ -783,7 +783,7 @@ function Settings({ model, subscription, content, Legacy, dispatch }) {
               <Button
                 className="rn-more-actions"
                 color="gray"
-                size="md"
+                size="sm"
                 leftSection={<TbDots size={20} />}
               >
                 Ещё действия
@@ -807,7 +807,7 @@ function Settings({ model, subscription, content, Legacy, dispatch }) {
           </Menu>
           <Button
             color="teal"
-            size="md"
+            size="sm"
             leftSection={<PiFloppyDiskDuotone size={16} />}
             disabled={!dirty || disabled}
             loading={saving}
