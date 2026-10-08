@@ -45,3 +45,25 @@ func TestRealtimeStreamDeliversChanges(t *testing.T) {
 func (h *Handler) handleRealtimeForTest(w http.ResponseWriter, r *http.Request) {
 	h.handleRealtime(w, r, nil, nil)
 }
+
+func TestRealtimeDeviceBookkeepingCannotTriggerRefreshLoop(t *testing.T) {
+	h := &Handler{realtime: newRealtimeHub()}
+	ch := h.realtime.subscribe()
+	defer h.realtime.unsubscribe(ch)
+	for i := 0; i < 10; i++ {
+		h.publishDatabaseChange("device_notification_state")
+	}
+	select {
+	case <-ch:
+		t.Fatal("HWID bookkeeping triggered another cabinet refresh")
+	default:
+	}
+	for _, table := range []string{"customer", "purchase", "customer_subscription", "support_message"} {
+		h.publishDatabaseChange(table)
+		select {
+		case <-ch:
+		default:
+			t.Fatalf("user data change %s not delivered", table)
+		}
+	}
+}

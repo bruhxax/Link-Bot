@@ -154,13 +154,20 @@ func (h *Handler) handleAdminUsersSearch(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	payload := adminUserSearchPayload{Items: make([]adminUserSummaryPayload, 0, len(items)), Total: total, Limit: req.Limit, Offset: req.Offset}
+	var counts <-chan *remnawave.PanelUserCounts
 	if req.Offset <= 0 && strings.TrimSpace(req.Query) == "" && h.remnawaveClient != nil {
-		statsCtx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-		stats, statsErr := h.remnawaveClient.GetSystemStats(statsCtx)
-		cancel()
-		if statsErr == nil {
-			payload.PanelCounts = stats.Users
-		}
+		loaded := make(chan *remnawave.PanelUserCounts, 1)
+		counts = loaded
+		go func() {
+			statsCtx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+			defer cancel()
+			stats, err := h.remnawaveClient.GetSystemStats(statsCtx)
+			if err == nil {
+				loaded <- stats.Users
+			} else {
+				loaded <- nil
+			}
+		}()
 	}
 	for _, item := range items {
 		expiresAt := ""
@@ -188,6 +195,9 @@ func (h *Handler) handleAdminUsersSearch(w http.ResponseWriter, r *http.Request,
 		})
 	}
 	h.enrichAdminUserOverview(r.Context(), items, payload.Items)
+	if counts != nil {
+		payload.PanelCounts = <-counts
+	}
 	h.writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "data": payload})
 }
 
@@ -584,56 +594,8 @@ func (h *Handler) loadAdminUserDetail(ctx context.Context, customerID int64) (*a
 	if err != nil {
 		return nil, err
 	}
-	for i := range subscriptions {
-		subscription := &subscriptions[i]
-		item := adminUserSubscriptionPayload{
-			ID:          subscription.ID,
-			Name:        subscription.DisplayName,
-			IsPrimary:   subscription.IsPrimary,
-			IsSelected:  active != nil && active.ID == subscription.ID,
-			Status:      adminSubscriptionStatus(subscription.ExpireAt, result.IsBlocked),
-			DeviceLimit: -1,
-		}
-		if subscription.ExpireAt != nil {
-			item.ExpiresAt = subscription.ExpireAt.UTC().Format(time.RFC3339)
-		}
-		if h.remnawaveClient != nil {
-			panelState, stateErr := h.panelStateForCustomerSubscription(ctx, customer, subscription)
-			if stateErr != nil {
-				slog.Warn("mini app: load panel state for admin user", "error", stateErr, "subscriptionId", subscription.ID)
-				if item.Status != "blocked" {
-					item.Status = "unavailable"
-				}
-			} else if panelState != nil && panelState.Exists {
-				item.Settings, _ = h.remnawaveClient.GetAdminUserSettings(ctx, panelState.UserID, panelState.UserUUID)
-				item.PanelID = panelState.UserID
-				item.Devices = panelState.Devices
-				item.DevicesLoaded = panelState.DevicesLoaded
-				item.PanelUsername = panelState.PanelUsername
-				if panelState.SubscriptionLink != nil {
-					item.SubscriptionLink = strings.TrimSpace(*panelState.SubscriptionLink)
-				}
-				item.TrafficLimitBytes = panelState.TrafficLimitBytes
-				item.UsedTrafficBytes = panelState.UsedTrafficBytes
-				item.LifetimeUsedTrafficBytes = panelState.LifetimeUsedTrafficBytes
-				item.DeviceLimit = panelState.DeviceLimit
-				item.UsedDevices = panelState.UsedDevices
-				if panelState.ExpireAt != nil {
-					item.ExpiresAt = panelState.ExpireAt.UTC().Format(time.RFC3339)
-				}
-				if result.IsBlocked {
-					item.Status = "blocked"
-				} else if status := strings.ToLower(panelState.PanelStatus); status == "limited" || status == "disabled" {
-					item.Status = status
-				} else if panelState.Active {
-					item.Status = "active"
-				} else {
-					item.Status = "expired"
-				}
-			}
-		}
-		result.Subscriptions = append(result.Subscriptions, item)
-	}
+	result.Subscriptions = h.loadAdminSubscriptionDetails(ctx, customer, active, subscriptions, result.IsBlocked)
+
 	return result, nil
 }
 

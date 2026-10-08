@@ -77,6 +77,15 @@ func (r *Client) GetAdminUserSettings(ctx context.Context, id int64, userUUID uu
 	if err != nil {
 		return nil, err
 	}
+	return UserSettingsFromPanelUser(user), nil
+}
+
+// UserSettingsFromPanelUser uses the same observation as traffic/expiry, so an
+// admin card cannot combine two different versions of a subscription.
+func UserSettingsFromPanelUser(user *PanelUser) *UserSettings {
+	if user == nil {
+		return nil
+	}
 	s := &UserSettings{TelegramID: user.TelegramID, TrafficLimitBytes: user.TrafficLimitBytes, TrafficLimitStrategy: normalizeTrafficStrategy(user.TrafficLimitStrategy), HwidDeviceLimit: user.HwidDeviceLimit, ExpireAt: user.ExpireAt, ExternalSquadUUID: user.ExternalSquadUUID, ActiveInternalSquads: []uuid.UUID{}}
 	if user.Email != nil {
 		s.Email = *user.Email
@@ -90,7 +99,7 @@ func (r *Client) GetAdminUserSettings(ctx context.Context, id int64, userUUID uu
 	for _, squad := range user.ActiveInternalSquads {
 		s.ActiveInternalSquads = append(s.ActiveInternalSquads, squad.UUID)
 	}
-	return s, nil
+	return s
 }
 
 func (r *Client) UpdateAdminUserSettings(ctx context.Context, id int64, userUUID uuid.UUID, s UserSettings) (*PanelUser, error) {

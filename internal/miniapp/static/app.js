@@ -138,6 +138,7 @@ let adminFaviconPreviewTimer = null;
 let adminUsersSearchTimer = null;
 let adminUsersSearchRequestID = 0;
 let adminUserDetailRequestID = 0;
+let dashboardDataVersion = 0;
 let adminDirectRequestID = 0;
 let adminFinanceRequestID = 0;
 let adminAnalyticsRequestID = 0;
@@ -3598,85 +3599,129 @@ function restoreRealtimeFocus(snapshot) {
 	}
 }
 
-async function refreshRealtimeData() {
-	if (realtimeRefreshRunning) { realtimeRefreshPending = true; return; }
+async function refreshRealtimeData({ panelOnly = false } = {}) {
+	if (realtimeRefreshRunning) { if (!panelOnly) realtimeRefreshPending = true; return; }
 	if (!hasAuth() || previewMode || document.hidden) return;
 	realtimeRefreshRunning = true;
-	realtimeBatching = true;
 	try {
-		await refreshDashboard({ silent: true });
-		if (!state.data) return;
-		if (state.currentPage === "support") {
-			if (state.supportThreadOpen && state.activeSupportTicketId) await openSupportTicket(state.activeSupportTicketId, { silent: true });
-			else await refreshSupport({ silent: true });
-		} else if (state.currentPage === "partner") {
-			const previous = JSON.stringify(state.partner || {});
-			await refreshPartner({ silent: true });
-			if (previous !== JSON.stringify(state.partner || {})) renderRealtime();
-		} else if (state.currentPage === "admin" && isAdminUser()) {
-			switch (state.adminSection) {
-				case "finance": await refreshAdminFinance({ live: true }); break;
-				case "analytics": await refreshAdminAnalytics({ live: true }); break;
-				case "partners": await refreshAdminPartners({ silent: true }); break;
-				case "moynalog": await refreshAdminMoyNalog({ silent: true }); break;
-				case "broadcast": await refreshAdminBroadcast({ silent: true }); break;
-				case "home": if (canAdmin("push")) await refreshAdminPush(); break;
-				case "administrators": if (!administrators.editor && !administrators.picking && !administrators.busy) await refreshAdministrators({ silent: true }); break;
-				case "users":
-					if (state.adminUserDetail?.customerId) {
-						const customerId = state.adminUserDetail.customerId;
-						const previous = JSON.stringify(state.adminUserDetail);
-						const response = await post("/api/mini-app/admin/users/detail", { customerId });
-						if (state.adminSection === "users" && state.adminUserDetail?.customerId === customerId) {
-							state.adminUserDetail = response.data || null;
-							if (previous !== JSON.stringify(state.adminUserDetail)) renderRealtime();
-						}
-					} else await refreshAdminUsers({ silent: true });
-					break;
-				case "subscriptions":
-					if (state.adminSubscriptionResult && state.adminSubscriptionQuery.trim()) {
-						const previous = JSON.stringify([state.adminSubscriptionResult, state.adminSubscriptionTargetResult]);
-						const found = await post("/api/mini-app/admin/subscriptions/find/refresh", { query: state.adminSubscriptionQuery.trim() });
-						if (state.adminSection === "subscriptions") {
-							state.adminSubscriptionResult = found.data || null;
-							if (state.adminSubscriptionTargetResult && state.adminSubscriptionTargetTelegramID && found.data) {
-								const target = await post("/api/mini-app/admin/subscriptions/target/refresh", {
-									userId: Number(found.data.id || 0),
-									userUuid: String(found.data.userUuid || ""),
-									subscriptionLink: String(found.data.subscriptionLink || ""),
-									targetTelegramId: Number(state.adminSubscriptionTargetTelegramID),
-								});
-								state.adminSubscriptionTargetResult = target.data || null;
+		// Each completed request renders immediately. A slow cabinet bootstrap
+		// must not delay an admin card, and a failed request must not cancel peers.
+		const tasks = [];
+		if (!panelOnly) tasks.push(refreshDashboard({ silent: true }));
+		else if (state.currentPage !== "admin") tasks.push(refreshSubscriptionState());
+		if (state.data) tasks.push((async () => {
+			if (state.currentPage === "support") {
+				if (state.supportThreadOpen && state.activeSupportTicketId) await openSupportTicket(state.activeSupportTicketId, { silent: true });
+				else await refreshSupport({ silent: true });
+			} else if (state.currentPage === "partner") {
+				const previous = JSON.stringify(state.partner || {});
+				await refreshPartner({ silent: true });
+				if (previous !== JSON.stringify(state.partner || {})) renderRealtime();
+			} else if (state.currentPage === "admin" && isAdminUser()) {
+				switch (state.adminSection) {
+					case "finance": await refreshAdminFinance({ live: true }); break;
+					case "analytics": await refreshAdminAnalytics({ live: true }); break;
+					case "partners": await refreshAdminPartners({ silent: true }); break;
+					case "moynalog": await refreshAdminMoyNalog({ silent: true }); break;
+					case "broadcast": await refreshAdminBroadcast({ silent: true }); break;
+					case "home": if (canAdmin("push")) await refreshAdminPush(); break;
+					case "administrators": if (!administrators.editor && !administrators.picking && !administrators.busy) await refreshAdministrators({ silent: true }); break;
+					case "users":
+						if (state.adminUsersBusy || state.adminUserPending) break;
+						if (state.adminUserDetail?.customerId) {
+							const customerId = state.adminUserDetail.customerId;
+							const requestID = adminUserDetailRequestID;
+							const previous = JSON.stringify(state.adminUserDetail);
+							const response = await post("/api/mini-app/admin/users/detail", { customerId });
+							if (requestID === adminUserDetailRequestID && !state.adminUsersBusy && state.adminSection === "users" && state.adminUserDetail?.customerId === customerId) {
+								state.adminUserDetail = mergeAdminUserObservation(state.adminUserDetail, response.data);
+								if (previous !== JSON.stringify(state.adminUserDetail)) renderRealtime();
 							}
-							if (previous !== JSON.stringify([state.adminSubscriptionResult, state.adminSubscriptionTargetResult])) renderRealtime();
+						} else await refreshAdminUsers({ silent: true });
+						break;
+					case "subscriptions":
+						if (state.adminSubscriptionResult && state.adminSubscriptionQuery.trim()) {
+							if (state.adminBusy) break;
+							const query = state.adminSubscriptionQuery.trim();
+							const source = state.adminSubscriptionResult;
+							const targetTelegramID = state.adminSubscriptionTargetTelegramID;
+							const previous = JSON.stringify([source, state.adminSubscriptionTargetResult]);
+							const found = await post("/api/mini-app/admin/subscriptions/find/refresh", { query });
+							if (!state.adminBusy && state.adminSection === "subscriptions" && state.adminSubscriptionQuery.trim() === query && state.adminSubscriptionResult === source) {
+								state.adminSubscriptionResult = found.data || null;
+								if (state.adminSubscriptionTargetResult && state.adminSubscriptionTargetTelegramID && found.data) {
+									const target = await post("/api/mini-app/admin/subscriptions/target/refresh", {
+										userId: Number(found.data.id || 0),
+										userUuid: String(found.data.userUuid || ""),
+										subscriptionLink: String(found.data.subscriptionLink || ""),
+										targetTelegramId: Number(state.adminSubscriptionTargetTelegramID),
+									});
+									if (state.adminBusy || state.adminSubscriptionQuery.trim() !== query || state.adminSubscriptionTargetTelegramID !== targetTelegramID) break;
+									state.adminSubscriptionTargetResult = target.data || null;
+								}
+								if (previous !== JSON.stringify([state.adminSubscriptionResult, state.adminSubscriptionTargetResult])) renderRealtime();
+							}
 						}
-					}
-					break;
+						break;
+				}
 			}
-		}
-	} catch (error) {
-		// A transient request failure should not tear down the live connection.
-		console.warn("Mini App live refresh failed", error);
+		})());
+		const results = await Promise.allSettled(tasks);
+		for (const result of results) if (result.status === "rejected") console.warn("Mini App live refresh failed", result.reason);
 	} finally {
-		realtimeBatching = false;
-		if (realtimeBatchRenderRequested) {
-			realtimeBatchRenderRequested = false;
-			renderRealtime();
-		}
 		realtimeLastRefresh = Date.now();
 		realtimeRefreshRunning = false;
-		if (realtimeRefreshPending) {
-			realtimeRefreshPending = false;
-			queueRealtimeRefresh(500);
-		}
+		if (realtimeRefreshPending) { realtimeRefreshPending = false; queueRealtimeRefresh(350); }
 	}
+}
+
+function mergeAdminUserObservation(previous, incoming) {
+	if (!incoming || incoming.customerId !== previous?.customerId) return previous;
+	return { ...incoming, subscriptions: (incoming.subscriptions || []).map(item => {
+		const old = previous.subscriptions?.find(candidate => candidate.id === item.id);
+		if (!old) return item;
+		// Temporary panel/HWID failure is not a zero-traffic or zero-device observation.
+		if (item.status === "unavailable") return { ...old, name: item.name, isSelected: item.isSelected, status: item.status };
+		if (!item.devicesLoaded && old.devicesLoaded && old.panelId === item.panelId) return { ...item, devices: old.devices, usedDevices: old.usedDevices };
+		return item;
+	}) };
+}
+
+async function refreshSubscriptionState() {
+	if (!state.data || state.subscriptionBusy || state.busyMethod || state.deviceBusyHwid || state.refreshing || state.dashboardHydrating) return;
+	const version = dashboardDataVersion;
+	const activeID = state.data.subscriptions?.activeId;
+	const response = await post("/api/mini-app/subscription/state", {});
+	if (version !== dashboardDataVersion || !state.data || state.subscriptionBusy || state.busyMethod || state.deviceBusyHwid || state.data.subscriptions?.activeId !== activeID) return;
+	const next = response.data;
+	if (!next?.subscription || !next?.subscriptions) return;
+	const before = JSON.stringify([state.data.user?.panelUsername, state.data.subscription, state.data.subscriptions, state.data.trial]);
+	state.data.subscription = mergeSubscriptionObservation(state.data.subscription, next.subscription);
+	state.data.subscriptions = next.subscriptions;
+	state.data.trial = next.trial || state.data.trial;
+	if (state.data.user) state.data.user.panelUsername = next.panelUsername || "";
+	const after = JSON.stringify([state.data.user?.panelUsername, state.data.subscription, state.data.subscriptions, state.data.trial]);
+	if (before !== after) { dashboardDataVersion += 1; renderRealtime(); }
+}
+
+function mergeSubscriptionObservation(previous, incoming) {
+	if (!incoming) return previous;
+	if (incoming.stateLoaded === false && previous && incoming.userId === previous.userId && incoming.userUuid === previous.userUuid) return { ...previous, stateLoaded: false };
+	if (incoming.devicesLoaded === false && previous && incoming.userId === previous.userId && incoming.userUuid === previous.userUuid) {
+		return { ...incoming, devices: previous.devices, deviceUsedCount: previous.deviceUsedCount };
+	}
+	return incoming;
 }
 
 async function startRealtimeSync() {
 	if (realtimeStarted || previewMode || !hasAuth()) return;
 	realtimeStarted = true;
 	// Also reconcile panel state and any notifications lost across network gaps.
-	window.setInterval(() => queueRealtimeRefresh(0), 30000);
+	window.setInterval(() => {
+		if (!document.hidden) void refreshRealtimeData({ panelOnly: true });
+	}, 5000);
+	// Refresh other account sections periodically even when no DB event arrives.
+	window.setInterval(() => queueRealtimeRefresh(0), 60000);
 	let retryDelay = 1000;
 	while (hasAuth()) {
 		try {
@@ -3730,13 +3775,22 @@ async function startRealtimeSync() {
 }
 
 async function refreshDashboard(options = {}) {
-    if (dashboardRefreshPromise) return dashboardRefreshPromise;
+    if (dashboardRefreshPromise) {
+      if (!options.fresh) return dashboardRefreshPromise;
+      await dashboardRefreshPromise;
+      // Another caller can start the fresh request while we await the old one.
+      if (dashboardRefreshPromise) return dashboardRefreshPromise;
+    }
     if (Date.now() < dashboardRetryAt) return;
-    dashboardRefreshPromise = loadDashboard(options).finally(() => { dashboardRefreshPromise = null; });
-    return dashboardRefreshPromise;
+    const loading = loadDashboard(options).finally(() => {
+      if (dashboardRefreshPromise === loading) dashboardRefreshPromise = null;
+    });
+    dashboardRefreshPromise = loading;
+    return loading;
 }
 
-async function loadDashboard({ initial = false, silent = false, forceSubscriptionCheck = false } = {}) {
+async function loadDashboard({ initial = false, silent = false, forceSubscriptionCheck = false, fresh = false } = {}) {
+  const dataVersion = dashboardDataVersion;
 	const previousView = silent && realtimeRefreshRunning ? realtimeViewSignature() : null;
   if (!silent) {
     if (!state.data || initial) state.loading = true;
@@ -3884,6 +3938,14 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
     if (fastBootstrap) bootstrapHeaders["X-Bootstrap-Mode"] = "fast";
     if (forceSubscriptionCheck) bootstrapHeaders["X-Force-Channel-Check"] = "1";
     const response = await post("/api/mini-app/bootstrap", null, bootstrapHeaders);
+    if (dataVersion !== dashboardDataVersion || (!fresh && (state.subscriptionBusy || state.busyMethod || state.deviceBusyHwid))) return;
+    if (state.data && response.data && state.data.subscriptions?.activeId === response.data.subscriptions?.activeId) {
+      response.data.subscription = mergeSubscriptionObservation(state.data.subscription, response.data.subscription);
+      if (response.data.subscription?.stateLoaded === false) {
+        response.data.user.panelUsername = state.data.user?.panelUsername || "";
+        response.data.subscriptions = state.data.subscriptions;
+      }
+    }
     state.data = response.data;
 		state.dashboardHydrating = fastBootstrap;
 		syncGiftReceiptState();
@@ -3897,6 +3959,7 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
     state.error = "";
     if (fastBootstrap) scheduleDashboardHydration();
   } catch (error) {
+    if (dataVersion !== dashboardDataVersion) return;
     if (error?.code === "unauthorized" && !tg?.initData) {
       clearBrowserTelegramAuth();
       clearGoogleAuth();
@@ -4050,7 +4113,13 @@ function requestTimeoutForURL(url) {
   return 15000;
 }
 
+function changesSubscriptionState(url) {
+  return /^\/api\/mini-app\/(purchase(?:$|\/)|trial\/activate$|promocode\/redeem$|devices\/delete$|subscriptions\/(?:select|create|rename|delete)$|admin\/users\/(?:balance|block|subscription(?:\/(?:settings|select|delete|reissue))?)$|admin\/subscriptions\/rebind$)/.test(String(url));
+}
+
 async function post(url, body, extraHeaders = null) {
+  const changesState = changesSubscriptionState(url);
+  if (changesState) dashboardDataVersion += 1;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), requestTimeoutForURL(url));
   try {
@@ -4079,6 +4148,7 @@ async function post(url, body, extraHeaders = null) {
       err.retryAfterMs = Number.isFinite(retrySeconds) && retrySeconds > 0 ? Math.min(600000, retrySeconds * 1000) : 0;
       throw err;
     }
+    if (changesState) dashboardDataVersion += 1;
     return payload;
   } catch (error) {
     if (error?.name === "AbortError") throw new Error(t().timeout);
@@ -6345,12 +6415,12 @@ function renderAdminUserSubscription(item) {
 }
 
 async function refreshAdminUsers({ append = false, silent = false } = {}) {
-	if (previewMode || (append && state.adminUsersBusy) || (!silent && state.adminUsersBusy && state.adminUsersBusy !== "search")) return;
+	if (previewMode || (silent && state.adminUsersBusy) || (append && state.adminUsersBusy) || (!silent && state.adminUsersBusy && state.adminUsersBusy !== "search")) return;
 	const previous = silent ? JSON.stringify(state.adminUsers || {}) : "";
 	const offset = append ? Number(state.adminUsers?.items?.length || 0) : 0;
 	const query = String(state.adminUsersQuery || "");
 	const requestID = ++adminUsersSearchRequestID;
-	state.adminUsersBusy = append ? "more" : "search";
+	if (!silent) state.adminUsersBusy = append ? "more" : "search";
 	if (!silent) syncAdminUsersBusyDOM();
 	try {
 		const response = await post("/api/mini-app/admin/users/search", { query, limit: 30, offset });
@@ -6524,10 +6594,14 @@ function adminUserSelectedSubscriptionID() {
 
 async function runAdminUserAction(path, body, busyKey) {
 	if (!state.adminUserDetail || state.adminUsersBusy) return;
+	const customerID = Number(state.adminUserDetail.customerId);
+	const requestID = ++adminUserDetailRequestID;
+	adminUsersSearchRequestID += 1;
 	state.adminUsersBusy = busyKey;
 	render({ preserveScroll: true });
 	try {
-		const response = await post(path, { customerId: Number(state.adminUserDetail.customerId || 0), ...body });
+		const response = await post(path, { customerId: customerID, ...body });
+		if (requestID !== adminUserDetailRequestID || Number(state.adminUserDetail?.customerId) !== customerID) return;
 		state.adminUserDetail = response.data || state.adminUserDetail;
 		const subscriptions = state.adminUserDetail?.subscriptions || [];
 		if (!subscriptions.some((item) => String(item.id) === String(state.adminUserSelectedSubscriptionID))) {
@@ -6544,6 +6618,7 @@ async function runAdminUserAction(path, body, busyKey) {
 		showToast(response.message || "Изменение сохранено", "success");
 		void refreshAdminUsers({ silent: true });
 	} catch (error) {
+		if (requestID !== adminUserDetailRequestID || Number(state.adminUserDetail?.customerId) !== customerID) return;
 		state.adminUsersBusy = "";
 		render({ preserveScroll: true });
 		throw error;
@@ -16114,6 +16189,7 @@ function requestSubscriptionMenuClose(onClosed = null) {
 
 function applySubscriptionBootstrap(data) {
 	if (!data) return;
+	dashboardDataVersion += 1;
 	state.data = data;
 	syncLocalizationFromSettings(data.runtime);
 	state.appliedPromo = null;
@@ -17100,7 +17176,8 @@ async function rebindAdminSubscription() {
 }
 
 async function safeRefresh() {
-  await refreshDashboard({ silent: true });
+  dashboardDataVersion += 1;
+  await refreshDashboard({ silent: true, fresh: true });
 }
 
 function moveToDashboard() {

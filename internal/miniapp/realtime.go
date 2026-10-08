@@ -81,12 +81,23 @@ func (h *Handler) listenRealtime(ctx context.Context, databaseURL string) error 
 	// cannot be replayed by PostgreSQL.
 	h.realtime.publish()
 	for ctx.Err() == nil {
-		if _, err := conn.WaitForNotification(ctx); err != nil {
+		notification, err := conn.WaitForNotification(ctx)
+		if err != nil {
 			return err
 		}
-		h.realtime.publish()
+		h.publishDatabaseChange(notification.Payload)
 	}
 	return ctx.Err()
+}
+
+func (h *Handler) publishDatabaseChange(table string) {
+	// Every confirmed HWID read advances its observation timestamp. Broadcasting
+	// that internal bookkeeping would cause refresh -> HWID write -> refresh
+	// loops in every open cabinet, even when no user data changed.
+	if table == "device_notification_state" {
+		return
+	}
+	h.realtime.publish()
 }
 
 func (h *Handler) handleRealtime(w http.ResponseWriter, r *http.Request, _ *session, _ *database.Customer) {

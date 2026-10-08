@@ -749,14 +749,32 @@ func (sr *SubscriptionRepository) ClearManualControl(ctx context.Context, subscr
 }
 
 func (sr *SubscriptionRepository) UpdatePanelAccess(ctx context.Context, subscription *CustomerSubscription, panelUserID int64, panelUserUUID uuid.UUID, subscriptionLink *string, expireAt *time.Time) error {
+	_, err := sr.updatePanelAccess(ctx, subscription, panelUserID, panelUserUUID, subscriptionLink, expireAt, nil)
+	return err
+}
+
+// SyncPanelAccess persists an observation only while the subscription and the
+// primary customer cache still match the snapshot taken before the panel read.
+// Purchases, rewards and transfers must win over an older in-flight refresh.
+func (sr *SubscriptionRepository) SyncPanelAccess(ctx context.Context, customer *Customer, subscription *CustomerSubscription, panelUserID int64, panelUserUUID uuid.UUID, subscriptionLink *string, expireAt *time.Time) (bool, error) {
+	return sr.updatePanelAccess(ctx, subscription, panelUserID, panelUserUUID, subscriptionLink, expireAt, customer)
+}
+
+func (sr *SubscriptionRepository) updatePanelAccess(ctx context.Context, subscription *CustomerSubscription, panelUserID int64, panelUserUUID uuid.UUID, subscriptionLink *string, expireAt *time.Time, observed *Customer) (bool, error) {
 	if subscription == nil || subscription.ID <= 0 {
-		return ErrCustomerSubscriptionNotFound
+		return false, ErrCustomerSubscriptionNotFound
 	}
 	tx, err := sr.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("begin subscription state update: %w", err)
+		return false, fmt.Errorf("begin subscription state update: %w", err)
 	}
 	defer tx.Rollback(ctx)
+	if observed != nil {
+		ok, err := panelObservationCurrent(ctx, tx, observed, subscription)
+		if err != nil || !ok {
+			return false, err
+		}
+	}
 
 	var uuidValue interface{}
 	if panelUserUUID != uuid.Nil {
@@ -784,7 +802,7 @@ func (sr *SubscriptionRepository) UpdatePanelAccess(ctx context.Context, subscri
 		  AND (panel_user_id, panel_user_uuid, subscription_link, expire_at)
 		      IS DISTINCT FROM (COALESCE(NULLIF($2, 0), panel_user_id), $3, $4, $5)
 	`, subscription.ID, panelUserID, uuidValue, linkValue, expireValue); err != nil {
-		return fmt.Errorf("update customer subscription state: %w", err)
+		return false, fmt.Errorf("update customer subscription state: %w", err)
 	}
 	if subscription.IsPrimary {
 		if _, err := tx.Exec(ctx, `
@@ -793,13 +811,39 @@ func (sr *SubscriptionRepository) UpdatePanelAccess(ctx context.Context, subscri
 			WHERE id = $1
 			  AND (subscription_link, expire_at) IS DISTINCT FROM (NULLIF($2, ''), $3)
 		`, subscription.CustomerID, linkValue, expireValue); err != nil {
-			return fmt.Errorf("update primary subscription cache: %w", err)
+			return false, fmt.Errorf("update primary subscription cache: %w", err)
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit subscription state update: %w", err)
+		return false, fmt.Errorf("commit subscription state update: %w", err)
 	}
-	return nil
+	return true, nil
+}
+
+func panelObservationCurrent(ctx context.Context, tx pgx.Tx, customer *Customer, subscription *CustomerSubscription) (bool, error) {
+	var updatedAt time.Time
+	if err := tx.QueryRow(ctx, `SELECT updated_at FROM customer_subscription WHERE id = $1 AND customer_id = $2 FOR UPDATE`, subscription.ID, customer.ID).Scan(&updatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	if !updatedAt.Equal(subscription.UpdatedAt) {
+		return false, nil
+	}
+	if subscription.IsPrimary {
+		var expireAt *time.Time
+		var link *string
+		if err := tx.QueryRow(ctx, `SELECT expire_at, subscription_link FROM customer WHERE id = $1 FOR UPDATE`, customer.ID).Scan(&expireAt, &link); err != nil {
+			return false, err
+		}
+		expiryMatches := (expireAt == nil && customer.ExpireAt == nil) || (expireAt != nil && customer.ExpireAt != nil && expireAt.Equal(*customer.ExpireAt))
+		linkMatches := (link == nil && customer.SubscriptionLink == nil) || (link != nil && customer.SubscriptionLink != nil && *link == *customer.SubscriptionLink)
+		if !expiryMatches || !linkMatches {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // AnnulPanelAccess keeps the subscription slot but removes all usable panel access.

@@ -58,7 +58,7 @@ func initMiniAppTestConfig() {
 	})
 }
 
-func TestResolveSubscriptionPlanMonthsPrefersLatestPurchase(t *testing.T) {
+func TestResolveSubscriptionPlanMonthsUsesChangedPanelTariff(t *testing.T) {
 	initMiniAppTestConfig()
 
 	latestPurchase := &database.Purchase{Month: 3}
@@ -68,8 +68,8 @@ func TestResolveSubscriptionPlanMonthsPrefersLatestPurchase(t *testing.T) {
 		DeviceLimit:       10,
 	}
 
-	if got := resolveSubscriptionPlanMonths(latestPurchase, panelState); got != 3 {
-		t.Fatalf("expected latest purchase months to win, got %d", got)
+	if got := resolveSubscriptionPlanMonths(latestPurchase, panelState); got != 6 {
+		t.Fatalf("expected actual panel tariff after a manual change, got %d", got)
 	}
 }
 

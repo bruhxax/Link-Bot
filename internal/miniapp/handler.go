@@ -188,6 +188,7 @@ type userPayload struct {
 }
 
 type subscriptionPayload struct {
+	StateLoaded       bool            `json:"stateLoaded"`
 	Status            string          `json:"status"`
 	DaysLeft          int             `json:"daysLeft"`
 	PlanMonths        int             `json:"planMonths,omitempty"`
@@ -204,6 +205,7 @@ type subscriptionPayload struct {
 	DeviceUsedCount   int             `json:"deviceUsedCount"`
 	DeviceLimitCount  int             `json:"deviceLimitCount"`
 	Devices           []devicePayload `json:"devices"`
+	DevicesLoaded     bool            `json:"devicesLoaded"`
 }
 
 type subscriptionsPayload struct {
@@ -783,6 +785,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/auth/email/link/verify", h.withSession(h.handleVerifyEmailLink))
 	mux.HandleFunc("/api/mini-app/auth/telegram/link", h.withSession(h.handleLinkTelegramIdentity))
 	mux.HandleFunc("/api/mini-app/bootstrap", h.withSession(h.handleBootstrap))
+	mux.HandleFunc("/api/mini-app/subscription/state", h.withSession(h.handleSubscriptionState))
 	mux.HandleFunc("/api/mini-app/realtime", h.withSession(h.handleRealtime))
 	mux.HandleFunc("/api/mini-app/subscriptions/select", h.withSession(h.handleSelectSubscription))
 	mux.HandleFunc("/api/mini-app/subscriptions/create", h.withSession(h.handleCreateSubscription))
@@ -1424,6 +1427,10 @@ func (h *Handler) handleBootstrap(w http.ResponseWriter, r *http.Request, sess *
 	fast := strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Bootstrap-Mode")), "fast")
 	payload, err := h.buildBootstrapResponseMode(r.Context(), sess, customer, fast)
 	if err != nil {
+		if errors.Is(err, errSubscriptionObservationChanged) {
+			h.writeError(w, http.StatusConflict, "subscription_state_changed", "Подписка обновилась. Повторите запрос")
+			return
+		}
 		slog.Error("mini app: bootstrap", "error", err, "telegramId", utils.MaskHalfInt64(sess.User.ID), "duration", time.Since(started))
 		h.writeError(w, http.StatusInternalServerError, "bootstrap_failed", "Не удалось загрузить данные")
 		return
@@ -3646,7 +3653,14 @@ func (h *Handler) handleDeleteDeviceExact(w http.ResponseWriter, r *http.Request
 			panelState.UserID = req.UserID
 		}
 	}
-	viewCustomer := h.syncCustomerSubscriptionState(r.Context(), customer, activeSubscription, panelState)
+	viewCustomer, err := h.syncCustomerSubscriptionState(r.Context(), customer, activeSubscription, panelState)
+	if err != nil {
+		h.writeError(w, http.StatusConflict, "subscription_state_changed", "Подписка обновилась. Повторите запрос")
+		return
+	}
+	if panelState != nil && panelState.Exists && highestPurchase != nil && !h.purchaseMatchesPanelState(highestPurchase, panelState) {
+		highestPurchase = purchaseWithEntitlements(r.Context(), h.purchaseRepository, activeSubscription.ID, highestPurchase)
+	}
 
 	h.writeJSON(w, http.StatusOK, map[string]any{
 		"ok":   true,
@@ -4209,52 +4223,46 @@ func (h *Handler) panelStateForCustomerSubscription(ctx context.Context, custome
 	return nil, nil
 }
 
-func (h *Handler) syncCustomerSubscriptionState(ctx context.Context, customer *database.Customer, subscription *database.CustomerSubscription, panelState *remnawave.UserState) *database.Customer {
+var errSubscriptionObservationChanged = errors.New("subscription changed during panel refresh")
+
+func (h *Handler) syncCustomerSubscriptionState(ctx context.Context, customer *database.Customer, subscription *database.CustomerSubscription, panelState *remnawave.UserState) (*database.Customer, error) {
 	if customer == nil || subscription == nil {
-		return customer
+		return customer, nil
+	}
+	userID, userUUID := customerSubscriptionIdentity(subscription)
+	var link *string
+	var expire *time.Time
+	if panelState != nil && panelState.Exists {
+		userID, userUUID = panelState.UserID, panelState.UserUUID
+		// Disabled/expired subscriptions retain identity, link and actual expiry.
+		// Access is decided from panel status, not by erasing this data.
+		link, expire = panelState.SubscriptionLink, panelState.ExpireAt
+	}
+	if h.subscriptionRepository != nil {
+		applied, err := h.subscriptionRepository.SyncPanelAccess(ctx, customer, subscription, userID, userUUID, link, expire)
+		if err != nil {
+			return customer, err
+		}
+		if !applied {
+			return customer, errSubscriptionObservationChanged
+		}
+	}
+	subscription.SubscriptionLink, subscription.ExpireAt = link, expire
+	if userID > 0 {
+		subscription.PanelUserID = &userID
+	}
+	if userUUID != uuid.Nil {
+		subscription.PanelUserUUID = &userUUID
 	}
 	if subscription.IsPrimary {
-		customer = h.syncCustomerStateFromPanelState(ctx, customer, panelState)
-		subscription.SubscriptionLink = customer.SubscriptionLink
-		subscription.ExpireAt = customer.ExpireAt
-		if h.subscriptionRepository != nil {
-			userID, userUUID := customerSubscriptionIdentity(subscription)
-			if panelState != nil && panelState.Exists {
-				userID = panelState.UserID
-				userUUID = panelState.UserUUID
+		customer.SubscriptionLink, customer.ExpireAt = link, expire
+		if panelState != nil && panelState.Exists && !customer.TrialUsed && h.isTrialPanelState(panelState) && h.customerRepository != nil {
+			if err := h.customerRepository.UpdateFields(ctx, customer.ID, map[string]any{"trial_used": true}); err == nil {
+				customer.TrialUsed = true
 			}
-			if err := h.subscriptionRepository.UpdatePanelAccess(ctx, subscription, userID, userUUID, customer.SubscriptionLink, customer.ExpireAt); err != nil {
-				slog.Warn("mini app: persist primary subscription identity failed", "error", err, "subscriptionId", subscription.ID)
-			} else {
-				if userID > 0 {
-					subscription.PanelUserID = &userID
-				}
-				if userUUID != uuid.Nil {
-					subscription.PanelUserUUID = &userUUID
-				}
-			}
-		}
-	} else if h.subscriptionRepository != nil && panelState != nil && panelState.Exists {
-		userID := panelState.UserID
-		userUUID := panelState.UserUUID
-		var link *string
-		var expire *time.Time
-		if panelState.Active {
-			link = panelState.SubscriptionLink
-			expire = panelState.ExpireAt
-		}
-		if err := h.subscriptionRepository.UpdatePanelAccess(ctx, subscription, userID, userUUID, link, expire); err != nil {
-			slog.Warn("mini app: persist subscription state failed", "error", err, "subscriptionId", subscription.ID)
-		} else {
-			subscription.PanelUserID = &userID
-			if userUUID != uuid.Nil {
-				subscription.PanelUserUUID = &userUUID
-			}
-			subscription.SubscriptionLink = link
-			subscription.ExpireAt = expire
 		}
 	}
-	return customerForActiveSubscription(customer, subscription)
+	return customerForActiveSubscription(customer, subscription), nil
 }
 
 func buildSubscriptionsPayload(active *database.CustomerSubscription, subscriptions []database.CustomerSubscription) subscriptionsPayload {
@@ -4341,7 +4349,10 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 			panelLookupFailed = true
 			slog.Warn("mini app: load panel state failed", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID))
 		} else {
-			viewCustomer = h.syncCustomerSubscriptionState(ctx, customer, activeSubscription, panelState)
+			viewCustomer, err = h.syncCustomerSubscriptionState(ctx, customer, activeSubscription, panelState)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -4376,6 +4387,9 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 	highestPurchase, err := h.purchaseRepository.FindLatestSuccessfulPurchaseBySubscription(ctx, customer.ID, activeSubscription.ID)
 	if err != nil {
 		return nil, err
+	}
+	if panelState != nil && panelState.Exists && highestPurchase != nil && !h.purchaseMatchesPanelState(highestPurchase, panelState) {
+		highestPurchase = purchaseWithEntitlements(ctx, h.purchaseRepository, activeSubscription.ID, highestPurchase)
 	}
 	trialEligible := activeSubscription.IsPrimary && bootstrapTrialEligible(settings.Trial, viewCustomer, highestPurchase, panelState, panelLookupFailed, fast)
 	linkedEmail, err := h.customerRepository.EmailForCustomer(ctx, customer.ID)
@@ -4455,14 +4469,17 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 	}
 
 	if !fast && panelState != nil {
-		panelState, err = h.syncSubscriptionTrafficLimit(ctx, viewCustomer, activeSubscription, highestPurchase, panelState)
-		if err != nil {
-			slog.Warn("mini app: sync traffic limit failed", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID))
-		}
 		h.trackDeviceNotifications(ctx, customer, activeSubscription, panelState)
 	}
 
 	subscriptionData := h.buildSubscriptionPayload(viewCustomer, highestPurchase, panelState)
+	subscriptionData.StateLoaded = !fast && !panelLookupFailed
+	if panelState == nil {
+		subscriptionData.UserID, _ = customerSubscriptionIdentity(activeSubscription)
+		if activeSubscription.PanelUserUUID != nil {
+			subscriptionData.UserUUID = activeSubscription.PanelUserUUID.String()
+		}
+	}
 	if shouldLabelSubscriptionAsBonus(subscriptionData, highestPurchase, reviewsData.MyReview) {
 		subscriptionData.IsTrial = false
 		switch settings.Localization.Language {
@@ -4548,112 +4565,14 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 	}, nil
 }
 
-func (h *Handler) syncSubscriptionTrafficLimit(ctx context.Context, customer *database.Customer, subscription *database.CustomerSubscription, highestPurchase *database.Purchase, panelState *remnawave.UserState) (*remnawave.UserState, error) {
-	if h.remnawaveClient == nil || customer == nil || panelState == nil || !panelState.Exists {
-		return panelState, nil
-	}
-	if subscription != nil && h.subscriptionRepository != nil {
-		manual, err := h.subscriptionRepository.IsManuallyControlled(ctx, subscription.ID)
-		if err != nil {
-			// A failed ownership check must never result in an unrequested panel
-			// update. Preserve the current limits and try again next refresh.
-			slog.Warn("mini app: check manual subscription control failed", "error", err, "subscriptionId", subscription.ID)
-			return panelState, nil
-		}
-		if manual {
-			return panelState, nil
-		}
-	}
-
-	if customer.ExpireAt == nil || !customer.ExpireAt.After(time.Now().UTC()) {
-		return panelState, nil
-	}
-
-	trial := h.trialSettings()
-	expectedLimitBytes := int64(-1)
-	switch {
-	case highestPurchase != nil && highestPurchase.TrafficLimitBytes != nil:
-		expectedLimitBytes = *highestPurchase.TrafficLimitBytes
-	case highestPurchase != nil && highestPurchase.Month > 0:
-		if plan, ok := h.checkoutPlanForRequest("", highestPurchase.Month); ok {
-			expectedLimitBytes = plan.TrafficLimitBytes
-		} else {
-			expectedLimitBytes = int64(config.TrafficLimitForMonths(highestPurchase.Month))
-		}
-	case subscription != nil && subscription.IsPrimary && customer.TrialUsed:
-		expectedLimitBytes = trialTrafficLimitBytes(trial)
-	default:
-		return panelState, nil
-	}
-
-	currentLimitBytes := maxInt64(panelState.TrafficLimitBytes, 0)
-	expectedDeviceLimit := -1
-	switch {
-	case highestPurchase != nil && highestPurchase.DeviceLimitCount != nil:
-		expectedDeviceLimit = *highestPurchase.DeviceLimitCount
-	case highestPurchase != nil && highestPurchase.Month > 0:
-		if plan, ok := h.checkoutPlanForRequest("", highestPurchase.Month); ok {
-			expectedDeviceLimit = plan.DeviceLimitCount
-		} else {
-			expectedDeviceLimit = config.DeviceLimitForMonths(highestPurchase.Month)
-		}
-	case subscription != nil && subscription.IsPrimary && customer.TrialUsed:
-		expectedDeviceLimit = trial.DeviceLimit
-	}
-
-	currentDeviceLimit := maxInt(panelState.DeviceLimit, 0)
-	needsTrafficRepair := false
-	switch {
-	case expectedLimitBytes == 0 && currentLimitBytes > 0:
-		needsTrafficRepair = true
-	case expectedLimitBytes > 0 && currentLimitBytes <= 0:
-		needsTrafficRepair = true
-	case expectedLimitBytes > 0 && currentLimitBytes < expectedLimitBytes:
-		needsTrafficRepair = true
-	}
-
-	needsDeviceRepair := false
-	switch {
-	case expectedDeviceLimit == 0 && currentDeviceLimit > 0:
-		needsDeviceRepair = true
-	case expectedDeviceLimit > 0 && currentDeviceLimit <= 0:
-		needsDeviceRepair = true
-	case expectedDeviceLimit > 0 && currentDeviceLimit < expectedDeviceLimit:
-		needsDeviceRepair = true
-	}
-
-	if !needsTrafficRepair && !needsDeviceRepair {
-		return panelState, nil
-	}
-
-	slog.Info(
-		"mini app: repairing panel traffic limit",
-		"telegramId", utils.MaskHalfInt64(customer.TelegramID),
-		"currentLimitBytes", currentLimitBytes,
-		"expectedLimitBytes", expectedLimitBytes,
-		"currentDeviceLimit", currentDeviceLimit,
-		"expectedDeviceLimit", expectedDeviceLimit,
-	)
-
-	userID, userUUID := customerSubscriptionIdentity(subscription)
-	if _, err := h.remnawaveClient.CreateOrUpdateUserForSubscription(ctx, customer.ID, customer.TelegramID, subscription.ID, userID, userUUID, subscription.IsPrimary, int(expectedLimitBytes), expectedDeviceLimit, 0, remnawave.ProvisioningOptions{}); err != nil {
-		return panelState, err
-	}
-
-	refreshedState, err := h.panelStateForCustomerSubscription(ctx, customer, subscription)
-	if err != nil {
-		return panelState, err
-	}
-	if refreshedState == nil {
-		return panelState, nil
-	}
-
-	return refreshedState, nil
-}
-
 func (h *Handler) buildSubscriptionPayload(customer *database.Customer, highestPurchase *database.Purchase, panelState *remnawave.UserState) subscriptionPayload {
-	payload := subscriptionPayload{Status: "inactive", Devices: []devicePayload{}}
+	payload := subscriptionPayload{Status: "inactive", Devices: []devicePayload{}, StateLoaded: panelState != nil}
 	language := h.language()
+	if panelState != nil && panelState.Exists && !h.purchaseMatchesPanelState(highestPurchase, panelState) {
+		// Payment history describes what was bought, not a later manually changed
+		// tariff. Current limits, plan and trial presentation follow the panel.
+		highestPurchase = nil
+	}
 	resolvedPlanMonths := h.resolveSubscriptionPlanMonths(highestPurchase, panelState)
 
 	if panelState != nil {
@@ -4666,8 +4585,12 @@ func (h *Handler) buildSubscriptionPayload(customer *database.Customer, highestP
 		payload.DeviceUsedCount = maxInt(panelState.UsedDevices, 0)
 		payload.DeviceLimitCount = maxInt(panelState.DeviceLimit, 0)
 		payload.Devices = buildDevicePayloads(panelState.Devices)
+		payload.DevicesLoaded = panelState.DevicesLoaded
 	}
-	if customer.ExpireAt == nil || !customer.ExpireAt.After(time.Now()) {
+	if customer.ExpireAt != nil {
+		payload.ExpiresAt = customer.ExpireAt.UTC().Format(time.RFC3339)
+	}
+	if customer.ExpireAt == nil || !customer.ExpireAt.After(time.Now()) || (panelState != nil && !panelState.Active) {
 		return payload
 	}
 
@@ -4732,11 +4655,28 @@ func shouldLabelSubscriptionAsBonus(payload subscriptionPayload, highestPurchase
 }
 
 func (h *Handler) resolveSubscriptionPlanMonths(highestPurchase *database.Purchase, panelState *remnawave.UserState) int {
-	if highestPurchase != nil && highestPurchase.Month > 0 {
+	if highestPurchase != nil && highestPurchase.Month > 0 && (panelState == nil || !panelState.Exists || h.purchaseMatchesPanelState(highestPurchase, panelState)) {
 		return highestPurchase.Month
 	}
 
 	return h.inferPlanMonthsFromPanelState(panelState)
+}
+
+func (h *Handler) purchaseMatchesPanelState(purchase *database.Purchase, state *remnawave.UserState) bool {
+	if purchase == nil || state == nil || !state.Exists {
+		return false
+	}
+	traffic, devices := int64(-1), -1
+	if plan, ok := h.checkoutPlanForRequest("", purchase.Month); purchase.Month > 0 && ok {
+		traffic, devices = plan.TrafficLimitBytes, plan.DeviceLimitCount
+	}
+	if purchase.TrafficLimitBytes != nil {
+		traffic = *purchase.TrafficLimitBytes
+	}
+	if purchase.DeviceLimitCount != nil {
+		devices = *purchase.DeviceLimitCount
+	}
+	return (traffic < 0 || traffic == state.TrafficLimitBytes) && (devices < 0 || state.DeviceLimit < 0 || devices == state.DeviceLimit)
 }
 
 func resolveSubscriptionPlanMonths(highestPurchase *database.Purchase, panelState *remnawave.UserState) int {
@@ -4771,8 +4711,8 @@ func (h *Handler) isTrialPanelState(panelState *remnawave.UserState) bool {
 }
 
 func (h *Handler) isTrialSubscription(customer *database.Customer, panelState *remnawave.UserState) bool {
-	if h.isTrialPanelState(panelState) {
-		return true
+	if panelState != nil && panelState.Exists {
+		return h.isTrialPanelState(panelState)
 	}
 
 	return customer != nil && customer.TrialUsed
@@ -4803,10 +4743,25 @@ func (h *Handler) syncCustomerState(ctx context.Context, customer *database.Cust
 	if h.remnawaveClient == nil || customer == nil {
 		return customer
 	}
-
+	if h.subscriptionRepository != nil {
+		subscription, err := h.subscriptionRepository.EnsurePrimary(ctx, customer)
+		if err != nil {
+			return customer
+		}
+		panelCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+		defer cancel()
+		panelState, err := h.panelStateForCustomerSubscription(panelCtx, customer, subscription)
+		if err != nil {
+			return customer
+		}
+		updated, err := h.syncCustomerSubscriptionState(ctx, customer, subscription, panelState)
+		if err != nil {
+			return customer
+		}
+		return updated
+	}
 	panelState, err := h.remnawaveClient.GetUserStateByTelegramID(ctx, customer.TelegramID)
 	if err != nil {
-		slog.Warn("mini app: remnawave sync failed", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID))
 		return customer
 	}
 	return h.syncCustomerStateFromPanelState(ctx, customer, panelState)
@@ -4821,7 +4776,7 @@ func (h *Handler) syncCustomerStateFromPanelState(ctx context.Context, customer 
 	if panelState != nil && panelState.Exists && !customer.TrialUsed && h.isTrialPanelState(panelState) {
 		updates["trial_used"] = true
 	}
-	if panelState == nil || !panelState.Active {
+	if panelState == nil || !panelState.Exists {
 		if customer.ExpireAt != nil {
 			updates["expire_at"] = nil
 		}
@@ -5190,7 +5145,9 @@ func (h *Handler) buildAdminPayload(ctx context.Context) (*adminPayload, error) 
 	}
 	payload.Settings = adminSettingsForAccess(payload.Settings, access)
 	if h.remnawaveClient != nil && (access.can("plans") || access.can("trial")) {
-		squads, err := h.remnawaveClient.ListSquads(ctx)
+		squadCtx, squadCancel := context.WithTimeout(ctx, 2*time.Second)
+		defer squadCancel()
+		squads, err := h.remnawaveClient.ListSquads(squadCtx)
 		payload.Squads = squads
 		if err != nil {
 			slog.Warn("mini app: load squads for admin failed", "error", err)

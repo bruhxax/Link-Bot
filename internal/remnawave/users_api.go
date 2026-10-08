@@ -410,19 +410,30 @@ func (r *Client) getPanelUserByIdentity(ctx context.Context, userID int64, userU
 		Response PanelUser `json:"response"`
 	}
 	err := r.doAPIJSON(ctx, http.MethodGet, "/api/users/"+identifier, nil, &payload)
-	if err == nil {
-		return &payload.Response, nil
+	// UUID panels can be queried directly too. A missing user must not trigger
+	// downloading the entire catalog for every row/card refresh.
+	if err != nil && isLegacyFallbackError(err) && userUUID != uuid.Nil && identifier != userUUID.String() {
+		err = r.doAPIJSON(ctx, http.MethodGet, "/api/users/"+userUUID.String(), nil, &payload)
 	}
-	if !isLegacyFallbackError(err) {
+	if err != nil {
+		var apiErr *remnawaveAPIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+			return nil, ErrAdminSubscriptionNotFound
+		}
 		return nil, err
 	}
-	users, legacyErr := r.legacyUsers(ctx)
-	if legacyErr != nil {
-		return nil, errors.Join(err, legacyErr)
+	user := &payload.Response
+	if user.ID <= 0 && user.UUID == uuid.Nil {
+		return nil, errors.New("incomplete remnawave user response")
 	}
-	user := findPanelUser(users, userID, userUUID)
-	if user == nil {
-		return nil, ErrAdminSubscriptionNotFound
+	if userUUID != uuid.Nil && user.UUID != uuid.Nil && user.UUID != userUUID {
+		return nil, errors.New("remnawave user identity mismatch")
+	}
+	if (userUUID == uuid.Nil || user.UUID == uuid.Nil) && userID > 0 && user.ID != userID {
+		return nil, errors.New("remnawave user identity mismatch")
+	}
+	if userUUID != uuid.Nil && user.UUID == uuid.Nil && userID <= 0 {
+		return nil, errors.New("missing remnawave user identity")
 	}
 	return user, nil
 }

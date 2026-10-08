@@ -16,3 +16,14 @@ func (r *Client) GetAdminUserOverview(ctx context.Context, userID int64, userUUI
 	}
 	return nil, ErrAdminSubscriptionNotFound
 }
+
+// GetAdminSubscriptionState fetches user fields once, then adds bounded device
+// telemetry. Settings and subscription data come from one panel snapshot.
+func (r *Client) GetAdminSubscriptionState(ctx context.Context, userID int64, userUUID uuid.UUID, primaryTelegramID int64) (*UserState, *UserSettings, error) {
+	user, err := r.GetAdminUserOverview(ctx, userID, userUUID, primaryTelegramID)
+	if err != nil {
+		return nil, nil, err
+	}
+	state, err := r.userStateFromPanelUser(ctx, user, "userId", userID)
+	return state, UserSettingsFromPanelUser(user), err
+}

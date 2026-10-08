@@ -3,27 +3,39 @@ package sync
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 	"link-bot/internal/database"
 	"link-bot/internal/remnawave"
 	"log/slog"
+	"time"
 )
+
+type subscriptionStateRepository interface {
+	PrimaryPanelSyncCandidates(context.Context) ([]database.PrimaryPanelSyncCandidate, error)
+	SyncPrimaryPanelObservation(context.Context, database.PrimaryPanelSyncCandidate, int64, uuid.UUID, *string, *time.Time) (bool, error)
+}
 
 type SyncService struct {
 	client             *remnawave.Client
 	customerRepository *database.CustomerRepository
+	stateRepository    subscriptionStateRepository
 }
 
 func NewSyncService(client *remnawave.Client, customerRepository *database.CustomerRepository) *SyncService {
 	return &SyncService{
-		client: client, customerRepository: customerRepository,
+		client: client, customerRepository: customerRepository, stateRepository: customerRepository,
 	}
 }
 
 func (s SyncService) Sync() error {
 	slog.Info("Starting sync")
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
+	defer cancel()
+	candidates, err := s.stateRepository.PrimaryPanelSyncCandidates(ctx)
+	if err != nil {
+		return err
+	}
 	var telegramIDs []int64
-	telegramIDsSet := make(map[int64]int64)
 	var mappedUsers []database.Customer
 	users, err := s.client.GetUsers(ctx)
 	if err != nil {
@@ -35,24 +47,19 @@ func (s SyncService) Sync() error {
 		return fmt.Errorf("no users found in remnawave")
 	}
 
+	byTelegram := map[int64][]remnawave.PanelUser{}
 	for _, user := range *users {
-		if user.TelegramID == nil || *user.TelegramID <= 0 {
+		if user.TelegramID != nil && *user.TelegramID > 0 {
+			byTelegram[*user.TelegramID] = append(byTelegram[*user.TelegramID], user)
+		}
+	}
+	for telegramID, group := range byTelegram {
+		user := remnawave.PrimaryPanelUserForTelegram(group, telegramID)
+		if user == nil {
 			continue
 		}
-		telegramID := *user.TelegramID
-		if _, exists := telegramIDsSet[telegramID]; exists {
-			continue
-		}
-
-		telegramIDsSet[telegramID] = telegramID
-
 		telegramIDs = append(telegramIDs, telegramID)
-
-		mappedUsers = append(mappedUsers, database.Customer{
-			TelegramID:       telegramID,
-			ExpireAt:         &user.ExpireAt,
-			SubscriptionLink: &user.SubscriptionURL,
-		})
+		mappedUsers = append(mappedUsers, database.Customer{TelegramID: telegramID, ExpireAt: &user.ExpireAt, SubscriptionLink: &user.SubscriptionURL})
 	}
 
 	existingCustomers, err := s.customerRepository.FindByTelegramIds(ctx, telegramIDs)
@@ -66,15 +73,9 @@ func (s SyncService) Sync() error {
 	}
 
 	var toCreate []database.Customer
-	var toUpdate []database.Customer
 
 	for _, cust := range mappedUsers {
-		if existing, found := existingMap[cust.TelegramID]; found {
-			cust.ID = existing.ID
-			cust.CreatedAt = existing.CreatedAt
-			cust.Language = existing.Language
-			toUpdate = append(toUpdate, cust)
-		} else {
+		if _, found := existingMap[cust.TelegramID]; !found {
 			toCreate = append(toCreate, cust)
 		}
 	}
@@ -95,14 +96,10 @@ func (s SyncService) Sync() error {
 		}
 	}
 
-	if len(toUpdate) > 0 {
-		if err := s.customerRepository.UpdateBatch(ctx, toUpdate); err != nil {
-			slog.Error("Error while updating users", "error", err)
-			return fmt.Errorf("update customers: %w", err)
-		} else {
-			slog.Info("Updated clients", "count", len(toUpdate))
-		}
+	if err := s.refreshSubscriptionSnapshots(ctx, candidates, *users); err != nil {
+		return err
 	}
+
 	slog.Info("Synchronization completed")
 	return nil
 }
@@ -110,8 +107,12 @@ func (s SyncService) Sync() error {
 // RefreshSubscriptionState updates notification-critical subscription data
 // without deleting bot customers that are not currently present in Remnawave.
 func (s SyncService) RefreshSubscriptionState() error {
-	slog.Info("Refreshing subscription state")
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
+	defer cancel()
+	candidates, err := s.stateRepository.PrimaryPanelSyncCandidates(ctx)
+	if err != nil {
+		return err
+	}
 	users, err := s.client.GetUsers(ctx)
 	if err != nil {
 		return fmt.Errorf("get users from remnawave: %w", err)
@@ -119,50 +120,92 @@ func (s SyncService) RefreshSubscriptionState() error {
 	if users == nil || len(*users) == 0 {
 		return fmt.Errorf("no users found in remnawave")
 	}
+	return s.refreshSubscriptionSnapshots(ctx, candidates, *users)
+}
 
-	telegramIDs := make([]int64, 0, len(*users))
-	mappedByTelegramID := make(map[int64]database.Customer, len(*users))
-	for _, user := range *users {
-		if user.TelegramID == nil || *user.TelegramID <= 0 {
+func (s SyncService) refreshSubscriptionSnapshots(ctx context.Context, candidates []database.PrimaryPanelSyncCandidate, users []remnawave.PanelUser) error {
+	byID := map[int64]*remnawave.PanelUser{}
+	byUUID := map[uuid.UUID]*remnawave.PanelUser{}
+	byTelegram := map[int64][]remnawave.PanelUser{}
+	for i := range users {
+		user := &users[i]
+		if user.ID > 0 {
+			byID[user.ID] = user
+		}
+		if user.UUID != uuid.Nil {
+			byUUID[user.UUID] = user
+		}
+		if user.TelegramID != nil {
+			byTelegram[*user.TelegramID] = append(byTelegram[*user.TelegramID], *user)
+		}
+	}
+	updated := 0
+	for _, candidate := range candidates {
+		subscription := candidate.Subscription
+		var user *remnawave.PanelUser
+		switch {
+		case subscription.PanelUserUUID != nil && *subscription.PanelUserUUID != uuid.Nil:
+			user = byUUID[*subscription.PanelUserUUID]
+			if user == nil && subscription.PanelUserID != nil {
+				if numeric := byID[*subscription.PanelUserID]; numeric != nil && numeric.UUID == uuid.Nil {
+					user = numeric
+				}
+			}
+		case subscription.PanelUserID != nil && *subscription.PanelUserID > 0:
+			user = byID[*subscription.PanelUserID]
+		default:
+			group := byTelegram[candidate.Customer.TelegramID]
+			// Imported subscriptions can already have a reliable link before the
+			// panel ID is stored. Prefer that link over ambiguous Telegram matches.
+			for i := range group {
+				if subscription.SubscriptionLink != nil && group[i].SubscriptionURL == *subscription.SubscriptionLink {
+					user = &group[i]
+					break
+				}
+			}
+			if user == nil {
+				user = remnawave.PrimaryPanelUserForTelegram(group, candidate.Customer.TelegramID)
+			}
+		}
+		// Catalog omissions are not proof of deletion. Interactive identity reads
+		// can confirm deletion without attaching a different Telegram subscription.
+		if user == nil || user.ExpireAt.IsZero() {
 			continue
 		}
-		telegramID := *user.TelegramID
-		if _, exists := mappedByTelegramID[telegramID]; exists {
+		if panelObservationUnchanged(candidate, user) {
 			continue
 		}
-		telegramIDs = append(telegramIDs, telegramID)
-		mappedByTelegramID[telegramID] = database.Customer{
-			TelegramID:       telegramID,
-			ExpireAt:         &user.ExpireAt,
-			SubscriptionLink: &user.SubscriptionURL,
+		link := user.SubscriptionURL
+		expire := user.ExpireAt.UTC()
+		applied, err := s.stateRepository.SyncPrimaryPanelObservation(ctx, candidate, user.ID, user.UUID, &link, &expire)
+		if err != nil {
+			return fmt.Errorf("sync primary subscription %d: %w", subscription.ID, err)
+		}
+		if applied {
+			updated++
 		}
 	}
-	if len(telegramIDs) == 0 {
-		return fmt.Errorf("no users with telegram ids found in remnawave")
-	}
-
-	existingCustomers, err := s.customerRepository.FindByTelegramIds(ctx, telegramIDs)
-	if err != nil {
-		return fmt.Errorf("find customers by telegram ids: %w", err)
-	}
-	toUpdate := make([]database.Customer, 0, len(existingCustomers))
-	for _, existing := range existingCustomers {
-		mapped, ok := mappedByTelegramID[existing.TelegramID]
-		if !ok {
-			continue
-		}
-		expireAtUnchanged := existing.ExpireAt != nil && mapped.ExpireAt != nil && existing.ExpireAt.Equal(*mapped.ExpireAt)
-		linkUnchanged := existing.SubscriptionLink != nil && mapped.SubscriptionLink != nil && *existing.SubscriptionLink == *mapped.SubscriptionLink
-		if expireAtUnchanged && linkUnchanged {
-			continue
-		}
-		mapped.ID = existing.ID
-		toUpdate = append(toUpdate, mapped)
-	}
-	if err := s.customerRepository.UpdateBatch(ctx, toUpdate); err != nil {
-		return fmt.Errorf("update subscription state: %w", err)
-	}
-
-	slog.Info("Subscription state refreshed", "updated", len(toUpdate))
+	slog.Info("Subscription state refreshed", "checked", updated)
 	return nil
+}
+
+func panelObservationUnchanged(candidate database.PrimaryPanelSyncCandidate, user *remnawave.PanelUser) bool {
+	s := candidate.Subscription
+	if s.PanelUserID == nil || *s.PanelUserID != user.ID {
+		return false
+	}
+	if (s.PanelUserUUID == nil && user.UUID != uuid.Nil) || (s.PanelUserUUID != nil && *s.PanelUserUUID != user.UUID) {
+		return false
+	}
+	for _, expiry := range []*time.Time{candidate.Customer.ExpireAt, s.ExpireAt} {
+		if expiry == nil || !expiry.Equal(user.ExpireAt) {
+			return false
+		}
+	}
+	for _, link := range []*string{candidate.Customer.SubscriptionLink, s.SubscriptionLink} {
+		if link == nil || *link != user.SubscriptionURL {
+			return false
+		}
+	}
+	return true
 }

@@ -482,7 +482,7 @@ func adminSubscriptionFromUser(user *PanelUser) *AdminSubscription {
 func (r *Client) GetUserStateByTelegramID(ctx context.Context, telegramId int64) (*UserState, error) {
 	user, err := r.getPanelUserByTelegramID(ctx, telegramId)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, ErrAdminSubscriptionNotFound) {
 			return nil, nil
 		}
 		return nil, err
@@ -494,7 +494,7 @@ func (r *Client) GetUserStateByTelegramID(ctx context.Context, telegramId int64)
 func (r *Client) GetUserStateByIdentity(ctx context.Context, userID int64, userUUID uuid.UUID) (*UserState, error) {
 	user, err := r.getPanelUserByIdentity(ctx, userID, userUUID)
 	if err != nil {
-		if errors.Is(err, ErrAdminSubscriptionNotFound) || strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, ErrAdminSubscriptionNotFound) {
 			return nil, nil
 		}
 		return nil, err
@@ -512,7 +512,11 @@ func (r *Client) userStateFromPanelUser(ctx context.Context, user *PanelUser, lo
 		deviceLimit = *user.HwidDeviceLimit
 	}
 	devicesCheckedAt := time.Now().UTC()
-	devices, deviceErr := r.getUserHWIDDevices(ctx, user.ID, user.UUID)
+	// Device telemetry must not hold subscription/traffic updates behind a slow
+	// HWID endpoint. A timeout remains unknown rather than a confirmed empty list.
+	deviceCtx, deviceCancel := context.WithTimeout(ctx, time.Second)
+	defer deviceCancel()
+	devices, deviceErr := r.getUserHWIDDevices(deviceCtx, user.ID, user.UUID)
 	if deviceErr != nil {
 		slog.Warn("remnawave: load user devices failed", "error", deviceErr, logKey, logValue)
 	}
@@ -529,10 +533,13 @@ func (r *Client) userStateFromPanelUser(ctx context.Context, user *PanelUser, lo
 			LifetimeUsedTrafficBytes: user.UserTraffic.LifetimeUsedTrafficBytes,
 			Exists:                   true,
 			Active:                   false,
+			ExpireAt:                 optionalPanelExpiry(user.ExpireAt),
+			SubscriptionLink:         optionalPanelLink(user.SubscriptionURL),
 			PanelUsername:            strings.TrimSpace(user.Username),
 			UserID:                   user.ID,
 			UserUUID:                 user.UUID,
 			TrafficLimitBytes:        user.TrafficLimitBytes,
+			TrafficLimitStrategy:     user.TrafficLimitStrategy,
 			UsedTrafficBytes:         user.UserTraffic.UsedTrafficBytes,
 			DeviceLimit:              deviceLimit,
 			UsedDevices:              usedDevices,
@@ -568,6 +575,22 @@ func (r *Client) userStateFromPanelUser(ctx context.Context, user *PanelUser, lo
 		DevicesLoaded:            deviceErr == nil,
 		DevicesCheckedAt:         devicesCheckedAt,
 	}, nil
+}
+
+func optionalPanelExpiry(value time.Time) *time.Time {
+	if value.IsZero() {
+		return nil
+	}
+	value = value.UTC()
+	return &value
+}
+
+func optionalPanelLink(value string) *string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 func (r *Client) AddDeviceLimit(ctx context.Context, telegramID int64, extraDevices int) (*PanelUser, error) {
@@ -902,6 +925,14 @@ func (r *Client) CreateOrUpdateUserForSubscription(ctx context.Context, customer
 	if userID > 0 || userUUID != uuid.Nil {
 		existing, err := r.getPanelUserByIdentity(ctx, userID, userUUID)
 		if err != nil {
+			if errors.Is(err, ErrAdminSubscriptionNotFound) && days > 0 {
+				// An explicit new activation can replace a deleted panel user. Keep
+				// this slot separate; never renew a different Telegram subscription.
+				if !isPrimary {
+					options.UsernameSuffix = fmt.Sprintf("s%d", subscriptionID)
+				}
+				return r.createUserWithOptions(ctx, customerID, telegramID, trafficLimit, deviceLimit, days, options)
+			}
 			return nil, err
 		}
 		return r.updateUserWithOptions(ctx, existing, trafficLimit, deviceLimit, days, options)
@@ -959,7 +990,7 @@ func (r *Client) getPanelUserByTelegramID(ctx context.Context, telegramId int64)
 		if existingUser := pickPanelTelegramUser(users, telegramId); existingUser != nil {
 			return existingUser, nil
 		}
-		return nil, fmt.Errorf("user with telegramId %d not found", telegramId)
+		return nil, fmt.Errorf("%w: telegramId %d", ErrAdminSubscriptionNotFound, telegramId)
 	}
 	if !isLegacyFallbackError(err) {
 		return nil, err
@@ -981,7 +1012,7 @@ func (r *Client) getPanelUserByTelegramID(ctx context.Context, telegramId int64)
 	if existingUser := pickPanelTelegramUser(converted, telegramId); existingUser != nil {
 		return existingUser, nil
 	}
-	return nil, fmt.Errorf("user with telegramId %d not found", telegramId)
+	return nil, fmt.Errorf("%w: telegramId %d", ErrAdminSubscriptionNotFound, telegramId)
 }
 
 func (r *Client) GrantGraceAccess(ctx context.Context, telegramID int64, days int, internalSquadUUIDs []string) (GraceAccessResult, error) {
@@ -1039,11 +1070,15 @@ func pickPanelTelegramUser(users []PanelUser, telegramId int64) *PanelUser {
 		}
 	}
 
-	if len(users) == 0 {
-		return nil
-	}
+	// Some panel versions ignore stream filters. Never bind a different
+	// account simply because it is the first result in the catalog.
+	return nil
+}
 
-	return &users[0]
+// PrimaryPanelUserForTelegram applies the same primary selection in interactive
+// lookups and background synchronization, independently of catalog ordering.
+func PrimaryPanelUserForTelegram(users []PanelUser, telegramID int64) *PanelUser {
+	return pickPanelTelegramUser(users, telegramID)
 }
 
 func (r *Client) updateUser(ctx context.Context, existingUser *PanelUser, trafficLimit int, deviceLimit int, days int) (*PanelUser, error) {

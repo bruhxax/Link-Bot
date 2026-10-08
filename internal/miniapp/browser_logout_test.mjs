@@ -24,6 +24,7 @@ function harness({telegram = false, localStorage = store(), sessionStorage = sto
     BROWSER_LOGOUT_KEY: "logout-stamp", browserLogoutStamp: localStorage.getItem("logout-stamp") || "", browserLoggingOut: false,
     STORAGE_KEYS: {telegramIDToken: credentials[0], telegramLogin: credentials[1], googleLogin: credentials[2], page: "page"},
     state: {data: {user: {id: 123}}, adminLayoutEditing: false},
+		dashboardDataVersion: 0,
     window: {localStorage, sessionStorage, location: {replace: url => redirects.push(url)},
       addEventListener: (name, fn) => { listeners[name] = fn; }},
     realtimeAbortController: {abort() { aborted = true; }},
@@ -38,7 +39,7 @@ function harness({telegram = false, localStorage = store(), sessionStorage = sto
     section("function readSetting(", "let lastPersistedNavigation") +
     section("function readSessionSetting(", "function normalizePage(") +
     section("function renderBrowserLogoutButton(", "function renderPages()") +
-    section("async function post(", "async function getJSON("), context);
+    section("function changesSubscriptionState(", "async function getJSON("), context);
   return {context, localStorage, sessionStorage, listeners, redirects, get aborted() { return aborted; }};
 }
 

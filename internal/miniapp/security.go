@@ -70,7 +70,7 @@ func (r *requestRateLimiter) prune(now time.Time) {
 
 func miniAppRateLimitRule(path string) rateLimitRule {
 	switch path {
-	case "/api/mini-app/bootstrap":
+	case "/api/mini-app/bootstrap", "/api/mini-app/subscription/state":
 		return rateLimitRule{Limit: 90, Window: time.Minute}
 	case "/api/mini-app/support/refresh", "/api/mini-app/support/thread":
 		return rateLimitRule{Limit: 90, Window: time.Minute}
