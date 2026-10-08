@@ -5,19 +5,26 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type AdminUserSummary struct {
-	AdminRole        string
-	AdminColor       string
-	CustomerID       int64
-	TelegramID       int64
-	TelegramUsername string
-	CreatedAt        time.Time
-	TrialUsed        bool
-	IsBlocked        bool
-	SubscriptionName string
-	ExpireAt         *time.Time
+	AdminRole             string
+	AdminColor            string
+	CustomerID            int64
+	TelegramID            int64
+	TelegramUsername      string
+	CreatedAt             time.Time
+	TrialUsed             bool
+	IsBlocked             bool
+	SubscriptionName      string
+	ExpireAt              *time.Time
+	SubscriptionLink      string
+	SubscriptionCount     int
+	SubscriptionIsPrimary bool
+	PanelUserID           *int64
+	PanelUserUUID         *uuid.UUID
 }
 
 func normalizeAdminUserSearch(value string) string {
@@ -52,11 +59,15 @@ func (cr *CustomerRepository) SearchAdminUsers(ctx context.Context, query string
 	rows, err := cr.pool.Query(ctx, `
 		SELECT c.id, c.telegram_id, COALESCE(c.telegram_username, ''), c.created_at,
 		       c.trial_used, c.is_blocked, COALESCE(active_subscription.display_name, ''),
-		       COALESCE(active_subscription.expire_at, c.expire_at), COALESCE(a.role_name,''), COALESCE(a.color,'')
+		       COALESCE(active_subscription.expire_at, c.expire_at), COALESCE(a.role_name,''), COALESCE(a.color,''),
+		       COALESCE(active_subscription.subscription_link, c.subscription_link, ''),
+		       active_subscription.panel_user_id, active_subscription.panel_user_uuid,
+		       COALESCE(active_subscription.is_primary, TRUE),
+		       (SELECT COUNT(*) FROM customer_subscription counted WHERE counted.customer_id = c.id)
 		FROM customer c
 		LEFT JOIN administrator a ON a.customer_id=c.id
 		LEFT JOIN LATERAL (
-			SELECT s.display_name, s.expire_at
+			SELECT s.display_name, s.expire_at, s.subscription_link, s.panel_user_id, s.panel_user_uuid, s.is_primary
 			FROM customer_subscription s
 			LEFT JOIN customer_subscription_selection selected
 			  ON selected.customer_id = c.id AND selected.subscription_id = s.id
@@ -94,6 +105,11 @@ func (cr *CustomerRepository) SearchAdminUsers(ctx context.Context, query string
 			&item.ExpireAt,
 			&item.AdminRole,
 			&item.AdminColor,
+			&item.SubscriptionLink,
+			&item.PanelUserID,
+			&item.PanelUserUUID,
+			&item.SubscriptionIsPrimary,
+			&item.SubscriptionCount,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan admin user: %w", err)
 		}

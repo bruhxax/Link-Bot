@@ -57,6 +57,12 @@ type adminUserSummaryPayload struct {
 	Username           string `json:"username"`
 	AvatarURL          string `json:"avatarUrl,omitempty"`
 	SubscriptionName   string `json:"subscriptionName,omitempty"`
+	SubscriptionLink   string `json:"subscriptionLink,omitempty"`
+	SubscriptionCount  int    `json:"subscriptionCount"`
+	PanelUsername      string `json:"panelUsername,omitempty"`
+	TrafficLoaded      bool   `json:"trafficLoaded"`
+	TrafficLimitBytes  int64  `json:"trafficLimitBytes"`
+	UsedTrafficBytes   int64  `json:"usedTrafficBytes"`
 	SubscriptionStatus string `json:"subscriptionStatus"`
 	ExpiresAt          string `json:"expiresAt,omitempty"`
 	CreatedAt          string `json:"createdAt"`
@@ -173,12 +179,15 @@ func (h *Handler) handleAdminUsersSearch(w http.ResponseWriter, r *http.Request,
 			Username:           strings.TrimSpace(item.TelegramUsername),
 			AvatarURL:          adminUserAvatarURL(item.TelegramUsername),
 			SubscriptionName:   strings.TrimSpace(item.SubscriptionName),
+			SubscriptionLink:   strings.TrimSpace(item.SubscriptionLink),
+			SubscriptionCount:  item.SubscriptionCount,
 			SubscriptionStatus: adminSubscriptionStatus(item.ExpireAt, item.IsBlocked),
 			ExpiresAt:          expiresAt,
 			CreatedAt:          item.CreatedAt.UTC().Format(time.RFC3339),
 			IsBlocked:          item.IsBlocked || config.GetBlockedTelegramIds()[item.TelegramID],
 		})
 	}
+	h.enrichAdminUserOverview(r.Context(), items, payload.Items)
 	h.writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "data": payload})
 }
 

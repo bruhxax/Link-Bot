@@ -21,7 +21,7 @@ import { reuseAdminUserRows } from "./stable-user-rows.mjs";
 import { renderAISettings } from "./admin-ai.mjs";
 import { canAdmin as accessAllows, changePermission, ROLE_PRESETS, presetPermissions, roleDot, renderAdministrators } from "./administrators.mjs";
 
-import { consoleRoute, visibleConsoleGroups } from "./admin-console.mjs";
+import { adminConsoleEnabled, consoleRoute, visibleConsoleGroups } from "./admin-console.mjs";
 import { mountRemnaAdmin, unmountRemnaAdmin } from "./admin-loader.mjs";
 
 const administrators = { items: [], total: 0, catalog: [], query: "", candidates: [], candidateTotal: 0, pickQuery: "", picking: false, editor: null, confirmRemove: false, busy: "", error: "", requestID: 0, searchTimer: null };
@@ -54,6 +54,7 @@ const previewMode = (() => {
   return host === "localhost" || host === "127.0.0.1" || host === "::1" || window.location.protocol === "file:";
 })();
 const previewAdminMode = previewMode && urlParams.get("admin") === "1";
+const remnaAdminEnabled = adminConsoleEnabled({adminBaseURL, origin: window.location.origin, previewMode, previewConsole: urlParams.get("console") === "1"});
 const installGuideMode = urlParams.get("install") === "desktop";
 const themeMeta = document.querySelector('meta[name="theme-color"]');
 const reducedMotionMedia = window.matchMedia?.("(prefers-reduced-motion: reduce)");
@@ -2615,7 +2616,7 @@ const state = {
   error: "",
   currentPage: "dashboard",
   sidebarOpen: false,
-  adminWorkspace: adminEntry || urlParams.get("page") === "admin",
+  adminWorkspace: remnaAdminEnabled && (adminEntry || urlParams.get("page") === "admin"),
   adminConsoleMenuOpen: false,
   payModalOpen: false,
 	p2pMenuStep: "",
@@ -2880,7 +2881,7 @@ function t() {
 }
 
 function getRuntimeSettings() {
-	if ((state.adminLayoutEditing || state.adminPlanEditing || state.adminWorkspace && ["appearance", "plans", "layout"].includes(state.adminSection)) && state.adminSettingsDraft) return state.adminSettingsDraft;
+	if ((state.adminLayoutEditing || state.adminPlanEditing || state.adminSection === "appearance" || state.adminWorkspace && ["plans", "layout"].includes(state.adminSection)) && state.adminSettingsDraft) return state.adminSettingsDraft;
 	return state.data?.runtime || state.publicSettings || state.adminSettingsDraft || null;
 }
 
@@ -3327,7 +3328,7 @@ async function boot() {
 	applyAppearance();
   const paymentReturn = Boolean(getPaymentReturnState());
   state.currentPage = getEntryPage();
-	if (state.currentPage === "admin") state.adminWorkspace = true;
+	if (state.currentPage === "admin") state.adminWorkspace = remnaAdminEnabled;
 	state.adminSection = state.currentPage === "admin" ? getEntryAdminSection() : "home";
 	if (!ADMIN_SEARCH_CONTENT_SECTIONS.some(([section]) => section === state.adminContentSection)) state.adminContentSection = "start";
   state.sidebarOpen = false;
@@ -3824,6 +3825,7 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
 			limit: 30,
 			offset: 0,
 		};
+		for (const [index,user] of state.adminUsers.items.entries()) Object.assign(user,{subscriptionCount:index===0?2:1,panelUsername:user.username,subscriptionLink:"https://example.com/subscription/"+user.username,trafficLoaded:true,usedTrafficBytes:[34896609280,18253611008,53687091200][index],trafficLimitBytes:107374182400,expiresAt:new Date(Date.now()+46*86400000).toISOString()});
 		state.adminUserDetail = {
 			customerId: 12,
 			telegramId: 6402520205,
@@ -3847,7 +3849,7 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
 		const previewSection = String(urlParams.get("section") || (urlParams.get("page") === "admin" || adminEntry ? "home" : ""));
 		if (["support", "servers", "reviews"].includes(previewSection)) {
 			state.currentPage = previewSection;
-			state.adminWorkspace = true;
+			state.adminWorkspace = remnaAdminEnabled;
 			state.adminSection = "home";
 			state.adminLayoutEditing = false;
 		} else if (previewSection === "home" || previewSection === "push" || ADMIN_SEARCH_SECTIONS.some(([section]) => section === previewSection)) {
@@ -4868,7 +4870,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
 	const publicMaintenance = !hasAuth() && Boolean(getRuntimeSettings()?.maintenance?.enabled) ? getRuntimeSettings().maintenance : null;
 	document.documentElement.dataset.accessScreen = !state.loading && !state.data && Boolean(state.maintenance || publicMaintenance || state.blocked) ? "on" : "off";
 	app.classList.toggle("app--browser-auth", !state.loading && !state.data && !hasAuth() && !previewMode && !state.maintenance && !publicMaintenance && !state.blocked && !state.error);
-  const consoleActive = (adminEntry && !state.data || state.adminWorkspace && isAdminUser());
+  const consoleActive = remnaAdminEnabled && (adminEntry && !state.data || state.adminWorkspace && isAdminUser());
   if (!consoleActive || !state.data) unmountRemnaAdmin();
   document.documentElement.dataset.adminConsole = consoleActive ? "on" : "off";
   applyAppearance();
@@ -5212,7 +5214,44 @@ function renderAdminPage() {
 	if (state.adminSection === "partners") return renderAdminPartnersPage();
 	if (state.adminSection === "users") return renderAdminUsersPage();
     if (state.adminSection === "administrators") return `<section class="page admin-page ${pageClass("admin")}" id="page-admin">${renderAdministrators(administrators, { escapeHtml, escapeAttribute, icon, avatar: adminUserAvatar, displayName: adminUserDisplayName, loading: renderAdminUsersLoading })}</section>`;
-  return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"></section>`;
+  if (remnaAdminEnabled) return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"></section>`;
+	return `
+		<section class="page admin-page ${pageClass("admin")}" id="page-admin">
+			${renderAdminSettingsSearch()}
+			${renderAdminMenuGroup(localizedText("Система", "System", "سیستم"), [
+				[localizedText("Статус", "Status", "وضعیت"), "", "status", "server"],
+				[localizedText("Язык и шрифт", "Language and font", "زبان و فونت"), "", "localization", "language"],
+				[localizedText("Режим аварии", "Maintenance mode", "حالت تعمیر"), "", "maintenance", "adminMaintenance"],
+				[localizedText("Диагностика", "Diagnostics", "عیب‌یابی"), "", "diagnostics", "adminDiagnostics"],
+				[localizedText("Push-уведомления", "Push notifications", "اعلان‌های پوش"), "", "push-toggle", "adminPush"],
+				[localizedText("Управление функциями", "Functions", "مدیریت امکانات"), "", "features", "adminFeatures"],
+				[localizedText("Триал", "Trial", "آزمایشی"), "", "trial", "adminTrial"],
+				[localizedText("Доступ после окончания", "Access after expiry", "دسترسی پس از انقضا"), "", "grace", "adminTrial"],
+				[localizedText("Привязка подписок", "Subscription binding", "اتصال اشتراک‌ها"), "", "subscriptions", "adminSubscriptions"],
+				[localizedText("Интеграции", "Integrations", "یکپارچه‌سازی‌ها"), "", "integrations", "adminIntegrations"],
+				[localizedText("Мой налог", "My Tax", "مالیات من"), "", "moynalog", "adminIntegrations"],
+				[localizedText("ИИ", "AI", "هوش مصنوعی"), "", "ai", "sparkles"],
+			])}
+			${renderAdminMenuGroup(localizedText("Интерфейс", "Interface", "رابط کاربری"), [
+				[localizedText("Редактор контента", "Content", "ویرایشگر محتوا"), "", "content", "adminContent"],
+				["Sub page", "", "subpage", "adminSubscriptions"],
+				[localizedText("Оформление", "Appearance", "ظاهر"), "", "appearance", "adminAppearance"],
+				[localizedText("Конструктор UI", "UI builder", "سازنده رابط"), "", "layout", "grid"],
+				[localizedText("Тарифы", "Plans", "تعرفه‌ها"), "", "plans", "cartShopping"],
+			])}
+			${renderAdminMenuGroup(localizedText("Операции", "Operations", "عملیات"), [
+				[localizedText("Пользователи", "Users", "کاربران"), "", "users", "users"],
+				[localizedText("Администраторы", "Administrators", "مدیران"), "", "administrators", "users"],
+				[localizedText("Финансы", "Finance", "امور مالی"), "", "finance", "chartLine"],
+				[localizedText("Аналитика", "Analytics", "تحلیل"), "", "analytics", "google"],
+				[localizedText("Рефералы и баланс", "Referrals and balance", "دعوت و موجودی"), "", "referrals", "users"],
+				[localizedText("Партнёры", "Partners", "همکاران"), "", "partners", "users"],
+				[localizedText("Рассылка", "Broadcast", "ارسال همگانی"), "", "broadcast", "adminBroadcast"],
+				[localizedText("Промокоды", "Promo codes", "کدهای تخفیف"), "", "promocodes", "adminPromocodes"],
+			])}
+            ${renderAdminExtraAccess()}
+		</section>
+	`;
 }
 
 let adminSettingsSearchCatalog = null;
@@ -11433,13 +11472,13 @@ function bindRootActions() {
       const route = consoleRoute(value);
       if (!route || (!canAdmin(route[4]) && !(value === "reviews" && canAdmin("reviews.rewards")))) return;
       state.adminConsoleMenuOpen = false;
-      state.adminWorkspace = true;
+      state.adminWorkspace = remnaAdminEnabled;
       setPage(value); return;
     }
 		if (action === "open-admin-section") {
     if (value !== "home" && !canAdminSection(value)) return;
     state.currentPage = "admin";
-    state.adminWorkspace = true;
+    state.adminWorkspace = remnaAdminEnabled;
     state.adminConsoleMenuOpen = false;
 		rememberAdminMenuScroll();
 		if (value === "layout") return enterAdminLayoutEditor();
@@ -14240,8 +14279,8 @@ function enterAdminPlanEditor() {
 	state.adminPlanBaselinePaymentOrder = deepClone(state.adminSettingsDraft.paymentMethodOrder || []);
 	state.adminPlanBaselineDirty = state.adminSettingsDirty;
 	state.adminLayoutAddMenuOpen = false;
-	state.adminPlanEditing = false;
-	state.adminWorkspace = true;
+	state.adminPlanEditing = !remnaAdminEnabled;
+	state.adminWorkspace = remnaAdminEnabled;
 	state.adminLayoutEditing = false;
 	state.adminPlanEditorModalOpen = false;
 	state.payModalOpen = false;
@@ -14249,7 +14288,7 @@ function enterAdminPlanEditor() {
 	state.adminPlanEditingID = "";
 	state.adminPlanFormDraft = null;
 	state.adminSection = "plans";
-	state.currentPage = "admin";
+	state.currentPage = remnaAdminEnabled ? "admin" : "buy";
 	state.sidebarOpen = false;
 	previousBottomNavIndex = -1;
 	ensureSelections();
@@ -14540,14 +14579,14 @@ function enterAdminLayoutEditor() {
 	state.adminLayoutBaselineDirty = state.adminSettingsDirty;
 	state.adminLayoutBaselineJSONDrafts = deepClone(state.adminJSONDrafts || {});
 	ensureAdminVisualLayoutDraft();
-	state.adminLayoutEditing = false;
-	state.adminWorkspace = true;
+	state.adminLayoutEditing = !remnaAdminEnabled;
+	state.adminWorkspace = remnaAdminEnabled;
 	state.adminLayoutAddMenuOpen = false;
 	state.adminLayoutStyleEditorOpen = false;
 	state.adminSection = "layout";
 	state.adminLayoutCategory = "dashboard";
 	state.adminLayoutSelection = "";
-	state.currentPage = "admin";
+	state.currentPage = remnaAdminEnabled ? "admin" : "dashboard";
 	state.sidebarOpen = false;
 	previousBottomNavIndex = -1;
 	haptic("light");
@@ -17120,7 +17159,7 @@ function setPage(page) {
     else window.location.assign(adminBaseURL + "/");
     return;
   }
-  if (page === "admin") state.adminWorkspace = true;
+  if (page === "admin") state.adminWorkspace = remnaAdminEnabled;
 	const normalizedPage = normalizePage(page);
 	const nextPage = normalizedPage;
 	if (state.adminPlanEditing) {
@@ -18555,6 +18594,7 @@ function normalizePage(value) {
 }
 
 function getEntryPage() {
+  if (adminEntry && !remnaAdminEnabled) return "admin";
   if (adminEntry) {
     const requested = urlParams.get("page") === "admin" ? urlParams.get("section") : urlParams.get("page");
     const saved = requested || (isPageReload() ? readSetting(STORAGE_KEYS.page, "admin") : "admin");
@@ -18567,7 +18607,7 @@ function getEntryPage() {
     window.location.replace(adminBaseURL + "/" + (section ? "?page=admin&section=" + encodeURIComponent(section) : ""));
     return "dashboard";
   }
-  if (page === "admin" && ["support", "servers", "reviews"].includes(urlParams.get("section"))) return urlParams.get("section");
+  if (remnaAdminEnabled && page === "admin" && ["support", "servers", "reviews"].includes(urlParams.get("section"))) return urlParams.get("section");
   return PAGES.includes(page) ? page : "dashboard";
 }
 

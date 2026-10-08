@@ -38,6 +38,7 @@ import {
   Alert,
   UnstyledButton,
   Tabs,
+  CopyButton,
 } from "@mantine/core";
 import {
   MantineReactTable,
@@ -77,7 +78,27 @@ import "./styles.css";
 import "./reference-theme.css";
 import { UserDialog } from "./user-dialog.jsx";
 import { LayoutEditor as Layout } from "./layout-editor.jsx";
-import { TbBrandGithub, TbLanguage, TbBook, TbChartBar } from "react-icons/tb";
+import {
+  TbBrandGithub,
+  TbLanguage,
+  TbBook,
+  TbChartBar,
+  TbLayersIntersect,
+  TbMessageCircle,
+  TbDiscount,
+  TbMail,
+  TbPlug,
+  TbFileText,
+  TbPalette,
+  TbActivity,
+  TbTestPipe,
+  TbToggleRight,
+  TbClock,
+  TbAlertTriangle,
+  TbSparkles,
+  TbBell,
+  TbCopy,
+} from "react-icons/tb";
 import {
   PiClockCountdownDuotone,
   PiClockUserDuotone,
@@ -169,6 +190,21 @@ const glyphs = {
   server: PiHardDrives,
   chartLine: PiChartLine,
   grid: PiSquaresFour,
+  adminSubscriptions: TbLayersIntersect,
+  sms: TbMessageCircle,
+  star: PiStar,
+  adminPromocodes: TbDiscount,
+  adminBroadcast: TbMail,
+  adminIntegrations: TbPlug,
+  adminContent: TbFileText,
+  adminAppearance: TbPalette,
+  language: TbLanguage,
+  adminDiagnostics: TbActivity,
+  adminFeatures: TbToggleRight,
+  adminTrial: TbClock,
+  adminMaintenance: TbAlertTriangle,
+  sparkles: TbSparkles,
+  adminPush: TbBell,
 };
 const glyph = (name) => {
   const Icon = glyphs[name] || PiSlidersHorizontal;
@@ -281,13 +317,11 @@ function convert(node, key) {
   )
     return null;
   if (tag === "svg")
-    return (
-      <span
-        key={key}
-        className="rn-original-icon"
-        dangerouslySetInnerHTML={{ __html: node.outerHTML }}
-      />
-    );
+    return <svg {...p} dangerouslySetInnerHTML={{ __html: node.innerHTML }} />;
+  if (node.dataset.appIcon && glyphs[node.dataset.appIcon]) {
+    const Icon = glyphs[node.dataset.appIcon];
+    return <Icon key={key} size={20} aria-hidden="true" />;
+  }
   if (
     node.matches(".tabs") &&
     node.querySelector(":scope > button[data-action]")
@@ -378,12 +412,9 @@ function convert(node, key) {
   if (tag === "button") {
     if (
       node.matches(".card,.menu-card,.menu-row,.profile-row") ||
-      node.querySelector(
-        ":scope > div,:scope > strong,:scope > article,:scope > section",
-      )
+      node.querySelector("div,strong,small,img,video,b,article,section")
     ) {
-      delete p.style;
-      p.className = `${p.className || ""} rn-clickable-card`;
+      p.className = `${p.className || ""} rn-structured-button ${node.matches(".card,.menu-card,.menu-row,.profile-row") ? "rn-clickable-card" : ""}`;
       return <UnstyledButton {...p}>{children}</UnstyledButton>;
     }
     const danger = /delete|remove|block$|reject/.test(
@@ -391,7 +422,6 @@ function convert(node, key) {
     );
     const name = node.getAttribute("aria-label") || node.textContent.trim();
     p.className = `${p.className || ""} rn-adapted-button`;
-    delete p.style;
     if (!node.textContent.trim())
       return (
         <ActionIcon
@@ -512,6 +542,8 @@ function DataTable({ columns, data, id, extra }) {
     enableRowSelection: true,
     enableStickyHeader: true,
     enableFilters: true,
+    layoutMode: "grid",
+    displayColumnDefOptions: { "mrt-row-select": { size: 40, grow: false } },
     initialState: {
       showColumnFilters: true,
       pagination: { pageSize: 20, pageIndex: 0 },
@@ -751,12 +783,39 @@ function Plans({ model }) {
     </Stack>
   );
 }
+function SubscriptionLink({ value }) {
+  if (!value) return null;
+  return (
+    <Group gap={6} wrap="nowrap" style={{ width: "100%", minWidth: 0 }}>
+      <Tooltip label={value}>
+        <Text size="xs" c="dimmed" truncate style={{ minWidth: 0, flex: 1 }}>
+          {value}
+        </Text>
+      </Tooltip>
+      <CopyButton value={value}>
+        {({ copied, copy }) => (
+          <Tooltip label={copied ? "Скопировано" : "Копировать подписку"}>
+            <ActionIcon
+              onClick={copy}
+              aria-label="Копировать подписку"
+              size="sm"
+              color={copied ? "teal" : "gray"}
+            >
+              <TbCopy size={16} />
+            </ActionIcon>
+          </Tooltip>
+        )}
+      </CopyButton>
+    </Group>
+  );
+}
 function Users({ model }) {
   const columns = useMemo(
     () => [
       {
         id: "username",
         header: "Юзернейм",
+        size: 130,
         accessorFn: (u) => u.username || u.firstName || String(u.telegramId),
         Cell: ({ row, cell }) => (
           <Action
@@ -768,11 +827,12 @@ function Users({ model }) {
           </Action>
         ),
       },
-      { accessorKey: "customerId", header: "ID", size: 80 },
-      { accessorKey: "telegramId", header: "Telegram ID" },
+      { accessorKey: "customerId", header: "ID", size: 60 },
+      { accessorKey: "telegramId", header: "Telegram ID", size: 130 },
       {
         id: "status",
         header: "Статус",
+        size: 110,
         accessorFn: (u) =>
           u.isBlocked ? "blocked" : u.subscriptionStatus || "none",
         Cell: ({ cell }) => (
@@ -791,10 +851,98 @@ function Users({ model }) {
           </Badge>
         ),
       },
-      { accessorKey: "subscriptionName", header: "Подписка" },
+      {
+        accessorKey: "subscriptionName",
+        header: "Подписка",
+        size: 190,
+        Cell: ({ row, cell }) => (
+          <Stack gap={2} style={{ width: "100%", minWidth: 0 }}>
+            <Text size="sm" truncate>
+              {cell.getValue() || "Без подписки"}
+            </Text>
+            <SubscriptionLink value={row.original.subscriptionLink} />
+            {row.original.panelUsername && (
+              <Text size="xs" c="dimmed" truncate>
+                {row.original.panelUsername}
+              </Text>
+            )}
+            {row.original.subscriptionCount > 1 && (
+              <Text size="xs" c="dimmed">
+                Всего подписок: {row.original.subscriptionCount}
+              </Text>
+            )}
+          </Stack>
+        ),
+      },
+      {
+        id: "traffic",
+        header: "Трафик",
+        size: 155,
+        accessorFn: (user) =>
+          user.trafficLoaded ? user.usedTrafficBytes : null,
+        Cell: ({ row }) => {
+          const user = row.original;
+          if (!user.trafficLoaded)
+            return (
+              <Text size="xs" c="dimmed">
+                Не загружен
+              </Text>
+            );
+          const format = (bytes) => {
+            if (!bytes) return "0 B";
+            const unit = Math.min(
+              4,
+              Math.floor(Math.log(bytes) / Math.log(1024)),
+            );
+            return `${(bytes / 1024 ** unit).toFixed(unit ? 2 : 0)} ${["B", "KiB", "MiB", "GiB", "TiB"][unit]}`;
+          };
+          const ratio =
+            user.trafficLimitBytes > 0
+              ? Math.min(
+                  100,
+                  (user.usedTrafficBytes / user.trafficLimitBytes) * 100,
+                )
+              : 0;
+          return (
+            <Stack gap={5}>
+              <Text size="xs" className="rn-number">
+                {format(user.usedTrafficBytes)} /{" "}
+                {user.trafficLimitBytes ? format(user.trafficLimitBytes) : "∞"}
+              </Text>
+              {user.trafficLimitBytes > 0 && (
+                <Progress
+                  size={3}
+                  value={ratio}
+                  color={ratio >= 100 ? "red" : "teal"}
+                />
+              )}
+            </Stack>
+          );
+        },
+      },
+      {
+        accessorKey: "expiresAt",
+        header: "Дата окончания",
+        size: 150,
+        Cell: ({ cell }) => (
+          <Text size="xs">
+            {cell.getValue()
+              ? new Date(cell.getValue()).toLocaleString("ru", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "—"}
+          </Text>
+        ),
+      },
       {
         id: "actions",
         header: "",
+        size: 48,
+        grow: false,
         enableColumnFilter: false,
         Cell: ({ row }) => (
           <IconAction
@@ -814,7 +962,7 @@ function Users({ model }) {
       <DataTable
         columns={columns}
         data={model.users.items || []}
-        id="users"
+        id="users-overview"
         extra={
           <TextInput
             m="xs"
@@ -1359,14 +1507,14 @@ function Admin({ model, content, dialogs, dispatch }) {
                   <TbChartBar size={22} />
                 </ActionIcon>
               </Tooltip>
-              <Tooltip label="Исходники Remnawave" withinPortal={false}>
+              <Tooltip label="Репозиторий Link-Bot" withinPortal={false}>
                 <ActionIcon
                   component="a"
-                  href="https://github.com/remnawave/panel"
+                  href="https://github.com/bruhxax/Link-Bot"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="rn-header-control rn-header-secondary"
-                  aria-label="Исходники Remnawave"
+                  aria-label="Репозиторий Link-Bot"
                 >
                   <TbBrandGithub size={22} />
                 </ActionIcon>
@@ -1416,44 +1564,46 @@ function Admin({ model, content, dialogs, dispatch }) {
               )}
             </Group>
           </div>
-          <nav className="rn-nav">
-            <button
-              className={`rn-nav-item ${active === "home" ? "is-active" : ""}`}
-              {...actionProps("open-admin-section", "home")}
-            >
-              <PiStar size={18} />
-              Главная
-            </button>
-            {desktopGroups.map((g, i) => (
-              <Menu key={g[0]} trigger="click-hover" position="bottom-start">
-                <Menu.Target>
-                  <button
-                    className={`rn-nav-item ${g[2].some((r) => r[0] === active) ? "is-active" : ""}`}
-                  >
-                    {glyph(g[3])}
-                    {g[model.locale === "en" ? 1 : 0]}
-                    <PiCaretDown size={12} />
-                  </button>
-                </Menu.Target>
-                <Menu.Dropdown>
-                  {g[2].map((r) => (
-                    <Menu.Item
-                      key={r[0]}
-                      leftSection={glyph(r[3])}
-                      {...actionProps(
-                        r[5] === "page"
-                          ? "admin-console-page"
-                          : "open-admin-section",
-                        r[0],
-                      )}
+          {!sidebar && (
+            <nav className="rn-nav">
+              <button
+                className={`rn-nav-item ${active === "home" ? "is-active" : ""}`}
+                {...actionProps("open-admin-section", "home")}
+              >
+                <PiStar size={18} />
+                Главная
+              </button>
+              {desktopGroups.map((g, i) => (
+                <Menu key={g[0]} trigger="click-hover" position="bottom-start">
+                  <Menu.Target>
+                    <button
+                      className={`rn-nav-item ${g[2].some((r) => r[0] === active) ? "is-active" : ""}`}
                     >
-                      {r[model.locale === "en" ? 2 : 1]}
-                    </Menu.Item>
-                  ))}
-                </Menu.Dropdown>
-              </Menu>
-            ))}
-          </nav>
+                      {glyph(g[3])}
+                      {g[model.locale === "en" ? 1 : 0]}
+                      <PiCaretDown size={12} />
+                    </button>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    {g[2].map((r) => (
+                      <Menu.Item
+                        key={r[0]}
+                        leftSection={glyph(r[3])}
+                        {...actionProps(
+                          r[5] === "page"
+                            ? "admin-console-page"
+                            : "open-admin-section",
+                          r[0],
+                        )}
+                      >
+                        {r[model.locale === "en" ? 2 : 1]}
+                      </Menu.Item>
+                    ))}
+                  </Menu.Dropdown>
+                </Menu>
+              ))}
+            </nav>
+          )}
         </header>
         {sidebar && <aside className="rn-sidebar">{navigation}</aside>}
         <main className="page-scroll rn-main">

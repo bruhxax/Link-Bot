@@ -1,5 +1,9 @@
 // Visual tokens and proportions follow the Remnawave dashboard theme.
 // All actions are handled by the existing authenticated application.
+export function adminConsoleEnabled({ adminBaseURL, origin, previewMode = false, previewConsole = false }) {
+  return Boolean(adminBaseURL && origin === adminBaseURL || previewMode && previewConsole);
+}
+
 export const CONSOLE_GROUPS = [
   ["Управление", "Management", [
     ["users", "Пользователи", "Users", "users", "users"],

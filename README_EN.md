@@ -80,7 +80,7 @@ Send `/start` to your bot, open the Mini App as the administrator, then configur
 
 ### Separate admin host
 
-Set `ADMIN_SUBDOMAIN=admin` in `.env` to serve administration at `https://admin.<PUBLIC_HOST>/`. The value is a single DNS label, without a protocol, dots or a path, and must differ from `CABINET_SUBDOMAIN`. Leave `ADMIN_SUBDOMAIN=` empty to keep `/mini-app/?page=admin`; `/admin` is also available.
+Set `ADMIN_SUBDOMAIN=admin` in `.env` to serve administration at `https://admin.<PUBLIC_HOST>/`. The value is a single DNS label, without a protocol, dots or a path, and must differ from `CABINET_SUBDOMAIN`. Leave `ADMIN_SUBDOMAIN=` empty to retain both the original `/mini-app/?page=admin` address and the original admin interface, including its existing plan and layout editors. The new interface is enabled only on the configured admin host; `/admin` is also available.
 
 Create an A record for the admin hostname pointing to the Link-Bot server before running `bash update.sh` (or `bash update.sh --standalone`). Any AAAA record must reach the same server. The existing update workflow configures the managed or shared Caddy and verifies HTTPS. With a manually managed proxy, route the admin host to `bot:8080` and preserve the request Host.
 

@@ -37,6 +37,16 @@ body::after {
   background: #050607 !important;
 }
 .remna-admin.app-shell {
+  --text: #eef1f5;
+  --muted: #9da6b3;
+  --accent: #a1a1aa;
+  --icon-color: #dee2e6;
+  --surface: #101113;
+  --surface-strong: #17181c;
+  --control-bg: #101113;
+  --button-text: #eef1f5;
+  --line: #262628;
+  --line-soft: #262628;
   display: block !important;
   width: 100% !important;
   max-width: none !important;
@@ -394,7 +404,13 @@ body::after {
 }
 .rn-table-card .mantine-Badge-root {
   font-size: 11px;
-  min-width: 90px;
+  min-width: 0;
+  max-width: 100%;
+}
+.rn-table-card td > .mantine-Stack-root {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 .rn-table-card .mantine-ActionIcon-root {
   background: transparent;
@@ -421,6 +437,16 @@ body::after {
 }
 .rn-sidebar-mode .rn-main {
   left: 300px !important;
+  top: 64px !important;
+}
+.rn-sidebar-mode .rn-header {
+  height: 64px;
+}
+.rn-sidebar-mode .rn-sidebar {
+  top: 76px;
+}
+.rn-sidebar-mode .rn-brand-row {
+  width: 100%;
 }
 .rn-section-label {
   font-size: 12px !important;
@@ -535,6 +561,63 @@ body::after {
 .rn-content .rn-clickable-card::before,
 .rn-content .rn-clickable-card::after {
   display: none;
+}
+.rn-content .rn-structured-button {
+  height: auto;
+  white-space: normal;
+}
+.rn-content .rn-structured-button strong {
+  font-size: 14px;
+  line-height: 1.4;
+}
+.rn-content .rn-structured-button small {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.rn-content .admin-integration__summary {
+  min-height: 76px;
+  padding: 12px 16px;
+  grid-template-columns: 40px minmax(0, 1fr) auto 20px;
+}
+.rn-content .admin-integration__summary > img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.rn-content .admin-integration__status {
+  font-size: 11px;
+}
+.rn-content .custom-bg-thumb {
+  display: grid;
+  min-height: 120px;
+  border: 1px solid #262628;
+}
+.rn-content .custom-bg-thumb img,
+.rn-content .custom-bg-thumb video {
+  width: 100%;
+  height: 96px;
+  object-fit: cover;
+}
+.rn-content .custom-bg-thumb > span {
+  padding: 8px;
+  font-size: 12px;
+}
+.rn-content .admin-user-row {
+  min-height: 76px;
+  padding: 12px 16px;
+}
+.rn-content .admin-background-option {
+  min-height: 142px;
+  grid-template-rows: 84px 1fr;
+}
+.rn-content .admin-background-option__copy {
+  padding: 12px;
+}
+.rn-content .admin-finance-chart {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 .rn-content .support-ticket-list {
   display: grid;
