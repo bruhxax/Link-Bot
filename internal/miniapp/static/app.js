@@ -5642,16 +5642,16 @@ function renderAdminFinanceLoading() {
 }
 
 const ADMIN_FINANCE_PERIODS = [
-	["month", "Текущий месяц"],
-	["7d", "Последние 7 дней"],
-	["30d", "Последние 30 дней"],
-	["90d", "Последние 90 дней"],
-	["365d", "Последние 365 дней"],
-	["custom", "Другой период"],
+	["month", "Текущий месяц", "Этот месяц"],
+	["7d", "Последние 7 дней", "7 дней"],
+	["30d", "Последние 30 дней", "30 дней"],
+	["90d", "Последние 90 дней", "90 дней"],
+	["365d", "Последние 365 дней", "365 дней"],
+	["custom", "Другой период", "Выбрать даты"],
 ];
 
-function adminFinancePeriodLabel(period = state.adminFinancePeriod) {
-	return ADMIN_FINANCE_PERIODS.find(([value]) => value === period)?.[1] || "Последние 7 дней";
+function adminFinancePeriodLabel(period = state.adminFinancePeriod, compact = false) {
+	return ADMIN_FINANCE_PERIODS.find(([value]) => value === period)?.[compact ? 2 : 1] || (compact ? "7 дней" : "Последние 7 дней");
 }
 
 function renderAdminFinancePeriodPicker() {
@@ -5664,7 +5664,7 @@ function renderAdminFinancePeriodPicker() {
 		const selected = value === period;
 		return `<button class="admin-finance-period-option ${selected ? "is-selected" : ""}" type="button" role="option" aria-selected="${selected}" tabindex="${open ? "0" : "-1"}" data-action="${actionPrefix}-period-select" data-value="${escapeAttribute(value)}"><span>${escapeHtml(label)}</span><i aria-hidden="true">${selected ? icon("check") : ""}</i></button>`;
 	}).join("");
-	return `<div class="admin-finance-period ${open ? "is-open" : ""}"><button class="admin-finance-period__trigger" type="button" data-action="${actionPrefix}-period-toggle" aria-haspopup="listbox" aria-expanded="${open}" aria-controls="admin-finance-period-menu" ${busy ? "disabled" : ""}><span aria-hidden="true">${icon("calendarDays")}</span><strong>${escapeHtml(adminFinancePeriodLabel(period))}</strong><i aria-hidden="true">${icon("chevron")}</i></button><div class="admin-finance-period__menu" id="admin-finance-period-menu" role="listbox" aria-label="Период ${analytics ? "аналитики" : "финансов"}" aria-hidden="${!open}">${options}</div></div>`;
+	return `<div class="admin-finance-period ${open ? "is-open" : ""}"><button class="admin-finance-period__trigger" type="button" data-action="${actionPrefix}-period-toggle" aria-label="${escapeAttribute(adminFinancePeriodLabel(period))}" aria-haspopup="listbox" aria-expanded="${open}" aria-controls="admin-finance-period-menu" ${busy ? "disabled" : ""}><span aria-hidden="true">${icon("calendarDays")}</span><strong>${escapeHtml(adminFinancePeriodLabel(period, true))}</strong><i aria-hidden="true">${icon("chevron")}</i></button><div class="admin-finance-period__menu" id="admin-finance-period-menu" role="listbox" aria-label="Период ${analytics ? "аналитики" : "финансов"}" aria-hidden="${!open}"><span class="admin-finance-period__caption" aria-hidden="true">Период отчёта</span>${options}</div></div>`;
 }
 
 const ADMIN_FINANCE_PROVIDERS = [
@@ -5713,8 +5713,9 @@ function renderAdminFinancePage() {
 	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-finance">
 
 		<section class="admin-finance-card ${changing ? "is-updating" : ""} ${state.adminFinanceAnimate ? "is-entering" : ""}" aria-busy="${changing}">
-			<div class="admin-finance__metrics" aria-label="Финансовые показатели"><div class="is-revenue"><span>Выручка</span><strong>${escapeHtml(formatFinanceRub(summary.revenueRub))}</strong>${Number(summary.revenueStars || 0) ? `<small>+ ${escapeHtml(formatFinanceAmount(summary.revenueStars, "STARS"))}</small>` : ""}</div><div><span>Возвраты</span><strong>${escapeHtml(formatFinanceRub(summary.refundsRub))}</strong>${Number(summary.refundsStars || 0) ? `<small>+ ${escapeHtml(formatFinanceAmount(summary.refundsStars, "STARS"))}</small>` : ""}</div><div><span>Платежи</span><strong>${Number(summary.paymentCount || 0).toLocaleString("ru-RU")}</strong><small>${escapeHtml(financeDate(data.from, { day: "numeric", month: "short" }))} — ${escapeHtml(financeDate(data.to, { day: "numeric", month: "short" }))}</small></div></div>
-			<div class="admin-finance-card__body"><div class="admin-finance__toolbar"><h3 id="admin-finance-chart-title">Выручка по дням</h3>${renderAdminFinancePeriodPicker()}</div>
+			<div class="admin-finance-card__header admin-finance__toolbar"><div class="admin-finance-card__heading"><h3 id="admin-finance-chart-title">Выручка по дням</h3><span>${escapeHtml(financeDate(data.from, { day: "numeric", month: "short" }))} — ${escapeHtml(financeDate(data.to, { day: "numeric", month: "short" }))}</span></div>${renderAdminFinancePeriodPicker()}</div>
+			<div class="admin-finance__metrics" aria-label="Финансовые показатели"><div class="is-revenue"><span>Выручка</span><strong>${escapeHtml(formatFinanceRub(summary.revenueRub))}</strong>${Number(summary.revenueStars || 0) ? `<small>+ ${escapeHtml(formatFinanceAmount(summary.revenueStars, "STARS"))}</small>` : ""}</div><div><span>Возвраты</span><strong>${escapeHtml(formatFinanceRub(summary.refundsRub))}</strong>${Number(summary.refundsStars || 0) ? `<small>+ ${escapeHtml(formatFinanceAmount(summary.refundsStars, "STARS"))}</small>` : ""}</div><div><span>Платежи</span><strong>${Number(summary.paymentCount || 0).toLocaleString("ru-RU")}</strong></div></div>
+			<div class="admin-finance-card__body">
 			${custom ? `<div class="admin-finance__custom"><label><span>С</span><input type="date" data-input="admin-finance-from" value="${escapeAttribute(state.adminFinanceFrom || data.from)}" max="${escapeAttribute(financeTodayISO())}"></label><i aria-hidden="true">—</i><label><span>По</span><input type="date" data-input="admin-finance-to" value="${escapeAttribute(state.adminFinanceTo || data.to)}" max="${escapeAttribute(financeTodayISO())}"></label><button type="button" data-action="admin-finance-apply" ${state.adminFinanceBusy ? "disabled" : ""}>Показать</button></div>` : ""}
 			<div class="admin-finance__chart-wrap" aria-live="polite" aria-labelledby="admin-finance-chart-title">${renderAdminFinanceChart(data.daily)}</div></div>
 		</section>

@@ -752,31 +752,47 @@ body::after {
 .rn-content .admin-finance-card {
   overflow: visible;
 }
+.rn-content .admin-finance-card__header {
+  padding: 20px 20px 0;
+}
+.rn-content .admin-finance-card__heading h3 {
+  font-size: 16px;
+  font-weight: 600;
+}
+.rn-content .admin-finance-card__heading > span {
+  font-size: 12px;
+}
 .rn-content .admin-finance-card__body {
-  padding: 16px;
+  padding: 0 20px 16px;
 }
 .rn-content .admin-finance-card .admin-finance__chart-wrap {
   margin: 12px 0 0;
   overflow: visible;
 }
-.rn-content .admin-finance__metrics > div {
-  padding: 16px;
-  min-height: 86px;
+.rn-content .admin-finance-card .admin-finance__metrics {
+  margin: 14px 20px 0;
+  gap: 24px;
+}
+.rn-content .admin-finance-card .admin-finance__metrics > div {
+  padding: 10px 0;
+  min-height: 76px;
 }
 .rn-content .admin-finance__metrics span,
 .rn-content .admin-finance__legend,
 .rn-content .admin-finance-payment__status strong,
 .rn-content .admin-finance-payment__identity strong,
-.rn-content .admin-finance-payment__method,
-.rn-content .admin-finance-period-option {
+.rn-content .admin-finance-payment__method {
   font-size: 14px;
+}
+.rn-content .admin-finance-period-option {
+  font-size: 13px;
 }
 .rn-content .admin-finance__metrics small,
 .rn-content .admin-finance-payment__status small,
 .rn-content .admin-finance-payment__identity small {
   font-size: 12px;
 }
-.rn-content .admin-finance__metrics strong {
+.rn-content .admin-finance-card .admin-finance__metrics strong {
   font-size: 22px;
 }
 .rn-content .admin-finance__metrics span {
@@ -791,7 +807,7 @@ body::after {
   gap: 10px;
 }
 .rn-content .admin-finance-period__trigger strong {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
 }
 .rn-content .admin-finance__toolbar {
@@ -1655,16 +1671,23 @@ body::after {
     flex: 1 1 calc(50% - 8px);
   }
   .rn-content .admin-finance__toolbar {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
   }
+  .rn-content .admin-finance-card__header {
+    padding: 16px 12px 0;
+  }
+  .rn-content .admin-finance-card__heading h3 {
+    font-size: 14px;
+  }
   .rn-content .admin-finance-card__body {
-    padding: 12px;
+    padding: 0 12px 12px;
   }
-  .rn-content .admin-finance__metrics > div {
-    padding: 12px 8px;
+  .rn-content .admin-finance-card .admin-finance__metrics {
+    margin-inline: 12px;
+    gap: 12px;
   }
-  .rn-content .admin-finance__metrics strong {
+  .rn-content .admin-finance-card .admin-finance__metrics strong {
     font-size: 18px;
   }
   .rn-table-card .mantine-Select-label {

@@ -468,7 +468,9 @@ function convert(node, key) {
   const children = [...node.childNodes].map((n, i) => convert(n, i));
   if (tag === "button") {
     if (
-      node.matches(".card,.menu-card,.menu-row,.profile-row") ||
+      node.matches(
+        ".card,.menu-card,.menu-row,.profile-row,.admin-finance-period-option",
+      ) ||
       node.querySelector("div,strong,small,img,video,b,article,section")
     ) {
       p.className = `${p.className || ""} rn-structured-button ${node.matches(".card,.menu-card,.menu-row,.profile-row") ? "rn-clickable-card" : ""}`;
