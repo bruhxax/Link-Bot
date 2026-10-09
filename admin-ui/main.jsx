@@ -361,6 +361,8 @@ function convert(node, key) {
     return (
       <FinanceChart key={key} series={JSON.parse(node.dataset.financeSeries)} />
     );
+  if (node.matches(".admin-finance-chart__empty"))
+    return <FinanceChart key={key} series={[]} />;
   if (tag === "svg")
     return <svg {...p} dangerouslySetInnerHTML={{ __html: node.innerHTML }} />;
   if (node.dataset.appIcon && glyphs[node.dataset.appIcon]) {
