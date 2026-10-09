@@ -78,6 +78,7 @@ import "@kastov/mantine-react-table-open/styles.css";
 import "./styles.css";
 import "./reference-theme.css";
 import { UserDialog } from "./user-dialog.jsx";
+import { Users } from "./users-table.jsx";
 import { FinanceChart } from "./finance-chart.jsx";
 import { LayoutEditor as Layout } from "./layout-editor.jsx";
 import {
@@ -452,7 +453,7 @@ function convert(node, key) {
       return (
         <div
           key={key}
-          className={`rn-field ${toggle ? "rn-toggle" : node.className}`}
+          className={`rn-field ${["checkbox", "radio"].includes(control.type) ? "rn-check" : ""} ${toggle ? "rn-toggle" : node.className}`}
           hidden={node.hidden}
         >
           <Field node={control} label={label} toggle={toggle} />
@@ -565,7 +566,7 @@ function Metric({
     </Card>
   );
 }
-function DataTable({ columns, data, id, extra }) {
+function DataTable({ columns, data, id, extra, paginate = true }) {
   const initial = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem("admin.table." + id)) || {};
@@ -594,7 +595,10 @@ function DataTable({ columns, data, id, extra }) {
     enableColumnResizing: true,
     enableColumnPinning: true,
     enableRowSelection: true,
-    enableStickyHeader: true,
+    enableStickyHeader: false,
+    enablePagination: paginate,
+    getRowId: (row, index) =>
+      String(row.customerId ?? row.id ?? row.uuid ?? index),
     enableFilters: true,
     layoutMode: "grid",
     displayColumnDefOptions: { "mrt-row-select": { size: 40, grow: false } },
@@ -615,7 +619,7 @@ function DataTable({ columns, data, id, extra }) {
     mantineTableProps: { highlightOnHover: true },
     mantineFilterTextInputProps: { variant: "unstyled", placeholder: "Filter" },
     mantineTableContainerProps: {
-      style: { maxHeight: "max(220px, calc(100dvh - 350px))" },
+      style: { maxHeight: "none", overflowX: "auto", overflowY: "hidden" },
     },
     mantineTableHeadCellProps: {
       style: { fontSize: 14, background: "#101113" },
@@ -862,194 +866,6 @@ function SubscriptionLink({ value }) {
         )}
       </CopyButton>
     </Group>
-  );
-}
-function Users({ model }) {
-  const columns = useMemo(
-    () => [
-      {
-        id: "username",
-        header: "Юзернейм",
-        size: 180,
-        accessorFn: (u) => u.username || u.firstName || String(u.telegramId),
-        Cell: ({ row, cell }) => (
-          <Action
-            action="admin-user-open"
-            value={row.original.customerId}
-            variant="subtle"
-          >
-            {cell.getValue()}
-          </Action>
-        ),
-      },
-      { accessorKey: "customerId", header: "ID", size: 100 },
-      { accessorKey: "telegramId", header: "Telegram ID", size: 170 },
-      {
-        id: "status",
-        header: "Статус",
-        size: 130,
-        accessorFn: (u) =>
-          u.isBlocked ? "blocked" : u.subscriptionStatus || "none",
-        Cell: ({ cell }) => (
-          <Badge
-            radius="sm"
-            variant="light"
-            color={
-              cell.getValue() === "active"
-                ? "teal"
-                : cell.getValue() === "blocked"
-                  ? "red"
-                  : "gray"
-            }
-          >
-            {String(cell.getValue()).toUpperCase()}
-          </Badge>
-        ),
-      },
-      {
-        accessorKey: "subscriptionName",
-        header: "Подписка",
-        size: 230,
-        Cell: ({ row, cell }) => (
-          <Stack gap={0} style={{ width: "100%", minWidth: 0 }}>
-            <Group gap={4} wrap="nowrap">
-              <Tooltip
-                label={
-                  row.original.panelUsername ||
-                  cell.getValue() ||
-                  "Без подписки"
-                }
-              >
-                <Text size="sm" truncate style={{ minWidth: 0 }}>
-                  {cell.getValue() || "Без подписки"}
-                </Text>
-              </Tooltip>
-              {row.original.subscriptionCount > 1 && (
-                <Tooltip
-                  label={`Всего подписок: ${row.original.subscriptionCount}`}
-                >
-                  <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
-                    +{row.original.subscriptionCount - 1}
-                  </Text>
-                </Tooltip>
-              )}
-            </Group>
-            <SubscriptionLink value={row.original.subscriptionLink} />
-          </Stack>
-        ),
-      },
-      {
-        id: "traffic",
-        header: "Трафик",
-        size: 210,
-        accessorFn: (user) =>
-          user.trafficLoaded ? user.usedTrafficBytes : null,
-        Cell: ({ row }) => {
-          const user = row.original;
-          if (!user.trafficLoaded)
-            return (
-              <Text size="xs" c="dimmed">
-                Не загружен
-              </Text>
-            );
-          const format = (bytes) => {
-            if (!bytes) return "0 B";
-            const unit = Math.min(
-              4,
-              Math.floor(Math.log(bytes) / Math.log(1024)),
-            );
-            return `${(bytes / 1024 ** unit).toFixed(unit ? 2 : 0)} ${["B", "KiB", "MiB", "GiB", "TiB"][unit]}`;
-          };
-          const ratio =
-            user.trafficLimitBytes > 0
-              ? Math.min(
-                  100,
-                  (user.usedTrafficBytes / user.trafficLimitBytes) * 100,
-                )
-              : 0;
-          return (
-            <Stack gap={5}>
-              <Text size="xs" className="rn-number">
-                {format(user.usedTrafficBytes)} /{" "}
-                {user.trafficLimitBytes ? format(user.trafficLimitBytes) : "∞"}
-              </Text>
-              {user.trafficLimitBytes > 0 && (
-                <Progress
-                  size={3}
-                  value={ratio}
-                  color={ratio >= 100 ? "red" : "teal"}
-                />
-              )}
-            </Stack>
-          );
-        },
-      },
-      {
-        accessorKey: "expiresAt",
-        header: "Дата окончания",
-        size: 180,
-        Cell: ({ cell }) => (
-          <Text size="xs">
-            {cell.getValue()
-              ? new Date(cell.getValue()).toLocaleString("ru", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
-              : "—"}
-          </Text>
-        ),
-      },
-      {
-        id: "actions",
-        header: "",
-        size: 48,
-        grow: false,
-        enableColumnFilter: false,
-        Cell: ({ row }) => (
-          <IconAction
-            action="admin-user-open"
-            value={row.original.customerId}
-            label="Открыть пользователя"
-          >
-            <PiPencilSimple />
-          </IconAction>
-        ),
-      },
-    ],
-    [],
-  );
-  return (
-    <Card p={0} className="rn-table-card">
-      <DataTable
-        columns={columns}
-        data={model.users.items || []}
-        id="users-overview"
-        extra={
-          <TextInput
-            m="xs"
-            w={320}
-            maw="100%"
-            placeholder="@username, Telegram ID или подписка"
-            aria-label="Найти пользователя"
-            data-input="admin-users-search"
-            defaultValue={model.usersQuery}
-            leftSection={<PiUsers />}
-          />
-        }
-      />
-      {model.users.items?.length < model.users.total && (
-        <Group justify="center" p="md">
-          <Text size="xs" c="dimmed">
-            Загружено {model.users.items.length} из{" "}
-            {Number(model.users.total).toLocaleString("ru")}
-          </Text>
-          <Action action="admin-users-more">Показать ещё</Action>
-        </Group>
-      )}
-    </Card>
   );
 }
 function Nodes({ model }) {
@@ -1363,7 +1179,9 @@ function Overview({ model }) {
           ],
           ["Пользователи", model.users.total ?? "—", PiUsers],
           ["Интеграции", model.integrations, PiLightning],
-          ["Системные события", model.events.length, PiShieldCheck],
+          ...(model.groups.some((g) => g[2].some((r) => r[0] === "diagnostics"))
+            ? [["Ошибки операций", model.events.length, PiShieldCheck]]
+            : []),
         ].map(([title, value, Icon]) => (
           <Metric key={title} title={title} value={value} icon={Icon} />
         ))}
@@ -1401,25 +1219,31 @@ function Overview({ model }) {
             ))}
         </SimpleGrid>
       </Card>
-      <Card>
-        <Group justify="space-between">
-          <Title order={4}>Системные события</Title>
-          <Action action="open-admin-section" value="diagnostics">
-            Открыть журнал
-          </Action>
-        </Group>
-        {model.events.length ? (
-          model.events.slice(0, 5).map((e, i) => (
-            <Text key={i} size="sm" mt="sm">
-              {e.operation} · {e.message}
-            </Text>
-          ))
-        ) : (
-          <Text c="dimmed" size="sm" mt="sm">
-            Нет открытых событий
+      {model.groups.some((g) => g[2].some((r) => r[0] === "diagnostics")) && (
+        <Card>
+          <Group justify="space-between">
+            <Title order={4}>Ошибки операций бота</Title>
+            <Action action="open-admin-section" value="diagnostics">
+              Открыть журнал
+            </Action>
+          </Group>
+          <Text c="dimmed" size="xs" mt={6}>
+            Нерешённые ошибки оплаты, выдачи подписок и других операций. Число —
+            количество записей в журнале.
           </Text>
-        )}
-      </Card>
+          {model.events.length ? (
+            model.events.slice(0, 5).map((e, i) => (
+              <Text key={i} size="sm" mt="sm">
+                {e.operation} · {e.message}
+              </Text>
+            ))
+          ) : (
+            <Text c="dimmed" size="sm" mt="sm">
+              Нерешённых ошибок нет
+            </Text>
+          )}
+        </Card>
+      )}
     </Stack>
   );
 }
@@ -1770,7 +1594,7 @@ function Admin({ model, content, dialogs, dispatch }) {
             ) : active === "layout" ? (
               <Layout model={model} />
             ) : active === "users" ? (
-              <Users model={model} />
+              <Users model={model} DataTable={DataTable} />
             ) : active === "servers" ? (
               <Nodes model={model} />
             ) : active === "reviews" ? (

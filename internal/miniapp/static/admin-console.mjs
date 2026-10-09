@@ -4,6 +4,23 @@ export function adminConsoleEnabled({ adminBaseURL, origin, previewMode = false,
   return Boolean(adminBaseURL && origin === adminBaseURL || previewMode && previewConsole);
 }
 
+// Navigate inside the current WebView. The Telegram SDK reads its signed launch
+// data from the fragment after a cross-origin navigation; fragments never enter
+// an HTTP request or server access log. Browser login tokens are not transferred.
+export function workspaceNavigationURL(target, telegram) {
+  const url = new URL(target);
+  url.hash = "";
+  if (String(telegram?.initData || "").trim()) {
+    const launch = new URLSearchParams();
+    launch.set("tgWebAppData", telegram.initData);
+    if (telegram.version) launch.set("tgWebAppVersion", telegram.version);
+    if (telegram.platform) launch.set("tgWebAppPlatform", telegram.platform);
+    if (telegram.themeParams) launch.set("tgWebAppThemeParams", JSON.stringify(telegram.themeParams));
+    url.hash = launch.toString();
+  }
+  return url.toString();
+}
+
 export const CONSOLE_GROUPS = [
   ["Управление", "Management", [
     ["users", "Пользователи", "Users", "users", "users"],

@@ -21,7 +21,7 @@ import { reuseAdminUserRows } from "./stable-user-rows.mjs";
 import { renderAISettings } from "./admin-ai.mjs";
 import { canAdmin as accessAllows, changePermission, ROLE_PRESETS, presetPermissions, roleDot, renderAdministrators } from "./administrators.mjs";
 
-import { adminConsoleEnabled, consoleRoute, visibleConsoleGroups } from "./admin-console.mjs";
+import { adminConsoleEnabled, consoleRoute, visibleConsoleGroups, workspaceNavigationURL } from "./admin-console.mjs";
 import { mountRemnaAdmin, unmountRemnaAdmin } from "./admin-loader.mjs";
 
 const administrators = { items: [], total: 0, catalog: [], query: "", candidates: [], candidateTotal: 0, pickQuery: "", picking: false, editor: null, confirmRemove: false, busy: "", error: "", requestID: 0, searchTimer: null };
@@ -11534,7 +11534,7 @@ function bindRootActions() {
       return;
     }
     if (action === "admin-console-exit") {
-      if (adminEntry) { window.location.assign(`${cabinetBaseURL || document.querySelector('meta[name="public-base-url"]')?.content || ""}/mini-app/?cabinet=1`); return; }
+      if (adminEntry) { window.location.assign(workspaceNavigationURL(new URL(`${cabinetBaseURL || document.querySelector('meta[name="public-base-url"]')?.content || ""}/mini-app/?cabinet=1`, window.location.origin).href, tg)); return; }
       state.adminWorkspace = false;
       state.adminConsoleMenuOpen = false;
       const customerURL = new URL(window.location.href);
@@ -17232,8 +17232,7 @@ function closeAdminSection() {
 
 function setPage(page) {
   if (page === "admin" && adminBaseURL && !adminDedicated && !previewMode) {
-    if (clientSurface === "telegram" && tg?.openLink) tg.openLink(adminBaseURL + "/");
-    else window.location.assign(adminBaseURL + "/");
+    window.location.assign(workspaceNavigationURL(adminBaseURL + "/", tg));
     return;
   }
   if (page === "admin") state.adminWorkspace = remnaAdminEnabled;
@@ -18681,7 +18680,7 @@ function getEntryPage() {
   const page = requested || (isPageReload() ? readSetting(STORAGE_KEYS.page, "dashboard") : "dashboard");
   if (page === "admin" && adminBaseURL && !adminDedicated && !previewMode) {
     const section = urlParams.get("section");
-    window.location.replace(adminBaseURL + "/" + (section ? "?page=admin&section=" + encodeURIComponent(section) : ""));
+    window.location.replace(workspaceNavigationURL(adminBaseURL + "/" + (section ? "?page=admin&section=" + encodeURIComponent(section) : ""), tg));
     return "dashboard";
   }
   if (remnaAdminEnabled && page === "admin" && ["support", "servers", "reviews"].includes(urlParams.get("section"))) return urlParams.get("section");

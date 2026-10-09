@@ -33,7 +33,7 @@ body::after {
 #app {
   max-width: none !important;
   width: 100% !important;
-  height: 100dvh !important;
+  height: var(--app-viewport-height, 100dvh) !important;
   margin: 0 !important;
   padding: 0 !important;
   background: #050607 !important;
@@ -52,7 +52,7 @@ body::after {
   display: block !important;
   width: 100% !important;
   max-width: none !important;
-  height: 100dvh !important;
+  height: var(--app-viewport-height, 100dvh) !important;
   min-height: 0 !important;
   padding: 0 !important;
   margin: 0 !important;
@@ -77,7 +77,8 @@ body::after {
 .rn-header {
   height: 116px;
   position: fixed;
-  inset: 0 0 auto;
+  inset: var(--telegram-safe-top, 0px) var(--telegram-safe-right, 0px) auto
+    var(--telegram-safe-left, 0px);
   z-index: 101;
   background: #0b0c0e;
   border-bottom: 1px solid #ffffff14;
@@ -162,7 +163,9 @@ body::after {
 }
 .rn-main.page-scroll {
   position: absolute !important;
-  inset: 116px 0 0 !important;
+  inset: calc(116px + var(--telegram-safe-top, 0px))
+    var(--telegram-safe-right, 0px) var(--telegram-safe-bottom, 0px)
+    var(--telegram-safe-left, 0px) !important;
   display: block !important;
   width: auto !important;
   height: auto !important;
@@ -336,12 +339,13 @@ body::after {
 }
 .remna-admin .rn-adapted-button.mantine-Button-root {
   position: relative;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: auto;
   height: var(--button-height, var(--button-height-sm));
   min-height: 0;
   max-height: none;
-  margin: 0;
   padding: 0 var(--button-padding-x, 12px);
   background: var(--button-bg);
   color: var(--button-color);
@@ -366,6 +370,24 @@ body::after {
 .remna-admin .rn-adapted-button.mantine-Button-root:hover:not(:disabled) {
   background: var(--button-hover);
   color: var(--button-hover-color);
+}
+.remna-admin .rn-adapted-button.mantine-ActionIcon-root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ai-bg);
+  color: var(--ai-color);
+  box-shadow: none;
+  transform: none;
+}
+.remna-admin .rn-adapted-button.mantine-ActionIcon-root:hover:not(:disabled) {
+  background: var(--ai-hover);
 }
 .remna-admin .rn-adapted-button[aria-pressed="true"],
 .remna-admin .rn-adapted-button[aria-selected="true"] {
@@ -461,9 +483,9 @@ body::after {
 }
 .rn-sidebar {
   position: fixed;
-  top: 12px;
-  left: 12px;
-  bottom: 12px;
+  top: calc(12px + var(--telegram-safe-top, 0px));
+  left: calc(12px + var(--telegram-safe-left, 0px));
+  bottom: calc(12px + var(--telegram-safe-bottom, 0px));
   width: 300px;
   display: flex;
   flex-direction: column;
@@ -492,17 +514,17 @@ body::after {
   scrollbar-width: thin;
 }
 .rn-sidebar-mode .rn-main {
-  left: 324px !important;
+  left: calc(324px + var(--telegram-safe-left, 0px)) !important;
 }
 .rn-sidebar-layout .rn-main {
-  top: 64px !important;
+  top: calc(64px + var(--telegram-safe-top, 0px)) !important;
 }
 .rn-sidebar-layout .rn-header {
   height: 64px;
   border: 0;
 }
 .rn-sidebar-mode .rn-header {
-  left: 324px;
+  left: calc(324px + var(--telegram-safe-left, 0px));
 }
 .rn-sidebar-mode .rn-header-brand {
   display: none;
@@ -629,7 +651,10 @@ body::after {
 .rn-content .admin-content-tabs {
   flex-wrap: wrap;
   overflow: visible;
-  padding-bottom: 8px;
+  padding: 0;
+  border: 0;
+  cursor: auto;
+  margin-bottom: 12px;
 }
 .rn-content .admin-content-tabs .mantine-Button-root {
   min-height: 36px;
@@ -924,6 +949,236 @@ body::after {
 }
 .rn-field.admin-field--full {
   grid-column: 1/-1;
+}
+/* Old cabinet selectors must not lay out Mantine's internal labels or controls. */
+.rn-field .mantine-InputWrapper-label {
+  display: block !important;
+  min-height: 0 !important;
+  margin: 0 0 5px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  line-height: 1.4 !important;
+}
+.rn-check .mantine-Checkbox-body {
+  align-items: center;
+  min-height: 32px;
+}
+.rn-check .mantine-Checkbox-label {
+  display: block !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 0 0 8px !important;
+  border: 0 !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  line-height: 20px !important;
+}
+.rn-check .mantine-Checkbox-label strong {
+  font-size: inherit;
+  font-weight: 500;
+}
+.rn-check .mantine-Checkbox-inner,
+.rn-check .mantine-Checkbox-input {
+  width: 18px !important;
+  height: 18px !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+.rn-content .admin-moynalog__methods > div {
+  border: 0;
+  gap: 4px 16px;
+}
+.rn-content .admin-moynalog__methods,
+.rn-content .admin-moynalog__credentials,
+.rn-content .admin-editor__section-head,
+.rn-content .admin-squads__toolbar,
+.rn-content .admin-squads__list {
+  border: 0;
+}
+.rn-content .admin-squad-option {
+  min-height: 32px;
+  border: 0;
+}
+.rn-content .admin-squads {
+  padding: 0;
+  margin-top: 8px;
+  border: 0;
+  background: transparent;
+}
+.rn-content .admin-editor__grid {
+  margin: 0;
+}
+.rn-content .admin-trial-editor {
+  gap: 16px;
+}
+.rn-content
+  :is(
+    .admin-broadcast,
+    .admin-moynalog,
+    .admin-diagnostics,
+    .admin-integrations,
+    .admin-partners,
+    .admin-promocodes,
+    .admin-subscriptions,
+    .admin-analytics,
+    .admin-status
+  ) {
+  padding: 0;
+}
+.rn-content
+  :is(
+    .admin-broadcast__actions,
+    .admin-moynalog__actions,
+    .admin-smtp__actions,
+    .admin-ai__actions
+  ) {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rn-content
+  :is(
+    .admin-broadcast__actions,
+    .admin-moynalog__actions,
+    .admin-smtp__actions,
+    .admin-ai__actions
+  )
+  > button {
+  width: auto;
+  flex: 0 0 auto;
+}
+.rn-content
+  :is(
+    .admin-broadcast__primary,
+    .admin-broadcast__secondary,
+    .admin-broadcast__reset
+  ) {
+  width: auto;
+  justify-self: start;
+  margin-block: 8px 0;
+}
+.rn-content .admin-broadcast__actions {
+  display: inline-flex;
+  vertical-align: middle;
+}
+.rn-content .admin-broadcast__reset.rn-adapted-button {
+  margin: 0 0 0 8px;
+  vertical-align: middle;
+}
+.rn-content .admin-broadcast__section {
+  padding-block: 16px;
+}
+.rn-content
+  .rn-adapted-button:is(
+    [data-action$="-create"],
+    [data-action$="-save"],
+    [data-action$="-check"],
+    [data-action^="admin-find-"],
+    [data-action^="admin-add-"],
+    [data-action="admin-create-promo"],
+    [data-action="administrators-add"]
+  ) {
+  justify-self: start;
+  flex: 0 0 auto;
+}
+.rn-content .admin-subscription-search {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+.rn-content .admin-subscription-search .rn-field {
+  padding: 0;
+  border: 0;
+}
+.rn-content .admin-partners__create-fields {
+  grid-template-columns: minmax(0, 2fr) minmax(100px, 1fr) auto;
+}
+.rn-content .admin-partners__create-fields > button {
+  grid-column: auto;
+}
+.rn-content .admin-broadcast__message {
+  padding: 12px;
+  border: 0;
+  border-radius: 6px;
+  background: #101113;
+}
+.rn-content .admin-broadcast-button {
+  padding: 12px;
+  border: 1px solid #262628;
+  border-radius: 6px;
+  background: #101113;
+}
+.rn-content .admin-broadcast-button__grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 12px;
+}
+.rn-content .admin-broadcast-button .rn-field {
+  margin-top: 10px;
+}
+.rn-content .admin-broadcast__buttons {
+  gap: 12px;
+}
+.rn-content .admin-toggle-list {
+  gap: 8px;
+  padding-block: 0;
+}
+.rn-content .admin-toggle-list .rn-field {
+  border: 0 !important;
+  padding-block: 6px !important;
+}
+.rn-content .admin-toggle-list .rn-check .mantine-Checkbox-label {
+  padding: 0 16px 0 0 !important;
+}
+.rn-content .admin-editor__section .admin-editor__section {
+  border: 0;
+  padding: 12px 0 0;
+  background: transparent;
+}
+.rn-user-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px;
+  min-width: 0;
+  max-width: 100%;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+.rn-user-name:hover {
+  color: #fff;
+  background: #ffffff08;
+}
+.rn-connection-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 50%;
+  background: #fa5252;
+}
+.rn-connection-dot[data-status="online"] {
+  background: #20c997;
+}
+.rn-connection-dot[data-status="never"] {
+  background: #fcc419;
+}
+.rn-user-traffic {
+  width: 100%;
+  min-width: 250px;
+}
+.rn-users-table .rn-user-status {
+  border: 1px solid currentColor;
+  min-width: 100px;
+  height: 22px;
+  font-weight: 600;
+}
+.rn-user-description {
+  overflow-wrap: anywhere;
 }
 .rn-content .admin-toggle-list {
   display: grid;
@@ -1358,7 +1613,7 @@ body::after {
     border: 0;
   }
   .rn-main.page-scroll {
-    top: 64px !important;
+    top: calc(64px + var(--telegram-safe-top, 0px)) !important;
   }
 }
 @media (max-width: 1023px) {
@@ -1376,8 +1631,8 @@ body::after {
     display: none;
   }
   .rn-sidebar-mode .rn-main {
-    left: 0 !important;
-    top: 64px !important;
+    left: var(--telegram-safe-left, 0px) !important;
+    top: calc(64px + var(--telegram-safe-top, 0px)) !important;
   }
   .rn-brand-row {
     padding: 0 16px;
@@ -1392,7 +1647,9 @@ body::after {
     display: inline-flex !important;
   }
   .rn-main.page-scroll {
-    inset: 64px 0 0 !important;
+    inset: calc(64px + var(--telegram-safe-top, 0px))
+      var(--telegram-safe-right, 0px) var(--telegram-safe-bottom, 0px)
+      var(--telegram-safe-left, 0px) !important;
     padding: 12px !important;
   }
   .rn-sidebar {
@@ -1419,6 +1676,14 @@ body::after {
   }
 }
 @media (max-width: 560px) {
+  .rn-content .admin-subscription-search,
+  .rn-content .admin-partners__create-fields,
+  .rn-content .admin-broadcast-button__grid {
+    grid-template-columns: 1fr;
+  }
+  .rn-content .admin-broadcast__reset.rn-adapted-button {
+    margin: 8px 0 0;
+  }
   .rn-user-toolbar {
     flex-wrap: wrap !important;
     overflow: visible;

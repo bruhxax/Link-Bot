@@ -50,23 +50,30 @@ type adminUserSearchPayload struct {
 }
 
 type adminUserSummaryPayload struct {
-	AdminRole          string `json:"adminRole,omitempty"`
-	AdminColor         string `json:"adminColor,omitempty"`
-	CustomerID         int64  `json:"customerId"`
-	TelegramID         int64  `json:"telegramId"`
-	Username           string `json:"username"`
-	AvatarURL          string `json:"avatarUrl,omitempty"`
-	SubscriptionName   string `json:"subscriptionName,omitempty"`
-	SubscriptionLink   string `json:"subscriptionLink,omitempty"`
-	SubscriptionCount  int    `json:"subscriptionCount"`
-	PanelUsername      string `json:"panelUsername,omitempty"`
-	TrafficLoaded      bool   `json:"trafficLoaded"`
-	TrafficLimitBytes  int64  `json:"trafficLimitBytes"`
-	UsedTrafficBytes   int64  `json:"usedTrafficBytes"`
-	SubscriptionStatus string `json:"subscriptionStatus"`
-	ExpiresAt          string `json:"expiresAt,omitempty"`
-	CreatedAt          string `json:"createdAt"`
-	IsBlocked          bool   `json:"isBlocked"`
+	AdminRole                string `json:"adminRole,omitempty"`
+	AdminColor               string `json:"adminColor,omitempty"`
+	CustomerID               int64  `json:"customerId"`
+	TelegramID               int64  `json:"telegramId"`
+	Username                 string `json:"username"`
+	AvatarURL                string `json:"avatarUrl,omitempty"`
+	SubscriptionName         string `json:"subscriptionName,omitempty"`
+	SubscriptionLink         string `json:"subscriptionLink,omitempty"`
+	SubscriptionCount        int    `json:"subscriptionCount"`
+	PanelUsername            string `json:"panelUsername,omitempty"`
+	PanelID                  int64  `json:"panelId,omitempty"`
+	PanelCreatedAt           string `json:"panelCreatedAt,omitempty"`
+	Description              string `json:"description"`
+	Tag                      string `json:"tag"`
+	OnlineAt                 string `json:"onlineAt,omitempty"`
+	TrafficLimitStrategy     string `json:"trafficLimitStrategy,omitempty"`
+	LifetimeUsedTrafficBytes int64  `json:"lifetimeUsedTrafficBytes"`
+	TrafficLoaded            bool   `json:"trafficLoaded"`
+	TrafficLimitBytes        int64  `json:"trafficLimitBytes"`
+	UsedTrafficBytes         int64  `json:"usedTrafficBytes"`
+	SubscriptionStatus       string `json:"subscriptionStatus"`
+	ExpiresAt                string `json:"expiresAt,omitempty"`
+	CreatedAt                string `json:"createdAt"`
+	IsBlocked                bool   `json:"isBlocked"`
 }
 
 type adminUserDetailPayload struct {

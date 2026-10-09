@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
-import { adminConsoleEnabled, visibleConsoleGroups } from "./static/admin-console.mjs";
+import { adminConsoleEnabled, visibleConsoleGroups, workspaceNavigationURL } from "./static/admin-console.mjs";
 import { canAdmin } from "./static/administrators.mjs";
 
 const source = fs.readFileSync(new URL("./static/app.js", import.meta.url), "utf8");
@@ -12,6 +12,7 @@ function entryPage({ dedicated = false, adminURL = "", query = "", reload = fals
   const context = vm.createContext({ adminEntry: dedicated, adminDedicated: dedicated, adminBaseURL: adminURL, previewMode: false, remnaAdminEnabled: dedicated,
     urlParams: new URLSearchParams(query), PAGES: ["dashboard", "admin", "support", "servers", "reviews", "buy"],
     STORAGE_KEYS: { page: "page" }, isPageReload: () => reload, readSetting: () => saved,
+    tg: null, workspaceNavigationURL,
     window: { location: { replace: url => redirects.push(url) } } });
   vm.runInContext(entry, context);
   return { page: context.getEntryPage(), redirects };
@@ -21,6 +22,31 @@ test("empty admin host preserves customer navigation and the embedded admin entr
   assert.equal(entryPage().page, "dashboard");
   assert.equal(entryPage({ query: "page=admin" }).page, "admin");
   assert.equal(entryPage({ query: "page=buy", reload: true, saved: "admin" }).page, "buy");
+});
+
+test("cross-origin administration and return navigation keep Telegram launch data only in the fragment", () => {
+  const tg={initData:"user=%7B%22id%22%3A42%7D&auth_date=123&hash=signed",version:"9.1",platform:"android",themeParams:{bg_color:"#000000"}};
+  for(const target of ["https://admin.example.com/?page=admin&section=users", "https://example.com/mini-app/?cabinet=1"]){
+    const url=new URL(workspaceNavigationURL(target,tg));
+    assert.equal(url.origin,new URL(target).origin);
+    assert.equal(url.search,new URL(target).search);
+    const hash=new URLSearchParams(url.hash.slice(1));
+    assert.equal(hash.get("tgWebAppData"),tg.initData);
+    assert.equal(hash.get("tgWebAppPlatform"),"android");
+    assert.deepEqual(JSON.parse(hash.get("tgWebAppThemeParams")),tg.themeParams);
+    assert.ok(!url.search.includes("hash=")&&!url.search.includes("auth_date"));
+  }
+  assert.equal(workspaceNavigationURL("https://admin.example.com/#private",null),"https://admin.example.com/");
+});
+
+test("opening administration in Mini App navigates the WebView without calling Telegram openLink", () => {
+  const redirects=[];
+  const tg={initData:"signed-launch",platform:"android",openLink:()=>{throw new Error("must stay in WebView");}};
+  const context=vm.createContext({adminBaseURL:"https://admin.example.com",adminDedicated:false,previewMode:false,tg,workspaceNavigationURL,window:{location:{assign:url=>redirects.push(url)}}});
+  vm.runInContext(source.slice(source.indexOf("function setPage(page)"), source.indexOf("function getCurrentScrollTop()")),context);
+  context.setPage("admin");
+  assert.equal(redirects.length,1);
+  assert.equal(new URLSearchParams(new URL(redirects[0]).hash.slice(1)).get("tgWebAppData"),tg.initData);
 });
 
 test("legacy and saved admin entry redirects to the configured origin without forwarding secrets", () => {

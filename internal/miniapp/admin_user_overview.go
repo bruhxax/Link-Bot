@@ -61,6 +61,21 @@ func applyAdminUserOverview(row *adminUserSummaryPayload, user *remnawave.PanelU
 	row.TrafficLimitBytes = user.TrafficLimitBytes
 	row.UsedTrafficBytes = user.UserTraffic.UsedTrafficBytes
 	row.PanelUsername = user.Username
+	row.PanelID = user.ID
+	row.TrafficLimitStrategy = user.TrafficLimitStrategy
+	row.LifetimeUsedTrafficBytes = user.UserTraffic.LifetimeUsedTrafficBytes
+	if user.Description != nil {
+		row.Description = *user.Description
+	}
+	if user.Tag != nil {
+		row.Tag = *user.Tag
+	}
+	if !user.CreatedAt.IsZero() {
+		row.PanelCreatedAt = user.CreatedAt.UTC().Format(time.RFC3339)
+	}
+	if user.UserTraffic.OnlineAt != nil {
+		row.OnlineAt = user.UserTraffic.OnlineAt.UTC().Format(time.RFC3339)
+	}
 	if user.SubscriptionURL != "" {
 		row.SubscriptionLink = user.SubscriptionURL
 	}

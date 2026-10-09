@@ -27,6 +27,7 @@ type PanelUser struct {
 	ShortUUID            string           `json:"shortUuid,omitempty"`
 	Username             string           `json:"username"`
 	Status               string           `json:"status"`
+	CreatedAt            time.Time        `json:"createdAt"`
 	ExpireAt             time.Time        `json:"expireAt"`
 	TelegramID           *int64           `json:"telegramId"`
 	Description          *string          `json:"description"`
@@ -331,6 +332,7 @@ func panelUserFromLegacy(user *remapi.UserItemInfo) PanelUser {
 	// Re-marshalling keeps the adapter resilient across minor SDK versions.
 	if encoded, err := json.Marshal(user); err == nil {
 		var stats struct {
+			CreatedAt            time.Time        `json:"createdAt"`
 			ShortUUID            string           `json:"shortUuid"`
 			TrafficLimitBytes    int64            `json:"trafficLimitBytes"`
 			TrafficLimitStrategy string           `json:"trafficLimitStrategy"`
@@ -340,6 +342,7 @@ func panelUserFromLegacy(user *remapi.UserItemInfo) PanelUser {
 			UserTraffic          PanelUserTraffic `json:"userTraffic"`
 		}
 		if json.Unmarshal(encoded, &stats) == nil {
+			result.CreatedAt = stats.CreatedAt
 			result.ShortUUID = stats.ShortUUID
 			result.TrafficLimitBytes = stats.TrafficLimitBytes
 			result.TrafficLimitStrategy = stats.TrafficLimitStrategy
