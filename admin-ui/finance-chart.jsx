@@ -6,6 +6,7 @@ import React, {
   useState,
 } from "react";
 import { PiChartLine } from "react-icons/pi";
+import "./finance-chart.css";
 import {
   financeChartLayout,
   financeChartPointIndex,
@@ -110,12 +111,13 @@ export function FinanceChart({ series = [] }) {
       <div className="rn-chart-canvas" ref={canvas}>
         {!points.length ? (
           <div className="rn-chart-empty">
-            <PiChartLine size={28} />
+            <PiChartLine size={28} data-preserve-color="" />
             <strong>Нет данных за этот период</strong>
             <span>График появится после первых платежей</span>
           </div>
         ) : (
           <svg
+            data-preserve-color=""
             width="100%"
             height="100%"
             viewBox={`0 0 ${size.width} ${size.height}`}

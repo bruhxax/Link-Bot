@@ -23,6 +23,8 @@ import { canAdmin as accessAllows, changePermission, ROLE_PRESETS, presetPermiss
 
 import { adminConsoleEnabled, consoleRoute, visibleConsoleGroups, workspaceNavigationURL } from "./admin-console.mjs";
 import { mountRemnaAdmin, unmountRemnaAdmin } from "./admin-loader.mjs";
+import { mountFinanceCharts, unmountFinanceCharts } from "./finance-chart-loader.mjs";
+import { buildFinanceProviders } from "./finance-providers.mjs";
 
 const administrators = { items: [], total: 0, catalog: [], query: "", candidates: [], candidateTotal: 0, pickQuery: "", picking: false, editor: null, confirmRemove: false, busy: "", error: "", requestID: 0, searchTimer: null };
 
@@ -4941,6 +4943,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
 	document.documentElement.dataset.accessScreen = !state.loading && !state.data && Boolean(state.maintenance || publicMaintenance || state.blocked) ? "on" : "off";
 	app.classList.toggle("app--browser-auth", !state.loading && !state.data && !hasAuth() && !previewMode && !state.maintenance && !publicMaintenance && !state.blocked && !state.error);
   const consoleActive = remnaAdminEnabled && (adminEntry && !state.data || state.adminWorkspace && isAdminUser());
+  unmountFinanceCharts();
   if (!consoleActive || !state.data) unmountRemnaAdmin();
   document.documentElement.dataset.adminConsole = consoleActive ? "on" : "off";
   applyAppearance();
@@ -5032,6 +5035,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
     </div>
   `);
 	lastBottomDockMode = dockMode;
+  if (!consoleActive && state.currentPage === "admin" && state.adminSection === "finance") void mountFinanceCharts(app);
   bindRootActions();
   mountAdminContentTabs();
   restoreScrollPosition(nextScrollTop);
@@ -5588,60 +5592,9 @@ function financeTodayISO(offsetDays = 0) {
 	return new Date(Date.now() + (3 * 3600000) + offsetDays * 86400000).toISOString().slice(0, 10);
 }
 
-function financeSmoothPath(points) {
-	if (!points.length) return "";
-	if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
-	let path = `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
-	for (let index = 0; index < points.length - 1; index += 1) {
-		const previous = points[Math.max(0, index - 1)];
-		const current = points[index];
-		const next = points[index + 1];
-		const after = points[Math.min(points.length - 1, index + 2)];
-		const controlOneX = current.x + (next.x - previous.x) / 6;
-		const controlOneY = current.y + (next.y - previous.y) / 6;
-		const controlTwoX = next.x - (after.x - current.x) / 6;
-		const controlTwoY = next.y - (after.y - current.y) / 6;
-		path += ` C ${controlOneX.toFixed(2)} ${controlOneY.toFixed(2)}, ${controlTwoX.toFixed(2)} ${controlTwoY.toFixed(2)}, ${next.x.toFixed(2)} ${next.y.toFixed(2)}`;
-	}
-	return path;
-}
-
 function renderAdminFinanceChart(items) {
 	const daily = Array.isArray(items) ? items : [];
-	if (!daily.length) return `<div class="admin-finance-chart__empty">${icon("chartLine")}<strong>Нет данных за этот период</strong><span>Платежи появятся здесь после оплаты</span></div>`;
-	const width = 420;
-	const height = 170;
-	const plot = { left: 34, right: 7, top: 12, bottom: 27 };
-	const plotWidth = width - plot.left - plot.right;
-	const plotHeight = height - plot.top - plot.bottom;
-	const maximum = Math.max(1, ...daily.map((item) => Number(item.revenueRub || 0)));
-	const roundedMaximum = maximum <= 100 ? Math.ceil(maximum / 10) * 10 || 10 : Math.ceil(maximum / 100) * 100;
-	const points = daily.map((item, index) => ({
-		...item,
-		x: plot.left + (daily.length === 1 ? plotWidth / 2 : index * plotWidth / (daily.length - 1)),
-		y: plot.top + plotHeight - (Number(item.revenueRub || 0) / roundedMaximum) * plotHeight,
-	}));
-	const line = financeSmoothPath(points);
-	const area = `${line} L ${points[points.length - 1].x.toFixed(2)} ${(plot.top + plotHeight).toFixed(2)} L ${points[0].x.toFixed(2)} ${(plot.top + plotHeight).toFixed(2)} Z`;
-	const grid = [0, .25, .5, .75, 1].map((ratio) => {
-		const y = plot.top + plotHeight - plotHeight * ratio;
-		const label = new Intl.NumberFormat("ru-RU", { notation: "compact", maximumFractionDigits: 1 }).format(roundedMaximum * ratio);
-		return `<g><line x1="${plot.left}" y1="${y.toFixed(2)}" x2="${width - plot.right}" y2="${y.toFixed(2)}"></line><text x="${plot.left - 6}" y="${(y + 3).toFixed(2)}" text-anchor="end">${escapeHtml(label)}</text></g>`;
-	}).join("");
-	const labelStep = Math.max(1, Math.ceil((daily.length - 1) / 4));
-	const labels = points.filter((_, index) => index % labelStep === 0 || index === points.length - 1).map((point) => `<text x="${point.x.toFixed(2)}" y="${height - 8}" text-anchor="middle">${escapeHtml(financeDate(point.date, { day: "2-digit", month: "short" }))}</text>`).join("");
-	const pointStep = Math.max(1, Math.ceil(daily.length / 45));
-	const markers = points.filter((_, index) => index % pointStep === 0 || index === points.length - 1).map((point) => {
-		const tooltipX = Math.max(49, Math.min(width - 49, point.x));
-		const amount = formatFinanceRub(point.revenueRub || 0);
-		const starAmount = Number(point.revenueStars || 0) > 0 ? formatFinanceAmount(point.revenueStars, "STARS") : "";
-		const stars = starAmount ? ` · ${starAmount}` : "";
-		const tooltipHeight = starAmount ? 51 : 40;
-		const tooltipY = point.y < tooltipHeight + 18 ? point.y + 11 : point.y - tooltipHeight - 11;
-		const aria = `${financeDate(point.date, { day: "numeric", month: "long", year: "numeric" })}: ${amount}${stars}, платежей ${Number(point.paymentCount || 0)}`;
-		return `<g class="admin-finance-chart__point" tabindex="0" role="img" aria-label="${escapeAttribute(aria)}"><line class="admin-finance-chart__cursor" x1="${point.x.toFixed(2)}" y1="${plot.top}" x2="${point.x.toFixed(2)}" y2="${plot.top + plotHeight}"></line><circle cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="8" class="admin-finance-chart__hit"></circle><circle cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="3.2" class="admin-finance-chart__dot"></circle><g class="admin-finance-chart__tooltip" transform="translate(${tooltipX.toFixed(2)} ${tooltipY.toFixed(2)})"><rect x="-48" y="0" width="96" height="${tooltipHeight}" rx="5"></rect><text x="0" y="15" text-anchor="middle" class="is-value">${escapeHtml(amount)}</text>${starAmount ? `<text x="0" y="29" text-anchor="middle" class="is-stars">${escapeHtml(starAmount)}</text>` : ""}<text x="0" y="${starAmount ? 42 : 29}" text-anchor="middle">${escapeHtml(financeDate(point.date, { day: "numeric", month: "short", year: "numeric" }))}</text></g></g>`;
-	}).join("");
-	return `<svg class="admin-finance-chart" ${remnaAdminEnabled ? `data-finance-series="${escapeAttribute(JSON.stringify(daily))}"` : ""} viewBox="0 0 ${width} ${height}" role="img" aria-label="График выручки по дням"><g class="admin-finance-chart__grid">${grid}</g><g class="admin-finance-chart__labels">${labels}</g><path class="admin-finance-chart__area" d="${area}"></path><path class="admin-finance-chart__line" d="${line}"></path>${markers}</svg>`;
+	return `<div class="premium-finance-chart" data-finance-series="${escapeAttribute(JSON.stringify(daily))}"><div class="rn-chart-loading" role="status">Загрузка графика…</div></div>`;
 }
 
 function financePaymentStatus(status) {
@@ -5726,19 +5679,13 @@ const ADMIN_FINANCE_PROVIDERS = [
 ];
 
 function renderAdminFinanceProviders(items) {
-	const actual = (Array.isArray(items) ? items : []).map((item) => ({ ...item, key: item.key === "tribute_shop" ? "tribute" : item.key }));
-	const merged = new Map();
-	for (const item of actual) { const previous = merged.get(item.key); merged.set(item.key, previous ? { ...item, revenue: Number(previous.revenue || 0) + Number(item.revenue || 0), refunds: Number(previous.refunds || 0) + Number(item.refunds || 0), paymentCount: Number(previous.paymentCount || 0) + Number(item.paymentCount || 0) } : item); }
-	const byKey = new Map([...merged.values()].map((item) => [String(item?.key || "").toLowerCase(), item]));
-	const known = ADMIN_FINANCE_PROVIDERS.map(([key, name, logo]) => ({ ...byKey.get(key), key, name, logo }));
-	const extra = actual.filter((item) => !ADMIN_FINANCE_PROVIDERS.some(([key]) => key === String(item?.key || "").toLowerCase()));
-	const providers = [...known, ...extra].sort((a, b) => Number(b.paymentCount || 0) - Number(a.paymentCount || 0));
+	const providers = buildFinanceProviders(items, ADMIN_FINANCE_PROVIDERS);
 	return `<section class="admin-finance-providers" aria-labelledby="admin-finance-providers-title"><div class="admin-finance__section-head"><div><span>ПЛАТЁЖНЫЕ СИСТЕМЫ</span><h3 id="admin-finance-providers-title">По всем способам оплаты</h3></div></div><div class="admin-finance-providers__grid">${providers.map((item) => {
 		const count = Number(item.paymentCount || 0);
-		const revenue = Number(item.revenue || 0);
-		const refunds = Number(item.refunds || 0);
+		const values = item.totals.map(total => `<div class="admin-finance-provider__value">${escapeHtml(formatFinanceAmount(total.revenue, total.currency))}</div>`).join("");
+		const refunds = item.totals.filter(total => total.refunds > 0).map(total => formatFinanceAmount(total.refunds, total.currency)).join(" · ");
 		const logo = item.logo && PAYMENT_LOGO_URLS[item.logo] ? `<img src="${escapeAttribute(PAYMENT_LOGO_URLS[item.logo])}" alt="" loading="lazy">` : icon("wallet");
-		return `<article class="admin-finance-provider ${count ? "is-active" : "is-empty"}"><div class="admin-finance-provider__head"><span class="admin-finance-provider__logo">${logo}</span><strong>${escapeHtml(item.name || item.key || "Платёжная система")}</strong><small>${count.toLocaleString("ru-RU")} оплат</small></div><div class="admin-finance-provider__value">${escapeHtml(formatFinanceAmount(revenue, item.currency || (item.key === "telegram" ? "STARS" : "RUB")))}</div>${refunds > 0 ? `<span class="admin-finance-provider__refund">Возвраты: ${escapeHtml(formatFinanceAmount(refunds, item.currency || "RUB"))}</span>` : `<span class="admin-finance-provider__refund">${count ? "За выбранный период" : "Пока нет оплат"}</span>`}</article>`;
+		return `<article class="admin-finance-provider ${count ? "is-active" : "is-empty"}"><div class="admin-finance-provider__head"><span class="admin-finance-provider__logo">${logo}</span><strong>${escapeHtml(item.name || item.key || "Платёжная система")}</strong><small>${count.toLocaleString("ru-RU")} оплат</small></div>${values}${refunds ? `<span class="admin-finance-provider__refund">Возвраты: ${escapeHtml(refunds)}</span>` : `<span class="admin-finance-provider__refund">${count ? "За выбранный период" : "Пока нет оплат"}</span>`}</article>`;
 	}).join("")}</div></section>`;
 }
 
@@ -5769,7 +5716,7 @@ function renderAdminFinancePage() {
 			<div class="admin-finance__metrics" aria-label="Финансовые показатели"><div class="is-revenue"><span>Выручка</span><strong>${escapeHtml(formatFinanceRub(summary.revenueRub))}</strong>${Number(summary.revenueStars || 0) ? `<small>+ ${escapeHtml(formatFinanceAmount(summary.revenueStars, "STARS"))}</small>` : ""}</div><div><span>Возвраты</span><strong>${escapeHtml(formatFinanceRub(summary.refundsRub))}</strong>${Number(summary.refundsStars || 0) ? `<small>+ ${escapeHtml(formatFinanceAmount(summary.refundsStars, "STARS"))}</small>` : ""}</div><div><span>Платежи</span><strong>${Number(summary.paymentCount || 0).toLocaleString("ru-RU")}</strong><small>${escapeHtml(financeDate(data.from, { day: "numeric", month: "short" }))} — ${escapeHtml(financeDate(data.to, { day: "numeric", month: "short" }))}</small></div></div>
 			<div class="admin-finance-card__body"><div class="admin-finance__toolbar"><h3 id="admin-finance-chart-title">Выручка по дням</h3>${renderAdminFinancePeriodPicker()}</div>
 			${custom ? `<div class="admin-finance__custom"><label><span>С</span><input type="date" data-input="admin-finance-from" value="${escapeAttribute(state.adminFinanceFrom || data.from)}" max="${escapeAttribute(financeTodayISO())}"></label><i aria-hidden="true">—</i><label><span>По</span><input type="date" data-input="admin-finance-to" value="${escapeAttribute(state.adminFinanceTo || data.to)}" max="${escapeAttribute(financeTodayISO())}"></label><button type="button" data-action="admin-finance-apply" ${state.adminFinanceBusy ? "disabled" : ""}>Показать</button></div>` : ""}
-			<div class="admin-finance__chart-wrap" aria-live="polite" aria-labelledby="admin-finance-chart-title">${renderAdminFinanceChart(data.daily)}</div><div class="admin-finance__legend"><i aria-hidden="true"></i><span>Выручка в рублях</span>${Number(summary.revenueStars || 0) ? `<small>Stars учитываются отдельно</small>` : ""}</div></div>
+			<div class="admin-finance__chart-wrap" aria-live="polite" aria-labelledby="admin-finance-chart-title">${renderAdminFinanceChart(data.daily)}</div></div>
 		</section>
 		${renderAdminFinanceProviders(data.providers)}
 		<section class="admin-finance__history" aria-labelledby="admin-finance-history-title"><div class="admin-finance__section-head"><div><span>ОПЕРАЦИИ</span><h3 id="admin-finance-history-title">История платежей</h3></div><strong>${Number(data.paymentTotal || 0).toLocaleString("ru-RU")}</strong></div><div class="admin-finance-history__surface"><div class="admin-finance-history__list">${renderAdminFinanceHistory(payments)}</div>${hasMore ? `<button class="admin-finance__more" type="button" data-action="admin-finance-more" ${state.adminFinanceBusy ? "disabled" : ""}>${state.adminFinanceBusy === "more" ? icon("refresh") : icon("arrowDown")}<span>Показать ещё</span></button>` : ""}</div></section>

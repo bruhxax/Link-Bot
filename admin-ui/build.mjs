@@ -74,6 +74,23 @@ css.walkRules((rule) => {
   });
 });
 await writeFile(out + ".css", css.toString());
+// Reuse the same chart in the cabinet without loading the administration shell.
+await build({
+  absWorkingDir: root,
+  entryPoints: ["finance-standalone.jsx"],
+  bundle: true,
+  format: "esm",
+  minify: true,
+  target: ["es2022"],
+  outfile: path.resolve(path.dirname(out), "finance-ui.mjs"),
+  define: { "process.env.NODE_ENV": '"production"' },
+  legalComments: "eof",
+});
+const financeBundle = path.resolve(path.dirname(out), "finance-ui.mjs");
+await writeFile(
+  financeBundle,
+  (await readFile(financeBundle, "utf8")).replace(/[\t ]+$/gm, ""),
+);
 // Keep the corresponding frontend source available with every shipped build.
 const archive = {};
 for (const filename of await readdir(root)) {
@@ -89,7 +106,7 @@ for (const filename of await readdir(root)) {
 for (const filename of await readdir(path.dirname(out))) {
   if (
     /\.(js|mjs|css|html)$/.test(filename) &&
-    !/^admin-ui\.(mjs|css)$/.test(filename)
+    !/^(admin|finance)-ui\.(mjs|css)$/.test(filename)
   ) {
     archive[`internal/miniapp/static/${filename}`] = new Uint8Array(
       await readFile(path.join(path.dirname(out), filename)),

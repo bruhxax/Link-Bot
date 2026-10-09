@@ -1895,7 +1895,7 @@ select:focus-visible {
 .admin-finance-period-option:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
 
 .admin-finance-card .admin-finance__custom { margin-top: 10px; padding-bottom: 2px; animation: adminFinanceCustomIn 220ms ease both; }
-.admin-finance-card .admin-finance__chart-wrap { min-height: 0; margin: 5px -13px 0; overflow: hidden; border: 0; }
+.admin-finance-card .admin-finance__chart-wrap { min-height: 0; margin: 12px 0 0; overflow: visible; border: 0; }
 .admin-finance-card .admin-finance-chart__empty { min-height: 150px; }
 .admin-finance-card .admin-finance__legend { min-height: 17px; padding-top: 0; }
 

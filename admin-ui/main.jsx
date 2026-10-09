@@ -357,7 +357,7 @@ function convert(node, key) {
     )
   )
     return null;
-  if (tag === "svg" && node.dataset.financeSeries)
+  if (node.dataset.financeSeries)
     return (
       <FinanceChart key={key} series={JSON.parse(node.dataset.financeSeries)} />
     );
