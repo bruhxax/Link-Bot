@@ -81,6 +81,7 @@ import { UserDialog } from "./user-dialog.jsx";
 import { Users } from "./users-table.jsx";
 import { FinanceChart } from "./finance-chart.jsx";
 import { LayoutEditor as Layout } from "./layout-editor.jsx";
+import { snapshot, controlKey, selectedTab } from "./adapter-state.mjs";
 import {
   TbBrandGithub,
   TbLanguage,
@@ -114,9 +115,9 @@ import {
 const theme = createTheme({
   fontFamily: "Montserrat, sans-serif",
   fontFamilyMonospace: '"Fira Mono", "JetBrains Mono", monospace',
-  fontSizes: { xs: "12px", sm: "14px", md: "16px", lg: "18px", xl: "20px" },
+  fontSizes: { xs: "12px", sm: "13px", md: "14px", lg: "16px", xl: "18px" },
   lineHeights: { xs: "1.3", sm: "1.4", md: "1.45", lg: "1.45", xl: "1.4" },
-  spacing: { xs: "10px", sm: "12px", md: "16px", lg: "20px", xl: "32px" },
+  spacing: { xs: "8px", sm: "10px", md: "12px", lg: "16px", xl: "24px" },
   primaryColor: "cyan",
   primaryShade: 8,
   autoContrast: true,
@@ -181,10 +182,16 @@ const theme = createTheme({
     }),
     Button: Button.extend({
       defaultProps: { variant: "light", radius: "md", size: "sm" },
-      styles: { root: { transition: "all .2s ease" } },
+      styles: {
+        root: {
+          height: 32,
+          transition:
+            "background-color .18s ease, border-color .18s ease, color .18s ease",
+        },
+      },
     }),
     ActionIcon: ActionIcon.extend({
-      defaultProps: { variant: "subtle", radius: "md", size: "lg" },
+      defaultProps: { variant: "subtle", radius: "sm", size: 30 },
     }),
     Card: Card.extend({
       defaultProps: { withBorder: true, padding: "md", shadow: "none" },
@@ -197,6 +204,7 @@ const theme = createTheme({
         portalProps: { target: "#app" },
         zIndex: 300,
         transitionProps: { transition: "fade", duration: 200 },
+        closeButtonProps: { "aria-label": "Закрыть" },
       },
     }),
     Menu: Menu.extend({
@@ -213,7 +221,7 @@ const theme = createTheme({
         portalProps: { target: "#app" },
         radius: "md",
         withArrow: true,
-        transitionProps: { transition: "scale-x", duration: 300 },
+        transitionProps: { transition: "fade", duration: 180 },
         arrowSize: 2,
         color: "dark.6",
         styles: {
@@ -223,7 +231,7 @@ const theme = createTheme({
     }),
   },
 });
-let mountedRoot, mountedElement;
+let mountedRoot, mountedElement, mountedSignature;
 const glyphs = {
   users: PiUsers,
   cartShopping: PiCreditCard,
@@ -363,6 +371,35 @@ function convert(node, key) {
     );
   if (node.matches(".admin-finance-chart__empty"))
     return <FinanceChart key={key} series={[]} />;
+  if (node.matches(".admin-trial-editor")) {
+    const grace = Boolean(
+      node.querySelector('[data-setting-path="grace.enabled"]'),
+    );
+    const squads = node.querySelector(":scope > .admin-squads");
+    return (
+      <div key={key} className="rn-settings-grid">
+        <section className="rn-settings-panel">
+          <div className="rn-panel-heading">
+            <ThemeIcon size={30} variant="soft" color="gray">
+              <TbClock size={18} />
+            </ThemeIcon>
+            <div>
+              <h3>{grace ? "Временный доступ" : "Пробный период"}</h3>
+              <p>Параметры подписки и ограничения</p>
+            </div>
+          </div>
+          {[...node.childNodes]
+            .filter((n) => n !== squads)
+            .map((n, i) => convert(n, i))}
+        </section>
+        {squads && (
+          <section className="rn-settings-panel rn-squad-panel">
+            {convert(squads, "squads")}
+          </section>
+        )}
+      </div>
+    );
+  }
   if (tag === "svg")
     return <svg {...p} dangerouslySetInnerHTML={{ __html: node.innerHTML }} />;
   if (node.dataset.appIcon && glyphs[node.dataset.appIcon]) {
@@ -370,24 +407,32 @@ function convert(node, key) {
     return <Icon key={key} size={20} aria-hidden="true" />;
   }
   if (
-    node.matches(".tabs") &&
+    node.matches('.tabs,[role="tablist"],.admin-content-groups') &&
     node.querySelector(":scope > button[data-action]")
   ) {
     const tabs = [...node.querySelectorAll(":scope > button[data-action]")];
-    const selected =
-      tabs.find((tab) => tab.classList.contains("active")) || tabs[0];
+    const selected = selectedTab(tabs);
+    const segmented = node.matches(
+      ".admin-content-groups,.admin-broadcast__tabs",
+    );
     return (
-      <Tabs key={key} value={selected.dataset.value} className="rn-native-tabs">
-        <Tabs.List>
+      <Tabs
+        key={key}
+        value={selected.dataset.value}
+        variant={segmented ? "pills" : "default"}
+        className={`rn-native-tabs ${segmented ? "rn-segmented-tabs" : ""}`}
+      >
+        <Tabs.List aria-label={node.getAttribute("aria-label") || "Разделы"}>
           {tabs.map((tab) => (
             <Tabs.Tab
               key={tab.dataset.value}
               value={tab.dataset.value}
-              data-action={tab.dataset.action}
-              data-value={tab.dataset.value}
+              {...attributes(tab)}
+              className={undefined}
+              tabIndex={undefined}
               disabled={tab.disabled}
             >
-              {tab.textContent}
+              {[...tab.childNodes].map((n, i) => convert(n, i))}
             </Tabs.Tab>
           ))}
         </Tabs.List>
@@ -444,7 +489,15 @@ function convert(node, key) {
           </Control>
         );
       }
-      const toggle = node.classList.contains("admin-toggle");
+      const toggle =
+        node.matches(
+          ".admin-toggle,.admin-integration__toggle,.admin-moynalog__switch",
+        ) || control.getAttribute("role") === "switch";
+      // Old toggle classes style every descendant input/span. Keep the native
+      // Switch isolated and carry only the outer layout role across the bridge.
+      const fieldClass = toggle
+        ? `rn-toggle ${node.matches(".admin-ai__power") ? "rn-ai-power" : ""}`
+        : node.className;
       const label = [...node.childNodes]
         .filter(
           (n) =>
@@ -454,8 +507,8 @@ function convert(node, key) {
         .map((n, i) => convert(n, i));
       return (
         <div
-          key={key}
-          className={`rn-field ${["checkbox", "radio"].includes(control.type) ? "rn-check" : ""} ${toggle ? "rn-toggle" : node.className}`}
+          key={controlKey(control, key)}
+          className={`rn-field ${["checkbox", "radio"].includes(control.type) ? "rn-check" : ""} ${fieldClass}`}
           hidden={node.hidden}
         >
           <Field node={control} label={label} toggle={toggle} />
@@ -464,7 +517,7 @@ function convert(node, key) {
     }
   }
   if (["input", "textarea", "select"].includes(tag))
-    return <Field key={key} node={node} />;
+    return <Field key={controlKey(node, key)} node={node} />;
   const children = [...node.childNodes].map((n, i) => convert(n, i));
   if (tag === "button") {
     if (
@@ -517,7 +570,10 @@ function convert(node, key) {
     : React.createElement(tag, p, children);
 }
 function Legacy({ node }) {
-  return node ? convert(node, "content") : null;
+  // Background refreshes rebuild the cabinet's detached DOM. Keep the React
+  // subtree when its markup has not changed; in-progress fields stay mounted.
+  const markup = node?.outerHTML || "";
+  return useMemo(() => (node ? convert(node, "content") : null), [markup]);
 }
 function Action({ action, value, label, children, ...props }) {
   return (
@@ -532,7 +588,7 @@ function IconAction({ action, value, label, children, ...props }) {
       <ActionIcon
         aria-label={label}
         {...actionProps(action, value)}
-        size="lg"
+        size={30}
         {...props}
       >
         {children}
@@ -550,14 +606,14 @@ function Metric({
   return (
     <Card className="rn-metric" p="md">
       <Group wrap="nowrap" gap="sm">
-        <ThemeIcon size={44} radius="md" variant="soft" color={color}>
-          <Icon size={24} />
+        <ThemeIcon size={30} radius="sm" variant="soft" color={color}>
+          <Icon size={18} />
         </ThemeIcon>
         <Stack gap={0}>
-          <Text size="sm" c="dimmed">
+          <Text size="xs" c="dimmed">
             {title}
           </Text>
-          <Text className="rn-number" size="xl" fw={700}>
+          <Text className="rn-number" size="md" fw={700}>
             {value}
           </Text>
           {caption && (
@@ -571,6 +627,8 @@ function Metric({
   );
 }
 function DataTable({ columns, data, id, extra, paginate = true }) {
+  const dataRef = useRef();
+  dataRef.current = snapshot(data, dataRef.current);
   const initial = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem("admin.table." + id)) || {};
@@ -593,19 +651,22 @@ function DataTable({ columns, data, id, extra, paginate = true }) {
   }, [density, columnVisibility, columnOrder, id]);
   const table = useMantineReactTable({
     columns,
-    data,
+    data: dataRef.current.value,
     localization: MRT_Localization_RU,
     enableColumnOrdering: true,
     enableColumnResizing: true,
     enableColumnPinning: true,
     enableRowSelection: true,
     enableStickyHeader: false,
+    autoResetPageIndex: false,
     enablePagination: paginate,
     getRowId: (row, index) =>
       String(row.customerId ?? row.id ?? row.uuid ?? index),
     enableFilters: true,
     layoutMode: "grid",
-    displayColumnDefOptions: { "mrt-row-select": { size: 40, grow: false } },
+    displayColumnDefOptions: {
+      "mrt-row-select": { size: 32, minSize: 32, grow: false },
+    },
     initialState: {
       showColumnFilters: true,
       pagination: { pageSize: 20, pageIndex: 0 },
@@ -621,24 +682,31 @@ function DataTable({ columns, data, id, extra, paginate = true }) {
     onColumnOrderChange: setOrder,
     mantinePaperProps: { withBorder: false, radius: 0, shadow: "none" },
     mantineTableProps: { highlightOnHover: true },
-    mantineFilterTextInputProps: { variant: "unstyled", placeholder: "Filter" },
+    mantineFilterTextInputProps: {
+      variant: "unstyled",
+      placeholder: "Фильтр…",
+    },
     mantineTableContainerProps: {
       style: { maxHeight: "none", overflowX: "auto", overflowY: "hidden" },
     },
     mantineTableHeadCellProps: {
-      style: { fontSize: 14, background: "#101113" },
+      style: { fontSize: 12, background: "#101113" },
     },
     mantineTopToolbarProps: { style: { background: "#101113" } },
     mantineBottomToolbarProps: { style: { background: "#101113" } },
     mantineTableBodyCellProps: ({ column }) => ({
       style: {
-        fontSize: 14,
+        fontSize: 13,
         background: column.getIsPinned() ? "#101113" : undefined,
       },
     }),
     renderTopToolbarCustomActions: () => extra,
   });
-  return <MantineReactTable table={table} />;
+  return (
+    <div className="rn-data-table" data-density={density}>
+      <MantineReactTable table={table} />
+    </div>
+  );
 }
 function UserMetrics({ users }) {
   const counts = users.panelCounts;
@@ -872,142 +940,158 @@ function SubscriptionLink({ value }) {
     </Group>
   );
 }
-function Nodes({ model }) {
+function NodeMetrics({ model }) {
   const items = model.servers || [];
   const online = items.filter((item) => item.online).length;
-  const columns = useMemo(
-    () => [
-      {
-        accessorKey: "name",
-        header: "Название",
-        Cell: ({ row }) => (
-          <Group gap="xs" wrap="nowrap">
-            <Text>
-              {/^[a-z]{2}$/i.test(row.original.countryCode || "")
-                ? String.fromCodePoint(
-                    ...row.original.countryCode
-                      .toUpperCase()
-                      .split("")
-                      .map((c) => c.charCodeAt(0) + 127397),
-                  )
-                : ""}
-            </Text>
-            <Text size="sm" fw={500}>
-              {row.original.name}
-            </Text>
-          </Group>
-        ),
-      },
-      {
-        id: "status",
-        header: "Статус",
-        accessorFn: (item) => (item.online ? "ONLINE" : "OFFLINE"),
-        Cell: ({ cell }) => (
-          <Badge
-            radius="sm"
-            variant="light"
-            color={cell.getValue() === "ONLINE" ? "teal" : "red"}
-          >
-            {cell.getValue()}
-          </Badge>
-        ),
-      },
-      { accessorKey: "address", header: "Адрес" },
-      { accessorKey: "countryCode", header: "Страна", size: 100 },
-      {
-        id: "visibility",
-        header: "В кабинете",
-        accessorFn: (item) => (item.hidden ? "Скрыта" : "Видна"),
-        Cell: ({ row, cell }) => (
-          <Badge color="gray" variant="light">
-            {cell.getValue()}
-          </Badge>
-        ),
-      },
-      ...(model.canManageNodes
-        ? [
-            {
-              id: "actions",
-              header: "Действия",
-              enableColumnFilter: false,
-              Cell: ({ row }) => (
-                <IconAction
-                  action="admin-toggle-server-visibility"
-                  value={row.original.id}
-                  label={
-                    row.original.hidden
-                      ? "Показать ноду пользователям"
-                      : "Скрыть ноду от пользователей"
-                  }
-                  aria-pressed={!row.original.hidden}
-                  disabled={!row.original.id || Boolean(model.nodeBusy)}
-                >
-                  {row.original.hidden ? <PiEyeSlash /> : <PiEye />}
-                </IconAction>
-              ),
-            },
-          ]
-        : []),
-    ],
-    [model.canManageNodes, model.nodeBusy],
+  return (
+    <SimpleGrid
+      className="rn-node-metrics"
+      cols={{ base: 1, sm: 3 }}
+      spacing="xs"
+      mb="sm"
+    >
+      <Metric title="Всего нод" value={items.length} icon={PiHardDrives} />
+      <Metric
+        title="Онлайн"
+        value={online}
+        icon={PiPulseDuotone}
+        color="teal"
+      />
+      <Metric
+        title="Офлайн"
+        value={items.length - online}
+        icon={PiProhibitDuotone}
+        color="red"
+      />
+    </SimpleGrid>
   );
-  const visible = items.filter((item) =>
-    model.serverFilter === "online"
-      ? item.online
-      : model.serverFilter === "offline"
-        ? !item.online
-        : true,
+}
+function Nodes({ model }) {
+  const [query, setQuery] = useState("");
+  const items = model.servers || [];
+  const visible = items.filter(
+    (item) =>
+      (model.serverFilter === "online"
+        ? item.online
+        : model.serverFilter === "offline"
+          ? !item.online
+          : true) &&
+      `${item.name} ${item.address} ${item.countryCode}`
+        .toLowerCase()
+        .includes(query.trim().toLowerCase()),
   );
   return (
-    <Stack gap="md">
-      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xs">
-        <Metric
-          title="Всего нод"
-          value={items.length}
-          icon={PiHardDrives}
-          color="blue"
+    <Stack gap="sm">
+      <Group className="rn-node-toolbar" justify="space-between">
+        <Tabs value={model.serverFilter || "all"} className="rn-native-tabs">
+          <Tabs.List aria-label="Статус нод">
+            {[
+              ["all", "Все"],
+              ["online", "Онлайн"],
+              ["offline", "Офлайн"],
+            ].map(([id, label]) => (
+              <Tabs.Tab
+                key={id}
+                value={id}
+                {...actionProps("set-server-filter", id)}
+              >
+                {label}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs>
+        <TextInput
+          value={query}
+          onChange={(event) => setQuery(event.currentTarget.value)}
+          leftSection={<PiMagnifyingGlass size={16} />}
+          placeholder="Название или адрес"
+          aria-label="Найти ноду"
         />
-        <Metric
-          title="Онлайн"
-          value={online}
-          icon={PiPulseDuotone}
-          color="teal"
-        />
-        <Metric
-          title="Офлайн"
-          value={items.length - online}
-          icon={PiProhibitDuotone}
-          color="red"
-        />
-      </SimpleGrid>
-      <Card p={0} className="rn-table-card">
-        <DataTable
-          id="nodes"
-          columns={columns}
-          data={visible}
-          extra={
-            <Group gap="xs" p="xs">
-              {[
-                ["all", "Все"],
-                ["online", "Онлайн"],
-                ["offline", "Офлайн"],
-              ].map(([id, label]) => (
-                <Action
-                  key={id}
-                  action="set-server-filter"
-                  value={id}
-                  variant={
-                    (model.serverFilter || "all") === id ? "filled" : "light"
-                  }
-                >
-                  {label}
-                </Action>
-              ))}
-            </Group>
-          }
-        />
-      </Card>
+      </Group>
+      <div className="rn-node-list" role="list" aria-label="Ноды">
+        {visible.map((item) => (
+          <article
+            key={item.id || item.address || item.name}
+            role="listitem"
+            className="rn-node-row"
+            data-online={item.online}
+          >
+            <div className="rn-node-identity">
+              <ThemeIcon
+                size={24}
+                variant="soft"
+                color={item.online ? "teal" : "red"}
+              >
+                {item.online ? (
+                  <PiPulseDuotone size={16} />
+                ) : (
+                  <PiProhibitDuotone size={16} />
+                )}
+              </ThemeIcon>
+              <CountryFlag code={item.countryCode} />
+              <Text size="sm" fw={600}>
+                {item.name}
+              </Text>
+            </div>
+            <Text size="xs" className="rn-node-address rn-number">
+              <PiGlobe size={13} />
+              {item.address || "—"}
+            </Text>
+            <div className="rn-node-state">
+              <Badge
+                variant="outline"
+                color={item.online ? "teal" : "red"}
+                radius="sm"
+              >
+                {item.online ? "ONLINE" : "OFFLINE"}
+              </Badge>
+              <Text size="xs" c="dimmed">
+                {item.hidden ? "Скрыта в кабинете" : "Видна в кабинете"}
+              </Text>
+            </div>
+            {model.canManageNodes && (
+              <IconAction
+                action="admin-toggle-server-visibility"
+                value={item.id}
+                label={
+                  item.hidden
+                    ? "Показать ноду пользователям"
+                    : "Скрыть ноду от пользователей"
+                }
+                aria-pressed={!item.hidden}
+                disabled={!item.id || Boolean(model.nodeBusy)}
+              >
+                {item.hidden ? <PiEyeSlash size={18} /> : <PiEye size={18} />}
+              </IconAction>
+            )}
+          </article>
+        ))}
+        {!visible.length && (
+          <div className="rn-empty-state">Ноды не найдены</div>
+        )}
+      </div>
     </Stack>
+  );
+}
+function CountryFlag({ code }) {
+  const [failed, setFailed] = useState(false);
+  const country = String(code || "").toLowerCase();
+  if (!/^[a-z]{2}$/.test(country)) return null;
+  return failed ? (
+    <Text size="xs" c="dimmed">
+      {country.toUpperCase()}
+    </Text>
+  ) : (
+    <img
+      className="rn-country-flag"
+      src={`https://flagcdn.com/24x18/${country}.png`}
+      alt={country.toUpperCase()}
+      width={20}
+      height={15}
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
   );
 }
 function Reviews({ model }) {
@@ -1257,9 +1341,9 @@ function Admin({ model, content, dialogs, dispatch }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebar, setSidebar] = useState(() => {
     try {
-      return localStorage.getItem("admin.sidebar") === "true";
+      return localStorage.getItem("admin.sidebar") !== "false";
     } catch {
-      return false;
+      return true;
     }
   });
   const active = model.page === "admin" ? model.section : model.page;
@@ -1328,6 +1412,7 @@ function Admin({ model, content, dialogs, dispatch }) {
       variant="subtle"
       leftSection={glyph(r[3])}
       active={r[0] === active}
+      aria-current={r[0] === active ? "page" : undefined}
       onClick={() => setMobile(false)}
       {...actionProps(
         r[5] === "page" ? "admin-console-page" : "open-admin-section",
@@ -1337,6 +1422,9 @@ function Admin({ model, content, dialogs, dispatch }) {
   );
   const navigation = (
     <>
+      <Text className="rn-section-label rn-section-label--overview">
+        {model.locale === "en" ? "Overview" : "Обзор"}
+      </Text>
       <NavLink
         component="button"
         type="button"
@@ -1344,6 +1432,7 @@ function Admin({ model, content, dialogs, dispatch }) {
         variant="subtle"
         leftSection={<PiStar size={18} />}
         active={active === "home"}
+        aria-current={active === "home" ? "page" : undefined}
         {...actionProps("open-admin-section", "home")}
         onClick={() => setMobile(false)}
       />
@@ -1488,7 +1577,12 @@ function Admin({ model, content, dialogs, dispatch }) {
                 Главная
               </button>
               {desktopGroups.map((g, i) => (
-                <Menu key={g[0]} trigger="click-hover" position="bottom-start">
+                <Menu
+                  key={g[0]}
+                  trigger="click"
+                  position="bottom-start"
+                  transitionProps={{ transition: "fade", duration: 180 }}
+                >
                   <Menu.Target>
                     <button
                       className={`rn-nav-item ${g[2].some((r) => r[0] === active) ? "is-active" : ""}`}
@@ -1539,20 +1633,23 @@ function Admin({ model, content, dialogs, dispatch }) {
             </nav>
           </aside>
         )}
-        <main className="page-scroll rn-main">
-          <div className="rn-page">
+        <main className="page-scroll rn-main" aria-label={title}>
+          <div className="rn-page" key={active} data-section={active}>
             {active === "users" && <UserMetrics users={model.users} />}
-            <Card className="rn-page-header" mb="md" p="md">
+            {active === "servers" && <NodeMetrics model={model} />}
+            <Card className="rn-page-header" mb="sm" p="sm">
               <Group justify="space-between" wrap="wrap">
                 <Group>
-                  <ThemeIcon size={44} variant="soft" radius="md">
+                  <ThemeIcon size={30} variant="soft" radius="sm">
                     {active === "home" ? (
-                      <PiStar size={24} />
+                      <PiStar size={18} />
                     ) : (
                       glyph(route?.[3])
                     )}
                   </ThemeIcon>
-                  <Title order={4}>{title}</Title>
+                  <Title order={4} tabIndex={-1}>
+                    {title}
+                  </Title>
                 </Group>
                 <Group gap="xs">
                   {model.save && (
@@ -1604,7 +1701,7 @@ function Admin({ model, content, dialogs, dispatch }) {
             ) : active === "reviews" ? (
               <Reviews model={model} />
             ) : (
-              <div className="rn-content">
+              <div className="rn-content" data-section={active}>
                 <Legacy node={content} />
               </div>
             )}
@@ -1627,6 +1724,7 @@ function Admin({ model, content, dialogs, dispatch }) {
           title={model.brand}
           size={300}
           className="rn-mobile-nav"
+          closeButtonProps={{ "aria-label": "Закрыть меню" }}
         >
           {navigation}
         </Drawer>
@@ -1642,6 +1740,7 @@ function Admin({ model, content, dialogs, dispatch }) {
             </Text>
             <Switch
               label="Боковое меню"
+              aria-label="Боковое меню"
               description="Альтернативное расположение навигации"
               checked={sidebar}
               onChange={(e) => {
@@ -1685,6 +1784,19 @@ export function mountRemnaAdmin(element, model, shell) {
   const dialogs = [...shell.children].filter((n) =>
     n.matches(".modal,.admin-commerce-menu"),
   );
+  // The bridge recreates model objects and markup on every refresh. Its action
+  // callbacks use the live cabinet state, so only serialized view data needs
+  // to invalidate an unchanged render. React's own menu/form state stays live.
+  const signature =
+    JSON.stringify(model) +
+    (content?.outerHTML || "") +
+    dialogs.map((node) => node.outerHTML).join("");
+  if (
+    mountedRoot &&
+    mountedElement === element &&
+    mountedSignature === signature
+  )
+    return;
   const dispatch = (action, value) => {
     const button = document.createElement("button");
     button.dataset.action = action;
@@ -1694,9 +1806,11 @@ export function mountRemnaAdmin(element, model, shell) {
     button.remove();
   };
   if (!mountedRoot || mountedElement !== element) {
+    if (mountedRoot) flushSync(() => mountedRoot.unmount());
     mountedRoot = createRoot(element);
     mountedElement = element;
   }
+  mountedSignature = signature;
   flushSync(() =>
     mountedRoot.render(
       <Admin
@@ -1713,5 +1827,6 @@ export function unmountRemnaAdmin() {
     flushSync(() => mountedRoot.unmount());
     mountedRoot = null;
     mountedElement = null;
+    mountedSignature = null;
   }
 }

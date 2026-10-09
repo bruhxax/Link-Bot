@@ -79,7 +79,7 @@ function Status({ value }) {
     <Badge
       className="rn-user-status"
       color={color}
-      variant="light"
+      variant="outline"
       radius="sm"
       leftSection={<Icon size={13} />}
     >
@@ -94,7 +94,7 @@ export function Users({ model, DataTable }) {
       {
         id: "name",
         header: "Имя",
-        size: 170,
+        size: 135,
         accessorFn: (u) =>
           u.panelUsername || u.username || String(u.telegramId),
         Cell: ({ row, cell }) => {
@@ -132,8 +132,8 @@ export function Users({ model, DataTable }) {
       {
         id: "panelId",
         header: "ID",
-        size: 110,
-        minSize: 110,
+        size: 84,
+        minSize: 80,
         accessorFn: (u) => u.panelId || u.customerId,
         Cell: ({ cell }) => (
           <Text size="xs" className="rn-number">
@@ -144,7 +144,7 @@ export function Users({ model, DataTable }) {
       {
         id: "status",
         header: "Статус",
-        size: 130,
+        size: 110,
         accessorFn: (u) =>
           u.isBlocked ? "blocked" : u.subscriptionStatus || "none",
         filterVariant: "select",
@@ -153,7 +153,7 @@ export function Users({ model, DataTable }) {
       {
         accessorKey: "expiresAt",
         header: "Истекает",
-        size: 190,
+        size: 146,
         enableColumnFilter: false,
         Cell: ({ cell }) => (
           <Tooltip
@@ -172,7 +172,7 @@ export function Users({ model, DataTable }) {
       {
         id: "traffic",
         header: "Израсходовано",
-        size: 280,
+        size: 230,
         enableColumnFilter: false,
         accessorFn: (u) => (u.trafficLoaded ? u.usedTrafficBytes : null),
         Cell: ({ row }) => <Traffic user={row.original} />,
@@ -180,7 +180,7 @@ export function Users({ model, DataTable }) {
       {
         accessorKey: "description",
         header: "Описание",
-        size: 220,
+        size: 130,
         Cell: ({ cell }) => (
           <Text size="xs" className="rn-user-description">
             {cell.getValue() || "—"}
@@ -190,7 +190,7 @@ export function Users({ model, DataTable }) {
       {
         accessorKey: "tag",
         header: "Тег",
-        size: 100,
+        size: 96,
         filterVariant: "select",
         Cell: ({ cell }) => (
           <Text size="xs" fw={600}>
@@ -201,7 +201,7 @@ export function Users({ model, DataTable }) {
       {
         id: "createdAt",
         header: "Создан",
-        size: 210,
+        size: 180,
         accessorFn: (u) => u.panelCreatedAt || u.createdAt,
         Cell: ({ cell }) => (
           <Text size="xs" className="rn-number">
@@ -211,7 +211,7 @@ export function Users({ model, DataTable }) {
                   minute: "2-digit",
                   second: "2-digit",
                   day: "numeric",
-                  month: "long",
+                  month: "short",
                   year: "numeric",
                 })
               : "—"}
@@ -226,12 +226,12 @@ export function Users({ model, DataTable }) {
       <DataTable
         columns={columns}
         data={model.users.items || []}
-        id="users-panel-v2"
+        id="users-panel-v3"
         paginate={false}
         extra={
           <TextInput
             m="xs"
-            w={320}
+            w={260}
             maw="100%"
             placeholder="Имя, Telegram ID или подписка"
             aria-label="Найти пользователя"
