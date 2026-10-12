@@ -25,7 +25,7 @@ import { reuseAdminUserRows } from "./stable-user-rows.mjs";
 import { renderAISettings } from "./admin-ai.mjs";
 import { canAdmin as accessAllows, changePermission, ROLE_PRESETS, presetPermissions, roleDot, renderAdministrators } from "./administrators.mjs";
 
-import { adminConsoleEnabled, consoleRoute, visibleConsoleGroups, workspaceNavigationURL } from "./admin-console.mjs";
+import { adminConsoleEnabled, consoleRoute, visibleConsoleGroups, workspaceNavigationURL, applyConsoleAppearance } from "./admin-console.mjs";
 import { mountRemnaAdmin, unmountRemnaAdmin } from "./admin-loader.mjs";
 import { mountFinanceCharts, unmountFinanceCharts } from "./finance-chart-loader.mjs";
 import { buildFinanceProviders } from "./finance-providers.mjs";
@@ -2759,6 +2759,10 @@ const state = {
 	adminMoyNalog: null,
 	adminMoyNalogBusy: "",
 	adminFinance: null,
+	adminOverview: null,
+	adminOverviewDays: 30,
+	adminOverviewBusy: false,
+	adminOverviewError: "",
 	adminFinanceBusy: "",
 	adminFinancePeriod: "7d",
 	adminFinanceFrom: "",
@@ -3361,6 +3365,7 @@ function refreshRestoredAdminSection() {
 	if (state.adminSection === "layout") return enterAdminLayoutEditor();
 	if (state.adminSection === "plans") return enterAdminPlanEditor();
 	if (state.adminSection === "ai") void loadAdminAI();
+	if (state.adminSection === "home" && state.adminWorkspace) void refreshAdminOverview();
 	if (state.adminSection === "administrators") void refreshAdministrators();
 	if (state.adminSection === "finance") void refreshAdminFinance().catch((error) => showToast(error?.message || "Не удалось загрузить финансы", "danger"));
 	if (state.adminSection === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
@@ -3619,7 +3624,7 @@ async function refreshRealtimeData({ panelOnly = false } = {}) {
 					case "partners": await refreshAdminPartners({ silent: true }); break;
 					case "moynalog": await refreshAdminMoyNalog({ silent: true }); break;
 					case "broadcast": await refreshAdminBroadcast({ silent: true }); break;
-					case "home": if (canAdmin("push")) await refreshAdminPush(); break;
+					case "home": if (state.adminWorkspace) await refreshAdminOverview({live:true}); if (canAdmin("push")) await refreshAdminPush(); break;
 					case "administrators": if (!administrators.editor && !administrators.picking && !administrators.busy) await refreshAdministrators({ silent: true }); break;
 					case "users":
 						if (state.adminUsersBusy || state.adminUserPending) break;
@@ -4482,6 +4487,10 @@ function mountCabinetShell(markup) {
 		const groups = visibleConsoleGroups(canAdmin);
 		mountRemnaAdmin(app, {
 			groups, section: state.adminSection, page: state.currentPage, locale: state.locale,
+			overview: state.adminOverview, overviewDays: state.adminOverviewDays, overviewBusy: state.adminOverviewBusy, overviewError: state.adminOverviewError,
+			canOverviewUsers: canAdmin("users"), canOverviewFinance: canAdmin("finance"),
+			refreshOverview: () => refreshAdminOverview(),
+			setOverviewDays: days => { state.adminOverviewDays=days; void refreshAdminOverview(); },
 			brand: state.data?.brand?.name || "Link-Bot", logo: state.data?.brand?.logoUrl, logout: Boolean(renderBrowserLogoutButton()),
 			save: state.currentPage === "admin" && ADMIN_SAVE_SECTIONS.has(state.adminSection),
 			dirty: adminEditorSaveState().dirty, busy: adminEditorSaveState().busy,
@@ -5778,6 +5787,32 @@ function renderAdminPartnerRow(item, index) {
 		<summary class="admin-partner-entry__summary">${adminUserAvatar(item)}<span class="admin-partner-entry__person"><strong>${escapeHtml(adminUserDisplayName(item))}</strong><small>Telegram ID: ${escapeHtml(String(item.telegramId || "—"))}</small></span><span class="admin-partner-entry__status ${item.isActive ? "is-active" : ""}">${item.isActive ? "Активен" : "Отключён"}</span>${icon("chevronRight")}</summary>
 		<div class="admin-partner-entry__details"><a class="admin-partner-entry__resource" href="${escapeAttribute(item.inviteUrl || "")}" target="_blank" rel="noopener noreferrer" aria-label="Открыть партнёрскую ссылку ${escapeAttribute(adminUserDisplayName(item))}"><span>Ссылка</span><strong>${escapeHtml(item.inviteUrl || "Ссылка готовится")}</strong></a><div class="admin-partner-entry__metrics admin-partner-entry__metrics--four" aria-label="Статистика партнёра"><span><small>Пришло</small><b>${formatNumber(stats.visitors || 0, state.locale)}</b></span><span><small>Триалы</small><b>${formatNumber(stats.trialUsers || 0, state.locale)}</b></span><span><small>Купили</small><b>${formatNumber(stats.payingUsers || 0, state.locale)}</b></span><span><small>Оборот</small><b>${escapeHtml(formatFinanceRub(stats.revenue || 0))}</b></span></div><div class="admin-partner-entry__actions"><label><span>Процент, %</span><input type="number" min="0" max="100" value="${escapeAttribute(String(item.commissionPercent || 0))}" data-admin-partner-row-percent></label><button type="button" data-action="admin-partner-percent" data-value="${item.id}" ${state.adminPartnersBusy ? "disabled" : ""}>Сохранить</button><button class="admin-partner-action admin-partner-action--toggle" type="button" data-action="admin-partner-toggle" data-value="${item.id}" data-active="${item.isActive ? "false" : "true"}" ${state.adminPartnersBusy ? "disabled" : ""}>${item.isActive ? "Отключить" : "Включить"}</button></div></div>
 	</details>`;
+}
+
+let adminOverviewRequestID = 0;
+async function refreshAdminOverview({live=false}={}) {
+	if (!state.adminWorkspace || !isAdminUser() || live && state.adminOverviewBusy) return;
+	if (previewMode) {
+		const today=new Date();const daily=Array.from({length:state.adminOverviewDays},(_,index)=>{
+			const date=new Date(today);date.setDate(date.getDate()-state.adminOverviewDays+index+1);
+			return {date:date.toISOString().slice(0,10),value:Math.round(Math.max(1,18+14*Math.sin(index/4)+8*Math.sin(index/2)))};
+		});
+		state.adminOverview={days:state.adminOverviewDays,generatedAt:today.toISOString(),users:{total:551,active:44,expired:127,without:152,blocked:228,today:3,week:19,daily},subscriptions:[{key:"free",count:29},{key:"manual",count:13},{key:"paid",count:4}],revenue:{todayRub:350,weekRub:7840,monthRub:25680,allRub:99118,averageRub:519,allStars:150,daily:daily.map((point,index)=>({...point,value:Math.round(point.value*23*(index%4===0?.2:1))}))}};
+		render({preserveScroll:true});return;
+	}
+	const requestID=++adminOverviewRequestID;
+	state.adminOverviewBusy=true;state.adminOverviewError="";
+	if (!live) render({preserveScroll:true});
+	try {
+		const response=await post("/api/mini-app/admin/overview",{days:state.adminOverviewDays});
+		if (requestID!==adminOverviewRequestID || state.adminSection!=="home" || !state.adminWorkspace) return;
+		state.adminOverview=response.data;
+	} catch(error) {
+		if (requestID!==adminOverviewRequestID) return;
+		state.adminOverviewError=error?.message || "Не удалось загрузить статистику";
+	} finally {
+		if (requestID===adminOverviewRequestID) {state.adminOverviewBusy=false;if(state.adminSection==="home")render({preserveScroll:true});}
+	}
 }
 
 async function refreshAdminFinance({ append = false, live = false } = {}) {
@@ -11711,7 +11746,10 @@ function bindRootActions() {
 			return;
 		}
       if (action === "email-auth-verify") return await verifyEmailAuth();
-      if (action === "refresh") return await refreshDashboard({ forceSubscriptionCheck: Boolean(state.subscriptionGate) });
+      if (action === "refresh") {
+			if (state.adminWorkspace && state.adminSection === "home") return await refreshAdminOverview();
+			return await refreshDashboard({ forceSubscriptionCheck: Boolean(state.subscriptionGate) });
+		}
       if (action === "telegram-browser-login") return await startTelegramBrowserLogin(target);
 		if (action === "telegram-link-login") return await startTelegramLink(target);
 		if (action === "email-link-open") { emailLink.open = true; emailLink.error = ""; render({ preserveScroll: true }); app.querySelector("[data-email-link-email]")?.focus(); return; }
@@ -11779,6 +11817,7 @@ function bindRootActions() {
 		if (value === "moynalog") void refreshAdminMoyNalog();
 		if (value === "ai") void loadAdminAI();
 		if (value === "finance") void refreshAdminFinance();
+		if (value === "home" && state.adminWorkspace) void refreshAdminOverview();
 		if (value === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
 		if (value === "status") void refreshAdminStatus();
 		if (value === "users") void refreshAdminUsers();
@@ -17769,6 +17808,14 @@ function closePayModal() {
 function applyAppearance() {
 	syncLocalizationFromSettings();
 	applyWebPageMetadata();
+	if (document.documentElement.dataset.adminConsole === "on") {
+		state.theme = "dark";
+		applyConsoleAppearance(document.documentElement);
+		if (themeMeta) themeMeta.content = "#0c0f13";
+		if (tg) { tg.setHeaderColor?.("#0c0f13"); tg.setBackgroundColor?.("#0c0f13"); }
+		syncBackgroundEngines();
+		return;
+	}
 	const appearance = getRuntimeSettings()?.appearance || {};
  void applyCustomCursor(appearance.cursors?.[state.adminWorkspace||state.currentPage==="admin"?"admin":"cabinet"]);
 	const colors = appearance.colors || {};

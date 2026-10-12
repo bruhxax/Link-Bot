@@ -175,6 +175,8 @@ func adminRouteAllowed(a adminAccess, path string) bool {
 		return a.can("integrations") || a.can("analytics") || a.can("moynalog")
 	case "status", "finance", "analytics":
 		return a.can(route)
+	case "overview":
+		return true // The handler omits each metric unless its permission is granted.
 	case "reviews/rewards":
 		return a.can("reviews.rewards")
 	case "reviews/delete":

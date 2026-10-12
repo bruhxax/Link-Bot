@@ -31,7 +31,7 @@ type activityAction struct{ title, category, fields string }
 // Polling/state reads do not drown out actual work. All other admin endpoints
 // are recorded by default, so newly added mutations cannot silently escape it.
 var activityReadRoutes = map[string]bool{
-	"status": true, "finance": true, "analytics": true, "ai/settings": true, "ai/models": true,
+	"status": true, "finance": true, "overview": true, "analytics": true, "ai/settings": true, "ai/models": true,
 	"smtp/settings": true, "moynalog/state": true, "partners/state": true, "push/state": true,
 	"broadcast/state": true, "broadcast/email/state": true, "users/message/state": true,
 	"broadcast/audience/options": true,

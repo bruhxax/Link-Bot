@@ -1,15 +1,15 @@
 /* The appearance setting for buttons/tariffs supplies all control backgrounds.
    Keep card surfaces independent, including when both materials use glass. */
-:root { --control-material: var(--control-bg); }
-:root[data-glass="on"] { --control-material: color-mix(in srgb, var(--control-bg) 28%, transparent); }
+:root:not([data-admin-console="on"]) { --control-material: var(--control-bg); }
+:root:not([data-admin-console="on"])[data-glass="on"] { --control-material: color-mix(in srgb, var(--control-bg) 28%, transparent); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root[data-glass="on"] { --control-material: var(--control-bg); }
+  :root:not([data-admin-console="on"])[data-glass="on"] { --control-material: var(--control-bg); }
 }
 
 /* Layered importance wins over the legacy per-section glass overrides without
    tying this shared theme rule to a particular page or its selector weight. */
 @layer control-material {
-  :root :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) :where(
+  :root:not([data-admin-console="on"]) :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) :where(
     button:not(.bottom-nav__item):not(.modal__backdrop):not([data-action="administrators-color"]):not(.admin-localization-menu__option),
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]),
     textarea, select,
@@ -28,36 +28,36 @@
     .bottom-nav:not([data-nav-style="notch"]), .bottom-nav__surface,
     .switch-selection, .mantine-Input-input:not([type="checkbox"]):not([type="radio"])
   ),
-  :root :is(.admin-localization-menu, .mantine-Combobox-dropdown, .mantine-Select-dropdown) {
+  :root:not([data-admin-console="on"]) :is(.admin-localization-menu, .mantine-Combobox-dropdown, .mantine-Select-dropdown) {
     background: var(--control-material) !important;
   }
 
-  :root :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) :where(
+  :root:not([data-admin-console="on"]) :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) :where(
     button:not(.bottom-nav__item):not([data-action="administrators-color"]),
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]),
     textarea, select
   ) { color: var(--button-text) !important; }
 
-  :root :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) :is(button.is-danger, .admin-icon-button--danger, .admin-promo-row__delete, .admin-profile-modal__delete, .admin-partner-action--reject) { color: var(--danger) !important; }
-  :root :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) .admin-partner-action--accept { color: var(--success) !important; }
-  :root :is(.admin-localization-menu, .admin-localization-menu__option, .mantine-Combobox-dropdown, .mantine-Combobox-option, .mantine-Select-dropdown) { color: var(--button-text) !important; }
+  :root:not([data-admin-console="on"]) :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) :is(button.is-danger, .admin-icon-button--danger, .admin-promo-row__delete, .admin-profile-modal__delete, .admin-partner-action--reject) { color: var(--danger) !important; }
+  :root:not([data-admin-console="on"]) :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) .admin-partner-action--accept { color: var(--success) !important; }
+  :root:not([data-admin-console="on"]) :is(.admin-localization-menu, .admin-localization-menu__option, .mantine-Combobox-dropdown, .mantine-Combobox-option, .mantine-Select-dropdown) { color: var(--button-text) !important; }
 
-  :root #app :is(.admin-users__search, .admin-settings-search__field) input {
+  :root:not([data-admin-console="on"]) #app :is(.admin-users__search, .admin-settings-search__field) input {
     background: transparent !important; background-image: none !important;
     backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
   }
-  :root #app [data-animated-switch] .tab {
+  :root:not([data-admin-console="on"]) #app [data-animated-switch] .tab {
     background: transparent !important; background-image: none !important;
     backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
   }
-  :root #app .switch-selection { border-color: var(--accent) !important; }
-  :root #app :is(.admin-telegram-button, .admin-reminder-template, .admin-content-disclosure, .admin-logo-field__advanced) > summary { border-radius: inherit; }
+  :root:not([data-admin-console="on"]) #app .switch-selection { border-color: var(--accent) !important; }
+  :root:not([data-admin-console="on"]) #app :is(.admin-telegram-button, .admin-reminder-template, .admin-content-disclosure, .admin-logo-field__advanced) > summary { border-radius: inherit; }
 }
 
 /* Apply the existing glass texture and blur to the control tint, independently
    of the card tint. A portalled menu keeps its stronger blur for legibility. */
 @layer control-material {
-  :root[data-glass="on"] :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) :where(
+  :root:not([data-admin-console="on"])[data-glass="on"] :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) :where(
     button:not(.bottom-nav__item):not(.modal__backdrop):not([data-action="administrators-color"]):not(.admin-localization-menu__option),
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]),
     textarea, select,
@@ -75,20 +75,20 @@
     background-size: 128px 128px, 100% 100% !important;
     backdrop-filter: var(--glass-backdrop) !important; -webkit-backdrop-filter: var(--glass-backdrop) !important;
   }
-  :root[data-glass="on"] :is(.admin-localization-menu, .mantine-Combobox-dropdown, .mantine-Select-dropdown) {
+  :root:not([data-admin-console="on"])[data-glass="on"] :is(.admin-localization-menu, .mantine-Combobox-dropdown, .mantine-Select-dropdown) {
     background-image: var(--glass-texture) !important;
     background-size: 128px 128px, 100% 100% !important;
     backdrop-filter: var(--glass-menu-backdrop) !important; -webkit-backdrop-filter: var(--glass-menu-backdrop) !important;
   }
 
   /* Composite purchase rows own one pane; their inner buttons add no second tint. */
-  :root #app .device-pack-trigger-row > button {
+  :root:not([data-admin-console="on"]) #app .device-pack-trigger-row > button {
     background: transparent !important; background-image: none !important;
     box-shadow: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
   }
 
   /* Switch rows are plain labels around the switch, rather than extra surfaces. */
-  :root :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) :is(.admin-toggle, .admin-toggle-row) {
+  :root:not([data-admin-console="on"]) :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) :is(.admin-toggle, .admin-toggle-row) {
     background: transparent !important; background-image: none !important;
     border: 0 !important; box-shadow: none !important;
     backdrop-filter: none !important; -webkit-backdrop-filter: none !important;

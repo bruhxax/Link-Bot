@@ -4,6 +4,19 @@ export function adminConsoleEnabled({ adminBaseURL, origin, previewMode = false,
   return Boolean(adminBaseURL && origin === adminBaseURL || previewMode && previewConsole);
 }
 
+export const CONSOLE_COLORS = Object.freeze({
+  "--bg":"#0c0f13", "--bg-deep":"#0c0f13", "--surface":"#141619", "--surface-strong":"#1b1e24", "--surface-soft":"#181b21",
+  "--text":"#e5e7eb", "--muted":"#979ba5", "--muted-2":"#777c87", "--line":"#292d35", "--line-soft":"#23272f",
+  "--control-bg":"#20242b", "--control-border":"#323741", "--control-border-soft":"#292d35", "--button-text":"#e5e7eb", "--icon-color":"#c3c7cf",
+  "--accent":"#acb8cc", "--accent-strong":"#acb8cc", "--accent-soft":"#acb8cc1f", "--accent-border":"#acb8cc4d", "--accent-contrast":"#151920",
+  "--success":"#69b7a7", "--danger":"#d77f86", "--unlimited-badge-color":"#aab5c8", "--unlimited-badge-bg":"#aab5c82e", "--unlimited-badge-border":"#aab5c866",
+});
+
+export function applyConsoleAppearance(root) {
+  Object.assign(root.dataset,{theme:"dark",glass:"off",frames:"on",background:"none"});
+  for (const [name,value] of Object.entries(CONSOLE_COLORS)) root.style.setProperty(name,value);
+}
+
 // Navigate inside the current WebView. The Telegram SDK reads its signed launch
 // data from the fragment after a cross-origin navigation; fragments never enter
 // an HTTP request or server access log. Browser login tokens are not transferred.
@@ -21,7 +34,7 @@ export function workspaceNavigationURL(target, telegram) {
   return url.toString();
 }
 
-export const CONSOLE_GROUPS = [
+const CONSOLE_ROUTES = [
   ["Управление", "Management", [
     ["users", "Пользователи", "Users", "users", "users"],
     ["subscriptions", "Подписки", "Subscriptions", "adminSubscriptions", "subscriptions"],
@@ -43,7 +56,7 @@ export const CONSOLE_GROUPS = [
   ]],
   ["Интерфейс", "Interface", [
     ["content", "Редактор контента", "Content editor", "adminContent", "content"],
-    ["appearance", "Оформление", "Appearance", "adminAppearance", "appearance"],
+    ["appearance", "Оформление кабинета", "Cabinet appearance", "adminAppearance", "appearance"],
 
 
     ["layout", "Конструктор UI", "UI builder", "grid", "layout"],
@@ -61,6 +74,13 @@ export const CONSOLE_GROUPS = [
     ["push", "Push-уведомления", "Push notifications", "adminPush", "push"],
   ]],
 ];
+
+const allConsoleRoutes = CONSOLE_ROUTES.flatMap(group=>group[2]);
+export const CONSOLE_GROUPS = [
+  ["Управление","Management",["users","partners","broadcast","promocodes","referrals","finance","analytics"]],
+  ["Поддержка","Support",["support","reviews","content","ai"]],
+  ["Настройки","Settings",["subscriptions","plans","servers","appearance","layout","subpage","integrations","moynalog","administrators","localization","status","diagnostics","features","trial","grace","maintenance","push"]],
+].map(([ru,en,ids])=>[ru,en,ids.map(id=>allConsoleRoutes.find(route=>route[0]===id))]);
 
 export function consoleRoute(id) {
   return CONSOLE_GROUPS.flatMap((group) => group[2]).find((route) => route[0] === id);

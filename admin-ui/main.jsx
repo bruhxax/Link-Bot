@@ -78,6 +78,7 @@ import "@kastov/mantine-react-table-open/styles.css";
 import "./styles.css";
 import "./reference-theme.css";
 import { UserDialog } from "./user-dialog.jsx";
+import { Overview } from "./overview.jsx";
 import { Users } from "./users-table.jsx";
 import { FinanceChart } from "./finance-chart.jsx";
 import { LayoutEditor as Layout } from "./layout-editor.jsx";
@@ -113,7 +114,8 @@ import {
 
 // Theme and navigation proportions adapted from remnawave/frontend, AGPL-3.0.
 const theme = createTheme({
-  fontFamily: "Montserrat, sans-serif",
+  fontFamily:
+    'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   fontFamilyMonospace: '"Fira Mono", "JetBrains Mono", monospace',
   fontSizes: { xs: "12px", sm: "13px", md: "14px", lg: "16px", xl: "18px" },
   lineHeights: { xs: "1.3", sm: "1.4", md: "1.45", lg: "1.45", xl: "1.4" },
@@ -1265,91 +1267,6 @@ function Dialogs({ nodes, dispatch }) {
     );
   });
 }
-function Overview({ model }) {
-  const search = document.createElement("div");
-  search.innerHTML = model.searchHTML;
-  return (
-    <Stack gap="sm" className="rn-overview">
-      <Card className="rn-overview-search">
-        <Legacy node={search} />
-      </Card>
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
-        {[
-          [
-            "Активные тарифы",
-            model.plans.filter((p) => p.enabled).length,
-            PiCreditCard,
-          ],
-          ["Пользователи", model.users.total ?? "—", PiUsers],
-          ["Интеграции", model.integrations, PiLightning],
-          ...(model.groups.some((g) => g[2].some((r) => r[0] === "diagnostics"))
-            ? [["Ошибки операций", model.events.length, PiShieldCheck]]
-            : []),
-        ].map(([title, value, Icon]) => (
-          <Metric key={title} title={title} value={value} icon={Icon} />
-        ))}
-      </SimpleGrid>
-      <Card>
-        <Title order={4} mb="sm">
-          Управление сервисом
-        </Title>
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
-          {model.groups
-            .flatMap((g) => g[2])
-            .filter((r) =>
-              [
-                "users",
-                "plans",
-                "finance",
-                "support",
-                "broadcast",
-                "integrations",
-              ].includes(r[0]),
-            )
-            .map((r) => (
-              <Action
-                key={r[0]}
-                action={
-                  r[5] === "page" ? "admin-console-page" : "open-admin-section"
-                }
-                value={r[0]}
-                variant="default"
-                h={40}
-                leftSection={glyph(r[3])}
-              >
-                {r[1]}
-              </Action>
-            ))}
-        </SimpleGrid>
-      </Card>
-      {model.groups.some((g) => g[2].some((r) => r[0] === "diagnostics")) && (
-        <Card>
-          <Group justify="space-between">
-            <Title order={4}>Ошибки операций бота</Title>
-            <Action action="open-admin-section" value="diagnostics">
-              Открыть журнал
-            </Action>
-          </Group>
-          <Text c="dimmed" size="xs" mt={6}>
-            Нерешённые ошибки оплаты, выдачи подписок и других операций. Число —
-            количество записей в журнале.
-          </Text>
-          {model.events.length ? (
-            model.events.slice(0, 5).map((e, i) => (
-              <Text key={i} size="sm" mt="sm">
-                {e.operation} · {e.message}
-              </Text>
-            ))
-          ) : (
-            <Text c="dimmed" size="sm" mt="sm">
-              Нерешённых ошибок нет
-            </Text>
-          )}
-        </Card>
-      )}
-    </Stack>
-  );
-}
 function Admin({ model, content, dialogs, dispatch }) {
   const [mobile, setMobile] = useState(false),
     [preferences, setPreferences] = useState(false);
@@ -1417,7 +1334,7 @@ function Admin({ model, content, dialogs, dispatch }) {
   const route = model.groups.flatMap((g) => g[2]).find((r) => r[0] === active);
   const title =
     route?.[model.locale === "en" ? 2 : 1] ||
-    (model.locale === "en" ? "Home" : "Главная");
+    (model.locale === "en" ? "Statistics" : "Статистика");
   const navRoute = (r) => (
     <NavLink
       key={r[0]}
@@ -1443,7 +1360,7 @@ function Admin({ model, content, dialogs, dispatch }) {
       <NavLink
         component="button"
         type="button"
-        label="Главная"
+        label={model.locale === "en" ? "Overview" : "Обзор"}
         variant="subtle"
         leftSection={<PiStar size={18} />}
         active={active === "home"}
@@ -1646,6 +1563,12 @@ function Admin({ model, content, dialogs, dispatch }) {
             >
               {navigation}
             </nav>
+            <div className="rn-sidebar-footer">
+              <button {...actionProps("admin-console-exit")}>
+                <PiArrowSquareOut size={18} />
+                Личный кабинет
+              </button>
+            </div>
           </aside>
         )}
         <main className="page-scroll rn-main" aria-label={title}>

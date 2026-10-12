@@ -1,0 +1,47 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import vm from "node:vm";
+import {groupOverviewPoints, overviewSegments, overviewChartGeometry} from "../../admin-ui/overview-data.mjs";
+import {applyConsoleAppearance, CONSOLE_COLORS, CONSOLE_GROUPS} from "./static/admin-console.mjs";
+
+test("dedicated console palette replaces every shared control token with independent values",()=>{
+ const root={dataset:{glass:"on",background:"custom"},style:{setProperty:(name,value)=>tokens[name]=value}},tokens={"--text":"#ff0000","--control-bg":"#00ff00","--accent":"#0000ff"};
+ applyConsoleAppearance(root);
+ for(const [key,value] of Object.entries(CONSOLE_COLORS)) assert.equal(tokens[key],value);
+ assert.equal(root.dataset.background,"none");assert.equal(root.dataset.glass,"off");
+ const routes=CONSOLE_GROUPS.flatMap(group=>group[2]);
+ assert.equal(routes.length,new Set(routes.map(route=>route[0])).size);
+ assert.ok(routes.every(Boolean));
+ const material=fs.readFileSync(new URL("./static/control-material.css",import.meta.url),"utf8");
+ assert.ok(material.includes(':root:not([data-admin-console="on"])'));
+});
+
+test("overview percentages use real totals including empty and single-segment data",()=>{
+ const empty=overviewSegments([{key:"zero",count:0}]);assert.equal(empty.total,0);assert.equal(empty.items[0].fraction,0);
+ const graph=overviewSegments([{count:29},{count:13},{count:4}]);assert.equal(graph.total,46);
+ assert.ok(Math.abs(graph.items.reduce((sum,item)=>sum+item.fraction,0)-1)<1e-10);
+ assert.equal(overviewSegments([{count:5}]).items[0].fraction,1);
+});
+
+test("days, weeks and months retain all real observations without mixing dates",()=>{
+ const points=[{date:"2026-01-31",value:2},{date:"2026-02-01",value:3},{date:"2026-02-02",value:7}];
+ assert.equal(groupOverviewPoints(points,"days").length,3);
+ assert.deepEqual(groupOverviewPoints(points,"weeks"),[{date:"2026-01-26",value:5},{date:"2026-02-02",value:7}]);
+ assert.deepEqual(groupOverviewPoints(points,"months"),[{date:"2026-01-01",value:2},{date:"2026-02-01",value:10}]);
+ for(const input of [[],[{date:"2026-01-01",value:0}],[{date:"2026-01-01",value:5}]]) {
+  const graph=overviewChartGeometry(input);assert.ok(Number.isFinite(graph.ceiling));assert.ok(!graph.line.includes("NaN"));
+ }
+});
+
+test("late overview response cannot replace a newer period",async()=>{
+ const source=fs.readFileSync(new URL("./static/app.js",import.meta.url),"utf8");
+ const part=source.slice(source.indexOf("let adminOverviewRequestID = 0;"),source.indexOf("async function refreshAdminFinance("));
+ const pending=[],state={adminWorkspace:true,adminSection:"home",adminOverviewDays:7,adminOverviewBusy:false};
+ const context=vm.createContext({state,previewMode:false,isAdminUser:()=>true,render:()=>{},post:()=>new Promise(resolve=>pending.push(resolve))});
+ vm.runInContext(part,context);
+ const first=context.refreshAdminOverview();state.adminOverviewDays=90;
+ const second=context.refreshAdminOverview();
+ pending[1]({data:{days:90}});await second;pending[0]({data:{days:7}});await first;
+ assert.equal(state.adminOverview.days,90);assert.equal(state.adminOverviewBusy,false);
+});
