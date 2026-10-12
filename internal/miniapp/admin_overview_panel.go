@@ -199,7 +199,8 @@ func panelOverview(users []remnawave.PanelUser, observations []database.PanelPla
 			o = byLink[user.SubscriptionURL]
 		}
 		months, planDays := o.Months, o.Days
-		if months <= 0 && planDays <= 0 {
+		isTrial := panelIsTrial(user, o, settings.Trial)
+		if !isTrial && months <= 0 && planDays <= 0 {
 			for _, p := range settings.Plans {
 				if p.ID == o.PlanID && o.PlanID != "" {
 					months, planDays = p.Months, p.Days
@@ -207,7 +208,7 @@ func panelOverview(users []remnawave.PanelUser, observations []database.PanelPla
 				}
 			}
 		}
-		if months <= 0 && planDays <= 0 {
+		if !isTrial && months <= 0 && planDays <= 0 {
 			// Infer only when all plans with these live limits agree on duration.
 			matched := false
 			ambiguous := false
@@ -235,9 +236,16 @@ func panelOverview(users []remnawave.PanelUser, observations []database.PanelPla
 		}
 		unlimited := user.TrafficLimitBytes <= 0
 		key := fmt.Sprintf("%d:%d:%t", months, planDays, unlimited)
+		if isTrial {
+			key = "trial:" + key
+		}
 		p := plans[key]
 		p.Key, p.Months, p.Days, p.Unlimited = key, months, planDays, unlimited
 		p.Label = overviewPlanLabel(months, planDays, unlimited)
+		p.IsTrial = isTrial
+		if isTrial {
+			p.Label = panelTrialLabel(unlimited)
+		}
 		p.Count++
 		plans[key] = p
 	}
@@ -250,6 +258,9 @@ func panelOverview(users []remnawave.PanelUser, observations []database.PanelPla
 		result = append(result, p)
 	}
 	duration := func(p database.OverviewPlan) int {
+		if p.IsTrial {
+			return 0
+		}
 		if p.Months > 0 {
 			return p.Months * 30
 		}

@@ -4498,6 +4498,11 @@ function mountCabinetShell(markup) {
 			plans: (state.adminSettingsDraft?.plans || state.data?.admin?.settings?.plans || []).map(plan => ({...plan})),
 			users: {...(state.adminUsers || {total: 0}), items: [...(state.adminUsers?.items || [])]}, usersQuery: state.adminUsersQuery,
 			usersError: state.adminUsersError || "",
+			partners: state.adminPartners, partnersLoaded: Boolean(state.adminPartners), partnersBusy: state.adminPartnersBusy, partnersError: state.adminPartnersError || "", canManagePartners: canAdmin("partners"),
+			refreshPartners: () => refreshAdminPartners(),
+			createPartner: (telegramId,percent) => createAdminPartner({telegramId,percent}),
+			reviewPartner: reviewAdminPartner,
+			updatePartner: updateAdminPartner,
 			servers: getServerItems().map(server => ({...server})), serverFilter: state.serverFilter,
 			canManageNodes: canAdmin("servers.manage"), nodeBusy: state.serverVisibilityBusy,
 			reviews: state.data?.reviews || {items:[],count:0,average:0},
@@ -15978,18 +15983,33 @@ async function submitPartnerApplication() {
 	} finally { state.partnerBusy = ""; render({ preserveScroll: true }); }
 }
 
+let adminPartnersRequestID = 0;
 async function refreshAdminPartners({ silent = false } = {}) {
-	if (state.adminPartnersBusy === "load") return;
-	const previous = silent ? JSON.stringify(state.adminPartners || {}) : "";
+ if (state.adminPartnersBusy === "load" || silent && state.adminPartnersBusy) return;
+ const previous = silent ? JSON.stringify(state.adminPartners || {}) : "";
 	if (previewMode) {
-		state.adminPartners = { applications: [{ id: 31, customerId: 66, telegramId: 6456789012, username: "vpn_creator", resourceUrl: "https://t.me/vpn_creator", requestedPercent: 25, expectedMonthlyUsers: 300, status: "pending", createdAt: new Date().toISOString() }], partners: [{ id: 1, customerId: 12, telegramId: 777777, username: "linkbot", code: "M8Q2K7PX", commissionPercent: 20, isActive: true, stats: { visitors: 184, trialUsers: 57, payingUsers: 21, revenue: 18740 } }] };
+		state.adminPartners = { applications: [{ id: 31, customerId: 66, telegramId: 6456789012, username: "vpn_creator", resourceUrl: "https://t.me/vpn_creator", requestedPercent: 25, expectedMonthlyUsers: 300, status: "pending", createdAt: new Date().toISOString() }], partners: [{ id: 1, customerId: 12, telegramId: 777777, username: "linkbot", code: "M8Q2K7PX", commissionPercent: 20, isActive: true, createdAt: new Date().toISOString(), inviteUrl: "https://t.me/link_bot?startapp=partner_M8Q2K7PX", stats: { visitors: 184, trialUsers: 57, payingUsers: 21, revenue: 18740 } }] };
 		render({ preserveScroll: true });
 		return;
 	}
-	state.adminPartnersBusy = "load";
-	if (!silent) render({ preserveScroll: true });
-	try { const response = await post("/api/mini-app/admin/partners/state", {}); state.adminPartners = response.data || { applications: [], partners: [] }; }
-	finally { state.adminPartnersBusy = ""; if (silent) { if (previous !== JSON.stringify(state.adminPartners || {})) renderRealtime(); } else render({ preserveScroll: true }); }
+ const requestID=++adminPartnersRequestID;
+ state.adminPartnersBusy="load";state.adminPartnersError="";
+ if (!silent) render({preserveScroll:true});
+ try {
+  const response=await post("/api/mini-app/admin/partners/state",{});
+  if(requestID!==adminPartnersRequestID)return;
+  state.adminPartners=response.data||{applications:[],partners:[]};
+ } catch(error) {
+  if(requestID===adminPartnersRequestID)state.adminPartnersError=error?.message||"Не удалось загрузить партнёров";
+ } finally {
+  if(requestID===adminPartnersRequestID){
+   state.adminPartnersBusy="";
+   if(state.adminSection==="partners") {
+    if(silent){if(previous!==JSON.stringify(state.adminPartners||{}) || state.adminPartnersError)renderRealtime();}
+    else render({preserveScroll:true});
+   }
+  }
+ }
 }
 
 async function reviewAdminPartner(applicationId, approve, percent) {
@@ -16000,9 +16020,9 @@ async function reviewAdminPartner(applicationId, approve, percent) {
 	finally { if (state.adminPartnersBusy !== "load") { state.adminPartnersBusy = ""; render({ preserveScroll: true }); } }
 }
 
-async function createAdminPartner() {
+async function createAdminPartner(values) {
 	if (state.adminPartnersBusy) return;
-	const telegramId = Number(state.adminPartnerTelegramDraft), percent = Number(state.adminPartnerPercentDraft);
+	const telegramId = Number(values?.telegramId ?? state.adminPartnerTelegramDraft), percent = Number(values?.percent ?? state.adminPartnerPercentDraft);
 	if (!Number.isSafeInteger(telegramId) || telegramId <= 0 || !Number.isInteger(percent) || percent < 0 || percent > 100) return showToast("Укажите Telegram ID и процент от 0 до 100", "danger");
 	state.adminPartnersBusy = "create"; render({ preserveScroll: true });
 	try { await post("/api/mini-app/admin/partners/create", { telegramId, percent }); state.adminPartnerTelegramDraft = ""; await refreshAdminPartners(); showToast("Партнёр добавлен", "success"); }

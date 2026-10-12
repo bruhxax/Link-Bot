@@ -24,6 +24,7 @@ type OverviewUsers struct {
 	Daily    []OverviewPoint `json:"daily"`
 }
 type OverviewPlan struct {
+	IsTrial   bool   `json:"isTrial,omitempty"`
 	Label     string `json:"label,omitempty"`
 	Months    int    `json:"months,omitempty"`
 	Days      int    `json:"days,omitempty"`

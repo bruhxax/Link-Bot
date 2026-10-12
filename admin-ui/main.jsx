@@ -82,6 +82,7 @@ import "./reference-theme.css";
 import { UserDialog } from "./user-dialog.jsx";
 import { Overview } from "./overview.jsx";
 import { Users } from "./users-table.jsx";
+import { Partners } from "./partners.jsx";
 import { SectionToolbar } from "./section-toolbar.jsx";
 import "./users-page.css";
 import { userDateKey } from "./users-list-data.mjs";
@@ -1826,11 +1827,13 @@ function Admin({ model, content, dialogs, dispatch }) {
                       </Action>
                     </Group>
                   )}
-                  {active !== "home" && active !== "users" && (
-                    <IconAction action="refresh" label="Обновить">
-                      <PiArrowsClockwise size={20} />
-                    </IconAction>
-                  )}
+                  {active !== "home" &&
+                    active !== "users" &&
+                    active !== "partners" && (
+                      <IconAction action="refresh" label="Обновить">
+                        <PiArrowsClockwise size={20} />
+                      </IconAction>
+                    )}
                   {active === "plans" && (
                     <IconAction
                       action="admin-add-plan"
@@ -1859,6 +1862,8 @@ function Admin({ model, content, dialogs, dispatch }) {
                 hidden={statisticsHidden}
                 Metrics={UserMetrics}
               />
+            ) : active === "partners" ? (
+              <Partners model={model} hidden={statisticsHidden} />
             ) : active === "servers" ? (
               <Nodes model={model} />
             ) : active === "reviews" ? (

@@ -41,7 +41,8 @@ func TestPanelOnlySettingsAcceptBrowserPayloadAndVerifyDatabaseBindingBeforePatc
 		t.Fatal(err)
 	}
 	defer pool.Exec(context.Background(), "DROP SCHEMA "+schema+" CASCADE")
-	_, err = pool.Exec(ctx, `CREATE TABLE customer_subscription(id BIGINT,customer_id BIGINT,panel_user_id BIGINT,panel_user_uuid UUID,subscription_link TEXT);
+	_, err = pool.Exec(ctx, `CREATE TABLE customer(id BIGINT,trial_used BOOLEAN);
+ CREATE TABLE customer_subscription(id BIGINT,customer_id BIGINT,panel_user_id BIGINT,panel_user_uuid UUID,subscription_link TEXT,is_primary BOOLEAN DEFAULT FALSE);
  CREATE TABLE purchase(id BIGINT,subscription_id BIGINT,status TEXT,month INT,days INT,plan_id TEXT,paid_at TIMESTAMPTZ,created_at TIMESTAMPTZ);`)
 	if err != nil {
 		t.Fatal(err)

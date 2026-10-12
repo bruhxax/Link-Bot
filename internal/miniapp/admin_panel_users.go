@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"link-bot/internal/database"
 	"link-bot/internal/remnawave"
+	"link-bot/internal/runtimeconfig"
 )
 
 func panelBinding(user remnawave.PanelUser, observations []database.PanelPlanObservation) database.PanelPlanObservation {
@@ -49,7 +50,7 @@ func panelBindingLookup(observations []database.PanelPlanObservation) func(remna
 	}
 }
 
-func panelSummary(user remnawave.PanelUser, binding database.PanelPlanObservation) adminUserSummaryPayload {
+func panelSummary(user remnawave.PanelUser, binding database.PanelPlanObservation, trial ...runtimeconfig.TrialSettings) adminUserSummaryPayload {
 	s := adminUserSummaryPayload{Key: fmt.Sprintf("panel:%d:%s", user.ID, user.UUID), PanelID: user.ID, PanelUUID: user.UUID, CustomerID: binding.CustomerID, SubscriptionID: binding.SubscriptionID,
 		Username: user.Username, PanelUsername: user.Username, SubscriptionName: user.Username, SubscriptionCount: 1, SubscriptionLink: user.SubscriptionURL,
 		SubscriptionStatus: strings.ToLower(user.Status), TrafficLoaded: true, TrafficLimitBytes: user.TrafficLimitBytes, TrafficLimitStrategy: user.TrafficLimitStrategy,
@@ -84,21 +85,28 @@ func panelSummary(user remnawave.PanelUser, binding database.PanelPlanObservatio
 	} else {
 		s.PlanTitle = "Индивидуальный · " + traffic
 	}
+	if len(trial) > 0 && panelIsTrial(user, binding, trial[0]) {
+		s.PlanTitle = panelTrialLabel(user.TrafficLimitBytes <= 0)
+	}
 	return s
 }
 
-func panelUserRows(catalog panelCatalogSnapshot, query string) ([]adminUserSummaryPayload, *remnawave.PanelUserCounts) {
+func panelUserRows(catalog panelCatalogSnapshot, query string, settings ...runtimeconfig.Settings) ([]adminUserSummaryPayload, *remnawave.PanelUserCounts) {
 	items := []adminUserSummaryPayload{}
 	counts := &remnawave.PanelUserCounts{StatusCounts: map[string]int64{}}
 	query = strings.ToLower(strings.TrimSpace(query))
 	bindingFor := panelBindingLookup(catalog.Observations)
+	trial := runtimeconfig.TrialSettings{}
+	if len(settings) > 0 {
+		trial = settings[0].Trial
+	}
 	for _, user := range catalog.Users {
 		if strings.TrimSpace(user.SubscriptionURL) == "" && user.ExpireAt.IsZero() {
 			continue
 		}
 		counts.TotalUsers++
 		counts.StatusCounts[strings.ToUpper(user.Status)]++
-		s := panelSummary(user, bindingFor(user))
+		s := panelSummary(user, bindingFor(user), trial)
 		if query != "" && !strings.Contains(strings.ToLower(fmt.Sprintf("%s %s %s %s %s %d %d", s.PanelUsername, s.Description, s.Tag, s.SubscriptionLink, s.PlanTitle, s.TelegramID, s.PanelID)), query) {
 			continue
 		}
@@ -125,7 +133,11 @@ func (h *Handler) handlePanelUsersSearch(w http.ResponseWriter, r *http.Request,
 		h.writeError(w, code, errorCode, "Не удалось загрузить пользователей панели. Обновите список.")
 		return
 	}
-	items, counts := panelUserRows(catalog, req.Query)
+	settings := runtimeconfig.DefaultSettings()
+	if h.runtimeSettings != nil {
+		settings = h.runtimeSettings.Snapshot()
+	}
+	items, counts := panelUserRows(catalog, req.Query, settings)
 	offset := max(0, min(req.Offset, len(items)))
 	end := min(offset+req.Limit, len(items))
 	payload := adminUserSearchPayload{Source: "panel", Snapshot: catalog.Revision, Pending: pending, Items: items[offset:end], Total: len(items), Limit: req.Limit, Offset: offset}
