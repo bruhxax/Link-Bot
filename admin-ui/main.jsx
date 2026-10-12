@@ -1271,6 +1271,13 @@ function Dialogs({ nodes, dispatch }) {
 function Admin({ model, content, dialogs, dispatch }) {
   const [mobile, setMobile] = useState(false),
     [preferences, setPreferences] = useState(false);
+  const [statisticsHidden, setStatisticsHidden] = useState(() => {
+    try {
+      return localStorage.getItem("admin.statistics.hidden") === "true";
+    } catch {
+      return false;
+    }
+  });
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     try {
       return localStorage.getItem("admin.sidebar.collapsed") !== "true";
@@ -1398,6 +1405,7 @@ function Admin({ model, content, dialogs, dispatch }) {
     >
       <div
         className={`app-shell rw-shell remna-admin ${sidebar ? "rn-sidebar-layout rn-sidebar-mode" : ""} ${sidebar && !sidebarOpen ? "rn-sidebar-collapsed" : ""}`}
+        data-statistics-hidden={statisticsHidden}
       >
         <header className="rn-header">
           <div className="rn-brand-row">
@@ -1443,6 +1451,35 @@ function Admin({ model, content, dialogs, dispatch }) {
               </ActionIcon>
             )}
             <Group gap="xs">
+              {active === "home" && (
+                <Tooltip
+                  label={statisticsHidden ? "Показать данные" : "Скрыть данные"}
+                >
+                  <ActionIcon
+                    className="rn-header-control rn-statistics-privacy-toggle"
+                    aria-label={
+                      statisticsHidden ? "Показать данные" : "Скрыть данные"
+                    }
+                    aria-pressed={statisticsHidden}
+                    onClick={() => {
+                      const next = !statisticsHidden;
+                      setStatisticsHidden(next);
+                      try {
+                        localStorage.setItem(
+                          "admin.statistics.hidden",
+                          String(next),
+                        );
+                      } catch {}
+                    }}
+                  >
+                    {statisticsHidden ? (
+                      <PiEyeSlash size={22} />
+                    ) : (
+                      <PiEye size={22} />
+                    )}
+                  </ActionIcon>
+                </Tooltip>
+              )}
               <Tooltip label="Документация Remnawave">
                 <ActionIcon
                   component="a"
@@ -1651,7 +1688,7 @@ function Admin({ model, content, dialogs, dispatch }) {
               </Group>
             </Card>
             {active === "home" ? (
-              <Overview model={model} />
+              <Overview model={model} hidden={statisticsHidden} />
             ) : active === "plans" ? (
               <Plans model={model} />
             ) : active === "layout" ? (

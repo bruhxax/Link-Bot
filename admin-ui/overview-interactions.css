@@ -172,6 +172,28 @@
 .rn-statistics-refresh:disabled svg {
   animation: rn-refresh-turn 1s linear infinite;
 }
+.rn-private-value {
+  filter: blur(0px);
+  opacity: 1;
+  transition:
+    filter 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.42s ease;
+}
+.rn-statistics span.rn-private-value {
+  display: inline-block;
+}
+.remna-admin[data-statistics-hidden="true"] .rn-private-value {
+  filter: blur(var(--rn-private-blur, 6px));
+  opacity: 0.6;
+  user-select: none;
+}
+.rn-ring-total.rn-private-value {
+  --rn-private-blur: 9px;
+}
+.rn-statistics-privacy-toggle[aria-pressed="true"] {
+  color: #d9dee7 !important;
+  background: #ffffff08 !important;
+}
 @keyframes rn-refresh-turn {
   to {
     transform: rotate(360deg);
@@ -317,6 +339,7 @@
   .rn-sidebar-footer span,
   .rn-ring-segment,
   .rn-ring-tooltip,
+  .rn-private-value,
   .rn-distribution-legend li {
     transition: none;
   }

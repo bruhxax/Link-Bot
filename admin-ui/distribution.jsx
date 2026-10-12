@@ -3,7 +3,14 @@ import { overviewSegments, overviewRingPath } from "./overview-data.mjs";
 
 const number = (value) => Number(value).toLocaleString("ru-RU");
 
-export function Distribution({ title, items, loaded, caption, note }) {
+export function Distribution({
+  title,
+  items,
+  loaded,
+  caption,
+  note,
+  hidden = false,
+}) {
   const [hovered, setHovered] = useState(null);
   const segments = overviewSegments(items);
   const selected = loaded
@@ -37,11 +44,13 @@ export function Distribution({ title, items, loaded, caption, note }) {
                 onFocus={() => setHovered(item.key)}
                 onBlur={() => setHovered(null)}
                 onClick={() => setHovered(item.key)}
-                aria-label={`${item.label}: ${loaded ? number(item.count) : "загрузка"}`}
+                aria-label={`${item.label}: ${hidden ? "значение скрыто" : loaded ? number(item.count) : "загрузка"}`}
               >
                 <i style={{ background: item.color }} />
                 <span>{item.label}</span>
-                <strong>{loaded ? number(item.count) : "—"}</strong>
+                <strong className="rn-private-value" aria-hidden={hidden}>
+                  {loaded ? number(item.count) : "—"}
+                </strong>
               </button>
             </li>
           ))}
@@ -51,7 +60,7 @@ export function Distribution({ title, items, loaded, caption, note }) {
             className="rn-distribution-ring"
             viewBox="0 0 200 200"
             role="group"
-            aria-label={`${title}: ${loaded ? number(segments.total) : "загрузка"}`}
+            aria-label={`${title}: ${hidden ? "данные скрыты" : loaded ? number(segments.total) : "загрузка"}`}
             onPointerLeave={clear}
             onPointerMove={(event) => {
               const box = event.currentTarget.getBoundingClientRect(),
@@ -107,7 +116,8 @@ export function Distribution({ title, items, loaded, caption, note }) {
                           <text
                             x={100 + 62 * Math.cos(angle)}
                             y={100 + 62 * Math.sin(angle)}
-                            className="rn-ring-percentage"
+                            className="rn-ring-percentage rn-private-value"
+                            aria-hidden={hidden}
                             pointerEvents="none"
                           >
                             {Math.round(item.fraction * 100)}%
@@ -120,7 +130,11 @@ export function Distribution({ title, items, loaded, caption, note }) {
                         fill="transparent"
                         tabIndex={0}
                         role="button"
-                        aria-label={`${item.label}: ${number(item.count)}, ${Math.round(item.fraction * 100)}%`}
+                        aria-label={
+                          hidden
+                            ? `${item.label}: значение скрыто`
+                            : `${item.label}: ${number(item.count)}, ${Math.round(item.fraction * 100)}%`
+                        }
                       />
                     </g>
                   );
@@ -128,7 +142,8 @@ export function Distribution({ title, items, loaded, caption, note }) {
             <text
               x="100"
               y="101"
-              className="rn-ring-total"
+              className="rn-ring-total rn-private-value"
+              aria-hidden={hidden}
               pointerEvents="none"
             >
               {loaded
@@ -138,7 +153,8 @@ export function Distribution({ title, items, loaded, caption, note }) {
             <text
               x="100"
               y="122"
-              className="rn-ring-caption"
+              className={`rn-ring-caption ${selected ? "rn-private-value" : ""}`}
+              aria-hidden={hidden && Boolean(selected)}
               pointerEvents="none"
             >
               {selected ? `${percentage}%` : caption}
@@ -153,7 +169,7 @@ export function Distribution({ title, items, loaded, caption, note }) {
             {selected && (
               <>
                 <strong>{selected.label}</strong>
-                <span>
+                <span className="rn-private-value" aria-hidden={hidden}>
                   {number(selected.count)}{" "}
                   {caption === "активных" ? "подписок" : "пользователей"} ·{" "}
                   {percentage}%

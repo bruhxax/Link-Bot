@@ -27,7 +27,14 @@ const rub = (value) =>
     ? "—"
     : `${Number(value).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`;
 
-function OverviewChart({ title, points, unit, loaded, currency = false }) {
+function OverviewChart({
+  title,
+  points,
+  unit,
+  loaded,
+  currency = false,
+  hidden,
+}) {
   const reducedMotion = useReducedMotion();
   const id = useId().replace(/:/g, ""),
     data = groupOverviewPoints(points, unit);
@@ -57,7 +64,7 @@ function OverviewChart({ title, points, unit, loaded, currency = false }) {
     <section className="rn-overview-chart" aria-busy={!loaded}>
       <div className="rn-overview-chart-head">
         <h3>{title}</h3>
-        <span>
+        <span className="rn-private-value" aria-hidden={hidden}>
           {value
             ? `${date(value.date)} · ${currency ? rub(value.value) : number(value.value)}`
             : currency
@@ -69,7 +76,11 @@ function OverviewChart({ title, points, unit, loaded, currency = false }) {
         <svg
           viewBox={`0 0 ${graph.width} ${graph.height}`}
           role="img"
-          aria-label={`${title}, ${loaded ? data.length + " периодов" : "загрузка"}`}
+          aria-label={
+            hidden
+              ? `${title}: данные скрыты`
+              : `${title}, ${loaded ? data.length + " периодов" : "загрузка"}`
+          }
           onMouseLeave={() => setHover(null)}
         >
           <defs>
@@ -98,7 +109,13 @@ function OverviewChart({ title, points, unit, loaded, currency = false }) {
                   y2={y}
                   className="rn-chart-grid-line"
                 />
-                <text x={graph.left - 14} y={y + 4} textAnchor="end">
+                <text
+                  x={graph.left - 14}
+                  y={y + 4}
+                  textAnchor="end"
+                  className="rn-private-value"
+                  aria-hidden={hidden}
+                >
                   {number((graph.ceiling * index) / 4)}
                 </text>
               </g>
@@ -159,8 +176,9 @@ function OverviewChart({ title, points, unit, loaded, currency = false }) {
               onMouseEnter={() => setHover(index)}
             >
               <title>
-                {date(point.date)}:{" "}
-                {currency ? rub(point.value) : number(point.value)}
+                {hidden
+                  ? "Значение скрыто"
+                  : `${date(point.date)}: ${currency ? rub(point.value) : number(point.value)}`}
               </title>
             </rect>
           ))}
@@ -175,7 +193,7 @@ function OverviewChart({ title, points, unit, loaded, currency = false }) {
   );
 }
 
-export function Overview({ model }) {
+export function Overview({ model, hidden = false }) {
   const data = selectOverviewPeriod(model.overview, model.overviewDays),
     users = data?.users,
     revenue = data?.revenue;
@@ -279,13 +297,26 @@ export function Overview({ model }) {
       {model.canOverviewUsers && (
         <div className="rn-overview-distributions">
           <Distribution
+            hidden={hidden}
             title="Пользователи"
             caption="всего"
             loaded={Boolean(users)}
             items={userItems}
-            note={`панель · сегодня: ${number(users?.today)} · неделя: ${number(users?.week)}`}
+            note={
+              <>
+                панель · сегодня:{" "}
+                <span className="rn-private-value" aria-hidden={hidden}>
+                  {number(users?.today)}
+                </span>{" "}
+                · неделя:{" "}
+                <span className="rn-private-value" aria-hidden={hidden}>
+                  {number(users?.week)}
+                </span>
+              </>
+            }
           />
           <Distribution
+            hidden={hidden}
             title="Распределение подписок"
             caption="активных"
             loaded={Boolean(users)}
@@ -321,7 +352,9 @@ export function Overview({ model }) {
                   <Icon />
                   {label}
                 </span>
-                <strong>{rub(value)}</strong>
+                <strong className="rn-private-value" aria-hidden={hidden}>
+                  {rub(value)}
+                </strong>
               </div>
             ))}
             <div>
@@ -329,7 +362,7 @@ export function Overview({ model }) {
                 <PiCurrencyCircleDollar />
                 За всё время (Stars)
               </span>
-              <strong>
+              <strong className="rn-private-value" aria-hidden={hidden}>
                 {number(revenue?.allStars)}{" "}
                 <span className="rn-stars-unit">★</span>
               </strong>
@@ -373,6 +406,7 @@ export function Overview({ model }) {
           <div className="rn-overview-charts">
             {model.canOverviewUsers && (
               <OverviewChart
+                hidden={hidden}
                 title="Новые пользователи"
                 points={users?.daily}
                 unit={unit}
@@ -381,6 +415,7 @@ export function Overview({ model }) {
             )}{" "}
             {model.canOverviewFinance && (
               <OverviewChart
+                hidden={hidden}
                 title="Доходы"
                 points={revenue?.daily}
                 unit={unit}
