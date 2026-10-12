@@ -1,5 +1,5 @@
 import React, { useId, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import {
   PiChartBar,
   PiUsers,
@@ -13,6 +13,8 @@ import {
 import {
   groupOverviewPoints,
   overviewChartGeometry,
+  overviewMorphPaths,
+  selectOverviewPeriod,
 } from "./overview-data.mjs";
 import "./overview.css";
 import "./overview-interactions.css";
@@ -25,18 +27,16 @@ const rub = (value) =>
     ? "—"
     : `${Number(value).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`;
 
-function OverviewChart({
-  title,
-  points,
-  unit,
-  range,
-  loaded,
-  currency = false,
-}) {
+function OverviewChart({ title, points, unit, loaded, currency = false }) {
   const reducedMotion = useReducedMotion();
   const id = useId().replace(/:/g, ""),
     data = groupOverviewPoints(points, unit);
   const graph = overviewChartGeometry(data);
+  const paths = overviewMorphPaths(graph);
+  const transition = {
+    duration: reducedMotion ? 0 : 0.5,
+    ease: [0.4, 0, 0.2, 1],
+  };
   const [hover, setHover] = useState(null);
   const value = hover == null ? null : graph.coordinates[hover];
   const date = (input) =>
@@ -66,112 +66,106 @@ function OverviewChart({
         </span>
       </div>
       <div className="rn-overview-plot">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.svg
-            key={`${unit}:${range}`}
-            initial={{
-              opacity: reducedMotion ? 1 : 0,
-              y: reducedMotion ? 0 : 10,
-            }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: reducedMotion ? 1 : 0, y: reducedMotion ? 0 : -6 }}
-            transition={{
-              duration: reducedMotion ? 0 : 0.22,
-              ease: [0.22, 1, 0.36, 1],
-            }}
-            viewBox={`0 0 ${graph.width} ${graph.height}`}
-            role="img"
-            aria-label={`${title}, ${loaded ? data.length + " периодов" : "загрузка"}`}
-            onMouseLeave={() => setHover(null)}
-          >
-            <defs>
-              <linearGradient
-                id={`overview-fill-${id}`}
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-              >
-                <stop offset="0" stopColor="#7895a7" stopOpacity=".24" />
-                <stop offset="1" stopColor="#7895a7" stopOpacity=".015" />
-              </linearGradient>
-            </defs>
-            {[0, 1, 2, 3, 4].map((index) => {
-              const y =
-                graph.height -
-                graph.bottom -
-                (index / 4) * (graph.height - graph.top - graph.bottom);
-              return (
-                <g key={index}>
-                  <line
-                    x1={graph.left}
-                    x2={graph.width - graph.right}
-                    y1={y}
-                    y2={y}
-                    className="rn-chart-grid-line"
-                  />
-                  <text x={graph.left - 14} y={y + 4} textAnchor="end">
-                    {number((graph.ceiling * index) / 4)}
-                  </text>
-                </g>
-              );
-            })}
-            {loaded && (
-              <>
-                <path d={graph.area} fill={`url(#overview-fill-${id})`} />
-                <path
-                  d={graph.line}
-                  fill="none"
-                  stroke="#7691a2"
-                  strokeWidth="2"
-                  strokeLinejoin="round"
-                  vectorEffect="non-scaling-stroke"
+        <svg
+          viewBox={`0 0 ${graph.width} ${graph.height}`}
+          role="img"
+          aria-label={`${title}, ${loaded ? data.length + " периодов" : "загрузка"}`}
+          onMouseLeave={() => setHover(null)}
+        >
+          <defs>
+            <linearGradient
+              id={`overview-fill-${id}`}
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
+              <stop offset="0" stopColor="#7895a7" stopOpacity=".24" />
+              <stop offset="1" stopColor="#7895a7" stopOpacity=".015" />
+            </linearGradient>
+          </defs>
+          {[0, 1, 2, 3, 4].map((index) => {
+            const y =
+              graph.height -
+              graph.bottom -
+              (index / 4) * (graph.height - graph.top - graph.bottom);
+            return (
+              <g key={index}>
+                <line
+                  x1={graph.left}
+                  x2={graph.width - graph.right}
+                  y1={y}
+                  y2={y}
+                  className="rn-chart-grid-line"
                 />
-              </>
-            )}
-            {labelIndices.map((index) => (
-              <text
-                key={index}
-                x={graph.coordinates[index]?.x}
-                y={graph.height - 5}
-                textAnchor={
-                  index === 0
-                    ? "start"
-                    : index === data.length - 1
-                      ? "end"
-                      : "middle"
-                }
-              >
-                {data[index] ? date(data[index].date) : ""}
-              </text>
-            ))}
-            {graph.coordinates.map((point, index) => (
-              <rect
-                key={point.date}
-                x={
-                  point.x -
-                  (graph.width - graph.left - graph.right) /
-                    Math.max(1, data.length - 1) /
-                    2
-                }
-                y={graph.top}
-                width={
-                  (graph.width - graph.left - graph.right) /
-                  Math.max(1, data.length - 1)
-                }
-                height={graph.height - graph.top - graph.bottom}
-                fill="transparent"
-                onMouseEnter={() => setHover(index)}
-              >
-                <title>
-                  {date(point.date)}:{" "}
-                  {currency ? rub(point.value) : number(point.value)}
-                </title>
-              </rect>
-            ))}
-            {value && <circle cx={value.x} cy={value.y} r="4" fill="#adc3d0" />}
-          </motion.svg>
-        </AnimatePresence>
+                <text x={graph.left - 14} y={y + 4} textAnchor="end">
+                  {number((graph.ceiling * index) / 4)}
+                </text>
+              </g>
+            );
+          })}
+          {loaded && (
+            <>
+              <motion.path
+                initial={false}
+                animate={{ d: paths.area }}
+                transition={transition}
+                fill={`url(#overview-fill-${id})`}
+              />
+              <motion.path
+                initial={false}
+                animate={{ d: paths.line }}
+                transition={transition}
+                fill="none"
+                stroke="#7691a2"
+                strokeWidth="2"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            </>
+          )}
+          {labelIndices.map((index) => (
+            <text
+              key={index}
+              x={graph.coordinates[index]?.x}
+              y={graph.height - 5}
+              textAnchor={
+                index === 0
+                  ? "start"
+                  : index === data.length - 1
+                    ? "end"
+                    : "middle"
+              }
+            >
+              {data[index] ? date(data[index].date) : ""}
+            </text>
+          ))}
+          {graph.coordinates.map((point, index) => (
+            <rect
+              key={point.date}
+              x={
+                point.x -
+                (graph.width - graph.left - graph.right) /
+                  Math.max(1, data.length - 1) /
+                  2
+              }
+              y={graph.top}
+              width={
+                (graph.width - graph.left - graph.right) /
+                Math.max(1, data.length - 1)
+              }
+              height={graph.height - graph.top - graph.bottom}
+              fill="transparent"
+              onMouseEnter={() => setHover(index)}
+            >
+              <title>
+                {date(point.date)}:{" "}
+                {currency ? rub(point.value) : number(point.value)}
+              </title>
+            </rect>
+          ))}
+          {value && <circle cx={value.x} cy={value.y} r="4" fill="#adc3d0" />}
+        </svg>
       </div>
       {!loaded && <span className="rn-chart-status">Загрузка статистики…</span>}
       {loaded && data.length === 0 && (
@@ -182,7 +176,7 @@ function OverviewChart({
 }
 
 export function Overview({ model }) {
-  const data = model.overview,
+  const data = selectOverviewPeriod(model.overview, model.overviewDays),
     users = data?.users,
     revenue = data?.revenue;
   const [unit, setUnit] = useState("weeks");
@@ -380,7 +374,6 @@ export function Overview({ model }) {
             {model.canOverviewUsers && (
               <OverviewChart
                 title="Новые пользователи"
-                range={data?.days}
                 points={users?.daily}
                 unit={unit}
                 loaded={Boolean(users)}
@@ -389,7 +382,6 @@ export function Overview({ model }) {
             {model.canOverviewFinance && (
               <OverviewChart
                 title="Доходы"
-                range={data?.days}
                 points={revenue?.daily}
                 unit={unit}
                 loaded={Boolean(revenue)}

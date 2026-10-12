@@ -71,12 +71,8 @@ export function Distribution({ title, items, loaded, caption, note }) {
               strokeWidth="36"
             />
             {loaded &&
-              [...segments.items]
+              segments.items
                 .filter((item) => item.fraction > 0)
-                .sort(
-                  (a, b) =>
-                    Number(a.key === hovered) - Number(b.key === hovered),
-                )
                 .map((item) => {
                   const angle =
                     (item.offset + item.fraction / 2) * Math.PI * 2 -
@@ -85,13 +81,6 @@ export function Distribution({ title, items, loaded, caption, note }) {
                   return (
                     <g
                       key={item.key}
-                      className="rn-ring-segment"
-                      data-segment={item.key}
-                      data-highlighted={active || undefined}
-                      data-dimmed={(selected && !active) || undefined}
-                      style={{
-                        transform: `translate(${active ? Math.cos(angle) * 8 : 0}px,${active ? Math.sin(angle) * 8 : 0}px)`,
-                      }}
                       onPointerEnter={() => setHovered(item.key)}
                       onFocus={() => setHovered(item.key)}
                       onBlur={() => setHovered(null)}
@@ -104,23 +93,35 @@ export function Distribution({ title, items, loaded, caption, note }) {
                         if (event.key === "Escape") setHovered(null);
                       }}
                     >
+                      <g
+                        className="rn-ring-segment"
+                        data-segment={item.key}
+                        data-highlighted={active || undefined}
+                        data-dimmed={(selected && !active) || undefined}
+                        style={{
+                          transform: `translate(${active ? Math.cos(angle) * 2.5 : 0}px,${active ? Math.sin(angle) * 2.5 : 0}px)`,
+                        }}
+                      >
+                        <path d={overviewRingPath(item)} fill={item.color} />
+                        {item.fraction >= 0.075 && (
+                          <text
+                            x={100 + 62 * Math.cos(angle)}
+                            y={100 + 62 * Math.sin(angle)}
+                            className="rn-ring-percentage"
+                            pointerEvents="none"
+                          >
+                            {Math.round(item.fraction * 100)}%
+                          </text>
+                        )}
+                      </g>
                       <path
+                        className="rn-ring-hit"
                         d={overviewRingPath(item)}
-                        fill={item.color}
+                        fill="transparent"
                         tabIndex={0}
                         role="button"
                         aria-label={`${item.label}: ${number(item.count)}, ${Math.round(item.fraction * 100)}%`}
                       />
-                      {item.fraction >= 0.075 && (
-                        <text
-                          x={100 + 62 * Math.cos(angle)}
-                          y={100 + 62 * Math.sin(angle)}
-                          className="rn-ring-percentage"
-                          pointerEvents="none"
-                        >
-                          {Math.round(item.fraction * 100)}%
-                        </text>
-                      )}
                     </g>
                   );
                 })}

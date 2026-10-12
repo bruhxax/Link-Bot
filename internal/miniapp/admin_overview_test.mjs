@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
-import {groupOverviewPoints, overviewSegments, overviewChartGeometry, overviewRingPath} from "../../admin-ui/overview-data.mjs";
+import {groupOverviewPoints, overviewSegments, overviewChartGeometry, overviewRingPath, overviewMorphPaths, selectOverviewPeriod} from "../../admin-ui/overview-data.mjs";
 import {applyConsoleAppearance, CONSOLE_COLORS, CONSOLE_GROUPS} from "./static/admin-console.mjs";
 
 test("dedicated console palette replaces every shared control token with independent values",()=>{
@@ -65,5 +65,41 @@ test("panel outage retains only previously loaded panel counts and period switch
  await context.refreshAdminOverview();
  assert.equal(requests[1].force,true);
  assert.equal(state.adminOverview.users,null);
- assert.equal(state.adminOverview.days,7);
+ assert.equal(state.adminOverview.days,90);
+});
+
+test("all periods use the same 90-day snapshot without requesting the panel",async()=>{
+ const source=fs.readFileSync(new URL("./static/app.js",import.meta.url),"utf8");
+ const part=source.slice(source.indexOf("let adminOverviewRequestID = 0;"),source.indexOf("async function refreshAdminFinance("));
+ const daily=Array.from({length:90},(_,i)=>({date:`2026-${i}`,value:i}));
+ const snapshot={days:90,users:{source:"panel",total:551,daily},revenue:{daily}};
+ let renders=0,requests=0;
+ const state={adminWorkspace:true,adminSection:"home",adminOverviewDays:30,adminOverviewBusy:true,adminOverview:snapshot};
+ const context=vm.createContext({state,previewMode:false,isAdminUser:()=>true,render:()=>renders++,post:()=>{requests++;throw Error("period switch must be local");}});
+ vm.runInContext(part,context);
+ for(const days of [7,30,90,7]) {
+  context.setAdminOverviewDays(days);
+  const selected=selectOverviewPeriod(state.adminOverview,days);
+  assert.equal(state.adminOverviewDays,days);
+  assert.equal(selected.users.daily.length,days);
+  assert.equal(selected.revenue.daily.at(-1).value,89);
+  assert.equal(selected.users.total,551);
+  assert.equal(snapshot.users.daily.length,90);
+ }
+ assert.equal(requests,0);assert.equal(renders,4);
+});
+
+test("curve morphs retain identical topology across empty, single, daily and monthly data",()=>{
+ const cases=[[],[{value:0}],[{value:17}],Array.from({length:90},(_,i)=>({value:i%11})),[{value:20},{value:4},{value:12}]];
+ const paths=cases.map(points=>overviewMorphPaths(overviewChartGeometry(points)));
+ const commands=path=>path.match(/[MLZ]/g).join("");
+ for(const path of paths) {
+  assert.equal(commands(path.line),commands(paths[0].line));
+  assert.equal(commands(path.area),commands(paths[0].area));
+  assert.ok(!/NaN|Infinity|undefined/.test(path.line+path.area));
+  assert.ok(path.line.startsWith("M44.000,"));assert.ok(path.line.includes("L586.000,"));
+ }
+ const graph=overviewChartGeometry(cases[4]);
+ const path=overviewMorphPaths(graph);
+ assert.equal(path.line.split(" ")[90],`L${graph.coordinates[1].x.toFixed(3)},${graph.coordinates[1].y.toFixed(3)}`);
 });

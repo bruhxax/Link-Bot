@@ -110,3 +110,33 @@ func TestOverviewEndpointNeverFallsBackToBotCountsAndCachesPanelReads(t *testing
 		t.Fatal("missing panel silently succeeded")
 	}
 }
+
+func TestOverviewCatalogBudgetCoversMultipleSlowPages(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow catalog timeout regression")
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-time.After(6200 * time.Millisecond):
+		case <-r.Context().Done():
+			return
+		}
+		cursor := r.URL.Query().Get("cursor")
+		id := 1
+		if cursor != "" {
+			id = 2
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"response": map[string]any{
+			"users":      []map[string]any{{"id": id, "status": "ACTIVE", "expireAt": "2028-01-01T00:00:00Z"}},
+			"nextCursor": "second", "hasMore": cursor == "",
+		}})
+	}))
+	defer server.Close()
+	h := &Handler{remnawaveClient: remnawave.NewClient(server.URL, "token", "remote")}
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	users, err := h.overviewPanelUsers(ctx, true)
+	if err != nil || len(users) != 2 {
+		t.Fatalf("complete catalog cut off by one-page budget: %d users, %v", len(users), err)
+	}
+}

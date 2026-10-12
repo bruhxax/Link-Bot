@@ -36,7 +36,7 @@ func (h *Handler) overviewPanelUsers(ctx context.Context, force bool) ([]remnawa
 			c.mu.Unlock()
 			return nil, err
 		}
-		if !force && !c.at.IsZero() && time.Since(c.at) < 20*time.Second {
+		if !force && !c.at.IsZero() && time.Since(c.at) < time.Minute {
 			users := c.users
 			c.mu.Unlock()
 			return users, nil
@@ -54,7 +54,9 @@ func (h *Handler) overviewPanelUsers(ctx context.Context, force bool) ([]remnawa
 		}
 		c.pending = make(chan struct{})
 		c.mu.Unlock()
-		panelCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
+		// GetUsers paginates the complete catalog. Its overall budget must be
+		// larger than the HTTP client's per-page timeout (12 seconds).
+		panelCtx, cancel := context.WithTimeout(ctx, time.Minute)
 		users, err := h.remnawaveClient.GetUsers(panelCtx)
 		cancel()
 		c.mu.Lock()

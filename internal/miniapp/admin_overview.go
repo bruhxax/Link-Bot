@@ -1,6 +1,9 @@
 package miniapp
 
 import (
+	"context"
+	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -38,6 +41,10 @@ func (h *Handler) handleAdminOverview(w http.ResponseWriter, r *http.Request, se
 		users, panelErr := h.overviewPanelUsers(r.Context(), req.Force)
 		if panelErr != nil {
 			data.PanelError = "Не удалось загрузить пользователей панели. Повторите обновление."
+			if errors.Is(panelErr, context.DeadlineExceeded) {
+				data.PanelError = "Панель не успела ответить. Повторите обновление."
+			}
+			slog.Warn("admin overview panel catalog failed", "error", panelErr)
 		} else {
 			var observations []database.PanelPlanObservation
 			if h.customerRepository != nil {

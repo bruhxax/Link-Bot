@@ -1,6 +1,49 @@
 .rn-sidebar {
   transition: width 0.38s cubic-bezier(0.22, 1, 0.36, 1);
 }
+.rn-sidebar::after {
+  content: "";
+  position: absolute;
+  top: 15px;
+  right: -17px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--console-bg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.rn-sidebar-collapsed .rn-sidebar::after {
+  opacity: 1;
+}
+.rn-sidebar-brand {
+  justify-content: flex-start;
+  padding: 12px 22px;
+  min-height: 72px;
+  overflow: hidden;
+}
+.rn-sidebar-brand > svg,
+.rn-sidebar-brand .rn-brand-logo {
+  width: 28px;
+  flex-shrink: 0;
+}
+.rn-sidebar-scroll {
+  padding: 20px 10px 12px;
+  overflow-x: hidden;
+}
+.rn-sidebar .mantine-NavLink-root {
+  justify-content: flex-start;
+  height: 38px;
+  min-height: 38px;
+  padding: 9px 17px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.rn-sidebar .mantine-NavLink-section[data-position="left"] {
+  flex-shrink: 0;
+  transition: margin 0.3s ease;
+}
 .rn-sidebar-mode .rn-main,
 .rn-sidebar-mode .rn-header {
   transition: left 0.38s cubic-bezier(0.22, 1, 0.36, 1);
@@ -8,8 +51,11 @@
 .rn-desktop-toggle {
   transition:
     left 0.38s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.3s ease,
+    transform 0.35s ease,
     background-color 0.2s;
+}
+.rn-sidebar-mode .rn-desktop-toggle {
+  top: 29px;
 }
 .rn-sidebar .rn-brand {
   overflow: hidden;
@@ -29,11 +75,7 @@
 }
 .rn-sidebar .rn-section-label {
   overflow: hidden;
-  max-height: 24px;
-  transition:
-    opacity 0.15s ease,
-    max-height 0.3s ease,
-    margin 0.3s ease;
+  transition: opacity 0.22s ease;
 }
 .rn-sidebar-footer span {
   overflow: hidden;
@@ -46,45 +88,32 @@
 .remna-admin.app-shell.rn-sidebar-collapsed {
   --rn-sidebar-width: 72px;
 }
-.rn-sidebar-collapsed .rn-sidebar-brand {
-  padding: 16px 8px;
-  gap: 0;
-  justify-content: center;
-}
 .rn-sidebar-collapsed .rn-sidebar .rn-brand {
   max-width: 0;
   opacity: 0;
 }
-.rn-sidebar-collapsed .rn-sidebar-scroll {
-  padding: 12px 10px;
-  overflow-x: hidden;
-}
 .rn-sidebar-collapsed .rn-sidebar .rn-section-label {
-  max-height: 0;
   opacity: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
 }
 .rn-sidebar-collapsed .rn-sidebar .mantine-NavLink-body {
   opacity: 0;
   max-width: 0;
-}
-.rn-sidebar-collapsed .rn-sidebar .mantine-NavLink-root {
-  justify-content: center;
-  padding: 10px;
-  min-height: 40px;
 }
 .rn-sidebar-collapsed
   .rn-sidebar
   .mantine-NavLink-section[data-position="left"] {
   margin: 0;
 }
-.rn-sidebar-collapsed .rn-sidebar .mantine-Divider-root {
-  margin: 10px 0 !important;
-}
-.rn-sidebar-collapsed .rn-sidebar-footer {
+.rn-sidebar-footer {
   padding: 10px 8px;
+}
+.rn-sidebar-footer button {
+  justify-content: flex-start;
+  padding: 0 17px;
+  overflow: hidden;
+}
+.rn-sidebar-footer button > svg {
+  flex-shrink: 0;
 }
 .rn-sidebar-collapsed .rn-sidebar-footer button {
   gap: 0;
@@ -94,7 +123,11 @@
   opacity: 0;
 }
 .rn-sidebar-collapsed .rn-desktop-toggle {
-  left: calc(var(--rn-sidebar-width) + 12px);
+  left: calc(var(--rn-sidebar-width) - 3px);
+  border: 1px solid #3a404b;
+  border-radius: 50%;
+  background: #20242b;
+  box-shadow: 0 2px 6px #00000030;
   transform: rotate(180deg);
 }
 .rn-statistics-toolbar {
@@ -165,18 +198,21 @@
 }
 .rn-ring-segment {
   transition:
-    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.22s ease,
-    filter 0.22s ease;
-  cursor: pointer;
+    transform 0.36s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.32s ease,
+    filter 0.32s ease;
+  pointer-events: none;
 }
 .rn-ring-segment[data-dimmed] {
-  opacity: 0.28;
+  opacity: 0.6;
 }
 .rn-ring-segment[data-highlighted] {
-  filter: drop-shadow(0 5px 5px #00000055);
+  filter: drop-shadow(0 2px 3px #00000035);
 }
-.rn-ring-segment path:focus-visible {
+.rn-ring-hit {
+  cursor: pointer;
+}
+.rn-ring-hit:focus-visible {
   outline: none;
   stroke: #f6f7f9;
   stroke-width: 2;
@@ -227,7 +263,7 @@
   transition: opacity 0.2s ease;
 }
 .rn-distribution-legend li[data-dimmed] {
-  opacity: 0.45;
+  opacity: 0.65;
 }
 .rn-distribution-legend-button {
   display: flex;
@@ -271,6 +307,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .rn-sidebar,
+  .rn-sidebar::after,
   .rn-sidebar-mode .rn-main,
   .rn-sidebar-mode .rn-header,
   .rn-desktop-toggle,
