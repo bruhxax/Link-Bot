@@ -2,7 +2,7 @@
 export function animateAdminEntrance(root) {
   if (!root || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const selectors =
-    ".rn-page-header,.rn-section-toolbar,.rn-user-metric,.rn-users-list-title,.rn-users-toolbar,.rn-users-grid,.rn-users-footer,.rn-partner-metric,.rn-partner-card,.rn-broadcast-tabs,.rn-broadcast-metric,.rn-broadcast-card,.rn-broadcast-send-actions,.rn-overview-distributions > section,.rn-overview-income > h2,.rn-overview-income-card,.rn-overview-graphs > .rn-overview-section-head,.rn-overview-charts > section,.rn-overview-error";
+    ".rn-page-header,.rn-section-toolbar,.rn-user-metric,.rn-users-list-title,.rn-users-toolbar,.rn-users-grid,.rn-users-footer,.rn-partner-metric,.rn-partner-card,.rn-promo-card,.rn-broadcast-tabs,.rn-broadcast-metric,.rn-broadcast-card,.rn-broadcast-send-actions,.rn-overview-distributions > section,.rn-overview-income > h2,.rn-overview-income-card,.rn-overview-graphs > .rn-overview-section-head,.rn-overview-charts > section,.rn-overview-error";
   const candidates = [
     ...root.querySelectorAll(
       selectors +

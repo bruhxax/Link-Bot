@@ -2722,6 +2722,7 @@ const state = {
 	notificationPopoverAlign: "center",
 	activeCustomPageID: readSetting(STORAGE_KEYS.customPageID, ""),
   adminPromoCodeDraft: "",
+  adminPromoConsoleDraft: null,
 	adminPromoTypeDraft: "discount",
 	adminPromoSubscriptionUnitDraft: "days",
 	adminPromoBalanceDraft: "",
@@ -4501,6 +4502,13 @@ function mountCabinetShell(markup) {
 			usersError: state.adminUsersError || "",
 			partners: state.adminPartners, partnersLoaded: Boolean(state.adminPartners), partnersBusy: state.adminPartnersBusy, partnersError: state.adminPartnersError || "", canManagePartners: canAdmin("partners"),
 			refreshPartners: () => refreshAdminPartners(),
+            promoConsole: {
+              items:state.data?.admin?.promoCodes||[],draft:state.adminPromoConsoleDraft,
+              canManage:canAdmin("promocodes"),storeDraft:draft=>{state.adminPromoConsoleDraft={...draft};},
+              create:payload=>mutateConsolePromo("create",payload),
+              update:payload=>mutateConsolePromo("update",payload),
+              remove:id=>mutateConsolePromo("delete",{id}),
+            },
             broadcastConsole: {
               channel:state.adminBroadcastTab,telegram:state.adminBroadcast,email:state.adminEmailBroadcast,error:state.adminBroadcastError||"",
               buttons:state.adminBroadcastButtonsDraft,buttonsDirty:state.adminBroadcastButtonsDirty,
@@ -17355,6 +17363,19 @@ async function createAdminPromoCode() {
   }
 }
 
+async function mutateConsolePromo(action,payload) {
+ if(!canAdmin("promocodes"))throw new Error("Недостаточно прав");
+ if(state.adminBusy)throw new Error("Дождитесь завершения текущей операции");
+ if(!["create","update","delete"].includes(action))throw new Error("Неизвестное действие");
+ state.adminBusy=`promo-${action}`;
+ try{
+  const response=await post(`/api/mini-app/admin/promocodes/${action}`,payload);
+  state.data.admin=response.data;
+  render({preserveScroll:true,preserveInteraction:true});
+  showToast(action==="create"?"Промокод создан":action==="update"?"Настройки сохранены":"Промокод удалён","success");
+ }finally{state.adminBusy="";}
+}
+
 async function deleteAdminPromoCode(id) {
   if (!id) return;
   state.adminBusy = `delete-${id}`;
@@ -17703,6 +17724,7 @@ function setPage(page) {
     state.adminSection = "home";
     state.adminBusy = "";
     state.adminPromoCodeDraft = "";
+    state.adminPromoConsoleDraft = null;
     state.adminPromoDiscountDraft = "";
 		state.adminPromoBalanceDraft = "";
 		state.adminPromoDaysDraft = "";

@@ -203,7 +203,7 @@ func adminRouteAllowed(a adminAccess, path string) bool {
 	for permission, routes := range map[string][]string{
 		"ai":            {"ai/settings", "ai/models", "ai/update", "ai/toggle"},
 		"smtp":          {"smtp/settings", "smtp/update", "smtp/check", "smtp/test"},
-		"promocodes":    {"promocodes/create", "promocodes/validate", "promocodes/delete"},
+		"promocodes":    {"promocodes/create", "promocodes/validate", "promocodes/delete", "promocodes/update"},
 		"subscriptions": {"subscriptions/find", "subscriptions/find/refresh", "subscriptions/target", "subscriptions/target/refresh", "subscriptions/rebind"},
 		"moynalog":      {"moynalog/state", "moynalog/test", "moynalog/retry"},
 		"partners":      {"partners/state", "partners/review", "partners/create", "partners/update"},

@@ -62,6 +62,7 @@ var activityActions = map[string]activityAction{
 	"wallet/withdrawal/resolve":   {"Обработал вывод средств", "users", "id approve"},
 	"promocodes/create":           {"Создал промокод", "settings", "code discountPercent rewardType rewardValue rewardTrafficGb maxRedemptions expiresAt"},
 	"promocodes/delete":           {"Удалил промокод", "settings", "id code"},
+	"promocodes/update":           {"Изменил настройки промокода", "settings", "id isActive maxRedemptions expiresAt"},
 	"promocodes/validate":         {"Проверил промокод", "settings", "code"},
 	"subscriptions/find":          {"Нашёл подписку в панели", "users", "query"},
 	"subscriptions/target":        {"Проверил пользователя для привязки подписки", "users", "targetTelegramId userId"},

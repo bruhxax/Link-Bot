@@ -84,6 +84,7 @@ import { Overview } from "./overview.jsx";
 import { Users } from "./users-table.jsx";
 import { Partners } from "./partners.jsx";
 import { Broadcast } from "./broadcast.jsx";
+import { Promocodes } from "./promocodes.jsx";
 import { SectionToolbar } from "./section-toolbar.jsx";
 import "./users-page.css";
 import { userDateKey } from "./users-list-data.mjs";
@@ -117,6 +118,7 @@ import {
   PiProhibitDuotone,
   PiPulseDuotone,
   PiUsersDuotone,
+  PiPercent,
 } from "react-icons/pi";
 
 // Theme and navigation proportions adapted from remnawave/frontend, AGPL-3.0.
@@ -1801,6 +1803,8 @@ function Admin({ model, content, dialogs, dispatch }) {
                   <ThemeIcon size={30} variant="soft" radius="sm">
                     {active === "home" ? (
                       <PiStar size={18} />
+                    ) : active === "promocodes" ? (
+                      <PiPercent size={26} />
                     ) : (
                       glyph(route?.[3])
                     )}
@@ -1875,6 +1879,8 @@ function Admin({ model, content, dialogs, dispatch }) {
                 hidden={statisticsHidden}
                 Legacy={Legacy}
               />
+            ) : active === "promocodes" ? (
+              <Promocodes model={model} hidden={statisticsHidden} />
             ) : active === "servers" ? (
               <Nodes model={model} />
             ) : active === "reviews" ? (

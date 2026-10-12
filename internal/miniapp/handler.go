@@ -341,6 +341,9 @@ type adminSubscriptionTargetItemPayload struct {
 }
 
 type promoCodePayload struct {
+	IsPersonal      bool   `json:"isPersonal,omitempty"`
+	IsActive        bool   `json:"isActive"`
+	UpdatedAt       string `json:"updatedAt,omitempty"`
 	ID              int64  `json:"id"`
 	Code            string `json:"code"`
 	DiscountPercent int    `json:"discountPercent"`
@@ -822,6 +825,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/promocodes/create", h.withSession(h.handleAdminCreatePromoCode))
 	mux.HandleFunc("/api/mini-app/admin/promocodes/validate", h.withSession(h.handleAdminValidatePromoCode))
 	mux.HandleFunc("/api/mini-app/admin/promocodes/delete", h.withSession(h.handleAdminDeletePromoCode))
+	mux.HandleFunc("/api/mini-app/admin/promocodes/update", h.withSession(h.handleAdminUpdatePromoSettings))
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/find", h.withSession(h.handleAdminFindSubscription))
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/find/refresh", h.withSession(h.handleAdminFindSubscription))
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/target", h.withSession(h.handleAdminSubscriptionTarget))
@@ -2426,6 +2430,8 @@ func (h *Handler) handleApplyPromoCode(w http.ResponseWriter, r *http.Request, s
 	h.writeJSON(w, http.StatusOK, map[string]any{
 		"ok": true,
 		"data": promoCodePayload{
+			IsActive:        promo.IsActive,
+			UpdatedAt:       promo.UpdatedAt.UTC().Format(time.RFC3339Nano),
 			ID:              promo.ID,
 			Code:            normalizedCode,
 			DiscountPercent: promo.DiscountPercent,
@@ -2553,6 +2559,8 @@ func (h *Handler) handleAdminValidatePromoCode(w http.ResponseWriter, r *http.Re
 	h.writeJSON(w, http.StatusOK, map[string]any{
 		"ok": true,
 		"data": promoCodePayload{
+			IsActive:        promo.IsActive,
+			UpdatedAt:       promo.UpdatedAt.UTC().Format(time.RFC3339Nano),
 			ID:              promo.ID,
 			Code:            normalizedCode,
 			DiscountPercent: promo.DiscountPercent,
@@ -5194,6 +5202,9 @@ func (h *Handler) buildAdminPayload(ctx context.Context) (*adminPayload, error) 
 				}
 			}
 			payload.PromoCodes = append(payload.PromoCodes, promoCodePayload{
+				IsPersonal:      item.OwnerCustomerID != nil,
+				IsActive:        item.IsActive,
+				UpdatedAt:       item.UpdatedAt.UTC().Format(time.RFC3339Nano),
 				ID:              item.ID,
 				Code:            item.Code,
 				DiscountPercent: item.DiscountPercent,
