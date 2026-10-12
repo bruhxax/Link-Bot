@@ -95,6 +95,7 @@ type Handler struct {
 	landingNodesCheckedAt   time.Time
 	landingNodesAvailable   bool
 	adminStatus             adminStatusInfo
+	overviewPanel           overviewPanelCache
 }
 
 func lockPromoPurchase(code string) func() {

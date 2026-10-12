@@ -1,0 +1,289 @@
+.rn-sidebar {
+  transition: width 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.rn-sidebar-mode .rn-main,
+.rn-sidebar-mode .rn-header {
+  transition: left 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.rn-desktop-toggle {
+  transition:
+    left 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.3s ease,
+    background-color 0.2s;
+}
+.rn-sidebar .rn-brand {
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 180px;
+  transition:
+    max-width 0.3s ease,
+    opacity 0.2s ease;
+}
+.rn-sidebar .mantine-NavLink-body {
+  overflow: hidden;
+  white-space: nowrap;
+  transition:
+    opacity 0.2s ease,
+    max-width 0.35s ease;
+  max-width: 220px;
+}
+.rn-sidebar .rn-section-label {
+  overflow: hidden;
+  max-height: 24px;
+  transition:
+    opacity 0.15s ease,
+    max-height 0.3s ease,
+    margin 0.3s ease;
+}
+.rn-sidebar-footer span {
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 180px;
+  transition:
+    max-width 0.3s ease,
+    opacity 0.15s ease;
+}
+.remna-admin.app-shell.rn-sidebar-collapsed {
+  --rn-sidebar-width: 72px;
+}
+.rn-sidebar-collapsed .rn-sidebar-brand {
+  padding: 16px 8px;
+  gap: 0;
+  justify-content: center;
+}
+.rn-sidebar-collapsed .rn-sidebar .rn-brand {
+  max-width: 0;
+  opacity: 0;
+}
+.rn-sidebar-collapsed .rn-sidebar-scroll {
+  padding: 12px 10px;
+  overflow-x: hidden;
+}
+.rn-sidebar-collapsed .rn-sidebar .rn-section-label {
+  max-height: 0;
+  opacity: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.rn-sidebar-collapsed .rn-sidebar .mantine-NavLink-body {
+  opacity: 0;
+  max-width: 0;
+}
+.rn-sidebar-collapsed .rn-sidebar .mantine-NavLink-root {
+  justify-content: center;
+  padding: 10px;
+  min-height: 40px;
+}
+.rn-sidebar-collapsed
+  .rn-sidebar
+  .mantine-NavLink-section[data-position="left"] {
+  margin: 0;
+}
+.rn-sidebar-collapsed .rn-sidebar .mantine-Divider-root {
+  margin: 10px 0 !important;
+}
+.rn-sidebar-collapsed .rn-sidebar-footer {
+  padding: 10px 8px;
+}
+.rn-sidebar-collapsed .rn-sidebar-footer button {
+  gap: 0;
+}
+.rn-sidebar-collapsed .rn-sidebar-footer span {
+  max-width: 0;
+  opacity: 0;
+}
+.rn-sidebar-collapsed .rn-desktop-toggle {
+  left: calc(var(--rn-sidebar-width) + 12px);
+  transform: rotate(180deg);
+}
+.rn-statistics-toolbar {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  border-bottom: 2px solid #33373f;
+  margin-bottom: 24px;
+}
+.rn-statistics-toolbar .rn-statistics-tabs {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+.rn-statistics-refresh {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #a7adb8;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.rn-statistics-refresh svg {
+  width: 18px;
+  height: 18px;
+}
+.rn-statistics-refresh:hover {
+  background: #ffffff09;
+  color: #e5e7eb;
+}
+.rn-statistics-refresh:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+.rn-statistics-refresh:disabled svg {
+  animation: rn-refresh-turn 1s linear infinite;
+}
+@keyframes rn-refresh-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.rn-page[data-section="home"]
+  .rn-page-header
+  > .mantine-Group-root
+  > .mantine-Group-root:last-child {
+  padding-right: 0;
+}
+.rn-overview-plot {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: 3/1;
+  min-height: 168px;
+}
+.rn-overview-plot > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.rn-ring-segment {
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.22s ease,
+    filter 0.22s ease;
+  cursor: pointer;
+}
+.rn-ring-segment[data-dimmed] {
+  opacity: 0.28;
+}
+.rn-ring-segment[data-highlighted] {
+  filter: drop-shadow(0 5px 5px #00000055);
+}
+.rn-ring-segment path:focus-visible {
+  outline: none;
+  stroke: #f6f7f9;
+  stroke-width: 2;
+}
+.rn-distribution-ring-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.rn-ring-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  min-width: 140px;
+  max-width: 240px;
+  transform: translate(-50%, 8px);
+  pointer-events: none;
+  opacity: 0;
+  padding: 9px 12px;
+  border: 1px solid #444b57;
+  border-radius: 8px;
+  background: #222730f5;
+  box-shadow: 0 5px 18px #00000055;
+  text-align: center;
+  transition:
+    opacity 0.18s,
+    transform 0.18s;
+  z-index: 3;
+  white-space: nowrap;
+}
+.rn-ring-tooltip[data-visible="true"] {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.rn-ring-tooltip strong {
+  display: block;
+  font-size: 11px;
+  color: #edf1f7;
+  line-height: 18px;
+  font-weight: 500;
+}
+.rn-ring-tooltip span {
+  display: block;
+  font-size: 10px;
+  color: #aeb8c7;
+  line-height: 16px;
+}
+.rn-distribution-legend li {
+  transition: opacity 0.2s ease;
+}
+.rn-distribution-legend li[data-dimmed] {
+  opacity: 0.45;
+}
+.rn-distribution-legend-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rn-distribution-legend-button > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.rn-distribution-legend-button strong {
+  margin-left: auto;
+  padding-left: 4px;
+}
+.rn-distribution-legend-button:focus-visible {
+  outline: 1px solid #9bb2d5;
+  outline-offset: 5px;
+}
+@media (max-width: 767px) {
+  .rn-overview-plot {
+    min-height: 180px;
+  }
+  .rn-statistics-toolbar {
+    gap: 8px;
+  }
+  .rn-ring-tooltip {
+    min-width: 120px;
+    max-width: 180px;
+    white-space: normal;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rn-sidebar,
+  .rn-sidebar-mode .rn-main,
+  .rn-sidebar-mode .rn-header,
+  .rn-desktop-toggle,
+  .rn-sidebar .rn-brand,
+  .rn-sidebar .mantine-NavLink-body,
+  .rn-sidebar .rn-section-label,
+  .rn-sidebar-footer span,
+  .rn-ring-segment,
+  .rn-ring-tooltip,
+  .rn-distribution-legend li {
+    transition: none;
+  }
+  .rn-statistics-refresh:disabled svg {
+    animation: none;
+  }
+}

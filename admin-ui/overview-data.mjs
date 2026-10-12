@@ -49,6 +49,18 @@ export function overviewSegments(items = []) {
   };
 }
 
+export function overviewRingPath(segment, outer = 80, inner = 44) {
+  const gap = Math.min(0.012, (segment.fraction * Math.PI) / 3);
+  const start = segment.offset * 2 * Math.PI - Math.PI / 2 + gap;
+  const end =
+    (segment.offset + segment.fraction) * 2 * Math.PI - Math.PI / 2 - gap;
+  if (end <= start) return "";
+  const point = (radius, angle) =>
+    `${(100 + radius * Math.cos(angle)).toFixed(3)},${(100 + radius * Math.sin(angle)).toFixed(3)}`;
+  const large = end - start > Math.PI ? 1 : 0;
+  return `M${point(outer, start)} A${outer},${outer} 0 ${large} 1 ${point(outer, end)} L${point(inner, end)} A${inner},${inner} 0 ${large} 0 ${point(inner, start)} Z`;
+}
+
 export function overviewChartGeometry(points = []) {
   const width = 600,
     height = 200,

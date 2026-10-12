@@ -4490,7 +4490,7 @@ function mountCabinetShell(markup) {
 			overview: state.adminOverview, overviewDays: state.adminOverviewDays, overviewBusy: state.adminOverviewBusy, overviewError: state.adminOverviewError,
 			canOverviewUsers: canAdmin("users"), canOverviewFinance: canAdmin("finance"),
 			refreshOverview: () => refreshAdminOverview(),
-			setOverviewDays: days => { state.adminOverviewDays=days; void refreshAdminOverview(); },
+		setOverviewDays: days => { state.adminOverviewDays=days; void refreshAdminOverview({force:false}); },
 			brand: state.data?.brand?.name || "Link-Bot", logo: state.data?.brand?.logoUrl, logout: Boolean(renderBrowserLogoutButton()),
 			save: state.currentPage === "admin" && ADMIN_SAVE_SECTIONS.has(state.adminSection),
 			dirty: adminEditorSaveState().dirty, busy: adminEditorSaveState().busy,
@@ -5790,23 +5790,24 @@ function renderAdminPartnerRow(item, index) {
 }
 
 let adminOverviewRequestID = 0;
-async function refreshAdminOverview({live=false}={}) {
+async function refreshAdminOverview({live=false,force=!live}={}) {
 	if (!state.adminWorkspace || !isAdminUser() || live && state.adminOverviewBusy) return;
 	if (previewMode) {
 		const today=new Date();const daily=Array.from({length:state.adminOverviewDays},(_,index)=>{
 			const date=new Date(today);date.setDate(date.getDate()-state.adminOverviewDays+index+1);
 			return {date:date.toISOString().slice(0,10),value:Math.round(Math.max(1,18+14*Math.sin(index/4)+8*Math.sin(index/2)))};
 		});
-		state.adminOverview={days:state.adminOverviewDays,generatedAt:today.toISOString(),users:{total:551,active:44,expired:127,without:152,blocked:228,today:3,week:19,daily},subscriptions:[{key:"free",count:29},{key:"manual",count:13},{key:"paid",count:4}],revenue:{todayRub:350,weekRub:7840,monthRub:25680,allRub:99118,averageRub:519,allStars:150,daily:daily.map((point,index)=>({...point,value:Math.round(point.value*23*(index%4===0?.2:1))}))}};
+		state.adminOverview={days:state.adminOverviewDays,generatedAt:today.toISOString(),users:{source:"panel",total:551,active:204,expired:127,limited:152,disabled:68,today:3,week:19,daily},subscriptions:[{key:"1:0:false",label:"1 месяц · Лимитный",months:1,unlimited:false,count:80},{key:"1:0:true",label:"1 месяц · Безлимит",months:1,unlimited:true,count:40},{key:"3:0:false",label:"3 месяца · Лимитный",months:3,unlimited:false,count:28},{key:"3:0:true",label:"3 месяца · Безлимит",months:3,unlimited:true,count:16},{key:"6:0:false",label:"6 месяцев · Лимитный",months:6,unlimited:false,count:24},{key:"12:0:true",label:"12 месяцев · Безлимит",months:12,unlimited:true,count:16}],revenue:{todayRub:350,weekRub:7840,monthRub:25680,allRub:99118,averageRub:519,allStars:150,daily:daily.map((point,index)=>({...point,value:Math.round(point.value*23*(index%4===0?.2:1))}))}};
 		render({preserveScroll:true});return;
 	}
 	const requestID=++adminOverviewRequestID;
 	state.adminOverviewBusy=true;state.adminOverviewError="";
 	if (!live) render({preserveScroll:true});
 	try {
-		const response=await post("/api/mini-app/admin/overview",{days:state.adminOverviewDays});
+		const response=await post("/api/mini-app/admin/overview",{days:state.adminOverviewDays,force});
 		if (requestID!==adminOverviewRequestID || state.adminSection!=="home" || !state.adminWorkspace) return;
-		state.adminOverview=response.data;
+		const next=response.data;
+		state.adminOverview=next?.panelError && !next.users && state.adminOverview?.users?.source==="panel" ? {...next,users:state.adminOverview.users,subscriptions:state.adminOverview.subscriptions,days:state.adminOverview.days} : next;
 	} catch(error) {
 		if (requestID!==adminOverviewRequestID) return;
 		state.adminOverviewError=error?.message || "Не удалось загрузить статистику";

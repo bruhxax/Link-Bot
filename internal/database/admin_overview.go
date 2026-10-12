@@ -10,18 +10,26 @@ type OverviewPoint struct {
 	Value float64 `json:"value"`
 }
 type OverviewUsers struct {
-	Total   int             `json:"total"`
-	Active  int             `json:"active"`
-	Expired int             `json:"expired"`
-	Without int             `json:"without"`
-	Blocked int             `json:"blocked"`
-	Today   int             `json:"today"`
-	Week    int             `json:"week"`
-	Daily   []OverviewPoint `json:"daily"`
+	Source   string          `json:"source,omitempty"`
+	Limited  int             `json:"limited"`
+	Disabled int             `json:"disabled"`
+	Other    int             `json:"other"`
+	Total    int             `json:"total"`
+	Active   int             `json:"active"`
+	Expired  int             `json:"expired"`
+	Without  int             `json:"without"`
+	Blocked  int             `json:"blocked"`
+	Today    int             `json:"today"`
+	Week     int             `json:"week"`
+	Daily    []OverviewPoint `json:"daily"`
 }
 type OverviewPlan struct {
-	Key   string `json:"key"`
-	Count int    `json:"count"`
+	Label     string `json:"label,omitempty"`
+	Months    int    `json:"months,omitempty"`
+	Days      int    `json:"days,omitempty"`
+	Unlimited bool   `json:"unlimited"`
+	Key       string `json:"key"`
+	Count     int    `json:"count"`
 }
 type OverviewRevenue struct {
 	TodayRub   float64         `json:"todayRub"`
@@ -33,6 +41,7 @@ type OverviewRevenue struct {
 	Daily      []OverviewPoint `json:"daily"`
 }
 type AdminOverview struct {
+	PanelError    string           `json:"panelError,omitempty"`
 	Days          int              `json:"days"`
 	GeneratedAt   time.Time        `json:"generatedAt"`
 	Users         *OverviewUsers   `json:"users"`

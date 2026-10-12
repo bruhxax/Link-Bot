@@ -1,0 +1,245 @@
+package miniapp
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+	"link-bot/internal/database"
+	"link-bot/internal/remnawave"
+	"link-bot/internal/runtimeconfig"
+)
+
+type overviewPanelCache struct {
+	mu      sync.Mutex
+	users   []remnawave.PanelUser
+	at      time.Time
+	failed  time.Time
+	err     error
+	pending chan struct{}
+}
+
+func (h *Handler) overviewPanelUsers(ctx context.Context, force bool) ([]remnawave.PanelUser, error) {
+	if h.remnawaveClient == nil {
+		return nil, errors.New("panel is not configured")
+	}
+	c := &h.overviewPanel
+	for {
+		c.mu.Lock()
+		if !force && c.err != nil && time.Since(c.failed) < 2*time.Second {
+			err := c.err
+			c.mu.Unlock()
+			return nil, err
+		}
+		if !force && !c.at.IsZero() && time.Since(c.at) < 20*time.Second {
+			users := c.users
+			c.mu.Unlock()
+			return users, nil
+		}
+		if c.pending != nil {
+			pending := c.pending
+			c.mu.Unlock()
+			select {
+			case <-pending:
+				force = false
+				continue
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		c.pending = make(chan struct{})
+		c.mu.Unlock()
+		panelCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
+		users, err := h.remnawaveClient.GetUsers(panelCtx)
+		cancel()
+		c.mu.Lock()
+		if err == nil && users != nil {
+			c.users = *users
+			c.at = time.Now()
+		} else if err == nil {
+			err = errors.New("panel catalog is missing")
+		}
+		c.err = err
+		if err != nil {
+			c.failed = time.Now()
+			c.at = time.Time{}
+		}
+		close(c.pending)
+		c.pending = nil
+		c.mu.Unlock()
+		if err != nil {
+			return nil, err
+		}
+		return *users, nil
+	}
+}
+
+func panelOverview(users []remnawave.PanelUser, observations []database.PanelPlanObservation, settings runtimeconfig.Settings, days int, now time.Time) (*database.OverviewUsers, []database.OverviewPlan) {
+	zone := time.FixedZone("MSK", 3*60*60)
+	local := now.In(zone)
+	today := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, zone)
+	from := today.AddDate(0, 0, -(days - 1))
+	week := today.AddDate(0, 0, -6)
+	stats := &database.OverviewUsers{Source: "panel", Total: len(users), Daily: []database.OverviewPoint{}}
+	daily := map[string]int{}
+	plans := map[string]database.OverviewPlan{}
+	byID := map[int64]database.PanelPlanObservation{}
+	byUUID := map[uuid.UUID]database.PanelPlanObservation{}
+	byLink := map[string]database.PanelPlanObservation{}
+	for _, o := range observations {
+		if o.PanelID != nil && *o.PanelID > 0 {
+			byID[*o.PanelID] = o
+		}
+		if o.PanelUUID != nil && *o.PanelUUID != uuid.Nil {
+			byUUID[*o.PanelUUID] = o
+		}
+		if o.Link != "" {
+			byLink[o.Link] = o
+		}
+	}
+	for _, user := range users {
+		status := strings.ToUpper(strings.TrimSpace(user.Status))
+		active := false
+		switch {
+		case status == "DISABLED":
+			stats.Disabled++
+		case status == "EXPIRED" || (!user.ExpireAt.IsZero() && !user.ExpireAt.After(now)):
+			stats.Expired++
+		case status == "LIMITED":
+			stats.Limited++
+		case status == "ACTIVE" || status == "" && user.ExpireAt.After(now):
+			stats.Active++
+			active = true
+		default:
+			stats.Other++
+		}
+		if !user.CreatedAt.IsZero() && !user.CreatedAt.After(now) {
+			if !user.CreatedAt.Before(today) {
+				stats.Today++
+			}
+			if !user.CreatedAt.Before(week) {
+				stats.Week++
+			}
+			if !user.CreatedAt.Before(from) {
+				daily[user.CreatedAt.In(zone).Format("2006-01-02")]++
+			}
+		}
+		if !active {
+			continue
+		}
+		o, ok := byUUID[user.UUID]
+		if !ok {
+			o, ok = byID[user.ID]
+			// A recreated panel account may reuse the numeric ID.
+			if ok && o.PanelUUID != nil && *o.PanelUUID != uuid.Nil && user.UUID != uuid.Nil && *o.PanelUUID != user.UUID {
+				ok = false
+			}
+		}
+		if !ok {
+			o = byLink[user.SubscriptionURL]
+		}
+		months, planDays := o.Months, o.Days
+		if months <= 0 && planDays <= 0 {
+			for _, p := range settings.Plans {
+				if p.ID == o.PlanID && o.PlanID != "" {
+					months, planDays = p.Months, p.Days
+					break
+				}
+			}
+		}
+		if months <= 0 && planDays <= 0 {
+			// Infer only when all plans with these live limits agree on duration.
+			matched := false
+			ambiguous := false
+			for _, p := range settings.Plans {
+				traffic := int64(p.TrafficGB) * 1024 * 1024 * 1024
+				if p.UnlimitedTraffic {
+					traffic = 0
+				}
+				deviceLimit := 0
+				if user.HwidDeviceLimit != nil {
+					deviceLimit = *user.HwidDeviceLimit
+				}
+				if traffic != user.TrafficLimitBytes || p.DeviceLimit != deviceLimit {
+					continue
+				}
+				if matched && (months != p.Months || planDays != p.Days) {
+					ambiguous = true
+				}
+				months, planDays = p.Months, p.Days
+				matched = true
+			}
+			if ambiguous {
+				months, planDays = 0, 0
+			}
+		}
+		unlimited := user.TrafficLimitBytes <= 0
+		key := fmt.Sprintf("%d:%d:%t", months, planDays, unlimited)
+		p := plans[key]
+		p.Key, p.Months, p.Days, p.Unlimited = key, months, planDays, unlimited
+		p.Label = overviewPlanLabel(months, planDays, unlimited)
+		p.Count++
+		plans[key] = p
+	}
+	for date := from; !date.After(today); date = date.AddDate(0, 0, 1) {
+		key := date.Format("2006-01-02")
+		stats.Daily = append(stats.Daily, database.OverviewPoint{Date: key, Value: float64(daily[key])})
+	}
+	result := make([]database.OverviewPlan, 0, len(plans))
+	for _, p := range plans {
+		result = append(result, p)
+	}
+	duration := func(p database.OverviewPlan) int {
+		if p.Months > 0 {
+			return p.Months * 30
+		}
+		if p.Days > 0 {
+			return p.Days
+		}
+		return 1000000
+	}
+	sort.Slice(result, func(i, j int) bool {
+		a, b := duration(result[i]), duration(result[j])
+		if a != b {
+			return a < b
+		}
+		if result[i].Unlimited != result[j].Unlimited {
+			return !result[i].Unlimited
+		}
+		return result[i].Key < result[j].Key
+	})
+	return stats, result
+}
+
+func overviewPlanLabel(months, days int, unlimited bool) string {
+	label := "Индивидуальный тариф"
+	if months > 0 {
+		label = fmt.Sprintf("%d %s", months, ruPlural(months, "месяц", "месяца", "месяцев"))
+	} else if days > 0 {
+		label = fmt.Sprintf("%d %s", days, ruPlural(days, "день", "дня", "дней"))
+	}
+	if unlimited {
+		label += " · Безлимит"
+	} else {
+		label += " · Лимитный"
+	}
+	return label
+}
+
+func ruPlural(n int, one, few, many string) string {
+	if n%100 >= 11 && n%100 <= 14 {
+		return many
+	}
+	switch n % 10 {
+	case 1:
+		return one
+	case 2, 3, 4:
+		return few
+	}
+	return many
+}

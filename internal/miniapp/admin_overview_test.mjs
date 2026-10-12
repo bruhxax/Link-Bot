@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
-import {groupOverviewPoints, overviewSegments, overviewChartGeometry} from "../../admin-ui/overview-data.mjs";
+import {groupOverviewPoints, overviewSegments, overviewChartGeometry, overviewRingPath} from "../../admin-ui/overview-data.mjs";
 import {applyConsoleAppearance, CONSOLE_COLORS, CONSOLE_GROUPS} from "./static/admin-console.mjs";
 
 test("dedicated console palette replaces every shared control token with independent values",()=>{
@@ -22,6 +22,9 @@ test("overview percentages use real totals including empty and single-segment da
  const graph=overviewSegments([{count:29},{count:13},{count:4}]);assert.equal(graph.total,46);
  assert.ok(Math.abs(graph.items.reduce((sum,item)=>sum+item.fraction,0)-1)<1e-10);
  assert.equal(overviewSegments([{count:5}]).items[0].fraction,1);
+ for(const segment of [...graph.items,...overviewSegments([{count:5}]).items]) {
+  const path=overviewRingPath(segment);assert.ok(path.startsWith("M"));assert.ok(path.endsWith("Z"));assert.ok(!path.includes("NaN"));
+ }
 });
 
 test("days, weeks and months retain all real observations without mixing dates",()=>{
@@ -44,4 +47,23 @@ test("late overview response cannot replace a newer period",async()=>{
  const second=context.refreshAdminOverview();
  pending[1]({data:{days:90}});await second;pending[0]({data:{days:7}});await first;
  assert.equal(state.adminOverview.days,90);assert.equal(state.adminOverviewBusy,false);
+});
+
+test("panel outage retains only previously loaded panel counts and period switches reuse the catalog",async()=>{
+ const source=fs.readFileSync(new URL("./static/app.js",import.meta.url),"utf8");
+ const part=source.slice(source.indexOf("let adminOverviewRequestID = 0;"),source.indexOf("async function refreshAdminFinance("));
+ const state={adminWorkspace:true,adminSection:"home",adminOverviewDays:7,adminOverviewBusy:false,adminOverview:{days:30,users:{source:"panel",total:551},subscriptions:[{label:"1 месяц · Безлимит",count:12}]}},requests=[];
+ const context=vm.createContext({state,previewMode:false,isAdminUser:()=>true,render:()=>{},post:async(url,request)=>{requests.push(request);return {data:{days:request.days,users:null,subscriptions:[],panelError:"Панель недоступна",revenue:{allRub:100}}}}});
+ vm.runInContext(part,context);
+ await context.refreshAdminOverview({force:false});
+ assert.equal(requests[0].force,false);
+ assert.equal(state.adminOverview.users.total,551);
+ assert.equal(state.adminOverview.days,30);
+ assert.equal(state.adminOverview.revenue.allRub,100);
+ assert.equal(state.adminOverview.panelError,"Панель недоступна");
+ state.adminOverview={days:7,users:{total:59000},subscriptions:[]};
+ await context.refreshAdminOverview();
+ assert.equal(requests[1].force,true);
+ assert.equal(state.adminOverview.users,null);
+ assert.equal(state.adminOverview.days,7);
 });

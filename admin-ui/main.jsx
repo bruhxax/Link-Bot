@@ -50,6 +50,7 @@ import {
   PiStar,
   PiSlidersHorizontal,
   PiCaretDown,
+  PiCaretLeft,
   PiSignOut,
   PiArrowsClockwise,
   PiPlus,
@@ -1270,7 +1271,13 @@ function Dialogs({ nodes, dispatch }) {
 function Admin({ model, content, dialogs, dispatch }) {
   const [mobile, setMobile] = useState(false),
     [preferences, setPreferences] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    try {
+      return localStorage.getItem("admin.sidebar.collapsed") !== "true";
+    } catch {
+      return true;
+    }
+  });
   const [sidebar, setSidebar] = useState(() => {
     try {
       return localStorage.getItem("admin.sidebar") !== "false";
@@ -1341,6 +1348,8 @@ function Admin({ model, content, dialogs, dispatch }) {
       component="button"
       type="button"
       label={r[model.locale === "en" ? 2 : 1]}
+      aria-label={r[model.locale === "en" ? 2 : 1]}
+      title={!sidebarOpen ? r[model.locale === "en" ? 2 : 1] : undefined}
       variant="subtle"
       leftSection={glyph(r[3])}
       active={r[0] === active}
@@ -1361,6 +1370,8 @@ function Admin({ model, content, dialogs, dispatch }) {
         component="button"
         type="button"
         label={model.locale === "en" ? "Overview" : "Обзор"}
+        aria-label={model.locale === "en" ? "Overview" : "Обзор"}
+        title={!sidebarOpen ? "Обзор" : undefined}
         variant="subtle"
         leftSection={<PiStar size={18} />}
         active={active === "home"}
@@ -1386,7 +1397,7 @@ function Admin({ model, content, dialogs, dispatch }) {
       cssVariablesSelector='html[data-admin-console="on"]'
     >
       <div
-        className={`app-shell rw-shell remna-admin ${sidebar ? "rn-sidebar-layout" : ""} ${sidebar && sidebarOpen ? "rn-sidebar-mode" : ""}`}
+        className={`app-shell rw-shell remna-admin ${sidebar ? "rn-sidebar-layout rn-sidebar-mode" : ""} ${sidebar && !sidebarOpen ? "rn-sidebar-collapsed" : ""}`}
       >
         <header className="rn-header">
           <div className="rn-brand-row">
@@ -1415,9 +1426,20 @@ function Admin({ model, content, dialogs, dispatch }) {
                     ? "Свернуть боковое меню"
                     : "Развернуть боковое меню"
                 }
-                onClick={() => setSidebarOpen(!sidebarOpen)}
+                aria-expanded={sidebarOpen}
+                aria-controls="admin-sidebar"
+                onClick={() => {
+                  const next = !sidebarOpen;
+                  setSidebarOpen(next);
+                  try {
+                    localStorage.setItem(
+                      "admin.sidebar.collapsed",
+                      String(!next),
+                    );
+                  } catch {}
+                }}
               >
-                {sidebarOpen ? <PiX size={24} /> : <PiList size={24} />}
+                <PiCaretLeft size={20} />
               </ActionIcon>
             )}
             <Group gap="xs">
@@ -1545,8 +1567,8 @@ function Admin({ model, content, dialogs, dispatch }) {
             </nav>
           )}
         </header>
-        {sidebar && sidebarOpen && (
-          <aside className="rn-sidebar">
+        {sidebar && (
+          <aside className="rn-sidebar" id="admin-sidebar">
             <div className="rn-sidebar-brand">
               {model.logo ? (
                 <img className="rn-brand-logo" src={model.logo} alt="" />
@@ -1566,7 +1588,7 @@ function Admin({ model, content, dialogs, dispatch }) {
             <div className="rn-sidebar-footer">
               <button {...actionProps("admin-console-exit")}>
                 <PiArrowSquareOut size={18} />
-                Личный кабинет
+                <span>Личный кабинет</span>
               </button>
             </div>
           </aside>
@@ -1611,9 +1633,11 @@ function Admin({ model, content, dialogs, dispatch }) {
                       </Action>
                     </Group>
                   )}
-                  <IconAction action="refresh" label="Обновить">
-                    <PiArrowsClockwise size={20} />
-                  </IconAction>
+                  {active !== "home" && (
+                    <IconAction action="refresh" label="Обновить">
+                      <PiArrowsClockwise size={20} />
+                    </IconAction>
+                  )}
                   {active === "plans" && (
                     <IconAction
                       action="admin-add-plan"

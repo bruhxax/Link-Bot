@@ -1,4 +1,5 @@
 import React, { useId, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   PiChartBar,
   PiUsers,
@@ -7,13 +8,15 @@ import {
   PiChartLine,
   PiReceipt,
   PiCurrencyCircleDollar,
+  PiArrowsClockwise,
 } from "react-icons/pi";
 import {
-  overviewSegments,
   groupOverviewPoints,
   overviewChartGeometry,
 } from "./overview-data.mjs";
 import "./overview.css";
+import "./overview-interactions.css";
+import { Distribution } from "./distribution.jsx";
 
 const number = (value) =>
   value == null ? "—" : Number(value).toLocaleString("ru-RU");
@@ -22,86 +25,15 @@ const rub = (value) =>
     ? "—"
     : `${Number(value).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`;
 
-function Distribution({ title, items, loaded, caption, note }) {
-  const segments = overviewSegments(items);
-  return (
-    <section className="rn-overview-section">
-      <div className="rn-overview-section-head">
-        <h2>{title}</h2>
-        {note && <span>{note}</span>}
-      </div>
-      <div className="rn-distribution-card" aria-busy={!loaded}>
-        <ul className="rn-distribution-legend">
-          {segments.items.map((item) => (
-            <li key={item.key}>
-              <i style={{ background: item.color }} />
-              <span>{item.label}</span>
-              <strong>{loaded ? number(item.count) : "—"}</strong>
-            </li>
-          ))}
-        </ul>
-        <svg
-          className="rn-distribution-ring"
-          viewBox="0 0 200 200"
-          role="img"
-          aria-label={`${title}: ${loaded ? number(segments.total) : "загрузка"}`}
-        >
-          <circle
-            cx="100"
-            cy="100"
-            r="62"
-            fill="none"
-            stroke="#2b2e34"
-            strokeWidth="36"
-          />
-          {loaded &&
-            segments.items
-              .filter((item) => item.fraction > 0)
-              .map((item) => (
-                <circle
-                  key={item.key}
-                  cx="100"
-                  cy="100"
-                  r="62"
-                  fill="none"
-                  stroke={item.color}
-                  strokeWidth="36"
-                  pathLength="100"
-                  strokeDasharray={`${Math.max(0.1, item.fraction * 100 - 0.6)} 100`}
-                  strokeDashoffset={-item.offset * 100}
-                  transform="rotate(-90 100 100)"
-                />
-              ))}
-          {loaded &&
-            segments.items
-              .filter((item) => item.fraction >= 0.075)
-              .map((item) => {
-                const angle =
-                  (item.offset + item.fraction / 2) * Math.PI * 2 - Math.PI / 2;
-                return (
-                  <text
-                    key={item.key}
-                    x={100 + 62 * Math.cos(angle)}
-                    y={100 + 62 * Math.sin(angle)}
-                    className="rn-ring-percentage"
-                  >
-                    {Math.round(item.fraction * 100)}%
-                  </text>
-                );
-              })}
-          <text x="100" y="101" className="rn-ring-total">
-            {loaded ? number(segments.total) : "—"}
-          </text>
-          <text x="100" y="122" className="rn-ring-caption">
-            {caption}
-          </text>
-        </svg>
-      </div>
-    </section>
-  );
-}
-
-function OverviewChart({ title, points, unit, loaded, currency = false }) {
+function OverviewChart({
+  title,
+  points,
+  unit,
+  range,
+  loaded,
+  currency = false,
+}) {
+  const reducedMotion = useReducedMotion();
   const id = useId().replace(/:/g, ""),
     data = groupOverviewPoints(points, unit);
   const graph = overviewChartGeometry(data);
@@ -133,99 +65,114 @@ function OverviewChart({ title, points, unit, loaded, currency = false }) {
               : ""}
         </span>
       </div>
-      <svg
-        viewBox={`0 0 ${graph.width} ${graph.height}`}
-        role="img"
-        aria-label={`${title}, ${loaded ? data.length + " периодов" : "загрузка"}`}
-        onMouseLeave={() => setHover(null)}
-      >
-        <defs>
-          <linearGradient
-            id={`overview-fill-${id}`}
-            x1="0"
-            y1="0"
-            x2="0"
-            y2="1"
+      <div className="rn-overview-plot">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.svg
+            key={`${unit}:${range}`}
+            initial={{
+              opacity: reducedMotion ? 1 : 0,
+              y: reducedMotion ? 0 : 10,
+            }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: reducedMotion ? 1 : 0, y: reducedMotion ? 0 : -6 }}
+            transition={{
+              duration: reducedMotion ? 0 : 0.22,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            viewBox={`0 0 ${graph.width} ${graph.height}`}
+            role="img"
+            aria-label={`${title}, ${loaded ? data.length + " периодов" : "загрузка"}`}
+            onMouseLeave={() => setHover(null)}
           >
-            <stop offset="0" stopColor="#7895a7" stopOpacity=".24" />
-            <stop offset="1" stopColor="#7895a7" stopOpacity=".015" />
-          </linearGradient>
-        </defs>
-        {[0, 1, 2, 3, 4].map((index) => {
-          const y =
-            graph.height -
-            graph.bottom -
-            (index / 4) * (graph.height - graph.top - graph.bottom);
-          return (
-            <g key={index}>
-              <line
-                x1={graph.left}
-                x2={graph.width - graph.right}
-                y1={y}
-                y2={y}
-                className="rn-chart-grid-line"
-              />
-              <text x={graph.left - 14} y={y + 4} textAnchor="end">
-                {number((graph.ceiling * index) / 4)}
+            <defs>
+              <linearGradient
+                id={`overview-fill-${id}`}
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop offset="0" stopColor="#7895a7" stopOpacity=".24" />
+                <stop offset="1" stopColor="#7895a7" stopOpacity=".015" />
+              </linearGradient>
+            </defs>
+            {[0, 1, 2, 3, 4].map((index) => {
+              const y =
+                graph.height -
+                graph.bottom -
+                (index / 4) * (graph.height - graph.top - graph.bottom);
+              return (
+                <g key={index}>
+                  <line
+                    x1={graph.left}
+                    x2={graph.width - graph.right}
+                    y1={y}
+                    y2={y}
+                    className="rn-chart-grid-line"
+                  />
+                  <text x={graph.left - 14} y={y + 4} textAnchor="end">
+                    {number((graph.ceiling * index) / 4)}
+                  </text>
+                </g>
+              );
+            })}
+            {loaded && (
+              <>
+                <path d={graph.area} fill={`url(#overview-fill-${id})`} />
+                <path
+                  d={graph.line}
+                  fill="none"
+                  stroke="#7691a2"
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </>
+            )}
+            {labelIndices.map((index) => (
+              <text
+                key={index}
+                x={graph.coordinates[index]?.x}
+                y={graph.height - 5}
+                textAnchor={
+                  index === 0
+                    ? "start"
+                    : index === data.length - 1
+                      ? "end"
+                      : "middle"
+                }
+              >
+                {data[index] ? date(data[index].date) : ""}
               </text>
-            </g>
-          );
-        })}
-        {loaded && (
-          <>
-            <path d={graph.area} fill={`url(#overview-fill-${id})`} />
-            <path
-              d={graph.line}
-              fill="none"
-              stroke="#7691a2"
-              strokeWidth="2"
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
-            />
-          </>
-        )}
-        {labelIndices.map((index) => (
-          <text
-            key={index}
-            x={graph.coordinates[index]?.x}
-            y={graph.height - 5}
-            textAnchor={
-              index === 0
-                ? "start"
-                : index === data.length - 1
-                  ? "end"
-                  : "middle"
-            }
-          >
-            {data[index] ? date(data[index].date) : ""}
-          </text>
-        ))}
-        {graph.coordinates.map((point, index) => (
-          <rect
-            key={point.date}
-            x={
-              point.x -
-              (graph.width - graph.left - graph.right) /
-                Math.max(1, data.length - 1) /
-                2
-            }
-            y={graph.top}
-            width={
-              (graph.width - graph.left - graph.right) /
-              Math.max(1, data.length - 1)
-            }
-            height={graph.height - graph.top - graph.bottom}
-            fill="transparent"
-            onMouseEnter={() => setHover(index)}
-          >
-            <title>
-              {date(point.date)}:{" "}
-              {currency ? rub(point.value) : number(point.value)}
-            </title>
-          </rect>
-        ))}
-        {value && <circle cx={value.x} cy={value.y} r="4" fill="#adc3d0" />}
-      </svg>
+            ))}
+            {graph.coordinates.map((point, index) => (
+              <rect
+                key={point.date}
+                x={
+                  point.x -
+                  (graph.width - graph.left - graph.right) /
+                    Math.max(1, data.length - 1) /
+                    2
+                }
+                y={graph.top}
+                width={
+                  (graph.width - graph.left - graph.right) /
+                  Math.max(1, data.length - 1)
+                }
+                height={graph.height - graph.top - graph.bottom}
+                fill="transparent"
+                onMouseEnter={() => setHover(index)}
+              >
+                <title>
+                  {date(point.date)}:{" "}
+                  {currency ? rub(point.value) : number(point.value)}
+                </title>
+              </rect>
+            ))}
+            {value && <circle cx={value.x} cy={value.y} r="4" fill="#adc3d0" />}
+          </motion.svg>
+        </AnimatePresence>
+      </div>
       {!loaded && <span className="rn-chart-status">Загрузка статистики…</span>}
       {loaded && data.length === 0 && (
         <span className="rn-chart-status">Данных за этот период пока нет</span>
@@ -261,55 +208,74 @@ export function Overview({ model }) {
       color: "#edbd70",
     },
     {
-      key: "without",
-      label: "Без подписки",
-      count: users?.without,
+      key: "limited",
+      label: "Трафик исчерпан",
+      count: users?.limited,
       color: "#6c8b9e",
     },
     {
-      key: "blocked",
-      label: "Заблокированы",
-      count: users?.blocked,
+      key: "disabled",
+      label: "Отключены",
+      count: users?.disabled,
       color: "#b2b1ed",
     },
   ];
+  if (users?.other)
+    userItems.push({
+      key: "other",
+      label: "Другие статусы",
+      count: users.other,
+      color: "#d47db5",
+    });
   const planItems = (data?.subscriptions || []).map((item) => ({
     ...item,
-    color: { free: "#edbd70", manual: "#d47db5", paid: "#53868b" }[item.key],
     label:
-      {
-        free: "Бесплатный тариф",
-        manual: "Без покупки",
-        paid: "Платный тариф",
-      }[item.key] ||
+      item.label ||
       model.plans.find((plan) => plan.id === item.key)?.titleRu ||
-      item.key,
+      "Индивидуальный тариф",
   }));
   return (
     <div className="rn-statistics" aria-busy={model.overviewBusy}>
-      <nav className="rn-statistics-tabs" aria-label="Разделы статистики">
-        <button className="is-active" aria-current="page">
-          <PiChartBar />
-          Обзор
+      <div className="rn-statistics-toolbar">
+        <nav className="rn-statistics-tabs" aria-label="Разделы статистики">
+          <button className="is-active" aria-current="page">
+            <PiChartBar />
+            Обзор
+          </button>
+          {tabs.map(([key, label, Icon]) => {
+            const route = routes.find((route) => route[0] === key);
+            return (
+              <button
+                key={key}
+                data-action={
+                  route[5] === "page"
+                    ? "admin-console-page"
+                    : "open-admin-section"
+                }
+                data-value={key}
+              >
+                <Icon />
+                {label}
+              </button>
+            );
+          })}
+        </nav>
+        <button
+          className="rn-statistics-refresh"
+          onClick={() => model.refreshOverview()}
+          disabled={model.overviewBusy}
+          aria-label="Обновить статистику"
+          title="Обновить статистику"
+        >
+          <PiArrowsClockwise />
         </button>
-        {tabs.map(([key, label, Icon]) => {
-          const route = routes.find((route) => route[0] === key);
-          return (
-            <button
-              key={key}
-              data-action={
-                route[5] === "page"
-                  ? "admin-console-page"
-                  : "open-admin-section"
-              }
-              data-value={key}
-            >
-              <Icon />
-              {label}
-            </button>
-          );
-        })}
-      </nav>
+      </div>
+      {data?.panelError && (
+        <div className="rn-overview-error" role="alert">
+          {data.panelError}
+          <button onClick={() => model.refreshOverview()}>Повторить</button>
+        </div>
+      )}
       {model.overviewError && (
         <div className="rn-overview-error" role="alert">
           {model.overviewError}
@@ -323,12 +289,12 @@ export function Overview({ model }) {
             caption="всего"
             loaded={Boolean(users)}
             items={userItems}
-            note={`сегодня: ${number(users?.today)} · неделя: ${number(users?.week)}`}
+            note={`панель · сегодня: ${number(users?.today)} · неделя: ${number(users?.week)}`}
           />
           <Distribution
             title="Распределение подписок"
             caption="активных"
-            loaded={Boolean(data)}
+            loaded={Boolean(users)}
             items={
               planItems.length
                 ? planItems
@@ -341,7 +307,7 @@ export function Overview({ model }) {
                     },
                   ]
             }
-            note="По последней покупке"
+            note="По сроку и типу трафика"
           />
         </div>
       )}
@@ -414,6 +380,7 @@ export function Overview({ model }) {
             {model.canOverviewUsers && (
               <OverviewChart
                 title="Новые пользователи"
+                range={data?.days}
                 points={users?.daily}
                 unit={unit}
                 loaded={Boolean(users)}
@@ -422,6 +389,7 @@ export function Overview({ model }) {
             {model.canOverviewFinance && (
               <OverviewChart
                 title="Доходы"
+                range={data?.days}
                 points={revenue?.daily}
                 unit={unit}
                 loaded={Boolean(revenue)}
