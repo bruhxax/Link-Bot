@@ -37,7 +37,8 @@ a:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
 .nav-link svg,.nav-cabinet svg{display:block;flex:none;width:16px;height:16px}
 .nav-link + .nav-link::before{content:"";position:absolute;top:50%;left:-9px;width:1px;height:15px;transform:translateY(-50%);background:color-mix(in srgb,var(--text) 16%,transparent)}
 .nav-link:hover,.nav-link.active{color:var(--accent)}
-.nav-cabinet{justify-self:end;gap:7px}
+.nav-cabinet{display:inline-flex;align-items:center;justify-content:center;justify-self:end;gap:7px;min-height:38px;padding-inline:12px;color:var(--accent);font-size:12px;font-weight:600;white-space:nowrap;transition:color .28s ease}
+.nav-cabinet:hover{color:var(--text)}
 .button{display:inline-flex;align-items:center;justify-content:center;min-height:43px;padding:0 20px;border:1px solid var(--border);border-radius:999px;font:600 12px/1.3 "JetBrains Mono",Consolas,monospace;text-align:center;white-space:nowrap;transition:transform .3s cubic-bezier(.2,.8,.18,1),background-color .3s ease,border-color .3s ease,color .3s ease}
 .button:hover{transform:translateY(-2px)}
 .button:active{transform:translateY(0)}

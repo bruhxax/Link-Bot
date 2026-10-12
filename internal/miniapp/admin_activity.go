@@ -98,6 +98,7 @@ var activityActions = map[string]activityAction{
 	"push/test":                  {"Отправил тестовое push-уведомление", "system", ""},
 	"reminders/test":             {"Проверил напоминание о подписке", "communication", "kind"},
 	"success/test":               {"Проверил уведомление об успешной оплате", "communication", "kind"},
+	"content/test":               {"Проверил сообщение бота", "communication", "kind"},
 	"payment-notifications/test": {"Проверил уведомление об оплате", "communication", ""},
 	"gifts/test":                 {"Проверил уведомление о подарке", "communication", "kind"},
 }

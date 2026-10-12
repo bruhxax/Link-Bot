@@ -843,6 +843,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/background/upload", h.withSession(h.handleAdminBackgroundUpload, "multipart/form-data"))
 	mux.HandleFunc("/api/mini-app/admin/background/import", h.withSession(h.handleAdminBackgroundImport))
 	mux.HandleFunc("/api/mini-app/admin/reminders/test", h.withSession(h.handleAdminReminderTest))
+	mux.HandleFunc("/api/mini-app/admin/content/test", h.withSession(h.handleAdminContentTest))
 	mux.HandleFunc("/api/mini-app/admin/success/test", h.withSession(h.handleAdminSuccessTest))
 	mux.HandleFunc("/api/mini-app/admin/payment-notifications/test", h.withSession(h.handleAdminPaymentNotificationTest))
 	mux.HandleFunc("/api/mini-app/admin/gifts/test", h.withSession(h.handleAdminGiftTest))
@@ -6429,52 +6430,16 @@ func (h *Handler) tryAttachPartner(ctx context.Context, sess *session, customer 
 }
 
 func (h *Handler) availablePaymentMethods(ctx context.Context, customer *database.Customer) (map[string]bool, error) {
-	yookassaEnabled := config.IsYookasaEnabled()
-	cryptoEnabled := config.IsCryptoPayEnabled()
-	if h.integrationSettings != nil {
-		yookassaEnabled = h.integrationSettings.Enabled(integrations.ProviderYooKassa)
-		cryptoEnabled = h.integrationSettings.Enabled(integrations.ProviderCryptoPay)
-	}
-	methods := map[string]bool{
-		"sbp":    yookassaEnabled,
-		"card":   yookassaEnabled,
-		"crypto": cryptoEnabled,
-		"stars":  h.runtimeFeatureEnabled("stars"),
-	}
-	if customer != nil && customer.TelegramIDIsSynthetic {
-		methods["stars"] = false
-	}
-	referralSettings := runtimeconfig.DefaultSettings().Referrals
+	settings := runtimeconfig.DefaultSettings()
 	if h.runtimeSettings != nil {
-		referralSettings = h.runtimeSettings.Snapshot().Referrals
+		settings = h.runtimeSettings.Snapshot()
 	}
-	if referralSettings.BalancePaymentsEnabled && h.walletRepository != nil && customer != nil {
-		balance, err := h.walletRepository.Balance(ctx, customer.ID)
-		if err != nil {
-			return nil, err
-		}
-		methods["balance"] = balance > 0
+	service := payment.PaymentService{}
+	if h.paymentService != nil {
+		service = *h.paymentService
 	}
-	if h.integrationSettings != nil {
-		for _, provider := range integrations.SortedPaymentProviders() {
-			if provider != integrations.ProviderYooKassa && provider != integrations.ProviderCryptoPay {
-				methods[provider] = h.integrationSettings.Enabled(provider)
-			}
-		}
-		methods["p2p"] = methods["p2p"] && h.integrationSettings.Enabled(integrations.ProviderNotificationBot)
-	}
-
-	if methods["stars"] && config.RequirePaidPurchaseForStars() {
-		paidPurchase, err := h.purchaseRepository.FindSuccessfulPaidPurchaseByCustomer(ctx, customer.ID)
-		if err != nil {
-			return nil, err
-		}
-		methods["stars"] = paidPurchase != nil
-	}
-
-	return methods, nil
+	return service.AvailableMethods(ctx, customer, settings)
 }
-
 func (h *Handler) p2pDestinationForRequest(destinationID, senderReference string) (database.P2PDestinationSnapshot, error) {
 	if strings.TrimSpace(senderReference) == "" {
 		return database.P2PDestinationSnapshot{}, errors.New("укажите ФИО, номер счёта или другие данные отправителя")
@@ -6650,58 +6615,8 @@ func mapPaymentMethods(methods map[string]bool, order []string) []paymentMethodP
 }
 
 func mapPaymentMethod(method string) (database.InvoiceType, error) {
-	switch method {
-	case "balance":
-		return database.InvoiceTypeBalance, nil
-	case "sbp", "card":
-		return database.InvoiceTypeYookasa, nil
-	case "stars":
-		return database.InvoiceTypeTelegram, nil
-	case "crypto":
-		return database.InvoiceTypeCrypto, nil
-	case "lava":
-		return database.InvoiceTypeLava, nil
-	case "wata":
-		return database.InvoiceTypeWata, nil
-	case "platega":
-		return database.InvoiceTypePlatega, nil
-	case "freekassa":
-		return database.InvoiceTypeFreeKassa, nil
-	case "heleket":
-		return database.InvoiceTypeHeleket, nil
-	case "pally":
-		return database.InvoiceTypePally, nil
-	case "rollypay":
-		return database.InvoiceTypeRollyPay, nil
-	case "cispay":
-		return database.InvoiceTypeCisPay, nil
-	case "anore":
-		return database.InvoiceTypeAnore, nil
-	case "paritypay":
-		return database.InvoiceTypeParityPay, nil
-	case "aurapay":
-		return database.InvoiceTypeAuraPay, nil
-	case "antilopay":
-		return database.InvoiceTypeAntiloPay, nil
-	case "tribute":
-		return database.InvoiceTypeTributeShop, nil
-	case "mulenpay":
-		return database.InvoiceTypeMulenPay, nil
-	case "payhot":
-		return database.InvoiceTypePayHot, nil
-	case "datagio":
-		return database.InvoiceTypeDatagio, nil
-	case "kassaai":
-		return database.InvoiceTypeKassaAI, nil
-	case "cloudpayments":
-		return database.InvoiceTypeCloudPayments, nil
-	case "p2p":
-		return database.InvoiceTypeP2P, nil
-	default:
-		return "", fmt.Errorf("unknown payment method: %s", method)
-	}
+	return payment.InvoiceTypeForMethod(method)
 }
-
 func buildReferralShareURL(refCode int64, enabled bool) string {
 	referralTarget := buildReferralInviteURL(refCode, enabled)
 	if referralTarget == "" {

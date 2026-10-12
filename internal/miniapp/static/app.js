@@ -2815,14 +2815,14 @@ const state = {
   selectedPlatform: detectSetupPlatform(navigator.userAgent, tg?.platform),
   setupPlatformMenuOpen: false,
   selectedSetupAppID: "",
-  selectedPlanId: "",
+  selectedPlanId: urlParams.get("planId") || "",
   selectedPlanMonths: null,
 	selectedGiftPlanId: "",
 	giftUsernameDraft: "",
 	giftValidation: "",
 	giftBusy: "",
 	giftReceiptOpen: false,
-  paymentMethod: readSetting(STORAGE_KEYS.payMethod, ""),
+  paymentMethod: urlParams.get("paymentMethod") || readSetting(STORAGE_KEYS.payMethod, ""),
   payModalContext: "",
   serverFilter: "all",
   serverVisibilityBusy: "",
@@ -7334,12 +7334,18 @@ function renderAdminContentSection(section) {
 	}
 }
 
+function renderAdminContentTestButton(kind) {
+	const busy = state.adminBusy === `test-content-${kind}`;
+	return `<button class="admin-reminder-test" type="button" data-action="admin-test-content" data-value="${escapeAttribute(kind)}" ${state.adminBusy ? "disabled" : ""}>${icon(busy ? "refresh" : "send")}<span>${busy ? "Отправляем…" : "Отправить тест"}</span></button>`;
+}
+
 function renderAdminStartContent() {
 	return `<section class="admin-editor__section"><h3>Сервис и сообщение /start</h3>
 		<div class="admin-editor__grid admin-editor__grid--two">${renderAdminSettingField("Название сервиса", "content.brandName")}${renderAdminSettingField("Контакт", "content.adminContact", { placeholder: "@username" })}</div>
 		${renderAdminLogoField()}
 		${renderAdminBannerField("Баннер главного меню", "content.startImage", "/assets/telegram/menu/banner.png")}
 		${renderAdminSettingField("Текст сообщения", "content.startTextRu", { textarea: true, rows: 7 })}
+		${renderAdminContentTestButton("start")}
 	</section>
 	<section class="admin-editor__section"><h3>Кнопки главного меню</h3>
 		${renderAdminTelegramButton("Попробовать бесплатно", "content.startMenu.trialButton")}
@@ -7421,6 +7427,7 @@ function renderAdminVerificationContent() {
 	<section class="admin-editor__section"><h3>Сообщение верификации</h3>
 		${renderAdminBannerField("Баннер верификации", "content.verification.banner", "/assets/telegram/verification/banner.png")}
 		${renderAdminSettingField("Текст сообщения", "content.verification.text", { textarea: true, rows: 9 })}
+		${renderAdminContentTestButton("verification")}
 	</section>
 	<section class="admin-editor__section"><h3>Кнопки</h3>
 		${renderAdminTelegramButton("Канал", "content.verification.channelButton")}
@@ -7428,8 +7435,11 @@ function renderAdminVerificationContent() {
 	</section>
 	<section class="admin-editor__section"><h3>Результат проверки</h3>
 		${renderAdminSettingField("Ошибка проверки", "content.verification.checkFailedText")}
+		${renderAdminContentTestButton("verification-failed")}
 		${renderAdminSettingField("Подписка не найдена", "content.verification.notSubscribedText")}
+		${renderAdminContentTestButton("verification-missing")}
 		${renderAdminSettingField("Доступ открыт", "content.verification.verifiedText")}
+		${renderAdminContentTestButton("verification-success")}
 	</section>`;
 }
 
@@ -7437,8 +7447,11 @@ function renderAdminCommerceContent() {
 	return `<section class="admin-editor__section"><h3>Экраны покупки</h3>
 		${renderAdminBannerField("Баннер", "content.commerce.banner", "/assets/telegram/commerce/banner.png")}
 		${renderAdminSettingField("Экран выбора тарифа", "content.commerce.tariffsText", { textarea: true, rows: 4 })}
+		${renderAdminContentTestButton("tariffs")}
 		${renderAdminSettingField("Экран выбора способа оплаты", "content.commerce.paymentMethodsText", { textarea: true, rows: 4 })}
+		${renderAdminContentTestButton("payment-methods")}
 		${renderAdminSettingField("Экран перехода к оплате", "content.commerce.paymentReadyText", { textarea: true, rows: 4 })}
+		${renderAdminContentTestButton("payment-ready")}
 	</section>
 	<section class="admin-editor__section"><h3>Способы оплаты</h3>
 		${renderAdminTelegramButton("СБП | Карта", "content.commerce.yookassaButton")}
@@ -7585,9 +7598,13 @@ function renderAdminSupportContent() {
 	<section class="admin-editor__section"><h3>Telegram-уведомления</h3>
 		${renderAdminContentDisclosure("Доступные переменные", `<p>{ticket_id}, {subject}, {name}, {username}, {subscription}, {message}</p><p>Сообщение всегда отправляется цитатой.</p>`, "6")}
 		${renderAdminSettingField("Новое обращение — админу", "content.support.newTicketText", { textarea: true, rows: 9 })}
+		${renderAdminContentTestButton("support-new")}
 		${renderAdminSettingField("Ответ пользователя — админу", "content.support.customerReplyText", { textarea: true, rows: 9 })}
+		${renderAdminContentTestButton("support-customer-reply")}
 		${renderAdminSettingField("Ответ поддержки — пользователю", "content.support.adminReplyText", { textarea: true, rows: 7 })}
+		${renderAdminContentTestButton("support-admin-reply")}
 		${renderAdminSettingField("Обращение закрыто — пользователю", "content.support.closedText", { textarea: true, rows: 5 })}
+		${renderAdminContentTestButton("support-closed")}
 	</section>
 	<section class="admin-editor__section"><h3>Кнопка уведомления</h3>${renderAdminTelegramButton("Открыть Mini app", "content.support.openButton")}</section>`;
 }
@@ -7606,8 +7623,11 @@ function renderAdminNotificationContent() {
 	<section class="admin-editor__section"><h3>Устройства и отзывы</h3>
 		${renderAdminContentDisclosure("Доступные переменные", "<p>Устройства: {added}, {count}, {limit}</p><p>Отзывы: {name}, {username}, {rating}, {comment}</p>")}
 		${renderAdminSettingField("Новое устройство", "content.copy.ru.deviceAddedTemplate", { textarea: true, rows: 5 })}
+		${renderAdminContentTestButton("device-added")}
 		${renderAdminSettingField("Лимит устройств достигнут", "content.copy.ru.deviceLimitReachedTemplate", { textarea: true, rows: 5 })}
+		${renderAdminContentTestButton("device-limit")}
 		${renderAdminSettingField("Новый отзыв — админу", "content.copy.ru.reviewCreatedTemplate", { textarea: true, rows: 7 })}
+		${renderAdminContentTestButton("review-created")}
 	</section>
 	${renderAdminContentDisclosure("Системные уведомления Mini App", `<div class="admin-content-disclosure__fields">${[["trialActivated", "Триал активирован"], ["devicePurchaseSuccess", "Устройства добавлены"], ["paymentOpened", "Оплата открыта"], ["paymentUnavailable", "Оплата недоступна"], ["paymentSuccess", "Оплата завершена"], ["paymentPending", "Оплата ожидается"], ["paymentCancelled", "Оплата отменена"], ["promoApplied", "Промокод применён"], ["promoCodeRequired", "Промокод не введён"], ["copied", "Ссылка скопирована"], ["deleteSuccess", "Устройство удалено"], ["noAccess", "Нет активной подписки"], ["timeout", "Сервер не ответил"]].map(([key, label]) => renderAdminSettingField(label, `content.copy.ru.${key}`)).join("")}</div>`, "13")}`;
 }
@@ -12304,6 +12324,7 @@ function bindRootActions() {
 			if (action === "admin-layout-show-plan") return showAdminPlan(value);
 			if (action === "admin-layout-reset-plan") return resetSelectedAdminPlan();
 			if (action === "admin-test-reminder") return await testAdminSubscriptionReminder(value);
+			if (action === "admin-test-content") return await testAdminContent(value);
 			if (action === "admin-test-success") return await testAdminSubscriptionSuccess();
 			if (action === "admin-test-payment-notification") return await testAdminPaymentNotification();
 			if (action === "admin-test-gift") return await testAdminGift(value);
@@ -13088,6 +13109,19 @@ async function testAdminSubscriptionReminder(kind) {
 		state.adminBusy = "";
 		render({ preserveScroll: true });
 		throw error;
+	}
+}
+
+async function testAdminContent(kind) {
+	if (!state.adminSettingsDraft || state.adminBusy) return;
+	state.adminBusy = `test-content-${kind}`;
+	render({ preserveScroll: true });
+	try {
+		await post("/api/mini-app/admin/content/test", { kind, content: state.adminSettingsDraft.content });
+		showToast("Тестовое сообщение отправлено вам в Telegram", "success");
+	} finally {
+		state.adminBusy = "";
+		render({ preserveScroll: true });
 	}
 }
 

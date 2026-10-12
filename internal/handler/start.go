@@ -13,6 +13,7 @@ import (
 
 	"link-bot/internal/config"
 	"link-bot/internal/database"
+	"link-bot/internal/integrations"
 	"link-bot/utils"
 )
 
@@ -322,7 +323,9 @@ func (h Handler) buildStartKeyboard(existingCustomer *database.Customer, langCod
 	// Row 1: Buy + Connect (if connect available), else only Buy
 	paymentsEnabled := h.featureEnabled("stars")
 	if h.paymentService != nil {
-		paymentsEnabled = paymentsEnabled || h.paymentService.IsProviderEnabled("yookassa") || h.paymentService.IsProviderEnabled("cryptopay")
+		for _, provider := range integrations.SortedPaymentProviders() {
+			paymentsEnabled = paymentsEnabled || h.paymentService.IsProviderEnabled(provider)
+		}
 	}
 	buyBtn := models.InlineKeyboardButton{Text: h.translation.GetText(langCode, "buy_button"), CallbackData: CallbackBuy}
 	if showConnect && paymentsEnabled {

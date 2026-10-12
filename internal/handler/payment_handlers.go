@@ -160,6 +160,12 @@ func (h Handler) PaymentCallbackHandler(ctx context.Context, b *bot.Bot, update 
 	})
 	if err != nil {
 		slog.Error("Error creating payment", "error", err)
+		_, _ = b.AnswerCallbackQuery(ctx2, &bot.AnswerCallbackQueryParams{CallbackQueryID: update.CallbackQuery.ID, Text: "Не удалось выполнить оплату. Проверьте баланс или выберите другой способ.", ShowAlert: true})
+		return
+	}
+	if invoiceType == database.InvoiceTypeBalance {
+		_, _ = b.AnswerCallbackQuery(ctx2, &bot.AnswerCallbackQueryParams{CallbackQueryID: update.CallbackQuery.ID, Text: "Подписка оплачена с баланса"})
+		_, _ = b.DeleteMessage(ctx2, &bot.DeleteMessageParams{ChatID: menuMsg.Chat.ID, MessageID: menuMsg.ID})
 		return
 	}
 
@@ -324,35 +330,11 @@ func (h Handler) buildPaymentMethodsKeyboard(ctx context.Context, langCode strin
 		return nil, err
 	}
 
-	var firstRow []models.InlineKeyboardButton
-	commerce := h.telegramCommerceSettings()
-	if h.isPaymentMethodAllowedForPlan(methods, plan, database.InvoiceTypeYookasa) {
-		button := telegramButton(commerce.YookassaButton, "СБП | Карта", botPaymentCardEmojiID)
-		button.CallbackData = fmt.Sprintf("%s?planId=%s&invoiceType=%s", CallbackPayment, plan.ID, database.InvoiceTypeYookasa)
-		firstRow = append(firstRow, button)
+	order := runtimeconfig.DefaultPaymentMethodOrder()
+	if h.runtimeSettings != nil {
+		order = h.runtimeSettings.Snapshot().PaymentMethodOrder
 	}
-	if h.isPaymentMethodAllowedForPlan(methods, plan, database.InvoiceTypeCrypto) {
-		button := telegramButton(commerce.CryptoButton, "CryptoPay", botPaymentCryptoEmojiID)
-		button.CallbackData = fmt.Sprintf("%s?planId=%s&invoiceType=%s", CallbackPayment, plan.ID, database.InvoiceTypeCrypto)
-		firstRow = append(firstRow, button)
-	}
-
-	kb := [][]models.InlineKeyboardButton{}
-	if len(firstRow) > 0 {
-		kb = append(kb, firstRow)
-	}
-	if h.isPaymentMethodAllowedForPlan(methods, plan, database.InvoiceTypeTelegram) {
-		button := telegramButton(commerce.StarsButton, "Telegram Stars", botPaymentStarsEmojiID)
-		button.CallbackData = fmt.Sprintf("%s?planId=%s&invoiceType=%s", CallbackPayment, plan.ID, database.InvoiceTypeTelegram)
-		kb = append(kb, []models.InlineKeyboardButton{
-			button,
-		})
-	}
-	if h.isPaymentMethodAllowedForPlan(methods, plan, database.InvoiceTypePayHot) {
-		button := models.InlineKeyboardButton{Text: "PayHot", IconCustomEmojiID: botPaymentCardEmojiID,
-			CallbackData: fmt.Sprintf("%s?planId=%s&invoiceType=%s", CallbackPayment, plan.ID, database.InvoiceTypePayHot)}
-		kb = append(kb, []models.InlineKeyboardButton{button})
-	}
+	kb := PaymentMethodsKeyboard(methods, plan, h.telegramCommerceSettings(), order, h.hasMiniApp())
 	kb = append(kb, []models.InlineKeyboardButton{h.premiumBackButton(CallbackBuy)})
 
 	return kb, nil
@@ -565,16 +547,15 @@ func (h Handler) buildPlanSelectionKeyboard(langCode string) [][]models.InlineKe
 }
 
 func (h Handler) availablePaymentMethods(ctx context.Context, customer *database.Customer) (map[string]bool, error) {
-	yookassaEnabled := h.paymentService != nil && h.paymentService.IsProviderEnabled("yookassa")
-	cryptoEnabled := h.paymentService != nil && h.paymentService.IsProviderEnabled("cryptopay")
-	methods := map[string]bool{
-		"card":   yookassaEnabled,
-		"payhot": h.paymentService != nil && h.paymentService.IsProviderEnabled("payhot"),
-		"crypto": cryptoEnabled,
-		"stars":  h.featureEnabled("stars"),
+	settings := runtimeconfig.DefaultSettings()
+	if h.runtimeSettings != nil {
+		settings = h.runtimeSettings.Snapshot()
 	}
-
-	return methods, nil
+	service := payment.PaymentService{}
+	if h.paymentService != nil {
+		service = *h.paymentService
+	}
+	return service.AvailableMethods(ctx, customer, settings)
 }
 
 func (h Handler) planFromCallbackQuery(query map[string]string) (planbook.CheckoutPlan, bool) {
@@ -586,18 +567,42 @@ func (h Handler) planFromCallbackQuery(query map[string]string) (planbook.Checko
 }
 
 func (h Handler) isPaymentMethodAllowedForPlan(methods map[string]bool, plan planbook.CheckoutPlan, invoiceType database.InvoiceType) bool {
-	switch invoiceType {
-	case database.InvoiceTypeYookasa:
-		return methods["card"] && plan.PriceRub > 0
-	case database.InvoiceTypeCrypto:
-		return methods["crypto"] && plan.PriceRub > 0
-	case database.InvoiceTypePayHot:
-		return methods["payhot"] && plan.PriceRub > 0
-	case database.InvoiceTypeTelegram:
-		return methods["stars"] && plan.PriceStars > 0
-	default:
-		return false
+	_, priced := planbook.AmountForInvoice(plan, invoiceType)
+	return methods[payment.MethodForInvoiceType(invoiceType)] && priced && invoiceType != database.InvoiceTypeP2P
+}
+
+// PaymentMethodsKeyboard also renders the content editor's payment preview.
+func PaymentMethodsKeyboard(methods map[string]bool, plan planbook.CheckoutPlan, commerce runtimeconfig.TelegramCommerceSettings, order []string, miniAppEnabled bool) [][]models.InlineKeyboardButton {
+	labels := map[string]string{"balance": "Баланс", "p2p": "P2P перевод", "lava": "Lava", "wata": "Wata", "platega": "Platega", "freekassa": "FreeKassa", "heleket": "Heleket", "pally": "Pally", "rollypay": "RollyPay", "cispay": "CisPay", "anore": "Anore", "mulenpay": "MulenPay", "aurapay": "AuraPay", "antilopay": "AntiloPay", "paritypay": "ParityPay", "tribute": "Tribute", "cloudpayments": "CloudPayments", "datagio": "Datagio", "kassaai": "KassaAI", "payhot": "PayHot"}
+	seen := map[database.InvoiceType]bool{}
+	keyboard := [][]models.InlineKeyboardButton{}
+	for _, method := range append(append([]string(nil), order...), runtimeconfig.DefaultPaymentMethodOrder()...) {
+		invoiceType, err := payment.InvoiceTypeForMethod(method)
+		_, priced := planbook.AmountForInvoice(plan, invoiceType)
+		if err != nil || !methods[method] || !priced || seen[invoiceType] {
+			continue
+		}
+		seen[invoiceType] = true
+		button := models.InlineKeyboardButton{Text: labels[method], IconCustomEmojiID: botPaymentCardEmojiID}
+		switch method {
+		case "sbp", "card":
+			button = telegramButton(commerce.YookassaButton, "СБП | Карта", botPaymentCardEmojiID)
+		case "crypto":
+			button = telegramButton(commerce.CryptoButton, "CryptoPay", botPaymentCryptoEmojiID)
+		case "stars":
+			button = telegramButton(commerce.StarsButton, "Telegram Stars", botPaymentStarsEmojiID)
+		}
+		if method == "p2p" {
+			if !miniAppEnabled {
+				continue
+			}
+			button.WebApp = &models.WebAppInfo{URL: p2PCheckoutURL(plan.ID)}
+		} else {
+			button.CallbackData = fmt.Sprintf("%s?planId=%s&invoiceType=%s", CallbackPayment, plan.ID, invoiceType)
+		}
+		keyboard = append(keyboard, []models.InlineKeyboardButton{button})
 	}
+	return keyboard
 }
 
 func (h Handler) botPlanButtonText(plan planbook.CheckoutPlan, langCode string) string {

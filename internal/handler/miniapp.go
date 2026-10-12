@@ -43,6 +43,19 @@ func (h Handler) miniAppURL(page string) string {
 	return parsed.String()
 }
 
+func p2PCheckoutURL(planID string) string {
+	parsed, err := url.Parse(config.GetMiniAppURL())
+	if err != nil {
+		return config.GetMiniAppURL()
+	}
+	query := parsed.Query()
+	query.Set("page", "plans")
+	query.Set("planId", planID)
+	query.Set("paymentMethod", "p2p")
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
+}
+
 func (h Handler) miniAppKeyboard(lang string) [][]models.InlineKeyboardButton {
 	if !h.hasMiniApp() {
 		return nil
