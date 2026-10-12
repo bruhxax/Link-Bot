@@ -159,6 +159,14 @@ func (s *Service) CaptureMessage(ctx context.Context, message *models.Message) (
 		return true, nil
 	}
 	preview := messagePreview(message, kind)
+	// Non-HTML delivery still copies the original Telegram message. Retain its
+	// complete text/caption for the web preview rather than the 180-character summary.
+	if kind != "html" {
+		sourceHTML = message.Text
+		if sourceHTML == "" {
+			sourceHTML = message.Caption
+		}
+	}
 	draft, err = s.repository.SaveSource(ctx, message.Chat.ID, message.ID, kind, preview, sourceHTML, message.From.ID)
 	if err != nil {
 		return true, err

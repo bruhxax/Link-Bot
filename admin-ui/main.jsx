@@ -83,6 +83,7 @@ import { UserDialog } from "./user-dialog.jsx";
 import { Overview } from "./overview.jsx";
 import { Users } from "./users-table.jsx";
 import { Partners } from "./partners.jsx";
+import { Broadcast } from "./broadcast.jsx";
 import { SectionToolbar } from "./section-toolbar.jsx";
 import "./users-page.css";
 import { userDateKey } from "./users-list-data.mjs";
@@ -1391,6 +1392,9 @@ function Dialogs({ nodes, dispatch }) {
       header?.textContent ||
       "Настройки";
     const body = sheet.cloneNode(true);
+    body.removeAttribute("role");
+    body.removeAttribute("aria-modal");
+    body.removeAttribute("aria-labelledby");
     const bodyHeader = body.querySelector(".modal__header");
     if (bodyHeader) {
       bodyHeader.querySelector(".modal__title")?.remove();
@@ -1864,6 +1868,13 @@ function Admin({ model, content, dialogs, dispatch }) {
               />
             ) : active === "partners" ? (
               <Partners model={model} hidden={statisticsHidden} />
+            ) : active === "broadcast" ? (
+              <Broadcast
+                model={model}
+                dispatch={dispatch}
+                hidden={statisticsHidden}
+                Legacy={Legacy}
+              />
             ) : active === "servers" ? (
               <Nodes model={model} />
             ) : active === "reviews" ? (
@@ -1952,6 +1963,17 @@ export function mountRemnaAdmin(element, model, shell) {
   const dialogs = [...shell.children].filter((n) =>
     n.matches(".modal,.admin-commerce-menu"),
   );
+  // Broadcast confirmations are nested in their legacy page. Lift them into
+  // the shared dialog layer before native content replaces that page.
+  for (const confirmation of shell.querySelectorAll(
+    ".page-scroll .admin-broadcast-confirm",
+  )) {
+    const modal = confirmation.closest(".modal");
+    if (modal && !dialogs.includes(modal)) {
+      dialogs.push(modal);
+      modal.remove();
+    }
+  }
   // The bridge recreates model objects and markup on every refresh. Its action
   // callbacks use the live cabinet state, so only serialized view data needs
   // to invalidate an unchanged render. React's own menu/form state stays live.

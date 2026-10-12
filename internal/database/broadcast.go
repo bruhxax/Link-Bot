@@ -36,6 +36,7 @@ type BroadcastDraft struct {
 	SourceMessageID *int              `json:"-"`
 	SourceKind      string            `json:"sourceKind"`
 	SourcePreview   string            `json:"sourcePreview"`
+	SourceText      string            `json:"sourceText,omitempty"`
 	SourceHTML      string            `json:"-"`
 	Buttons         []BroadcastButton `json:"buttons"`
 	RecipientCount  int               `json:"recipientCount"`
@@ -203,6 +204,13 @@ func scanBroadcastDraft(row broadcastRowScanner) (*BroadcastDraft, error) {
 	}
 	if draft.Buttons == nil {
 		draft.Buttons = []BroadcastButton{}
+	}
+	draft.SourceText = draft.SourcePreview
+	if draft.SourceHTML != "" {
+		draft.SourceText = draft.SourceHTML
+		if draft.SourceKind == "html" {
+			draft.SourceText = broadcastPreviewText(draft.SourceHTML)
+		}
 	}
 	return &draft, nil
 }

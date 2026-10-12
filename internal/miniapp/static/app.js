@@ -2740,6 +2740,7 @@ const state = {
   adminBusy: "",
 	adminAppearanceTab:"theme", adminLandingTab:"colors", adminCursorSurface:"landing", adminAudienceDraft:{}, adminAudienceCount:{}, adminAudienceOptions:null, adminAudienceBusy:false,
 	adminBroadcast: null,
+	adminBroadcastError: "",
 	adminBroadcastTab: readSetting(STORAGE_KEYS.adminBroadcastTab, "telegram") === "email" ? "email" : "telegram",
 	adminEmailBroadcast: null,
 	adminEmailEditorTab: "message",
@@ -4500,6 +4501,23 @@ function mountCabinetShell(markup) {
 			usersError: state.adminUsersError || "",
 			partners: state.adminPartners, partnersLoaded: Boolean(state.adminPartners), partnersBusy: state.adminPartnersBusy, partnersError: state.adminPartnersError || "", canManagePartners: canAdmin("partners"),
 			refreshPartners: () => refreshAdminPartners(),
+            broadcastConsole: {
+              channel:state.adminBroadcastTab,telegram:state.adminBroadcast,email:state.adminEmailBroadcast,error:state.adminBroadcastError||"",
+              buttons:state.adminBroadcastButtonsDraft,buttonsDirty:state.adminBroadcastButtonsDirty,
+              telegramBusy:state.adminBroadcastBusy,emailBusy:state.adminEmailBusy,
+              subject:state.adminEmailDraftSubject,body:state.adminEmailDraftBody,emailDirty:state.adminEmailDraftDirty,
+              previewAddress:state.adminEmailPreviewAddress,canBroadcast:canAdmin("broadcast"),canSMTP:canAdmin("smtp"),
+              smtp:state.adminSMTP,smtpHTML:renderAdminMailSettings(),emailEditorTab:state.adminEmailEditorTab,
+              audience:currentBroadcastAudience(state.adminBroadcastTab),audienceCount:state.adminAudienceCount[state.adminBroadcastTab],
+              audienceOptions:state.adminAudienceOptions||state.data?.admin?.squads||{},audienceBusy:state.adminAudienceBusy,
+              updateAudience:(field,value)=>updateConsoleAudience(field,value),
+              checkAudience:()=>checkBroadcastAudience(state.adminBroadcastTab),loadAudience:loadAudienceOptions,
+              updateButton:updateConsoleBroadcastButton,addButton:addAdminBroadcastButton,removeButton:removeAdminBroadcastButton,
+              clearButtons:()=>{if(state.adminBroadcast?.status!=="running"){state.adminBroadcastButtonsDraft=[];state.adminBroadcastButtonsDirty=true;render({preserveScroll:true});}},
+              updateEmail:(field,value)=>{if(state.adminEmailBroadcast?.draft?.status==="running")return;if(field==="subject")state.adminEmailDraftSubject=value;else state.adminEmailDraftBody=value;state.adminEmailDraftDirty=true;render({preserveScroll:true,preserveInteraction:true});},
+              updatePreviewAddress:value=>{state.adminEmailPreviewAddress=value;},
+              templates:consoleBroadcastTemplates,
+            },
 			createPartner: (telegramId,percent) => createAdminPartner({telegramId,percent}),
 			reviewPartner: reviewAdminPartner,
 			updatePartner: updateAdminPartner,
@@ -12253,7 +12271,7 @@ function bindRootActions() {
       if (action === "admin-load-subscription-target") return await loadAdminSubscriptionTarget();
       if (action === "admin-rebind-subscription") return await rebindAdminSubscription();
 			if (action === "admin-broadcast-capture") return await startAdminBroadcastCapture();
-			if (action === "admin-broadcast-tab" && ["telegram", "email"].includes(value)) { state.adminBroadcastTab = value; state.adminEmailConfirmOpen = false; render({ preserveScroll: true }); return await refreshAdminBroadcast({ forceButtons: true }); }
+			if (action === "admin-broadcast-tab" && ["telegram", "email"].includes(value)) { state.adminBroadcastTab = value; state.adminEmailConfirmOpen = false; state.adminBroadcastConfirmOpen = false; render({ preserveScroll: true }); return await refreshAdminBroadcast({ forceButtons: false }); }
 			if (action === "admin-email-save") return await saveAdminEmailBroadcast();
 			if (action === "admin-email-open-confirm") { if(state.adminEmailDraftDirty && !await saveAdminEmailBroadcast({quiet:true}))return; if(!await checkBroadcastAudience("email"))return; state.adminEmailConfirmedAt=state.adminEmailBroadcast?.draft?.updatedAt; state.adminEmailConfirmOpen = true; render({ preserveScroll: true }); return; }
 			if (action === "admin-email-close-confirm") { state.adminEmailConfirmOpen = false; render({ preserveScroll: true }); return; }
@@ -13376,6 +13394,43 @@ function syncAdminSaveBarDOM() {
 	});
 }
 
+
+function updateConsoleBroadcastButton(index,field,value) {
+ if(state.adminBroadcast?.status==="running" || state.adminBroadcastBusy || !state.adminBroadcastButtonsDraft[index])return;
+ const allowed=["text","type","url","promoCode","iconCustomEmojiId","style"];
+ if(!allowed.includes(field))return;
+ const button=state.adminBroadcastButtonsDraft[index];button[field]=value;
+ if(field==="type"){if(value!=="url")button.url="";if(value!=="promo")button.promoCode="";}
+ state.adminBroadcastButtonsDirty=true;
+ render({preserveScroll:true,preserveInteraction:true});
+}
+function updateConsoleAudience(field,value) {
+ if(state.adminAudienceBusy || (state.adminBroadcastTab==="email" ? state.adminEmailBroadcast?.draft : state.adminBroadcast)?.status==="running")return;
+ if(!["category","language","tag","internalSquads","externalSquads"].includes(field))return;
+ const channel=state.adminBroadcastTab;currentBroadcastAudience(channel)[field]=value;state.adminAudienceCount[channel]=null;
+ render({preserveScroll:true,preserveInteraction:true});
+}
+async function consoleBroadcastTemplates(action,{name="",id=0}={}) {
+ const channel=state.adminBroadcastTab;
+ if(!canAdmin("broadcast"))throw new Error("Недостаточно прав");
+ if(["save","apply"].includes(action)){
+  if(channel==="email" && state.adminEmailDraftDirty && !await saveAdminEmailBroadcast({quiet:true}))throw new Error("Сначала сохраните письмо");
+  if(channel==="telegram")await ensureAdminBroadcastButtonsSaved();
+ }
+ const draft=channel==="email" ? state.adminEmailBroadcast?.draft : state.adminBroadcast;
+ const response=await post("/api/mini-app/admin/broadcast/templates",{action,channel,name,id,updatedAt:draft?.updatedAt,audience:currentBroadcastAudience(channel)});
+ if(action==="apply"){
+  if(channel==="email"){
+   state.adminEmailBroadcast={...(state.adminEmailBroadcast||{}),draft:response.data};
+   state.adminEmailDraftSubject=response.data.subject||"";state.adminEmailDraftBody=response.data.body||"";state.adminEmailDraftDirty=false;
+  } else setAdminBroadcastDraft(response.data,{forceButtons:true});
+  state.adminAudienceDraft[channel]=deepClone(response.data.audience);state.adminAudienceCount[channel]=null;
+  state.adminBroadcastConfirmOpen=false;state.adminEmailConfirmOpen=false;
+  render({preserveScroll:true});
+ }
+ return response.data;
+}
+
 function setAdminBroadcastDraft(draft, { forceButtons = false } = {}) {
 	if(!state.adminAudienceDraft.telegram)state.adminAudienceDraft.telegram=deepClone(draft?.audience||{category:"all",internalSquads:[],externalSquads:[],tag:"",language:""});
 	state.adminBroadcast = draft || { status: "idle", buttons: [], recipientCount: 0, sentCount: 0, failedCount: 0 };
@@ -13385,47 +13440,45 @@ function setAdminBroadcastDraft(draft, { forceButtons = false } = {}) {
 	}
 }
 
+let adminTelegramStatePending=false,adminEmailStatePending=false;
 async function refreshAdminBroadcast({ silent = false, forceButtons = false } = {}) {
-    if (!canAdmin("broadcast")) state.adminBroadcastTab = "email";
-	if (state.adminBroadcastTab === "email") return refreshAdminEmailBroadcast({ silent });
-	if (state.adminSection !== "broadcast" || state.adminBroadcastBusy === "state") return;
-	const previous = silent ? JSON.stringify(state.adminBroadcast || {}) : "";
-	if (!silent) {
-		state.adminBroadcastBusy = "state";
-		render({ preserveScroll: true });
-	}
-	try {
-		const response = await post("/api/mini-app/admin/broadcast/state", {});
-		setAdminBroadcastDraft(response.data, { forceButtons });
-		state.adminBroadcastBusy = "";
-		if (silent) { if (previous !== JSON.stringify(state.adminBroadcast || {})) renderRealtime(); }
-		else render({ preserveScroll: true });
-	} catch (error) {
-		state.adminBroadcastBusy = "";
-		if (!silent) throw error;
-	}
+ if(!canAdmin("broadcast"))state.adminBroadcastTab="email";
+ if(state.adminBroadcastTab==="email")return refreshAdminEmailBroadcast({silent});
+ if(state.adminSection!=="broadcast" || state.adminBroadcastBusy || adminTelegramStatePending)return;
+ adminTelegramStatePending=true;
+ const previous=JSON.stringify(state.adminBroadcast||{}),stamp=state.adminBroadcast?.updatedAt,previousError=state.adminBroadcastError||"";
+ state.adminBroadcastError="";
+ if(!silent){state.adminBroadcastBusy="state";render({preserveScroll:true});}
+ try {
+  const response=await post("/api/mini-app/admin/broadcast/state",{});
+  if(state.adminSection!=="broadcast" || state.adminBroadcast?.updatedAt!==stamp || state.adminBroadcastBusy && state.adminBroadcastBusy!=="state")return;
+  setAdminBroadcastDraft(response.data,{forceButtons});
+ }catch(error){state.adminBroadcastError=error?.message||"Не удалось загрузить рассылку";}
+ finally{
+  adminTelegramStatePending=false;
+  if(state.adminBroadcastBusy==="state")state.adminBroadcastBusy="";
+  if(state.adminSection==="broadcast" && state.adminBroadcastTab==="telegram" && (!silent||previousError!==state.adminBroadcastError||previous!==JSON.stringify(state.adminBroadcast||{})))render({preserveScroll:true});
+ }
 }
-
-async function refreshAdminEmailBroadcast({ silent = false } = {}) {
-  if (state.adminEmailEditorTab === "connection" || !canAdmin("broadcast")) void loadAdminSMTP();
-  if (!canAdmin("broadcast")) return;
-  if (state.adminSection !== "broadcast" || state.adminEmailBusy === "state") return;
-  const previous = JSON.stringify(state.adminEmailBroadcast || {});
-  if (!silent) { state.adminEmailBusy = "state"; render({ preserveScroll: true }); }
-  try {
-    const response = await post("/api/mini-app/admin/broadcast/email/state", {});
-    state.adminEmailBroadcast = response.data;
- if(!state.adminAudienceDraft.email)state.adminAudienceDraft.email=deepClone(response.data?.draft?.audience||{category:"all",internalSquads:[],externalSquads:[],tag:"",language:""});
-    if (!state.adminEmailDraftDirty) {
-      state.adminEmailDraftSubject = String(response.data?.draft?.subject || "");
-      state.adminEmailDraftBody = String(response.data?.draft?.body || "");
-    }
-    state.adminEmailBusy = "";
-    if (!silent || previous !== JSON.stringify(response.data)) render({ preserveScroll: true });
-  } catch (error) {
-    state.adminEmailBusy = "";
-    if (!silent) throw error;
-  }
+async function refreshAdminEmailBroadcast({silent=false}={}) {
+ if(state.adminEmailEditorTab==="connection"||!canAdmin("broadcast"))void loadAdminSMTP();
+ if(!canAdmin("broadcast")||state.adminSection!=="broadcast"||state.adminEmailBusy||adminEmailStatePending)return;
+ adminEmailStatePending=true;
+ const previous=JSON.stringify(state.adminEmailBroadcast||{}),stamp=state.adminEmailBroadcast?.draft?.updatedAt,previousError=state.adminBroadcastError||"";
+ state.adminBroadcastError="";
+ if(!silent){state.adminEmailBusy="state";render({preserveScroll:true});}
+ try{
+  const response=await post("/api/mini-app/admin/broadcast/email/state",{});
+  if(state.adminSection!=="broadcast"||state.adminEmailBroadcast?.draft?.updatedAt!==stamp||state.adminEmailBusy&&state.adminEmailBusy!=="state")return;
+  state.adminEmailBroadcast=response.data;
+  if(!state.adminAudienceDraft.email)state.adminAudienceDraft.email=deepClone(response.data?.draft?.audience||{category:"all",internalSquads:[],externalSquads:[],tag:"",language:""});
+  if(!state.adminEmailDraftDirty){state.adminEmailDraftSubject=String(response.data?.draft?.subject||"");state.adminEmailDraftBody=String(response.data?.draft?.body||"");}
+ }catch(error){state.adminBroadcastError=error?.message||"Не удалось загрузить письмо";}
+ finally{
+  adminEmailStatePending=false;
+  if(state.adminEmailBusy==="state")state.adminEmailBusy="";
+  if(state.adminSection==="broadcast"&&state.adminBroadcastTab==="email"&&(!silent||previousError!==state.adminBroadcastError||previous!==JSON.stringify(state.adminEmailBroadcast||{})))render({preserveScroll:true});
+ }
 }
 
 async function saveAdminEmailBroadcast({ quiet = false } = {}) {

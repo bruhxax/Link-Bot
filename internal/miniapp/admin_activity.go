@@ -72,6 +72,7 @@ var activityActions = map[string]activityAction{
 	"smtp/update":                 {"Изменил настройки почты", "settings", "host port user from enabled password proxyUrl clearProxy"},
 	"smtp/check":                  {"Проверил подключение почты", "communication", "host port"},
 	"smtp/test":                   {"Отправил тестовое письмо", "communication", "email"},
+	"broadcast/templates":         {"Работал с шаблонами рассылки", "communication", "action channel name id"},
 	"broadcast/capture/start":     {"Начал создание рассылки", "communication", ""},
 	"broadcast/buttons":           {"Изменил кнопки рассылки", "communication", "buttons"},
 	"broadcast/audience":          {"Изменил получателей рассылки", "communication", "channel audience"},

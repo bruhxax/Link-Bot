@@ -887,6 +887,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/users/message/preview", h.withSession(h.handleAdminDirectMessagePreview))
 	mux.HandleFunc("/api/mini-app/admin/users/message/send", h.withSession(h.handleAdminDirectMessageSend))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/state", h.withSession(h.handleAdminBroadcastState))
+	mux.HandleFunc("/api/mini-app/admin/broadcast/templates", h.withSession(h.handleBroadcastTemplates))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/capture/start", h.withSession(h.handleAdminBroadcastCaptureStart))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/buttons", h.withSession(h.handleAdminBroadcastButtons))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/preview", h.withSession(h.handleAdminBroadcastPreview))
