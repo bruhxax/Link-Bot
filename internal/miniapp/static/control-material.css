@@ -93,4 +93,30 @@
     border: 0 !important; box-shadow: none !important;
     backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
   }
+
+  /* The checkout card supplies one surface; its rows and input stay unframed. */
+  :root:not([data-admin-console="on"]) #app .card--checkout :is(.checkout-payment, .checkout-promo, .promo-box__input),
+  :root:not([data-admin-console="on"]) :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) button:has(> [data-app-icon="close"]),
+  :root:not([data-admin-console="on"]) #app .p2p-menu__close {
+    background: transparent !important; background-image: none !important;
+    border: 0 !important; box-shadow: none !important;
+    backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  }
+
+  /* Payment methods need a dark backdrop without stacked grain or frame halos. */
+  :root:not([data-admin-console="on"]) .modal--payment-methods .modal__sheet {
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .32) !important;
+  }
+  :root:not([data-admin-console="on"])[data-glass="on"] .modal--payment-methods .modal__sheet {
+    background: color-mix(in srgb, var(--surface) 92%, transparent) !important;
+    background-image: none !important;
+    border-color: var(--line) !important;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .32) !important;
+  }
+  :root:not([data-admin-console="on"]) :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) .modal--payment-methods .pay-row {
+    background: var(--control-bg) !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  }
 }
