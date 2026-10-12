@@ -10,7 +10,7 @@
    tying this shared theme rule to a particular page or its selector weight. */
 @layer control-material {
   :root:not([data-admin-console="on"]) :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) :where(
-    button:not(.bottom-nav__item):not(.modal__backdrop):not([data-action="administrators-color"]):not(.admin-localization-menu__option),
+    button:not(.bottom-nav__item):not(.desktop-sidebar__item):not(.browser-logout--sidebar):not(.modal__backdrop):not([data-action="administrators-color"]):not(.admin-localization-menu__option),
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]),
     textarea, select,
     .admin-localization-select, .admin-logo-field__upload, .surface-upload,
@@ -33,7 +33,7 @@
   }
 
   :root:not([data-admin-console="on"]) :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) :where(
-    button:not(.bottom-nav__item):not([data-action="administrators-color"]),
+    button:not(.bottom-nav__item):not(.desktop-sidebar__item):not(.browser-logout--sidebar):not([data-action="administrators-color"]),
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]),
     textarea, select
   ) { color: var(--button-text) !important; }
@@ -58,7 +58,7 @@
    of the card tint. A portalled menu keeps its stronger blur for legibility. */
 @layer control-material {
   :root:not([data-admin-console="on"])[data-glass="on"] :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) :where(
-    button:not(.bottom-nav__item):not(.modal__backdrop):not([data-action="administrators-color"]):not(.admin-localization-menu__option),
+    button:not(.bottom-nav__item):not(.desktop-sidebar__item):not(.browser-logout--sidebar):not(.modal__backdrop):not([data-action="administrators-color"]):not(.admin-localization-menu__option),
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]),
     textarea, select,
     .admin-logo-field__upload, .surface-upload, .admin-users__search, .admin-settings-search__field,

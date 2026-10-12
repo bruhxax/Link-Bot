@@ -68,12 +68,12 @@ func TestLandingLinksToOptionalCabinetHost(t *testing.T) {
 	handler := &Handler{staticFS: staticFS, cabinetBaseURL: "https://my.example.com"}
 	landing := httptest.NewRecorder()
 	handler.serveRoot(landing, httptest.NewRequest(http.MethodGet, "https://example.com/", nil))
-	if landing.Code != http.StatusOK || !strings.Contains(landing.Body.String(), `href="https://my.example.com/mini-app/?cabinet=1"`) || !strings.Contains(landing.Body.String(), `data-cabinet-base="https://my.example.com"`) {
+	if landing.Code != http.StatusOK || !strings.Contains(landing.Body.String(), `href="https://my.example.com/dashboard"`) || !strings.Contains(landing.Body.String(), `data-cabinet-base="https://my.example.com"`) {
 		t.Fatalf("landing does not link to cabinet host: status=%d", landing.Code)
 	}
 	cabinet := httptest.NewRecorder()
 	handler.serveRoot(cabinet, httptest.NewRequest(http.MethodGet, "https://my.example.com/", nil))
-	if cabinet.Code != http.StatusFound || cabinet.Header().Get("Location") != "/mini-app/?cabinet=1" {
+	if cabinet.Code != http.StatusOK || !strings.Contains(cabinet.Body.String(), `name="admin-entry" content="off"`) {
 		t.Fatalf("cabinet root redirect = %d %q", cabinet.Code, cabinet.Header().Get("Location"))
 	}
 }

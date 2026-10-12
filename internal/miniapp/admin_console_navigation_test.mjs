@@ -3,6 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import { adminConsoleEnabled, visibleConsoleGroups, workspaceNavigationURL } from "./static/admin-console.mjs";
+import { readAppRoute, appRoutePath } from "./static/routes.mjs";
 import { canAdmin } from "./static/administrators.mjs";
 
 const source = fs.readFileSync(new URL("./static/app.js", import.meta.url), "utf8");
@@ -10,7 +11,7 @@ const entry = source.slice(source.indexOf("function getEntryPage()"), source.ind
 function entryPage({ dedicated = false, adminURL = "", query = "", reload = false, saved = "dashboard" } = {}) {
   const redirects = [];
   const context = vm.createContext({ adminEntry: dedicated, adminDedicated: dedicated, adminBaseURL: adminURL, previewMode: false, remnaAdminEnabled: dedicated,
-    urlParams: new URLSearchParams(query), PAGES: ["dashboard", "admin", "support", "servers", "reviews", "buy"],
+    entryRoute: readAppRoute({ pathname: "/mini-app/", search: "?" + query, adminDedicated: dedicated }), urlParams: new URLSearchParams(query), PAGES: ["dashboard", "admin", "support", "servers", "reviews", "buy"],
     STORAGE_KEYS: { page: "page" }, isPageReload: () => reload, readSetting: () => saved,
     tg: null, workspaceNavigationURL,
     window: { location: { replace: url => redirects.push(url) } } });
@@ -69,7 +70,7 @@ test("shared console links redirect to the dedicated host, while legacy routes r
     assert.equal(entryPage({query: `page=admin&section=${page}`, reload:true}).page, "admin");
     assert.equal(entryPage({dedicated:true,query: `page=admin&section=${page}`, reload:true}).page, page);
     assert.deepEqual(entryPage({query:`page=admin&section=${page}&token=private`,adminURL:"https://admin.example.com"}), {
-      page:"dashboard",redirects:[`https://admin.example.com/?page=admin&section=${page}`]
+      page:"dashboard",redirects:[`https://admin.example.com/${page}`]
     });
   }
 });
@@ -78,11 +79,11 @@ test("shared administration pages keep the admin entry in their saved URL", () =
   const code = source.slice(source.indexOf("let lastPersistedNavigation ="),source.indexOf("function readSessionSetting("));
   for (const page of ["support","servers","reviews"]) {
     const paths=[];
-    const context=vm.createContext({URL,state:{adminWorkspace:true,currentPage:page,adminSection:"home"},
-      window:{location:{href:"https://example.com/mini-app/?page=admin&section=home"},history:{replaceState:(_,__,path)=>paths.push(path)}},
+    const context=vm.createContext({URL,appRoutePath,adminDedicated:true,cabinetDedicated:false,state:{adminWorkspace:true,currentPage:page,adminSection:"home"},
+      window:{location:{href:"https://admin.example.com/mini-app/?page=admin&section=home",search:"?page=admin&section=home"},history:{replaceState:(_,__,path)=>paths.push(path)}},
       writeSetting:()=>{},STORAGE_KEYS:{page:"page"}});
     vm.runInContext(code,context);context.persistNavigationState();
-    assert.deepEqual(paths,[`/mini-app/?page=admin&section=${page}`]);
+    assert.deepEqual(paths,[`/${page}`]);
   }
 });
 

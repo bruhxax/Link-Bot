@@ -778,7 +778,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 		}
 
 		setStaticHeaders(w, r, h.assetVersion)
-		if r.URL.Path == "/mini-app/sw.js" && h.isAdminHost(r) {
+		if r.URL.Path == "/mini-app/sw.js" {
 			w.Header().Set("Service-Worker-Allowed", "/")
 		}
 		r.URL.Path = path.Clean(strings.TrimPrefix(r.URL.Path, "/mini-app"))
@@ -930,16 +930,15 @@ func (h *Handler) handlePublicConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serveRoot(w http.ResponseWriter, r *http.Request) {
+	if h.serveAppRoute(w, r) {
+		return
+	}
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
 	}
 	if h.isAdminHost(r) {
 		h.serveIndex(w, r)
-		return
-	}
-	if h.cabinetBaseURL != "" && strings.EqualFold(r.Host, strings.TrimPrefix(h.cabinetBaseURL, "https://")) {
-		http.Redirect(w, r, "/mini-app/?cabinet=1", http.StatusFound)
 		return
 	}
 	h.serveLanding(w, r)
@@ -984,7 +983,7 @@ func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
 	data = bytes.ReplaceAll(data, []byte("__ADMIN_BASE_URL__"), []byte(html.EscapeString(h.adminBaseURL)))
 	data = bytes.ReplaceAll(data, []byte("__CABINET_BASE_URL__"), []byte(html.EscapeString(h.cabinetBaseURL)))
 	adminEntry := "off"
-	if h.isAdminHost(r) || r.URL.Path == "/admin" || r.URL.Path == "/admin/" {
+	if h.isAdminHost(r) || r.URL.Path == "/admin" || strings.HasPrefix(r.URL.Path, "/admin/") {
 		adminEntry = "on"
 	}
 	data = bytes.ReplaceAll(data, []byte("__ADMIN_ENTRY__"), []byte(adminEntry))
@@ -1027,6 +1026,11 @@ func (h *Handler) serveManifest(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) pwaManifestForRequest(settings runtimeconfig.Settings, r *http.Request) pwaManifest {
 	manifest := buildPWAManifest(settings, h.assetVersion)
+	manifest.StartURL = "/cabinet/dashboard"
+	manifest.Scope = "/"
+	if h.isCabinetHost(r) {
+		manifest.StartURL = "/dashboard"
+	}
 	if h.isAdminHost(r) {
 		manifest.Name += " Admin"
 		manifest.ShortName = truncatePWAName(manifest.Name, 30)

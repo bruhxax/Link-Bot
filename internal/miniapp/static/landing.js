@@ -4,8 +4,9 @@
   const $ = (id) => document.getElementById(id);
   const cabinetBase = document.body.dataset.cabinetBase || window.location.origin;
   const assetVersion = new URL(document.currentScript?.src || window.location.href).searchParams.get("v") || "";
-  const supportURL = new URL("/mini-app/?page=support", cabinetBase).href;
-  const buyURL = new URL("/mini-app/?page=buy", cabinetBase).href;
+  const cabinetPrefix = document.body.dataset.cabinetBase ? "" : "/cabinet";
+  const supportURL = new URL(cabinetPrefix + "/support", cabinetBase).href;
+  const buyURL = new URL(cabinetPrefix + "/plans", cabinetBase).href;
   const colorVars = {
     background: "--bg", surface: "--surface", surfaceStrong: "--surface-strong",
     text: "--text", muted: "--muted", border: "--border", accent: "--accent",

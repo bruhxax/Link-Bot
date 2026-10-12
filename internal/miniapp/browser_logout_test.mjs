@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import test from "node:test";
+import { browserLogoutURL } from "./static/routes.mjs";
 
 const source = fs.readFileSync(new URL("./static/app.js", import.meta.url), "utf8");
 function section(start, end) {
@@ -15,17 +16,18 @@ function store() {
   return {values, getItem: key => values.get(key) || null,
     setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key)};
 }
-function harness({telegram = false, localStorage = store(), sessionStorage = store()} = {}) {
+function harness({telegram = false, localStorage = store(), sessionStorage = store(), origin = "https://cabinet.example.com", cabinetBaseURL = "https://cabinet.example.com"} = {}) {
   const listeners = {};
   const redirects = [];
   let aborted = false;
   const context = vm.createContext({
     clientSurface: telegram ? "telegram" : "browser", tg: telegram ? {initData: "telegram-init"} : null,
+    cabinetBaseURL, browserLogoutURL, document: { querySelector: () => ({content: "https://example.com"}) },
     BROWSER_LOGOUT_KEY: "logout-stamp", browserLogoutStamp: localStorage.getItem("logout-stamp") || "", browserLoggingOut: false,
     STORAGE_KEYS: {telegramIDToken: credentials[0], telegramLogin: credentials[1], googleLogin: credentials[2], page: "page"},
     state: {data: {user: {id: 123}}, adminLayoutEditing: false},
 		dashboardDataVersion: 0,
-    window: {localStorage, sessionStorage, location: {replace: url => redirects.push(url)},
+    window: {localStorage, sessionStorage, location: {origin, replace: url => redirects.push(url)},
       addEventListener: (name, fn) => { listeners[name] = fn; }},
     realtimeAbortController: {abort() { aborted = true; }},
     stopTelegramQRLogin() {}, closeSupportThreadState() {}, clearGoogleAuth() {},
@@ -58,7 +60,7 @@ test("logout clears every login method in both stores and opens a clean sign-in 
   assert.equal(page.aborted, true);
   assert.equal(page.context.state.data, null);
   assert.equal(page.localStorage.getItem("appearance"), "keep");
-  assert.deepEqual(page.redirects, ["/mini-app/?cabinet=1"]);
+  assert.deepEqual(page.redirects, ["https://cabinet.example.com/login"]);
   page.context.logoutBrowser();
   assert.equal(page.redirects.length, 1);
   // A new page cannot restore any of the old credentials.
@@ -75,6 +77,17 @@ test("late server and identity callbacks cannot persist a session after logout",
   for (const key of credentials) assert.equal(page.localStorage.getItem(key), null);
 });
 
+test("admin logout clears both origins before opening cabinet sign-in", () => {
+  const admin = harness({origin: "https://admin.example.com"});
+  const cabinet = harness();
+  for (const page of [admin, cabinet]) credentials.forEach(key => page.localStorage.setItem(key, "saved"));
+  admin.context.logoutBrowser();
+  assert.deepEqual(admin.redirects, ["https://cabinet.example.com/logout"]);
+  cabinet.context.logoutBrowser();
+  assert.deepEqual(cabinet.redirects, ["https://cabinet.example.com/login"]);
+  for (const page of [admin, cabinet]) credentials.forEach(key => assert.equal(page.localStorage.getItem(key), null));
+});
+
 test("other tabs reject stale credentials before the storage event and then sign out", () => {
   const shared = store();
   const first = harness({localStorage: shared});
@@ -88,7 +101,7 @@ test("other tabs reject stale credentials before the storage event and then sign
   second.listeners.storage({key: "logout-stamp", newValue: stamp});
   assert.equal(shared.getItem("logout-stamp"), stamp); // No event broadcast loop.
   assert.equal(second.sessionStorage.getItem(credentials[1]), null);
-  assert.deepEqual(second.redirects, ["/mini-app/?cabinet=1"]);
+  assert.deepEqual(second.redirects, ["https://cabinet.example.com/login"]);
 });
 
 test("clearing legacy session credentials still works if persistent storage is unavailable", () => {

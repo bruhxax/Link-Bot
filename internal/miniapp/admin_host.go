@@ -17,18 +17,21 @@ func (h *Handler) isAdminHost(r *http.Request) bool {
 
 func (h *Handler) redirectToAdmin(w http.ResponseWriter, r *http.Request) {
 	target, _ := url.Parse(h.adminBaseURL + "/")
-	query := url.Values{"page": {"admin"}}
 	// Never forward login tokens or arbitrary redirect URLs between origins.
-	if section := r.URL.Query().Get("section"); section != "" {
-		query.Set("section", section)
+	section := strings.Trim(strings.TrimPrefix(r.URL.Path, "/admin"), "/")
+	if section == "" || r.URL.Path == "/mini-app/" || r.URL.Path == "/mini-app" {
+		section = r.URL.Query().Get("section")
 	}
-	target.RawQuery = query.Encode()
+	if adminSections[section] && section != "home" {
+		target.Path = "/" + section
+	}
 	w.Header().Set("Cache-Control", "no-store")
 	http.Redirect(w, r, target.String(), http.StatusFound)
 }
 
 func (h *Handler) serveAdminEntry(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/admin" && r.URL.Path != "/admin/" {
+	section := strings.Trim(strings.TrimPrefix(r.URL.Path, "/admin"), "/")
+	if section != "" && !adminSections[section] {
 		http.NotFound(w, r)
 		return
 	}
@@ -41,11 +44,7 @@ func (h *Handler) serveAdminEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.adminBaseURL == "" {
-		query := url.Values{"page": {"admin"}}
-		if section := r.URL.Query().Get("section"); section != "" {
-			query.Set("section", section)
-		}
-		http.Redirect(w, r, "/mini-app/?"+query.Encode(), http.StatusFound)
+		h.serveIndex(w, r)
 		return
 	}
 	h.serveIndex(w, r)

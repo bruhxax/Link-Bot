@@ -27,6 +27,7 @@ import { canAdmin as accessAllows, changePermission, ROLE_PRESETS, presetPermiss
 
 import { adminConsoleEnabled, consoleRoute, visibleConsoleGroups, workspaceNavigationURL, applyConsoleAppearance } from "./admin-console.mjs";
 import { mountRemnaAdmin, unmountRemnaAdmin } from "./admin-loader.mjs";
+import { readAppRoute, appRoutePath, cabinetNavigationURL, browserLogoutURL } from "./routes.mjs";
 import { mountFinanceCharts, unmountFinanceCharts } from "./finance-chart-loader.mjs";
 import { buildFinanceProviders } from "./finance-providers.mjs";
 
@@ -51,7 +52,9 @@ const adminBaseURL = document.querySelector('meta[name="admin-base-url"]')?.cont
 const cabinetBaseURL = document.querySelector('meta[name="cabinet-base-url"]')?.content || "";
 const adminEntry = document.querySelector('meta[name="admin-entry"]')?.content === "on";
 const adminDedicated = Boolean(adminBaseURL && window.location.origin === adminBaseURL);
-const pwaServiceWorkerScope = adminDedicated ? "/" : "/mini-app/";
+const cabinetDedicated = Boolean(cabinetBaseURL && window.location.origin === cabinetBaseURL);
+const entryRoute = readAppRoute({ pathname: window.location.pathname, search: window.location.search, adminDedicated });
+const pwaServiceWorkerScope = "/";
 
 const previewMode = (() => {
   const enabled = urlParams.get("preview") === "1";
@@ -320,12 +323,14 @@ function logoutBrowser({ broadcast = true } = {}) {
 	closeSupportThreadState();
 	writeSetting(STORAGE_KEYS.page, "dashboard");
 	// A new document also drops pending requests, account state and auth URL data.
-	window.location.replace("/mini-app/?cabinet=1");
+	window.location.replace(browserLogoutURL({ cabinetBaseURL, publicBaseURL: document.querySelector('meta[name="public-base-url"]')?.content || "", origin: window.location.origin }));
 }
 
 window.addEventListener("storage", (event) => {
 	if (clientSurface === "browser" && event.key === BROWSER_LOGOUT_KEY && event.newValue !== browserLogoutStamp) logoutBrowser({ broadcast: false });
 });
+
+window.addEventListener("popstate", () => window.location.reload());
 
 function isInstallGuideMode() {
   return installGuideMode;
@@ -2612,7 +2617,7 @@ const state = {
   error: "",
   currentPage: "dashboard",
   sidebarOpen: false,
-  adminWorkspace: remnaAdminEnabled && (adminEntry || urlParams.get("page") === "admin"),
+  adminWorkspace: remnaAdminEnabled && (adminEntry || entryRoute?.page === "admin"),
   adminConsoleMenuOpen: false,
   payModalOpen: false,
 	p2pMenuStep: "",
@@ -3322,6 +3327,7 @@ function reviewsText() {
 }
 
 async function boot() {
+	if (entryRoute?.logout && clientSurface === "browser") return logoutBrowser();
   initTelegram();
   particleEngine.start();
   state.theme = "dark";
@@ -3330,8 +3336,10 @@ async function boot() {
 	applyAppearance();
   const paymentReturn = Boolean(getPaymentReturnState());
   state.currentPage = getEntryPage();
+	if (entryRoute?.customPageID) state.activeCustomPageID = entryRoute.customPageID;
 	if (state.currentPage === "admin") state.adminWorkspace = remnaAdminEnabled;
 	state.adminSection = state.currentPage === "admin" ? getEntryAdminSection() : "home";
+	if (!entryRoute?.login && !entryRoute?.logout) persistNavigationState();
 	if (!ADMIN_SEARCH_CONTENT_SECTIONS.some(([section]) => section === state.adminContentSection)) state.adminContentSection = "start";
   state.sidebarOpen = false;
   state.subscriptionMenuOpen = false;
@@ -3902,7 +3910,7 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
         state.adminUserSelectedSubscriptionID = "31";
 		state.adminUserPreviewDetail = deepClone(state.adminUserDetail);
 		if (urlParams.get("detail") !== "1") state.adminUserDetail = null;
-		const previewSection = String(urlParams.get("section") || (urlParams.get("page") === "admin" || adminEntry ? "home" : ""));
+		const previewSection = String(urlParams.get("section") || (entryRoute?.page === "admin" ? entryRoute.section || "home" : adminEntry ? "home" : ""));
 		if (["support", "servers", "reviews"].includes(previewSection)) {
 			state.currentPage = previewSection;
 			state.adminWorkspace = remnaAdminEnabled;
@@ -11898,13 +11906,9 @@ function bindRootActions() {
       return;
     }
     if (action === "admin-console-exit") {
-      if (adminEntry) { window.location.assign(workspaceNavigationURL(new URL(`${cabinetBaseURL || document.querySelector('meta[name="public-base-url"]')?.content || ""}/mini-app/?cabinet=1`, window.location.origin).href, tg)); return; }
+      if (adminEntry) { window.location.assign(workspaceNavigationURL(cabinetNavigationURL({ cabinetBaseURL, publicBaseURL: document.querySelector('meta[name="public-base-url"]')?.content || "", origin: window.location.origin }), tg)); return; }
       state.adminWorkspace = false;
       state.adminConsoleMenuOpen = false;
-      const customerURL = new URL(window.location.href);
-      customerURL.searchParams.set("page", "dashboard");
-      customerURL.searchParams.delete("section");
-      window.history.replaceState(null, "", customerURL.pathname + customerURL.search + customerURL.hash);
       setPage("dashboard"); return;
     }
     if (action === "admin-console-page") {
@@ -19066,11 +19070,14 @@ function writeSetting(key, value) {
 let lastPersistedNavigation = "";
 
 function persistNavigationState() {
-	if (state.adminWorkspace && !state.adminLayoutEditing && !state.adminPlanEditing && ["admin", "support", "servers", "reviews"].includes(state.currentPage)) {
-		const current = new URL(window.location.href);
-		current.searchParams.set("page", "admin");
-		current.searchParams.set("section", state.currentPage === "admin" ? state.adminSection : state.currentPage);
-		window.history.replaceState(null, "", current.pathname + current.search + current.hash);
+	const current = new URL(window.location.href);
+	const routePage = state.adminWorkspace && (state.adminPlanEditing || state.adminLayoutEditing) ? "admin" : state.currentPage;
+	const path = appRoutePath({ page: routePage, section: state.adminSection, customPageID: state.activeCustomPageID, adminWorkspace: state.adminWorkspace, adminDedicated, cabinetDedicated });
+	for (const key of ["page", "section", "cabinet"]) current.searchParams.delete(key);
+	const next = path + current.search + current.hash;
+	if (current.pathname + window.location.search + current.hash !== next) {
+		const method = lastPersistedNavigation && current.pathname !== path ? "pushState" : "replaceState";
+		window.history[method](null, "", next);
 	}
 	const values = [state.currentPage, state.adminSection, state.adminContentSection, state.adminBroadcastTab, state.activeCustomPageID];
 	const signature = JSON.stringify(values);
@@ -19130,24 +19137,29 @@ function normalizePage(value) {
 function getEntryPage() {
   if (adminEntry && !remnaAdminEnabled) return "admin";
   if (adminEntry) {
-    const requested = urlParams.get("page") === "admin" ? urlParams.get("section") : urlParams.get("page");
+    const requested = entryRoute?.page === "admin" ? entryRoute.section : entryRoute?.page;
     const saved = requested || (isPageReload() ? readSetting(STORAGE_KEYS.page, "admin") : "admin");
     return ["support", "servers", "reviews"].includes(saved) ? saved : "admin";
   }
-  const requested = urlParams.get("page");
+  const requested = entryRoute?.page;
   const page = requested || (isPageReload() ? readSetting(STORAGE_KEYS.page, "dashboard") : "dashboard");
   if (page === "admin" && adminBaseURL && !adminDedicated && !previewMode) {
-    const section = urlParams.get("section");
-    window.location.replace(workspaceNavigationURL(adminBaseURL + "/" + (section ? "?page=admin&section=" + encodeURIComponent(section) : ""), tg));
+    const section = entryRoute?.section || "home";
+    window.location.replace(workspaceNavigationURL(adminBaseURL + (section === "home" ? "/" : "/" + section), tg));
     return "dashboard";
   }
-  if (remnaAdminEnabled && page === "admin" && ["support", "servers", "reviews"].includes(urlParams.get("section"))) return urlParams.get("section");
+  if (remnaAdminEnabled && page === "admin" && ["support", "servers", "reviews"].includes(entryRoute?.section)) return entryRoute.section;
   return PAGES.includes(page) ? page : "dashboard";
 }
 
 function getEntryAdminSection() {
-	const requested = String(urlParams.get("section") || "");
-	if (requested === "push" || ADMIN_SEARCH_SECTIONS.some(([section]) => section === requested)) return requested;
+	const requested = entryRoute?.page === "admin" ? entryRoute.section : "";
+	if (requested === "smtp") {
+		state.adminBroadcastTab = "email";
+		state.adminEmailEditorTab = "connection";
+		return "broadcast";
+	}
+	if (requested === "home" || requested === "push" || ADMIN_SEARCH_SECTIONS.some(([section]) => section === requested)) return requested;
 	if (!isPageReload()) return "home";
 	const saved = readSetting(STORAGE_KEYS.adminSection, "home");
     if (saved === "smtp") {

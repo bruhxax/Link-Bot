@@ -120,6 +120,7 @@ func (h *Handler) serveLanding(w http.ResponseWriter, r *http.Request) {
 	data = bytes.ReplaceAll(data, []byte("__PAGE_DESCRIPTION__"), []byte(html.EscapeString(settings.Content.WebPage.Description)))
 	data = bytes.ReplaceAll(data, []byte("__FAVICON_URL__"), []byte(html.EscapeString(faviconURL)))
 	data = bytes.ReplaceAll(data, []byte("__CABINET_BASE__"), []byte(html.EscapeString(h.cabinetBaseURL)))
+	data = bytes.ReplaceAll(data, []byte("__CABINET_URL__"), []byte(html.EscapeString(h.cabinetPageURL("dashboard"))))
 	data = bytes.ReplaceAll(data, []byte("__ASSET_VERSION__"), []byte(h.assetVersion))
 	data = bytes.ReplaceAll(data, []byte("__INITIAL_THEME__"), []byte(initialTheme))
 	data = bytes.ReplaceAll(data, []byte("__THEME_COLOR__"), []byte(background))

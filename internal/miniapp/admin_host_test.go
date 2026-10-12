@@ -32,7 +32,7 @@ func TestAdminEntryHostAndLegacyRedirect(t *testing.T) {
 		} else {
 			h.serveIndex(res, req)
 		}
-		if res.Code != 302 || res.Header().Get("Location") != "https://admin.example.com/?page=admin&section=finance" {
+		if res.Code != 302 || res.Header().Get("Location") != "https://admin.example.com/finance" {
 			t.Fatalf("redirect: %d %s", res.Code, res.Header().Get("Location"))
 		}
 	}
@@ -117,7 +117,7 @@ func TestAdminEntryMethodsAndDefaultShortcut(t *testing.T) {
 	h.adminBaseURL = ""
 	res = httptest.NewRecorder()
 	h.serveAdminEntry(res, httptest.NewRequest("GET", "https://example.com/admin?section=users", nil))
-	if res.Code != 302 || res.Header().Get("Location") != "/mini-app/?page=admin&section=users" {
+	if res.Code != 200 || !strings.Contains(res.Body.String(), `name="admin-entry" content="on"`) {
 		t.Fatal("default shortcut did not redirect to the legacy admin entry")
 	}
 }
@@ -133,11 +133,12 @@ func TestAdminPWAScopeMatchesRootEntry(t *testing.T) {
 		if err := json.Unmarshal(res.Body.Bytes(), &manifest); err != nil {
 			t.Fatal(err)
 		}
-		want := "/mini-app/"
+		want := "/"
+		start := "/cabinet/dashboard"
 		if host == "admin.example.com" {
-			want = "/"
+			start = "/"
 		}
-		if manifest.Scope != want || manifest.StartURL != want {
+		if manifest.Scope != want || manifest.StartURL != start {
 			t.Fatalf("%s: scope %s, start %s", host, manifest.Scope, manifest.StartURL)
 		}
 		res = httptest.NewRecorder()

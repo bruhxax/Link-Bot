@@ -39,7 +39,7 @@ func TestResponsiveCabinetAndAuthenticationSurfaces(t *testing.T) {
 		`width: min(100%, 430px);`,
 		`@media (min-width: 760px)`,
 		`:root[data-layout="wide"] .app-shell`,
-		`grid-template-columns: clamp(224px, 20vw, 292px) minmax(0, 1fr);`,
+		`grid-template-columns: 248px minmax(0, 1fr);`,
 		`:root[data-layout="wide"] .desktop-sidebar`,
 		`:root[data-layout="wide"] .bottom-nav:not(.bottom-nav--editor) { display: none; }`,
 		`:root[data-client="browser"][data-display-mode="standalone"] .page-scroll`,
