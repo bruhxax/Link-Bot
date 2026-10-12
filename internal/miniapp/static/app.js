@@ -3879,7 +3879,7 @@ async function loadDashboard({ initial = false, silent = false, forceSubscriptio
 			limit: 30,
 			offset: 0,
 		};
-		for (const [index,user] of state.adminUsers.items.entries()) Object.assign(user,{subscriptionCount:index===0?2:1,panelUsername:user.username,subscriptionLink:"https://example.com/subscription/"+user.username,trafficLoaded:true,usedTrafficBytes:[34896609280,18253611008,53687091200][index],trafficLimitBytes:107374182400,expiresAt:new Date(Date.now()+46*86400000).toISOString()});
+		for (const [index,user] of state.adminUsers.items.entries()) Object.assign(user,{subscriptionCount:index===0?2:1,panelUsername:user.username,panelId:2267+index,planTitle:["Личный 1 мес.","Личный 3 мес.","Личный 1 мес."][index],tag:["PREMIUM","FREE","FREE"][index],trafficLimitStrategy:"MONTH",lifetimeUsedTrafficBytes:[34896609280,18253611008,53687091200][index],subscriptionLink:"https://example.com/subscription/"+user.username,trafficLoaded:true,usedTrafficBytes:[34896609280,18253611008,53687091200][index],trafficLimitBytes:107374182400,expiresAt:new Date(Date.now()+46*86400000).toISOString()});
 		state.adminUserDetail = {
 			customerId: 12,
 			telegramId: 6402520205,
@@ -6383,7 +6383,10 @@ async function refreshAdminUsers({ append = false, silent = false } = {}) {
 	const query = String(state.adminUsersQuery || "");
 	const requestID = ++adminUsersSearchRequestID;
 	if (!silent) state.adminUsersBusy = append ? "more" : "search";
-	if (!silent) syncAdminUsersBusyDOM();
+	if (!silent) {
+		syncAdminUsersBusyDOM();
+		if (state.adminWorkspace) render({preserveScroll:true});
+	}
 	try {
 		const response = await post("/api/mini-app/admin/users/search", { query, limit: 30, offset });
 		if (requestID !== adminUsersSearchRequestID || (!append && query !== state.adminUsersQuery) || state.adminSection !== "users" || state.adminUserPending) return;

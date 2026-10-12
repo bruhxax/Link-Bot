@@ -81,6 +81,9 @@ import "./reference-theme.css";
 import { UserDialog } from "./user-dialog.jsx";
 import { Overview } from "./overview.jsx";
 import { Users } from "./users-table.jsx";
+import { SectionToolbar } from "./section-toolbar.jsx";
+import "./users-page.css";
+import { userDateKey } from "./users-list-data.mjs";
 import { FinanceChart } from "./finance-chart.jsx";
 import { LayoutEditor as Layout } from "./layout-editor.jsx";
 import { snapshot, controlKey, selectedTab } from "./adapter-state.mjs";
@@ -644,7 +647,18 @@ function Metric({
     </Card>
   );
 }
-function DataTable({ columns, data, id, extra, paginate = true }) {
+function DataTable({
+  columns,
+  data,
+  id,
+  extra,
+  paginate = true,
+  variant,
+  loading = false,
+  onTable,
+  initialFilters = [],
+}) {
+  const usersTable = variant === "users";
   const dataRef = useRef();
   dataRef.current = snapshot(data, dataRef.current);
   const initial = useMemo(() => {
@@ -672,27 +686,46 @@ function DataTable({ columns, data, id, extra, paginate = true }) {
     data: dataRef.current.value,
     localization: MRT_Localization_RU,
     enableColumnOrdering: true,
+    enableColumnActions: !usersTable,
     enableColumnResizing: true,
     enableColumnPinning: true,
     enableRowSelection: true,
     enableStickyHeader: false,
     autoResetPageIndex: false,
     enablePagination: paginate,
+    enableTopToolbar: !usersTable,
+    enableBottomToolbar: !usersTable,
     getRowId: (row, index) =>
       String(row.customerId ?? row.id ?? row.uuid ?? index),
     enableFilters: true,
+    enableGlobalFilter: !usersTable,
     layoutMode: "grid",
     displayColumnDefOptions: {
       "mrt-row-select": { size: 32, minSize: 32, grow: false },
     },
     initialState: {
-      showColumnFilters: true,
+      showColumnFilters: !usersTable,
+      ...(usersTable
+        ? {
+            columnFilters: initialFilters,
+            columnVisibility: { description: false, type: false },
+            sorting: [{ id: "createdAt", desc: true }],
+          }
+        : {}),
       pagination: { pageSize: 20, pageIndex: 0 },
       columnPinning: { right: ["actions"] },
     },
     state: {
       density,
-      columnVisibility,
+      ...(usersTable
+        ? {
+            isLoading: loading && !data.length,
+            showProgressBars: loading && Boolean(data.length),
+          }
+        : {}),
+      columnVisibility: usersTable
+        ? { description: false, type: false, ...columnVisibility }
+        : columnVisibility,
       ...(columnOrder.length ? { columnOrder } : {}),
     },
     onDensityChange: setDensity,
@@ -708,26 +741,45 @@ function DataTable({ columns, data, id, extra, paginate = true }) {
       style: { maxHeight: "none", overflowX: "auto", overflowY: "hidden" },
     },
     mantineTableHeadCellProps: {
-      style: { fontSize: 12, background: "#101113" },
+      style: { fontSize: 12, background: usersTable ? "#181b20" : "#101113" },
     },
-    mantineTopToolbarProps: { style: { background: "#101113" } },
-    mantineBottomToolbarProps: { style: { background: "#101113" } },
+    mantineTopToolbarProps: {
+      style: { background: usersTable ? "#141619" : "#101113" },
+    },
+    mantineBottomToolbarProps: {
+      style: { background: usersTable ? "#141619" : "#101113" },
+    },
     mantineTableBodyCellProps: ({ column }) => ({
       style: {
         fontSize: 13,
         background: column.getIsPinned() ? "#101113" : undefined,
       },
     }),
-    renderTopToolbarCustomActions: () => extra,
+    renderTopToolbarCustomActions: ({ table }) =>
+      typeof extra === "function" ? extra(table) : extra,
   });
+  useLayoutEffect(() => {
+    onTable?.(table);
+  }, [table, onTable]);
   return (
     <div className="rn-data-table" data-density={density}>
-      <MantineReactTable table={table} />
+      {usersTable && (typeof extra === "function" ? extra(table) : extra)}
+      <div className={usersTable ? "rn-users-grid" : undefined}>
+        <MantineReactTable table={table} />
+      </div>
     </div>
   );
 }
-function UserMetrics({ users }) {
+function UserMetrics({ users, hidden, overview }) {
   const counts = users.panelCounts;
+  const total = counts?.totalUsers;
+  const month = userDateKey(new Date().toISOString()).slice(0, 7);
+  const registrations =
+    overview?.users?.source === "panel"
+      ? (overview.users.daily || [])
+          .filter((point) => point.date.startsWith(month))
+          .reduce((sum, point) => sum + point.value, 0)
+      : null;
   return (
     <SimpleGrid
       className="rn-user-metrics"
@@ -737,25 +789,79 @@ function UserMetrics({ users }) {
       title="Статистика пользователей Remnawave"
     >
       {[
-        ["Всего", counts?.totalUsers, PiUsersDuotone, "blue"],
-        ["Active", counts?.statusCounts?.ACTIVE, PiPulseDuotone, "teal"],
-        ["Expired", counts?.statusCounts?.EXPIRED, PiClockUserDuotone, "red"],
+        ["Всего пользователей", counts?.totalUsers, PiUsersDuotone, "#5d92ff"],
+        ["Активные", counts?.statusCounts?.ACTIVE, PiPulseDuotone, "#1dcca4"],
         [
-          "Limited",
+          "Истекшие",
+          counts?.statusCounts?.EXPIRED,
+          PiClockUserDuotone,
+          "#f16476",
+        ],
+        [
+          "Ограниченные",
           counts?.statusCounts?.LIMITED,
           PiClockCountdownDuotone,
-          "orange",
+          "#e9a332",
         ],
-        ["Disabled", counts?.statusCounts?.DISABLED, PiProhibitDuotone, "gray"],
-      ].map(([title, value, Icon, color]) => (
-        <Metric
-          key={title}
-          title={title}
-          value={value == null ? "—" : Number(value).toLocaleString("ru")}
-          icon={Icon}
-          color={color}
-        />
-      ))}
+        [
+          "Отключены",
+          counts?.statusCounts?.DISABLED,
+          PiProhibitDuotone,
+          "#a17cf6",
+        ],
+      ].map(([title, value, Icon, color], index) => {
+        const percent = total && value != null ? (value / total) * 100 : null;
+        return (
+          <div
+            className="rn-user-metric"
+            key={title}
+            style={{ "--metric-color": color }}
+          >
+            <div className="rn-user-metric-icon">
+              <Icon size={26} />
+            </div>
+            <div className="rn-user-metric-body">
+              <span>{title}</span>
+              <div className="rn-user-metric-number">
+                <strong className="rn-private-value" aria-hidden={hidden}>
+                  {value == null ? "—" : Number(value).toLocaleString("ru")}
+                </strong>
+                {index > 0 && (
+                  <small className="rn-private-value" aria-hidden={hidden}>
+                    {percent == null
+                      ? "—"
+                      : percent > 0 && percent < 1
+                        ? "<1%"
+                        : `${Math.round(percent)}%`}
+                  </small>
+                )}
+              </div>
+              {index > 0 ? (
+                <div className="rn-user-metric-track">
+                  <i
+                    style={{
+                      width: `${Math.max(0, Math.min(100, percent || 0))}%`,
+                    }}
+                  />
+                </div>
+              ) : (
+                <small>
+                  {registrations == null ? (
+                    "В панели Remnawave"
+                  ) : (
+                    <>
+                      <span className="rn-private-value" aria-hidden={hidden}>
+                        +{registrations}
+                      </span>{" "}
+                      за месяц
+                    </>
+                  )}
+                </small>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </SimpleGrid>
   );
 }
@@ -1451,7 +1557,7 @@ function Admin({ model, content, dialogs, dispatch }) {
               </ActionIcon>
             )}
             <Group gap="xs">
-              {active === "home" && (
+              {
                 <Tooltip
                   label={statisticsHidden ? "Показать данные" : "Скрыть данные"}
                 >
@@ -1479,7 +1585,7 @@ function Admin({ model, content, dialogs, dispatch }) {
                     )}
                   </ActionIcon>
                 </Tooltip>
-              )}
+              }
               <Tooltip label="Документация Remnawave">
                 <ActionIcon
                   component="a"
@@ -1631,8 +1737,7 @@ function Admin({ model, content, dialogs, dispatch }) {
           </aside>
         )}
         <main className="page-scroll rn-main" aria-label={title}>
-          <div className="rn-page" key={active} data-section={active}>
-            {active === "users" && <UserMetrics users={model.users} />}
+          <div className="rn-page" data-section={active}>
             {active === "servers" && <NodeMetrics model={model} />}
             <Card className="rn-page-header" mb="sm" p="sm">
               <Group justify="space-between" wrap="wrap">
@@ -1670,7 +1775,7 @@ function Admin({ model, content, dialogs, dispatch }) {
                       </Action>
                     </Group>
                   )}
-                  {active !== "home" && (
+                  {active !== "home" && active !== "users" && (
                     <IconAction action="refresh" label="Обновить">
                       <PiArrowsClockwise size={20} />
                     </IconAction>
@@ -1687,6 +1792,9 @@ function Admin({ model, content, dialogs, dispatch }) {
                 </Group>
               </Group>
             </Card>
+            {active === "home" && (
+              <SectionToolbar model={model} active={active} />
+            )}
             {active === "home" ? (
               <Overview model={model} hidden={statisticsHidden} />
             ) : active === "plans" ? (
@@ -1694,7 +1802,12 @@ function Admin({ model, content, dialogs, dispatch }) {
             ) : active === "layout" ? (
               <Layout model={model} />
             ) : active === "users" ? (
-              <Users model={model} DataTable={DataTable} />
+              <Users
+                model={model}
+                DataTable={DataTable}
+                hidden={statisticsHidden}
+                Metrics={UserMetrics}
+              />
             ) : active === "servers" ? (
               <Nodes model={model} />
             ) : active === "reviews" ? (

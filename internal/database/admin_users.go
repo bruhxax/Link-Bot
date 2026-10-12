@@ -25,6 +25,9 @@ type AdminUserSummary struct {
 	SubscriptionIsPrimary bool
 	PanelUserID           *int64
 	PanelUserUUID         *uuid.UUID
+	PlanID                string
+	PlanMonths            int
+	PlanDays              int
 }
 
 func normalizeAdminUserSearch(value string) string {
@@ -57,17 +60,24 @@ func (cr *CustomerRepository) SearchAdminUsers(ctx context.Context, query string
 	}
 
 	rows, err := cr.pool.Query(ctx, `
+		WITH matched_customers AS MATERIALIZED (
+			SELECT c.* FROM customer c WHERE $1 = ''
+			OR LOWER(COALESCE(c.telegram_username, '')) LIKE $2 OR c.telegram_id::TEXT LIKE $2
+			OR EXISTS (SELECT 1 FROM customer_subscription search_subscription WHERE search_subscription.customer_id=c.id AND LOWER(search_subscription.display_name) LIKE $2)
+			ORDER BY c.created_at DESC,c.id DESC LIMIT $3 OFFSET $4
+		)
 		SELECT c.id, c.telegram_id, COALESCE(c.telegram_username, ''), c.created_at,
 		       c.trial_used, c.is_blocked, COALESCE(active_subscription.display_name, ''),
 		       COALESCE(active_subscription.expire_at, c.expire_at), COALESCE(a.role_name,''), COALESCE(a.color,''),
 		       COALESCE(active_subscription.subscription_link, c.subscription_link, ''),
 		       active_subscription.panel_user_id, active_subscription.panel_user_uuid,
 		       COALESCE(active_subscription.is_primary, TRUE),
-		       (SELECT COUNT(*) FROM customer_subscription counted WHERE counted.customer_id = c.id)
-		FROM customer c
+		       (SELECT COUNT(*) FROM customer_subscription counted WHERE counted.customer_id = c.id),
+		       COALESCE(term.plan_id,''),COALESCE(term.month,0),COALESCE(term.days,0)
+		FROM matched_customers c
 		LEFT JOIN administrator a ON a.customer_id=c.id
 		LEFT JOIN LATERAL (
-			SELECT s.display_name, s.expire_at, s.subscription_link, s.panel_user_id, s.panel_user_uuid, s.is_primary
+			SELECT s.id, s.display_name, s.expire_at, s.subscription_link, s.panel_user_id, s.panel_user_uuid, s.is_primary
 			FROM customer_subscription s
 			LEFT JOIN customer_subscription_selection selected
 			  ON selected.customer_id = c.id AND selected.subscription_id = s.id
@@ -75,16 +85,12 @@ func (cr *CustomerRepository) SearchAdminUsers(ctx context.Context, query string
 			ORDER BY (selected.subscription_id IS NOT NULL) DESC, s.is_primary DESC, s.position ASC, s.id ASC
 			LIMIT 1
 		) active_subscription ON TRUE
-		WHERE $1 = ''
-		   OR LOWER(COALESCE(c.telegram_username, '')) LIKE $2
-		   OR c.telegram_id::TEXT LIKE $2
-		   OR EXISTS (
-			SELECT 1 FROM customer_subscription search_subscription
-			WHERE search_subscription.customer_id = c.id
-			  AND LOWER(search_subscription.display_name) LIKE $2
-		   )
+		LEFT JOIN LATERAL (
+			SELECT p.plan_id,p.month,p.days FROM purchase p
+			WHERE p.subscription_id=active_subscription.id AND p.status='paid' AND (p.month>0 OR p.days>0)
+			ORDER BY COALESCE(p.paid_at,p.created_at) DESC,p.id DESC LIMIT 1
+		) term ON TRUE
 		ORDER BY c.created_at DESC, c.id DESC
-		LIMIT $3 OFFSET $4
 	`, query, search, limit, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("search admin users: %w", err)
@@ -110,6 +116,9 @@ func (cr *CustomerRepository) SearchAdminUsers(ctx context.Context, query string
 			&item.PanelUserUUID,
 			&item.SubscriptionIsPrimary,
 			&item.SubscriptionCount,
+			&item.PlanID,
+			&item.PlanMonths,
+			&item.PlanDays,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan admin user: %w", err)
 		}

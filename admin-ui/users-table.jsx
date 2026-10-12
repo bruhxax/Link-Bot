@@ -1,68 +1,99 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
+  ActionIcon,
   Badge,
-  Card,
-  Group,
+  Button,
+  Checkbox,
+  CopyButton,
+  Menu,
   Progress,
-  Stack,
   Text,
   TextInput,
   Tooltip,
-  UnstyledButton,
-  Button,
 } from "@mantine/core";
+import { DatePickerInput } from "@mantine/dates";
+import "dayjs/locale/ru.js";
 import {
   PiMagnifyingGlass,
   PiPulse,
   PiClockUser,
   PiProhibit,
   PiClockCountdown,
+  PiCaretDown,
+  PiCalendarBlank,
+  PiDotsThreeVertical,
+  PiDotsThree,
+  PiPencilSimple,
+  PiListBullets,
+  PiCopy,
+  PiDownload,
+  PiCheck,
+  PiArrowsClockwise,
 } from "react-icons/pi";
 import {
   expirationText,
   relativeTime,
   trafficOverview,
 } from "./user-overview.mjs";
+import {
+  userStatuses,
+  userStatus,
+  userType,
+  userInDateRange,
+  usersCSV,
+} from "./users-list-data.mjs";
+import { SectionToolbar } from "./section-toolbar.jsx";
 
-function Traffic({ user }) {
-  const traffic = trafficOverview(user);
-  if (!traffic)
-    return (
-      <Text size="xs" c="dimmed">
-        Не загружено
-      </Text>
-    );
+const types = [
+  { value: "limited", label: "С лимитом" },
+  { value: "unlimited", label: "Безлимит" },
+  { value: "none", label: "Без подписки" },
+  { value: "unknown", label: "Нет данных панели" },
+];
+const stamp = (value, withTime = false) =>
+  value
+    ? new Date(value).toLocaleString("ru", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        ...(withTime
+          ? { hour: "2-digit", minute: "2-digit", second: "2-digit" }
+          : {}),
+      })
+    : "—";
+
+function FilterMenu({ label, value, items, onChange }) {
   return (
-    <div className="rn-user-traffic">
-      <Group justify="space-between" gap={6} wrap="nowrap">
-        <Text size="xs" c="red.5" fw={600}>
-          {traffic.percent.toFixed(2)}%{" "}
-          <Text component="span" size="xs" c="dimmed" fw={400}>
-            {traffic.strategy}
-          </Text>
-        </Text>
-        <Text size="xs" c="teal.5" fw={600}>
-          <Text component="span" size="xs" c="dimmed" fw={400}>
-            Σ {traffic.lifetime}
-          </Text>{" "}
-          {traffic.remaining.toFixed(2)}%
-        </Text>
-      </Group>
-      <Progress
-        radius="xs"
-        size={5}
-        value={traffic.progress}
-        color={traffic.color}
-      />
-      <Group justify="space-between" gap={6} wrap="nowrap" mt={2}>
-        <Text size="xs" c="dimmed">
-          {traffic.used}
-        </Text>
-        <Text size="xs" c="dimmed">
-          {traffic.limit}
-        </Text>
-      </Group>
-    </div>
+    <Menu position="bottom-end" withinPortal>
+      <Menu.Target>
+        <Button
+          className="rn-users-filter-button"
+          variant="default"
+          rightSection={<PiCaretDown size={12} />}
+          data-active={Boolean(value)}
+          aria-label={label}
+        >
+          {label}
+        </Button>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Item
+          leftSection={!value ? <PiCheck size={14} /> : null}
+          onClick={() => onChange(undefined)}
+        >
+          Все
+        </Menu.Item>
+        {items.map((item) => (
+          <Menu.Item
+            key={item.value}
+            leftSection={value === item.value ? <PiCheck size={14} /> : null}
+            onClick={() => onChange(item.value)}
+          >
+            {item.label}
+          </Menu.Item>
+        ))}
+      </Menu.Dropdown>
+    </Menu>
   );
 }
 
@@ -78,178 +109,554 @@ function Status({ value }) {
   return (
     <Badge
       className="rn-user-status"
+      data-status={status}
       color={color}
       variant="outline"
       radius="sm"
-      leftSection={<Icon size={13} />}
+      leftSection={<Icon size={11} />}
     >
       {status.toUpperCase()}
     </Badge>
   );
 }
 
-export function Users({ model, DataTable }) {
+function Traffic({ user }) {
+  const traffic = trafficOverview(user);
+  if (!traffic) return <span className="rn-user-muted">Не загружено</span>;
+  return (
+    <Tooltip
+      label={`Лимит: ${traffic.limit}. За всё время: ${traffic.lifetime}`}
+    >
+      <div className="rn-user-traffic">
+        <div className="rn-user-traffic-top">
+          <span>
+            <b>{traffic.percent.toFixed(2)}%</b>{" "}
+            <small>
+              {traffic.strategy === "∞" ? "без сброса" : traffic.strategy}
+            </small>
+          </span>
+          <Progress
+            value={traffic.progress}
+            size={5}
+            radius="xl"
+            color="#1dcca4"
+            aria-label="Использование трафика"
+          />
+          <span className="rn-user-traffic-lifetime">
+            Σ {traffic.lifetime}{" "}
+            <em>
+              {traffic.limit === "∞" ? "∞" : `${traffic.remaining.toFixed(2)}%`}
+            </em>
+          </span>
+        </div>
+        <span className="rn-user-muted">{traffic.used}</span>
+      </div>
+    </Tooltip>
+  );
+}
+
+function RowActions({ user }) {
+  return (
+    <div className="rn-user-row-actions">
+      <Tooltip label="Открыть карточку">
+        <ActionIcon
+          className="rn-user-edit"
+          aria-label={`Редактировать пользователя ${user.panelUsername || user.username || user.customerId}`}
+          data-action="admin-user-open"
+          data-value={user.customerId}
+        >
+          <PiPencilSimple size={13} />
+        </ActionIcon>
+      </Tooltip>
+      <Menu position="bottom-end" withinPortal>
+        <Menu.Target>
+          <ActionIcon
+            variant="subtle"
+            aria-label={`Действия пользователя ${user.customerId}`}
+          >
+            <PiDotsThree size={17} />
+          </ActionIcon>
+        </Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Item data-action="admin-user-open" data-value={user.customerId}>
+            Открыть карточку
+          </Menu.Item>
+          <CopyButton value={String(user.telegramId)}>
+            {({ copy, copied }) => (
+              <Menu.Item onClick={copy}>
+                {copied ? "Скопировано" : "Скопировать Telegram ID"}
+              </Menu.Item>
+            )}
+          </CopyButton>
+          {user.subscriptionLink && (
+            <CopyButton value={user.subscriptionLink}>
+              {({ copy, copied }) => (
+                <Menu.Item onClick={copy}>
+                  {copied ? "Скопировано" : "Скопировать ссылку подписки"}
+                </Menu.Item>
+              )}
+            </CopyButton>
+          )}
+        </Menu.Dropdown>
+      </Menu>
+    </div>
+  );
+}
+
+function downloadRows(table) {
+  const visible = table.getRowModel().rows;
+  const selected = visible.filter((row) => row.getIsSelected());
+  const rows = selected.length ? selected : visible;
+  const url = URL.createObjectURL(
+    new Blob(["\uFEFF", usersCSV(rows.map((row) => row.original))], {
+      type: "text/csv;charset=utf-8",
+    }),
+  );
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `users-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function ListToolbar({ model, table }) {
+  const plans = [
+    ...new Set(
+      table.options.data.map((user) => user.planTitle).filter(Boolean),
+    ),
+  ]
+    .sort()
+    .map((value) => ({ value, label: value }));
+  const filter = (id) => table.getColumn(id);
+  const visible = table.getRowModel().rows;
+  const selected = visible.filter((row) => row.getIsSelected());
+  const rows = selected.length ? selected : visible;
+  const copyLabel = selected.length
+    ? "Скопировать выбранных пользователей"
+    : "Скопировать текущий список";
+  const downloadLabel = selected.length
+    ? "Скачать выбранных пользователей CSV"
+    : "Скачать текущий список CSV";
+  return (
+    <div className="rn-users-toolbar">
+      <TextInput
+        className="rn-users-search"
+        placeholder="Имя, Telegram ID или подписка"
+        aria-label="Найти пользователя"
+        data-input="admin-users-search"
+        defaultValue={model.usersQuery}
+        leftSection={<PiMagnifyingGlass size={16} />}
+      />
+      <div className="rn-users-toolbar-actions">
+        <FilterMenu
+          label="Статус"
+          value={filter("status")?.getFilterValue()}
+          items={userStatuses}
+          onChange={(value) => filter("status")?.setFilterValue(value)}
+        />
+        <FilterMenu
+          label="Тариф"
+          value={filter("plan")?.getFilterValue()}
+          items={plans}
+          onChange={(value) => filter("plan")?.setFilterValue(value)}
+        />
+        <FilterMenu
+          label="Тип"
+          value={filter("type")?.getFilterValue()}
+          items={types}
+          onChange={(value) => filter("type")?.setFilterValue(value)}
+        />
+        <Menu position="bottom-end" withinPortal>
+          <Menu.Target>
+            <Button
+              className="rn-users-filter-button"
+              variant="default"
+              rightSection={<PiCaretDown size={12} />}
+              aria-label="Сортировка по дате создания"
+            >
+              Создан
+            </Button>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item
+              onClick={() =>
+                table.setSorting([{ id: "createdAt", desc: true }])
+              }
+            >
+              Сначала новые
+            </Menu.Item>
+            <Menu.Item
+              onClick={() =>
+                table.setSorting([{ id: "createdAt", desc: false }])
+              }
+            >
+              Сначала старые
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
+        <Menu position="bottom-end" withinPortal>
+          <Menu.Target>
+            <ActionIcon
+              className="rn-users-tool"
+              aria-label="Настроить таблицу"
+            >
+              <PiListBullets size={18} />
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Label>Столбцы</Menu.Label>
+            {table
+              .getAllLeafColumns()
+              .filter((column) => column.getCanHide())
+              .map((column) => (
+                <Menu.Item
+                  key={column.id}
+                  closeMenuOnClick={false}
+                  onClick={() => column.toggleVisibility()}
+                  leftSection={
+                    <Checkbox
+                      size="xs"
+                      checked={column.getIsVisible()}
+                      readOnly
+                      tabIndex={-1}
+                    />
+                  }
+                >
+                  {column.columnDef.header}
+                </Menu.Item>
+              ))}
+            <Menu.Divider />
+            <Menu.Label>Плотность строк</Menu.Label>
+            {[
+              ["xxs", "Компактно"],
+              ["xs", "Обычно"],
+              ["md", "Свободно"],
+            ].map(([value, label]) => (
+              <Menu.Item
+                key={value}
+                onClick={() => table.setDensity(value)}
+                leftSection={
+                  table.getState().density === value ? (
+                    <PiCheck size={14} />
+                  ) : null
+                }
+              >
+                {label}
+              </Menu.Item>
+            ))}
+            <Menu.Divider />
+            <Menu.Item
+              onClick={() =>
+                table.setShowColumnFilters(!table.getState().showColumnFilters)
+              }
+            >
+              Фильтры по столбцам
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
+        <CopyButton value={usersCSV(rows.map((row) => row.original))}>
+          {({ copy, copied }) => (
+            <Tooltip label={copied ? "Скопировано" : copyLabel}>
+              <ActionIcon
+                className="rn-users-tool"
+                aria-label={copyLabel}
+                onClick={copy}
+              >
+                {copied ? <PiCheck size={18} /> : <PiCopy size={18} />}
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </CopyButton>
+        <Tooltip label={downloadLabel}>
+          <ActionIcon
+            className="rn-users-tool"
+            aria-label={downloadLabel}
+            onClick={() => downloadRows(table)}
+          >
+            <PiDownload size={18} />
+          </ActionIcon>
+        </Tooltip>
+      </div>
+    </div>
+  );
+}
+
+export function Users({ model, DataTable, Metrics, hidden = false }) {
+  const tableRef = useRef(null);
+  const [range, setRange] = useState([null, null]);
+  const [tab, setTab] = useState("users-overview");
   const columns = useMemo(
     () => [
       {
         id: "name",
         header: "Имя",
-        size: 135,
-        accessorFn: (u) =>
-          u.panelUsername || u.username || String(u.telegramId),
+        size: 158,
+        minSize: 110,
+        accessorFn: (user) =>
+          user.panelUsername || user.username || String(user.telegramId),
         Cell: ({ row, cell }) => {
-          const user = row.original;
-          const online =
-            user.onlineAt && Date.now() - Date.parse(user.onlineAt) < 120000;
+          const user = row.original,
+            online =
+              user.onlineAt && Date.now() - Date.parse(user.onlineAt) < 120000;
           return (
-            <UnstyledButton
-              className="rn-user-name"
-              data-action="admin-user-open"
-              data-value={user.customerId}
-            >
-              <span
-                className="rn-connection-dot"
-                data-status={
-                  online ? "online" : user.onlineAt ? "offline" : "never"
-                }
-              />
-              <Stack gap={0} style={{ minWidth: 0 }}>
-                <Text size="sm" fw={500} truncate>
-                  {cell.getValue()}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  {user.trafficLoaded
-                    ? user.onlineAt
-                      ? relativeTime(user.onlineAt)
-                      : "Ещё не подключался"
-                    : "Нет данных панели"}
-                </Text>
-              </Stack>
-            </UnstyledButton>
+            <UnstyledName user={user} value={cell.getValue()} online={online} />
           );
         },
       },
       {
         id: "panelId",
         header: "ID",
-        size: 84,
-        minSize: 80,
-        accessorFn: (u) => u.panelId || u.customerId,
+        size: 58,
+        minSize: 50,
+        accessorFn: (user) => user.panelId || user.customerId,
         Cell: ({ cell }) => (
-          <Text size="xs" className="rn-number">
-            {cell.getValue()}
-          </Text>
+          <span className="rn-user-id">{cell.getValue()}</span>
         ),
       },
       {
         id: "status",
         header: "Статус",
-        size: 110,
-        accessorFn: (u) =>
-          u.isBlocked ? "blocked" : u.subscriptionStatus || "none",
+        size: 95,
+        minSize: 85,
+        accessorFn: userStatus,
         filterVariant: "select",
+        filterSelectOptions: userStatuses,
+        filterFn: "equals",
         Cell: ({ cell }) => <Status value={cell.getValue()} />,
+      },
+      {
+        id: "plan",
+        header: "Тариф",
+        size: 118,
+        minSize: 85,
+        accessorFn: (user) => user.planTitle || "",
+        filterFn: "equals",
+        Cell: ({ cell }) => <span>{cell.getValue() || "—"}</span>,
       },
       {
         accessorKey: "expiresAt",
         header: "Истекает",
-        size: 146,
+        size: 116,
+        minSize: 95,
         enableColumnFilter: false,
         Cell: ({ cell }) => (
-          <Tooltip
-            label={
-              cell.getValue()
-                ? new Date(cell.getValue()).toLocaleString("ru")
-                : "Без подписки"
-            }
-          >
-            <Text size="xs" c="dimmed">
-              {expirationText(cell.getValue())}
-            </Text>
+          <Tooltip label={stamp(cell.getValue(), true)}>
+            <span className="rn-user-muted">
+              {expirationText(cell.getValue()).replace(/^Истекает /, "")}
+            </span>
           </Tooltip>
         ),
       },
       {
         id: "traffic",
-        header: "Израсходовано",
-        size: 230,
+        header: "Использовано",
+        size: 310,
+        minSize: 230,
         enableColumnFilter: false,
-        accessorFn: (u) => (u.trafficLoaded ? u.usedTrafficBytes : null),
+        accessorFn: (user) =>
+          user.trafficLoaded ? user.usedTrafficBytes : null,
         Cell: ({ row }) => <Traffic user={row.original} />,
-      },
-      {
-        accessorKey: "description",
-        header: "Описание",
-        size: 130,
-        Cell: ({ cell }) => (
-          <Text size="xs" className="rn-user-description">
-            {cell.getValue() || "—"}
-          </Text>
-        ),
       },
       {
         accessorKey: "tag",
         header: "Тег",
-        size: 96,
-        filterVariant: "select",
+        size: 92,
+        minSize: 65,
         Cell: ({ cell }) => (
-          <Text size="xs" fw={600}>
-            {cell.getValue() || "—"}
-          </Text>
+          <span className="rn-user-tag">{cell.getValue() || "—"}</span>
         ),
       },
       {
         id: "createdAt",
         header: "Создан",
-        size: 180,
-        accessorFn: (u) => u.panelCreatedAt || u.createdAt,
+        size: 106,
+        minSize: 95,
+        accessorFn: (user) => user.panelCreatedAt || user.createdAt,
+        filterFn: (row, id, value) => userInDateRange(row.getValue(id), value),
         Cell: ({ cell }) => (
-          <Text size="xs" className="rn-number">
-            {cell.getValue()
-              ? new Date(cell.getValue()).toLocaleString("ru", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })
-              : "—"}
-          </Text>
+          <Tooltip label={stamp(cell.getValue(), true)}>
+            <span className="rn-user-created">{stamp(cell.getValue())}</span>
+          </Tooltip>
         ),
+      },
+      {
+        accessorKey: "onlineAt",
+        header: "Последний вход",
+        size: 170,
+        minSize: 150,
+        Cell: ({ cell }) => (
+          <Tooltip label="Последнее подключение в панели">
+            <span className="rn-user-created">
+              {stamp(cell.getValue(), true)}
+            </span>
+          </Tooltip>
+        ),
+      },
+      {
+        accessorKey: "description",
+        header: "Описание",
+        size: 170,
+        Cell: ({ cell }) => (
+          <Tooltip
+            label={cell.getValue() || "Без описания"}
+            multiline
+            maw={320}
+          >
+            <Text size="xs" lineClamp={2}>
+              {cell.getValue() || "—"}
+            </Text>
+          </Tooltip>
+        ),
+      },
+      {
+        id: "type",
+        header: "Тип",
+        size: 110,
+        accessorFn: userType,
+        filterFn: "equals",
+        Cell: ({ cell }) =>
+          types.find((item) => item.value === cell.getValue())?.label || "—",
+      },
+      {
+        id: "actions",
+        header: "Действия",
+        size: 72,
+        minSize: 64,
+        enableColumnFilter: false,
+        enableSorting: false,
+        enableHiding: false,
+        Cell: ({ row }) => <RowActions user={row.original} />,
       },
     ],
     [],
   );
   return (
-    <Card p={0} className="rn-table-card rn-users-table">
-      <DataTable
-        columns={columns}
-        data={model.users.items || []}
-        id="users-panel-v3"
-        paginate={false}
-        extra={
-          <TextInput
-            m="xs"
-            w={260}
-            maw="100%"
-            placeholder="Имя, Telegram ID или подписка"
-            aria-label="Найти пользователя"
-            data-input="admin-users-search"
-            defaultValue={model.usersQuery}
-            leftSection={<PiMagnifyingGlass size={16} />}
+    <div className="rn-users-section">
+      <SectionToolbar
+        model={model}
+        active="users"
+        userTab={tab}
+        setUserTab={setTab}
+      >
+        <div className="rn-users-period-actions">
+          <DatePickerInput
+            type="range"
+            className="rn-users-period"
+            aria-label="Период создания пользователей"
+            placeholder="Весь период"
+            valueFormat="D MMM YYYY"
+            locale="ru"
+            leftSection={<PiCalendarBlank size={16} />}
+            value={range}
+            clearable
+            onChange={(value) => {
+              setRange(value);
+              tableRef.current
+                ?.getColumn("createdAt")
+                ?.setFilterValue(value.some(Boolean) ? value : undefined);
+            }}
           />
-        }
-      />
-      {model.users.items?.length < model.users.total && (
-        <Group justify="center" p="sm">
-          <Text size="xs" c="dimmed">
-            Загружено {model.users.items.length} из{" "}
-            {Number(model.users.total).toLocaleString("ru")}
-          </Text>
-          <Button data-action="admin-users-more">Показать ещё</Button>
-        </Group>
+          <Menu position="bottom-end" withinPortal>
+            <Menu.Target>
+              <ActionIcon
+                className="rn-users-period-menu"
+                aria-label="Действия раздела пользователей"
+              >
+                <PiDotsThreeVertical size={19} />
+              </ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item
+                leftSection={<PiArrowsClockwise size={15} />}
+                data-action="refresh"
+                disabled={model.userBusy}
+              >
+                Обновить пользователей
+              </Menu.Item>
+              <Menu.Item
+                onClick={() => {
+                  tableRef.current?.setColumnFilters([]);
+                  setRange([null, null]);
+                }}
+              >
+                Сбросить фильтры
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+        </div>
+      </SectionToolbar>
+      {tab === "users-overview" && (
+        <Metrics
+          users={model.users}
+          hidden={hidden}
+          overview={model.overview}
+        />
       )}
-    </Card>
+      <h2 className="rn-users-list-title">Список пользователей</h2>
+      <div className="rn-users-table" aria-busy={model.userBusy}>
+        <DataTable
+          columns={columns}
+          data={model.users.items || []}
+          id="users-reference-v1"
+          paginate={false}
+          variant="users"
+          loading={model.userBusy}
+          onTable={(table) => {
+            tableRef.current = table;
+          }}
+          extra={(table) => <ListToolbar table={table} model={model} />}
+        />
+        <div className="rn-users-footer">
+          <div>
+            <span>
+              Загружено:{" "}
+              <span className="rn-private-value" aria-hidden={hidden}>
+                {model.users.items.length} из{" "}
+                {Number(model.users.total).toLocaleString("ru")}
+              </span>
+            </span>
+            <small>Фильтры, даты и сортировка — по загруженному списку</small>
+          </div>
+          {model.users.items.length < model.users.total && (
+            <Button
+              variant="default"
+              data-action="admin-users-more"
+              disabled={model.userBusy}
+              loading={model.userBusy}
+            >
+              Показать ещё
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UnstyledName({ user, value, online }) {
+  return (
+    <Tooltip
+      label={
+        user.trafficLoaded
+          ? user.onlineAt
+            ? relativeTime(user.onlineAt)
+            : "Ещё не подключался"
+          : "Нет данных панели"
+      }
+    >
+      <button
+        type="button"
+        className="rn-user-name"
+        data-action="admin-user-open"
+        data-value={user.customerId}
+        aria-label={`Открыть пользователя ${value}`}
+      >
+        <span
+          className="rn-connection-dot"
+          data-status={online ? "online" : user.onlineAt ? "offline" : "never"}
+        />
+        <span>{value}</span>
+      </button>
+    </Tooltip>
   );
 }

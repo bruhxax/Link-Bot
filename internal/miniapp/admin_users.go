@@ -3,6 +3,7 @@ package miniapp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -50,6 +51,7 @@ type adminUserSearchPayload struct {
 }
 
 type adminUserSummaryPayload struct {
+	PlanTitle                string `json:"planTitle,omitempty"`
 	AdminRole                string `json:"adminRole,omitempty"`
 	AdminColor               string `json:"adminColor,omitempty"`
 	CustomerID               int64  `json:"customerId"`
@@ -177,6 +179,25 @@ func (h *Handler) handleAdminUsersSearch(w http.ResponseWriter, r *http.Request,
 		}()
 	}
 	for _, item := range items {
+		planTitle := ""
+		if h.runtimeSettings != nil && item.PlanID != "" {
+			for _, plan := range h.runtimeSettings.Snapshot().Plans {
+				if plan.ID == item.PlanID {
+					planTitle = plan.Name
+					if planTitle == "" {
+						planTitle = plan.TitleRU
+					}
+					break
+				}
+			}
+		}
+		if planTitle == "" {
+			if item.PlanMonths > 0 {
+				planTitle = fmt.Sprintf("%d мес.", item.PlanMonths)
+			} else if item.PlanDays > 0 {
+				planTitle = fmt.Sprintf("%d дн.", item.PlanDays)
+			}
+		}
 		expiresAt := ""
 		if item.ExpireAt != nil {
 			expiresAt = item.ExpireAt.UTC().Format(time.RFC3339)
@@ -186,6 +207,7 @@ func (h *Handler) handleAdminUsersSearch(w http.ResponseWriter, r *http.Request,
 			item.AdminColor = "#69a8d4"
 		}
 		payload.Items = append(payload.Items, adminUserSummaryPayload{
+			PlanTitle:          planTitle,
 			CustomerID:         item.CustomerID,
 			AdminRole:          item.AdminRole,
 			AdminColor:         item.AdminColor,

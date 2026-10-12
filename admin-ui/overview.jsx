@@ -1,15 +1,6 @@
 import React, { useId, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import {
-  PiChartBar,
-  PiUsers,
-  PiCreditCard,
-  PiHeadphones,
-  PiChartLine,
-  PiReceipt,
-  PiCurrencyCircleDollar,
-  PiArrowsClockwise,
-} from "react-icons/pi";
+import { PiReceipt, PiCurrencyCircleDollar } from "react-icons/pi";
 import {
   groupOverviewPoints,
   overviewChartGeometry,
@@ -198,14 +189,6 @@ export function Overview({ model, hidden = false }) {
     users = data?.users,
     revenue = data?.revenue;
   const [unit, setUnit] = useState("weeks");
-  const routes = model.groups.flatMap((group) => group[2]);
-  const tabs = [
-    ["users", "Пользователи", PiUsers],
-    ["plans", "Тарифы", PiReceipt],
-    ["finance", "Платежи", PiCreditCard],
-    ["support", "Поддержка", PiHeadphones],
-    ["analytics", "Аналитика", PiChartLine],
-  ].filter(([key]) => routes.some((route) => route[0] === key));
   const userItems = [
     {
       key: "active",
@@ -248,40 +231,6 @@ export function Overview({ model, hidden = false }) {
   }));
   return (
     <div className="rn-statistics" aria-busy={model.overviewBusy}>
-      <div className="rn-statistics-toolbar">
-        <nav className="rn-statistics-tabs" aria-label="Разделы статистики">
-          <button className="is-active" aria-current="page">
-            <PiChartBar />
-            Обзор
-          </button>
-          {tabs.map(([key, label, Icon]) => {
-            const route = routes.find((route) => route[0] === key);
-            return (
-              <button
-                key={key}
-                data-action={
-                  route[5] === "page"
-                    ? "admin-console-page"
-                    : "open-admin-section"
-                }
-                data-value={key}
-              >
-                <Icon />
-                {label}
-              </button>
-            );
-          })}
-        </nav>
-        <button
-          className="rn-statistics-refresh"
-          onClick={() => model.refreshOverview()}
-          disabled={model.overviewBusy}
-          aria-label="Обновить статистику"
-          title="Обновить статистику"
-        >
-          <PiArrowsClockwise />
-        </button>
-      </div>
       {data?.panelError && (
         <div className="rn-overview-error" role="alert">
           {data.panelError}
