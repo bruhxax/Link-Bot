@@ -243,6 +243,12 @@ export function Overview({ model, hidden = false }) {
           <button onClick={() => model.refreshOverview()}>Повторить</button>
         </div>
       )}
+      {data?.revenueError && (
+        <div className="rn-overview-error" role="alert">
+          {data.revenueError}
+          <button onClick={() => model.refreshOverview()}>Повторить</button>
+        </div>
+      )}
       {model.canOverviewUsers && (
         <div className="rn-overview-distributions">
           <Distribution
@@ -255,11 +261,11 @@ export function Overview({ model, hidden = false }) {
               <>
                 панель · сегодня:{" "}
                 <span className="rn-private-value" aria-hidden={hidden}>
-                  {number(users?.today)}
+                  {number(users?.daily ? users.today : null)}
                 </span>{" "}
                 · неделя:{" "}
                 <span className="rn-private-value" aria-hidden={hidden}>
-                  {number(users?.week)}
+                  {number(users?.daily ? users.week : null)}
                 </span>
               </>
             }
@@ -268,7 +274,7 @@ export function Overview({ model, hidden = false }) {
             hidden={hidden}
             title="Распределение подписок"
             caption="активных"
-            loaded={Boolean(users)}
+            loaded={Boolean(users?.daily)}
             items={
               planItems.length
                 ? planItems
@@ -359,7 +365,7 @@ export function Overview({ model, hidden = false }) {
                 title="Новые пользователи"
                 points={users?.daily}
                 unit={unit}
-                loaded={Boolean(users)}
+                loaded={Boolean(users?.daily)}
               />
             )}{" "}
             {model.canOverviewFinance && (

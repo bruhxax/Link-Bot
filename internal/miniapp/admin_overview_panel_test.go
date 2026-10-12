@@ -75,6 +75,10 @@ func TestOverviewEndpointNeverFallsBackToBotCountsAndCachesPanelReads(t *testing
 		if r.Method != http.MethodGet {
 			t.Error("overview mutated panel")
 		}
+		if r.URL.Path == "/api/system/stats" {
+			json.NewEncoder(w).Encode(map[string]any{"response": map[string]any{"users": map[string]any{"totalUsers": 2, "statusCounts": map[string]int{"ACTIVE": 1, "DISABLED": 1}}}})
+			return
+		}
 		reads++
 		_ = json.NewEncoder(w).Encode(map[string]any{"response": map[string]any{"users": []map[string]any{{"id": 1, "status": "ACTIVE", "expireAt": "2028-01-01T00:00:00Z"}, {"id": 2, "status": "DISABLED", "expireAt": "2028-01-01T00:00:00Z"}}, "hasMore": false}})
 	}))

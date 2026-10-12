@@ -372,8 +372,8 @@ function Identification({ user, subscription, settings, squads }) {
         )}
         {view === "info" && (
           <Stack>
-            <Text>ID в боте: {user.customerId}</Text>
-            <Text>Telegram ID: {user.telegramId}</Text>
+            {!user.panelOnly && <Text>ID в боте: {user.customerId}</Text>}
+            <Text>Telegram ID: {user.telegramId || "—"}</Text>
             <Text size="sm">
               Создан: {dayjs(user.createdAt).format("DD.MM.YYYY HH:mm")}
             </Text>
@@ -781,33 +781,35 @@ function Settings({ model, subscription, content, Legacy, dispatch }) {
       )}
       <footer className="rn-modal-footer">
         <Group justify="flex-end" gap="md">
-          <Menu position="top-end">
-            <Menu.Target>
-              <Button
-                className="rn-more-actions"
-                color="gray"
-                size="sm"
-                leftSection={<TbDots size={20} />}
-              >
-                Ещё действия
-              </Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item onClick={() => setOperations(true)}>
-                Баланс и действия в боте
-              </Menu.Item>
-              <Menu.Item
-                onClick={() => dispatch("admin-user-reissue-subscription")}
-                disabled={disabled}
-              >
-                Перевыпустить подписку
-              </Menu.Item>
-              <Menu.Divider />
-              <Menu.Item color="red" onClick={() => setOperations(true)}>
-                Блокировка и удаление подписки
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
+          {!model.user?.panelOnly && (
+            <Menu position="top-end">
+              <Menu.Target>
+                <Button
+                  className="rn-more-actions"
+                  color="gray"
+                  size="sm"
+                  leftSection={<TbDots size={20} />}
+                >
+                  Ещё действия
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item onClick={() => setOperations(true)}>
+                  Баланс и действия в боте
+                </Menu.Item>
+                <Menu.Item
+                  onClick={() => dispatch("admin-user-reissue-subscription")}
+                  disabled={disabled}
+                >
+                  Перевыпустить подписку
+                </Menu.Item>
+                <Menu.Divider />
+                <Menu.Item color="red" onClick={() => setOperations(true)}>
+                  Блокировка и удаление подписки
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          )}
           <Button
             color="teal"
             size="sm"
@@ -865,7 +867,7 @@ export function UserDialog({ model, content, dispatch, Legacy }) {
       )}
       {subscription ? (
         <Settings
-          key={`${user.customerId}:${subscription.id}`}
+          key={`${user.panelUuid || user.panelId || user.customerId}:${subscription.id}`}
           model={model}
           subscription={subscription}
           content={content}

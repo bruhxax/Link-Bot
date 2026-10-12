@@ -21,13 +21,18 @@ import (
 const adminUserTrafficGB = int64(1024 * 1024 * 1024)
 
 type adminUserSearchRequest struct {
-	Query  string `json:"query"`
-	Limit  int    `json:"limit"`
-	Offset int    `json:"offset"`
+	Source   string `json:"source"`
+	Snapshot string `json:"snapshot"`
+	Query    string `json:"query"`
+	Limit    int    `json:"limit"`
+	Offset   int    `json:"offset"`
 }
 
 type adminUserDetailRequest struct {
-	CustomerID int64 `json:"customerId"`
+	PanelID        int64     `json:"panelId"`
+	PanelUUID      uuid.UUID `json:"panelUuid"`
+	SubscriptionID int64     `json:"subscriptionId"`
+	CustomerID     int64     `json:"customerId"`
 }
 
 type adminUserActionRequest struct {
@@ -43,6 +48,9 @@ type adminUserActionRequest struct {
 }
 
 type adminUserSearchPayload struct {
+	Source      string                     `json:"source,omitempty"`
+	Snapshot    string                     `json:"snapshot,omitempty"`
+	Pending     bool                       `json:"pending,omitempty"`
 	PanelCounts *remnawave.PanelUserCounts `json:"panelCounts,omitempty"`
 	Items       []adminUserSummaryPayload  `json:"items"`
 	Total       int                        `json:"total"`
@@ -51,34 +59,40 @@ type adminUserSearchPayload struct {
 }
 
 type adminUserSummaryPayload struct {
-	PlanTitle                string `json:"planTitle,omitempty"`
-	AdminRole                string `json:"adminRole,omitempty"`
-	AdminColor               string `json:"adminColor,omitempty"`
-	CustomerID               int64  `json:"customerId"`
-	TelegramID               int64  `json:"telegramId"`
-	Username                 string `json:"username"`
-	AvatarURL                string `json:"avatarUrl,omitempty"`
-	SubscriptionName         string `json:"subscriptionName,omitempty"`
-	SubscriptionLink         string `json:"subscriptionLink,omitempty"`
-	SubscriptionCount        int    `json:"subscriptionCount"`
-	PanelUsername            string `json:"panelUsername,omitempty"`
-	PanelID                  int64  `json:"panelId,omitempty"`
-	PanelCreatedAt           string `json:"panelCreatedAt,omitempty"`
-	Description              string `json:"description"`
-	Tag                      string `json:"tag"`
-	OnlineAt                 string `json:"onlineAt,omitempty"`
-	TrafficLimitStrategy     string `json:"trafficLimitStrategy,omitempty"`
-	LifetimeUsedTrafficBytes int64  `json:"lifetimeUsedTrafficBytes"`
-	TrafficLoaded            bool   `json:"trafficLoaded"`
-	TrafficLimitBytes        int64  `json:"trafficLimitBytes"`
-	UsedTrafficBytes         int64  `json:"usedTrafficBytes"`
-	SubscriptionStatus       string `json:"subscriptionStatus"`
-	ExpiresAt                string `json:"expiresAt,omitempty"`
-	CreatedAt                string `json:"createdAt"`
-	IsBlocked                bool   `json:"isBlocked"`
+	Key                      string    `json:"key,omitempty"`
+	PanelUUID                uuid.UUID `json:"panelUuid,omitempty"`
+	SubscriptionID           int64     `json:"subscriptionId,omitempty"`
+	PlanTitle                string    `json:"planTitle,omitempty"`
+	AdminRole                string    `json:"adminRole,omitempty"`
+	AdminColor               string    `json:"adminColor,omitempty"`
+	CustomerID               int64     `json:"customerId"`
+	TelegramID               int64     `json:"telegramId"`
+	Username                 string    `json:"username"`
+	AvatarURL                string    `json:"avatarUrl,omitempty"`
+	SubscriptionName         string    `json:"subscriptionName,omitempty"`
+	SubscriptionLink         string    `json:"subscriptionLink,omitempty"`
+	SubscriptionCount        int       `json:"subscriptionCount"`
+	PanelUsername            string    `json:"panelUsername,omitempty"`
+	PanelID                  int64     `json:"panelId,omitempty"`
+	PanelCreatedAt           string    `json:"panelCreatedAt,omitempty"`
+	Description              string    `json:"description"`
+	Tag                      string    `json:"tag"`
+	OnlineAt                 string    `json:"onlineAt,omitempty"`
+	TrafficLimitStrategy     string    `json:"trafficLimitStrategy,omitempty"`
+	LifetimeUsedTrafficBytes int64     `json:"lifetimeUsedTrafficBytes"`
+	TrafficLoaded            bool      `json:"trafficLoaded"`
+	TrafficLimitBytes        int64     `json:"trafficLimitBytes"`
+	UsedTrafficBytes         int64     `json:"usedTrafficBytes"`
+	SubscriptionStatus       string    `json:"subscriptionStatus"`
+	ExpiresAt                string    `json:"expiresAt,omitempty"`
+	CreatedAt                string    `json:"createdAt"`
+	IsBlocked                bool      `json:"isBlocked"`
 }
 
 type adminUserDetailPayload struct {
+	PanelOnly     bool                           `json:"panelOnly,omitempty"`
+	PanelID       int64                          `json:"panelId,omitempty"`
+	PanelUUID     uuid.UUID                      `json:"panelUuid,omitempty"`
 	CustomerID    int64                          `json:"customerId"`
 	TelegramID    int64                          `json:"telegramId"`
 	Username      string                         `json:"username"`
@@ -155,6 +169,10 @@ func (h *Handler) handleAdminUsersSearch(w http.ResponseWriter, r *http.Request,
 	}
 	if req.Limit <= 0 || req.Limit > 50 {
 		req.Limit = 30
+	}
+	if req.Source == "panel" {
+		h.handlePanelUsersSearch(w, r, req)
+		return
 	}
 	items, total, err := h.customerRepository.SearchAdminUsers(r.Context(), req.Query, req.Limit, req.Offset)
 	if err != nil {
@@ -236,8 +254,12 @@ func (h *Handler) handleAdminUserDetail(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	var req adminUserDetailRequest
-	if err := h.decodeJSONRequest(w, r, 2048, &req); err != nil || req.CustomerID <= 0 {
+	if err := h.decodeJSONRequest(w, r, 2048, &req); err != nil || (req.CustomerID <= 0 && req.PanelID <= 0 && req.PanelUUID == uuid.Nil) {
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "Выберите пользователя")
+		return
+	}
+	if req.PanelID > 0 || req.PanelUUID != uuid.Nil {
+		h.handlePanelUserDetail(w, r, req)
 		return
 	}
 	payload, err := h.loadAdminUserDetail(r.Context(), req.CustomerID)

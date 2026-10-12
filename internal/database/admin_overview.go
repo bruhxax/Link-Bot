@@ -41,6 +41,8 @@ type OverviewRevenue struct {
 	Daily      []OverviewPoint `json:"daily"`
 }
 type AdminOverview struct {
+	Pending       bool             `json:"pending,omitempty"`
+	RevenueError  string           `json:"revenueError,omitempty"`
 	PanelError    string           `json:"panelError,omitempty"`
 	Days          int              `json:"days"`
 	GeneratedAt   time.Time        `json:"generatedAt"`
@@ -131,11 +133,14 @@ func (cr *CustomerRepository) LoadAdminOverview(ctx context.Context, days int, n
 			COALESCE(SUM(amount) FILTER(WHERE currency='STARS'),0) FROM payments`, today, week, month).Scan(&r.TodayRub, &r.WeekRub, &r.MonthRub, &r.AllRub, &r.AverageRub, &r.AllStars); err != nil {
 			return nil, err
 		}
-		rows, err := cr.pool.Query(ctx, `SELECT to_char(d.day,'YYYY-MM-DD'),COALESCE(SUM(p.amount),0)
+		rows, err := cr.pool.Query(ctx, `WITH daily AS (
+		 SELECT (COALESCE(paid_at,created_at) AT TIME ZONE 'Europe/Moscow')::date AS day,SUM(amount) AS amount
+		 FROM purchase WHERE COALESCE(paid_at,created_at)>=$3 AND COALESCE(paid_at,created_at)<$4
+		 AND status='paid' AND invoice_type NOT IN ('free','balance') AND UPPER(COALESCE(NULLIF(currency,''),'RUB'))='RUB'
+		 GROUP BY 1)
+		 SELECT to_char(d.day,'YYYY-MM-DD'),COALESCE(p.amount,0)
 			FROM generate_series($1::date,$2::date,INTERVAL '1 day') d(day)
-			LEFT JOIN purchase p ON (COALESCE(p.paid_at,p.created_at) AT TIME ZONE 'Europe/Moscow')::date=d.day::date
-			 AND p.status='paid' AND p.invoice_type NOT IN ('free','balance') AND UPPER(COALESCE(NULLIF(p.currency,''),'RUB'))='RUB'
-			GROUP BY d.day ORDER BY d.day`, from.Format("2006-01-02"), today.Format("2006-01-02"))
+			LEFT JOIN daily p ON p.day=d.day::date ORDER BY d.day`, from.Format("2006-01-02"), today.Format("2006-01-02"), from, today.AddDate(0, 0, 1))
 		if err != nil {
 			return nil, err
 		}

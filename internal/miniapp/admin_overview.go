@@ -1,9 +1,6 @@
 package miniapp
 
 import (
-	"context"
-	"errors"
-	"log/slog"
 	"net/http"
 	"time"
 
@@ -32,34 +29,46 @@ func (h *Handler) handleAdminOverview(w http.ResponseWriter, r *http.Request, se
 		return
 	}
 	now := time.Now()
-	data, err := h.customerRepository.LoadAdminOverview(r.Context(), req.Days, now, false, sess.canAdmin("finance"))
-	if err != nil {
-		h.writeError(w, http.StatusInternalServerError, "admin_overview_failed", "Не удалось загрузить статистику")
-		return
+	data := &database.AdminOverview{Days: req.Days, GeneratedAt: now.UTC(), Subscriptions: []database.OverviewPlan{}}
+	if sess.canAdmin("finance") && h.customerRepository != nil {
+		cached, pending, err := h.cachedRevenue(r.Context(), req.Force)
+		data.Pending = pending
+		if cached != nil {
+			data.Revenue = cached.Revenue
+		}
+		if err != nil {
+			data.RevenueError = "Не удалось обновить доходы. Повторите обновление."
+		}
 	}
 	if sess.canAdmin("users") {
-		users, panelErr := h.overviewPanelUsers(r.Context(), req.Force)
-		if panelErr != nil {
-			data.PanelError = "Не удалось загрузить пользователей панели. Повторите обновление."
-			if errors.Is(panelErr, context.DeadlineExceeded) {
-				data.PanelError = "Панель не успела ответить. Повторите обновление."
+		catalog, pending, err := h.requestPanelCatalog(r.Context(), req.Force, "")
+		data.Pending = data.Pending || pending
+		if err != nil {
+			data.PanelError = "Не удалось обновить пользователей панели. Повторите обновление."
+		}
+		if catalog.Users != nil {
+			h.overviewPanel.mu.Lock()
+			planErr := h.overviewPanel.planErr
+			h.overviewPanel.mu.Unlock()
+			if planErr != nil {
+				data.PanelError = "Пользователи загружены, но тарифы не удалось обновить. Повторите обновление."
 			}
-			slog.Warn("admin overview panel catalog failed", "error", panelErr)
-		} else {
-			var observations []database.PanelPlanObservation
-			if h.customerRepository != nil {
-				observations, err = h.customerRepository.PanelPlanObservations(r.Context())
+			settings := runtimeconfig.DefaultSettings()
+			if h.runtimeSettings != nil {
+				settings = h.runtimeSettings.Snapshot()
 			}
-			if err != nil {
-				data.PanelError = "Не удалось определить тарифы подписок. Повторите обновление."
-			} else {
-				settings := runtimeconfig.DefaultSettings()
-				if h.runtimeSettings != nil {
-					settings = h.runtimeSettings.Snapshot()
-				}
-				data.Users, data.Subscriptions = panelOverview(users, observations, settings, req.Days, now)
+			data.Users, data.Subscriptions = panelOverview(catalog.Users, catalog.Observations, settings, req.Days, now)
+		} else if h.remnawaveClient != nil {
+			h.overviewPanel.mu.Lock()
+			counts := h.overviewPanel.counts
+			h.overviewPanel.mu.Unlock()
+			if counts != nil {
+				u := &database.OverviewUsers{Source: "panel", Total: int(counts.TotalUsers), Active: int(counts.StatusCounts["ACTIVE"]), Expired: int(counts.StatusCounts["EXPIRED"]), Limited: int(counts.StatusCounts["LIMITED"]), Disabled: int(counts.StatusCounts["DISABLED"])}
+				u.Other = max(0, u.Total-u.Active-u.Expired-u.Limited-u.Disabled)
+				data.Users = u
 			}
 		}
 	}
+
 	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": data})
 }

@@ -40,10 +40,11 @@ var activityReadRoutes = map[string]bool{
 }
 var activityActions = map[string]activityAction{
 	"settings/update":             {"Изменил настройки", "settings", "section"},
-	"users/open":                  {"Открыл карточку пользователя", "users", "customerId"},
+	"users/open":                  {"Открыл карточку пользователя", "users", "customerId panelId"},
 	"users/balance":               {"Изменил баланс пользователя", "users", "customerId balanceAction amountRub"},
 	"users/block":                 {"Изменил блокировку пользователя", "users", "customerId blocked reason deleteSubscription"},
 	"users/subscription":          {"Изменил подписку пользователя", "users", "customerId subscriptionId days trafficGb"},
+	"users/panel/settings":        {"Изменил настройки пользователя панели", "users", "panelId"},
 	"users/subscription/settings": {"Изменил настройки пользователя панели", "users", "customerId subscriptionId"},
 	"users/subscription/select":   {"Выбрал подписку пользователя", "users", "customerId subscriptionId"},
 	"users/subscription/delete":   {"Удалил подписку пользователя", "users", "customerId subscriptionId"},

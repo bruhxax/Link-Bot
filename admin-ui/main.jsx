@@ -1,3 +1,4 @@
+import { animateAdminEntrance } from "./admin-entrance.mjs";
 import React, { useState, useRef, useLayoutEffect, useMemo } from "react";
 import "@fontsource/fira-mono/400.css";
 import "@fontsource/fira-mono/500.css";
@@ -690,13 +691,18 @@ function DataTable({
     enableColumnResizing: true,
     enableColumnPinning: true,
     enableRowSelection: true,
-    enableStickyHeader: false,
+    enableStickyHeader: usersTable,
+    enableRowVirtualization: usersTable,
+    rowVirtualizerOptions: {
+      overscan: 8,
+      estimateSize: () => (density === "md" ? 52 : 36),
+    },
     autoResetPageIndex: false,
     enablePagination: paginate,
     enableTopToolbar: !usersTable,
     enableBottomToolbar: !usersTable,
     getRowId: (row, index) =>
-      String(row.customerId ?? row.id ?? row.uuid ?? index),
+      String(row.key ?? row.customerId ?? row.id ?? row.uuid ?? index),
     enableFilters: true,
     enableGlobalFilter: !usersTable,
     layoutMode: "grid",
@@ -713,7 +719,7 @@ function DataTable({
           }
         : {}),
       pagination: { pageSize: 20, pageIndex: 0 },
-      columnPinning: { right: ["actions"] },
+      columnPinning: { right: usersTable ? [] : ["actions"] },
     },
     state: {
       density,
@@ -738,8 +744,45 @@ function DataTable({
       placeholder: "Фильтр…",
     },
     mantineTableContainerProps: {
-      style: { maxHeight: "none", overflowX: "auto", overflowY: "hidden" },
+      style: {
+        maxHeight: usersTable ? "min(680px, 68dvh)" : "none",
+        overflowX: "auto",
+        overflowY: usersTable ? "auto" : "hidden",
+        overflowAnchor: "none",
+      },
     },
+    mantineTableBodyRowProps: ({ row }) =>
+      usersTable
+        ? {
+            tabIndex: 0,
+            "aria-label": `Открыть пользователя ${row.original.panelUsername || row.original.username}`,
+            style: { cursor: "pointer" },
+            onClick: (event) => {
+              if (event.target.closest("input,button,a,[role=checkbox],label"))
+                return;
+              event.currentTarget.dispatchEvent(
+                new CustomEvent("admin-row-open", {
+                  bubbles: true,
+                  detail: row.original.key || row.original.customerId,
+                }),
+              );
+            },
+            onKeyDown: (event) => {
+              if (
+                event.target !== event.currentTarget ||
+                !["Enter", " "].includes(event.key)
+              )
+                return;
+              event.preventDefault();
+              event.currentTarget.dispatchEvent(
+                new CustomEvent("admin-row-open", {
+                  bubbles: true,
+                  detail: row.original.key || row.original.customerId,
+                }),
+              );
+            },
+          }
+        : {},
     mantineTableHeadCellProps: {
       style: { fontSize: 12, background: usersTable ? "#181b20" : "#101113" },
     },
@@ -775,7 +818,7 @@ function UserMetrics({ users, hidden, overview }) {
   const total = counts?.totalUsers;
   const month = userDateKey(new Date().toISOString()).slice(0, 7);
   const registrations =
-    overview?.users?.source === "panel"
+    overview?.users?.source === "panel" && overview.users.daily
       ? (overview.users.daily || [])
           .filter((point) => point.date.startsWith(month))
           .reduce((sum, point) => sum + point.value, 0)
@@ -846,9 +889,7 @@ function UserMetrics({ users, hidden, overview }) {
                 </div>
               ) : (
                 <small>
-                  {registrations == null ? (
-                    "В панели Remnawave"
-                  ) : (
+                  {registrations == null ? null : (
                     <>
                       <span className="rn-private-value" aria-hidden={hidden}>
                         +{registrations}
@@ -1399,6 +1440,16 @@ function Admin({ model, content, dialogs, dispatch }) {
     }
   });
   const active = model.page === "admin" ? model.section : model.page;
+  useLayoutEffect(
+    () => animateAdminEntrance(document.querySelector(".rn-page")),
+    [active],
+  );
+  useLayoutEffect(() => {
+    const page = document.querySelector(".rn-page");
+    const open = (event) => dispatch("admin-user-open", event.detail);
+    page?.addEventListener("admin-row-open", open);
+    return () => page?.removeEventListener("admin-row-open", open);
+  }, [dispatch]);
   const routes = model.groups.flatMap((g) => g[2]);
   const desktopGroups = [
     ["Пользователи", "Users", ["users", "administrators", "partners"], "users"],

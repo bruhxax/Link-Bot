@@ -63,7 +63,7 @@ test("panel outage retains only previously loaded panel counts and period switch
  assert.equal(state.adminOverview.panelError,"Панель недоступна");
  state.adminOverview={days:7,users:{total:59000},subscriptions:[]};
  await context.refreshAdminOverview();
- assert.equal(requests[1].force,true);
+ assert.equal(requests[1].force,false);
  assert.equal(state.adminOverview.users,null);
  assert.equal(state.adminOverview.days,90);
 });

@@ -96,6 +96,7 @@ type Handler struct {
 	landingNodesAvailable   bool
 	adminStatus             adminStatusInfo
 	overviewPanel           overviewPanelCache
+	overviewRevenue         overviewRevenueCache
 }
 
 func lockPromoPurchase(code string) func() {
@@ -741,6 +742,9 @@ func NewHandler(
 	if err := customerRepository.RecoverEmailBroadcast(recoverCtx); err != nil {
 		slog.Warn("recover email broadcast failed", "error", err)
 	}
+	if handler.remnawaveClient != nil {
+		handler.panelCatalog(false, "")
+	}
 	return handler
 }
 
@@ -872,6 +876,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/users/open", h.withSession(h.handleAdminUserDetail))
 	mux.HandleFunc("/api/mini-app/admin/users/balance", h.withSession(h.handleAdminUserBalance))
 	mux.HandleFunc("/api/mini-app/admin/users/subscription", h.withSession(h.handleAdminUserSubscription))
+	mux.HandleFunc("/api/mini-app/admin/users/panel/settings", h.withSession(h.handlePanelUserSettings))
 	mux.HandleFunc("/api/mini-app/admin/users/subscription/settings", h.withSession(h.handleAdminUserSettings))
 	mux.HandleFunc("/api/mini-app/admin/users/subscription/select", h.withSession(h.handleAdminUserSelectSubscription))
 	mux.HandleFunc("/api/mini-app/admin/users/subscription/delete", h.withSession(h.handleAdminUserDeleteSubscription))

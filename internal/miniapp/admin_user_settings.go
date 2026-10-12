@@ -55,5 +55,6 @@ func (h *Handler) handleAdminUserSettings(w http.ResponseWriter, r *http.Request
 			return
 		}
 	}
+	h.panelCatalog(true, "")
 	h.writeAdminUserActionResult(w, r, req.CustomerID, "Настройки пользователя сохранены")
 }

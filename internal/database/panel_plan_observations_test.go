@@ -33,9 +33,9 @@ func TestPanelPlanObservationsUseLatestPaidTermPerSubscription(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer pool.Exec(context.Background(), "DROP SCHEMA "+schema+" CASCADE")
-	_, err = pool.Exec(ctx, `CREATE TABLE customer_subscription(id BIGINT PRIMARY KEY,panel_user_id BIGINT,panel_user_uuid UUID,subscription_link TEXT);
+	_, err = pool.Exec(ctx, `CREATE TABLE customer_subscription(id BIGINT PRIMARY KEY,panel_user_id BIGINT,panel_user_uuid UUID,subscription_link TEXT,customer_id BIGINT DEFAULT 7);
 	 CREATE TABLE purchase(id BIGINT PRIMARY KEY,subscription_id BIGINT,status TEXT,paid_at TIMESTAMPTZ,created_at TIMESTAMPTZ,month INT,days INT,plan_id TEXT);
-	 INSERT INTO customer_subscription VALUES(1,42,'11111111-1111-1111-1111-111111111111','https://example.com/a'),(2,NULL,'22222222-2222-2222-2222-222222222222',NULL),(3,NULL,NULL,NULL);
+	 INSERT INTO customer_subscription(id,panel_user_id,panel_user_uuid,subscription_link) VALUES(1,42,'11111111-1111-1111-1111-111111111111','https://example.com/a'),(2,NULL,'22222222-2222-2222-2222-222222222222',NULL),(3,NULL,NULL,NULL);
 	 INSERT INTO purchase VALUES
 	 (1,1,'paid','2026-09-01','2026-09-01',1,0,'old'),
 	 (2,1,'paid','2026-10-01','2026-10-01',3,0,'quarter'),
@@ -52,6 +52,9 @@ func TestPanelPlanObservationsUseLatestPaidTermPerSubscription(t *testing.T) {
 		t.Fatalf("unlinked subscriptions included: %+v", items)
 	}
 	for _, item := range items {
+		if item.CustomerID != 7 || item.SubscriptionID <= 0 {
+			t.Fatalf("binding identity lost: %+v", item)
+		}
 		if item.PanelID != nil {
 			if *item.PanelID != 42 || item.Months != 3 || item.PlanID != "quarter" || item.Link != "https://example.com/a" || item.PanelUUID == nil {
 				t.Fatalf("wrong paid term or identity: %+v", item)

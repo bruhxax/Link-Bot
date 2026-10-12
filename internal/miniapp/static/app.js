@@ -3628,11 +3628,11 @@ async function refreshRealtimeData({ panelOnly = false } = {}) {
 					case "administrators": if (!administrators.editor && !administrators.picking && !administrators.busy) await refreshAdministrators({ silent: true }); break;
 					case "users":
 						if (state.adminUsersBusy || state.adminUserPending) break;
-						if (state.adminUserDetail?.customerId) {
+						if (state.adminUserDetail?.customerId || state.adminUserDetail?.panelOnly) {
 							const customerId = state.adminUserDetail.customerId;
 							const requestID = adminUserDetailRequestID;
 							const previous = JSON.stringify(state.adminUserDetail);
-							const response = await post("/api/mini-app/admin/users/detail", { customerId });
+							const response = await post("/api/mini-app/admin/users/detail", state.adminUserDetail.panelId || state.adminUserDetail.panelOnly ? {panelId:state.adminUserDetail.panelId,panelUuid:state.adminUserDetail.panelUuid} : { customerId });
 							if (requestID === adminUserDetailRequestID && !state.adminUsersBusy && state.adminSection === "users" && state.adminUserDetail?.customerId === customerId) {
 								state.adminUserDetail = mergeAdminUserObservation(state.adminUserDetail, response.data);
 								if (previous !== JSON.stringify(state.adminUserDetail)) renderRealtime();
@@ -4488,15 +4488,16 @@ function mountCabinetShell(markup) {
 		const groups = visibleConsoleGroups(canAdmin);
 		mountRemnaAdmin(app, {
 			groups, section: state.adminSection, page: state.currentPage, locale: state.locale,
-			overview: state.adminOverview, overviewDays: state.adminOverviewDays, overviewBusy: state.adminOverviewBusy, overviewError: state.adminOverviewError,
+			overview: state.adminOverview, overviewDays: state.adminOverviewDays, overviewBusy: state.adminOverviewBusy || Boolean(state.adminOverview?.pending), overviewError: state.adminOverviewError,
 			canOverviewUsers: canAdmin("users"), canOverviewFinance: canAdmin("finance"),
-			refreshOverview: () => refreshAdminOverview(),
+			refreshOverview: () => refreshAdminOverview({force:true}),
 		setOverviewDays: setAdminOverviewDays,
 			brand: state.data?.brand?.name || "Link-Bot", logo: state.data?.brand?.logoUrl, logout: Boolean(renderBrowserLogoutButton()),
 			save: state.currentPage === "admin" && ADMIN_SAVE_SECTIONS.has(state.adminSection),
 			dirty: adminEditorSaveState().dirty, busy: adminEditorSaveState().busy,
 			plans: (state.adminSettingsDraft?.plans || state.data?.admin?.settings?.plans || []).map(plan => ({...plan})),
 			users: {...(state.adminUsers || {total: 0}), items: [...(state.adminUsers?.items || [])]}, usersQuery: state.adminUsersQuery,
+			usersError: state.adminUsersError || "",
 			servers: getServerItems().map(server => ({...server})), serverFilter: state.serverFilter,
 			canManageNodes: canAdmin("servers.manage"), nodeBusy: state.serverVisibilityBusy,
 			reviews: state.data?.reviews || {items:[],count:0,average:0},
@@ -4504,7 +4505,9 @@ function mountCabinetShell(markup) {
 			userDetail: Boolean(state.adminUserDetail || state.adminUserPending), user: state.adminUserDetail,
 			selectedSubscriptionID: adminUserSelectedSubscriptionID(), squads: adminSquads(),
 			canEditUser: canAdmin("users.subscription"), userBusy: Boolean(state.adminUsersBusy),
-			saveUserSettings: (subscriptionId, settings) => runAdminUserAction("/api/mini-app/admin/users/subscription/settings", {subscriptionId, settings}, "panel-settings"),
+			saveUserSettings: (subscriptionId, settings) => state.adminUserDetail?.panelOnly
+              ? runAdminUserAction("/api/mini-app/admin/users/panel/settings", {panelId:state.adminUserDetail.panelId,panelUuid:state.adminUserDetail.panelUuid,settings}, "panel-settings")
+              : runAdminUserAction("/api/mini-app/admin/users/subscription/settings", {subscriptionId, settings}, "panel-settings"),
 			layout: state.adminSettingsDraft?.layout?.elements || [],
 			layoutArea: state.adminLayoutCategory,
 			setLayoutArea: area => setAdminLayoutCategory(area),
@@ -5791,13 +5794,14 @@ function renderAdminPartnerRow(item, index) {
 }
 
 let adminOverviewRequestID = 0;
+let adminOverviewPollTimer = 0, adminOverviewPollAttempts = 0;
 function setAdminOverviewDays(days) {
 	if (![7,30,90].includes(days)) return;
 	state.adminOverviewDays=days;
 	render({preserveScroll:true});
 	if (state.adminOverview?.days!==90 && !state.adminOverviewBusy) void refreshAdminOverview({force:false});
 }
-async function refreshAdminOverview({live=false,force=!live}={}) {
+async function refreshAdminOverview({live=false,force=false}={}) {
 	if (!state.adminWorkspace || !isAdminUser() || live && state.adminOverviewBusy) return;
 	if (previewMode) {
 		const today=new Date();const daily=Array.from({length:90},(_,index)=>{
@@ -5807,6 +5811,8 @@ async function refreshAdminOverview({live=false,force=!live}={}) {
 		state.adminOverview={days:90,generatedAt:today.toISOString(),users:{source:"panel",total:551,active:204,expired:127,limited:152,disabled:68,today:3,week:19,daily},subscriptions:[{key:"1:0:false",label:"1 месяц · Лимитный",months:1,unlimited:false,count:80},{key:"1:0:true",label:"1 месяц · Безлимит",months:1,unlimited:true,count:40},{key:"3:0:false",label:"3 месяца · Лимитный",months:3,unlimited:false,count:28},{key:"3:0:true",label:"3 месяца · Безлимит",months:3,unlimited:true,count:16},{key:"6:0:false",label:"6 месяцев · Лимитный",months:6,unlimited:false,count:24},{key:"12:0:true",label:"12 месяцев · Безлимит",months:12,unlimited:true,count:16}],revenue:{todayRub:350,weekRub:7840,monthRub:25680,allRub:99118,averageRub:519,allStars:150,daily:daily.map((point,index)=>({...point,value:Math.round(point.value*23*(index%4===0?.2:1))}))}};
 		render({preserveScroll:true});return;
 	}
+	if (typeof window !== "undefined") window.clearTimeout(adminOverviewPollTimer);
+	if (!live) adminOverviewPollAttempts=0;
 	const requestID=++adminOverviewRequestID;
 	state.adminOverviewBusy=true;state.adminOverviewError="";
 	if (!live) render({preserveScroll:true});
@@ -5814,7 +5820,17 @@ async function refreshAdminOverview({live=false,force=!live}={}) {
 		const response=await post("/api/mini-app/admin/overview",{days:90,force});
 		if (requestID!==adminOverviewRequestID || state.adminSection!=="home" || !state.adminWorkspace) return;
 		const next=response.data;
-		state.adminOverview=next?.panelError && !next.users && state.adminOverview?.users?.source==="panel" ? {...next,users:state.adminOverview.users,subscriptions:state.adminOverview.subscriptions,days:state.adminOverview.days} : next;
+		const previous=state.adminOverview;
+        const retainPanel=!next?.users && previous?.users?.source==="panel" && (next?.pending || next?.panelError);
+        state.adminOverview={...next,
+          ...(retainPanel ? {users:previous.users,subscriptions:previous.subscriptions,days:previous.days} : {}),
+          ...(!next?.revenue && previous?.revenue && (next?.pending || next?.revenueError) ? {revenue:previous.revenue} : {}),
+        };
+        if (next?.pending && typeof window !== "undefined" && adminOverviewPollAttempts++ < 90) {
+          adminOverviewPollTimer=window.setTimeout(() => {
+            if (state.adminSection === "home" && state.adminWorkspace) void refreshAdminOverview({live:true,force:false});
+          },700);
+        }
 	} catch(error) {
 		if (requestID!==adminOverviewRequestID) return;
 		state.adminOverviewError=error?.message || "Не удалось загрузить статистику";
@@ -6322,6 +6338,7 @@ function renderAdminUserDetailLoading(user) {
 }
 
 function renderAdminUserDetailPage(user) {
+	if (user.panelOnly) return `<section class="admin-user-detail"><h2>${escapeHtml(user.username || "Пользователь панели")}</h2></section>`;
 	const subscriptions = Array.isArray(user.subscriptions) ? user.subscriptions : [];
 	const selected = subscriptions.find((item) => String(item.id) === String(state.adminUserSelectedSubscriptionID)) || subscriptions.find((item) => item.isSelected) || subscriptions[0] || null;
 	const referrals = user.referrals || {};
@@ -6376,38 +6393,69 @@ function renderAdminUserSubscription(item) {
 	</article>`;
 }
 
+let adminUsersPollTimer = 0, adminUsersPollAttempts = 0;
+function mergeAdminUserRows(previous, incoming, mode) {
+    const key = row => String(row.key || row.customerId || row.panelId);
+    const updates = new Map(incoming.map(row => [key(row),row]));
+    if (mode === "patch") return previous.map(row => updates.get(key(row)) || row);
+    const rows = mode === "append" ? [...previous] : [];
+    const indices = new Map(rows.map((row,index) => [key(row),index]));
+    for (const row of incoming) {
+      const identity=key(row);
+      if (indices.has(identity)) rows[indices.get(identity)]=row;
+      else {indices.set(identity,rows.length);rows.push(row);}
+    }
+    return rows;
+}
 async function refreshAdminUsers({ append = false, silent = false } = {}) {
-	if (previewMode || (silent && state.adminUsersBusy) || (append && state.adminUsersBusy) || (!silent && state.adminUsersBusy && state.adminUsersBusy !== "search")) return;
-	const previous = silent ? JSON.stringify(state.adminUsers || {}) : "";
-	const offset = append ? Number(state.adminUsers?.items?.length || 0) : 0;
-	const query = String(state.adminUsersQuery || "");
-	const requestID = ++adminUsersSearchRequestID;
-	if (!silent) state.adminUsersBusy = append ? "more" : "search";
-	if (!silent) {
-		syncAdminUsersBusyDOM();
-		if (state.adminWorkspace) render({preserveScroll:true});
-	}
-	try {
-		const response = await post("/api/mini-app/admin/users/search", { query, limit: 30, offset });
-		if (requestID !== adminUsersSearchRequestID || (!append && query !== state.adminUsersQuery) || state.adminSection !== "users" || state.adminUserPending) return;
-		const next = response.data || { items: [], total: 0, limit: 30, offset };
-		state.adminUsers = {
-			...next, panelCounts: next.panelCounts || state.adminUsers?.panelCounts,
-			items: append ? [...(state.adminUsers?.items || []), ...(next.items || [])] : (next.items || []),
-		};
-		state.adminUsersBusy = "";
-		const searchFocus = captureAdminUsersSearchFocus();
-		if (silent) { if (previous !== JSON.stringify(state.adminUsers || {})) renderRealtime(); }
-		else render({ preserveScroll: append });
-		restoreAdminUsersSearchFocus(searchFocus);
-	} catch (error) {
-		if (requestID !== adminUsersSearchRequestID) return;
-		state.adminUsersBusy = "";
-		const searchFocus = captureAdminUsersSearchFocus();
-		render({ preserveScroll: true });
-		restoreAdminUsersSearchFocus(searchFocus);
-		throw error;
-	}
+    if (previewMode || (silent && state.adminUsersBusy) || (append && state.adminUsersBusy) || (!silent && state.adminUsersBusy && state.adminUsersBusy !== "search")) return;
+    window.clearTimeout(adminUsersPollTimer);
+    if (!silent && !append) adminUsersPollAttempts=0;
+    const previous = silent ? JSON.stringify(state.adminUsers || {}) : "";
+    const offset = append ? Number(state.adminUsers?.items?.length || 0) : 0;
+    const query = String(state.adminUsersQuery || "");
+    const requestID = ++adminUsersSearchRequestID;
+    state.adminUsersError="";
+    if (!silent) state.adminUsersBusy = append ? "more" : "search";
+    if (!silent) {syncAdminUsersBusyDOM();if (state.adminWorkspace) render({preserveScroll:true});}
+    try {
+        const response = await post("/api/mini-app/admin/users/search", {
+            query, limit:30, offset,
+            ...(state.adminWorkspace ? {source:"panel",snapshot:append ? state.adminUsers?.snapshot : ""} : {}),
+        });
+        if (requestID !== adminUsersSearchRequestID || query !== state.adminUsersQuery || state.adminSection !== "users" || state.adminUserPending) return;
+        const next = response.data || {items:[],total:0,limit:30,offset};
+        const old=state.adminUsers || {};
+        const keepLoaded=!append && old.query===query && old.items?.length>30;
+        const keepPending=next.pending && !next.items?.length && old.query===query && old.items?.length;
+        state.adminUsers={...next,query,panelCounts:next.panelCounts || old.panelCounts,
+            items:keepPending ? old.items : mergeAdminUserRows(old.items || [],next.items || [],append ? "append" : keepLoaded ? "patch" : "replace"),
+            ...(keepLoaded || keepPending ? {snapshot:old.snapshot,total:old.total} : {}),
+        };
+        if (next.pending && adminUsersPollAttempts++ < 90) adminUsersPollTimer=window.setTimeout(() => {
+          if (state.adminSection === "users" && !state.adminUserDetail && !state.adminUserPending) void refreshAdminUsers({silent:true}).catch(error => showToast(error.message,"danger"));
+        },700);
+        const searchFocus=captureAdminUsersSearchFocus();
+        if (!silent) state.adminUsersBusy="";
+        if (silent) {if (previous!==JSON.stringify(state.adminUsers)) renderRealtime();}
+        else render({preserveScroll:true});
+        restoreAdminUsersSearchFocus(searchFocus);
+    } catch(error) {
+        if (requestID===adminUsersSearchRequestID) {
+            state.adminUsersError=error?.message || "Не удалось загрузить пользователей панели";
+            if (error?.code === "panel_snapshot_expired") {
+                state.adminUsers.snapshot="";
+                state.adminUsers.query=null;
+            }
+            if (silent && state.adminSection==="users") renderRealtime();
+        }
+    } finally {
+        if (requestID===adminUsersSearchRequestID && !silent && state.adminUsersBusy!=="detail") {
+            state.adminUsersBusy="";
+            if (state.adminSection==="users") {syncAdminUsersBusyDOM();render({preserveScroll:true});}
+            if (state.adminSection==="users" && query!==state.adminUsersQuery && !state.adminUserPending && !state.adminUserDetail) void refreshAdminUsers();
+        }
+    }
 }
 
 function captureAdminUsersSearchFocus() {
@@ -6455,10 +6503,12 @@ async function openAdminUser(customerID) {
 		state.adminUserSelectedSubscriptionID = String(state.adminUserDetail.subscriptions?.find((item) => item.isSelected)?.id || state.adminUserDetail.subscriptions?.[0]?.id || "");
 		state.adminUserBlockReasonDraft = String(state.adminUserDetail.blockedReason || "");
 		state.adminUserDeleteSubscriptionOnBlock = false;
-		renderAdminTransition();
+		renderAdminTransition({preserveScroll:true});
 		return;
 	}
-	const summary = (state.adminUsers?.items || []).find((item) => Number(item.customerId) === Number(customerID)) || { customerId: customerID, telegramId: "", username: "", avatarUrl: "" };
+	const summary = (state.adminUsers?.items || []).find((item) => item.key === String(customerID) || Number(item.customerId)>0 && Number(item.customerId) === Number(customerID)) || { customerId: customerID, telegramId: "", username: "", avatarUrl: "" };
+    const identity=state.adminWorkspace && (summary.panelId || summary.panelUuid) ? {customerId:Number(summary.customerId),subscriptionId:summary.subscriptionId || 0,panelId:summary.panelId || 0,panelUuid:summary.panelUuid} : {customerId:Number(summary.customerId)};
+    customerID=Number(summary.customerId);
 	state.adminUserDetail = null;
 	state.adminUserPending = summary;
 	state.adminDirectMessage = null;
@@ -6467,9 +6517,9 @@ async function openAdminUser(customerID) {
 	state.adminUserDetailSettled = false;
 	state.adminUsersBusy = "detail";
 	haptic("light");
-	render({ preserveScroll: false, scrollTop: 0 });
+	render({ preserveScroll: true });
 	try {
-		const response = await post("/api/mini-app/admin/users/open", { customerId: customerID });
+		const response = await post("/api/mini-app/admin/users/open", identity);
 		if (detailRequestID !== adminUserDetailRequestID || state.adminSection !== "users") return;
 		state.adminUserDetail = response.data || null;
 		state.adminUserPending = null;
@@ -6482,7 +6532,7 @@ async function openAdminUser(customerID) {
 		state.adminUserBlockReasonDraft = String(state.adminUserDetail?.blockedReason || "");
 		state.adminUserDeleteSubscriptionOnBlock = false;
 		state.adminUsersBusy = "";
-		render({ preserveScroll: false, scrollTop: 0 });
+		render({ preserveScroll: true });
 		void refreshAdminDirectMessage(customerID);
 	} catch (error) {
 		if (detailRequestID !== adminUserDetailRequestID) return;
@@ -6496,6 +6546,7 @@ async function openAdminUser(customerID) {
 
 function closeAdminUserDetail() {
 	adminUserDetailRequestID += 1;
+	if (state.adminUsersBusy === "detail") state.adminUsersBusy = "";
 	state.adminUserDetail = null;
 	state.adminUserPending = null;
 	state.adminUserDetailSettled = false;
@@ -6509,7 +6560,7 @@ function closeAdminUserDetail() {
 	state.adminDirectMessageBusy = "";
 	state.adminDirectConfirmOpen = false;
 	haptic("light");
-	renderAdminTransition();
+	renderAdminTransition({preserveScroll:true});
 }
 
 async function refreshAdminDirectMessage(customerID = Number(state.adminUserDetail?.customerId || 0)) {
@@ -11933,7 +11984,7 @@ function bindRootActions() {
 				if (!state.adminAnalyticsFrom || !state.adminAnalyticsTo) return showToast("Выберите обе даты", "danger");
 				return await refreshAdminAnalytics();
 			}
-			if (action === "admin-user-open") return await openAdminUser(Number(value));
+			if (action === "admin-user-open") return await openAdminUser(value);
 			if (action === "admin-user-back") return closeAdminUserDetail();
 			if (action === "admin-user-message-refresh") return await refreshAdminDirectMessage();
 			if (action === "admin-user-message-capture") return await actAdminDirectMessage("capture");

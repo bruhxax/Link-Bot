@@ -97,7 +97,7 @@ export function selectOverviewPeriod(data, days) {
   if (!data) return data;
   const count = [7, 30, 90].includes(days) ? days : 30;
   const trim = (part) =>
-    part ? { ...part, daily: (part.daily || []).slice(-count) } : part;
+    part ? { ...part, daily: part.daily == null ? part.daily : part.daily.slice(-count) } : part;
   return {
     ...data,
     days: count,

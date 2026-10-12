@@ -173,6 +173,14 @@
 .rn-users-grid .mantine-Paper-root {
   background: transparent !important;
 }
+.rn-users-grid [tabindex="0"]:focus-visible {
+  outline: 1px solid #6c839f;
+  outline-offset: -2px;
+}
+.rn-users-grid .mantine-TableContainer-root {
+  scrollbar-width: thin;
+  scrollbar-color: #414852 #15191e;
+}
 .rn-users-toolbar {
   display: flex;
   justify-content: space-between;
