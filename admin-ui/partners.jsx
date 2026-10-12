@@ -7,7 +7,6 @@ import {
   Checkbox,
   CopyButton,
   Group,
-  Menu,
   Modal,
   NumberInput,
   Select,
@@ -16,15 +15,12 @@ import {
   TextInput,
   Tooltip,
 } from "@mantine/core";
-import { DatePickerInput } from "@mantine/dates";
-import "dayjs/locale/ru.js";
 import {
   PiUsersDuotone,
   PiUserDuotone,
   PiFileTextDuotone,
   PiCalendarBlank,
   PiCaretDown,
-  PiDotsThreeVertical,
   PiCaretRight,
   PiArrowsClockwise,
   PiMagnifyingGlass,
@@ -39,7 +35,6 @@ import {
   applicationStatuses,
   partnerRows,
   partnerMetrics,
-  partnersMonthRange,
 } from "./partners-data.mjs";
 import "./partners.css";
 
@@ -71,7 +66,7 @@ function Private({ children, hidden }) {
 function Person({ item, hidden }) {
   return (
     <div className="rn-partner-person">
-      <Avatar src={item.avatarUrl || undefined} radius={8} size={43}>
+      <Avatar src={item.avatarUrl || undefined} radius={8} size={36}>
         {(item.username || "П").slice(0, 2).toUpperCase()}
       </Avatar>
       <div>
@@ -131,15 +126,14 @@ function Metric({ title, value, percent, color, Icon, hidden, loaded }) {
   );
 }
 
-function PartnersTable({ model, items, applications, range, hidden, onOpen }) {
+function PartnersTable({ model, items, applications, hidden, onOpen }) {
   const [query, setQuery] = useState(""),
     [status, setStatus] = useState(""),
     [descending, setDescending] = useState(true),
     [selected, setSelected] = useState(new Set());
   const rows = useMemo(
-    () =>
-      partnerRows(items, { query, status, range, applications, descending }),
-    [items, query, status, range, applications, descending],
+    () => partnerRows(items, { query, status, applications, descending }),
+    [items, query, status, applications, descending],
   );
   const checked =
     rows.length > 0 && rows.every((item) => selected.has(item.id));
@@ -168,7 +162,7 @@ function PartnersTable({ model, items, applications, range, hidden, onOpen }) {
             {title}
             <span className="rn-partner-count">
               <Private hidden={hidden}>
-                {number(partnerRows(items, { range, applications }).length)}
+                {number(partnerRows(items, { applications }).length)}
               </Private>
             </span>
           </h2>
@@ -325,7 +319,7 @@ function PartnersTable({ model, items, applications, range, hidden, onOpen }) {
                   {model.partnersLoaded
                     ? query || status
                       ? "По выбранным фильтрам ничего не найдено"
-                      : `${applications ? "Заявок" : "Партнёров"} за выбранный период нет`
+                      : `${applications ? "Заявок" : "Партнёров"} пока нет`
                     : "Загрузка партнёров…"}
                 </td>
               </tr>
@@ -494,13 +488,12 @@ function PartnerDetails({ model, item, applications, hidden, onClose }) {
 }
 
 export function Partners({ model, hidden }) {
-  const [range, setRange] = useState(partnersMonthRange),
-    [telegram, setTelegram] = useState(""),
+  const [telegram, setTelegram] = useState(""),
     [percent, setPercent] = useState(20),
     [error, setError] = useState(""),
     [opened, setOpened] = useState(null);
   const data = model.partners || { partners: [], applications: [] },
-    metrics = partnerMetrics(data, range),
+    metrics = partnerMetrics(data),
     busy = Boolean(model.partnersBusy);
   const selected =
     opened &&
@@ -526,41 +519,6 @@ export function Partners({ model, hidden }) {
   };
   return (
     <div className="rn-partners-section" aria-busy={busy}>
-      <div className="rn-partners-period">
-        <DatePickerInput
-          type="range"
-          value={range}
-          onChange={setRange}
-          clearable
-          locale="ru"
-          valueFormat="D MMM YYYY"
-          leftSection={<PiCalendarBlank size={20} />}
-          rightSection={<PiCaretDown />}
-          aria-label="Период партнёров"
-          placeholder="Весь период"
-        />
-        <Menu position="bottom-end" withinPortal>
-          <Menu.Target>
-            <ActionIcon
-              aria-label="Действия раздела партнёров"
-              variant="subtle"
-            >
-              <PiDotsThreeVertical size={21} />
-            </ActionIcon>
-          </Menu.Target>
-          <Menu.Dropdown>
-            <Menu.Item onClick={() => setRange([null, null])}>
-              Весь период
-            </Menu.Item>
-            <Menu.Item onClick={() => setRange(partnersMonthRange())}>
-              Текущий месяц
-            </Menu.Item>
-            <Menu.Item disabled={busy} onClick={() => model.refreshPartners()}>
-              Обновить партнёров
-            </Menu.Item>
-          </Menu.Dropdown>
-        </Menu>
-      </div>
       <div className="rn-partner-metrics">
         <Metric
           title="Всего партнёров"
@@ -656,14 +614,12 @@ export function Partners({ model, hidden }) {
         model={model}
         items={data.applications || []}
         applications
-        range={range}
         hidden={hidden}
         onOpen={(item) => setOpened({ id: item.id, applications: true })}
       />
       <PartnersTable
         model={model}
         items={data.partners || []}
-        range={range}
         hidden={hidden}
         onOpen={(item) => setOpened({ id: item.id, applications: false })}
       />

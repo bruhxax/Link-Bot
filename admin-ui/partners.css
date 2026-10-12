@@ -12,20 +12,8 @@
 .rn-partners-section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   color: #e5eaf2;
-}
-.rn-partners-period {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 14px;
-  min-height: 42px;
-  margin-top: -38px;
-  margin-bottom: 0;
-}
-.rn-partners-period .mantine-DatePickerInput-root {
-  width: 320px;
 }
 .rn-partners-section .mantine-Input-input {
   background: #11171e;
@@ -33,10 +21,6 @@
   color: #e3e9f2;
   border-radius: 8px !important;
   font-size: 14px;
-}
-.rn-partners-period .mantine-Input-input {
-  height: 42px !important;
-  min-height: 42px !important;
 }
 .rn-partner-card,
 .rn-partner-metric {
@@ -48,29 +32,29 @@
 .rn-partner-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
 }
 .rn-partner-metric {
   display: flex;
-  gap: 22px;
+  gap: 16px;
   align-items: center;
-  padding: 14px 18px;
-  min-height: 100px;
+  padding: 10px 14px;
+  min-height: 82px;
 }
 .rn-partner-icon {
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 56px;
-  height: 56px;
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
   color: var(--partner-color);
   background: color-mix(in srgb, var(--partner-color) 12%, #121920);
 }
 .rn-partner-metric > .rn-partner-icon {
-  width: 60px;
-  height: 60px;
+  width: 46px;
+  height: 46px;
 }
 .rn-partner-metric > div:last-child {
   flex: 1;
@@ -78,22 +62,22 @@
 }
 .rn-partner-metric > div > span {
   display: block;
-  font-size: 14px;
+  font-size: 13px;
   color: #c4cfdd;
   margin-bottom: 2px;
-  line-height: 18px;
+  line-height: 16px;
 }
 .rn-partner-metric strong {
   display: block;
-  font-size: 26px;
-  line-height: 29px;
+  font-size: 23px;
+  line-height: 26px;
   font-weight: 600;
 }
 .rn-partner-metric-progress {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-top: 7px;
+  margin-top: 5px;
 }
 .rn-partner-metric-progress > i {
   display: block;
@@ -112,30 +96,30 @@
 }
 .rn-partner-metric-progress small {
   font-size: 13px;
-  line-height: 14px;
+  line-height: 12px;
   min-width: 36px;
   text-align: right;
   color: #c0ccda;
 }
 .rn-partner-create {
   display: flex;
-  gap: 22px;
-  padding: 14px 16px 16px;
+  gap: 16px;
+  padding: 12px 14px 14px;
 }
 .rn-partner-create-content {
   flex: 1;
   min-width: 0;
 }
 .rn-partners-section h2 {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
-  line-height: 26px;
+  line-height: 24px;
   margin: 0;
 }
 .rn-partners-section p {
   font-size: 13px;
   color: #b7c2d0;
-  margin: 2px 0 12px;
+  margin: 2px 0 9px;
   line-height: 20px;
 }
 .rn-partner-create form {
@@ -151,12 +135,12 @@
   margin-bottom: 3px;
 }
 .rn-partner-create .mantine-Input-input {
-  height: 48px !important;
-  min-height: 48px !important;
+  height: 42px !important;
+  min-height: 42px !important;
   font-size: 15px;
 }
 .rn-partner-create .mantine-Button-root {
-  height: 52px !important;
+  height: 44px !important;
   background: #1767f5;
   border-radius: 8px;
   font-size: 15px;
@@ -172,8 +156,8 @@
 .rn-partner-section-head {
   display: flex;
   align-items: center;
-  gap: 22px;
-  padding: 12px 16px;
+  gap: 16px;
+  padding: 10px 14px;
 }
 .rn-partner-heading {
   flex: 1;
@@ -191,8 +175,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 28px;
-  height: 28px;
+  min-width: 24px;
+  height: 24px;
   border: 1px solid #2b4b64;
   background: #183c521f;
   border-radius: 50%;
@@ -219,13 +203,13 @@
   width: 140px;
 }
 .rn-partner-table-tools .mantine-Input-input {
-  height: 42px !important;
-  min-height: 42px !important;
+  height: 38px !important;
+  min-height: 38px !important;
 }
 .rn-partners-section .mantine-ActionIcon-root {
-  width: 44px;
-  min-width: 44px;
-  height: 42px;
+  width: 38px;
+  min-width: 38px;
+  height: 36px;
   color: #dbe3ed;
   background: #141c24;
   border: 1px solid #2a3440;
@@ -265,7 +249,7 @@
   font-size: 12px;
   line-height: 20px;
   font-weight: 400;
-  padding: 9px 18px;
+  padding: 7px 16px;
   border-bottom: 1px solid #2a3440;
   white-space: nowrap;
 }
@@ -315,7 +299,7 @@
   color: #519bdf;
 }
 .rn-partners-table td {
-  padding: 9px 18px;
+  padding: 7px 16px;
   border-bottom: 1px solid #242f3b;
   white-space: nowrap;
 }
@@ -336,7 +320,7 @@
 .rn-partner-person {
   display: flex;
   align-items: center;
-  gap: 17px;
+  gap: 13px;
   min-width: 0;
 }
 .rn-partner-person > div:last-child {
@@ -346,15 +330,15 @@
   min-width: 0;
 }
 .rn-partner-person strong {
-  font-size: 15px;
-  line-height: 21px;
+  font-size: 14px;
+  line-height: 20px;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .rn-partner-person small {
-  font-size: 13px;
-  line-height: 19px;
+  font-size: 12px;
+  line-height: 17px;
   color: #bac5d4;
 }
 .rn-partner-telegram {
@@ -379,7 +363,7 @@
   justify-content: center;
   gap: 12px;
   min-width: 116px;
-  padding: 9px 14px;
+  padding: 7px 12px;
   border-radius: 10px;
   background: #242c36;
   color: #a8b6c8;
@@ -468,10 +452,6 @@
   }
 }
 @media (max-width: 850px) {
-  .rn-partners-period {
-    margin-top: 0;
-    justify-content: flex-start;
-  }
   .rn-partner-metrics {
     gap: 9px;
   }
@@ -515,17 +495,12 @@
     grid-template-columns: 1fr;
   }
   .rn-partner-metric {
-    min-height: 86px;
+    min-height: 82px;
     gap: 18px;
   }
   .rn-partner-metric > .rn-partner-icon {
-    width: 52px;
-    height: 52px;
-  }
-  .rn-partners-period .mantine-DatePickerInput-root {
-    flex: 1;
-    min-width: 0;
-    width: auto;
+    width: 46px;
+    height: 46px;
   }
   .rn-partner-create > .rn-partner-icon {
     display: none;
