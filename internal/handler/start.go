@@ -93,6 +93,7 @@ func (h Handler) StartCommandHandler(ctx context.Context, b *bot.Bot, update *mo
 	}
 
 	h.deleteTrackedScreenMessage(ctxWithTime, b, update.Message.Chat.ID)
+	existingCustomer = h.refreshSubscriptionForBot(ctxWithTime, existingCustomer)
 
 	verified, err := h.maybeAutoVerifyRequiredChannelSubscription(ctxWithTime, b, existingCustomer)
 	if err != nil {
@@ -150,6 +151,7 @@ func (h Handler) StartCallbackHandler(ctx context.Context, b *bot.Bot, update *m
 		slog.Error("error finding customer by telegram id", "error", err)
 		return
 	}
+	existingCustomer = h.refreshSubscriptionForBot(ctxWithTime, existingCustomer)
 
 	if h.hasMiniApp() {
 		msg := callback.Message.Message
@@ -307,7 +309,7 @@ func (h Handler) buildStartKeyboard(existingCustomer *database.Customer, langCod
 	// Conditions
 	trial := h.trialSettings()
 	showTrial := h.featureEnabled("trials") && trial.Enabled && existingCustomer.SubscriptionLink == nil && !existingCustomer.TrialUsed && trial.Days > 0
-	showConnect := existingCustomer.SubscriptionLink != nil && existingCustomer.ExpireAt.After(time.Now())
+	showConnect := existingCustomer.SubscriptionLink != nil && existingCustomer.ExpireAt != nil && existingCustomer.ExpireAt.After(time.Now())
 	showReferral := h.featureEnabled("referrals") && config.GetReferralDays() > 0
 
 	// Row 0: Trial alone on top if available

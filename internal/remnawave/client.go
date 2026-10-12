@@ -606,6 +606,18 @@ func (r *Client) AddDeviceLimit(ctx context.Context, telegramID int64, extraDevi
 }
 
 func (r *Client) SetDeviceLimit(ctx context.Context, telegramID, userID int64, userUUID uuid.UUID, limit int) (*PanelUser, error) {
+	return r.setDeviceLimit(ctx, telegramID, userID, userUUID, limit, nil)
+}
+
+var ErrPanelDeviceLimitChanged = errors.New("panel device limit changed during expiration")
+
+// Check again immediately before the expiry PATCH, since the administrator
+// can edit the external panel without taking the bot's subscription lock.
+func (r *Client) SetDeviceLimitIfCurrent(ctx context.Context, telegramID, userID int64, userUUID uuid.UUID, expected, limit int) (*PanelUser, error) {
+	return r.setDeviceLimit(ctx, telegramID, userID, userUUID, limit, &expected)
+}
+
+func (r *Client) setDeviceLimit(ctx context.Context, telegramID, userID int64, userUUID uuid.UUID, limit int, expected *int) (*PanelUser, error) {
 	if limit < 0 || limit > 10000 {
 		return nil, errors.New("invalid device limit")
 	}
@@ -624,6 +636,15 @@ func (r *Client) SetDeviceLimit(ctx context.Context, telegramID, userID int64, u
 	}
 	if user.HwidDeviceLimit != nil && *user.HwidDeviceLimit == limit {
 		return user, nil
+	}
+	if expected != nil {
+		current := 0
+		if user.HwidDeviceLimit != nil {
+			current = *user.HwidDeviceLimit
+		}
+		if current != *expected {
+			return nil, ErrPanelDeviceLimitChanged
+		}
 	}
 	return r.patchPanelUser(ctx, user, map[string]any{"hwidDeviceLimit": limit})
 }

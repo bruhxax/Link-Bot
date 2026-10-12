@@ -3,7 +3,6 @@ package payment
 import (
 	"context"
 	"errors"
-	"log/slog"
 
 	"github.com/google/uuid"
 	"link-bot/internal/database"
@@ -48,57 +47,4 @@ func (s PaymentService) applySubscriptionTrafficLimit(ctx context.Context, custo
 		return nil, errors.New("subscription is not active yet")
 	}
 	return s.remnawaveClient.SetTrafficLimit(ctx, customer.TelegramID, userID, userUUID, limit)
-}
-
-// Reconcile purchased traffic after a panel reset or other external update.
-func (s PaymentService) ProcessTrafficEntitlements(ctx context.Context) error {
-	if s.purchaseRepository == nil || s.subscriptionRepository == nil || s.remnawaveClient == nil {
-		return nil
-	}
-	ids, err := s.purchaseRepository.TrafficGrantSubscriptions(ctx)
-	if err != nil {
-		return err
-	}
-	for _, id := range ids {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		if err := s.processTrafficSubscription(ctx, id); err != nil {
-			slog.Error("traffic access: reconciliation failed", "subscription_id", id, "error", err)
-		}
-	}
-	return nil
-}
-
-func (s PaymentService) processTrafficSubscription(ctx context.Context, subscriptionID int64) error {
-	release, err := s.purchaseRepository.LockDeviceLimit(ctx, subscriptionID)
-	if err != nil {
-		return err
-	}
-	defer release()
-	subscription, err := s.subscriptionRepository.FindByID(ctx, subscriptionID)
-	if err != nil || subscription == nil {
-		return err
-	}
-	customer, err := s.customerRepository.FindById(ctx, subscription.CustomerID)
-	if err != nil || customer == nil {
-		return err
-	}
-	state, err := s.panelStateForSubscription(ctx, customer, subscription)
-	if err != nil || state == nil || !state.Exists || !state.Active {
-		return err
-	}
-	base, extra, unlimited, err := s.purchaseRepository.TrafficLimitState(ctx, subscriptionID, 0)
-	if err != nil {
-		return err
-	}
-	limit := trafficLimitWithGrants(base, extra, unlimited)
-	if state.TrafficLimitBytes != limit || state.TrafficLimitStrategy != "NO_RESET" {
-		user, err := s.applySubscriptionTrafficLimit(ctx, customer, subscription, limit)
-		if err != nil {
-			return err
-		}
-		return s.persistSubscriptionPanelState(ctx, customer, subscription, user)
-	}
-	return nil
 }

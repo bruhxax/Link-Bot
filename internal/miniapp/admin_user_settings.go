@@ -29,6 +29,13 @@ func (h *Handler) handleAdminUserSettings(w http.ResponseWriter, r *http.Request
 		h.writeError(w, http.StatusBadRequest, "admin_subscription_unavailable", err.Error())
 		return
 	}
+	// Serialize local admin writes with purchase callbacks and expiry jobs.
+	release, err := h.purchaseRepository.LockDeviceLimit(r.Context(), subscription.ID)
+	if err != nil {
+		h.writeError(w, http.StatusServiceUnavailable, "admin_subscription_busy", "Не удалось заблокировать подписку для изменения")
+		return
+	}
+	defer release()
 	updated, err := h.remnawaveClient.UpdateAdminUserSettings(r.Context(), target.state.UserID, target.state.UserUUID, *req.Settings)
 	if err != nil {
 		h.writeError(w, http.StatusBadGateway, "admin_settings_failed", "Не удалось сохранить настройки в панели")
@@ -37,6 +44,16 @@ func (h *Handler) handleAdminUserSettings(w http.ResponseWriter, r *http.Request
 	if err := h.persistAdminSubscriptionPanelState(r.Context(), subscription, updated); err != nil {
 		h.writeError(w, http.StatusInternalServerError, "admin_subscription_sync_failed", "Настройки изменены, но локальные данные не обновились. Обновите карточку перед повторным сохранением.")
 		return
+	}
+	nextDeviceLimit := 0
+	if updated.HwidDeviceLimit != nil {
+		nextDeviceLimit = *updated.HwidDeviceLimit
+	}
+	if nextDeviceLimit != target.state.DeviceLimit {
+		if err := h.subscriptionRepository.MarkManualControl(r.Context(), subscription.ID); err != nil {
+			h.writeError(w, http.StatusInternalServerError, "admin_subscription_sync_failed", "Настройки сохранены, но защита ручных изменений не обновилась")
+			return
+		}
 	}
 	h.writeAdminUserActionResult(w, r, req.CustomerID, "Настройки пользователя сохранены")
 }

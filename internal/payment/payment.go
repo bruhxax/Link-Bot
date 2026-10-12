@@ -259,6 +259,15 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	}
 
 	s.completePromoRedemption(ctx, purchase, customer)
+	panelState, err := s.panelStateForSubscription(ctx, customer, subscription)
+	if err != nil {
+		return err
+	}
+	if panelState != nil && panelState.Exists {
+		if err := s.purchaseRepository.RebasePanelEntitlements(ctx, subscription.ID, purchase, panelState.DeviceLimit, panelState.TrafficLimitBytes, time.Now().UTC()); err != nil {
+			return err
+		}
+	}
 
 	if messageId, b := s.cache.Get(purchase.ID); b {
 		_, err = s.telegramBot.DeleteMessage(ctx, &bot.DeleteMessageParams{
@@ -271,10 +280,6 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	}
 
 	if purchase.PurchaseKind == database.PurchaseKindExtraDevices {
-		panelState, stateErr := s.panelStateForSubscription(ctx, customer, subscription)
-		if stateErr != nil {
-			return stateErr
-		}
 		if panelState == nil || panelState.DeviceLimit <= 0 {
 			return errors.New("cannot add devices to an unlimited or missing subscription")
 		}
@@ -318,6 +323,11 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 			return err
 		}
 		purchase.Status = database.PurchaseStatusPaid
+		if s.subscriptionRepository != nil {
+			if err := s.subscriptionRepository.ClearManualControl(ctx, subscription.ID); err != nil {
+				return err
+			}
+		}
 		if s.partnerRepository != nil {
 			if commissionErr := s.partnerRepository.AccrueCommission(context.Background(), purchase); commissionErr != nil {
 				slog.Error("payment: accrue partner commission failed", "error", commissionErr, "purchase_id", utils.MaskHalfInt64(purchase.ID))
@@ -351,10 +361,6 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 		return nil
 	}
 	if purchase.PurchaseKind == database.PurchaseKindExtraTraffic {
-		panelState, stateErr := s.panelStateForSubscription(ctx, customer, subscription)
-		if stateErr != nil {
-			return stateErr
-		}
 		if panelState == nil || !panelState.Active || (panelState.TrafficLimitBytes <= 0 && !purchase.ExtraTrafficUnlimited) {
 			return errors.New("cannot add traffic to an unlimited or inactive subscription")
 		}
@@ -401,13 +407,6 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	}
 
 	deviceLimit := purchaseDeviceLimit(purchase)
-	panelState, err := s.panelStateForSubscription(ctx, customer, subscription)
-	if err != nil {
-		slog.Warn("payment: load panel state before purchase update failed", "error", err, "customerId", utils.MaskHalfInt64(customer.ID))
-	}
-	if err != nil {
-		return err
-	}
 	baseTrafficLimit, trafficLimit, err := s.prepareSubscriptionTraffic(ctx, customer, subscription, purchase, panelState)
 	if err != nil {
 		return err

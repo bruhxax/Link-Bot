@@ -3,6 +3,7 @@ package remnawave
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/google/uuid"
 	"net/http"
 	"net/http/httptest"
@@ -39,5 +40,21 @@ func TestSetDeviceLimitOnlyChangesLimitAndSkipsDuplicatePatch(t *testing.T) {
 	}
 	if patches != 1 {
 		t.Fatalf("patches=%d, want one idempotent update", patches)
+	}
+}
+
+func TestDeviceExpiryRejectsNewerManualPanelLimit(t *testing.T) {
+	patches := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			patches++
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"response": map[string]any{"id": 42, "hwidDeviceLimit": 12}})
+	}))
+	defer server.Close()
+	client := NewClient(server.URL, "token", "remote")
+	_, err := client.SetDeviceLimitIfCurrent(context.Background(), 99, 42, uuid.Nil, 7, 5)
+	if !errors.Is(err, ErrPanelDeviceLimitChanged) || patches != 0 {
+		t.Fatalf("manual change overwritten: err=%v patches=%d", err, patches)
 	}
 }

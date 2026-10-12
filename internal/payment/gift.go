@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -102,6 +103,11 @@ func (s PaymentService) deliverGiftEntitlements(ctx context.Context, purchase *d
 	if stateErr != nil {
 		return stateErr
 	}
+	if panelState != nil && panelState.Exists {
+		if err := s.purchaseRepository.RebasePanelEntitlements(ctx, subscription.ID, purchase, panelState.DeviceLimit, panelState.TrafficLimitBytes, time.Now().UTC()); err != nil {
+			return err
+		}
+	}
 	baseTrafficLimit, trafficLimit, err := s.prepareSubscriptionTraffic(ctx, recipient, subscription, purchase, panelState)
 	if err != nil {
 		return err
@@ -151,6 +157,9 @@ func (s PaymentService) deliverGiftEntitlements(ctx context.Context, purchase *d
 		return err
 	}
 	if err := s.purchaseRepository.SetTrafficBase(ctx, subscription.ID, baseTrafficLimit); err != nil {
+		return err
+	}
+	if err := s.subscriptionRepository.ClearManualControl(ctx, subscription.ID); err != nil {
 		return err
 	}
 	return s.persistSubscriptionPanelState(ctx, recipient, subscription, user)

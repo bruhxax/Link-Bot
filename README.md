@@ -124,4 +124,5 @@ bash ./update.sh
 | [Настройки](docs/configuration.md) | Вход, домены, почта, ИИ и аналитика |
 | [Платёжные системы](docs/payment-providers.md) | Ключи, вебхуки и API провайдеров |
 | [Обслуживание](docs/maintenance.md) | Бэкапы, откат и перенос из Bedolaga |
+| [Синхронизация подписок](docs/subscription-sync.md) | Ручные правки панели, покупки и пакеты устройств |
 | [Баннеры Telegram](assets/telegram/README.md) | Папки и пути к изображениям |

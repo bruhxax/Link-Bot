@@ -131,14 +131,68 @@ func (s PaymentService) processDeviceSubscription(ctx context.Context, subscript
 	if err != nil {
 		return err
 	}
-	limit := deviceLimitWithGrants(base, extra)
-	if _, err := s.applySubscriptionDeviceLimit(ctx, customer, subscription, limit); err != nil {
+	grants, err := s.purchaseRepository.DeviceGrants(ctx, subscriptionID)
+	if err != nil {
 		return err
+	}
+	state, err := s.panelStateForSubscription(ctx, customer, subscription)
+	if err != nil {
+		return err
+	}
+	if state == nil || !state.Exists {
+		return nil
+	}
+	if state.DeviceLimit < 0 {
+		return errors.New("panel device limit is unavailable")
+	}
+	manual, err := s.subscriptionRepository.IsManuallyControlled(ctx, subscriptionID)
+	if err != nil {
+		return err
+	}
+	limit, apply, overridden := deviceExpiryDecision(base, extra, state.DeviceLimit, grants, now, manual)
+	if overridden {
+		if err := s.subscriptionRepository.MarkManualControl(ctx, subscriptionID); err != nil {
+			return err
+		}
+	}
+	if apply {
+		userID, userUUID := subscriptionPanelIdentity(subscription)
+		if userID <= 0 && userUUID == uuid.Nil && !subscription.IsPrimary {
+			return errors.New("subscription is not active yet")
+		}
+		if _, err := s.remnawaveClient.SetDeviceLimitIfCurrent(ctx, customer.TelegramID, userID, userUUID, state.DeviceLimit, limit); err != nil {
+			return err
+		}
 	}
 	if err := s.purchaseRepository.MarkDeviceGrantsExpired(ctx, subscriptionID, now); err != nil {
 		return err
 	}
 	return s.notifyDeviceGrants(ctx, customer, subscription, limit)
+}
+
+// Reminders and notification retries never change a panel limit. Expiration
+// only removes a grant while the panel still matches the bot's last total.
+// A different total is a manual override; even a reduction must be preserved.
+func deviceExpiryDecision(base, activeExtra, observed int, grants []database.DeviceGrant, now time.Time, manual bool) (limit int, apply, overridden bool) {
+	limit = observed
+	expiredExtra := 0
+	for _, grant := range grants {
+		if !grant.ExpiresAt.After(now) && grant.ExpiredAppliedAt == nil {
+			expiredExtra += grant.Devices
+		}
+	}
+	target := deviceLimitWithGrants(base, activeExtra)
+	previous := deviceLimitWithGrants(base, activeExtra+expiredExtra)
+	if manual {
+		return limit, false, false
+	}
+	if observed != previous && (expiredExtra == 0 || observed != target) {
+		return limit, false, true
+	}
+	if expiredExtra > 0 && observed != target {
+		return target, true, false
+	}
+	return limit, false, false
 }
 
 func (s PaymentService) notifyDeviceGrants(ctx context.Context, customer *database.Customer, subscription *database.CustomerSubscription, limit int) error {

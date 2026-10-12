@@ -23,7 +23,7 @@ func (pr *PurchaseRepository) TrafficLimitState(ctx context.Context, subscriptio
 	err = pr.pool.QueryRow(ctx, `SELECT l.base_limit,
 		COALESCE(SUM(p.extra_traffic_bytes), 0), COALESCE(BOOL_OR(p.extra_traffic_unlimited), FALSE)
 		FROM subscription_traffic_limit l LEFT JOIN purchase p ON p.subscription_id = l.subscription_id
-		AND (p.status = 'paid' OR p.id = $2)
+		AND (p.status = 'paid' OR p.id = $2) AND p.traffic_entitlement_superseded_at IS NULL
 		WHERE l.subscription_id = $1 GROUP BY l.base_limit`, subscriptionID, pendingPurchaseID).Scan(&base, &extra, &unlimited)
 	return
 }

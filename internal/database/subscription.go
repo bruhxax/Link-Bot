@@ -719,8 +719,8 @@ func (sr *SubscriptionRepository) UpdatePanelState(ctx context.Context, subscrip
 	return sr.UpdatePanelAccess(ctx, subscription, panelUserID, panelUserUUID, linkValue, &expire)
 }
 
-// IsManuallyControlled reports whether a panel profile was attached by an
-// administrator and has not subsequently been provisioned by a bot purchase.
+// IsManuallyControlled includes profiles edited directly in the panel. Their
+// device limits must not be restored from an earlier purchase by an expiry job.
 func (sr *SubscriptionRepository) IsManuallyControlled(ctx context.Context, subscriptionID int64) (bool, error) {
 	if subscriptionID <= 0 {
 		return false, nil
@@ -746,6 +746,12 @@ func (sr *SubscriptionRepository) ClearManualControl(ctx context.Context, subscr
 		return fmt.Errorf("clear manual subscription control: %w", err)
 	}
 	return nil
+}
+
+func (sr *SubscriptionRepository) MarkManualControl(ctx context.Context, subscriptionID int64) error {
+	_, err := sr.pool.Exec(ctx, `INSERT INTO customer_subscription_manual_control (subscription_id)
+		VALUES ($1) ON CONFLICT (subscription_id) DO NOTHING`, subscriptionID)
+	return err
 }
 
 func (sr *SubscriptionRepository) UpdatePanelAccess(ctx context.Context, subscription *CustomerSubscription, panelUserID int64, panelUserUUID uuid.UUID, subscriptionLink *string, expireAt *time.Time) error {

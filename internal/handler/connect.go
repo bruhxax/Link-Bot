@@ -27,6 +27,7 @@ func (h Handler) ConnectCommandHandler(ctx context.Context, b *bot.Bot, update *
 		return
 	}
 
+	customer = h.refreshSubscriptionForBot(ctx, customer)
 	langCode := update.Message.From.LanguageCode
 
 	if h.hasMiniApp() {
@@ -46,7 +47,7 @@ func (h Handler) ConnectCommandHandler(ctx context.Context, b *bot.Bot, update *
 			},
 		}})
 	} else if config.IsWepAppLinkEnabled() {
-		if customer.SubscriptionLink != nil && customer.ExpireAt.After(time.Now()) {
+		if customer.SubscriptionLink != nil && customer.ExpireAt != nil && customer.ExpireAt.After(time.Now()) {
 			markup = append(markup, []models.InlineKeyboardButton{{
 				Text: h.translation.GetText(langCode, "connect_press"),
 				WebApp: &models.WebAppInfo{
@@ -93,6 +94,7 @@ func (h Handler) ConnectCallbackHandler(ctx context.Context, b *bot.Bot, update 
 		return
 	}
 
+	customer = h.refreshSubscriptionForBot(ctx, customer)
 	langCode := update.CallbackQuery.From.LanguageCode
 
 	if h.hasMiniApp() {
@@ -118,7 +120,7 @@ func (h Handler) ConnectCallbackHandler(ctx context.Context, b *bot.Bot, update 
 			WebApp: &models.WebAppInfo{URL: config.GetMiniAppURL()},
 		}})
 	} else if config.IsWepAppLinkEnabled() {
-		if customer.SubscriptionLink != nil && customer.ExpireAt.After(time.Now()) {
+		if customer.SubscriptionLink != nil && customer.ExpireAt != nil && customer.ExpireAt.After(time.Now()) {
 			markup = append(markup, []models.InlineKeyboardButton{{
 				Text:   h.translation.GetText(langCode, "connect_press"),
 				WebApp: &models.WebAppInfo{URL: *customer.SubscriptionLink},

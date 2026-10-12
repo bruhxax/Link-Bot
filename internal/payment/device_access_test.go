@@ -103,3 +103,34 @@ func TestDeviceGrantExpiresAfterEarlyRenewalAndRetriesDoNotExtendIt(t *testing.T
 		t.Fatal("extra devices must not turn an unlimited plan into a limited plan")
 	}
 }
+
+func TestDeviceExpiryPreservesManualPanelLimits(t *testing.T) {
+	now := time.Now().UTC()
+	grants := []database.DeviceGrant{{Devices: 2, ExpiresAt: now.Add(-time.Second)}}
+	for _, tc := range []struct {
+		name                    string
+		observed, active, want  int
+		manual, apply, override bool
+	}{
+		{"normal expiry", 7, 0, 5, false, true, false},
+		{"already applied retry", 5, 0, 5, false, false, false},
+		{"later grant remains", 10, 3, 8, false, true, false},
+		{"manual increase", 12, 0, 12, false, false, true},
+		{"manual decrease", 3, 0, 3, false, false, true},
+		{"manual unlimited", 0, 0, 0, false, false, true},
+		{"manual profile", 7, 0, 7, true, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			limit, apply, override := deviceExpiryDecision(5, tc.active, tc.observed, grants, now, tc.manual)
+			if limit != tc.want || apply != tc.apply || override != tc.override {
+				t.Fatalf("got (%d,%v,%v), want (%d,%v,%v)", limit, apply, override, tc.want, tc.apply, tc.override)
+			}
+		})
+	}
+	// Sending a purchase/reminder notification cannot repair a changed limit.
+	grants[0].ExpiresAt = now.Add(time.Hour)
+	limit, apply, override := deviceExpiryDecision(5, 2, 12, grants, now, false)
+	if limit != 12 || apply || !override {
+		t.Fatal("reminder restored an old device limit")
+	}
+}
