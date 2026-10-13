@@ -13,7 +13,7 @@ import { tokenizeSupportMessage } from "./support-message.mjs";
 
 import { reviewRewardDraft, reviewRewardsFromDraft, reviewRewardSummary } from "./review-rewards.mjs";
 
-import { syncTelegramLayout } from "./telegram-layout.mjs";
+import { syncTelegramLayout, configureTelegramLaunch } from "./telegram-layout.mjs";
 import { renderSMTPSettings } from "./admin-smtp.mjs";
 import { mountLocalizationSelects, closeLocalizationMenu } from "./localization-select.mjs";
 import { syncCustomBackground, probeBackground, draggedPosition } from "./custom-background.mjs";
@@ -3418,6 +3418,10 @@ function initTelegram() {
       tg.onEvent(event, syncAppViewportHeight);
     }
     initTelegram.viewportEventBound = true;
+  }
+  if (clientSurface === "telegram" && !initTelegram.launchModeBound) {
+    configureTelegramLaunch(tg, navigator);
+    initTelegram.launchModeBound = true;
   }
   if (tg.BackButton && !initTelegram.backButtonBound) {
     tg.BackButton.onClick(handleNativeBackButton);

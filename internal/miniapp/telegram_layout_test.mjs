@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import test from "node:test";
-import { telegramLayout, syncTelegramLayout } from "./static/telegram-layout.mjs";
+import { telegramLayout, syncTelegramLayout, configureTelegramLaunch } from "./static/telegram-layout.mjs";
 
 test("fullscreen reserves both device and Telegram controls, using stable height", () => {
   assert.deepEqual(telegramLayout({isFullscreen:true,isExpanded:true,viewportStableHeight:844,viewportHeight:700,
@@ -40,7 +40,7 @@ test("Telegram mode and inset events update mounted layout without rerendering",
   const end=source.indexOf("async function handlePostBootstrapFlow()",start);
   const events=new Map(); const values=new Map(); const root={dataset:{},style:{setProperty:(key,value)=>values.set(key,value)}};
   const tg={initData:"test",isExpanded:false,viewportStableHeight:350,ready(){},onEvent:(name,fn)=>events.set(name,fn),expand(){throw Error("unexpected forced expansion");}};
-  const context=vm.createContext({tg,clientSurface:"telegram",syncTelegramLayout,document:{documentElement:root},window:{innerHeight:844,addEventListener(){}},cabinetWideMedia:{addEventListener(){}},syncCabinetLayout(){}});
+  const context=vm.createContext({tg,clientSurface:"telegram",syncTelegramLayout,configureTelegramLaunch,navigator:{},document:{documentElement:root},window:{innerHeight:844,addEventListener(){}},cabinetWideMedia:{addEventListener(){}},syncCabinetLayout(){}});
   vm.runInContext(source.slice(start,end),context); context.initTelegram();
   assert.equal(root.dataset.launchMode,"compact");
   tg.isFullscreen=true; tg.viewportStableHeight=844; tg.safeAreaInset={top:24}; tg.contentSafeAreaInset={top:56}; events.get("fullscreenChanged")();
