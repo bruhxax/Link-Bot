@@ -12,11 +12,13 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"strings"
+	"time"
+
 	"link-bot/internal/config"
 	"link-bot/internal/database"
 	"link-bot/internal/payment"
-	"strings"
-	"time"
+	"link-bot/utils"
 )
 
 type Client struct {
@@ -73,6 +75,9 @@ func (c *Client) WebHookHandler() http.Handler {
 			return
 		}
 
+		telegramID := utils.MaskHalfInt64(wh.Payload.TelegramUserID)
+		slog.Info("webhook: signature verified", "event", wh.Name, "telegram_id", telegramID)
+
 		switch wh.Name {
 		case NewSubscription:
 			err := c.newSubscriptionHandler(ctx, wh)
@@ -81,10 +86,11 @@ func (c *Client) WebHookHandler() http.Handler {
 				http.Error(w, "internal server error", http.StatusInternalServerError)
 				return
 			}
+			slog.Info("webhook: new subscription processed", "telegram_id", telegramID, "period", wh.Payload.Period, "amount", wh.Payload.Amount)
 		case CancelledSubscription:
 			err := c.cancelSubscriptionHandler(ctx, wh)
 			if errors.Is(err, payment.ErrCustomerNotFound) {
-				slog.Warn("webhook: customer not found", "telegram_id", wh.Payload.TelegramUserID)
+				slog.Warn("webhook: customer not found", "telegram_id", telegramID)
 				w.WriteHeader(http.StatusOK)
 				return
 			}
@@ -93,6 +99,7 @@ func (c *Client) WebHookHandler() http.Handler {
 				http.Error(w, "internal server error", http.StatusInternalServerError)
 				return
 			}
+			slog.Info("webhook: subscription cancelled", "telegram_id", telegramID)
 		case TestHook:
 			slog.Info("Tribute webhook working")
 		}
