@@ -13007,6 +13007,8 @@ body.is-layout-editing .layout-editor-grid { background: none; }
     margin: 4px 0 8px;
     padding-left: 10px;
     border-left: 2px solid var(--muted);
+    /* Group markers remain visible when decorative frames are disabled. */
+    border-left-color: var(--muted) !important;
     color: var(--muted);
     font-size: 10px;
     font-weight: 800;
@@ -13043,7 +13045,8 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   :root[data-layout="wide"] .desktop-sidebar__item.is-active {
     color: var(--accent);
     background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 15%, transparent), color-mix(in srgb, var(--accent) 10%, transparent));
-    border-inline-color: var(--accent);
+    /* This is the current-page indicator, independent of decorative frames. */
+    border-inline-color: var(--accent) !important;
   }
   :root[data-layout="wide"] .desktop-sidebar__item:focus-visible {
     outline: 2px solid var(--accent);
