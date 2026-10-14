@@ -167,6 +167,8 @@
       return;
     }
     list.innerHTML = safePlans.map((plan) => {
+      const planURL = new URL(buyURL);
+      if (plan.id != null && String(plan.id)) planURL.searchParams.set("planId", String(plan.id));
       const planDuration = duration(plan);
       const rawTitle = String(plan.name || "").trim() || String(plan.titleRu || "").trim() || `На ${planDuration}`;
       const title = escapeHTML(rawTitle);
@@ -179,7 +181,7 @@
       const unlimited = (Number(plan.trafficLimitBytes) || 0) <= 0;
       const mobileTraffic = unlimited ? "Безлимитный трафик" : formatTraffic(plan.trafficLimitBytes).replace(/^Трафик: /, "");
       const badge = plan.recommended ? "Популярный" : Number(plan.savingsPercent) > 0 ? `Выгода ${Number(plan.savingsPercent)}%` : "";
-      return `<a class="plan-card${plan.recommended ? " plan-card--recommended" : ""}${unlimited ? " plan-card--unlimited" : ""}${plan.wide ? " plan-card--wide" : ""}" href="${buyURL}">
+      return `<a class="plan-card${plan.recommended ? " plan-card--recommended" : ""}${unlimited ? " plan-card--unlimited" : ""}${plan.wide ? " plan-card--wide" : ""}" href="${escapeHTML(planURL.href)}">
         ${unlimited ? '<span class="plan-card__unlimited-badge">Безлимит</span>' : ""}
         <div class="plan-card__top"><div><div class="plan-card__title">${title}</div>${durationNote}</div>${badge ? `<span class="plan-card__badge">${escapeHTML(badge)}</span>` : ""}</div>
         <div class="plan-card__price">${escapeHTML(price)}</div>
