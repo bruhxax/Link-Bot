@@ -130,6 +130,9 @@ const yandexMetrikaCSPOrigins = "https://mc.yandex.ru https://mc.yandex.az https
 
 func setHTMLSecurityHeaders(w http.ResponseWriter) {
 	setCommonSecurityHeaders(w)
+	// GIS checks the embedding origin. Never send cabinet paths or query tokens
+	// to another origin, but allow the origin required by the login library.
+	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 	w.Header().Set("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
 	w.Header().Set("Content-Security-Policy", strings.Join([]string{
 		"default-src 'self'",
@@ -141,7 +144,7 @@ func setHTMLSecurityHeaders(w http.ResponseWriter) {
 		"worker-src 'self'",
 		"form-action 'self'",
 		"script-src 'self' https://telegram.org https://oauth.telegram.org https://accounts.google.com https://www.googletagmanager.com https://yastatic.net " + yandexMetrikaCSPOrigins,
-		"style-src 'self' 'unsafe-inline'",
+		"style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
 		"font-src 'self' data: https://cdn.jsdelivr.net",
 		"img-src 'self' https: data: blob:",
 		"media-src 'self' blob:",

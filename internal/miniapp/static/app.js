@@ -31,6 +31,7 @@ import { adminConsoleEnabled, consoleRoute, visibleConsoleGroups, workspaceNavig
 import { mountRemnaAdmin, unmountRemnaAdmin } from "./admin-loader.mjs";
 import { readAppRoute, appRoutePath, cabinetNavigationURL, browserLogoutURL } from "./routes.mjs";
 import { createPlanLoginIntent } from "./plan-login-intent.mjs";
+import { createTelegramLogin } from "./telegram-login.mjs";
 import { mountFinanceCharts, unmountFinanceCharts } from "./finance-chart-loader.mjs";
 import { buildFinanceProviders } from "./finance-providers.mjs";
 
@@ -133,7 +134,7 @@ if (clientSurface === "browser" && !adminEntry && entryRoute?.page === "buy") {
   planLoginIntent.capture(urlParams.get("planId"));
 }
 
-let telegramLoginScriptPromise = null;
+const telegramBrowserLogin = createTelegramLogin();
 let telegramQRLogin = null;
 let telegramQRLoginCreatePromise = null;
 let telegramQRLoginPollTimer = null;
@@ -613,33 +614,7 @@ function mountTelegramQRLogin() {
 		});
 }
 
-function loadTelegramLoginScript() {
-  if (typeof window.Telegram?.Login?.auth === "function") return Promise.resolve();
-  if (telegramLoginScriptPromise) return telegramLoginScriptPromise;
-
-  telegramLoginScriptPromise = new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-link-bot-telegram-login="1"]');
-    if (existing) {
-      existing.addEventListener("load", resolve, { once: true });
-      existing.addEventListener("error", reject, { once: true });
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.async = true;
-    // The Telegram SDK is cached for several days. Use a fresh version key so
-    // browsers load the build that always adds the required redirect URI.
-    script.src = "https://oauth.telegram.org/js/telegram-login.js?6";
-    script.dataset.linkBotTelegramLogin = "1";
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("telegram login script failed"));
-    document.head.appendChild(script);
-  });
-
-  return telegramLoginScriptPromise;
-}
-
-async function startTelegramBrowserLogin(trigger) {
+function startTelegramBrowserLogin(trigger) {
   telegramLinkPending = false;
   const copy = browserAuthCopy();
   if (!telegramBotID) {
@@ -653,17 +628,9 @@ async function startTelegramBrowserLogin(trigger) {
   }
 
   try {
-    await loadTelegramLoginScript();
-    const auth = window.Telegram?.Login?.auth;
-    if (typeof auth !== "function") throw new Error("telegram login auth unavailable");
-
-    auth({
-      client_id: Number(telegramBotID),
-      // Keep the current page explicit for SDK builds that accept this option.
-      // The latest SDK derives the same redirect value internally.
-      redirect_uri: `${window.location.origin}${window.location.pathname}`,
-      request_access: ["write"],
-		lang: state.locale,
+    telegramBrowserLogin.auth({
+      client_id: telegramBotID,
+      lang: state.locale,
     }, (payload) => {
       if (payload?.id_token) {
         window.onTelegramAuth(payload);
@@ -682,17 +649,13 @@ async function startTelegramBrowserLogin(trigger) {
   }
 }
 
-async function startTelegramLink(trigger) {
+function startTelegramLink(trigger) {
   if (state.loginMethodBusy || telegramLinkPending || !telegramBotID) return showToast(emailAuthText("Вход через Telegram недоступен", "Telegram login is unavailable"), "danger");
   state.loginMethodBusy = "telegram";
   trigger?.setAttribute("disabled", "");
   try {
-    await loadTelegramLoginScript();
-    const auth = window.Telegram?.Login?.auth;
-    if (typeof auth !== "function") throw new Error("Telegram login unavailable");
     telegramLinkPending = true;
-    window.setTimeout(() => { telegramLinkPending = false; }, 120000);
-    auth({ client_id: Number(telegramBotID), redirect_uri: `${window.location.origin}${window.location.pathname}`, request_access: ["write"], lang: state.locale }, window.onTelegramAuth);
+    telegramBrowserLogin.auth({ client_id: telegramBotID, lang: state.locale }, window.onTelegramAuth);
   } catch (error) {
     telegramLinkPending = false;
     showToast(emailAuthText("Не удалось открыть Telegram", "Could not open Telegram"), "danger");
@@ -1008,6 +971,11 @@ function loadGoogleLoginScript() {
     document.head.appendChild(script);
   });
 
+  googleLoginScriptPromise = googleLoginScriptPromise.catch((error) => {
+    document.querySelector('script[data-link-bot-google-login="1"]')?.remove();
+    googleLoginScriptPromise = null;
+    throw error;
+  });
   return googleLoginScriptPromise;
 }
 
@@ -1118,6 +1086,7 @@ async function startGoogleLogin(mode = "login", trigger = null) {
 }
 
 async function startGoogleLinkRedirect(trigger = null) {
+  if (!getGoogleClientID()) return showToast(googleAuthCopy().loginUnavailable, "danger");
   if (state.loginMethodBusy) return;
   state.loginMethodBusy = "google";
   render();
@@ -10370,7 +10339,7 @@ function renderLoginMethodsPage() {
   const gmailStatus = googleLinked ? authLinkedLabel() : authNotLinkedLabel();
   const telegramAction = !telegramLinked && emailAddress ? `<div class="login-method-action"><button class="btn btn--trial" type="button" data-action="telegram-link-login" ${state.loginMethodBusy === "telegram" ? "disabled" : ""}>${icon("telegram")}<span>${escapeHtml(emailAuthText("Привязать Telegram, чтобы получить пробный период", "Link Telegram to unlock a free trial"))}</span></button></div>` : "";
   const emailAction = !emailAddress && featureEnabled("email_auth") ? `<div class="login-method-action"><button class="btn" type="button" data-action="email-link-open">${icon("profileLetter")}<span>${escapeHtml(emailAuthText("Привязать почту", "Link email"))}</span></button></div>${renderEmailLink()}` : "";
-  const gmailAction = googleLinked ? "" : `
+  const gmailAction = googleLinked || !getGoogleClientID() ? "" : `
     <div class="login-method-action">
       <div class="google-button-shell google-button-shell--method" ${state.loginMethodBusy === "google" ? "data-google-disabled=\"1\"" : ""}>
         <button class="btn btn--google" type="button" data-action="google-link-login" ${state.loginMethodBusy === "google" ? "disabled" : ""}>
@@ -10398,11 +10367,11 @@ function renderLoginMethodsPage() {
             <span class="login-method-row__body"><strong>${escapeHtml(telegramLabel())}</strong></span>
             <span class="login-method-row__status ${telegramLinked ? "is-linked" : ""}">${escapeHtml(telegramLinked ? authLinkedLabel() : authNotLinkedLabel())}</span>
           </div>
-          <div class="login-method-row">
+          ${featureEnabled("google") ? `<div class="login-method-row">
             <span class="login-method-row__icon">${icon("google")}</span>
             <span class="login-method-row__body"><strong>${escapeHtml(gmailLabel())}</strong><span>${escapeHtml(googleLinked && gmailEmail ? gmailEmail : gmailLinkHint())}</span></span>
             <span class="login-method-row__status ${googleLinked ? "is-linked" : ""}">${escapeHtml(gmailStatus)}</span>
-          </div>
+          </div>` : ""}
         </div>
         ${telegramAction}
         ${emailAction}
@@ -10740,13 +10709,13 @@ function renderStateScreen(kind, message = "", meta = null) {
               <span class="browser-auth__telegram-icon" aria-hidden="true">${icon("telegram")}</span>
               <span>${escapeHtml(telegramLoginButtonLabel())}</span>
             </button>
-            <div class="google-button-shell google-button-shell--browser" data-google-mode="login">
+            ${getGoogleClientID() ? `<div class="google-button-shell google-button-shell--browser" data-google-mode="login">
               <button class="browser-auth__google" type="button" data-action="google-browser-login">
                 <span class="browser-auth__google-icon" aria-hidden="true">${icon("googleColor")}</span>
                 <span>${escapeHtml(gmailLoginButtonLabel())}</span>
               </button>
-              ${getGoogleClientID() ? `<div class="google-login-widget google-login-widget--overlay" data-google-mode="login" aria-hidden="true"></div>` : ""}
-            </div>
+              <div class="google-login-widget google-login-widget--overlay" data-google-mode="login" aria-hidden="true"></div>
+            </div>` : ""}
           </div>
           ` : ""}
         </section>

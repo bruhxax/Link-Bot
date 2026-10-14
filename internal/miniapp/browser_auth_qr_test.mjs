@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import test from 'node:test';
 
 const source=fs.readFileSync(new URL('./static/app.js',import.meta.url),'utf8');
-const qrCode=source.slice(source.indexOf('async function pollTelegramQRLogin()'),source.indexOf('function loadTelegramLoginScript()'));
+const qrCode=source.slice(source.indexOf('async function pollTelegramQRLogin()'),source.indexOf('function startTelegramBrowserLogin('));
 const flush=async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
 function harness() {
   const callbacks=new Map(); let nextTimer=0,authenticated=false,visible=true;

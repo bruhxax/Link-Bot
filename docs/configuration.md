@@ -8,10 +8,10 @@
 
 1. Отправьте боту `/start` и откройте Mini App с аккаунта из `ADMIN_TELEGRAM_ID`.
 2. В [@BotFather](https://t.me/BotFather?startapp) выберите бота и задайте адрес **Main App**: `https://bot.example.com/mini-app/`.
-3. В **Login Widget → Allowed URLs** добавьте `https://bot.example.com` и `https://bot.example.com/mini-app/`.
+3. В **Login Widget → Allowed URLs** добавьте `https://bot.example.com` и `https://bot.example.com/mini-app/`. Если кабинет на поддомене `my`, также добавьте `https://my.bot.example.com` и `https://my.bot.example.com/mini-app/`: вход со всех страниц кабинета использует этот постоянный адрес возврата.
 4. В **Login Widget → Advanced** оставьте алгоритм `RS256`.
 
-Замените домен своим. Для входа через Google задайте `GOOGLE_CLIENT_ID` и разрешите HTTPS-адрес кабинета в настройках OAuth. Для входа по почте настройте SMTP ниже.
+Замените домен своим. Для входа через Google задайте `GOOGLE_CLIENT_ID` веб-клиента и в **Google Cloud → Google Auth Platform → Clients → ваш клиент → Authorized JavaScript origins** разрешите адрес кабинета, например `https://my.bot.example.com` (без пути и завершающего `/`). После изменения `.env` выполните `bash ./update.sh`. Выключенный в управлении функциями Google скрывается на экране входа и в способах входа; без Client ID кнопка входа также не показывается. Для входа по почте настройте SMTP ниже.
 
 ## Домены и HTTPS
 
