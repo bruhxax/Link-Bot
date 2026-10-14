@@ -190,24 +190,25 @@ type userPayload struct {
 }
 
 type subscriptionPayload struct {
-	StateLoaded       bool            `json:"stateLoaded"`
-	Status            string          `json:"status"`
-	DaysLeft          int             `json:"daysLeft"`
-	PlanMonths        int             `json:"planMonths,omitempty"`
-	PlanDays          int             `json:"planDays,omitempty"`
-	PlanLabel         string          `json:"planLabel,omitempty"`
-	IsTrial           bool            `json:"isTrial,omitempty"`
-	UserID            int64           `json:"userId,omitempty"`
-	UserUUID          string          `json:"userUuid,omitempty"`
-	ExpiresAt         string          `json:"expiresAt,omitempty"`
-	SubscriptionLink  string          `json:"subscriptionLink,omitempty"`
-	HasAccessLink     bool            `json:"hasAccessLink"`
-	TrafficUsedBytes  int64           `json:"trafficUsedBytes"`
-	TrafficLimitBytes int64           `json:"trafficLimitBytes"`
-	DeviceUsedCount   int             `json:"deviceUsedCount"`
-	DeviceLimitCount  int             `json:"deviceLimitCount"`
-	Devices           []devicePayload `json:"devices"`
-	DevicesLoaded     bool            `json:"devicesLoaded"`
+	StateLoaded        bool                         `json:"stateLoaded"`
+	Status             string                       `json:"status"`
+	DaysLeft           int                          `json:"daysLeft"`
+	PlanMonths         int                          `json:"planMonths,omitempty"`
+	PlanDays           int                          `json:"planDays,omitempty"`
+	PlanLabel          string                       `json:"planLabel,omitempty"`
+	IsTrial            bool                         `json:"isTrial,omitempty"`
+	UserID             int64                        `json:"userId,omitempty"`
+	UserUUID           string                       `json:"userUuid,omitempty"`
+	ExpiresAt          string                       `json:"expiresAt,omitempty"`
+	SubscriptionLink   string                       `json:"subscriptionLink,omitempty"`
+	HasAccessLink      bool                         `json:"hasAccessLink"`
+	TrafficUsedBytes   int64                        `json:"trafficUsedBytes"`
+	TrafficLimitBytes  int64                        `json:"trafficLimitBytes"`
+	DeviceUsedCount    int                          `json:"deviceUsedCount"`
+	DeviceLimitCount   int                          `json:"deviceLimitCount"`
+	Devices            []devicePayload              `json:"devices"`
+	DevicesLoaded      bool                         `json:"devicesLoaded"`
+	DeviceTrafficRules []planbook.DeviceTrafficRule `json:"deviceTrafficRules,omitempty"`
 }
 
 type subscriptionsPayload struct {
@@ -454,21 +455,22 @@ type supportThreadPayload struct {
 }
 
 type planPayload struct {
-	ID                string `json:"id"`
-	Name              string `json:"name,omitempty"`
-	Months            int    `json:"months"`
-	Days              int    `json:"days,omitempty"`
-	PriceRub          int    `json:"priceRub"`
-	PriceStars        int    `json:"priceStars"`
-	FreeOneTime       bool   `json:"freeOneTime,omitempty"`
-	TrafficLimitBytes int64  `json:"trafficLimitBytes"`
-	DeviceLimitCount  int    `json:"deviceLimitCount"`
-	Variant           string `json:"variant,omitempty"`
-	SavingsPercent    int    `json:"savingsPercent"`
-	Recommended       bool   `json:"recommended"`
-	Wide              bool   `json:"wide,omitempty"`
-	TitleRU           string `json:"titleRu,omitempty"`
-	TitleEN           string `json:"titleEn,omitempty"`
+	ID                 string                       `json:"id"`
+	Name               string                       `json:"name,omitempty"`
+	Months             int                          `json:"months"`
+	Days               int                          `json:"days,omitempty"`
+	PriceRub           int                          `json:"priceRub"`
+	PriceStars         int                          `json:"priceStars"`
+	FreeOneTime        bool                         `json:"freeOneTime,omitempty"`
+	TrafficLimitBytes  int64                        `json:"trafficLimitBytes"`
+	DeviceLimitCount   int                          `json:"deviceLimitCount"`
+	DeviceTrafficRules []planbook.DeviceTrafficRule `json:"deviceTrafficRules,omitempty"`
+	Variant            string                       `json:"variant,omitempty"`
+	SavingsPercent     int                          `json:"savingsPercent"`
+	Recommended        bool                         `json:"recommended"`
+	Wide               bool                         `json:"wide,omitempty"`
+	TitleRU            string                       `json:"titleRu,omitempty"`
+	TitleEN            string                       `json:"titleEn,omitempty"`
 }
 
 type linksPayload struct {
@@ -4601,6 +4603,9 @@ func (h *Handler) buildSubscriptionPayload(customer *database.Customer, highestP
 		highestPurchase = nil
 	}
 	resolvedPlanMonths := h.resolveSubscriptionPlanMonths(highestPurchase, panelState)
+	if highestPurchase != nil && highestPurchase.PlanID != nil && h.runtimeSettings != nil {
+		payload.DeviceTrafficRules = subscriptionDeviceTrafficRules(h.runtimeSettings.Snapshot().Plans, *highestPurchase.PlanID)
+	}
 
 	if panelState != nil {
 		payload.UserID = panelState.UserID
@@ -6522,20 +6527,21 @@ func (h *Handler) buildPlans() []planPayload {
 		}
 
 		plans = append(plans, planPayload{
-			ID:                plan.ID,
-			Name:              plan.Name,
-			Months:            plan.Months,
-			Days:              plan.Days,
-			PriceRub:          plan.PriceRub,
-			PriceStars:        plan.PriceStars,
-			FreeOneTime:       plan.FreeOneTime,
-			TrafficLimitBytes: plan.TrafficLimitBytes,
-			DeviceLimitCount:  plan.DeviceLimitCount,
-			Variant:           plan.Variant,
-			SavingsPercent:    savings,
-			Wide:              plan.Wide,
-			TitleRU:           h.planTitle(plan.ID, "ru"),
-			TitleEN:           h.planTitle(plan.ID, "en"),
+			ID:                 plan.ID,
+			Name:               plan.Name,
+			Months:             plan.Months,
+			Days:               plan.Days,
+			PriceRub:           plan.PriceRub,
+			PriceStars:         plan.PriceStars,
+			FreeOneTime:        plan.FreeOneTime,
+			TrafficLimitBytes:  plan.TrafficLimitBytes,
+			DeviceLimitCount:   plan.DeviceLimitCount,
+			DeviceTrafficRules: append([]planbook.DeviceTrafficRule(nil), plan.DeviceTrafficRules...),
+			Variant:            plan.Variant,
+			SavingsPercent:     savings,
+			Wide:               plan.Wide,
+			TitleRU:            h.planTitle(plan.ID, "ru"),
+			TitleEN:            h.planTitle(plan.ID, "en"),
 		})
 
 		if savings > bestSavings {

@@ -37,11 +37,17 @@ type CheckoutPlan struct {
 	FreeOneTime              bool
 	TrafficLimitBytes        int64
 	DeviceLimitCount         int
+	DeviceTrafficRules       []DeviceTrafficRule
 	Variant                  string
 	Wide                     bool
 	InternalSquadUUIDs       []string
 	InternalSquadsConfigured bool
 	ExternalSquadUUID        string
+}
+
+type DeviceTrafficRule struct {
+	Devices   int `json:"devices"`
+	TrafficGB int `json:"trafficGb"`
 }
 
 func StarsForRub(priceRub int) int {

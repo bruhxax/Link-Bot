@@ -14,6 +14,7 @@ import { tokenizeSupportMessage } from "./support-message.mjs";
 import { reviewRewardDraft, reviewRewardsFromDraft, reviewRewardSummary } from "./review-rewards.mjs";
 
 import { syncTelegramLayout, configureTelegramLaunch } from "./telegram-layout.mjs";
+import { validDeviceTrafficRules, sortedDeviceTrafficRules, deviceTrafficLabels } from "./device-traffic.mjs";
 import { renderSMTPSettings } from "./admin-smtp.mjs";
 import { mountLocalizationSelects, closeLocalizationMenu } from "./localization-select.mjs";
 import { syncCustomBackground, probeBackground, draggedPosition } from "./custom-background.mjs";
@@ -4296,6 +4297,7 @@ function runtimePlanToPayload(plan, index = 0) {
 		freeOneTime: Boolean(plan?.freeOneTime),
 		trafficLimitBytes: trafficGb > 0 ? trafficGb * (1024 ** 3) : 0,
 		deviceLimitCount: Math.max(0, Number(plan?.deviceLimit || 0)),
+		deviceTrafficRules: plan?.deviceTrafficEnabled ? sortedDeviceTrafficRules(plan.deviceTrafficRules) : [],
 		variant: trafficGb === 0 || plan?.unlimitedTraffic ? "unlimited" : "regular",
 		wide: Boolean(plan?.wide),
 		titleRu: String(plan?.titleRu || ""),
@@ -8699,11 +8701,51 @@ function renderAdminPlanEditorModal() {
 			<label class="admin-field"><span>Устройства (0 = безлимит)</span><input class="admin-field__control" type="number" min="0" max="1000" inputmode="numeric" data-input="admin-plan-devices" value="${escapeAttribute(plan.deviceLimit ?? 0)}"></label>
 		</div>
 		<div class="admin-plan-stars"><span>Telegram Stars</span><strong>${escapeHtml(String(stars))}</strong><small>Автоматически: 1 ⭐ = 1,47 ₽</small></div>
+		${renderAdminDeviceTrafficEditor(plan)}
 		<label class="admin-plan-free-rule" ${Number(plan.priceRub || 0) === 0 ? "" : "hidden"}><span><strong>Можно взять только 1 раз</strong><small>Если выключено, повторно получить тариф можно перед окончанием подписки.</small></span><input data-input="admin-plan-free-once" type="checkbox" ${plan.freeOneTime ? "checked" : ""}></label>
 		<section class="admin-squads"><h3>Внутренние сквады</h3>${renderInternalSquadSelector(plan.internalSquadUuids, "admin-plan-internal-squad", !plan.internalSquadsConfigured)}${renderExternalSquadSelector(plan.externalSquadUuid, "admin-plan-external-squad")}</section>
 		<button class="btn btn--green-filled admin-plan-modal__save" type="button" data-action="admin-apply-plan-edit">${icon("check")}Применить</button>
 		</div>
 	</div></div>`;
+}
+
+function renderAdminDeviceTrafficEditor(plan) {
+	const enabled = Boolean(plan.deviceTrafficEnabled);
+	const rows = Array.isArray(plan.deviceTrafficRules) ? plan.deviceTrafficRules : [];
+	return `<section class="admin-device-traffic">
+		<label class="admin-device-traffic__toggle"><span><strong>Трафик по устройствам</strong><small>Показывать подписи на карточке тарифа и в окне устройств</small></span><input type="checkbox" data-input="admin-plan-device-traffic-enabled" ${enabled ? "checked" : ""}></label>
+		<div class="admin-device-traffic__body" ${enabled ? "" : "hidden"}>
+			<div class="admin-device-traffic__labels" aria-hidden="true"><span>Устройств</span><span>Трафик, GB</span><span></span></div>
+			${rows.map((rule, index) => `<div class="admin-device-traffic__row">
+				<input class="admin-field__control" type="number" inputmode="numeric" min="1" max="1000" step="1" data-input="admin-plan-device-traffic-count" data-index="${index}" aria-label="Количество устройств, строка ${index + 1}" value="${escapeAttribute(rule.devices ?? "")}" placeholder="1">
+				<input class="admin-field__control" type="number" inputmode="numeric" min="1" max="1000000" step="1" data-input="admin-plan-device-traffic-gb" data-index="${index}" aria-label="Трафик в GB, строка ${index + 1}" value="${escapeAttribute(rule.trafficGb ?? "")}" placeholder="20">
+				<button type="button" data-action="admin-remove-device-traffic" data-value="${index}" aria-label="Удалить строку ${index + 1}">${icon("close")}</button>
+			</div>`).join("")}
+			<button class="admin-device-traffic__add" type="button" data-action="admin-add-device-traffic" ${rows.length >= 100 ? "disabled" : ""}>${icon("plus")}Добавить строку</button>
+		</div>
+	</section>`;
+}
+
+function editAdminDeviceTraffic(action, index) {
+	const draft = state.adminPlanFormDraft;
+	if (!draft) return;
+	const rules = draft.deviceTrafficRules ||= [];
+	if (action === "add" && rules.length < 100) {
+		const devices = new Set(rules.map((rule) => Number(rule.devices)));
+		let next = 1;
+		while (devices.has(next)) next += 1;
+		rules.push({devices: next, trafficGb: ""});
+	} else if (action === "remove" && Number.isInteger(index) && index >= 0 && index < rules.length) rules.splice(index, 1);
+	render({ preserveScroll: true });
+	if (action === "add") app.querySelector(`[data-input="admin-plan-device-traffic-gb"][data-index="${rules.length - 1}"]`)?.focus();
+}
+
+function renderDeviceTrafficNote(rules) {
+	const labels = deviceTrafficLabels(rules, state.locale);
+	return labels.length ? `<div class="device-traffic-note">${labels.map((label) => {
+		const [devices, traffic] = label.split(" — ");
+		return `<span class="device-traffic-note__row"><span>${escapeHtml(devices)}</span><span class="device-traffic-note__value">— ${escapeHtml(traffic)}</span></span>`;
+	}).join("")}</div>` : "";
 }
 
 function renderAdminProfileEditorModal() {
@@ -11081,6 +11123,7 @@ function renderPlanCard(plan, selected) {
 		  ${hasDuration && planHasCustomTitle(plan, state.locale) ? `<div class="pricing-card__spec">${escapeHtml(getPlanDurationTitle(plan.months, plan.days, state.locale))}</div>` : ""}
 		  <div class="pricing-card__spec">${escapeHtml(hasDuration ? details.traffic : localizedText("Укажите трафик", "Set traffic", "ترافیک را مشخص کنید"))}</div>
 		  <div class="pricing-card__spec">${escapeHtml(hasDuration ? details.devices : localizedText("Укажите устройства", "Set device limit", "تعداد دستگاه را مشخص کنید"))}</div>
+		  ${renderDeviceTrafficNote(plan.deviceTrafficRules)}
         </div>
         <div class="pricing-card__price-stack">
           <div class="pricing-card__price-row">
@@ -11348,6 +11391,7 @@ function renderDevicesModal() {
           </div>
           <button class="header__btn" type="button" data-action="close-devices-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button>
         </div>
+        ${renderDeviceTrafficNote(state.data?.subscription?.deviceTrafficRules)}
         ${devices.length ? `<div class="device-list" role="list">${devices.map((device) => renderDeviceRow(device)).join("")}</div>` : `
           <div class="device-empty">
             <div class="device-empty__icon">${icon("users")}</div>
@@ -12147,6 +12191,8 @@ function bindRootActions() {
 			if (action === "admin-close-plan-modal") return closeAdminPlanEditorModal();
 			if (action === "admin-plan-duration-unit") return setAdminPlanDurationUnit(value);
 			if (action === "admin-apply-plan-edit") return applyAdminPlanEdit();
+			if (action === "admin-add-device-traffic") return editAdminDeviceTraffic("add");
+			if (action === "admin-remove-device-traffic") return editAdminDeviceTraffic("remove", Number(value));
 			if (action === "admin-select-all-squads") return selectAllAdminSquads(value);
 			if (action === "admin-add-subpage-client") return addAdminSubPageClient();
 			if (action === "admin-toggle-subpage-built-in-priority") return toggleAdminSubPageBuiltInPriority(value);
@@ -12752,6 +12798,17 @@ function bindRootActions() {
 			return;
 		}
 		if (inputKey.startsWith("admin-plan-") && state.adminPlanFormDraft) {
+			if (inputKey === "admin-plan-device-traffic-enabled") {
+				state.adminPlanFormDraft.deviceTrafficEnabled = Boolean(target.checked);
+				if (target.checked && !state.adminPlanFormDraft.deviceTrafficRules?.length) state.adminPlanFormDraft.deviceTrafficRules = [{devices: 1, trafficGb: ""}];
+				render({ preserveScroll: true });
+				return;
+			}
+			if (inputKey === "admin-plan-device-traffic-count" || inputKey === "admin-plan-device-traffic-gb") {
+				const rule = state.adminPlanFormDraft.deviceTrafficRules?.[Number(target.dataset.index)];
+				if (rule) rule[inputKey === "admin-plan-device-traffic-count" ? "devices" : "trafficGb"] = target.value === "" ? "" : Number(target.value);
+				return;
+			}
 			if (inputKey === "admin-plan-name") {
 				state.adminPlanFormDraft.name = target.value;
 				return;
@@ -15031,6 +15088,7 @@ function applyAdminPlanEdit() {
 	if (state.adminPlanDurationUnit === "days" ? (!Number.isInteger(days) || days < 1 || days > 3650) : (!Number.isInteger(months) || months < 1 || months > 120)) return showToast(state.locale === "en" ? "Enter a valid duration" : "Укажите срок: 1–120 месяцев или 1–3650 дней", "danger");
 	if (priceRub < 0 || priceRub > 1000000) return showToast(state.locale === "en" ? "Enter a valid price" : "Укажите корректную цену", "danger");
 	if (trafficGb < 0 || trafficGb > 1000000 || deviceLimit < 0 || deviceLimit > 1000) return showToast(state.locale === "en" ? "Check the plan limits" : "Проверьте лимиты тарифа", "danger");
+	if (draft.deviceTrafficEnabled && !validDeviceTrafficRules(draft.deviceTrafficRules)) return showToast("Укажите 1–1000 устройств и 1–1000000 GB в каждой строке. Количество устройств не должно повторяться.", "danger");
 	const current = plans[index];
 	plans[index] = {
 		...current,
@@ -15043,6 +15101,8 @@ function applyAdminPlanEdit() {
 		trafficGb,
 		unlimitedTraffic: trafficGb === 0,
 		deviceLimit,
+		deviceTrafficEnabled: Boolean(draft.deviceTrafficEnabled),
+		deviceTrafficRules: draft.deviceTrafficEnabled ? sortedDeviceTrafficRules(draft.deviceTrafficRules) : [],
 		titleRu: getPlanDurationTitle(months, days, "ru"),
 		titleEn: getPlanDurationTitle(months, days, "en"),
 		titleFa: getPlanDurationTitle(months, days, "fa"),

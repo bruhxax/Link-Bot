@@ -345,24 +345,26 @@ type SubPageClientSettings struct {
 }
 
 type PlanSettings struct {
-	ID                       string   `json:"id"`
-	Enabled                  bool     `json:"enabled"`
-	Months                   int      `json:"months"`
-	Days                     int      `json:"days,omitempty"`
-	Name                     string   `json:"name,omitempty"`
-	TitleRU                  string   `json:"titleRu"`
-	TitleEN                  string   `json:"titleEn"`
-	TitleFA                  string   `json:"titleFa"`
-	PriceRub                 int      `json:"priceRub"`
-	PriceStars               int      `json:"priceStars"`
-	FreeOneTime              bool     `json:"freeOneTime"`
-	TrafficGB                int      `json:"trafficGb"`
-	UnlimitedTraffic         bool     `json:"unlimitedTraffic"`
-	DeviceLimit              int      `json:"deviceLimit"`
-	Wide                     bool     `json:"wide"`
-	InternalSquadUUIDs       []string `json:"internalSquadUuids"`
-	InternalSquadsConfigured bool     `json:"internalSquadsConfigured"`
-	ExternalSquadUUID        string   `json:"externalSquadUuid"`
+	ID                       string                       `json:"id"`
+	Enabled                  bool                         `json:"enabled"`
+	Months                   int                          `json:"months"`
+	Days                     int                          `json:"days,omitempty"`
+	Name                     string                       `json:"name,omitempty"`
+	TitleRU                  string                       `json:"titleRu"`
+	TitleEN                  string                       `json:"titleEn"`
+	TitleFA                  string                       `json:"titleFa"`
+	PriceRub                 int                          `json:"priceRub"`
+	PriceStars               int                          `json:"priceStars"`
+	FreeOneTime              bool                         `json:"freeOneTime"`
+	TrafficGB                int                          `json:"trafficGb"`
+	UnlimitedTraffic         bool                         `json:"unlimitedTraffic"`
+	DeviceLimit              int                          `json:"deviceLimit"`
+	DeviceTrafficEnabled     bool                         `json:"deviceTrafficEnabled"`
+	DeviceTrafficRules       []planbook.DeviceTrafficRule `json:"deviceTrafficRules,omitempty"`
+	Wide                     bool                         `json:"wide"`
+	InternalSquadUUIDs       []string                     `json:"internalSquadUuids"`
+	InternalSquadsConfigured bool                         `json:"internalSquadsConfigured"`
+	ExternalSquadUUID        string                       `json:"externalSquadUuid"`
 }
 
 type DevicePackSettings struct {
@@ -2354,6 +2356,9 @@ func validatePlans(value *[]PlanSettings, defaults []PlanSettings) error {
 		}
 		if item.TrafficGB < 0 || item.TrafficGB > 1000000 || item.DeviceLimit < 0 || item.DeviceLimit > 1000 {
 			return fmt.Errorf("invalid limits for plan %q", item.ID)
+		}
+		if err := validateDeviceTraffic(&item); err != nil {
+			return fmt.Errorf("plan %q: %w", item.ID, err)
 		}
 		item.Name = limit(strings.TrimSpace(item.Name), 80)
 		item.TitleRU = limit(strings.TrimSpace(item.TitleRU), 80)

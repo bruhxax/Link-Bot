@@ -1,6 +1,8 @@
 package runtimeconfig
 
 import (
+	"fmt"
+	"sort"
 	"strings"
 
 	planbook "link-bot/internal/plans"
@@ -30,6 +32,9 @@ func (s *Service) CheckoutPlans() []planbook.CheckoutPlan {
 			InternalSquadsConfigured: item.InternalSquadsConfigured,
 			ExternalSquadUUID:        item.ExternalSquadUUID,
 		}
+		if item.DeviceTrafficEnabled {
+			plan.DeviceTrafficRules = append([]planbook.DeviceTrafficRule(nil), item.DeviceTrafficRules...)
+		}
 		if item.UnlimitedTraffic || item.TrafficGB == 0 {
 			plan.TrafficLimitBytes = 0
 			plan.Variant = planbook.VariantUnlimited
@@ -39,6 +44,27 @@ func (s *Service) CheckoutPlans() []planbook.CheckoutPlan {
 		result = append(result, plan)
 	}
 	return result
+}
+
+func validateDeviceTraffic(plan *PlanSettings) error {
+	if len(plan.DeviceTrafficRules) > 100 {
+		return fmt.Errorf("не больше 100 строк трафика по устройствам")
+	}
+	if plan.DeviceTrafficEnabled && len(plan.DeviceTrafficRules) == 0 {
+		return fmt.Errorf("добавьте трафик хотя бы для одного количества устройств")
+	}
+	seen := map[int]bool{}
+	for _, rule := range plan.DeviceTrafficRules {
+		if rule.Devices < 1 || rule.Devices > 1000 || rule.TrafficGB < 1 || rule.TrafficGB > 1000000 {
+			return fmt.Errorf("укажите 1–1000 устройств и 1–1000000 ГБ в строках трафика")
+		}
+		if seen[rule.Devices] {
+			return fmt.Errorf("количество устройств в строках трафика не должно повторяться")
+		}
+		seen[rule.Devices] = true
+	}
+	sort.Slice(plan.DeviceTrafficRules, func(i, j int) bool { return plan.DeviceTrafficRules[i].Devices < plan.DeviceTrafficRules[j].Devices })
+	return nil
 }
 
 func (s *Service) CheckoutPlan(planID string, months int) (planbook.CheckoutPlan, bool) {
