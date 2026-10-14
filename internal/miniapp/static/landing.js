@@ -13,6 +13,8 @@
     success: "--success", danger: "--danger",
   };
   const visualModule=import(`./landing-appearance.mjs${assetVersion ? `?v=${encodeURIComponent(assetVersion)}` : ""}`);
+  const reviewsModule = import(`./landing-reviews.mjs${assetVersion ? `?v=${encodeURIComponent(assetVersion)}` : ""}`);
+  let reviewsTicker;
  let landingText={};
  let loading = false;
   let previousNodes = "";
@@ -221,6 +223,10 @@
       renderNodes(data.nodes, Boolean(data.nodesAvailable));
       renderPlans(data.plans);
       renderContacts(data.contacts);
+      reviewsModule.then(({ createReviewTicker }) => {
+        reviewsTicker ||= createReviewTicker($("landing-reviews"));
+        reviewsTicker.setReviews(data.reviews);
+      }).catch(() => {});
  (await visualModule).applyLandingAppearance(data);
     } catch {
       if (!previousNodes) $("servers-list").innerHTML = '<div class="empty-state">Не удалось загрузить серверы. Попробуйте обновить страницу.</div>';

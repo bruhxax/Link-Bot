@@ -94,6 +94,9 @@ type Handler struct {
 	landingNodes            []landingNodePayload
 	landingNodesCheckedAt   time.Time
 	landingNodesAvailable   bool
+	landingReviewsMu        sync.Mutex
+	landingReviews          []database.PublicReview
+	landingReviewsCheckedAt time.Time
 	adminStatus             adminStatusInfo
 	overviewPanel           overviewPanelCache
 	overviewRevenue         overviewRevenueCache
@@ -3810,6 +3813,7 @@ func (h *Handler) handleCreateReview(w http.ResponseWriter, r *http.Request, ses
 		return
 	}
 
+	h.invalidateLandingReviews()
 	customer = h.syncCustomerState(r.Context(), customer)
 	if err := h.grantReviewReward(contextWithSessionTelegramProfile(r.Context(), sess), customer, review.ID); err != nil {
 		slog.Error("mini app: review reward failed", "error", err, "reviewId", review.ID, "telegramId", utils.MaskHalfInt64(customer.TelegramID))
@@ -3869,6 +3873,7 @@ func (h *Handler) handleAdminDeleteReview(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	h.invalidateLandingReviews()
 	payload, err := h.buildReviewsPayload(r.Context(), customer)
 	if err != nil {
 		slog.Error("mini app: build reviews payload after review delete", "error", err, "telegramId", utils.MaskHalfInt64(sess.User.ID), "reviewId", req.ID)

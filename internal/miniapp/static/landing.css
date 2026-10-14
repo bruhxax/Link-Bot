@@ -59,6 +59,30 @@ h1 span{color:color-mix(in srgb,var(--accent) 58%,var(--text))}
 .button--trial::before{content:"";position:absolute;inset:-1px;border-radius:inherit;box-shadow:0 0 20px color-mix(in srgb,var(--accent) 28%,transparent),0 0 7px color-mix(in srgb,var(--accent) 20%,transparent);pointer-events:none;opacity:.7;animation:trial-glow 4s ease-in-out infinite}
 @keyframes trial-glow{0%,100%{opacity:.55}50%{opacity:1}}
 .section{padding-block:90px 12px;scroll-margin-top:45px}
+.review-marquee{--review-edge:80px;padding-block:8px 4px}
+.review-marquee[hidden],.review-marquee__pause[hidden]{display:none}
+.review-marquee__heading{display:flex;align-items:center;justify-content:space-between;gap:16px;color:var(--muted);font-size:10px;letter-spacing:.1em}
+.review-marquee__pause{display:grid;place-items:center;flex:none;width:30px;height:30px;padding:6px;border:0;border-radius:50%;background:transparent;color:var(--muted);cursor:pointer;transition:color .2s,background .2s}
+.review-marquee__pause:hover{color:var(--text);background:color-mix(in srgb,var(--text) 6%,transparent)}
+.review-marquee__pause svg{width:16px;height:16px}
+.review-marquee :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.review-marquee__viewport{position:relative;overflow:hidden;padding-block:18px;mask-image:linear-gradient(90deg,transparent,#000 var(--review-edge),#000 calc(100% - var(--review-edge)),transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 var(--review-edge),#000 calc(100% - var(--review-edge)),transparent)}
+.review-marquee__viewport::before,.review-marquee__viewport::after{content:"";position:absolute;z-index:1;top:0;bottom:0;width:var(--review-edge);pointer-events:none;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);mask-image:linear-gradient(90deg,#000,transparent);-webkit-mask-image:linear-gradient(90deg,#000,transparent)}
+.review-marquee__viewport::before{left:0}.review-marquee__viewport::after{right:0;transform:scaleX(-1)}
+.review-marquee__track{display:flex;width:max-content;animation:review-marquee-scroll var(--reviews-duration,60s) linear infinite;will-change:transform}
+.review-marquee__group{display:flex;align-items:center;flex:0 0 auto;gap:44px;width:max-content;margin:0;padding:0 44px 0 0;list-style:none}
+.review-marquee__item{display:flex;align-items:center;flex:none;gap:14px;white-space:nowrap;font-size:13px;line-height:1.6}
+.review-marquee__item::after{content:"";width:3px;height:3px;margin-left:26px;border-radius:50%;background:var(--border)}
+.review-marquee__stars{display:inline-flex;align-items:center;gap:2px;color:var(--accent)}
+.review-marquee__stars svg{display:block;width:14px;height:14px}
+.review-marquee__author{color:var(--text);font-size:12px;font-weight:600}
+.review-marquee__comment{color:var(--muted)}
+.review-marquee:is(.is-paused,.is-page-hidden,.is-offscreen) .review-marquee__track,.review-marquee__viewport:focus .review-marquee__track{animation-play-state:paused}
+.review-marquee:is(.is-page-hidden,.is-offscreen) .review-marquee__track{will-change:auto}
+@keyframes review-marquee-scroll{to{transform:translate3d(calc(-1 * var(--reviews-distance)),0,0)}}
+@media(hover:hover){.review-marquee__viewport:hover .review-marquee__track{animation-play-state:paused}}
+@media(max-width:620px){.review-marquee{--review-edge:30px}.review-marquee__item{gap:10px;font-size:12px}.review-marquee__author{font-size:11px}.review-marquee__group{gap:28px;padding-right:28px}.review-marquee__item::after{margin-left:16px}.review-marquee__stars svg{width:13px;height:13px}}
+@media(prefers-reduced-motion:reduce){.review-marquee__viewport{overflow-x:auto;scrollbar-width:thin}.review-marquee__track{animation:none!important;transform:none!important;will-change:auto}.review-marquee__group{padding-inline:var(--review-edge)}.review-marquee__duplicate,.review-marquee__item[aria-hidden="true"]{display:none}.review-marquee__viewport::before,.review-marquee__viewport::after{display:none}}
 .section-heading{display:flex;align-items:end;justify-content:space-between;gap:25px;margin-bottom:25px}
 .section-kicker{display:block;margin-bottom:12px;color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.1em}
 h2{margin:0 0 9px;font-size:clamp(26px,4vw,40px);line-height:1.2;font-weight:700;letter-spacing:-.04em}

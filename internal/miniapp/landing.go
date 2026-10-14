@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"link-bot/internal/config"
+	"link-bot/internal/database"
 	"link-bot/internal/runtimeconfig"
 )
 
@@ -41,6 +42,7 @@ type landingPayload struct {
 	Nodes          []landingNodePayload             `json:"nodes"`
 	NodesAvailable bool                             `json:"nodesAvailable"`
 	Contacts       []landingContactPayload          `json:"contacts"`
+	Reviews        []database.PublicReview          `json:"reviews"`
 }
 
 var landingTelegramUsername = regexp.MustCompile(`(?i)^[a-z0-9_]{5,32}$`)
@@ -166,6 +168,10 @@ func (h *Handler) handleLandingData(w http.ResponseWriter, r *http.Request) {
 		colors[name] = settings.Appearance.Landing.Colors[name]
 	}
 	nodes, nodesAvailable := h.landingNodeStatus()
+	reviews := []database.PublicReview{}
+	if settings.Features["reviews"] {
+		reviews = h.landingPublicReviews(r.Context())
+	}
 	h.writeJSON(w, http.StatusOK, map[string]any{
 		"ok": true,
 		"data": landingPayload{
@@ -182,8 +188,37 @@ func (h *Handler) handleLandingData(w http.ResponseWriter, r *http.Request) {
 			Nodes:          nodes,
 			NodesAvailable: nodesAvailable,
 			Contacts:       landingContacts(settings, h.runtimeLink("support", config.SupportURL())),
+			Reviews:        reviews,
 		},
 	})
+}
+
+func (h *Handler) landingPublicReviews(ctx context.Context) []database.PublicReview {
+	if h.reviewRepository == nil {
+		return []database.PublicReview{}
+	}
+	h.landingReviewsMu.Lock()
+	defer h.landingReviewsMu.Unlock()
+	if !h.landingReviewsCheckedAt.IsZero() && time.Since(h.landingReviewsCheckedAt) < 20*time.Second {
+		return append([]database.PublicReview{}, h.landingReviews...)
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	items, err := h.reviewRepository.ListPublic(ctx)
+	h.landingReviewsCheckedAt = time.Now()
+	if err != nil {
+		slog.Warn("landing: reviews unavailable", "error", err)
+		return append([]database.PublicReview{}, h.landingReviews...)
+	}
+	h.landingReviews = items
+	return append([]database.PublicReview{}, items...)
+}
+
+func (h *Handler) invalidateLandingReviews() {
+	h.landingReviewsMu.Lock()
+	defer h.landingReviewsMu.Unlock()
+	h.landingReviews = nil
+	h.landingReviewsCheckedAt = time.Time{}
 }
 
 func (h *Handler) landingSettings() runtimeconfig.Settings {

@@ -44,6 +44,9 @@ func TestLandingServesPublicPage(t *testing.T) {
 	if response.Header().Get("Cache-Control") != "no-store" {
 		t.Error("landing page must not cache dynamic branding")
 	}
+	if reviews, servers := strings.Index(body, `id="landing-reviews"`), strings.Index(body, `id="servers"`); reviews < strings.Index(body, `id="top"`) || reviews >= servers {
+		t.Error("reviews must be between hero and servers")
+	}
 }
 
 func TestLandingInitialThemeUsesSavedColorsSafely(t *testing.T) {
@@ -104,6 +107,9 @@ func TestLandingAPIHidesNodeAddressesAndSortsPlans(t *testing.T) {
 	}
 	if result.Data.Glass {
 		t.Fatal("landing API must leave glass disabled by default")
+	}
+	if result.Data.Reviews == nil || len(result.Data.Reviews) != 0 {
+		t.Error("unavailable reviews must be an empty list")
 	}
 	if !result.Data.NodesAvailable || len(result.Data.Nodes) != 2 || result.Data.Nodes[1].Name != "Сервер 1" {
 		t.Fatalf("unexpected sanitized nodes: %+v", result.Data.Nodes)

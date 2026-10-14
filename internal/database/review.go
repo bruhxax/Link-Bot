@@ -36,6 +36,31 @@ type ReviewSummary struct {
 	Average float64
 }
 
+// PublicReview deliberately excludes account IDs, reward and payment details.
+type PublicReview struct {
+	ID       int64  `json:"id"`
+	Username string `json:"username"`
+	Rating   int    `json:"rating"`
+	Comment  string `json:"comment"`
+}
+
+func (r *ReviewRepository) ListPublic(ctx context.Context) ([]PublicReview, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id,telegram_username,rating,comment FROM review WHERE deleted_at IS NULL ORDER BY created_at DESC,id DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("list public reviews: %w", err)
+	}
+	defer rows.Close()
+	items := make([]PublicReview, 0)
+	for rows.Next() {
+		var item PublicReview
+		if err := rows.Scan(&item.ID, &item.Username, &item.Rating, &item.Comment); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 type ReviewRepository struct {
 	pool *pgxpool.Pool
 }
