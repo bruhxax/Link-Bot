@@ -42,6 +42,7 @@ type Service struct {
 	panel    Panel
 	settings Settings
 	origin   string
+	wake     chan struct{}
 }
 
 func New(store Store, panel Panel, settings Settings, publicURL string) *Service {
@@ -50,7 +51,7 @@ func New(store Store, panel Panel, settings Settings, publicURL string) *Service
 	if err == nil && u.Host != "" && (u.Scheme == "https" || u.Scheme == "http") {
 		origin = u.Scheme + "://" + u.Host
 	}
-	return &Service{store: store, panel: panel, settings: settings, origin: origin}
+	return &Service{store: store, panel: panel, settings: settings, origin: origin, wake: make(chan struct{}, 1)}
 }
 func parentKey(u *remnawave.PanelUser) string {
 	if u.UUID != uuid.Nil {
@@ -81,11 +82,7 @@ func (s *Service) plan(ctx context.Context, u *remnawave.PanelUser) (int64, *run
 		return id, plan, nil
 	}
 	if id > 0 {
-		b, e := s.store.FindParent(ctx, parentKey(u))
-		if e != nil {
-			return 0, nil, e
-		}
-		if s.settings.Snapshot().Features["personal_device_profiles"] || (b != nil && b.Personal) {
+		if s.settings.Snapshot().Features["personal_device_profiles"] {
 			return id, &runtimeconfig.PlanSettings{ID: planID, DeviceTrafficEnabled: true, DeviceTrafficEnforced: true, DeviceTrafficUserManaged: true}, nil
 		}
 	}
@@ -148,10 +145,29 @@ func (s *Service) synchronize(ctx context.Context, b *Binding, save func() error
 		return nil, 0, 0, err
 	}
 	activeMode := enforced(p) && b.SubscriptionID != nil
-	if activeMode {
-		if p.DeviceTrafficUserManaged {
-			b.Personal = true
+	if !activeMode {
+		// Turning off the default is a real rollback. Do not depend on child
+		// telemetry here: a missing technical user must not strand the original
+		// profile without routing. Disable all surviving children first.
+		if err := s.disableChildren(ctx, b); err != nil {
+			return nil, 0, 0, err
 		}
+		if b.Isolated {
+			if _, err := s.panel.UpdateQuotaUser(ctx, u, map[string]any{"activeInternalSquads": b.Squads}); err != nil {
+				return nil, 0, 0, err
+			}
+		}
+		if b.Isolated || b.Personal {
+			b.Isolated = false
+			b.Personal = false
+			if err := save(); err != nil {
+				return nil, 0, 0, err
+			}
+		}
+		return nil, u.UserTraffic.UsedTrafficBytes, u.UserTraffic.LifetimeUsedTrafficBytes, nil
+	}
+	if activeMode {
+		b.Personal = p.DeviceTrafficUserManaged
 		ids := squadIDs(u)
 		if len(ids) > 0 {
 			// Persist routing before removing the shared user's data-plane access.
@@ -293,16 +309,6 @@ func (s *Service) synchronize(ctx context.Context, b *Binding, save func() error
 			devices = append(devices, d)
 		}
 	}
-	if !activeMode && b.Isolated {
-		// Disable every child before restoring the original shared credentials.
-		if _, err := s.panel.UpdateQuotaUser(ctx, u, map[string]any{"activeInternalSquads": b.Squads}); err != nil {
-			return nil, 0, 0, err
-		}
-		b.Isolated = false
-		if err := save(); err != nil {
-			return nil, 0, 0, err
-		}
-	}
 	return devices, total, lifetime, nil
 }
 
@@ -348,9 +354,9 @@ func (s *Service) Observe(ctx context.Context, u *remnawave.PanelUser, state *re
 		if e != nil {
 			return e
 		}
-		link := s.origin + Route + b.Token.String()
-		state.SubscriptionLink = &link
 		if enforced(p) {
+			link := s.origin + Route + b.Token.String()
+			state.SubscriptionLink = &link
 			state.DeviceTrafficManaged = true
 			state.DeviceTrafficUserManaged = p.DeviceTrafficUserManaged
 			state.BlockedDevices = blockedDevices(b)
@@ -364,6 +370,12 @@ func (s *Service) Observe(ctx context.Context, u *remnawave.PanelUser, state *re
 			// cabinet available for buying traffic. Data-plane access is checked
 			// independently above and by the native child limits.
 			state.Active = !strings.EqualFold(parent.Status, "DISABLED") && !strings.EqualFold(parent.Status, "EXPIRED") && parent.ExpireAt.After(time.Now())
+		} else {
+			link := parent.SubscriptionURL
+			state.SubscriptionLink = &link
+			state.DeviceTrafficManaged = false
+			state.DeviceTrafficUserManaged = false
+			state.BlockedDevices = nil
 		}
 		return nil
 	})
@@ -378,7 +390,9 @@ func (s *Service) DecorateCatalog(ctx context.Context, users []remnawave.PanelUs
 	}
 	links := make(map[string]string, len(bindings))
 	for _, b := range bindings {
-		links[b.ParentKey] = s.origin + Route + b.Token.String()
+		if b.Isolated {
+			links[b.ParentKey] = s.origin + Route + b.Token.String()
+		}
 	}
 	for i := range users {
 		if link := links[parentKey(&users[i])]; link != "" {
@@ -428,6 +442,13 @@ func (s *Service) DeleteDevice(ctx context.Context, id int64, uid uuid.UUID, hwi
 	})
 	return devices, true, err
 }
+func (s *Service) RequestReconcile() {
+	select {
+	case s.wake <- struct{}{}:
+	default:
+	}
+}
+
 func (s *Service) Run(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -437,6 +458,7 @@ func (s *Service) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+		case <-s.wake:
 		}
 	}
 }
@@ -478,6 +500,9 @@ func (s *Service) reconcile(ctx context.Context) {
 		slog.Error("device quota: list bindings failed")
 		return
 	}
+	// Restore isolated parents before visiting dormant historical bindings.
+	// Otherwise a large catalog can leave rollback queued behind many API reads.
+	sort.SliceStable(bindings, func(i, j int) bool { return bindings[i].Isolated && !bindings[j].Isolated })
 	for _, b := range bindings {
 		if ctx.Err() != nil {
 			return

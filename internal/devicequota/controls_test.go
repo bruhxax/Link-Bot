@@ -104,8 +104,8 @@ func TestPersonalProfilesDefaultAndAdministratorOverride(t *testing.T) {
 	if err := s.Observe(ctx, panel.users[1], state); err != nil {
 		t.Fatal(err)
 	}
-	if !state.DeviceTrafficUserManaged || !state.Devices[0].CanSetTrafficLimit {
-		t.Fatal("default toggle destroyed existing controls")
+	if state.DeviceTrafficManaged || state.DeviceTrafficUserManaged || store.b.Isolated || store.b.Personal || child.Status != "DISABLED" || len(panel.users[1].ActiveInternalSquads) == 0 || state.SubscriptionLink == nil || *state.SubscriptionLink != panel.users[1].SubscriptionURL {
+		t.Fatal("turning off default did not restore the original shared profile")
 	}
 	// A newly purchased administrator policy takes priority over personal values.
 	store.terms = &trafficpolicy.Terms{Enabled: true, Enforced: true, Rules: []trafficpolicy.Rule{{Devices: 1, TrafficGB: 20}}}

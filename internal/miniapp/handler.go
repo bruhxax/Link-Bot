@@ -3001,6 +3001,7 @@ func (h *Handler) handleAdminSettingsUpdate(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	previousDeviceMode := h.runtimeSettings.FeatureEnabled("personal_device_profiles")
 	var req adminSettingsUpdateRequest
 	if err := h.decodeJSONRequest(w, r, 1<<20, &req); err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "Invalid settings")
@@ -3022,6 +3023,9 @@ func (h *Handler) handleAdminSettingsUpdate(w http.ResponseWriter, r *http.Reque
 		slog.Warn("mini app: invalid runtime settings", "error", err, "telegramId", utils.MaskHalfInt64(sess.User.ID))
 		h.writeError(w, http.StatusBadRequest, "invalid_settings", err.Error())
 		return
+	}
+	if previousDeviceMode != settings.Features["personal_device_profiles"] && h.remnawaveClient != nil {
+		h.remnawaveClient.NotifyDeviceProfileSettingsChanged()
 	}
 	if h.realtime != nil {
 		h.realtime.publish()

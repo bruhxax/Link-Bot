@@ -63,9 +63,6 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return ErrUnavailable
 		}
 		hwid := strings.TrimSpace(r.Header.Get("X-Hwid"))
-		if isBlocked(b, hwid) {
-			return ErrDeviceBlocked
-		}
 		if !isActive(parent) {
 			return ErrUnavailable
 		}
@@ -78,6 +75,9 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if !hwidPattern.MatchString(hwid) {
 			return errHWID
+		}
+		if isBlocked(b, hwid) {
+			return ErrDeviceBlocked
 		}
 		_, total, _, e := s.synchronize(ctx, b, save, parent, p, subID)
 		if e != nil {

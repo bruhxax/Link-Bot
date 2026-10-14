@@ -44,6 +44,11 @@ func (r *Client) DropQuotaConnections(ctx context.Context, userID int64) error {
 }
 
 func (r *Client) SetDeviceQuotaBridge(bridge DeviceQuotaBridge) { r.deviceQuota = bridge }
+func (r *Client) NotifyDeviceProfileSettingsChanged() {
+	if worker, ok := r.deviceQuota.(interface{ RequestReconcile() }); ok {
+		worker.RequestReconcile()
+	}
+}
 func (r *Client) RawUser(ctx context.Context, id int64, uid uuid.UUID) (*PanelUser, error) {
 	return r.getPanelUserByIdentity(ctx, id, uid)
 }
