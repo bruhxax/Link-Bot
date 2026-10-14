@@ -18,14 +18,11 @@ export const LANDING_TEXT_FIELDS = [
   ["cabinetButton", "Кнопка кабинета"],
   ["serversButton", "Пункт «Сервера»"],
   ["serversTitle", "Заголовок серверов"],
-  ["serversLead", "Описание серверов"],
   ["plansButton", "Пункт «Тарифы»"],
   ["plansTitle", "Заголовок тарифов"],
-  ["plansLead", "Описание тарифов"],
   ["buyButton", "Кнопка покупки"],
   ["supportButton", "Пункт «Поддержка»"],
   ["supportTitle", "Заголовок поддержки"],
-  ["supportLead", "Описание поддержки"],
   ["contactButton", "Кнопка обращения"],
 ];
 export function ensureSurfaceSettings(appearance) {
@@ -153,11 +150,11 @@ export function renderLandingEditor(
           "cabinetButton",
         ],
       ],
-      ["Серверы", ["serversButton", "serversTitle", "serversLead"]],
-      ["Тарифы", ["plansButton", "plansTitle", "plansLead", "buyButton"]],
+      ["Серверы", ["serversButton", "serversTitle"]],
+      ["Тарифы", ["plansButton", "plansTitle", "buyButton"]],
       [
         "Поддержка",
-        ["supportButton", "supportTitle", "supportLead", "contactButton"],
+        ["supportButton", "supportTitle", "contactButton"],
       ],
     ];
     const labels = Object.fromEntries(LANDING_TEXT_FIELDS);

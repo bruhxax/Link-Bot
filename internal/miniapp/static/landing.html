@@ -39,9 +39,11 @@
         <h1 class="reveal" style="--delay:0ms" id="hero-title"><span data-landing-text="heroTitle">Интернет без ограничений</span><br><span data-landing-text="heroAccent">в один клик</span></h1>
         <p data-landing-text="heroLead" class="hero__lead reveal" style="--delay:140ms">Стабильное соединение для работы, общения и всего, что важно. Выберите тариф и подключайтесь в личном кабинете.</p>
         <div class="hero__actions reveal" style="--delay:280ms">
-          <a class="button button--primary button--trial" href="__CABINET_URL__" data-landing-text="trialButton">Попробовать бесплатно</a>
-          <a class="button button--primary" href="__CABINET_URL__" data-landing-text="cabinetButton">Кабинет</a>
-          <a class="button button--ghost" href="#servers" data-landing-text="serversButton">Сервера</a>
+          <div class="hero__trial" id="hero-trial">
+            <span class="trial-sparks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+            <a class="button button--primary button--trial" href="__CABINET_URL__"><span data-landing-text="trialButton">Попробовать бесплатно</span></a>
+          </div>
+          <a class="button button--ghost hero__cabinet" href="__CABINET_URL__" data-landing-text="cabinetButton">Кабинет</a>
         </div>
       </div>
     </section>
@@ -54,23 +56,23 @@
 
     <section class="section container" id="servers" aria-labelledby="servers-title">
       <div class="section-heading reveal">
-        <div><span class="section-kicker">01 — СЕТЬ</span><h2 data-landing-text="serversTitle" id="servers-title">Наши сервера</h2><p data-landing-text="serversLead">Актуальное состояние каждого узла.</p></div>
+        <div><span class="section-kicker">01 — СЕТЬ</span><h2 data-landing-text="serversTitle" id="servers-title">Наши сервера</h2></div>
         <div class="section-heading__aside" id="servers-count" aria-live="polite"></div>
       </div>
       <div class="server-grid" id="servers-list" aria-live="polite"><div class="empty-state">Загружаем серверы…</div></div>
-      <p class="section-note" id="servers-updated"></p>
+      <p class="section-note" id="servers-updated" hidden></p>
     </section>
 
     <section class="section container" id="plans" aria-labelledby="plans-title">
       <div class="section-heading reveal">
-        <div><span class="section-kicker">02 — ТАРИФЫ</span><h2 data-landing-text="plansTitle" id="plans-title">Выберите свой срок</h2><p data-landing-text="plansLead">Все доступные тарифы, от коротких к длительным.</p></div>
+        <div><span class="section-kicker">02 — ТАРИФЫ</span><h2 data-landing-text="plansTitle" id="plans-title">Выберите свой срок</h2></div>
       </div>
       <div class="plans-grid" id="plans-list" aria-live="polite"><div class="empty-state">Загружаем тарифы…</div></div>
     </section>
 
     <section class="section section--support container" id="support" aria-labelledby="support-title">
       <div class="section-heading reveal">
-        <div><span class="section-kicker">03 — СВЯЗЬ</span><h2 data-landing-text="supportTitle" id="support-title">Всегда на связи</h2><p data-landing-text="supportLead">Поможем с подключением и ответим на вопросы.</p></div>
+        <div><span class="section-kicker">03 — СВЯЗЬ</span><h2 data-landing-text="supportTitle" id="support-title">Всегда на связи</h2></div>
       </div>
       <div class="contact-grid" id="contacts-list" aria-live="polite"><div class="empty-state">Загружаем контакты…</div></div>
     </section>

@@ -113,6 +113,8 @@
   }
 
   function renderNodes(nodes, available) {
+    $("servers-updated").textContent = available ? "" : "Не удалось получить актуальный статус серверов.";
+    $("servers-updated").hidden = available;
     const fingerprint = JSON.stringify({ nodes, available });
     if (fingerprint === previousNodes) return;
     previousNodes = fingerprint;
@@ -128,7 +130,7 @@
         return `<article class="server-card">
           ${countryFlag(node.countryCode)}
           <div class="server-card__info"><span class="server-card__name">${escapeHTML(node.name || "Сервер")}</span><span class="server-card__country">${escapeHTML(countryName(node.countryCode))}</span></div>
-          <span class="server-card__status"><span class="status-dot ${statusClass}" aria-hidden="true"></span><span class="server-card__status-label">${status}</span></span>
+          <span class="server-card__status" role="img" aria-label="${status}"><span class="status-dot ${statusClass}" aria-hidden="true"></span></span>
         </article>`;
       }).join("");
     } else {
@@ -136,15 +138,14 @@
         const status = available ? (safeNodes[index].online ? "Работает" : "Неактивен") : "Нет данных";
         const statusClass = available ? (safeNodes[index].online ? "status-dot status-dot--online" : "status-dot") : "status-dot status-dot--unknown";
         const dot = card.querySelector(".status-dot");
-        const label = card.querySelector(".server-card__status-label");
+        const indicator = card.querySelector(".server-card__status");
         if (dot.className !== statusClass) dot.className = statusClass;
-        if (label.textContent !== status) label.textContent = status;
+        if (indicator.getAttribute("aria-label") !== status) indicator.setAttribute("aria-label", status);
       });
     }
     previousNodeStructure = structure;
     const online = available ? safeNodes.filter((node) => node.online).length : 0;
     $("servers-count").textContent = safeNodes.length ? `${safeNodes.length} ${plural(safeNodes.length, "сервер", "сервера", "серверов")}${available ? ` · ${online} онлайн` : ""}` : "";
-    $("servers-updated").textContent = available ? "Статус обновляется автоматически." : "Не удалось получить актуальный статус серверов.";
   }
 
   function formatTraffic(bytes) {
@@ -190,19 +191,26 @@
     if (fingerprint === previousContacts) return;
     previousContacts = fingerprint;
     const safeContacts = Array.isArray(contacts) ? contacts : [];
-    const cards = [`<article class="contact-card">
-      <h3>Написать обращение</h3><p>Создайте обращение в кабинете и следите за ответом в переписке.</p>
-      <a class="button button--ghost contact-card__action" href="${supportURL}">${escapeHTML(landingText.contactButton||"Написать обращение в кабинете")}</a>
-    </article>`];
+    const arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>';
+    const message = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 9h8m-8 4h5M7 19H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-7l-5 3Z"/></svg>';
+    const plane = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.7 3.4c.7-.3 1.3.2 1.1 1L18.5 20c-.2 1-1 1.2-1.8.6l-5-3.7-2.4 2.3c-.3.3-.5.5-1 .5l.4-5.1L18 6.2c.4-.4-.1-.6-.6-.3L5.8 13.2.9 11.7c-1-.3-1-1 .2-1.5Z"/></svg>';
+    const cards = [`<a class="contact-card contact-card--support" href="${supportURL}">
+      <span class="contact-card__icon">${message}</span>
+      <span class="contact-card__body"><strong class="contact-card__title">Обращение</strong><span class="contact-card__meta">Переписка в кабинете</span><span class="contact-card__action">${escapeHTML(landingText.contactButton||"Написать обращение")}</span></span>
+      <span class="contact-card__arrow">${arrow}</span>
+    </a>`];
     safeContacts.forEach((contact) => {
       const href = safeURL(contact.url);
       if (!href) return;
       const telegram = /^(t\.me|telegram\.me)$/i.test(new URL(href).hostname);
       const label = String(contact.label || "Связаться с нами");
-      cards.push(`<article class="contact-card">
-        <h3>${escapeHTML(label)}</h3><p>${telegram ? "Напишите нам напрямую в Telegram." : "Свяжитесь с нами удобным способом."}</p>
-        <a class="button button--ghost contact-card__action" href="${escapeHTML(href)}" target="_blank" rel="noopener noreferrer">${escapeHTML(landingText.contactButton || (telegram ? "Перейти в Telegram" : "Открыть контакт"))}</a>
-      </article>`);
+      const username = new URL(href).pathname.match(/^\/([a-z0-9_]{5,32})\/?$/i)?.[1];
+      const subtitle = telegram ? (username ? `@${username}` : "Прямая связь в Telegram") : new URL(href).hostname;
+      cards.push(`<a class="contact-card${telegram ? " contact-card--telegram" : ""}" href="${escapeHTML(href)}" target="_blank" rel="noopener noreferrer">
+        <span class="contact-card__icon">${telegram ? plane : message}</span>
+        <span class="contact-card__body"><strong class="contact-card__title">${escapeHTML(telegram ? "Telegram" : label)}</strong><span class="contact-card__meta">${escapeHTML(subtitle)}</span><span class="contact-card__action">${escapeHTML(landingText.contactButton || (telegram ? "Написать в Telegram" : "Открыть контакт"))}</span></span>
+        <span class="contact-card__arrow">${arrow}</span>
+      </a>`);
     });
     $("contacts-list").innerHTML = cards.join("");
   }
@@ -233,6 +241,7 @@
       if (!previousPlans) $("plans-list").innerHTML = '<div class="empty-state">Не удалось загрузить тарифы. Попробуйте обновить страницу.</div>';
       if (!previousContacts) renderContacts([]);
       $("servers-updated").textContent = "Не удалось обновить данные. Повторим попытку автоматически.";
+      $("servers-updated").hidden = false;
     } finally {
       loading = false;
     }
@@ -267,6 +276,15 @@
   });
   if (revealObserver) document.documentElement.classList.add("motion-ready");
   observeReveals();
+  const trial = $("hero-trial");
+  let trialVisible = !("IntersectionObserver" in window);
+  const syncSparks = () => trial.classList.toggle("has-active-sparks", trialVisible && !document.hidden && !reducedMotion.matches);
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(([entry]) => { trialVisible = entry.isIntersecting; syncSparks(); }).observe(trial);
+  }
+  document.addEventListener("visibilitychange", syncSparks);
+  reducedMotion.addEventListener?.("change", syncSparks);
+  syncSparks();
   if ("IntersectionObserver" in window) {
     const sectionLinks = [...document.querySelectorAll('.nav-links a[href^="#"]')];
     const setActiveSection = (id) => sectionLinks.forEach((link) => {

@@ -54,8 +54,23 @@ h1,h2,h3,p{margin-top:0}
 h1{max-width:860px;margin:0 auto 25px;font-size:clamp(38px,5vw,58px);line-height:1.14;font-weight:700;letter-spacing:-.045em;text-wrap:balance}
 h1 span{color:color-mix(in srgb,var(--accent) 58%,var(--text))}
 .hero__lead{max-width:650px;margin:0 auto 30px;color:var(--muted);font-size:14px;line-height:1.85}
-.hero__actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:max-content;max-width:100%;margin-inline:auto}
-.button--trial{position:relative;grid-column:1/-1}
+.hero__actions{display:grid;gap:12px;width:min(340px,100%);margin-inline:auto}
+.hero__actions>.button,.hero__trial>.button{width:100%;min-height:54px;padding:14px 24px;font-size:13px;white-space:normal;overflow-wrap:anywhere}
+.hero__trial{position:relative;isolation:isolate}
+.button--trial{position:relative;z-index:1}
+.hero__cabinet{min-height:50px!important;background:color-mix(in srgb,var(--surface) 65%,transparent)}
+.trial-sparks{position:absolute;inset:0;z-index:0;pointer-events:none;color:var(--accent)}
+.trial-sparks i{position:absolute;display:block;width:3px;height:3px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor;opacity:0;animation:trial-spark 2.8s linear infinite;animation-delay:var(--delay);animation-play-state:paused}
+.has-active-sparks .trial-sparks i{animation-play-state:running}
+.trial-sparks i:nth-child(1){left:12%;top:0;--dx:-12px;--dy:-26px;--delay:-.3s}
+.trial-sparks i:nth-child(2){left:38%;top:0;--dx:-4px;--dy:-22px;--delay:-1.7s}
+.trial-sparks i:nth-child(3){left:72%;top:0;--dx:10px;--dy:-28px;--delay:-.9s}
+.trial-sparks i:nth-child(4){left:100%;top:30%;--dx:25px;--dy:-9px;--delay:-2.3s}
+.trial-sparks i:nth-child(5){left:100%;top:75%;--dx:20px;--dy:12px;--delay:-1.2s}
+.trial-sparks i:nth-child(6){left:80%;top:100%;--dx:12px;--dy:20px;--delay:-2.6s}
+.trial-sparks i:nth-child(7){left:22%;top:100%;--dx:-8px;--dy:21px;--delay:-.6s}
+.trial-sparks i:nth-child(8){left:0;top:40%;--dx:-22px;--dy:-10px;--delay:-2s}
+@keyframes trial-spark{0%{opacity:0;transform:translate(0,0) scale(.4)}8%{opacity:.85}36%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.15)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.15)}}
 .button--trial::before{content:"";position:absolute;inset:-1px;border-radius:inherit;box-shadow:0 0 20px color-mix(in srgb,var(--accent) 28%,transparent),0 0 7px color-mix(in srgb,var(--accent) 20%,transparent);pointer-events:none;opacity:.7;animation:trial-glow 4s ease-in-out infinite}
 @keyframes trial-glow{0%,100%{opacity:.55}50%{opacity:1}}
 .section{padding-block:90px 12px;scroll-margin-top:45px}
@@ -82,7 +97,8 @@ h2{margin:0 0 9px;font-size:clamp(26px,4vw,40px);line-height:1.2;font-weight:700
 .section-heading p{margin:0;color:var(--muted);font-size:13px}
 .section-heading__aside,.section-note{color:var(--muted);font-size:11px}
 .section-heading__aside{padding-bottom:4px;white-space:nowrap}
-.section-note{min-height:19px;margin:14px 0 0}
+.section-note{margin:14px 0 0}
+.section-note[hidden]{display:none}
 .server-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .server-card{display:flex;align-items:center;gap:12px;min-width:0;min-height:66px;padding:12px 15px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
 .server-card__flag{display:block;flex:none;width:24px;height:18px;object-fit:cover;border-radius:2px}
@@ -109,11 +125,20 @@ h2{margin:0 0 9px;font-size:clamp(26px,4vw,40px);line-height:1.2;font-weight:700
 .plan-card__action{width:100%;margin-top:auto;min-height:38px}
 .section--support{padding-bottom:95px}
 .contact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.contact-card{display:flex;flex-direction:column;align-items:start;min-height:160px;padding:21px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
-.contact-card h3{margin:0 0 7px;font-size:15px;font-weight:700}
-.contact-card p{margin:0 0 20px;color:var(--muted);font-size:11px}
-.contact-card .contact-card__action{margin-top:auto;min-height:38px;padding-inline:17px;font-size:11px}
-.contact-card .contact-card__action:hover{color:var(--text)}
+.contact-card{--contact-color:var(--accent);display:grid;grid-template-columns:48px minmax(0,1fr) 32px;align-items:center;gap:18px;min-width:0;min-height:134px;padding:22px;border:1px solid var(--border);border-radius:16px;background:var(--surface);transition:background .25s,border-color .25s,transform .25s}
+.contact-card--telegram{--contact-color:#38a5df;background:linear-gradient(115deg,rgba(56,165,223,.09),transparent 80%),var(--surface);border-color:color-mix(in srgb,#38a5df 24%,var(--border))}
+.contact-card__icon{display:grid;place-items:center;width:48px;height:48px;border-radius:16px;background:color-mix(in srgb,var(--contact-color) 12%,transparent);color:var(--contact-color)}
+.contact-card__icon svg{display:block;width:25px;height:25px}
+.contact-card--telegram .contact-card__icon{border-radius:50%;background:linear-gradient(145deg,#36b1e9,#2588cc);color:#fff}
+.contact-card--telegram .contact-card__icon svg{width:24px;height:24px;transform:translate(-1px,1px)}
+.contact-card__body{display:flex;flex-direction:column;align-items:start;min-width:0;gap:3px}
+.contact-card__title{font-size:15px;font-weight:700;line-height:1.4}
+.contact-card__meta{max-width:100%;color:var(--muted);font-size:11px;overflow-wrap:anywhere}
+.contact-card__action{display:inline-flex;align-items:center;min-height:25px;margin-top:7px;padding:3px 10px;border-radius:7px;background:color-mix(in srgb,var(--contact-color) 11%,transparent);color:color-mix(in srgb,var(--contact-color) 76%,var(--text));font-size:10px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.contact-card__arrow{display:grid;place-items:center;width:32px;height:32px;border:1px solid color-mix(in srgb,var(--contact-color) 18%,var(--border));border-radius:50%;color:var(--contact-color);transition:transform .25s,background .25s}
+.contact-card__arrow svg{width:16px;height:16px}
+@media(hover:hover){.contact-card:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--contact-color) 60%,var(--border))}.contact-card:hover .contact-card__arrow{transform:translateX(2px);background:color-mix(in srgb,var(--contact-color) 10%,transparent)}}
+@media(max-width:620px){.hero__actions{width:min(320px,calc(100% - 16px))}.trial-sparks i:nth-child(4){--dx:16px}.trial-sparks i:nth-child(5){--dx:14px}.trial-sparks i:nth-child(8){--dx:-16px}.contact-card{grid-template-columns:44px minmax(0,1fr) 28px;gap:13px;min-height:120px;padding:18px}.contact-card__icon{width:44px;height:44px;border-radius:14px}.contact-card__arrow{width:28px;height:28px}.contact-card__title{font-size:14px}.contact-card__meta{font-size:10px}}
 .empty-state{grid-column:1/-1;padding:18px;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px}
 .cabinet-transition[hidden]{display:none}
 .cabinet-transition{position:fixed;inset:0;z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:13px;padding:24px;background:var(--bg);color:var(--text);opacity:0;transition:opacity .38s ease-in}
@@ -134,6 +159,8 @@ h2{margin:0 0 9px;font-size:clamp(26px,4vw,40px);line-height:1.2;font-weight:700
 :root[data-glass="on"] .plan-card--recommended{border-color:var(--accent)}
 :root[data-glass="on"] .button--primary{color:var(--accent)}
 :root[data-glass="on"] .button--trial{background-color:color-mix(in srgb,var(--accent) 14%,transparent);border-color:color-mix(in srgb,var(--accent) 55%,transparent)}
+:root[data-glass="on"] .hero__trial .button--trial{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){:root[data-glass="on"] :where(.nav-shell,.server-card,.plan-card,.contact-card,.empty-state,.button){background:var(--surface)}}
 @media(prefers-reduced-transparency:reduce){:root[data-glass="on"] :where(.nav-shell,.server-card,.plan-card,.contact-card,.empty-state,.button){background:var(--surface);backdrop-filter:none;-webkit-backdrop-filter:none}}
 @media(prefers-reduced-motion:reduce){.button--trial::before{animation:none;opacity:.7}}
+@media(prefers-reduced-motion:reduce){.trial-sparks{display:none}}
