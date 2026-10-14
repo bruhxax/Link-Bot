@@ -181,7 +181,7 @@
         <div class="plan-card__top"><div><div class="plan-card__title">${title}</div>${durationNote}</div>${badge ? `<span class="plan-card__badge">${escapeHTML(badge)}</span>` : ""}</div>
         <div class="plan-card__price">${escapeHTML(price)}</div>
         <ul class="plan-card__features"><li>${escapeHTML(formatTraffic(plan.trafficLimitBytes))}</li><li>${deviceLimit > 0 ? `До ${deviceLimit} ${plural(deviceLimit, "устройства", "устройств", "устройств")}` : "Устройства по условиям тарифа"}</li><li>Подключение после оформления</li></ul>
-        <a class="button ${plan.recommended ? "button--primary" : "button--ghost"} plan-card__action" href="${buyURL}">${escapeHTML(landingText.buyButton||"Выбрать тариф")}</a>
+        <a class="button button--primary plan-card__action" href="${buyURL}">${escapeHTML(landingText.buyButton||"Выбрать тариф")}</a>
       </article>`;
     }).join("");
   }
