@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"link-bot/internal/remnawave"
+	"link-bot/internal/trafficpolicy"
 )
 
 type Slot struct {
@@ -20,6 +21,7 @@ type Slot struct {
 	ChildUUID  uuid.UUID            `json:"childUuid"`
 	Registered bool                 `json:"registered"`
 	RevokeHWID string               `json:"revokeHwid,omitempty"`
+	Username   string               `json:"username,omitempty"`
 }
 type Binding struct {
 	ID             int64
@@ -38,7 +40,7 @@ type Store interface {
 	Create(context.Context, *Binding) error
 	Locked(context.Context, int64, func(*Binding, func() error) error) error
 	List(context.Context) ([]*Binding, error)
-	Plan(context.Context, *remnawave.PanelUser) (int64, string, error)
+	Plan(context.Context, *remnawave.PanelUser) (int64, string, *trafficpolicy.Terms, error)
 	Candidates(context.Context, []string) ([]remnawave.PanelUser, error)
 }
 type PostgresStore struct{ pool *pgxpool.Pool }
@@ -139,32 +141,33 @@ func (s *PostgresStore) List(ctx context.Context) ([]*Binding, error) {
 	}
 	return result, rows.Err()
 }
-func (s *PostgresStore) Plan(ctx context.Context, u *remnawave.PanelUser) (int64, string, error) {
+func (s *PostgresStore) Plan(ctx context.Context, u *remnawave.PanelUser) (int64, string, *trafficpolicy.Terms, error) {
 	var id int64
 	var plan string
+	var terms *trafficpolicy.Terms
 	// Identity takes precedence. Telegram fallback is only for an as-yet unbound
 	// primary subscription; technical profiles never have a Telegram ID.
-	err := s.pool.QueryRow(ctx, `SELECT cs.id,COALESCE(p.plan_id,'') FROM customer_subscription cs JOIN customer c ON c.id=cs.customer_id
- LEFT JOIN LATERAL (SELECT plan_id FROM purchase WHERE customer_id=cs.customer_id AND subscription_id=cs.id AND status='paid' AND (month>0 OR days>0) ORDER BY paid_at DESC NULLS LAST,created_at DESC,id DESC LIMIT 1) p ON TRUE
+	err := s.pool.QueryRow(ctx, `SELECT cs.id,COALESCE(p.plan_id,''),p.device_traffic_terms FROM customer_subscription cs JOIN customer c ON c.id=cs.customer_id
+ LEFT JOIN LATERAL (SELECT plan_id,device_traffic_terms FROM purchase WHERE customer_id=cs.customer_id AND subscription_id=cs.id AND status='paid' AND (month>0 OR days>0) ORDER BY paid_at DESC NULLS LAST,created_at DESC,id DESC LIMIT 1) p ON TRUE
  WHERE (cs.panel_user_id=$1 AND $1>0) OR (cs.panel_user_uuid=$2 AND $2<>'00000000-0000-0000-0000-000000000000'::uuid)
  OR (cs.is_primary AND cs.panel_user_id IS NULL AND cs.panel_user_uuid IS NULL AND c.telegram_id=$3)
- ORDER BY CASE WHEN (cs.panel_user_id=$1 AND $1>0) OR (cs.panel_user_uuid=$2 AND $2<>'00000000-0000-0000-0000-000000000000'::uuid) THEN 0 ELSE 1 END,cs.id LIMIT 1`, u.ID, u.UUID, u.TelegramID).Scan(&id, &plan)
+ ORDER BY CASE WHEN (cs.panel_user_id=$1 AND $1>0) OR (cs.panel_user_uuid=$2 AND $2<>'00000000-0000-0000-0000-000000000000'::uuid) THEN 0 ELSE 1 END,cs.id LIMIT 1`, u.ID, u.UUID, u.TelegramID).Scan(&id, &plan, &terms)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, "", nil
+		return 0, "", nil, nil
 	}
 	if err != nil {
-		return 0, "", fmt.Errorf("resolve device quota plan: %w", err)
+		return 0, "", nil, fmt.Errorf("resolve device quota plan: %w", err)
 	}
-	return id, plan, nil
+	return id, plan, terms, nil
 }
 
 func (s *PostgresStore) Candidates(ctx context.Context, plans []string) ([]remnawave.PanelUser, error) {
-	if len(plans) == 0 {
-		return nil, nil
+	if plans == nil {
+		plans = []string{}
 	}
 	rows, err := s.pool.Query(ctx, `SELECT COALESCE(cs.panel_user_id,0),COALESCE(cs.panel_user_uuid,'00000000-0000-0000-0000-000000000000'::uuid),c.telegram_id
 	FROM customer_subscription cs JOIN customer c ON c.id=cs.customer_id
-	JOIN LATERAL (SELECT plan_id FROM purchase WHERE customer_id=cs.customer_id AND subscription_id=cs.id AND status='paid' AND (month>0 OR days>0) ORDER BY paid_at DESC NULLS LAST,created_at DESC,id DESC LIMIT 1) p ON p.plan_id=ANY($1::text[])
+	JOIN LATERAL (SELECT plan_id,device_traffic_terms FROM purchase WHERE customer_id=cs.customer_id AND subscription_id=cs.id AND status='paid' AND (month>0 OR days>0) ORDER BY paid_at DESC NULLS LAST,created_at DESC,id DESC LIMIT 1) p ON ((p.device_traffic_terms->>'enabled')::boolean AND (p.device_traffic_terms->>'enforced')::boolean) OR (p.device_traffic_terms IS NULL AND p.plan_id=ANY($1::text[]))
 	WHERE (cs.panel_user_id>0 OR cs.panel_user_uuid IS NOT NULL OR cs.is_primary)
 	AND NOT EXISTS(SELECT 1 FROM device_traffic_binding b WHERE b.subscription_id=cs.id AND ((b.parent_id=cs.panel_user_id AND b.parent_id>0) OR (b.parent_uuid=cs.panel_user_uuid AND b.parent_uuid<>'00000000-0000-0000-0000-000000000000'::uuid) OR (cs.panel_user_id IS NULL AND cs.panel_user_uuid IS NULL)))`, plans)
 	if err != nil {

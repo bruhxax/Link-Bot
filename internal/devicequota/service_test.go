@@ -15,6 +15,7 @@ import (
 	"link-bot/internal/plans"
 	"link-bot/internal/remnawave"
 	"link-bot/internal/runtimeconfig"
+	"link-bot/internal/trafficpolicy"
 )
 
 const gb = int64(1024 * 1024 * 1024)
@@ -25,6 +26,7 @@ type memoryStore struct {
 	plan     string
 	failSave func(*Binding) bool
 	discover bool
+	terms    *trafficpolicy.Terms
 }
 
 func (m *memoryStore) FindParent(_ context.Context, key string) (*Binding, error) {
@@ -64,8 +66,8 @@ func (m *memoryStore) List(context.Context) ([]*Binding, error) {
 	}
 	return []*Binding{m.b}, nil
 }
-func (m *memoryStore) Plan(context.Context, *remnawave.PanelUser) (int64, string, error) {
-	return 5, m.plan, nil
+func (m *memoryStore) Plan(context.Context, *remnawave.PanelUser) (int64, string, *trafficpolicy.Terms, error) {
+	return 5, m.plan, m.terms, nil
 }
 func (m *memoryStore) Candidates(context.Context, []string) ([]remnawave.PanelUser, error) {
 	if m.discover && m.b == nil {
@@ -113,6 +115,11 @@ func (f *fakePanel) UpdateQuotaUser(_ context.Context, u *remnawave.PanelUser, f
 	}
 	for key, v := range fields {
 		switch key {
+		case "username":
+			target.Username = v.(string)
+		case "description":
+			description := v.(string)
+			target.Description = &description
 		case "status":
 			target.Status = v.(string)
 		case "activeInternalSquads":
@@ -280,6 +287,31 @@ func TestDeviceProfilesHaveIndependentNativeLimitsAndOnePublicLink(t *testing.T)
 	}
 	if state.SubscriptionLink == nil || *state.SubscriptionLink != "https://my.example"+Route+store.b.Token.String() || state.UsedTrafficBytes != 7*gb || len(state.Devices) != 2 || *state.Devices[0].TrafficUsedBytes != 7*gb {
 		t.Fatalf("bad logical state: %+v", state)
+	}
+}
+
+func TestPurchasedQuotaSurvivesCatalogEditsAndPlanDeletion(t *testing.T) {
+	s, store, panel, settings := fixture(t)
+	store.terms = &trafficpolicy.Terms{Enabled: true, Enforced: true, Rules: []trafficpolicy.Rule{{Devices: 1, TrafficGB: 20}, {Devices: 2, TrafficGB: 40}}}
+	if w := request(s, store.b, "device-first-123"); w.Code != 200 {
+		t.Fatal(w.Body.String())
+	}
+	child := panel.users[store.b.Slots[0].ChildID]
+	child.UserTraffic.UsedTrafficBytes = 7 * gb
+	settings.value.Plans = nil
+	s.reconcile(context.Background())
+	if child.Status != "ACTIVE" || child.TrafficLimitBytes != 20*gb || child.UserTraffic.UsedTrafficBytes != 7*gb || len(panel.users[1].ActiveInternalSquads) != 0 {
+		t.Fatal("catalog deletion disabled or changed a purchased quota")
+	}
+	if w := request(s, store.b, "device-second-456"); w.Code != 200 {
+		t.Fatal(w.Body.String())
+	}
+	if panel.users[store.b.Slots[1].ChildID].TrafficLimitBytes != 40*gb {
+		t.Fatal("new device did not inherit purchased terms")
+	}
+	state := &remnawave.UserState{}
+	if err := s.Observe(context.Background(), panel.users[1], state); err != nil || !state.DeviceTrafficManaged || len(state.Devices) != 2 {
+		t.Fatalf("purchased quota disappeared: %+v %v", state, err)
 	}
 }
 func TestRemovalRevokesCredentialsWithoutResettingTrafficOrAllocatingAnotherUser(t *testing.T) {

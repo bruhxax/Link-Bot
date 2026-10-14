@@ -1,11 +1,15 @@
 /* Numeric fields are edited directly, without browser or library steppers. */
 .admin-device-traffic__hint { margin: 10px 0; color: var(--muted); font-size: 11px; line-height: 1.65; }
-.device-usage { margin-top: 10px; width: 100%; min-width: 0; }
-.device-usage__labels { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; line-height: 1.5; }
-.device-usage__track { height: 6px; margin-top: 5px; overflow: hidden; border-radius: 999px; background: var(--accent-soft, #acb8cc26); }
+.device-row { grid-template-columns: 22px minmax(0, 1fr) auto; }
+.device-row__actions { display: flex; align-items: center; gap: 10px; }
+.device-usage { width: 88px; flex: 0 0 88px; min-width: 0; }
+.device-usage__labels { color: var(--muted); font-size: 9px; font-variant-numeric: tabular-nums; line-height: 1.5; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.device-usage__labels > span + span { display: none; }
+.device-usage__track { height: 5px; margin-top: 5px; overflow: hidden; border-radius: 999px; background: var(--accent-soft, #acb8cc26); }
 .device-usage__track > span { display: block; height: 100%; border-radius: inherit; background: var(--accent, #acb8cc); }
 .device-usage.is-exhausted .device-usage__track > span { background: #d78383; }
-.device-usage__status { display: block; margin-top: 5px; font-size: 10px; color: #d78383; }
+.device-usage__status { display: block; margin-top: 4px; font-size: 8px; color: #d78383; text-align: right; }
+.device-usage--unknown { font-size: 9px; color: var(--muted); text-align: right; line-height: 1.4; }
 :root input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 :root input[type="number"]::-webkit-inner-spin-button,
 :root input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }

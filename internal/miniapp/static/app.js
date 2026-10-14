@@ -8714,7 +8714,7 @@ function renderAdminDeviceTrafficEditor(plan) {
 	const enabled = Boolean(plan.deviceTrafficEnabled);
 	const rows = Array.isArray(plan.deviceTrafficRules) ? plan.deviceTrafficRules : [];
 	return `<section class="admin-device-traffic">
-		<label class="admin-device-traffic__toggle"><span><strong>Трафик по устройствам</strong><small>Показывать подписи на карточке тарифа и в окне устройств</small></span><input type="checkbox" data-input="admin-plan-device-traffic-enabled" ${enabled ? "checked" : ""}></label>
+		<label class="admin-device-traffic__toggle"><span><strong>Трафик по устройствам</strong><small>Подписи на карточке и в окне устройств. Правки — для новых покупок.</small></span><input type="checkbox" data-input="admin-plan-device-traffic-enabled" ${enabled ? "checked" : ""}></label>
 		<div class="admin-device-traffic__body" ${enabled ? "" : "hidden"}>
 			<label class="admin-device-traffic__toggle"><span><strong>Применять лимиты к устройствам</strong><small>Отдельный расход и лимит для каждого устройства</small></span><input type="checkbox" data-input="admin-plan-device-traffic-enforced" ${plan.deviceTrafficEnforced ? "checked" : ""}></label>
 			${plan.deviceTrafficEnforced ? `<p class="admin-device-traffic__hint">Номер строки — порядковый номер устройства. Для устройств без строки отдельного лимита нет. Общий лимит тарифа сохраняется. Нужен клиент с HWID (Happ или v2RayTun). После включения импортируйте общую ссылку заново. В панели появятся технические записи устройств; удаление устройства не обнуляет расход его места.</p>` : ""}
@@ -11525,10 +11525,10 @@ function renderReviewDetailModal() {
 function renderDeviceTrafficProgress(device) {
   const traffic = deviceTrafficProgress(device);
   if (!traffic) return "";
-  if (traffic.unknown) return `<span class="device-row__meta">${escapeHtml(localizedText("Расход временно недоступен", "Usage temporarily unavailable", "مصرف موقتاً در دسترس نیست"))}</span>`;
+  if (traffic.unknown) return `<span class="device-usage device-usage--unknown">${escapeHtml(localizedText("Расход недоступен", "Usage unavailable", "مصرف در دسترس نیست"))}</span>`;
   const label = formatTrafficBadgeLabel(traffic.used, traffic.limit, state.locale);
   const percent = new Intl.NumberFormat(intlLocale(state.locale), {maximumFractionDigits: 1}).format(traffic.percent);
-  return `<div class="device-usage ${traffic.exceeded ? "is-exhausted" : ""}">
+  return `<div class="device-usage ${traffic.exceeded ? "is-exhausted" : ""}" title="${escapeAttribute(`${label} · ${traffic.limit > 0 ? `${percent}%` : "∞"}`)}">
     <div class="device-usage__labels"><span>${escapeHtml(label)}</span><span>${traffic.limit > 0 ? `${percent}%` : "∞"}</span></div>
     <div class="device-usage__track" role="progressbar" aria-label="${escapeAttribute(localizedText("Использовано трафика", "Traffic used", "ترافیک مصرف شده"))}" ${traffic.limit > 0 ? `aria-valuemin="0" aria-valuemax="100" aria-valuenow="${traffic.percent.toFixed(1)}"` : ""} aria-valuetext="${escapeAttribute(label)}"><span style="width:${traffic.percent.toFixed(2)}%"></span></div>
     ${traffic.exceeded ? `<span class="device-usage__status">${escapeHtml(localizedText("Лимит исчерпан", "Limit reached", "سقف مصرف تمام شده"))}</span>` : ""}
@@ -11558,9 +11558,11 @@ function renderDeviceRow(device) {
         ${Number.isInteger(device.slot) && device.slot > 0 ? `<span class="device-row__meta">${escapeHtml(localizedText(`Устройство №${device.slot}`, `Device #${device.slot}`, `دستگاه ${device.slot}`))}</span>` : ""}
         ${secondary ? `<span class="device-row__meta">${escapeHtml(secondary)}</span>` : ""}
         <span class="device-row__date">${escapeHtml(`${copy.added} ${formatDeviceCreatedAt(device.createdAt)}`)}</span>
-        ${renderDeviceTrafficProgress(device)}
       </div>
+      <div class="device-row__actions">
+      ${renderDeviceTrafficProgress(device)}
       <button class="device-row__delete ${busy ? "is-loading" : ""}" type="button" data-action="delete-device" data-value="${escapeAttribute(device.hwid || "")}" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(copy.delete)}">${icon(busy ? "refresh" : "trash")}</button>
+      </div>
     </div>
   `;
 }

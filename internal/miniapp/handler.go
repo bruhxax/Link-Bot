@@ -4602,13 +4602,20 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 func (h *Handler) buildSubscriptionPayload(customer *database.Customer, highestPurchase *database.Purchase, panelState *remnawave.UserState) subscriptionPayload {
 	payload := subscriptionPayload{Status: "inactive", Devices: []devicePayload{}, StateLoaded: panelState != nil}
 	language := h.language()
+	trafficPurchase := highestPurchase
 	if panelState != nil && panelState.Exists && !h.purchaseMatchesPanelState(highestPurchase, panelState) {
 		// Payment history describes what was bought, not a later manually changed
 		// tariff. Current limits, plan and trial presentation follow the panel.
 		highestPurchase = nil
 	}
 	resolvedPlanMonths := h.resolveSubscriptionPlanMonths(highestPurchase, panelState)
-	if highestPurchase != nil && highestPurchase.PlanID != nil && h.runtimeSettings != nil {
+	if trafficPurchase != nil && trafficPurchase.DeviceTrafficTerms != nil {
+		terms := trafficPurchase.DeviceTrafficTerms
+		if terms.Enabled {
+			payload.DeviceTrafficRules = append([]planbook.DeviceTrafficRule(nil), terms.Rules...)
+			payload.DeviceTrafficEnforced = terms.Enforced
+		}
+	} else if highestPurchase != nil && highestPurchase.PlanID != nil && h.runtimeSettings != nil {
 		payload.DeviceTrafficRules = subscriptionDeviceTrafficRules(h.runtimeSettings.Snapshot().Plans, *highestPurchase.PlanID)
 		for _, plan := range h.runtimeSettings.Snapshot().Plans {
 			if plan.ID == *highestPurchase.PlanID {

@@ -108,10 +108,15 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if slot.ChildID <= 0 && slot.ChildUUID == uuid.Nil {
 			// A random binding namespace also avoids adopting accounts left in a
 			// panel after a bot database was replaced or restored independently.
-			username := fmt.Sprintf("lbq_%s_%d", strings.ReplaceAll(b.Token.String(), "-", "")[:24], slot.Number)
-			child, e := s.panel.EnsureQuotaUser(ctx, username, map[string]any{
+			if slot.Username == "" {
+				slot.Username = deviceUsername(parent, b, slot.Number)
+				if e = save(); e != nil {
+					return e
+				}
+			}
+			child, e := s.panel.EnsureQuotaUser(ctx, slot.Username, map[string]any{
 				"status": "DISABLED", "expireAt": parent.ExpireAt.UTC().Format(time.RFC3339), "trafficLimitBytes": quota(p, slot.Number), "trafficLimitStrategy": parent.TrafficLimitStrategy, "hwidDeviceLimit": 1, "activeInternalSquads": []string{},
-				"description": fmt.Sprintf("Link-Bot technical device %d of binding %d. Managed automatically; no separate purchase.", slot.Number, b.ID),
+				"description": deviceDescription(parent, slot),
 			})
 			if e != nil {
 				return e

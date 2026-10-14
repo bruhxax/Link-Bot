@@ -51,6 +51,9 @@ func TestPostgresBindingCheckpointsAndPlanOwnership(t *testing.T) {
 	if _, err = pool.Exec(ctx, string(migration)); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = pool.Exec(ctx, `ALTER TABLE purchase ADD COLUMN device_traffic_terms JSONB`); err != nil {
+		t.Fatal(err)
+	}
 	store := NewPostgresStore(pool)
 	tg := int64(101)
 	parent := &remnawave.PanelUser{ID: 11, UUID: uuid.New(), TelegramID: &tg}
@@ -59,13 +62,29 @@ func TestPostgresBindingCheckpointsAndPlanOwnership(t *testing.T) {
 	if _, err = pool.Exec(ctx, `UPDATE customer_subscription SET is_primary=false WHERE id=5; INSERT INTO customer_subscription VALUES(4,1,NULL,NULL,true)`); err != nil {
 		t.Fatal(err)
 	}
-	subID, plan, err := store.Plan(ctx, parent)
+	subID, plan, _, err := store.Plan(ctx, parent)
 	if err != nil || subID != 5 || plan != "new" {
 		t.Fatalf("wrong purchased plan %d %q %v", subID, plan, err)
 	}
 	candidates, err := store.Candidates(ctx, []string{"new"})
 	if err != nil || len(candidates) != 1 || candidates[0].ID != 11 {
 		t.Fatalf("wrong discovery candidates %+v %v", candidates, err)
+	}
+	if _, err = pool.Exec(ctx, `UPDATE purchase SET device_traffic_terms='{"enabled":true,"enforced":true,"rules":[{"devices":1,"trafficGb":20}]}' WHERE id=2;
+	UPDATE purchase SET device_traffic_terms='{"enabled":false,"enforced":false,"rules":[]}' WHERE id=3`); err != nil {
+		t.Fatal(err)
+	}
+	_, _, terms, err := store.Plan(ctx, parent)
+	if err != nil || terms == nil || !terms.Enforced || terms.Rules[0].TrafficGB != 20 {
+		t.Fatalf("stored terms not loaded: %+v %v", terms, err)
+	}
+	candidates, err = store.Candidates(ctx, nil)
+	if err != nil || len(candidates) != 1 || candidates[0].ID != 11 {
+		t.Fatalf("catalog deletion hid purchased quota: %+v %v", candidates, err)
+	}
+	candidates, err = store.Candidates(ctx, []string{"other"})
+	if err != nil || len(candidates) != 1 || candidates[0].ID != 11 {
+		t.Fatalf("disabled snapshot picked up current catalog setting: %+v %v", candidates, err)
 	}
 	token := uuid.New()
 	b := &Binding{ParentKey: parentKey(parent), ParentID: parent.ID, ParentUUID: parent.UUID, SubscriptionID: &subID, Token: token, Squads: []string{uuid.NewString()}}

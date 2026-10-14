@@ -6,6 +6,7 @@ import (
 
 	"link-bot/internal/config"
 	"link-bot/internal/database"
+	"link-bot/internal/trafficpolicy"
 )
 
 const RublesPerStar = 1.47
@@ -46,10 +47,7 @@ type CheckoutPlan struct {
 	ExternalSquadUUID        string
 }
 
-type DeviceTrafficRule struct {
-	Devices   int `json:"devices"`
-	TrafficGB int `json:"trafficGb"`
-}
+type DeviceTrafficRule = trafficpolicy.Rule
 
 func StarsForRub(priceRub int) int {
 	if priceRub <= 0 {

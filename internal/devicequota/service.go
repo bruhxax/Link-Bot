@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	planbook "link-bot/internal/plans"
 	"link-bot/internal/remnawave"
 	"link-bot/internal/runtimeconfig"
 )
@@ -57,9 +58,12 @@ func parentKey(u *remnawave.PanelUser) string {
 	return fmt.Sprintf("id:%d", u.ID)
 }
 func (s *Service) plan(ctx context.Context, u *remnawave.PanelUser) (int64, *runtimeconfig.PlanSettings, error) {
-	id, planID, err := s.store.Plan(ctx, u)
+	id, planID, terms, err := s.store.Plan(ctx, u)
 	if err != nil {
 		return 0, nil, err
+	}
+	if terms != nil {
+		return id, &runtimeconfig.PlanSettings{ID: planID, DeviceTrafficEnabled: terms.Enabled, DeviceTrafficEnforced: terms.Enforced, DeviceTrafficRules: append([]planbook.DeviceTrafficRule(nil), terms.Rules...)}, nil
 	}
 	for _, p := range s.settings.Snapshot().Plans {
 		if p.ID == planID {
@@ -207,6 +211,19 @@ func (s *Service) synchronize(ctx context.Context, b *Binding, save func() error
 			squads = b.Squads
 		}
 		fields := map[string]any{}
+		if slot.Username == "" {
+			slot.Username = deviceUsername(u, b, slot.Number)
+			if err := save(); err != nil {
+				return nil, 0, 0, err
+			}
+		}
+		if child.Username != slot.Username {
+			fields["username"] = slot.Username
+		}
+		description := deviceDescription(u, slot)
+		if child.Description == nil || *child.Description != description {
+			fields["description"] = description
+		}
 		if child.Status != status {
 			fields["status"] = status
 		}

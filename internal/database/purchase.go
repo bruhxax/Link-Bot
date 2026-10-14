@@ -2,8 +2,10 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"link-bot/internal/trafficpolicy"
 	"strings"
 	"time"
 
@@ -62,49 +64,50 @@ const (
 )
 
 type Purchase struct {
-	ID                        int64          `db:"id"`
-	Amount                    float64        `db:"amount"`
-	CustomerID                int64          `db:"customer_id"`
-	SubscriptionID            *int64         `db:"subscription_id"`
-	CreatedAt                 time.Time      `db:"created_at"`
-	Month                     int            `db:"month"`
-	Days                      int            `db:"days"`
-	PlanID                    *string        `db:"plan_id"`
-	TrafficLimitBytes         *int64         `db:"traffic_limit_bytes"`
-	DeviceLimitCount          *int           `db:"device_limit_count"`
-	PurchaseKind              PurchaseKind   `db:"purchase_kind"`
-	ExtraDevices              int            `db:"extra_devices"`
-	ExtraTrafficBytes         int64          `db:"extra_traffic_bytes"`
-	ExtraTrafficUnlimited     bool           `db:"extra_traffic_unlimited"`
-	DeviceExpiresAt           *time.Time     `db:"device_expires_at"`
-	IsFreePlan                bool           `db:"is_free_plan"`
-	FreePlanOneTime           bool           `db:"free_plan_one_time"`
-	PaidAt                    *time.Time     `db:"paid_at"`
-	Currency                  string         `db:"currency"`
-	ExpireAt                  *time.Time     `db:"expire_at"`
-	Status                    PurchaseStatus `db:"status"`
-	InvoiceType               InvoiceType    `db:"invoice_type"`
-	PromoCodeID               *int64         `db:"promo_code_id"`
-	PromoCodeSnapshot         *string        `db:"promo_code_snapshot"`
-	PromoCodeDiscountPercent  *int           `db:"promo_code_discount_percent"`
-	CryptoInvoiceID           *int64         `db:"crypto_invoice_id"`
-	CryptoInvoiceLink         *string        `db:"crypto_invoice_url"`
-	YookasaURL                *string        `db:"yookasa_url"`
-	YookasaID                 *uuid.UUID     `db:"yookasa_id"`
-	AgreementAccepted         bool           `db:"agreement_accepted"`
-	IsAutoPayment             bool           `db:"is_auto_payment"`
-	ParentPurchaseID          *int64         `db:"parent_purchase_id"`
-	YookasaPaymentMethodID    *uuid.UUID     `db:"yookasa_payment_method_id"`
-	YookasaPaymentMethodType  *string        `db:"yookasa_payment_method_type"`
-	YookasaPaymentMethodTitle *string        `db:"yookasa_payment_method_title"`
-	YookasaPaymentMethodSaved bool           `db:"yookasa_payment_method_saved"`
-	ExternalPaymentID         *string        `db:"external_payment_id"`
-	ExternalPaymentURL        *string        `db:"external_payment_url"`
-	GiftRecipientUsername     *string        `db:"gift_recipient_username"`
-	GiftRecipientCustomerID   *int64         `db:"gift_recipient_customer_id"`
-	GiftToken                 *uuid.UUID     `db:"gift_token"`
-	GiftDeliveredAt           *time.Time     `db:"gift_delivered_at"`
-	GiftSenderSeenAt          *time.Time     `db:"gift_sender_seen_at"`
+	ID                        int64                `db:"id"`
+	Amount                    float64              `db:"amount"`
+	CustomerID                int64                `db:"customer_id"`
+	SubscriptionID            *int64               `db:"subscription_id"`
+	CreatedAt                 time.Time            `db:"created_at"`
+	Month                     int                  `db:"month"`
+	Days                      int                  `db:"days"`
+	PlanID                    *string              `db:"plan_id"`
+	DeviceTrafficTerms        *trafficpolicy.Terms `db:"device_traffic_terms"`
+	TrafficLimitBytes         *int64               `db:"traffic_limit_bytes"`
+	DeviceLimitCount          *int                 `db:"device_limit_count"`
+	PurchaseKind              PurchaseKind         `db:"purchase_kind"`
+	ExtraDevices              int                  `db:"extra_devices"`
+	ExtraTrafficBytes         int64                `db:"extra_traffic_bytes"`
+	ExtraTrafficUnlimited     bool                 `db:"extra_traffic_unlimited"`
+	DeviceExpiresAt           *time.Time           `db:"device_expires_at"`
+	IsFreePlan                bool                 `db:"is_free_plan"`
+	FreePlanOneTime           bool                 `db:"free_plan_one_time"`
+	PaidAt                    *time.Time           `db:"paid_at"`
+	Currency                  string               `db:"currency"`
+	ExpireAt                  *time.Time           `db:"expire_at"`
+	Status                    PurchaseStatus       `db:"status"`
+	InvoiceType               InvoiceType          `db:"invoice_type"`
+	PromoCodeID               *int64               `db:"promo_code_id"`
+	PromoCodeSnapshot         *string              `db:"promo_code_snapshot"`
+	PromoCodeDiscountPercent  *int                 `db:"promo_code_discount_percent"`
+	CryptoInvoiceID           *int64               `db:"crypto_invoice_id"`
+	CryptoInvoiceLink         *string              `db:"crypto_invoice_url"`
+	YookasaURL                *string              `db:"yookasa_url"`
+	YookasaID                 *uuid.UUID           `db:"yookasa_id"`
+	AgreementAccepted         bool                 `db:"agreement_accepted"`
+	IsAutoPayment             bool                 `db:"is_auto_payment"`
+	ParentPurchaseID          *int64               `db:"parent_purchase_id"`
+	YookasaPaymentMethodID    *uuid.UUID           `db:"yookasa_payment_method_id"`
+	YookasaPaymentMethodType  *string              `db:"yookasa_payment_method_type"`
+	YookasaPaymentMethodTitle *string              `db:"yookasa_payment_method_title"`
+	YookasaPaymentMethodSaved bool                 `db:"yookasa_payment_method_saved"`
+	ExternalPaymentID         *string              `db:"external_payment_id"`
+	ExternalPaymentURL        *string              `db:"external_payment_url"`
+	GiftRecipientUsername     *string              `db:"gift_recipient_username"`
+	GiftRecipientCustomerID   *int64               `db:"gift_recipient_customer_id"`
+	GiftToken                 *uuid.UUID           `db:"gift_token"`
+	GiftDeliveredAt           *time.Time           `db:"gift_delivered_at"`
+	GiftSenderSeenAt          *time.Time           `db:"gift_sender_seen_at"`
 }
 
 type PurchaseRepository struct {
@@ -247,6 +250,7 @@ var purchaseSelectColumns = []string{
 	"gift_token",
 	"gift_delivered_at",
 	"gift_sender_seen_at",
+	"device_traffic_terms",
 }
 
 func scanPurchase(scanner interface {
@@ -296,6 +300,7 @@ func scanPurchase(scanner interface {
 		&purchase.GiftToken,
 		&purchase.GiftDeliveredAt,
 		&purchase.GiftSenderSeenAt,
+		&purchase.DeviceTrafficTerms,
 	)
 }
 
@@ -345,6 +350,7 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 			"gift_token",
 			"gift_delivered_at",
 			"gift_sender_seen_at",
+			"device_traffic_terms",
 		).
 		Values(
 			purchase.Amount,
@@ -387,6 +393,7 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 			purchase.GiftToken,
 			purchase.GiftDeliveredAt,
 			purchase.GiftSenderSeenAt,
+			purchaseTrafficTerms(purchase),
 		).
 		Suffix("RETURNING id").
 		PlaceholderFormat(sq.Dollar)
@@ -403,6 +410,21 @@ func (cr *PurchaseRepository) Create(ctx context.Context, purchase *Purchase) (i
 	}
 
 	return id, nil
+}
+
+func purchaseTrafficTerms(p *Purchase) any {
+	if p.DeviceTrafficTerms != nil {
+		raw, _ := json.Marshal(p.DeviceTrafficTerms)
+		return string(raw)
+	}
+	// Read terms in the same INSERT that creates the invoice. A later catalog
+	// edit, including one before payment confirmation, cannot change this sale.
+	return sq.Expr(`COALESCE((SELECT jsonb_build_object(
+	 'enabled',COALESCE(plan->'deviceTrafficEnabled','false'::jsonb),
+	 'enforced',COALESCE(plan->'deviceTrafficEnforced','false'::jsonb),
+	 'rules',COALESCE(plan->'deviceTrafficRules','[]'::jsonb))
+	 FROM app_runtime_settings r,jsonb_array_elements(CASE WHEN jsonb_typeof(r.config->'plans')='array' THEN r.config->'plans' ELSE '[]'::jsonb END) plan
+	 WHERE r.id=1 AND plan->>'id'=? LIMIT 1),'{"enabled":false,"enforced":false,"rules":[]}'::jsonb)`, p.PlanID)
 }
 
 func (cr *PurchaseRepository) FindByInvoiceTypeAndStatus(ctx context.Context, invoiceType InvoiceType, status PurchaseStatus) (*[]Purchase, error) {

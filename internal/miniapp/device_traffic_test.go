@@ -1,6 +1,8 @@
 package miniapp
 
 import (
+	"link-bot/internal/database"
+	"link-bot/internal/trafficpolicy"
 	"testing"
 
 	planbook "link-bot/internal/plans"
@@ -25,5 +27,23 @@ func TestSubscriptionDeviceTrafficUsesExactPurchasedPlan(t *testing.T) {
 		if len(subscriptionDeviceTrafficRules(plans, id)) != 0 {
 			t.Fatalf("unexpected annotations for %q", id)
 		}
+	}
+}
+
+func TestPurchasedDeviceTrafficPayloadUsesImmutableTerms(t *testing.T) {
+	h := &Handler{}
+	purchase := &database.Purchase{DeviceTrafficTerms: &trafficpolicy.Terms{Enabled: true, Enforced: true, Rules: []trafficpolicy.Rule{{Devices: 1, TrafficGB: 20}}}}
+	payload := h.buildSubscriptionPayload(&database.Customer{}, purchase, nil)
+	if !payload.DeviceTrafficEnforced || len(payload.DeviceTrafficRules) != 1 || payload.DeviceTrafficRules[0].TrafficGB != 20 {
+		t.Fatalf("purchased terms disappeared without catalog plan: %+v", payload)
+	}
+	payload.DeviceTrafficRules[0].TrafficGB = 999
+	if purchase.DeviceTrafficTerms.Rules[0].TrafficGB != 20 {
+		t.Fatal("payload mutated purchased terms")
+	}
+	purchase.DeviceTrafficTerms = &trafficpolicy.Terms{}
+	payload = h.buildSubscriptionPayload(&database.Customer{}, purchase, nil)
+	if payload.DeviceTrafficEnforced || len(payload.DeviceTrafficRules) != 0 {
+		t.Fatal("disabled purchased terms became active")
 	}
 }
