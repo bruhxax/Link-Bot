@@ -555,13 +555,21 @@ async function pollTelegramQRLogin() {
 	} catch (error) {
 		if (error?.code === "qr_login_expired") {
 			telegramQRLogin = null;
-			render();
+			updateTelegramQRLoginView();
+			mountTelegramQRLogin();
 			return;
 		}
 		scheduleTelegramQRLoginPoll(error?.code === "too_many_requests" ? (error.retryAfterMs || 60000) : 2600);
 	} finally {
 		telegramQRLoginPollBusy = false;
 	}
+}
+
+function updateTelegramQRLoginView() {
+	const host = app.querySelector("[data-telegram-qr-login]");
+	if (hasAuth() || !host) return;
+	// QR refreshes must not replace fields, autofilled values or focused inputs.
+	host.outerHTML = renderBrowserAuthQR();
 }
 
 function mountTelegramQRLogin() {
@@ -586,16 +594,18 @@ function mountTelegramQRLogin() {
 				url: String(data.url),
 				expiresAt: String(data.expiresAt || ""),
 			};
-			render();
+			updateTelegramQRLoginView();
+			mountTelegramQRLogin();
 		})
 		.catch((error) => {
 			if (hasAuth()) return;
 			telegramQRLogin = { error: true };
-			render();
+			updateTelegramQRLoginView();
 			telegramQRLoginRetryTimer = window.setTimeout(() => {
 				telegramQRLoginRetryTimer = null;
 				telegramQRLogin = null;
-				render();
+				updateTelegramQRLoginView();
+				mountTelegramQRLogin();
 			}, error?.code === "too_many_requests" ? (error.retryAfterMs || 60000) : 5000);
 		})
 		.finally(() => {
@@ -3417,6 +3427,7 @@ function initTelegram() {
   syncAppViewportHeight();
   if (!initTelegram.viewportResizeBound) {
     window.addEventListener("resize", syncAppViewportHeight, { passive: true });
+    window.visualViewport?.addEventListener("resize", syncAppViewportHeight, { passive: true });
     initTelegram.viewportResizeBound = true;
   }
 	if (!initTelegram.cabinetBreakpointBound) {
@@ -3445,6 +3456,17 @@ function initTelegram() {
 function syncAppViewportHeight() {
   syncTelegramLayout(document.documentElement, clientSurface === "telegram" ? tg : null,
     window.innerHeight || document.documentElement.clientHeight || 0);
+  if (clientSurface === "browser") {
+    const visibleHeight = window.visualViewport?.height || window.innerHeight;
+    const previousHeight = parseFloat(document.documentElement.style.getPropertyValue("--auth-viewport-height")) || visibleHeight;
+    if (visibleHeight > 0) document.documentElement.style.setProperty("--auth-viewport-height", `${Math.round(visibleHeight)}px`);
+    const focused = document.activeElement;
+    if (visibleHeight < previousHeight && focused?.closest?.(".browser-auth") && focused.matches("input")) {
+      window.requestAnimationFrame(() => {
+        if (document.activeElement === focused) focused.scrollIntoView({block: "nearest", inline: "nearest", behavior: "instant"});
+      });
+    }
+  }
 }
 
 async function handlePostBootstrapFlow() {

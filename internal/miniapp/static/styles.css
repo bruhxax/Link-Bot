@@ -2435,7 +2435,10 @@ img { display: block; max-width: 100%; }
 }
 
 #app.app--browser-auth {
+  height: var(--auth-viewport-height, var(--app-viewport-height, 100%));
   overflow-y: auto;
+  overflow-x: hidden;
+  scroll-padding-block: 20px;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
 }
@@ -6305,11 +6308,11 @@ button.rating-star {
 	position: relative;
   width: 64px;
   height: 64px;
-  border-radius: 8px;
+  border-radius: 0;
 	overflow: hidden;
 	display: grid;
 	place-items: center;
-	background: var(--surface-strong);
+	background: transparent;
 	color: var(--text);
 }
 
@@ -6324,7 +6327,7 @@ button.rating-star {
 	inset: 0;
 	width: 100%;
 	height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .browser-auth__title {
@@ -6649,6 +6652,11 @@ button.rating-star {
   .browser-auth__qr-frame {
     width: 148px;
   }
+}
+
+@media (max-width: 600px) {
+  /* Prevent iOS from zooming and shifting the login form when a field opens. */
+  .browser-email__field input { min-height: 44px; font-size: 16px; }
 }
 
 .google-login-widget {
@@ -14377,3 +14385,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   -webkit-backdrop-filter: var(--glass-backdrop);
 }
 :root[data-glass="on"] .admin-access .admin-access__presets button.is-selected { border-color: var(--accent) !important; }
+
+/* Login controls stay calm instead of inheriting the old provider halos. */
+:root .browser-auth :is(.browser-email__submit,.browser-auth__telegram,.browser-auth__google){box-shadow:none!important}
+:root .browser-auth__logo-shell{background:transparent!important;border:0!important;box-shadow:none!important}
