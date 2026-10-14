@@ -1277,7 +1277,8 @@ select:focus-visible {
 :root[data-compact="on"] .pricing-card { min-height: 112px; padding: 10px; border-radius: 8px; }
 :root[data-compact="on"] .pricing-card--wide { min-height: 92px; }
 :root[data-compact="on"] .pricing-card__name { font-size: 13px; }
-:root[data-compact="on"] .pricing-card__spec { font-size: 9px; }
+:root[data-compact="on"] .pricing-card__spec,
+:root[data-compact="on"] .pricing-card .device-traffic-note { font-size: 9px; }
 :root[data-compact="on"] .pricing-card__price-line { font-size: 9px; }
 :root[data-compact="on"] .pricing-card__price-line strong { font-size: 13px; }
 
@@ -4347,9 +4348,11 @@ body:not(.is-layout-editing) .runtime-layout-item[data-runtime-id="subscription_
   font-weight: 800;
   line-height: 1;
 }
-.pricing-card__spec {
+.pricing-card__spec,
+.pricing-card .device-traffic-note {
   color: var(--muted);
   font-size: 12px;
+  font-weight: inherit;
   line-height: 1.2;
 }
 .device-traffic-note {
@@ -7637,7 +7640,8 @@ body.is-install-guide #app {
 
 :root[data-compact="on"] .page-buy .pricing-card--wide { min-height: 92px; }
 :root[data-compact="on"] .page-buy .pricing-card__name { font-size: 13px; }
-:root[data-compact="on"] .page-buy .pricing-card__spec { font-size: 9px; }
+:root[data-compact="on"] .page-buy .pricing-card__spec,
+:root[data-compact="on"] .page-buy .pricing-card .device-traffic-note { font-size: 9px; }
 :root[data-compact="on"] .page-buy .pricing-card__price-line { font-size: 9px; }
 :root[data-compact="on"] .page-buy .pricing-card__price-line strong { font-size: 13px; }
 
