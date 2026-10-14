@@ -31,6 +31,7 @@ type Client struct {
 	squadCacheMu sync.RWMutex
 	squadCache   SquadCatalog
 	squadCacheAt time.Time
+	deviceQuota  DeviceQuotaBridge
 }
 
 type SquadOption struct {
@@ -60,6 +61,7 @@ type ProvisioningOptions struct {
 }
 
 type UserState struct {
+	DeviceTrafficManaged     bool
 	PanelStatus              string
 	LifetimeUsedTrafficBytes int64
 	Exists                   bool
@@ -105,15 +107,18 @@ type AdminRebindResult struct {
 }
 
 type UserDevice struct {
-	Hwid        string
-	UserID      int64
-	UserUUID    uuid.UUID
-	Platform    string
-	OSVersion   string
-	DeviceModel string
-	UserAgent   string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	TrafficUsedBytes  *int64
+	TrafficLimitBytes *int64
+	Slot              int
+	Hwid              string
+	UserID            int64
+	UserUUID          uuid.UUID
+	Platform          string
+	OSVersion         string
+	DeviceModel       string
+	UserAgent         string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 const (
@@ -311,6 +316,14 @@ func (r *Client) GetSystemStats(ctx context.Context) (SystemStats, error) {
 }
 
 func (r *Client) GetUsers(ctx context.Context) (*[]PanelUser, error) {
+	users, err := r.rawUsers(ctx)
+	if err == nil && r.deviceQuota != nil {
+		err = r.deviceQuota.DecorateCatalog(ctx, *users)
+	}
+	return users, err
+}
+
+func (r *Client) rawUsers(ctx context.Context) (*[]PanelUser, error) {
 	users, err := r.streamUsers(ctx, nil)
 	if err == nil {
 		return &users, nil
@@ -503,6 +516,14 @@ func (r *Client) GetUserStateByIdentity(ctx context.Context, userID int64, userU
 }
 
 func (r *Client) userStateFromPanelUser(ctx context.Context, user *PanelUser, logKey string, logValue any) (*UserState, error) {
+	state, err := r.baseUserStateFromPanelUser(ctx, user, logKey, logValue)
+	if err == nil && state != nil && r.deviceQuota != nil {
+		err = r.deviceQuota.Observe(ctx, user, state)
+	}
+	return state, err
+}
+
+func (r *Client) baseUserStateFromPanelUser(ctx context.Context, user *PanelUser, logKey string, logValue any) (*UserState, error) {
 	if user == nil {
 		return nil, nil
 	}
@@ -730,6 +751,16 @@ func (r *Client) getUserHWIDDevices(ctx context.Context, userID int64, userUUID 
 }
 
 func (r *Client) DeleteUserHWIDDevice(ctx context.Context, userID int64, userUUID uuid.UUID, hwid string) ([]UserDevice, error) {
+	if r.deviceQuota != nil {
+		devices, managed, err := r.deviceQuota.DeleteDevice(ctx, userID, userUUID, hwid)
+		if managed || err != nil {
+			return devices, err
+		}
+	}
+	return r.DeleteRawHWIDDevice(ctx, userID, userUUID, hwid)
+}
+
+func (r *Client) DeleteRawHWIDDevice(ctx context.Context, userID int64, userUUID uuid.UUID, hwid string) ([]UserDevice, error) {
 	request := map[string]any{"userId": userID, "hwid": strings.TrimSpace(hwid)}
 	var payload hwidDevicesResponse
 	err := r.doAPIJSON(ctx, http.MethodPost, "/api/hwid/devices/delete", request, &payload)

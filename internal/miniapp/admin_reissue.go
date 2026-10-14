@@ -43,6 +43,10 @@ func (h *Handler) handleAdminUserReissueSubscription(w http.ResponseWriter, r *h
 		h.writeError(w, http.StatusConflict, "admin_reissue_inactive", "Можно перевыпустить только активную подписку")
 		return
 	}
+	if target.state.DeviceTrafficManaged {
+		h.writeError(w, http.StatusConflict, "admin_reissue_device_quotas", "Для тарифа с отдельными лимитами удалите нужное устройство в кабинете и импортируйте общую ссылку заново. Это отзовёт старые ключи без обнуления расхода.")
+		return
+	}
 	old, created, err := h.remnawaveClient.ReissueUser(r.Context(), target.state.UserID, target.state.UserUUID)
 	if err != nil {
 		if created != nil {

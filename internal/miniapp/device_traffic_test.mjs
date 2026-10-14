@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
-import { validDeviceTrafficRules, sortedDeviceTrafficRules, deviceTrafficLabels } from "./static/device-traffic.mjs";
+import { validDeviceTrafficRules, sortedDeviceTrafficRules, deviceTrafficLabels, deviceTrafficProgress } from "./static/device-traffic.mjs";
 
 test("traffic annotations sort, localize, and reject ambiguous or invalid rows", () => {
   const rules = [{devices: 2, trafficGb: 40}, {devices: 1, trafficGb: 20}];
@@ -14,6 +14,16 @@ test("traffic annotations sort, localize, and reject ambiguous or invalid rows",
     assert.equal(validDeviceTrafficRules(bad), false);
     assert.deepEqual(deviceTrafficLabels(bad), []);
   }
+});
+
+test("real device quotas use ordinal labels and only confirmed traffic counters", () => {
+  assert.deepEqual(deviceTrafficLabels([{devices:1,trafficGb:20},{devices:2,trafficGb:40}], "ru", true), ["Устройство №1 — 20 GB", "Устройство №2 — 40 GB"]);
+  assert.equal(deviceTrafficProgress({}), null);
+  assert.deepEqual(deviceTrafficProgress({slot:1}), {unknown:true});
+  assert.deepEqual(deviceTrafficProgress({slot:1,trafficUsedBytes:null,trafficLimitBytes:20}), {unknown:true});
+  assert.deepEqual(deviceTrafficProgress({slot:1,trafficUsedBytes:7,trafficLimitBytes:20}), {used:7,limit:20,percent:35,exceeded:false});
+  assert.deepEqual(deviceTrafficProgress({trafficUsedBytes:21,trafficLimitBytes:20}), {used:21,limit:20,percent:100,exceeded:true});
+  assert.deepEqual(deviceTrafficProgress({trafficUsedBytes:42,trafficLimitBytes:0}), {used:42,limit:0,percent:0,exceeded:false});
 });
 
 test("editor applies optional annotations without changing actual plan limits", () => {

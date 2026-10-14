@@ -33,6 +33,7 @@ func (s *Service) CheckoutPlans() []planbook.CheckoutPlan {
 			ExternalSquadUUID:        item.ExternalSquadUUID,
 		}
 		if item.DeviceTrafficEnabled {
+			plan.DeviceTrafficEnforced = item.DeviceTrafficEnforced
 			plan.DeviceTrafficRules = append([]planbook.DeviceTrafficRule(nil), item.DeviceTrafficRules...)
 		}
 		if item.UnlimitedTraffic || item.TrafficGB == 0 {
@@ -47,6 +48,9 @@ func (s *Service) CheckoutPlans() []planbook.CheckoutPlan {
 }
 
 func validateDeviceTraffic(plan *PlanSettings) error {
+	if plan.DeviceTrafficEnforced && (!plan.DeviceTrafficEnabled || plan.DeviceLimit < 1 || plan.DeviceLimit > 1000) {
+		return fmt.Errorf("для отдельных лимитов включите трафик по устройствам и задайте лимит 1–1000 устройств")
+	}
 	if len(plan.DeviceTrafficRules) > 100 {
 		return fmt.Errorf("не больше 100 строк трафика по устройствам")
 	}
@@ -55,6 +59,9 @@ func validateDeviceTraffic(plan *PlanSettings) error {
 	}
 	seen := map[int]bool{}
 	for _, rule := range plan.DeviceTrafficRules {
+		if plan.DeviceTrafficEnforced && rule.Devices > plan.DeviceLimit {
+			return fmt.Errorf("номер устройства превышает лимит устройств тарифа")
+		}
 		if rule.Devices < 1 || rule.Devices > 1000 || rule.TrafficGB < 1 || rule.TrafficGB > 1000000 {
 			return fmt.Errorf("укажите 1–1000 устройств и 1–1000000 ГБ в строках трафика")
 		}

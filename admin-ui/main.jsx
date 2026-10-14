@@ -178,7 +178,7 @@ const theme = createTheme({
     TextInput: TextInput.extend({ defaultProps: { size: "sm" } }),
     Textarea: Textarea.extend({ defaultProps: { size: "sm" } }),
     NativeSelect: NativeSelect.extend({ defaultProps: { size: "sm" } }),
-    NumberInput: NumberInput.extend({ defaultProps: { size: "sm" } }),
+    NumberInput: NumberInput.extend({ defaultProps: { size: "sm", hideControls: true } }),
     Select: Select.extend({
       defaultProps: {
         size: "sm",
@@ -304,7 +304,7 @@ function Field({ node, label, toggle = false, ...props }) {
     ...(isCheck ? { value: node.value } : {}),
   };
   if (isCheck) {
-    const Control = toggle ? Switch : Checkbox;
+    const Control = node.type === "checkbox" || toggle ? Switch : Checkbox;
     return (
       <Control
         {...common}
@@ -515,7 +515,7 @@ function convert(node, key) {
           </Control>
         );
       }
-      const toggle =
+      const toggle = control.type === "checkbox" ||
         node.matches(
           ".admin-toggle,.admin-integration__toggle,.admin-moynalog__switch",
         ) || control.getAttribute("role") === "switch";

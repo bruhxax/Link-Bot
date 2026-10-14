@@ -57,3 +57,19 @@ func TestDeviceTrafficRejectsInvalidAndDuplicateRows(t *testing.T) {
 		}
 	}
 }
+
+func TestDeviceTrafficEnforcementRequiresFiniteDeviceSlots(t *testing.T) {
+	for _, plan := range []PlanSettings{
+		{DeviceTrafficEnforced: true, DeviceLimit: 2},
+		{DeviceTrafficEnforced: true, DeviceTrafficEnabled: true, DeviceTrafficRules: []planbook.DeviceTrafficRule{{Devices: 1, TrafficGB: 20}}},
+		{DeviceTrafficEnforced: true, DeviceTrafficEnabled: true, DeviceLimit: 1, DeviceTrafficRules: []planbook.DeviceTrafficRule{{Devices: 2, TrafficGB: 40}}},
+	} {
+		if err := validateDeviceTraffic(&plan); err == nil {
+			t.Fatalf("accepted ambiguous enforcement: %+v", plan)
+		}
+	}
+	plan := PlanSettings{DeviceTrafficEnforced: true, DeviceTrafficEnabled: true, DeviceLimit: 2, DeviceTrafficRules: []planbook.DeviceTrafficRule{{Devices: 1, TrafficGB: 20}, {Devices: 2, TrafficGB: 40}}}
+	if err := validateDeviceTraffic(&plan); err != nil {
+		t.Fatal(err)
+	}
+}

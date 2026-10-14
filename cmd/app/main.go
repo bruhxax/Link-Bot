@@ -17,6 +17,7 @@ import (
 	"link-bot/internal/config"
 	"link-bot/internal/cryptopay"
 	"link-bot/internal/database"
+	"link-bot/internal/devicequota"
 	"link-bot/internal/handler"
 	"link-bot/internal/integrations"
 	"link-bot/internal/miniapp"
@@ -103,6 +104,13 @@ func main() {
 
 	cryptoPayClient := cryptopay.NewCryptoPayClient(config.CryptoPayUrl(), config.CryptoPayToken())
 	remnawaveClient := remnawave.NewClient(config.RemnawaveUrl(), config.RemnawaveToken(), config.RemnawaveMode())
+	quotaURL := config.GetMiniAppURL()
+	if config.CabinetBaseURL() != "" {
+		quotaURL = config.CabinetBaseURL()
+	}
+	deviceQuotas := devicequota.New(devicequota.NewPostgresStore(pool), remnawaveClient, runtimeSettings, quotaURL)
+	remnawaveClient.SetDeviceQuotaBridge(deviceQuotas)
+	go deviceQuotas.Run(ctx)
 	yookasaClient := yookasa.NewClient(config.YookasaUrl(), config.YookasaShopId(), config.YookasaSecretKey())
 	b, err := bot.New(config.TelegramToken(), bot.WithWorkers(3))
 	if err != nil {
@@ -268,6 +276,7 @@ func main() {
 	}, h.SuccessPaymentHandler, h.SuspiciousUserFilterMiddleware)
 
 	mux := http.NewServeMux()
+	mux.Handle(devicequota.Route, deviceQuotas)
 	mux.Handle("/healthcheck", fullHealthHandler(pool, remnawaveClient))
 	miniAppHandler.Register(mux)
 	if config.GetTributeWebHookUrl() != "" {

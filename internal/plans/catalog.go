@@ -38,6 +38,7 @@ type CheckoutPlan struct {
 	TrafficLimitBytes        int64
 	DeviceLimitCount         int
 	DeviceTrafficRules       []DeviceTrafficRule
+	DeviceTrafficEnforced    bool
 	Variant                  string
 	Wide                     bool
 	InternalSquadUUIDs       []string

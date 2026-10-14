@@ -1667,7 +1667,17 @@ func (s PaymentService) persistSubscriptionPanelState(ctx context.Context, custo
 		return errors.New("panel user is required")
 	}
 	if s.subscriptionRepository != nil && subscription != nil && subscription.ID > 0 {
-		return s.subscriptionRepository.UpdatePanelState(ctx, subscription, user.ID, user.UUID, user.SubscriptionURL, user.ExpireAt)
+		if err := s.subscriptionRepository.UpdatePanelState(ctx, subscription, user.ID, user.UUID, user.SubscriptionURL, user.ExpireAt); err != nil {
+			return err
+		}
+		prepared, err := s.remnawaveClient.PrepareQuotaUser(ctx, user)
+		if err != nil {
+			return err
+		}
+		if prepared.SubscriptionURL != user.SubscriptionURL {
+			return s.subscriptionRepository.UpdatePanelState(ctx, subscription, prepared.ID, prepared.UUID, prepared.SubscriptionURL, prepared.ExpireAt)
+		}
+		return nil
 	}
 	return s.customerRepository.UpdateFields(ctx, customer.ID, map[string]interface{}{
 		"subscription_link": user.SubscriptionURL,

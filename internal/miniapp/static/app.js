@@ -14,7 +14,7 @@ import { tokenizeSupportMessage } from "./support-message.mjs";
 import { reviewRewardDraft, reviewRewardsFromDraft, reviewRewardSummary } from "./review-rewards.mjs";
 
 import { syncTelegramLayout, configureTelegramLaunch } from "./telegram-layout.mjs";
-import { validDeviceTrafficRules, sortedDeviceTrafficRules, deviceTrafficLabels } from "./device-traffic.mjs";
+import { validDeviceTrafficRules, sortedDeviceTrafficRules, deviceTrafficLabels, deviceTrafficProgress } from "./device-traffic.mjs";
 import { renderSMTPSettings } from "./admin-smtp.mjs";
 import { mountLocalizationSelects, closeLocalizationMenu } from "./localization-select.mjs";
 import { syncCustomBackground, probeBackground, draggedPosition } from "./custom-background.mjs";
@@ -4298,6 +4298,7 @@ function runtimePlanToPayload(plan, index = 0) {
 		trafficLimitBytes: trafficGb > 0 ? trafficGb * (1024 ** 3) : 0,
 		deviceLimitCount: Math.max(0, Number(plan?.deviceLimit || 0)),
 		deviceTrafficRules: plan?.deviceTrafficEnabled ? sortedDeviceTrafficRules(plan.deviceTrafficRules) : [],
+		deviceTrafficEnforced: Boolean(plan?.deviceTrafficEnabled && plan?.deviceTrafficEnforced),
 		variant: trafficGb === 0 || plan?.unlimitedTraffic ? "unlimited" : "regular",
 		wide: Boolean(plan?.wide),
 		titleRu: String(plan?.titleRu || ""),
@@ -8447,7 +8448,7 @@ function renderInternalSquadSelector(selectedValues, inputKey, emptyMeansAll = t
 		? "Если выбраны все, новые пользователи добавляются во все внутренние сквады."
 		: "Выберите один или несколько сквадов для временного доступа.";
 	const everySelected = selectedCount === squads.length;
-	return `<div class="admin-squad-selector" data-squad-selector="${escapeAttribute(inputKey)}"><div class="admin-squads__toolbar"><button class="${everySelected ? "is-all-selected" : ""}" type="button" data-action="admin-select-all-squads" data-value="${escapeAttribute(inputKey)}" aria-pressed="${everySelected}" aria-label="${everySelected ? "Снять выбор со всех сквадов" : "Выбрать все сквады"}">${icon("check")}Выбрать все</button><span>${selectedCount} из ${squads.length}</span></div><div class="admin-squads__list">${squads.map((squad) => `<label class="admin-squad-option"><input type="checkbox" data-input="${escapeAttribute(inputKey)}" value="${escapeAttribute(squad.uuid)}" ${allSelected || selected.includes(String(squad.uuid)) ? "checked" : ""}><span><strong>${escapeHtml(squad.name || "Без названия")}</strong></span></label>`).join("")}</div>${hint ? `<p class="admin-squads__hint">${hint}</p>` : ""}</div>`;
+	return `<div class="admin-squad-selector" data-squad-selector="${escapeAttribute(inputKey)}"><div class="admin-squads__toolbar"><button class="${everySelected ? "is-all-selected" : ""}" type="button" data-action="admin-select-all-squads" data-value="${escapeAttribute(inputKey)}" aria-pressed="${everySelected}" aria-label="${everySelected ? "Снять выбор со всех сквадов" : "Выбрать все сквады"}"><span class="control-switch-indicator" aria-hidden="true"></span>Выбрать все</button><span>${selectedCount} из ${squads.length}</span></div><div class="admin-squads__list">${squads.map((squad) => `<label class="admin-squad-option"><input type="checkbox" data-input="${escapeAttribute(inputKey)}" value="${escapeAttribute(squad.uuid)}" ${allSelected || selected.includes(String(squad.uuid)) ? "checked" : ""}><span><strong>${escapeHtml(squad.name || "Без названия")}</strong></span></label>`).join("")}</div>${hint ? `<p class="admin-squads__hint">${hint}</p>` : ""}</div>`;
 }
 
 function adminSquadSelection(inputKey) {
@@ -8715,7 +8716,9 @@ function renderAdminDeviceTrafficEditor(plan) {
 	return `<section class="admin-device-traffic">
 		<label class="admin-device-traffic__toggle"><span><strong>Трафик по устройствам</strong><small>Показывать подписи на карточке тарифа и в окне устройств</small></span><input type="checkbox" data-input="admin-plan-device-traffic-enabled" ${enabled ? "checked" : ""}></label>
 		<div class="admin-device-traffic__body" ${enabled ? "" : "hidden"}>
-			<div class="admin-device-traffic__labels" aria-hidden="true"><span>Устройств</span><span>Трафик, GB</span><span></span></div>
+			<label class="admin-device-traffic__toggle"><span><strong>Применять лимиты к устройствам</strong><small>Отдельный расход и лимит для каждого устройства</small></span><input type="checkbox" data-input="admin-plan-device-traffic-enforced" ${plan.deviceTrafficEnforced ? "checked" : ""}></label>
+			${plan.deviceTrafficEnforced ? `<p class="admin-device-traffic__hint">Номер строки — порядковый номер устройства. Для устройств без строки отдельного лимита нет. Общий лимит тарифа сохраняется. Нужен клиент с HWID (Happ или v2RayTun). После включения импортируйте общую ссылку заново. В панели появятся технические записи устройств; удаление устройства не обнуляет расход его места.</p>` : ""}
+			<div class="admin-device-traffic__labels" aria-hidden="true"><span>${plan.deviceTrafficEnforced ? "№ устройства" : "Устройств"}</span><span>Трафик, GB</span><span></span></div>
 			${rows.map((rule, index) => `<div class="admin-device-traffic__row">
 				<input class="admin-field__control" type="number" inputmode="numeric" min="1" max="1000" step="1" data-input="admin-plan-device-traffic-count" data-index="${index}" aria-label="Количество устройств, строка ${index + 1}" value="${escapeAttribute(rule.devices ?? "")}" placeholder="1">
 				<input class="admin-field__control" type="number" inputmode="numeric" min="1" max="1000000" step="1" data-input="admin-plan-device-traffic-gb" data-index="${index}" aria-label="Трафик в GB, строка ${index + 1}" value="${escapeAttribute(rule.trafficGb ?? "")}" placeholder="20">
@@ -8740,8 +8743,8 @@ function editAdminDeviceTraffic(action, index) {
 	if (action === "add") app.querySelector(`[data-input="admin-plan-device-traffic-gb"][data-index="${rules.length - 1}"]`)?.focus();
 }
 
-function renderDeviceTrafficNote(rules) {
-	const labels = deviceTrafficLabels(rules, state.locale);
+function renderDeviceTrafficNote(rules, enforced = false) {
+	const labels = deviceTrafficLabels(rules, state.locale, enforced);
 	return labels.length ? `<div class="device-traffic-note">${labels.map((label) => {
 		const [devices, traffic] = label.split(" — ");
 		return `<span class="device-traffic-note__row"><span>${escapeHtml(devices)}</span><span class="device-traffic-note__value">— ${escapeHtml(traffic)}</span></span>`;
@@ -11123,7 +11126,7 @@ function renderPlanCard(plan, selected) {
 		  ${hasDuration && planHasCustomTitle(plan, state.locale) ? `<div class="pricing-card__spec">${escapeHtml(getPlanDurationTitle(plan.months, plan.days, state.locale))}</div>` : ""}
 		  <div class="pricing-card__spec">${escapeHtml(hasDuration ? details.traffic : localizedText("Укажите трафик", "Set traffic", "ترافیک را مشخص کنید"))}</div>
 		  <div class="pricing-card__spec">${escapeHtml(hasDuration ? details.devices : localizedText("Укажите устройства", "Set device limit", "تعداد دستگاه را مشخص کنید"))}</div>
-		  ${renderDeviceTrafficNote(plan.deviceTrafficRules)}
+		  ${renderDeviceTrafficNote(plan.deviceTrafficRules, plan.deviceTrafficEnforced)}
         </div>
         <div class="pricing-card__price-stack">
           <div class="pricing-card__price-row">
@@ -11391,7 +11394,7 @@ function renderDevicesModal() {
           </div>
           <button class="header__btn" type="button" data-action="close-devices-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button>
         </div>
-        ${renderDeviceTrafficNote(state.data?.subscription?.deviceTrafficRules)}
+        ${renderDeviceTrafficNote(state.data?.subscription?.deviceTrafficRules, state.data?.subscription?.deviceTrafficEnforced)}
         ${devices.length ? `<div class="device-list" role="list">${devices.map((device) => renderDeviceRow(device)).join("")}</div>` : `
           <div class="device-empty">
             <div class="device-empty__icon">${icon("users")}</div>
@@ -11519,6 +11522,19 @@ function renderReviewDetailModal() {
   `;
 }
 
+function renderDeviceTrafficProgress(device) {
+  const traffic = deviceTrafficProgress(device);
+  if (!traffic) return "";
+  if (traffic.unknown) return `<span class="device-row__meta">${escapeHtml(localizedText("Расход временно недоступен", "Usage temporarily unavailable", "مصرف موقتاً در دسترس نیست"))}</span>`;
+  const label = formatTrafficBadgeLabel(traffic.used, traffic.limit, state.locale);
+  const percent = new Intl.NumberFormat(intlLocale(state.locale), {maximumFractionDigits: 1}).format(traffic.percent);
+  return `<div class="device-usage ${traffic.exceeded ? "is-exhausted" : ""}">
+    <div class="device-usage__labels"><span>${escapeHtml(label)}</span><span>${traffic.limit > 0 ? `${percent}%` : "∞"}</span></div>
+    <div class="device-usage__track" role="progressbar" aria-label="${escapeAttribute(localizedText("Использовано трафика", "Traffic used", "ترافیک مصرف شده"))}" ${traffic.limit > 0 ? `aria-valuemin="0" aria-valuemax="100" aria-valuenow="${traffic.percent.toFixed(1)}"` : ""} aria-valuetext="${escapeAttribute(label)}"><span style="width:${traffic.percent.toFixed(2)}%"></span></div>
+    ${traffic.exceeded ? `<span class="device-usage__status">${escapeHtml(localizedText("Лимит исчерпан", "Limit reached", "سقف مصرف تمام شده"))}</span>` : ""}
+  </div>`;
+}
+
 function renderDeviceRow(device) {
   const copy = deviceText();
   const busy = state.deviceBusyHwid === device.hwid;
@@ -11539,8 +11555,10 @@ function renderDeviceRow(device) {
       <span class="device-row__icon" aria-hidden="true">${icon(platformIconName)}</span>
       <div class="device-row__content">
         <strong class="device-row__title">${escapeHtml(title)}</strong>
+        ${Number.isInteger(device.slot) && device.slot > 0 ? `<span class="device-row__meta">${escapeHtml(localizedText(`Устройство №${device.slot}`, `Device #${device.slot}`, `دستگاه ${device.slot}`))}</span>` : ""}
         ${secondary ? `<span class="device-row__meta">${escapeHtml(secondary)}</span>` : ""}
         <span class="device-row__date">${escapeHtml(`${copy.added} ${formatDeviceCreatedAt(device.createdAt)}`)}</span>
+        ${renderDeviceTrafficProgress(device)}
       </div>
       <button class="device-row__delete ${busy ? "is-loading" : ""}" type="button" data-action="delete-device" data-value="${escapeAttribute(device.hwid || "")}" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(copy.delete)}">${icon(busy ? "refresh" : "trash")}</button>
     </div>
@@ -12800,7 +12818,13 @@ function bindRootActions() {
 		if (inputKey.startsWith("admin-plan-") && state.adminPlanFormDraft) {
 			if (inputKey === "admin-plan-device-traffic-enabled") {
 				state.adminPlanFormDraft.deviceTrafficEnabled = Boolean(target.checked);
+				if (!target.checked) state.adminPlanFormDraft.deviceTrafficEnforced = false;
 				if (target.checked && !state.adminPlanFormDraft.deviceTrafficRules?.length) state.adminPlanFormDraft.deviceTrafficRules = [{devices: 1, trafficGb: ""}];
+				render({ preserveScroll: true });
+				return;
+			}
+			if (inputKey === "admin-plan-device-traffic-enforced") {
+				state.adminPlanFormDraft.deviceTrafficEnforced = Boolean(target.checked);
 				render({ preserveScroll: true });
 				return;
 			}
@@ -15089,6 +15113,7 @@ function applyAdminPlanEdit() {
 	if (priceRub < 0 || priceRub > 1000000) return showToast(state.locale === "en" ? "Enter a valid price" : "Укажите корректную цену", "danger");
 	if (trafficGb < 0 || trafficGb > 1000000 || deviceLimit < 0 || deviceLimit > 1000) return showToast(state.locale === "en" ? "Check the plan limits" : "Проверьте лимиты тарифа", "danger");
 	if (draft.deviceTrafficEnabled && !validDeviceTrafficRules(draft.deviceTrafficRules)) return showToast("Укажите 1–1000 устройств и 1–1000000 GB в каждой строке. Количество устройств не должно повторяться.", "danger");
+	if (draft.deviceTrafficEnforced && (deviceLimit < 1 || draft.deviceTrafficRules?.some((rule) => rule.devices > deviceLimit))) return showToast("Задайте лимит устройств тарифа. Номера устройств в строках не должны превышать этот лимит.", "danger");
 	const current = plans[index];
 	plans[index] = {
 		...current,
@@ -15102,6 +15127,7 @@ function applyAdminPlanEdit() {
 		unlimitedTraffic: trafficGb === 0,
 		deviceLimit,
 		deviceTrafficEnabled: Boolean(draft.deviceTrafficEnabled),
+		deviceTrafficEnforced: Boolean(draft.deviceTrafficEnabled && draft.deviceTrafficEnforced),
 		deviceTrafficRules: draft.deviceTrafficEnabled ? sortedDeviceTrafficRules(draft.deviceTrafficRules) : [],
 		titleRu: getPlanDurationTitle(months, days, "ru"),
 		titleEn: getPlanDurationTitle(months, days, "en"),

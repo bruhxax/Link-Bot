@@ -360,6 +360,7 @@ type PlanSettings struct {
 	UnlimitedTraffic         bool                         `json:"unlimitedTraffic"`
 	DeviceLimit              int                          `json:"deviceLimit"`
 	DeviceTrafficEnabled     bool                         `json:"deviceTrafficEnabled"`
+	DeviceTrafficEnforced    bool                         `json:"deviceTrafficEnforced"`
 	DeviceTrafficRules       []planbook.DeviceTrafficRule `json:"deviceTrafficRules,omitempty"`
 	Wide                     bool                         `json:"wide"`
 	InternalSquadUUIDs       []string                     `json:"internalSquadUuids"`

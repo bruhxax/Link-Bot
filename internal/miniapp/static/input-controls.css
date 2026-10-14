@@ -1,0 +1,85 @@
+/* Numeric fields are edited directly, without browser or library steppers. */
+.admin-device-traffic__hint { margin: 10px 0; color: var(--muted); font-size: 11px; line-height: 1.65; }
+.device-usage { margin-top: 10px; width: 100%; min-width: 0; }
+.device-usage__labels { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; line-height: 1.5; }
+.device-usage__track { height: 6px; margin-top: 5px; overflow: hidden; border-radius: 999px; background: var(--accent-soft, #acb8cc26); }
+.device-usage__track > span { display: block; height: 100%; border-radius: inherit; background: var(--accent, #acb8cc); }
+.device-usage.is-exhausted .device-usage__track > span { background: #d78383; }
+.device-usage__status { display: block; margin-top: 5px; font-size: 10px; color: #d78383; }
+:root input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+:root input[type="number"]::-webkit-inner-spin-button,
+:root input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+:root .mantine-NumberInput-controls { display: none !important; }
+
+/* Retain checked/indeterminate behavior in tables while presenting a switch. */
+:root input[type="checkbox"]:not(.mantine-Switch-input):not(:where(.admin-toggle input, .admin-integration__toggle input, .admin-moynalog__switch input, .payments-switch__input, .theme-switch__input, .admin-access__permission input)),
+:root .mantine-CheckboxIndicator-indicator,
+:root .control-switch-indicator,
+:root .admin-access__permission > i,
+:root .payments-switch__box {
+  appearance: none !important;
+  position: relative;
+  box-sizing: border-box;
+  width: 34px !important;
+  height: 20px !important;
+  min-width: 34px;
+  flex: 0 0 34px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line, #323741) !important;
+  border-radius: 999px !important;
+  background: var(--control-bg, #20242b) !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+:root input[type="checkbox"]:not(.mantine-Switch-input)::before,
+:root .mantine-CheckboxIndicator-indicator::before,
+:root .control-switch-indicator::before,
+:root .admin-access__permission > i::before,
+:root .payments-switch__box::before {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  top: 2px;
+  left: 2px;
+  border-radius: 50%;
+  background: var(--muted, #979ba5);
+  transition: transform 180ms ease, background-color 180ms ease;
+}
+:root input[type="checkbox"]:checked:not(.mantine-Switch-input),
+:root .mantine-CheckboxIndicator-indicator[data-checked],
+:root [aria-pressed="true"] .control-switch-indicator,
+:root .admin-access__permission input:checked + i,
+:root .payments-switch__input:checked + .payments-switch__box {
+  background: var(--accent-soft, #acb8cc26) !important;
+  border-color: var(--accent, #acb8cc) !important;
+}
+:root input[type="checkbox"]:checked:not(.mantine-Switch-input)::before,
+:root .mantine-CheckboxIndicator-indicator[data-checked]::before,
+:root [aria-pressed="true"] .control-switch-indicator::before,
+:root .admin-access__permission input:checked + i::before,
+:root .payments-switch__input:checked + .payments-switch__box::before {
+  transform: translateX(14px);
+  background: var(--accent, #acb8cc);
+}
+:root input[type="checkbox"]:indeterminate:not(.mantine-Switch-input)::before,
+:root input[type="checkbox"][data-indeterminate]:not(.mantine-Switch-input)::before,
+:root .mantine-CheckboxIndicator-indicator[data-indeterminate]::before { transform: translateX(7px); background: var(--accent, #acb8cc); }
+:root .mantine-Checkbox-inner { width: 34px; height: 20px; flex: 0 0 34px; }
+:root .control-switch-indicator { display: inline-block; }
+:root .mantine-Checkbox-icon,
+:root .mantine-CheckboxIndicator-icon,
+:root .admin-access__permission > i > svg,
+:root .payments-switch__box::after { display: none !important; }
+:root .admin-squad-option { grid-template-columns: 34px minmax(0, 1fr); }
+:root input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent, #acb8cc); outline-offset: 3px; }
+:root input[type="checkbox"]:disabled:not(.mantine-Switch-input):not(:where(.admin-toggle input, .admin-integration__toggle input, .admin-moynalog__switch input, .payments-switch__input, .theme-switch__input, .admin-access__permission input)) { opacity: .48; cursor: default; }
+@media (prefers-reduced-motion: reduce) {
+  :root input[type="checkbox"], :root input[type="checkbox"]::before,
+  :root .mantine-CheckboxIndicator-indicator, :root .mantine-CheckboxIndicator-indicator::before,
+  :root .control-switch-indicator, :root .control-switch-indicator::before,
+  :root .admin-access__permission > i::before, :root .payments-switch__box::before { transition: none; }
+}
