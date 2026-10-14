@@ -118,7 +118,8 @@ h2{margin:0 0 9px;font-size:clamp(26px,4vw,40px);line-height:1.2;font-weight:700
 @media(prefers-reduced-motion:reduce){.status-dot::before{animation:none;opacity:.3;transform:none}}
 .plans-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .plans-grid[data-count="4"]{grid-template-columns:repeat(4,minmax(0,1fr))}
-.plan-card{display:flex;flex-direction:column;min-height:275px;padding:21px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+.plan-card{position:relative;display:flex;flex-direction:column;min-width:0;min-height:275px;padding:21px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+.plan-card__unlimited-badge,.plan-card__traffic-mobile{display:none}
 .plan-card--recommended{border-color:color-mix(in srgb,var(--accent) 55%,var(--border))}
 .plan-card__top{display:flex;justify-content:space-between;align-items:start;gap:12px}
 .plan-card__title{overflow-wrap:anywhere;font-size:15px;font-weight:700}
@@ -176,3 +177,22 @@ h2{margin:0 0 9px;font-size:clamp(26px,4vw,40px);line-height:1.2;font-weight:700
 :root[data-frames="off"] main *,
 :root[data-frames="off"] main *::before,
 :root[data-frames="off"] main *::after{border-color:transparent!important}
+
+/* Match the cabinet's compact two-column plan cards on phones. */
+@media(max-width:620px){
+  .plans-grid,.plans-grid[data-count="4"]{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .plan-card{min-height:112px;padding:10px;border-radius:8px;text-align:left}
+  .plan-card--wide{grid-column:1/-1;min-height:92px}
+  .plan-card__top{order:1;gap:0}
+  .plan-card__top>div{min-width:0;width:100%}
+  .plan-card--unlimited .plan-card__title{padding-right:54px}
+  .plan-card__title{font-size:13px;font-weight:800;line-height:1.4}
+  .plan-card__duration{margin-top:6px;font-size:9px;line-height:1.2}
+  .plan-card__badge,.plan-card__action,.plan-card__traffic-desktop,.plan-card__activation-note{display:none}
+  .plan-card__traffic-mobile{display:inline}
+  .plan-card__features{order:2;gap:6px;margin:6px 0 0;padding:0;border:0;font-size:9px;line-height:1.2}
+  .plan-card__features li{overflow-wrap:anywhere}
+  .plan-card__features li::before{content:none}
+  .plan-card__price{order:3;margin:auto 0 0;padding-top:14px;font-size:13px;font-weight:800;line-height:1.15;overflow-wrap:anywhere}
+  .plan-card__unlimited-badge{position:absolute;top:0;right:0;display:flex;align-items:center;justify-content:center;width:60px;height:24px;padding:0 6px;border-radius:0 8px 0 12px;background:color-mix(in srgb,var(--accent) 24%,var(--surface));color:var(--text);font-size:8px;font-weight:800;line-height:1;white-space:nowrap}
+}
