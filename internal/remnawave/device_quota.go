@@ -17,9 +17,31 @@ type DeviceQuotaBridge interface {
 	Observe(context.Context, *PanelUser, *UserState) error
 	DeleteDevice(context.Context, int64, uuid.UUID, string) ([]UserDevice, bool, error)
 	DecorateCatalog(context.Context, []PanelUser) error
+	ControlDevice(context.Context, int64, uuid.UUID, string, string, *int64) error
 }
 
 const DeviceQuotaTag = "LB_DEVICE_QUOTA"
+
+var ErrDropConnectionsUnsupported = errors.New("panel does not support dropping connections")
+
+func (r *Client) ControlDevice(ctx context.Context, id int64, uid uuid.UUID, hwid, action string, limit *int64) error {
+	if r.deviceQuota == nil {
+		return errors.New("управление устройствами не включено")
+	}
+	return r.deviceQuota.ControlDevice(ctx, id, uid, hwid, action, limit)
+}
+
+func (r *Client) DropQuotaConnections(ctx context.Context, userID int64) error {
+	if userID <= 0 {
+		return ErrDropConnectionsUnsupported
+	}
+	err := r.doAPIJSON(ctx, http.MethodPost, "/api/connections/drop", map[string]any{"dropBy": map[string]any{"by": "userIds", "userIds": []int64{userID}}, "targetNodes": map[string]any{"target": "allNodes"}}, nil)
+	var apiErr *remnawaveAPIError
+	if errors.As(err, &apiErr) && (apiErr.StatusCode == 404 || apiErr.StatusCode == 405 || apiErr.StatusCode == 501) {
+		return ErrDropConnectionsUnsupported
+	}
+	return err
+}
 
 func (r *Client) SetDeviceQuotaBridge(bridge DeviceQuotaBridge) { r.deviceQuota = bridge }
 func (r *Client) RawUser(ctx context.Context, id int64, uid uuid.UUID) (*PanelUser, error) {

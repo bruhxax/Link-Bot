@@ -40,6 +40,7 @@ var (
 var featureOrder = []string{
 	"mini_app",
 	"additional_subscriptions",
+	"personal_device_profiles",
 	"google",
 	"email_auth",
 	"stars",
@@ -345,6 +346,7 @@ type SubPageClientSettings struct {
 }
 
 type PlanSettings struct {
+	DeviceTrafficUserManaged bool                         `json:"-"`
 	ID                       string                       `json:"id"`
 	Enabled                  bool                         `json:"enabled"`
 	Months                   int                          `json:"months"`
@@ -489,6 +491,7 @@ func DefaultSettings() Settings {
 	for _, name := range featureOrder {
 		features[name] = true
 	}
+	features["personal_device_profiles"] = false
 	language := normalizeRuntimeLanguage(config.DefaultLanguage())
 	fontFamily := strings.ToLower(strings.TrimSpace(config.DefaultFont()))
 	if fontFamily != "montserrat" && fontFamily != "vazir" {

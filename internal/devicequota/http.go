@@ -52,6 +52,8 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var source string
+	var cacheSlot int
+	var useCached bool
 	err = s.store.Locked(ctx, b.ID, func(b *Binding, save func() error) error {
 		parent, e := s.panel.RawUser(ctx, b.ParentID, b.ParentUUID)
 		if e != nil {
@@ -59,6 +61,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if subID == 0 || b.SubscriptionID == nil || subID != *b.SubscriptionID {
 			return ErrUnavailable
+		}
+		hwid := strings.TrimSpace(r.Header.Get("X-Hwid"))
+		if isBlocked(b, hwid) {
+			return ErrDeviceBlocked
 		}
 		if !isActive(parent) {
 			return ErrUnavailable
@@ -70,7 +76,6 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			source = parent.SubscriptionURL
 			return nil
 		}
-		hwid := strings.TrimSpace(r.Header.Get("X-Hwid"))
 		if !hwidPattern.MatchString(hwid) {
 			return errHWID
 		}
@@ -101,6 +106,8 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// created just before a crash without allocating a fresh traffic allowance.
 			slot.Device = remnawave.UserDevice{Hwid: hwid, Platform: limitedHeader(r, "X-Device-Os"), OSVersion: limitedHeader(r, "X-Ver-Os"), DeviceModel: limitedHeader(r, "X-Device-Model"), UserAgent: limitedHeader(r, "User-Agent"), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 			slot.Registered = false
+			slot.Paused = false
+			slot.UserLimit = nil
 			if e = save(); e != nil {
 				return e
 			}
@@ -134,10 +141,12 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if e != nil {
 			return e
 		}
-		if !isActive(child) || slot.Number > *parent.HwidDeviceLimit {
+		if (!isActive(child) && !slot.Paused) || !slotAllowed(slot.Number, parent.HwidDeviceLimit) {
 			return ErrUnavailable
 		}
 		source = child.SubscriptionURL
+		cacheSlot = slot.Number
+		useCached = slot.Paused
 		return nil
 	})
 	if err != nil {
@@ -151,11 +160,32 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			code = 403
 			message = "Device limit reached. Remove an old device in your cabinet."
 		}
+		if errors.Is(err, ErrDeviceBlocked) {
+			code = 403
+			message = ErrDeviceBlocked.Error()
+		}
 		if errors.Is(err, ErrUnavailable) {
 			code = 403
 			message = "Subscription expired, disabled, or traffic limit reached."
 		}
 		http.Error(w, message, code)
+		return
+	}
+	if cacheSlot > 0 {
+		var cfg *Configuration
+		if useCached {
+			cfg, err = s.store.LoadConfig(ctx, b.ID, cacheSlot, configurationFormat(r), strings.TrimSpace(r.Header.Get("X-Hwid")), sourceHash(source))
+		} else {
+			cfg, err = s.fetch(ctx, r, source)
+			if err == nil {
+				_ = s.store.SaveConfig(ctx, b.ID, cacheSlot, configurationFormat(r), strings.TrimSpace(r.Header.Get("X-Hwid")), sourceHash(source), cfg)
+			}
+		}
+		if err != nil || cfg == nil {
+			http.Error(w, "profile temporarily unavailable; it will resume after enabling the device", 503)
+			return
+		}
+		s.writeConfiguration(w, cfg)
 		return
 	}
 	if err = s.proxy(ctx, w, r, source); err != nil {
@@ -181,10 +211,11 @@ func findSlot(b *Binding, hwid string) *Slot {
 	return nil
 }
 func availableSlot(b *Binding, limit *int) int {
-	if limit == nil || *limit < 1 || *limit > 1000 {
-		return 0
+	upper := len(b.Slots) + 1
+	if limit != nil && *limit > 0 && *limit < upper {
+		upper = *limit
 	}
-	for n := 1; n <= *limit; n++ {
+	for n := 1; n <= upper; n++ {
 		occupied := false
 		for _, slot := range b.Slots {
 			if slot.Number == n && (slot.Device.Hwid != "" || slot.RevokeHWID != "") {
@@ -199,16 +230,25 @@ func availableSlot(b *Binding, limit *int) int {
 	return 0
 }
 func (s *Service) proxy(ctx context.Context, w http.ResponseWriter, r *http.Request, source string) error {
+	cfg, err := s.fetch(ctx, r, source)
+	if err != nil {
+		return err
+	}
+	s.writeConfiguration(w, cfg)
+	return nil
+}
+
+func (s *Service) fetch(ctx context.Context, r *http.Request, source string) (*Configuration, error) {
 	u, err := url.Parse(source)
 	if err != nil || u.Host == "" || u.User != nil || (u.Scheme != "https" && u.Scheme != "http") {
-		return ErrUnavailable
+		return nil, ErrUnavailable
 	}
 	if strings.HasSuffix(u.Path, Route) || strings.Contains(u.Path, Route) {
-		return ErrUnavailable
+		return nil, ErrUnavailable
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, key := range []string{"User-Agent", "Accept", "X-Hwid", "X-Device-Os", "X-Ver-Os", "X-Device-Model"} {
 		if value := r.Header.Get(key); value != "" {
@@ -223,28 +263,30 @@ func (s *Service) proxy(ctx context.Context, w http.ResponseWriter, r *http.Requ
 	}}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("subscription endpoint returned %d", resp.StatusCode)
+		return nil, fmt.Errorf("subscription endpoint returned %d", resp.StatusCode)
 	}
 	// Buffer before writing headers so upstream failures never yield a partial
 	// configuration followed by an error message. Do not forward auth/cookies.
 	const maxConfig = 8 << 20
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxConfig+1))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(body) > maxConfig {
-		return errors.New("subscription configuration too large")
+		return nil, errors.New("subscription configuration too large")
 	}
+	if len(strings.TrimSpace(string(body))) == 0 {
+		return nil, errors.New("subscription configuration is empty")
+	}
+	cfg := &Configuration{Body: body, Headers: map[string]string{}}
 	for _, key := range []string{"Content-Type", "Content-Disposition", "Subscription-Userinfo", "Profile-Title", "Profile-Update-Interval", "Support-Url", "Announce"} {
 		if value := resp.Header.Get(key); value != "" {
-			w.Header().Set(key, value)
+			cfg.Headers[key] = value
 		}
 	}
-	w.Header().Set("Profile-Web-Page-Url", s.origin)
-	_, err = w.Write(body)
-	return err
+	return cfg, nil
 }

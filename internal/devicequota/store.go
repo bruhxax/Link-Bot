@@ -15,13 +15,21 @@ import (
 )
 
 type Slot struct {
-	Number     int                  `json:"number"`
-	Device     remnawave.UserDevice `json:"device"`
-	ChildID    int64                `json:"childId"`
-	ChildUUID  uuid.UUID            `json:"childUuid"`
-	Registered bool                 `json:"registered"`
-	RevokeHWID string               `json:"revokeHwid,omitempty"`
-	Username   string               `json:"username,omitempty"`
+	Number      int                  `json:"number"`
+	Device      remnawave.UserDevice `json:"device"`
+	ChildID     int64                `json:"childId"`
+	ChildUUID   uuid.UUID            `json:"childUuid"`
+	Registered  bool                 `json:"registered"`
+	RevokeHWID  string               `json:"revokeHwid,omitempty"`
+	Username    string               `json:"username,omitempty"`
+	Paused      bool                 `json:"paused,omitempty"`
+	UserLimit   *int64               `json:"userLimit,omitempty"`
+	DropPending bool                 `json:"dropPending,omitempty"`
+}
+
+type BlockedDevice struct {
+	Device    remnawave.UserDevice `json:"device"`
+	BlockedAt time.Time            `json:"blockedAt"`
 }
 type Binding struct {
 	ID             int64
@@ -33,6 +41,8 @@ type Binding struct {
 	Squads         []string
 	Slots          []*Slot
 	Isolated       bool
+	Personal       bool
+	Blocked        []BlockedDevice
 }
 type Store interface {
 	FindParent(context.Context, string) (*Binding, error)
@@ -42,17 +52,19 @@ type Store interface {
 	List(context.Context) ([]*Binding, error)
 	Plan(context.Context, *remnawave.PanelUser) (int64, string, *trafficpolicy.Terms, error)
 	Candidates(context.Context, []string) ([]remnawave.PanelUser, error)
+	LoadConfig(context.Context, int64, int, string, string, string) (*Configuration, error)
+	SaveConfig(context.Context, int64, int, string, string, string, *Configuration) error
 }
 type PostgresStore struct{ pool *pgxpool.Pool }
 
 func NewPostgresStore(pool *pgxpool.Pool) *PostgresStore { return &PostgresStore{pool: pool} }
 
-const columns = `id,parent_key,parent_id,parent_uuid,subscription_id,token,squads,slots,isolated`
+const columns = `id,parent_key,parent_id,parent_uuid,subscription_id,token,squads,slots,isolated,personal,blocked`
 
 func scan(row pgx.Row) (*Binding, error) {
 	var b Binding
-	var squads, slots []byte
-	err := row.Scan(&b.ID, &b.ParentKey, &b.ParentID, &b.ParentUUID, &b.SubscriptionID, &b.Token, &squads, &slots, &b.Isolated)
+	var squads, slots, blocked []byte
+	err := row.Scan(&b.ID, &b.ParentKey, &b.ParentID, &b.ParentUUID, &b.SubscriptionID, &b.Token, &squads, &slots, &b.Isolated, &b.Personal, &blocked)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -63,6 +75,9 @@ func scan(row pgx.Row) (*Binding, error) {
 		return nil, err
 	}
 	if err = json.Unmarshal(slots, &b.Slots); err != nil {
+		return nil, err
+	}
+	if err = json.Unmarshal(blocked, &b.Blocked); err != nil {
 		return nil, err
 	}
 	return &b, nil
@@ -78,7 +93,7 @@ func (s *PostgresStore) Create(ctx context.Context, b *Binding) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.pool.Exec(ctx, `INSERT INTO device_traffic_binding(parent_key,parent_id,parent_uuid,subscription_id,token,squads) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(parent_key) DO NOTHING`, b.ParentKey, b.ParentID, b.ParentUUID, b.SubscriptionID, b.Token, string(squads))
+	_, err = s.pool.Exec(ctx, `INSERT INTO device_traffic_binding(parent_key,parent_id,parent_uuid,subscription_id,token,squads,personal) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(parent_key) DO NOTHING`, b.ParentKey, b.ParentID, b.ParentUUID, b.SubscriptionID, b.Token, string(squads), b.Personal)
 	return err
 }
 func (s *PostgresStore) Locked(ctx context.Context, id int64, fn func(*Binding, func() error) error) error {
@@ -120,7 +135,11 @@ func (s *PostgresStore) Locked(ctx context.Context, id int64, fn func(*Binding, 
 		if e != nil {
 			return e
 		}
-		_, e = conn.Exec(ctx, `UPDATE device_traffic_binding SET squads=$2,slots=$3,isolated=$4,updated_at=NOW() WHERE id=$1`, b.ID, string(squads), string(slots), b.Isolated)
+		blocked, e := json.Marshal(b.Blocked)
+		if e != nil {
+			return e
+		}
+		_, e = conn.Exec(ctx, `UPDATE device_traffic_binding SET squads=$2,slots=$3,isolated=$4,personal=$5,blocked=$6,updated_at=NOW() WHERE id=$1`, b.ID, string(squads), string(slots), b.Isolated, b.Personal, string(blocked))
 		return e
 	}
 	return fn(b, save)
@@ -167,8 +186,9 @@ func (s *PostgresStore) Candidates(ctx context.Context, plans []string) ([]remna
 	}
 	rows, err := s.pool.Query(ctx, `SELECT COALESCE(cs.panel_user_id,0),COALESCE(cs.panel_user_uuid,'00000000-0000-0000-0000-000000000000'::uuid),c.telegram_id
 	FROM customer_subscription cs JOIN customer c ON c.id=cs.customer_id
-	JOIN LATERAL (SELECT plan_id,device_traffic_terms FROM purchase WHERE customer_id=cs.customer_id AND subscription_id=cs.id AND status='paid' AND (month>0 OR days>0) ORDER BY paid_at DESC NULLS LAST,created_at DESC,id DESC LIMIT 1) p ON ((p.device_traffic_terms->>'enabled')::boolean AND (p.device_traffic_terms->>'enforced')::boolean) OR (p.device_traffic_terms IS NULL AND p.plan_id=ANY($1::text[]))
-	WHERE (cs.panel_user_id>0 OR cs.panel_user_uuid IS NOT NULL OR cs.is_primary)
+	LEFT JOIN LATERAL (SELECT plan_id,device_traffic_terms FROM purchase WHERE customer_id=cs.customer_id AND subscription_id=cs.id AND status='paid' AND (month>0 OR days>0) ORDER BY paid_at DESC NULLS LAST,created_at DESC,id DESC LIMIT 1) p ON TRUE
+	WHERE (((p.device_traffic_terms->>'enabled')::boolean AND (p.device_traffic_terms->>'enforced')::boolean) OR (p.device_traffic_terms IS NULL AND p.plan_id=ANY($1::text[])) OR '*'=ANY($1::text[]))
+	AND (cs.panel_user_id>0 OR cs.panel_user_uuid IS NOT NULL OR cs.is_primary)
 	AND NOT EXISTS(SELECT 1 FROM device_traffic_binding b WHERE b.subscription_id=cs.id AND ((b.parent_id=cs.panel_user_id AND b.parent_id>0) OR (b.parent_uuid=cs.panel_user_uuid AND b.parent_uuid<>'00000000-0000-0000-0000-000000000000'::uuid) OR (cs.panel_user_id IS NULL AND cs.panel_user_uuid IS NULL)))`, plans)
 	if err != nil {
 		return nil, err

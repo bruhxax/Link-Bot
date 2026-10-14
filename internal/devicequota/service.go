@@ -34,6 +34,7 @@ type Panel interface {
 	RegisterQuotaHWID(context.Context, *remnawave.PanelUser, remnawave.UserDevice) error
 	RevokeQuotaUser(context.Context, *remnawave.PanelUser) error
 	DeleteRawHWIDDevice(context.Context, int64, uuid.UUID, string) ([]remnawave.UserDevice, error)
+	DropQuotaConnections(context.Context, int64) error
 }
 type Settings interface{ Snapshot() runtimeconfig.Settings }
 type Service struct {
@@ -62,15 +63,33 @@ func (s *Service) plan(ctx context.Context, u *remnawave.PanelUser) (int64, *run
 	if err != nil {
 		return 0, nil, err
 	}
+	var plan *runtimeconfig.PlanSettings
 	if terms != nil {
-		return id, &runtimeconfig.PlanSettings{ID: planID, DeviceTrafficEnabled: terms.Enabled, DeviceTrafficEnforced: terms.Enforced, DeviceTrafficRules: append([]planbook.DeviceTrafficRule(nil), terms.Rules...)}, nil
-	}
-	for _, p := range s.settings.Snapshot().Plans {
-		if p.ID == planID {
-			return id, &p, nil
+		plan = &runtimeconfig.PlanSettings{ID: planID, DeviceTrafficEnabled: terms.Enabled, DeviceTrafficEnforced: terms.Enforced, DeviceTrafficRules: append([]planbook.DeviceTrafficRule(nil), terms.Rules...)}
+	} else {
+		for _, p := range s.settings.Snapshot().Plans {
+			if p.ID == planID {
+				copy := p
+				plan = &copy
+				break
+			}
 		}
 	}
-	return id, nil, nil
+	// Explicit purchased administrator rules always take precedence. The default
+	// affects only subscriptions without those rules, including panel/trial ones.
+	if enforced(plan) {
+		return id, plan, nil
+	}
+	if id > 0 {
+		b, e := s.store.FindParent(ctx, parentKey(u))
+		if e != nil {
+			return 0, nil, e
+		}
+		if s.settings.Snapshot().Features["personal_device_profiles"] || (b != nil && b.Personal) {
+			return id, &runtimeconfig.PlanSettings{ID: planID, DeviceTrafficEnabled: true, DeviceTrafficEnforced: true, DeviceTrafficUserManaged: true}, nil
+		}
+	}
+	return id, plan, nil
 }
 func enforced(p *runtimeconfig.PlanSettings) bool {
 	return p != nil && p.DeviceTrafficEnabled && p.DeviceTrafficEnforced
@@ -98,7 +117,7 @@ func (s *Service) binding(ctx context.Context, u *remnawave.PanelUser, p *runtim
 	if len(squads) == 0 {
 		return nil, errors.New("device quotas require at least one internal squad")
 	}
-	b = &Binding{ParentKey: parentKey(u), ParentID: u.ID, ParentUUID: u.UUID, SubscriptionID: &subID, Token: uuid.New(), Squads: squads}
+	b = &Binding{ParentKey: parentKey(u), ParentID: u.ID, ParentUUID: u.UUID, SubscriptionID: &subID, Token: uuid.New(), Squads: squads, Personal: p.DeviceTrafficUserManaged}
 	if err = s.store.Create(ctx, b); err != nil {
 		return nil, err
 	}
@@ -130,8 +149,8 @@ func (s *Service) synchronize(ctx context.Context, b *Binding, save func() error
 	}
 	activeMode := enforced(p) && b.SubscriptionID != nil
 	if activeMode {
-		if u.HwidDeviceLimit == nil || *u.HwidDeviceLimit <= 0 || *u.HwidDeviceLimit > 1000 {
-			return nil, 0, 0, errors.New("device quotas require a finite device limit")
+		if p.DeviceTrafficUserManaged {
+			b.Personal = true
 		}
 		ids := squadIDs(u)
 		if len(ids) > 0 {
@@ -176,6 +195,7 @@ func (s *Service) synchronize(ctx context.Context, b *Binding, save func() error
 			if _, err := s.panel.UpdateQuotaUser(ctx, child, map[string]any{"status": "DISABLED"}); err != nil {
 				return nil, 0, 0, err
 			}
+			s.dropConnections(ctx, b, slot, save)
 			if err := s.panel.RevokeQuotaUser(ctx, child); err != nil {
 				return nil, 0, 0, err
 			}
@@ -194,7 +214,10 @@ func (s *Service) synchronize(ctx context.Context, b *Binding, save func() error
 			}
 		}
 		limit := quota(p, slot.Number)
-		permitted := activeMode && slot.Device.Hwid != "" && slot.Number <= *u.HwidDeviceLimit && isActive(u) && (u.TrafficLimitBytes <= 0 || total < u.TrafficLimitBytes) && (limit <= 0 || child.UserTraffic.UsedTrafficBytes < limit)
+		if p != nil && p.DeviceTrafficUserManaged && slot.UserLimit != nil {
+			limit = *slot.UserLimit
+		}
+		permitted := activeMode && slot.Device.Hwid != "" && !slot.Paused && slotAllowed(slot.Number, u.HwidDeviceLimit) && isActive(u) && (u.TrafficLimitBytes <= 0 || total < u.TrafficLimitBytes) && (limit <= 0 || child.UserTraffic.UsedTrafficBytes < limit)
 		if permitted && !slot.Registered {
 			if err := s.panel.RegisterQuotaHWID(ctx, child, slot.Device); err != nil {
 				return nil, 0, 0, err
@@ -225,6 +248,12 @@ func (s *Service) synchronize(ctx context.Context, b *Binding, save func() error
 			fields["description"] = description
 		}
 		if child.Status != status {
+			if status == "DISABLED" && child.Status == "ACTIVE" {
+				slot.DropPending = true
+				if err := save(); err != nil {
+					return nil, 0, 0, err
+				}
+			}
 			fields["status"] = status
 		}
 		if strings.Join(squadIDs(child), ",") != strings.Join(squads, ",") {
@@ -250,12 +279,17 @@ func (s *Service) synchronize(ctx context.Context, b *Binding, save func() error
 				return nil, 0, 0, err
 			}
 		}
+		if slot.DropPending {
+			s.dropConnections(ctx, b, slot, save)
+		}
 		if slot.Device.Hwid != "" {
 			d := slot.Device
 			used := child.UserTraffic.UsedTrafficBytes
 			d.TrafficUsedBytes = &used
 			d.TrafficLimitBytes = &limit
 			d.Slot = slot.Number
+			d.Paused = slot.Paused
+			d.CanSetTrafficLimit = p != nil && p.DeviceTrafficUserManaged
 			devices = append(devices, d)
 		}
 	}
@@ -318,6 +352,8 @@ func (s *Service) Observe(ctx context.Context, u *remnawave.PanelUser, state *re
 		state.SubscriptionLink = &link
 		if enforced(p) {
 			state.DeviceTrafficManaged = true
+			state.DeviceTrafficUserManaged = p.DeviceTrafficUserManaged
+			state.BlockedDevices = blockedDevices(b)
 			state.Devices = devices
 			state.UsedDevices = len(devices)
 			state.DevicesLoaded = true
@@ -369,11 +405,10 @@ func (s *Service) DeleteDevice(ctx context.Context, id int64, uid uuid.UUID, hwi
 	}
 	var devices []remnawave.UserDevice
 	err = s.store.Locked(ctx, b.ID, func(b *Binding, save func() error) error {
-		found := false
+		found := isBlocked(b, hwid)
 		for _, slot := range b.Slots {
 			if slot.Device.Hwid == strings.TrimSpace(hwid) {
-				slot.RevokeHWID = slot.Device.Hwid
-				slot.Device.Hwid = ""
+				blockSlot(b, slot)
 				found = true
 				break
 			}
@@ -413,6 +448,9 @@ func (s *Service) reconcile(ctx context.Context) {
 		if enforced(&p) {
 			planIDs = append(planIDs, p.ID)
 		}
+	}
+	if s.settings.Snapshot().Features["personal_device_profiles"] {
+		planIDs = append(planIDs, "*")
 	}
 	candidates, discoverErr := s.store.Candidates(ctx, planIDs)
 	if discoverErr != nil {

@@ -54,6 +54,13 @@ func TestPostgresBindingCheckpointsAndPlanOwnership(t *testing.T) {
 	if _, err = pool.Exec(ctx, `ALTER TABLE purchase ADD COLUMN device_traffic_terms JSONB`); err != nil {
 		t.Fatal(err)
 	}
+	controlsMigration, err := os.ReadFile("../../db/migrations/000062_device_controls.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(controlsMigration)); err != nil {
+		t.Fatal(err)
+	}
 	store := NewPostgresStore(pool)
 	tg := int64(101)
 	parent := &remnawave.PanelUser{ID: 11, UUID: uuid.New(), TelegramID: &tg}
@@ -101,7 +108,10 @@ func TestPostgresBindingCheckpointsAndPlanOwnership(t *testing.T) {
 	}
 	err = store.Locked(ctx, b.ID, func(b *Binding, save func() error) error {
 		b.Isolated = true
-		b.Slots = []*Slot{{Number: 1, Device: remnawave.UserDevice{Hwid: "first-device-123"}, ChildID: 901, ChildUUID: uuid.New(), Registered: true}}
+		b.Personal = true
+		limit := int64(20 * 1024 * 1024 * 1024)
+		b.Blocked = []BlockedDevice{{Device: remnawave.UserDevice{Hwid: "blocked-device-123"}, BlockedAt: time.Now().UTC()}}
+		b.Slots = []*Slot{{Number: 1, Device: remnawave.UserDevice{Hwid: "first-device-123"}, ChildID: 901, ChildUUID: uuid.New(), Registered: true, Paused: true, UserLimit: &limit}}
 		return save()
 	})
 	if err != nil {
@@ -111,6 +121,20 @@ func TestPostgresBindingCheckpointsAndPlanOwnership(t *testing.T) {
 	restored, err := restarted.FindParent(ctx, parentKey(parent))
 	if err != nil || restored == nil || !restored.Isolated || len(restored.Slots) != 1 || restored.Slots[0].ChildID != 901 || restored.Token != token {
 		t.Fatalf("checkpoint not durable: %+v %v", restored, err)
+	}
+	if !restored.Personal || len(restored.Blocked) != 1 || !restored.Slots[0].Paused || restored.Slots[0].UserLimit == nil {
+		t.Fatal("device controls lost after restart")
+	}
+	cfgBody := &Configuration{Body: []byte("secret-device-profile"), Headers: map[string]string{"Content-Type": "text/plain"}}
+	if err = store.SaveConfig(ctx, b.ID, 1, "happ", "first-device-123", "source-secret-hash", cfgBody); err != nil {
+		t.Fatal(err)
+	}
+	cached, err := restarted.LoadConfig(ctx, b.ID, 1, "happ", "first-device-123", "source-secret-hash")
+	if err != nil || cached == nil || string(cached.Body) != string(cfgBody.Body) || cached.Headers["Content-Type"] != "text/plain" {
+		t.Fatalf("configuration not durable: %+v %v", cached, err)
+	}
+	if cached, err = restarted.LoadConfig(ctx, b.ID, 1, "happ", "different-device", "source-secret-hash"); err != nil || cached != nil {
+		t.Fatal("cache leaked to another HWID")
 	}
 	// A concurrent creator must not replace the first bearer URL or routing.
 	b.Token = uuid.New()

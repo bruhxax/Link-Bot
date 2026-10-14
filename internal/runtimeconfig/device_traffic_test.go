@@ -8,6 +8,20 @@ import (
 	planbook "link-bot/internal/plans"
 )
 
+func TestPersonalDeviceProfilesOptInSurvivesNormalization(t *testing.T) {
+	settings := DefaultSettings()
+	if settings.Features["personal_device_profiles"] {
+		t.Fatal("existing subscriptions must not be converted by default")
+	}
+	settings.Features["personal_device_profiles"] = true
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatal(err)
+	}
+	if !settings.Features["personal_device_profiles"] {
+		t.Fatal("feature toggle lost")
+	}
+}
+
 func TestDeviceTrafficAnnotationsRoundTripWithoutChangingLimits(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Plans = []PlanSettings{{ID: "annotated", Enabled: true, Months: 1, PriceRub: 100, TrafficGB: 100, DeviceLimit: 5,

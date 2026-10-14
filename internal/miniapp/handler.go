@@ -190,26 +190,29 @@ type userPayload struct {
 }
 
 type subscriptionPayload struct {
-	StateLoaded           bool                         `json:"stateLoaded"`
-	Status                string                       `json:"status"`
-	DaysLeft              int                          `json:"daysLeft"`
-	PlanMonths            int                          `json:"planMonths,omitempty"`
-	PlanDays              int                          `json:"planDays,omitempty"`
-	PlanLabel             string                       `json:"planLabel,omitempty"`
-	IsTrial               bool                         `json:"isTrial,omitempty"`
-	UserID                int64                        `json:"userId,omitempty"`
-	UserUUID              string                       `json:"userUuid,omitempty"`
-	ExpiresAt             string                       `json:"expiresAt,omitempty"`
-	SubscriptionLink      string                       `json:"subscriptionLink,omitempty"`
-	HasAccessLink         bool                         `json:"hasAccessLink"`
-	TrafficUsedBytes      int64                        `json:"trafficUsedBytes"`
-	TrafficLimitBytes     int64                        `json:"trafficLimitBytes"`
-	DeviceUsedCount       int                          `json:"deviceUsedCount"`
-	DeviceLimitCount      int                          `json:"deviceLimitCount"`
-	Devices               []devicePayload              `json:"devices"`
-	DevicesLoaded         bool                         `json:"devicesLoaded"`
-	DeviceTrafficRules    []planbook.DeviceTrafficRule `json:"deviceTrafficRules,omitempty"`
-	DeviceTrafficEnforced bool                         `json:"deviceTrafficEnforced"`
+	DeviceManagement         bool                         `json:"deviceManagement"`
+	DeviceTrafficUserManaged bool                         `json:"deviceTrafficUserManaged"`
+	BlockedDevices           []devicePayload              `json:"blockedDevices"`
+	StateLoaded              bool                         `json:"stateLoaded"`
+	Status                   string                       `json:"status"`
+	DaysLeft                 int                          `json:"daysLeft"`
+	PlanMonths               int                          `json:"planMonths,omitempty"`
+	PlanDays                 int                          `json:"planDays,omitempty"`
+	PlanLabel                string                       `json:"planLabel,omitempty"`
+	IsTrial                  bool                         `json:"isTrial,omitempty"`
+	UserID                   int64                        `json:"userId,omitempty"`
+	UserUUID                 string                       `json:"userUuid,omitempty"`
+	ExpiresAt                string                       `json:"expiresAt,omitempty"`
+	SubscriptionLink         string                       `json:"subscriptionLink,omitempty"`
+	HasAccessLink            bool                         `json:"hasAccessLink"`
+	TrafficUsedBytes         int64                        `json:"trafficUsedBytes"`
+	TrafficLimitBytes        int64                        `json:"trafficLimitBytes"`
+	DeviceUsedCount          int                          `json:"deviceUsedCount"`
+	DeviceLimitCount         int                          `json:"deviceLimitCount"`
+	Devices                  []devicePayload              `json:"devices"`
+	DevicesLoaded            bool                         `json:"devicesLoaded"`
+	DeviceTrafficRules       []planbook.DeviceTrafficRule `json:"deviceTrafficRules,omitempty"`
+	DeviceTrafficEnforced    bool                         `json:"deviceTrafficEnforced"`
 }
 
 type subscriptionsPayload struct {
@@ -229,16 +232,20 @@ type subscriptionItemPayload struct {
 }
 
 type devicePayload struct {
-	TrafficUsedBytes  *int64 `json:"trafficUsedBytes,omitempty"`
-	TrafficLimitBytes *int64 `json:"trafficLimitBytes,omitempty"`
-	Slot              int    `json:"slot,omitempty"`
-	Hwid              string `json:"hwid"`
-	Platform          string `json:"platform,omitempty"`
-	OSVersion         string `json:"osVersion,omitempty"`
-	DeviceModel       string `json:"deviceModel,omitempty"`
-	UserAgent         string `json:"userAgent,omitempty"`
-	CreatedAt         string `json:"createdAt,omitempty"`
-	UpdatedAt         string `json:"updatedAt,omitempty"`
+	Paused             bool   `json:"paused"`
+	Blocked            bool   `json:"blocked"`
+	BlockedAt          string `json:"blockedAt,omitempty"`
+	CanSetTrafficLimit bool   `json:"canSetTrafficLimit"`
+	TrafficUsedBytes   *int64 `json:"trafficUsedBytes,omitempty"`
+	TrafficLimitBytes  *int64 `json:"trafficLimitBytes,omitempty"`
+	Slot               int    `json:"slot,omitempty"`
+	Hwid               string `json:"hwid"`
+	Platform           string `json:"platform,omitempty"`
+	OSVersion          string `json:"osVersion,omitempty"`
+	DeviceModel        string `json:"deviceModel,omitempty"`
+	UserAgent          string `json:"userAgent,omitempty"`
+	CreatedAt          string `json:"createdAt,omitempty"`
+	UpdatedAt          string `json:"updatedAt,omitempty"`
 }
 
 type trialPayload struct {
@@ -825,6 +832,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/payments/autopay", h.withSession(h.handleToggleAutoPayment))
 	mux.HandleFunc("/api/mini-app/payments/remove-method", h.withSession(h.handleRemovePaymentMethod))
 	mux.HandleFunc("/api/mini-app/devices/delete", h.withSession(h.handleDeleteDeviceExact))
+	mux.HandleFunc("/api/mini-app/devices/control", h.withSession(h.handleControlDevice))
 	mux.HandleFunc("/api/mini-app/reviews/create", h.withSession(h.handleCreateReview))
 	mux.HandleFunc("/api/mini-app/admin/reviews/rewards", h.withSession(h.handleAdminReviewRewards))
 	mux.HandleFunc("/api/mini-app/reviews/reward/retry", h.withSession(h.handleRetryReviewReward))
@@ -3649,6 +3657,14 @@ func (h *Handler) handleDeleteDeviceExact(w http.ResponseWriter, r *http.Request
 		return
 	}
 	expectedUserID, expectedUserUUID := customerSubscriptionIdentity(activeSubscription)
+	if expectedUserID <= 0 && expectedUserUUID == uuid.Nil {
+		owned, lookupErr := h.panelStateForCustomerSubscription(r.Context(), customer, activeSubscription)
+		if lookupErr != nil || owned == nil || (owned.UserID <= 0 && owned.UserUUID == uuid.Nil) {
+			h.writeError(w, http.StatusForbidden, "device_subscription_mismatch", "Не удалось подтвердить владельца подписки")
+			return
+		}
+		expectedUserID, expectedUserUUID = owned.UserID, owned.UserUUID
+	}
 	if expectedUserID > 0 && req.UserID != expectedUserID {
 		h.writeError(w, http.StatusForbidden, "device_subscription_mismatch", "Устройство не относится к выбранной подписке")
 		return
@@ -3658,7 +3674,9 @@ func (h *Handler) handleDeleteDeviceExact(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	updatedDevices, err := h.remnawaveClient.DeleteUserHWIDDevice(r.Context(), req.UserID, userUUID, hwid)
+	// Use only the server-resolved identity, including when a client supplied an
+	// extra numeric ID alongside the correct UUID of a UUID-only subscription.
+	updatedDevices, err := h.remnawaveClient.DeleteUserHWIDDevice(r.Context(), expectedUserID, expectedUserUUID, hwid)
 	if err != nil {
 		slog.Error("mini app: exact delete device failed", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID), "userId", req.UserID, "userUuid", userUUID.String())
 		h.writeError(w, http.StatusInternalServerError, "device_delete_failed", "Не удалось удалить устройство")
@@ -4636,6 +4654,9 @@ func (h *Handler) buildSubscriptionPayload(customer *database.Customer, highestP
 		payload.DeviceLimitCount = maxInt(panelState.DeviceLimit, 0)
 		payload.Devices = buildDevicePayloads(panelState.Devices)
 		payload.DevicesLoaded = panelState.DevicesLoaded
+		payload.DeviceManagement = panelState.DeviceTrafficManaged
+		payload.DeviceTrafficUserManaged = panelState.DeviceTrafficUserManaged
+		payload.BlockedDevices = buildDevicePayloads(panelState.BlockedDevices)
 	}
 	if customer.ExpireAt != nil {
 		payload.ExpiresAt = customer.ExpireAt.UTC().Format(time.RFC3339)
@@ -4780,6 +4801,7 @@ func buildDevicePayloads(devices []remnawave.UserDevice) []devicePayload {
 	payload := make([]devicePayload, 0, len(devices))
 	for _, device := range devices {
 		payload = append(payload, devicePayload{
+			Paused: device.Paused, Blocked: device.Blocked, BlockedAt: formatOptionalTime(device.BlockedAt), CanSetTrafficLimit: device.CanSetTrafficLimit,
 			TrafficUsedBytes:  device.TrafficUsedBytes,
 			TrafficLimitBytes: device.TrafficLimitBytes,
 			Slot:              device.Slot,

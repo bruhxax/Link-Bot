@@ -61,6 +61,8 @@ type ProvisioningOptions struct {
 }
 
 type UserState struct {
+	BlockedDevices           []UserDevice
+	DeviceTrafficUserManaged bool
 	DeviceTrafficManaged     bool
 	PanelStatus              string
 	LifetimeUsedTrafficBytes int64
@@ -107,18 +109,22 @@ type AdminRebindResult struct {
 }
 
 type UserDevice struct {
-	TrafficUsedBytes  *int64
-	TrafficLimitBytes *int64
-	Slot              int
-	Hwid              string
-	UserID            int64
-	UserUUID          uuid.UUID
-	Platform          string
-	OSVersion         string
-	DeviceModel       string
-	UserAgent         string
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	Paused             bool
+	Blocked            bool
+	BlockedAt          time.Time
+	CanSetTrafficLimit bool
+	TrafficUsedBytes   *int64
+	TrafficLimitBytes  *int64
+	Slot               int
+	Hwid               string
+	UserID             int64
+	UserUUID           uuid.UUID
+	Platform           string
+	OSVersion          string
+	DeviceModel        string
+	UserAgent          string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 const (

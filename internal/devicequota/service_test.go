@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -27,6 +28,7 @@ type memoryStore struct {
 	failSave func(*Binding) bool
 	discover bool
 	terms    *trafficpolicy.Terms
+	configs  map[string]*Configuration
 }
 
 func (m *memoryStore) FindParent(_ context.Context, key string) (*Binding, error) {
@@ -78,6 +80,17 @@ func (m *memoryStore) Candidates(context.Context, []string) ([]remnawave.PanelUs
 
 type fakeSettings struct{ value runtimeconfig.Settings }
 
+func (m *memoryStore) LoadConfig(_ context.Context, id int64, n int, format, hwid, source string) (*Configuration, error) {
+	return m.configs[fmt.Sprintf("%d/%d/%s/%s/%s", id, n, format, hwid, source)], nil
+}
+func (m *memoryStore) SaveConfig(_ context.Context, id int64, n int, format, hwid, source string, cfg *Configuration) error {
+	if m.configs == nil {
+		m.configs = map[string]*Configuration{}
+	}
+	m.configs[fmt.Sprintf("%d/%d/%s/%s/%s", id, n, format, hwid, source)] = cfg
+	return nil
+}
+
 func (f *fakeSettings) Snapshot() runtimeconfig.Settings { return f.value }
 
 type fakePanel struct {
@@ -87,7 +100,10 @@ type fakePanel struct {
 	fetchError  int64
 	source      string
 	revokeError bool
+	drops       int
 }
+
+func (f *fakePanel) DropQuotaConnections(context.Context, int64) error { f.drops++; return nil }
 
 func (f *fakePanel) RawUser(_ context.Context, id int64, _ uuid.UUID) (*remnawave.PanelUser, error) {
 	if id == f.fetchError {

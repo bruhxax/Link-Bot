@@ -3,12 +3,53 @@ package remnawave
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/google/uuid"
 )
+
+func TestDropDeviceConnectionsUsesOnlySelectedNativeUser(t *testing.T) {
+	for _, status := range []int{200, 404, 403} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != "POST" || r.URL.Path != "/api/connections/drop" {
+					t.Errorf("wrong route %s %s", r.Method, r.URL.Path)
+				}
+				var body struct {
+					DropBy struct {
+						By      string  `json:"by"`
+						UserIDs []int64 `json:"userIds"`
+					} `json:"dropBy"`
+					TargetNodes struct {
+						Target string `json:"target"`
+					} `json:"targetNodes"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Error(err)
+				}
+				if body.DropBy.By != "userIds" || len(body.DropBy.UserIDs) != 1 || body.DropBy.UserIDs[0] != 12 || body.TargetNodes.Target != "allNodes" {
+					t.Errorf("unsafe connection drop: %+v", body)
+				}
+				w.WriteHeader(status)
+				w.Write([]byte(`{"response":{}}`))
+			}))
+			defer server.Close()
+			err := NewClient(server.URL, "secret", "remote").DropQuotaConnections(context.Background(), 12)
+			if status == 200 && err != nil {
+				t.Fatal(err)
+			}
+			if status == 404 && !errors.Is(err, ErrDropConnectionsUnsupported) {
+				t.Fatalf("wrong legacy fallback: %v", err)
+			}
+			if status == 403 && (err == nil || errors.Is(err, ErrDropConnectionsUnsupported)) {
+				t.Fatal("permission failure silently treated as unsupported")
+			}
+		})
+	}
+}
 
 func TestQuotaNativeRequestsAndRecoveryDoNotResetCounters(t *testing.T) {
 	created := false

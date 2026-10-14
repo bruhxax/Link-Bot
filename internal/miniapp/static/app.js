@@ -15,6 +15,7 @@ import { reviewRewardDraft, reviewRewardsFromDraft, reviewRewardSummary } from "
 
 import { syncTelegramLayout, configureTelegramLaunch } from "./telegram-layout.mjs";
 import { validDeviceTrafficRules, sortedDeviceTrafficRules, deviceTrafficLabels, deviceTrafficProgress } from "./device-traffic.mjs";
+import { deviceClientName } from "./device-client.mjs";
 import { renderSMTPSettings } from "./admin-smtp.mjs";
 import { mountLocalizationSelects, closeLocalizationMenu } from "./localization-select.mjs";
 import { syncCustomBackground, probeBackground, draggedPosition } from "./custom-background.mjs";
@@ -2659,6 +2660,10 @@ const state = {
   activeSupportThread: null,
   supportBusy: "",
   deviceBusyHwid: "",
+  devicesTab: "active",
+  deviceLimitEditHwid: "",
+  deviceLimitDraft: "",
+  deviceDeleteConfirmHwid: "",
   supportDraftMessage: "",
   supportReplyDraft: "",
   supportPendingMedia: null,
@@ -4124,6 +4129,7 @@ function requestTimeoutForURL(url) {
   if (path.includes("/api/mini-app/auth/email/link/start") || path.includes("/api/mini-app/admin/broadcast/email/preview")) return 40000;
   if (path.includes("/api/mini-app/bootstrap")) return 30000;
   if (path.includes("/api/mini-app/purchase")) return 45000;
+  if (/\/api\/mini-app\/devices\/(?:delete|control)$/.test(path)) return 60000;
 	if (path.includes("/api/mini-app/promocode/redeem")) return 30000;
   if (path.includes("/api/mini-app/support/send-media")) return 90000;
   if (path.includes("/api/mini-app/support/media-link")) return 30000;
@@ -4131,7 +4137,7 @@ function requestTimeoutForURL(url) {
 }
 
 function changesSubscriptionState(url) {
-  return /^\/api\/mini-app\/(purchase(?:$|\/)|trial\/activate$|promocode\/redeem$|devices\/delete$|subscriptions\/(?:select|create|rename|delete)$|admin\/users\/(?:balance|block|subscription(?:\/(?:settings|select|delete|reissue))?)$|admin\/subscriptions\/rebind$)/.test(String(url));
+  return /^\/api\/mini-app\/(purchase(?:$|\/)|trial\/activate$|promocode\/redeem$|devices\/(?:delete|control)$|subscriptions\/(?:select|create|rename|delete)$|admin\/users\/(?:balance|block|subscription(?:\/(?:settings|select|delete|reissue))?)$|admin\/subscriptions\/rebind$)/.test(String(url));
 }
 
 async function post(url, body, extraHeaders = null) {
@@ -7189,6 +7195,7 @@ function renderAdminFeaturesPage() {
 			items: [
 				["mini_app", "Mini App", "Доступ к личному кабинету"],
 				["additional_subscriptions", "Доп. подписки", "Создание, переключение и удаление дополнительных подписок"],
+				["personal_device_profiles", "Личное управление устройствами по умолчанию", "Отдельные профили на любых тарифах без администраторских лимитов: пользователь задаёт трафик, выключает и блокирует устройства. При первом включении общую ссылку нужно импортировать заново. Уже созданные профили сохраняются при выключении этого переключателя."],
 				["google", "Gmail", "Авторизация через Google"],
 				["email_auth", "Вход по почте", "Вход и регистрация по почте в веб-кабинете"],
 				["stars", "Telegram Stars", "Оплата звёздами Telegram"],
@@ -11382,6 +11389,9 @@ function renderDevicesModal() {
   const used = formatNumber(state.data?.subscription?.deviceUsedCount || 0, state.locale);
   const limit = formatNumber(state.data?.subscription?.deviceLimitCount || 0, state.locale);
   const closeLabel = localizedText("Закрыть", "Close", "بستن");
+  const managed = Boolean(state.data?.subscription?.deviceManagement);
+  const blocked = state.data?.subscription?.blockedDevices || [];
+  const blockedTab = managed && state.devicesTab === "blocked";
 
   return `
     <div class="modal open ${modalStateClass("devices")}" role="dialog" aria-modal="true" aria-labelledby="devices-modal-title">
@@ -11395,7 +11405,8 @@ function renderDevicesModal() {
           <button class="header__btn" type="button" data-action="close-devices-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button>
         </div>
         ${renderDeviceTrafficNote(state.data?.subscription?.deviceTrafficRules, state.data?.subscription?.deviceTrafficEnforced)}
-        ${devices.length ? `<div class="device-list" role="list">${devices.map((device) => renderDeviceRow(device)).join("")}</div>` : `
+        ${managed ? `<div class="device-tabs" role="tablist" aria-label="${escapeAttribute(localizedText("Устройства подписки", "Subscription devices", "دستگاه‌های اشتراک"))}"><button type="button" role="tab" aria-selected="${!blockedTab}" data-action="devices-tab" data-value="active">${escapeHtml(localizedText("Устройства", "Devices", "دستگاه‌ها"))}<span>${devices.length}</span></button><button type="button" role="tab" aria-selected="${blockedTab}" data-action="devices-tab" data-value="blocked">${escapeHtml(localizedText("Заблокированные", "Blocked", "مسدودشده‌ها"))}<span>${blocked.length}</span></button></div>` : ""}
+        ${blockedTab ? `<p class="device-controls-hint">${escapeHtml(localizedText("Эти устройства не смогут добавить эту подписку, пока вы их не разблокируете.", "These devices cannot add this subscription until you unblock them.", "این دستگاه‌ها تا زمان رفع مسدودی نمی‌توانند اشتراک را اضافه کنند."))}</p>${blocked.length ? `<div class="device-list" role="list">${blocked.map(renderBlockedDeviceRow).join("")}</div>` : `<div class="device-empty"><strong>${escapeHtml(localizedText("Заблокированных устройств нет", "No blocked devices", "دستگاه مسدودی وجود ندارد"))}</strong></div>`}` : devices.length ? `<div class="device-list" role="list">${devices.map((device) => renderDeviceRow(device)).join("")}</div>` : `
           <div class="device-empty">
             <div class="device-empty__icon">${icon("users")}</div>
             <strong>${escapeHtml(copy.emptyTitle)}</strong>
@@ -11540,6 +11551,10 @@ function renderDeviceRow(device) {
   const busy = state.deviceBusyHwid === device.hwid;
   const title = getDeviceTitle(device);
   const secondary = getDeviceSecondary(device);
+  const managed = Boolean(state.data?.subscription?.deviceManagement);
+  const paused = Boolean(device.paused);
+  const editLimit = device.canSetTrafficLimit && state.deviceLimitEditHwid === device.hwid;
+  const confirmDelete = managed && state.deviceDeleteConfirmHwid === device.hwid;
   const platform = String(device?.platform || device?.os || secondary || "").toLowerCase();
   const platformIconName = platform.includes("android")
     ? "android"
@@ -11551,20 +11566,28 @@ function renderDeviceRow(device) {
           ? "windows"
           : "device";
   return `
-    <div class="device-row" role="listitem">
+    <div class="device-row ${paused ? "device-row--paused" : ""} ${managed ? "device-row--managed" : ""}" role="listitem">
       <span class="device-row__icon" aria-hidden="true">${icon(platformIconName)}</span>
       <div class="device-row__content">
         <strong class="device-row__title">${escapeHtml(title)}</strong>
-        ${Number.isInteger(device.slot) && device.slot > 0 ? `<span class="device-row__meta">${escapeHtml(localizedText(`Устройство №${device.slot}`, `Device #${device.slot}`, `دستگاه ${device.slot}`))}</span>` : ""}
         ${secondary ? `<span class="device-row__meta">${escapeHtml(secondary)}</span>` : ""}
         <span class="device-row__date">${escapeHtml(`${copy.added} ${formatDeviceCreatedAt(device.createdAt)}`)}</span>
+        ${paused ? `<span class="device-row__state">${escapeHtml(localizedText("Выключено", "Paused", "خاموش"))}</span>` : ""}
       </div>
       <div class="device-row__actions">
-      ${renderDeviceTrafficProgress(device)}
+      ${device.canSetTrafficLimit ? `<button class="device-usage-action" type="button" data-action="device-edit-limit" data-value="${escapeAttribute(device.hwid)}" aria-label="${escapeAttribute(localizedText(`Настроить лимит: ${title}`, `Set limit: ${title}`, `تنظیم سقف: ${title}`))}" aria-expanded="${Boolean(editLimit)}" ${busy ? "disabled" : ""}>${renderDeviceTrafficProgress(device)}<span class="device-usage-action__edit">${icon("edit")}</span></button>` : renderDeviceTrafficProgress(device)}
+      ${managed ? `<button class="device-row__toggle ${paused ? "is-paused" : "is-on"} ${busy ? "is-loading" : ""}" type="button" data-action="device-toggle" data-value="${escapeAttribute(device.hwid)}" aria-pressed="${!paused}" aria-label="${escapeAttribute(paused ? localizedText("Включить устройство", "Enable device", "فعال کردن دستگاه") : localizedText("Выключить устройство", "Pause device", "خاموش کردن دستگاه"))}" title="${escapeAttribute(paused ? localizedText("Включить устройство", "Enable device", "فعال کردن دستگاه") : localizedText("Выключить без удаления профиля", "Pause without removing the profile", "خاموش بدون حذف پروفایل"))}" ${busy ? "disabled" : ""}>${icon(paused ? "deviceSignalOff" : "deviceSignal")}</button>` : ""}
       <button class="device-row__delete ${busy ? "is-loading" : ""}" type="button" data-action="delete-device" data-value="${escapeAttribute(device.hwid || "")}" ${busy ? "disabled" : ""} aria-label="${escapeAttribute(copy.delete)}">${icon(busy ? "refresh" : "trash")}</button>
       </div>
+      ${editLimit ? `<div class="device-inline-editor"><label><span>${escapeHtml(localizedText("Личный лимит, GB", "Personal limit, GB", "سقف شخصی، GB"))}</span><input type="number" min="0" max="1000000" step="1" inputmode="numeric" data-input="device-limit-gb" aria-label="${escapeAttribute(localizedText("Личный лимит, GB", "Personal limit, GB", "سقف شخصی، GB"))}" value="${escapeAttribute(state.deviceLimitDraft)}" ${busy ? "disabled" : ""}></label><p>${escapeHtml(localizedText("0 — без личного лимита. Общий лимит подписки сохраняется.", "0 means no personal cap. The subscription total still applies.", "صفر یعنی بدون سقف شخصی؛ سقف کل اشتراک همچنان برقرار است."))}</p><div><button type="button" data-action="device-close-editor">${escapeHtml(localizedText("Отмена", "Cancel", "لغو"))}</button><button class="is-primary" type="button" data-action="device-save-limit" data-value="${escapeAttribute(device.hwid)}" ${busy ? "disabled" : ""}>${escapeHtml(localizedText("Сохранить", "Save", "ذخیره"))}</button></div></div>` : ""}
+      ${confirmDelete ? `<div class="device-inline-editor"><p>${escapeHtml(localizedText("Удалить профиль и запретить этому HWID добавлять подписку? Разблокировать его можно во вкладке «Заблокированные».", "Remove this profile and block its HWID? You can unblock it in the Blocked tab.", "پروفایل حذف و شناسه دستگاه مسدود شود؟ رفع مسدودی در بخش مسدودشده‌ها ممکن است."))}</p><div><button type="button" data-action="device-close-editor">${escapeHtml(localizedText("Отмена", "Cancel", "لغو"))}</button><button class="is-danger" type="button" data-action="delete-device-confirmed" data-value="${escapeAttribute(device.hwid)}" ${busy ? "disabled" : ""}>${escapeHtml(localizedText("Удалить и заблокировать", "Remove and block", "حذف و مسدود کردن"))}</button></div></div>` : ""}
     </div>
   `;
+}
+
+function renderBlockedDeviceRow(device) {
+  const busy = state.deviceBusyHwid === device.hwid;
+  return `<div class="device-row device-row--blocked" role="listitem"><span class="device-row__icon" aria-hidden="true">${icon("deviceSignalOff")}</span><div class="device-row__content"><strong class="device-row__title">${escapeHtml(getDeviceTitle(device))}</strong><span class="device-row__meta">${escapeHtml(getDeviceSecondary(device))}</span><span class="device-row__date">${escapeHtml(`${deviceText().added} ${formatDeviceCreatedAt(device.createdAt)}`)}</span></div><button class="device-unblock" type="button" data-action="device-unblock" data-value="${escapeAttribute(device.hwid)}" ${busy ? "disabled" : ""}>${icon(busy ? "refresh" : "unlock")}<span>${escapeHtml(localizedText("Разблокировать", "Unblock", "رفع مسدودی"))}</span></button></div>`;
 }
 
 function renderSupportComposerModal() {
@@ -12253,9 +12276,30 @@ function bindRootActions() {
       if (action === "open-review-detail") { state.activeReviewId = Number(value) || 0; state.reviewDetailOpen = Boolean(state.activeReviewId); render(); return; }
       if (action === "close-review-detail") return requestModalClose("review-detail", () => { state.activeReviewId = 0; state.reviewDetailOpen = false; });
       if (action === "admin-delete-review") return await deleteAdminReview(Number(value));
-      if (action === "open-devices-modal") { state.devicesModalOpen = true; render(); return; }
-      if (action === "close-devices-modal") return requestModalClose("devices", () => { state.devicesModalOpen = false; state.deviceBusyHwid = ""; });
-      if (action === "delete-device") return await deleteDevice(value);
+      if (action === "open-devices-modal") { state.devicesModalOpen = true; state.devicesTab = "active"; closeDeviceEditor(); render(); return; }
+      if (action === "close-devices-modal") return requestModalClose("devices", () => { state.devicesModalOpen = false; closeDeviceEditor(); });
+      if (action === "devices-tab") { state.devicesTab = value === "blocked" ? "blocked" : "active"; closeDeviceEditor(); render(); return; }
+      if (action === "device-close-editor") { closeDeviceEditor(); render(); return; }
+      if (action === "device-edit-limit") {
+        const device = state.data?.subscription?.devices?.find((d) => d.hwid === value);
+        if (!device?.canSetTrafficLimit || state.deviceBusyHwid) return;
+        closeDeviceEditor(); state.deviceLimitEditHwid = value;
+        state.deviceLimitDraft = String(Math.round(Number(device.trafficLimitBytes || 0) / (1024 ** 3)));
+        render(); app.querySelector('[data-input="device-limit-gb"]')?.focus(); return;
+      }
+      if (action === "device-save-limit") return await controlDevice(value, "limit");
+      if (action === "device-toggle") {
+        const device = state.data?.subscription?.devices?.find((d) => d.hwid === value);
+        if (device) return await controlDevice(value, device.paused ? "resume" : "pause");
+        return;
+      }
+      if (action === "device-unblock") return await controlDevice(value, "unblock");
+      if (action === "delete-device") {
+        if (state.deviceBusyHwid) return;
+        if (!state.data?.subscription?.deviceManagement) return await deleteDevice(value);
+        closeDeviceEditor(); state.deviceDeleteConfirmHwid = value; render(); return;
+      }
+      if (action === "delete-device-confirmed") return await deleteDevice(value);
       if (action === "switch-support-tab") { state.supportTab = SUPPORT_TABS.includes(value) ? value : "open"; render(); void refreshSupport({ silent: true }); return; }
       if (action === "open-support-compose") return openSupportComposer();
       if (action === "close-support-compose") return requestModalClose("support-compose", closeSupportComposeState);
@@ -12724,6 +12768,7 @@ function bindRootActions() {
 		}
 		const inputKey = target?.dataset?.input;
 		if (!inputKey) return;
+		if (inputKey === "device-limit-gb") { state.deviceLimitDraft = target.value; return; }
 		if (inputKey.startsWith("admin-smtp-")) {
 			const field = inputKey.slice("admin-smtp-".length);
 			const smtp = state.adminSMTP;
@@ -16890,17 +16935,53 @@ async function activateTrial() {
   showToast(t().trialActivated);
 }
 
+function closeDeviceEditor() {
+  state.deviceLimitEditHwid = "";
+  state.deviceLimitDraft = "";
+  state.deviceDeleteConfirmHwid = "";
+}
+
+async function controlDevice(hwid, action) {
+  if (!hwid || state.deviceBusyHwid || !state.data?.subscription?.deviceManagement) return;
+  const subscriptionId = Number(state.data?.subscriptions?.activeId || 0);
+  const payload = { subscriptionId, hwid, action };
+  if (action === "limit") {
+    const device = state.data.subscription.devices?.find((item) => item.hwid === hwid);
+    if (!device?.canSetTrafficLimit) return;
+    const value = String(state.deviceLimitDraft).trim();
+    if (!/^\d+$/.test(value) || Number(value) > 1000000) {
+      showToast(localizedText("Укажите целое число от 0 до 1000000 GB", "Enter an integer from 0 to 1000000 GB", "عدد صحیح بین صفر تا یک میلیون GB وارد کنید"), "danger"); return;
+    }
+    payload.trafficGb = Number(value);
+  }
+  state.deviceBusyHwid = hwid;
+  render();
+  try {
+    const response = await post("/api/mini-app/devices/control", payload);
+    if (Number(state.data?.subscriptions?.activeId || 0) === subscriptionId) {
+      state.data.subscription = response.data;
+      closeDeviceEditor();
+      showToast(localizedText("Устройство обновлено", "Device updated", "دستگاه به‌روز شد"), "success");
+    }
+  } finally {
+    state.deviceBusyHwid = "";
+    render();
+  }
+}
+
 async function deleteDevice(hwid) {
   const copy = deviceText();
   const userId = Number(state.data?.subscription?.userId || 0);
   const userUuid = String(state.data?.subscription?.userUuid || "").trim();
-  if (!hwid || (userId <= 0 && !userUuid)) return;
+  if (!hwid || state.deviceBusyHwid || (userId <= 0 && !userUuid)) return;
+  const subscriptionId = Number(state.data?.subscriptions?.activeId || 0);
 
   state.deviceBusyHwid = hwid;
   render();
   try {
     const response = await post("/api/mini-app/devices/delete", { userId, userUuid, hwid });
-    state.data.subscription = response.data;
+    if (Number(state.data?.subscriptions?.activeId || 0) === subscriptionId) state.data.subscription = response.data;
+    closeDeviceEditor();
     state.deviceBusyHwid = "";
     render();
     showToast(copy.deleted, "success");
@@ -19067,7 +19148,7 @@ function getDeviceTitle(device) {
 }
 
 function getDeviceSecondary(device) {
-  return [device?.platform, device?.osVersion, device?.userAgent].filter(Boolean).join(" • ");
+  return deviceClientName(device?.userAgent);
 }
 
 function formatDeviceCreatedAt(value) {
@@ -19510,6 +19591,9 @@ function icon(name) {
 		return `<span class="app-svg-icon app-svg-icon--${ADMIN_ICON_CLASSES[name]}" data-app-icon="${escapeAttribute(name)}" aria-hidden="true"></span>`;
 	}
   const icons = {
+    deviceSignal: `<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M18.364 19.364a9 9 0 1 0-12.728 0"/><path d="M15.536 16.536a5 5 0 1 0-7.072 0"/><path d="M11 13a1 1 0 1 0 2 0a1 1 0 1 0-2 0"/></g></svg>`,
+    deviceSignalOff: `<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M18.364 19.364A9 9 0 0 0 8.643 4.647M6.155 6.156a9 9 0 0 0-.519 13.208"/><path d="M15.536 16.536A5 5 0 0 0 12 8M9 9a5 5 0 0 0-.535 7.536M12 12a1 1 0 1 0 1 1M3 3l18 18"/></g></svg>`,
+    unlock: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 7.5-2M12 14v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
     sparkles: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3ZM20 2v4M18 4h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 	accessPoint: `<svg data-preserve-color viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12 12v.01m2.828-2.838a4 4 0 0 1 0 5.656m2.829-8.485a8 8 0 0 1 0 11.314m-8.489-2.829a4 4 0 0 1 0-5.656m-2.831 8.485a8 8 0 0 1 0-11.314" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>`,
 	accessPointOff: `<svg data-preserve-color viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="m3 3 18 18M14.828 9.172A4 4 0 0 1 16 12m1.657-5.657a8 8 0 0 1 1.635 8.952m-10.124-.467a4 4 0 0 1 0-5.656m-2.831 8.485a8 8 0 0 1 0-11.314" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>`,
