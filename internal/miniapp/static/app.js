@@ -498,11 +498,11 @@ function readTelegramLoginRedirectData() {
 }
 
 function telegramLoginButtonLabel() {
-	return localizedText("Войти через Telegram", "Sign in with Telegram", "ورود با Telegram");
+	return "Telegram";
 }
 
 function gmailLoginButtonLabel() {
-	return localizedText("Войти через Google", "Sign in with Google", "ورود با Google");
+	return "Google";
 }
 
 function gmailLinkButtonLabel() {
@@ -747,7 +747,7 @@ function renderEmailAuth() {
 	}
 	const registration = emailAuth.mode === "register";
 	return `<form class="browser-email" data-email-auth-form>
-		<div class="browser-email__heading">${escapeHtml(registration ? emailAuthText("Регистрация", "Registration") : emailAuthText("Вход", "Sign in"))}</div>
+		<div class="browser-email__heading" ${registration ? "" : "hidden"}>${registration ? escapeHtml(emailAuthText("Регистрация", "Registration")) : ""}</div>
 		<label class="browser-email__field"><span>${escapeHtml(emailAuthText("Почта", "Email"))}</span><input data-email-auth-email type="email" inputmode="email" autocomplete="email" maxlength="254" required placeholder="name@example.com" value="${escapeAttribute(emailAuth.email)}"></label>
 		<label class="browser-email__field"><span>${escapeHtml(emailAuthText("Пароль", "Password"))}</span><input data-email-auth-password type="password" autocomplete="${registration ? "new-password" : "current-password"}" minlength="8" maxlength="72" required placeholder="••••••••" value="${escapeAttribute(emailAuth.password)}"></label>
 		<button class="browser-email__switch" type="button" data-action="email-auth-toggle" ${emailAuth.busy ? "disabled" : ""}>${escapeHtml(registration ? emailAuthText("Уже есть аккаунт? Войти", "Already have an account? Sign in") : emailAuthText("Нет аккаунта? Регистрация", "No account? Register"))}</button>
@@ -11953,7 +11953,9 @@ function bindRootActions() {
 			emailAuth.error = "";
 			emailAuth.mode = emailAuth.mode === "login" ? "register" : "login";
 			const registration = emailAuth.mode === "register";
-			form.querySelector(".browser-email__heading").textContent = registration ? emailAuthText("Регистрация", "Registration") : emailAuthText("Вход", "Sign in");
+			const heading = form.querySelector(".browser-email__heading");
+			heading.hidden = !registration;
+			heading.textContent = registration ? emailAuthText("Регистрация", "Registration") : "";
 			form.querySelector("[data-email-auth-password]").autocomplete = registration ? "new-password" : "current-password";
 			form.querySelector(".browser-email__switch").textContent = registration ? emailAuthText("Уже есть аккаунт? Войти", "Already have an account? Sign in") : emailAuthText("Нет аккаунта? Регистрация", "No account? Register");
 			form.querySelector(".browser-email__submit").textContent = registration ? emailAuthText("Регистрация", "Register") : emailAuthText("Войти", "Sign in");
@@ -19632,7 +19634,7 @@ function icon(name) {
 		arrowDown: `<svg viewBox="0 0 24 24" fill="none"><path d="m6 10 6 6 6-6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     telegram: `<svg viewBox="0 0 24 24" fill="none"><path d="M20.8 4.7 17.9 19c-.2 1-.8 1.2-1.6.7l-4.4-3.3-2.1 2c-.2.2-.4.4-.9.4l.3-4.5 8.2-7.4c.4-.3-.1-.5-.5-.2L6.8 13.1 2.5 11.8c-.9-.3-.9-.9.2-1.3L19.4 4c.8-.3 1.5.2 1.4.7Z" fill="currentColor"/></svg>`,
     google: `<svg viewBox="0 0 24 24" fill="none"><path d="M21.5 12.2c0-.7-.1-1.3-.2-1.9H12v3.6h5.3a4.5 4.5 0 0 1-2 3v2.4h3.2c1.9-1.7 3-4.2 3-7.1Z" fill="currentColor"/><path d="M12 22c2.7 0 5-.9 6.6-2.5l-3.2-2.4c-.9.6-2 .9-3.4.9-2.6 0-4.8-1.7-5.6-4.1H3.1v2.5A10 10 0 0 0 12 22Z" fill="currentColor"/><path d="M6.4 13.9a6 6 0 0 1 0-3.8V7.6H3.1a10 10 0 0 0 0 8.8l3.3-2.5Z" fill="currentColor"/><path d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A9.7 9.7 0 0 0 12 2a10 10 0 0 0-8.9 5.6l3.3 2.5C7.2 7.7 9.4 6 12 6Z" fill="currentColor"/></svg>`,
-    googleColor: `<svg viewBox="0 0 24 24" fill="none"><path d="M21.6 12.2c0-.7-.1-1.3-.2-1.9H12v3.6h5.4a4.6 4.6 0 0 1-2 3v2.4h3.2c1.9-1.7 3-4.2 3-7.1Z" fill="#4285F4"/><path d="M12 22c2.7 0 5-.9 6.6-2.5l-3.2-2.4c-.9.6-2 .9-3.4.9-2.6 0-4.8-1.8-5.7-4.1H3.1v2.5A10 10 0 0 0 12 22Z" fill="#34A853"/><path d="M6.3 13.9a6 6 0 0 1 0-3.8V7.6H3.1a10 10 0 0 0 0 8.8l3.2-2.5Z" fill="#FBBC05"/><path d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A9.7 9.7 0 0 0 12 2a10 10 0 0 0-8.9 5.6l3.2 2.5C7.2 7.8 9.4 6 12 6Z" fill="#EA4335"/></svg>`,
+    googleColor: `<svg data-preserve-color viewBox="0 0 24 24" fill="none"><path d="M21.6 12.2c0-.7-.1-1.3-.2-1.9H12v3.6h5.4a4.6 4.6 0 0 1-2 3v2.4h3.2c1.9-1.7 3-4.2 3-7.1Z" fill="#4285F4"/><path d="M12 22c2.7 0 5-.9 6.6-2.5l-3.2-2.4c-.9.6-2 .9-3.4.9-2.6 0-4.8-1.8-5.7-4.1H3.1v2.5A10 10 0 0 0 12 22Z" fill="#34A853"/><path d="M6.3 13.9a6 6 0 0 1 0-3.8V7.6H3.1a10 10 0 0 0 0 8.8l3.2-2.5Z" fill="#FBBC05"/><path d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A9.7 9.7 0 0 0 12 2a10 10 0 0 0-8.9 5.6l3.2 2.5C7.2 7.8 9.4 6 12 6Z" fill="#EA4335"/></svg>`,
     key: `<svg viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="12.5" r="3.5" stroke="currentColor" stroke-width="1.8"/><path d="M12 12.5h8M17 12.5v3M14.8 12.5v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     lockAlt: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12 14.5V16.5M7 10.0288C7.47142 10 8.05259 10 8.8 10H15.2C15.9474 10 16.5286 10 17 10.0288M7 10.0288C6.41168 10.0647 5.99429 10.1455 5.63803 10.327C5.07354 10.6146 4.6146 11.0735 4.32698 11.638C4 12.2798 4 13.1198 4 14.8V16.2C4 17.8802 4 18.7202 4.32698 19.362C4.6146 19.9265 5.07354 20.3854 5.63803 20.673C6.27976 21 7.11984 21 8.8 21H15.2C16.8802 21 17.7202 21 18.362 20.673C18.9265 20.3854 19.3854 19.9265 19.673 19.362C20 18.7202 20 17.8802 20 16.2V14.8C20 13.1198 20 12.2798 19.673 11.638C19.3854 11.0735 18.9265 10.6146 18.362 10.327C18.0057 10.1455 17.5883 10.0647 17 10.0288M7 10.0288V8C7 5.23858 9.23858 3 12 3C14.7614 3 17 5.23858 17 8V10.0288" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     chrome: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5h7.4M4.8 7.6l3.8 6.7M19.2 7.6 15.4 14.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,

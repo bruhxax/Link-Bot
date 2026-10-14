@@ -13250,11 +13250,6 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   -webkit-backdrop-filter: var(--glass-backdrop) !important;
 }
 
-:root[data-glass="on"] .browser-auth {
-  backdrop-filter: var(--glass-menu-backdrop) !important;
-  -webkit-backdrop-filter: var(--glass-menu-backdrop) !important;
-}
-
 :root[data-glass="on"] :where(.browser-email__field input, .browser-email__digit, .browser-email__back) {
   background: var(--glass-background) !important;
   background-image: var(--glass-texture) !important;
@@ -13385,11 +13380,11 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   color: #f85149 !important;
 }
 
-#app svg[data-app-icon] [stroke]:not([stroke="none"]) {
+#app svg[data-app-icon]:not([data-preserve-color]) [stroke]:not([stroke="none"]) {
   stroke: currentColor !important;
 }
 
-#app svg[data-app-icon] [fill]:not([fill="none"]) {
+#app svg[data-app-icon]:not([data-preserve-color]) [fill]:not([fill="none"]) {
   fill: currentColor !important;
 }
 
@@ -14389,6 +14384,8 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 }
 :root[data-glass="on"] .admin-access .admin-access__presets button.is-selected { border-color: var(--accent) !important; }
 
-/* Login controls stay calm instead of inheriting the old provider halos. */
-:root .browser-auth :is(.browser-email__submit,.browser-auth__telegram,.browser-auth__google){box-shadow:none!important}
+/* Email submit stays neutral; provider buttons own their brand colors and glow. */
+:root .browser-auth .browser-email__submit{box-shadow:none!important}
 :root .browser-auth__logo-shell{background:transparent!important;border:0!important;box-shadow:none!important}
+
+#app .browser-auth__telegram [data-app-icon] { color: #fff !important; }

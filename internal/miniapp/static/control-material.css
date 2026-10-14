@@ -171,3 +171,40 @@
     content: none !important;
   }
 }
+
+/* Identity providers retain their colors in both cabinet materials. Keep this
+   in the same layer as the control theme so its important rules can coexist. */
+@layer control-material {
+  :root:not([data-admin-console="on"]) #app .browser-auth__telegram {
+    --provider-background: #229ed9;
+    --provider-text: #fff;
+    --provider-glow: rgba(34, 158, 217, .28);
+  }
+  :root:not([data-admin-console="on"]) #app .browser-auth__google {
+    --provider-background: #fff;
+    --provider-text: #15191e;
+    --provider-glow: rgba(255, 255, 255, .14);
+  }
+  :root:not([data-admin-console="on"]) #app .browser-auth :is(.browser-auth__telegram, .browser-auth__google) {
+    background: var(--provider-background) !important;
+    background-image: none !important;
+    color: var(--provider-text) !important;
+    box-shadow: 0 6px 20px var(--provider-glow), 0 0 16px var(--provider-glow) !important;
+    backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+    border-radius: 11px;
+    transition: background-color .2s ease, box-shadow .2s ease, transform .2s ease;
+  }
+  :root:not([data-admin-console="on"]) #app .browser-auth :is(.browser-auth__telegram, .browser-auth__google):hover:not(:disabled) {
+    box-shadow: 0 8px 26px var(--provider-glow), 0 0 22px var(--provider-glow) !important;
+    transform: translateY(-1px);
+  }
+  :root:not([data-admin-console="on"]) #app .browser-auth__telegram:hover:not(:disabled) { --provider-background: #2aa8e5; }
+  :root:not([data-admin-console="on"]) #app .browser-auth__google:hover:not(:disabled) { --provider-background: #f5f7fa; }
+
+  :root:not([data-admin-console="on"]) #app .browser-email__switch {
+    background: transparent !important; background-image: none !important;
+    border: 0 !important; box-shadow: none !important;
+    backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+    color: var(--accent) !important;
+  }
+}
