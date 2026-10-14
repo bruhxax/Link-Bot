@@ -3,6 +3,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 import test from "node:test";
 import { browserLogoutURL } from "./static/routes.mjs";
+import { createPlanLoginIntent } from "./static/plan-login-intent.mjs";
 
 const source = fs.readFileSync(new URL("./static/app.js", import.meta.url), "utf8");
 function section(start, end) {
@@ -21,6 +22,7 @@ function harness({telegram = false, localStorage = store(), sessionStorage = sto
   const redirects = [];
   let aborted = false;
   const context = vm.createContext({
+    planLoginIntent: createPlanLoginIntent({getStorage:()=>sessionStorage}),
     clientSurface: telegram ? "telegram" : "browser", tg: telegram ? {initData: "telegram-init"} : null,
     cabinetBaseURL, browserLogoutURL, document: { querySelector: () => ({content: "https://example.com"}) },
     BROWSER_LOGOUT_KEY: "logout-stamp", browserLogoutStamp: localStorage.getItem("logout-stamp") || "", browserLoggingOut: false,
@@ -52,7 +54,9 @@ test("logout clears every login method in both stores and opens a clean sign-in 
     page.sessionStorage.setItem(key, "legacy");
   }
   page.localStorage.setItem("appearance", "keep");
+  page.context.planLoginIntent.capture("selected-before-login");
   page.context.logoutBrowser();
+  assert.equal(page.context.planLoginIntent.peek(), "");
   for (const key of credentials) {
     assert.equal(page.localStorage.getItem(key), null);
     assert.equal(page.sessionStorage.getItem(key), null);

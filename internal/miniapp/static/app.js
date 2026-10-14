@@ -30,6 +30,7 @@ import { canAdmin as accessAllows, changePermission, ROLE_PRESETS, presetPermiss
 import { adminConsoleEnabled, consoleRoute, visibleConsoleGroups, workspaceNavigationURL, applyConsoleAppearance } from "./admin-console.mjs";
 import { mountRemnaAdmin, unmountRemnaAdmin } from "./admin-loader.mjs";
 import { readAppRoute, appRoutePath, cabinetNavigationURL, browserLogoutURL } from "./routes.mjs";
+import { createPlanLoginIntent } from "./plan-login-intent.mjs";
 import { mountFinanceCharts, unmountFinanceCharts } from "./finance-chart-loader.mjs";
 import { buildFinanceProviders } from "./finance-providers.mjs";
 
@@ -126,6 +127,11 @@ const browserLogoutStamp = readSetting(BROWSER_LOGOUT_KEY, "");
 let browserLoggingOut = false;
 
 consumeTelegramLoginRedirect();
+
+const planLoginIntent = createPlanLoginIntent();
+if (clientSurface === "browser" && !adminEntry && entryRoute?.page === "buy") {
+  planLoginIntent.capture(urlParams.get("planId"));
+}
 
 let telegramLoginScriptPromise = null;
 let telegramQRLogin = null;
@@ -312,6 +318,7 @@ function isBrowserSessionCurrent() {
 function logoutBrowser({ broadcast = true } = {}) {
 	if (clientSurface !== "browser" || browserLoggingOut) return;
 	browserLoggingOut = true;
+	planLoginIntent.clear();
 	if (broadcast) writeSetting(BROWSER_LOGOUT_KEY, globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`);
 	// Clear both stores independently, including credentials from older versions.
 	for (const key of [STORAGE_KEYS.telegramIDToken, STORAGE_KEYS.telegramLogin, STORAGE_KEYS.googleLogin]) {
@@ -2826,7 +2833,7 @@ const state = {
   selectedPlatform: detectSetupPlatform(navigator.userAgent, tg?.platform),
   setupPlatformMenuOpen: false,
   selectedSetupAppID: "",
-  selectedPlanId: urlParams.get("planId") || "",
+  selectedPlanId: urlParams.get("planId") || (clientSurface === "browser" && !adminEntry ? planLoginIntent.peek() : ""),
   selectedPlanMonths: null,
 	selectedGiftPlanId: "",
 	giftUsernameDraft: "",
@@ -4324,6 +4331,19 @@ function getDisplayedPlans() {
 
 function ensureSelections() {
   const plans = getDisplayedPlans();
+  if (clientSurface === "browser" && !adminEntry && !state.adminWorkspace && state.currentPage !== "admin" && state.data && !getPaymentReturnState()) {
+    const intendedPlanId = planLoginIntent.consume(plans);
+    if (intendedPlanId) {
+      state.selectedPlanId = intendedPlanId;
+      state.selectedPlanMonths = null;
+      state.currentPage = "buy";
+      const restoredURL = new URL(window.location.href);
+      if (restoredURL.searchParams.get("planId") !== intendedPlanId) {
+        restoredURL.searchParams.set("planId", intendedPlanId);
+        window.history.replaceState(null, "", restoredURL.pathname + restoredURL.search + restoredURL.hash);
+      }
+    }
+  }
   if (!plans.length) {
     state.selectedPlanId = "";
     state.selectedPlanMonths = null;
