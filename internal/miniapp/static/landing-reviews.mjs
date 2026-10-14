@@ -13,12 +13,10 @@ export function reviewTickerItem(review) {
 export function createReviewTicker(section) {
   const viewport = section.querySelector('#reviews-viewport');
   const track = section.querySelector('#reviews-track');
-  const button = section.querySelector('#reviews-pause');
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   let fingerprint = "";
   let markup = "";
   let width = -1;
-  let paused = false;
 
   function rebuild() {
     if (!markup || section.hidden) return;
@@ -48,18 +46,8 @@ export function createReviewTicker(section) {
     track.style.setProperty('--reviews-distance', `${distance}px`);
     track.style.setProperty('--reviews-duration', `${Math.max(12, distance / (viewport.clientWidth < 620 ? 30 : 38))}s`);
     section.classList.toggle('is-reduced-motion', reducedMotion.matches);
-    button.hidden = reducedMotion.matches;
   }
 
-  button.addEventListener('click', () => {
-    paused = !paused;
-    section.classList.toggle('is-paused', paused);
-    button.setAttribute('aria-pressed', String(paused));
-    button.setAttribute('aria-label', paused ? 'Продолжить отзывы' : 'Приостановить отзывы');
-    button.innerHTML = paused
-      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7Z" fill="currentColor"/></svg>'
-      : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-  });
   const visibility = () => section.classList.toggle('is-page-hidden', document.hidden);
   document.addEventListener('visibilitychange', visibility);
   visibility();
