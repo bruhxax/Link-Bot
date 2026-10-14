@@ -119,7 +119,6 @@ h2{margin:0 0 9px;font-size:clamp(26px,4vw,40px);line-height:1.2;font-weight:700
 .plan-card__duration{display:block;margin-top:2px;color:var(--muted);font-size:10px}
 .plan-card__badge{color:var(--accent);font-size:10px;text-align:right}
 .plan-card__price{margin:23px 0 18px;font-size:27px;font-weight:700;line-height:1.15}
-.plan-card__price small{display:block;margin-top:5px;color:var(--muted);font-size:10px;font-weight:400}
 .plan-card__features{display:grid;gap:4px;margin:0 0 19px;padding:15px 0 0;border-top:1px solid var(--border);list-style:none;color:var(--muted);font-size:10px}
 .plan-card__features li::before{content:"— ";color:var(--accent)}
 .plan-card__action{width:100%;margin-top:auto;min-height:38px}
@@ -164,3 +163,8 @@ h2{margin:0 0 9px;font-size:clamp(26px,4vw,40px);line-height:1.2;font-weight:700
 @media(prefers-reduced-transparency:reduce){:root[data-glass="on"] :where(.nav-shell,.server-card,.plan-card,.contact-card,.empty-state,.button){background:var(--surface);backdrop-filter:none;-webkit-backdrop-filter:none}}
 @media(prefers-reduced-motion:reduce){.button--trial::before{animation:none;opacity:.7}}
 @media(prefers-reduced-motion:reduce){.trial-sparks{display:none}}
+
+/* Follow the cabinet frame setting, keeping the top navigation framed. */
+:root[data-frames="off"] main *,
+:root[data-frames="off"] main *::before,
+:root[data-frames="off"] main *::after{border-color:transparent!important}

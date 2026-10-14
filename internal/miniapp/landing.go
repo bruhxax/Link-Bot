@@ -131,6 +131,11 @@ func (h *Handler) serveLanding(w http.ResponseWriter, r *http.Request) {
 		glassMode = "on"
 	}
 	data = bytes.ReplaceAll(data, []byte("__GLASS_MODE__"), []byte(glassMode))
+	framesMode := "on"
+	if !settings.Appearance.ShowFrames {
+		framesMode = "off"
+	}
+	data = bytes.ReplaceAll(data, []byte("__FRAMES_MODE__"), []byte(framesMode))
 	data = bytes.ReplaceAll(data, []byte("__GA4_MEASUREMENT_ID__"), []byte(ga4MeasurementID()))
 	data = bytes.ReplaceAll(data, []byte("__YANDEX_METRIKA_COUNTER_ID__"), []byte(yandexCounterID()))
 	setHTMLSecurityHeaders(w)

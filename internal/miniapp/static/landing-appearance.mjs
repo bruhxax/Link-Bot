@@ -7,6 +7,7 @@ export function applyLandingAppearance(data) {
   previous = key;
   const settings = data.landing || {},
     appearance = data.appearance || {};
+  document.documentElement.dataset.frames = appearance.showFrames === false ? "off" : "on";
   document.documentElement.style.setProperty(
     "--landing-button-radius",
     `${settings.buttonRadius ?? 8}px`,
