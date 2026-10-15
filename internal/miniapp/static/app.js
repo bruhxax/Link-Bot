@@ -5094,6 +5094,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
         ${consoleActive ? renderConsolePage() : renderPages()}
       </div>
       ${consoleActive ? "" : renderBottomNav(dockMode, dockModeChanged)}
+      ${renderAdminBroadcastConfirmation()}
       ${isModalVisible("support-compose", state.supportComposeOpen) ? renderSupportComposerModal() : ""}
       ${isModalVisible("support-thread", state.supportThreadOpen) ? renderSupportThreadModal() : ""}
       ${isModalVisible("support-media-viewer", Boolean(state.supportMediaViewer)) ? renderSupportMediaViewerModal() : ""}
@@ -7081,7 +7082,6 @@ function renderAdminBroadcastPage() {
 					<button class="admin-broadcast__reset" type="button" data-action="admin-broadcast-reset" ${running ? "disabled" : ""}>${icon("reset")}<span>${english ? "Clear draft" : "Очистить черновик"}</span></button>
 				</section>
 			</div>
-			${state.adminBroadcastConfirmOpen ? renderAdminBroadcastConfirm(english) : ""}
 		</section>
 	`;
 }
@@ -7139,7 +7139,7 @@ function renderAdminEmailBroadcastPage() {
 
       <button class="admin-mail__button admin-mail__button--primary" type="button" data-action="admin-email-open-confirm" ${running || busy || !configured || state.adminAudienceCount.email === 0 ? "disabled" : ""}>${icon("send")}<span>${english ? "Send to audience" : "Отправить аудитории"}</span></button>
     </div>` : ""}
-  </div>${state.adminEmailConfirmOpen ? `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-email-close-confirm"></button><div class="modal__sheet admin-broadcast-confirm" role="dialog" aria-modal="true"><div class="modal__header"><div class="modal__title">${english ? "Send to selected recipients?" : "Отправить письмо выбранной аудитории?"}</div></div><p>${english ? `Recipients with verified email: ${(state.adminAudienceCount.email ?? (english ? "Not counted" : "Не подсчитано"))}. Check the preview first.` : `Получателей с подтверждённой почтой: ${(state.adminAudienceCount.email ?? (english ? "Not counted" : "Не подсчитано"))}. Проверьте тестовое письмо перед запуском.`}</p><div class="admin-broadcast-confirm__actions"><button type="button" data-action="admin-email-close-confirm">${english ? "Cancel" : "Отмена"}</button><button class="admin-broadcast-confirm__send" type="button" data-action="admin-email-send">${icon("send")}<span>${english ? "Start" : "Запустить"}</span></button></div></div></div>` : ""}</section>`;
+  </div></section>`;
 }
 
 function renderAdminBroadcastButton(button, index, disabled, english) {
@@ -7172,6 +7172,17 @@ function renderAdminBroadcastButton(button, index, disabled, english) {
 			<div>${styles.map(([value, label]) => `<button type="button" class="admin-broadcast-style__option ${style === value ? "is-selected" : ""}" data-action="admin-broadcast-set-style" data-broadcast-index="${index}" data-value="${value}" aria-pressed="${style === value ? "true" : "false"}" ${disabled ? "disabled" : ""}><i data-style="${value || "default"}"></i><span>${label}</span></button>`).join("")}</div>
 		</fieldset>
 	</div>`;
+}
+
+function renderAdminBroadcastConfirmation() {
+	if (state.currentPage !== "admin" || state.adminSection !== "broadcast" || !canAdmin("broadcast")) return "";
+	const english = state.locale === "en";
+	if (state.adminBroadcastTab === "email") return state.adminEmailConfirmOpen ? renderAdminEmailBroadcastConfirm(english) : "";
+	return state.adminBroadcastConfirmOpen ? renderAdminBroadcastConfirm(english) : "";
+}
+
+function renderAdminEmailBroadcastConfirm(english) {
+	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-email-close-confirm"></button><div class="modal__sheet admin-broadcast-confirm" role="dialog" aria-modal="true"><div class="modal__header"><div class="modal__title">${english ? "Send to selected recipients?" : "Отправить письмо выбранной аудитории?"}</div></div><p>${english ? `Recipients with verified email: ${(state.adminAudienceCount.email ?? (english ? "Not counted" : "Не подсчитано"))}. Check the preview first.` : `Получателей с подтверждённой почтой: ${(state.adminAudienceCount.email ?? (english ? "Not counted" : "Не подсчитано"))}. Проверьте тестовое письмо перед запуском.`}</p><div class="admin-broadcast-confirm__actions"><button type="button" data-action="admin-email-close-confirm">${english ? "Cancel" : "Отмена"}</button><button class="admin-broadcast-confirm__send" type="button" data-action="admin-email-send">${icon("send")}<span>${english ? "Start" : "Запустить"}</span></button></div></div></div>`;
 }
 
 function renderAdminBroadcastConfirm(english) {
