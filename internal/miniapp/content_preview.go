@@ -129,6 +129,15 @@ func buildContentPreview(kind string, settings runtimeconfig.Settings, plans []p
 		}
 		keyboard = [][]models.InlineKeyboardButton{{channel}, {previewButton(content.Verification.ConfirmButton, telegram.CallbackVerifyChannel)}}
 		return content.Verification.Text, content.Verification.Banner, keyboard, nil
+	case "trial", "trial-activated":
+		activated := kind == "trial-activated"
+		keyboard = telegram.TrialScreenKeyboard(content, activated, config.GetMiniAppURL())
+		// A preview must never activate a real trial when its button is pressed.
+		if !activated {
+			keyboard[0][0].CallbackData = telegram.CallbackStart
+			return content.Trial.Text, content.Trial.Banner, keyboard, nil
+		}
+		return content.Trial.ActivatedText, content.Trial.ActivatedBanner, keyboard, nil
 	case "verification-failed":
 		return content.Verification.CheckFailedText, "", nil, nil
 	case "verification-missing":

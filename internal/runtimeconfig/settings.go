@@ -230,6 +230,7 @@ type ContentSettings struct {
 	Verification               TelegramVerificationSettings        `json:"verification"`
 	Support                    TelegramSupportSettings             `json:"support"`
 	StartMenu                  TelegramStartMenuSettings           `json:"startMenu"`
+	Trial                      TelegramTrialSettings               `json:"trial"`
 	Commerce                   TelegramCommerceSettings            `json:"commerce"`
 	PaymentNotification        TelegramPaymentNotificationSettings `json:"paymentNotification"`
 	Gift                       TelegramGiftSettings                `json:"gift"`
@@ -608,6 +609,7 @@ func DefaultSettings() Settings {
 					IconCustomEmojiID: "5278413853577734640",
 				},
 			},
+			Trial: defaultTelegramTrialSettings(),
 			PaymentNotification: TelegramPaymentNotificationSettings{
 				Text: premiumPaymentNotificationTemplate(),
 				OpenUserButton: OptionalTelegramButtonSettings{
@@ -778,6 +780,14 @@ func LocalizeTelegramDefaults(content ContentSettings, language string) ContentS
 		}
 	}
 
+	if content.Trial == (TelegramTrialSettings{}) {
+		content.Trial = defaultTelegramTrialSettings()
+	}
+	trialDefaults := defaultTelegramTrialSettings()
+	content.Trial.Text = localized(content.Trial.Text, trialDefaults.Text, "Your trial version is active", "دسترسی آزمایشی شما آماده فعال‌سازی است")
+	content.Trial.ActivatedText = localized(content.Trial.ActivatedText, trialDefaults.ActivatedText, "Trial period activated", "دوره آزمایشی فعال شد")
+	content.Trial.ActivateButton.Text = localized(content.Trial.ActivateButton.Text, trialDefaults.ActivateButton.Text, "Activate trial version", "فعال‌کردن دوره آزمایشی")
+	content.Trial.ConnectButton.Text = localized(content.Trial.ConnectButton.Text, trialDefaults.ConnectButton.Text, "🔌 Connect", "🔌 اتصال")
 	content.Verification.Text = localized(content.Verification.Text,
 		"<b>Link-Bot Верификация</b>\n\nЧтобы открыть доступ к боту и mini app, подпишитесь на наш Telegram-канал <b>%s</b>.\n\nТам мы публикуем новости, обновления сервиса, важные изменения и полезные анонсы.\n\nПосле подписки нажмите кнопку ниже.",
 		"<b>Link-Bot Verification</b>\n\nTo open the bot and Mini App, subscribe to our Telegram channel <b>%s</b>.\n\nWe publish service news, updates and important notices there.\n\nAfter subscribing, tap the button below.",
@@ -1672,6 +1682,9 @@ func normalizeLegalDocument(value LegalDocumentSettings, fallbackTitle string) L
 }
 
 func normalizeTelegramContent(value *ContentSettings, defaults ContentSettings, legacy bool) error {
+	if err := normalizeTelegramTrial(&value.Trial, defaults.Trial); err != nil {
+		return err
+	}
 	if legacy {
 		value.PaymentNotification = defaults.PaymentNotification
 		value.Gift = defaults.Gift

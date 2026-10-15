@@ -2570,6 +2570,7 @@ function buildPreviewRuntimeSettings() {
 			webPage: { title: "Link-Bot", description: "Link-Bot Mini App", faviconUrl: BRAND_MARK_PATH },
 			verification: { text: "", banner: "", channelButton: { text: "Link-Bot", iconCustomEmojiId: "", style: "" }, confirmButton: { text: "Я подписался", iconCustomEmojiId: "", style: "" }, checkFailedText: "", notSubscribedText: "", verifiedText: "" },
 			startMenu: { trialButton: { text: "Попробовать бесплатно", iconCustomEmojiId: "5276422526350681413", style: "" }, dashboardButton: { text: "Вход", iconCustomEmojiId: "5278413853577734640", style: "" }, plansButton: { text: "Тарифы", iconCustomEmojiId: "5206626000665868017", style: "" }, supportButton: { text: "Чат с поддержкой", iconCustomEmojiId: "5206222720416643915", style: "" } },
+			trial: { banner: "", text: "<b>Пробный период</b>\n\nБесплатно протестируйте сервис перед покупкой.", activateButton: { text: "Активировать бесплатно", iconCustomEmojiId: "", style: "" }, activatedBanner: "", activatedText: "<b>Пробный период активирован!</b>\n\nОцените скорость и стабильность сервиса.", connectButton: { text: "Подписка", iconCustomEmojiId: "", style: "" } },
 			commerce: { banner: "", tariffsText: "", paymentMethodsText: "", paymentReadyText: "", yookassaButton: { text: "СБП | Карта", iconCustomEmojiId: "5192678313415434135", style: "" }, cryptoButton: { text: "CryptoPay", iconCustomEmojiId: "5195058841988914267", style: "" }, starsButton: { text: "Telegram Stars", iconCustomEmojiId: "5242644275014951846", style: "" }, payButton: { text: "Оплатить", iconCustomEmojiId: "5206401524200145033", style: "" }, backButton: { text: "Назад", iconCustomEmojiId: "5877629862306385808", style: "" }, successText: "", successBanner: "", successButton: { text: "Личный кабинет", iconCustomEmojiId: "5278413853577734640", style: "" } },
 			gift: {
 				sender: { text: "<b>Подарок отправлен</b>\n\nВы подарили подписку пользователю <b>{recipient}</b>.\nТариф: <b>{plan}</b>.\n\nЕсли пользователь ещё не заходил в бот, отправьте ему ссылку: {gift_url}", buttons: [{ id: "gift_link", type: "gift", text: "Открыть подарок", iconCustomEmojiId: "", style: "primary" }] },
@@ -5404,6 +5405,7 @@ const ADMIN_SEARCH_SECTIONS = [
 
 const ADMIN_SEARCH_CONTENT_SECTIONS = [
 	["start", "Главное меню", "Telegram"], ["verification", "Проверка подписки", "Telegram"],
+	["trial", "Пробный период", "Telegram"],
 	["commerce", "Покупка", "Telegram"], ["success", "После оплаты", "Telegram"],
 	["gift", "Подарок", "Telegram"], ["payment-notifications", "Уведомления оплат", "Telegram"],
 	["support", "Поддержка", "Mini App"], ["web", "Веб-страница", "Mini App"],
@@ -7323,6 +7325,7 @@ function renderAdminSubPagePage() {
 function renderAdminContentPage() {
 	const sections = [
 		["start", "Главное меню", "Telegram"],
+		["trial", "Пробный период", "Telegram"],
 		["verification", "Проверка подписки", "Telegram"],
 		["commerce", "Покупка", "Telegram"],
 		["success", "После оплаты", "Telegram"],
@@ -7352,6 +7355,7 @@ function renderAdminContentPage() {
 
 function renderAdminContentSection(section) {
 	switch (section) {
+		case "trial": return renderAdminTrialContent();
 		case "verification": return renderAdminVerificationContent();
 		case "commerce": return renderAdminCommerceContent();
 		case "success": return renderAdminSuccessContent();
@@ -7385,6 +7389,24 @@ function renderAdminStartContent() {
 		${renderAdminTelegramButton("Вход", "content.startMenu.dashboardButton")}
 		${renderAdminTelegramButton("Тарифы", "content.startMenu.plansButton")}
 		${renderAdminTelegramButton("Чат с поддержкой", "content.startMenu.supportButton")}
+	</section>`;
+}
+
+function renderAdminTrialContent() {
+	return `<section class="admin-editor__section"><h3>До активации пробного периода</h3>
+		${renderAdminBannerField("Баннер пробного периода", "content.trial.banner", "https://example.com/trial.jpg")}
+		${renderAdminSettingField("Текст сообщения", "content.trial.text", { textarea: true, rows: 7 })}
+		${renderAdminTelegramButton("Активировать бесплатно", "content.trial.activateButton")}
+		${renderAdminContentTestButton("trial")}
+	</section>
+	<section class="admin-editor__section"><h3>После активации пробного периода</h3>
+		${renderAdminBannerField("Баннер после активации", "content.trial.activatedBanner", "https://example.com/trial-active.jpg")}
+		${renderAdminSettingField("Текст после активации", "content.trial.activatedText", { textarea: true, rows: 7 })}
+		${renderAdminTelegramButton("Открыть подписку", "content.trial.connectButton")}
+		${renderAdminContentTestButton("trial-activated")}
+	</section>
+	<section class="admin-editor__section"><h3>Общая кнопка возврата</h3>
+		${renderAdminTelegramButton("Назад — общая для меню Telegram", "content.commerce.backButton")}
 	</section>`;
 }
 

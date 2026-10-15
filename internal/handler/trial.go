@@ -8,7 +8,9 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
+	"link-bot/internal/config"
 	"link-bot/internal/database"
+	"link-bot/internal/runtimeconfig"
 	"link-bot/utils"
 )
 
@@ -42,19 +44,15 @@ func (h Handler) TrialCallbackHandler(ctx context.Context, b *bot.Bot, update *m
 		return
 	}
 
-	langCode := update.CallbackQuery.From.LanguageCode
-
-	keyboard := [][]models.InlineKeyboardButton{
-		{{Text: h.translation.GetText(langCode, "activate_trial_button"), CallbackData: CallbackActivateTrial}},
-		{h.premiumBackButton(CallbackStart)},
-	}
+	content := h.trialMessageContent()
+	keyboard := TrialScreenKeyboard(content, false, config.GetMiniAppURL())
 
 	// ✅ Обновляем одно меню-сообщение (картинка + caption + кнопки), без удаления сообщений
 	h.editScreen(ctx, b,
 		msg.Chat.ID,
 		msg.ID,
-		h.translation.GetText(langCode, "image_trial_url"),
-		h.translation.GetText(langCode, "trial_text"),
+		content.Trial.Banner,
+		content.Trial.Text,
 		keyboard,
 	)
 }
@@ -96,27 +94,43 @@ func (h Handler) ActivateTrialCallbackHandler(ctx context.Context, b *bot.Bot, u
 		return
 	}
 
-	langCode := update.CallbackQuery.From.LanguageCode
-	connectKb := h.createConnectKeyboard(langCode)
+	content := h.trialMessageContent()
+	connectKb := TrialScreenKeyboard(content, true, config.GetMiniAppURL())
 
 	// ✅ Обновляем одно меню-сообщение (картинка + caption + кнопки), без удаления сообщений
 	h.editScreen(ctx, b,
 		msg.Chat.ID,
 		msg.ID,
-		h.translation.GetText(langCode, "image_connect_url"),
-		h.translation.GetText(langCode, "trial_activated"),
+		content.Trial.ActivatedBanner,
+		content.Trial.ActivatedText,
 		connectKb,
 	)
 }
 
-func (h Handler) createConnectKeyboard(lang string) [][]models.InlineKeyboardButton {
-	var inlineCustomerKeyboard [][]models.InlineKeyboardButton
+func (h Handler) trialMessageContent() runtimeconfig.ContentSettings {
+	settings := runtimeconfig.DefaultSettings()
+	if h.runtimeSettings != nil {
+		settings = h.runtimeSettings.Snapshot()
+	}
+	return runtimeconfig.LocalizeTelegramDefaults(settings.Content, settings.Localization.Language)
+}
 
-	inlineCustomerKeyboard = append(inlineCustomerKeyboard, h.resolveConnectButton(lang))
-
-	inlineCustomerKeyboard = append(inlineCustomerKeyboard, []models.InlineKeyboardButton{h.premiumBackButton(CallbackStart)})
-
-	return inlineCustomerKeyboard
+// TrialScreenKeyboard is shared with the content preview so configured button
+// labels, emoji and colors match the real trial screens.
+func TrialScreenKeyboard(content runtimeconfig.ContentSettings, activated bool, miniAppURL string) [][]models.InlineKeyboardButton {
+	button := telegramButton(content.Trial.ActivateButton, "Активировать бесплатно", "")
+	button.CallbackData = CallbackActivateTrial
+	if activated {
+		button = telegramButton(content.Trial.ConnectButton, "Подписка", "")
+		if miniAppURL != "" {
+			button.WebApp = &models.WebAppInfo{URL: miniAppURL}
+		} else {
+			button.CallbackData = CallbackConnect
+		}
+	}
+	back := telegramButton(content.Commerce.BackButton, "Назад", botBackEmojiID)
+	back.CallbackData = CallbackStart
+	return [][]models.InlineKeyboardButton{{button}, {back}}
 }
 
 func (h Handler) canOfferTrial(ctx context.Context, customer *database.Customer) (bool, error) {

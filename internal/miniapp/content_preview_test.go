@@ -87,3 +87,32 @@ func TestContentPreviewCoversVerificationAndCommerceWithoutCharging(t *testing.T
 		t.Fatal("unknown preview accepted")
 	}
 }
+
+func TestTrialPreviewUsesDraftAndCannotActivateTrial(t *testing.T) {
+	settings := runtimeconfig.DefaultSettings()
+	settings.Content.Trial.Text = "<b>Unsaved trial offer</b>"
+	settings.Content.Trial.ActivatedText = "<b>Unsaved trial success</b>"
+	settings.Content.Trial.Banner = "https://example.com/offer.png"
+	settings.Content.Trial.ActivatedBanner = "https://example.com/success.png"
+	settings.Content.Trial.ActivateButton.Text = "Custom activation"
+	for _, kind := range []string{"trial", "trial-activated"} {
+		text, banner, keyboard, err := buildContentPreview(kind, settings, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantText, wantBanner := settings.Content.Trial.Text, settings.Content.Trial.Banner
+		if kind == "trial-activated" {
+			wantText, wantBanner = settings.Content.Trial.ActivatedText, settings.Content.Trial.ActivatedBanner
+		}
+		if text != wantText || banner != wantBanner || len(keyboard) != 2 {
+			t.Fatalf("draft preview mismatch: %s text=%s banner=%s keyboard=%+v", kind, text, banner, keyboard)
+		}
+		for _, row := range keyboard {
+			for _, button := range row {
+				if button.CallbackData == telegram.CallbackActivateTrial || strings.HasPrefix(button.CallbackData, telegram.CallbackPayment+"?") {
+					t.Fatal("preview can activate or purchase a subscription")
+				}
+			}
+		}
+	}
+}
