@@ -36,6 +36,8 @@ type pinFixture struct {
 	calls   []pinAPICall
 	failPin bool
 	nextID  int
+	pinned  map[int64]int
+	deleted map[int]bool
 	mu      sync.Mutex
 }
 
@@ -87,7 +89,7 @@ func newPinFixture(t *testing.T) (*pinFixture, context.Context) {
 	if _, err = pool.Exec(ctx, `INSERT INTO customer_broadcast_unsubscribe(customer_id) VALUES(2)`); err != nil {
 		t.Fatal(err)
 	}
-	f := &pinFixture{pool: pool, nextID: 1000}
+	f := &pinFixture{pool: pool, nextID: 1000, pinned: map[int64]int{}, deleted: map[int]bool{}}
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
@@ -100,6 +102,18 @@ func newPinFixture(t *testing.T) (*pinFixture, context.Context) {
 		method := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
 		f.calls = append(f.calls, pinAPICall{method, chatID, messageID, sourceID, r.FormValue("parse_mode"), r.FormValue("text")})
 		w.Header().Set("Content-Type", "application/json")
+		if method == "getChat" {
+			if id := f.pinned[chatID]; id != 0 {
+				fmt.Fprintf(w, `{"ok":true,"result":{"id":%d,"type":"private","pinned_message":{"message_id":%d}}}`, chatID, id)
+			} else {
+				fmt.Fprintf(w, `{"ok":true,"result":{"id":%d,"type":"private"}}`, chatID)
+			}
+			return
+		}
+		if method == "pinChatMessage" && f.deleted[messageID] {
+			fmt.Fprint(w, `{"ok":false,"error_code":400,"description":"Bad Request: message to pin not found"}`)
+			return
+		}
 		if method == "pinChatMessage" && f.failPin {
 			f.failPin = false
 			w.WriteHeader(500)
@@ -107,6 +121,12 @@ func newPinFixture(t *testing.T) (*pinFixture, context.Context) {
 			return
 		}
 		f.nextID++
+		if method == "pinChatMessage" {
+			f.pinned[chatID] = messageID
+		}
+		if method == "unpinChatMessage" && f.pinned[chatID] == messageID {
+			delete(f.pinned, chatID)
+		}
 		if method == "copyMessage" || method == "sendMessage" {
 			fmt.Fprintf(w, `{"ok":true,"result":{"message_id":%d}}`, f.nextID)
 		} else {
@@ -151,14 +171,11 @@ func (f *pinFixture) capture(t *testing.T, ctx context.Context, text string) *da
 	return p
 }
 
-func TestPinnedMessageLifecycleAndNewUsers(t *testing.T) {
+func TestPinnedMessageOnlyOnStartAndNewUsers(t *testing.T) {
 	f, ctx := newPinFixture(t)
-	p := f.capture(t, ctx, `<b>Объявление</b> <tg-emoji emoji-id="52764212364458059956">😊</tg-emoji>`)
-	if !p.HasMessage || p.Enabled || p.AwaitingMessage {
-		t.Fatalf("saved state: %+v", p)
-	}
+	p := f.capture(t, ctx, "Объявление")
 	if _, err := f.s.SetPinnedEnabled(ctx, true, p.Revision-1); !errors.Is(err, database.ErrPinnedStateChanged) {
-		t.Fatalf("stale version accepted: %v", err)
+		t.Fatal("stale toggle accepted", err)
 	}
 	p, err := f.s.SetPinnedEnabled(ctx, true, p.Revision)
 	if err != nil {
@@ -167,35 +184,71 @@ func TestPinnedMessageLifecycleAndNewUsers(t *testing.T) {
 	if _, err = f.s.processPinnedBatch(ctx); err != nil {
 		t.Fatal(err)
 	}
-	p, err = f.s.PinnedState(ctx)
-	if err != nil {
+	if f.count("copyMessage", 101) != 0 || f.count("pinChatMessage", 0) != 0 {
+		t.Fatal("enabling must not broadcast")
+	}
+	if err = f.s.EnsurePinnedOnStart(ctx, 101); err != nil {
 		t.Fatal(err)
 	}
-	if p.Total != 2 || p.Completed != 2 || p.Failed != 0 {
-		t.Fatalf("progress: %+v", p)
+	if f.count("copyMessage", 101) != 1 || f.count("pinChatMessage", 101) != 1 || f.count("copyMessage", 102) != 0 {
+		t.Fatal("start touched another user", f.calls)
 	}
-	for _, id := range []int64{101, 102} {
-		if f.count("copyMessage", id) != 1 || f.count("pinChatMessage", id) != 1 {
-			t.Fatalf("delivery to %d: %+v", id, f.calls)
-		}
+	if err = f.s.EnsurePinnedOnStart(ctx, 101); err != nil {
+		t.Fatal(err)
+	}
+	if f.count("copyMessage", 101) != 1 || f.count("pinChatMessage", 101) != 1 {
+		t.Fatal("already pinned message duplicated")
+	}
+	// A manual unpin restores the existing copy on the next /start.
+	f.mu.Lock()
+	delete(f.pinned, 101)
+	f.mu.Unlock()
+	if err = f.s.EnsurePinnedOnStart(ctx, 101); err != nil {
+		t.Fatal(err)
+	}
+	if f.count("copyMessage", 101) != 1 || f.count("pinChatMessage", 101) != 2 {
+		t.Fatal("manual unpin caused a duplicate")
+	}
+	if err = f.s.EnsurePinnedOnStart(ctx, 102); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.s.EnsurePinnedOnStart(ctx, 103); err == nil {
+		t.Fatal("blocked customer accepted")
+	}
+	if err = f.s.EnsurePinnedOnStart(ctx, 104); err == nil {
+		t.Fatal("synthetic customer accepted")
 	}
 	if f.count("copyMessage", 103) != 0 || f.count("copyMessage", 104) != 0 {
-		t.Fatal("blocked/synthetic recipient included")
+		t.Fatal("blocked or synthetic user received announcement")
+	}
+	if _, err = f.pool.Exec(ctx, "INSERT INTO customer VALUES(5,105,false,false)"); err != nil {
+		t.Fatal(err)
 	}
 	if _, err = f.s.processPinnedBatch(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if f.count("copyMessage", 101) != 1 {
-		t.Fatal("idle worker duplicated message")
+	if f.count("copyMessage", 105) != 0 {
+		t.Fatal("new user received message without /start")
 	}
-	if _, err = f.pool.Exec(ctx, `INSERT INTO customer VALUES(5,105,false,false)`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = f.s.processPinnedBatch(ctx); err != nil {
+	if err = f.s.EnsurePinnedOnStart(ctx, 105); err != nil {
 		t.Fatal(err)
 	}
 	if f.count("pinChatMessage", 105) != 1 {
-		t.Fatal("new user not pinned")
+		t.Fatal("new user not pinned on /start")
+	}
+	// Saving a replacement must wait for each user's next /start.
+	p = f.capture(t, ctx, "Новое объявление")
+	if _, err = f.s.processPinnedBatch(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if f.count("copyMessage", 101) != 1 || f.count("copyMessage", 102) != 1 {
+		t.Fatal("replacement broadcast unexpectedly")
+	}
+	if err = f.s.EnsurePinnedOnStart(ctx, 101); err != nil {
+		t.Fatal(err)
+	}
+	if f.count("copyMessage", 101) != 2 || f.count("copyMessage", 102) != 1 || f.count("unpinChatMessage", 101) != 1 {
+		t.Fatal("replacement was not isolated to requesting user")
 	}
 	p, err = f.s.SetPinnedEnabled(ctx, false, p.Revision)
 	if err != nil {
@@ -204,66 +257,74 @@ func TestPinnedMessageLifecycleAndNewUsers(t *testing.T) {
 	if _, err = f.s.processPinnedBatch(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if f.count("unpinChatMessage", 0) != 3 {
-		t.Fatalf("unpins: %+v", f.calls)
-	}
-	f.mu.Lock()
-	for _, c := range f.calls {
-		if c.Method == "unpinChatMessage" && c.MessageID == 0 {
-			t.Error("unspecified unpin could affect someone else's pin")
+	for _, id := range []int64{101, 102, 105} {
+		if f.pinned[id] != 0 {
+			t.Fatalf("disable left announcement pinned for %d", id)
 		}
 	}
-	f.mu.Unlock()
 	if _, err = f.s.SetPinnedEnabled(ctx, true, p.Revision); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = f.s.processPinnedBatch(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if f.count("copyMessage", 101) != 1 || f.count("pinChatMessage", 101) != 2 {
-		t.Fatal("re-enable duplicated a message")
+	if f.count("copyMessage", 101) != 2 {
+		t.Fatal("re-enable broadcast a copy")
 	}
-	f.capture(t, ctx, "Новое объявление")
-	if _, err = f.s.processPinnedBatch(ctx); err != nil {
+	if err = f.s.EnsurePinnedOnStart(ctx, 101); err != nil {
 		t.Fatal(err)
 	}
-	if f.count("copyMessage", 101) != 2 || f.count("unpinChatMessage", 101) != 2 {
-		t.Fatal("replacement did not unpin old message and send new copy")
+	if f.count("copyMessage", 101) != 2 {
+		t.Fatal("re-enable duplicated current copy")
+	}
+	for _, c := range f.calls {
+		if c.Method == "unpinChatMessage" && c.MessageID == 0 {
+			t.Fatal("unspecified unpin could affect another pin")
+		}
 	}
 }
 
-func TestPinnedRetriesResumeWithoutCopyingAgain(t *testing.T) {
+func TestPinnedNextStartRetriesAndDeletedCopy(t *testing.T) {
 	f, ctx := newPinFixture(t)
 	p := f.capture(t, ctx, "Важное сообщение")
 	if _, err := f.s.SetPinnedEnabled(ctx, true, p.Revision); err != nil {
 		t.Fatal(err)
 	}
 	f.failPin = true
+	if err := f.s.EnsurePinnedOnStart(ctx, 101); err == nil {
+		t.Fatal("pin error ignored")
+	}
 	if _, err := f.s.processPinnedBatch(ctx); err != nil {
 		t.Fatal(err)
 	}
-	p, err := f.s.PinnedState(ctx)
+	if f.count("pinChatMessage", 101) != 1 || f.count("copyMessage", 102) != 0 {
+		t.Fatal("failed start retried in background")
+	}
+	resumed := NewService(f.s.repository, f.s.customerRepository, nil, f.s.telegramBot)
+	resumed.ConfigurePinnedMessages(database.NewPinnedMessageRepository(f.pool))
+	if err := resumed.EnsurePinnedOnStart(ctx, 101); err != nil {
+		t.Fatal(err)
+	}
+	if f.count("copyMessage", 101) != 1 || f.count("pinChatMessage", 101) != 2 {
+		t.Fatal("next start did not reuse saved copy")
+	}
+	d, err := resumed.pinnedRepository.Delivery(ctx, 101)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Failed != 1 || p.Completed != 1 {
-		t.Fatalf("failed pin state: %+v", p)
-	}
-	// Recreate service as on process restart; its only source of progress is the database.
-	resumed := NewService(f.s.repository, f.s.customerRepository, nil, f.s.telegramBot)
-	resumed.ConfigurePinnedMessages(database.NewPinnedMessageRepository(f.pool))
-	if _, err = resumed.RetryPinnedMessages(ctx); err != nil {
+	f.mu.Lock()
+	delete(f.pinned, 101)
+	f.deleted[*d.MessageID] = true
+	f.mu.Unlock()
+	if err = resumed.EnsurePinnedOnStart(ctx, 101); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = resumed.processPinnedBatch(ctx); err != nil {
-		t.Fatal(err)
+	if f.count("copyMessage", 101) != 2 {
+		t.Fatal("deleted message not recreated during same /start")
 	}
 	p, err = resumed.PinnedState(ctx)
-	if err != nil || p.Completed != 2 || p.Failed != 0 {
-		t.Fatalf("resumed: %+v %v", p, err)
-	}
-	if f.count("copyMessage", 101) != 1 || f.count("pinChatMessage", 101) != 2 {
-		t.Fatal("retry copied source a second time")
+	if err != nil || p.Completed != 1 || p.Failed != 0 {
+		t.Fatalf("state: %+v %v", p, err)
 	}
 }
 

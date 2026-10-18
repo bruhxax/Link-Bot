@@ -50,7 +50,6 @@ type Service struct {
 	audienceResolver   func(context.Context, database.BroadcastAudience) ([]int64, error)
 	pinnedRepository   *database.PinnedMessageRepository
 	pinnedWake         chan struct{}
-	pinnedChats        chan int64
 	pinnedCursor       int64
 	pinnedRevision     int64
 }

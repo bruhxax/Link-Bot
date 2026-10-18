@@ -25,7 +25,7 @@ Telegram bot, Mini App and web cabinet for Remnawave VPN subscriptions.
 | Subscriptions, balance and history | Payment providers and Telegram Stars | Finances, GA4 and Yandex Metrika |
 | Tickets, FAQ and AI support | Promo codes, referrals and review rewards | Broadcasts and languages: RU / EN / FA |
 
-**Content → Telegram → Main menu → Pinned message** lets administrators compose a message in the bot chat, preview it and pin it for all users. Formatting, premium emoji and attachments are preserved. Turning it off only unpins this announcement. Background delivery resumes after restarts and includes new users.
+**Content → Telegram → Main menu → Pinned message** lets administrators compose and preview an announcement delivered on `/start`, before the ordinary menu. A current pinned copy is not duplicated; an unpinned copy is pinned again, and a deleted copy is recreated. Formatting, premium emoji and attachments are preserved. There is no mass delivery. Turning the feature off only unpins this announcement.
 
 ## Installation
 

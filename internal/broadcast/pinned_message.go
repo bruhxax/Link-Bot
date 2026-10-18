@@ -17,18 +17,6 @@ import (
 func (s *Service) ConfigurePinnedMessages(repository *database.PinnedMessageRepository) {
 	s.pinnedRepository = repository
 	s.pinnedWake = make(chan struct{}, 1)
-	s.pinnedChats = make(chan int64, 128)
-}
-
-func (s *Service) WakePinnedMessagesForChat(chatID int64) {
-	if s == nil || s.pinnedChats == nil || chatID <= 0 {
-		return
-	}
-	select {
-	case s.pinnedChats <- chatID:
-	default:
-	}
-	s.WakePinnedMessages()
 }
 
 func (s *Service) WakePinnedMessages() {
@@ -87,7 +75,7 @@ func (s *Service) StartPinnedCapture(ctx context.Context, adminID int64) (*datab
 	}
 	_, err = s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: adminID, ParseMode: models.ParseModeHTML,
-		Text:        "<b>Закреплённое сообщение</b>\n\nОтправьте одно сообщение: текст, фото, видео, аудио или файл. Форматирование, ссылки и premium emoji сохранятся. Можно использовать Telegram HTML.\n\nЕсли закреп включён, новое сообщение заменит его у всех пользователей. Если выключен — сохранится для проверки. Отмена: /cancel.",
+		Text:        "<b>Закреплённое сообщение</b>\n\nОтправьте одно сообщение: текст, фото, видео, аудио или файл. Форматирование, ссылки и premium emoji сохранятся. Можно использовать Telegram HTML.\n\nКогда закреп включён, пользователь получит это сообщение перед меню по команде /start. Уже закреплённая актуальная копия не дублируется. Отмена: /cancel.",
 		ReplyMarkup: &models.ForceReply{ForceReply: true, Selective: true, InputFieldPlaceholder: "Сообщение для закрепления"},
 	})
 	if err != nil {
@@ -145,7 +133,7 @@ func (s *Service) CapturePinnedMessage(ctx context.Context, message *models.Mess
 			return true, nil
 		}
 		// Save a bot-owned, already formatted copy. Deleting the admin's input
-		// will not invalidate copies for thousands of recipients later on.
+		// will not invalidate copies delivered on subsequent /start commands.
 		var saved *models.Message
 		saved, err = s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{ChatID: message.Chat.ID, Text: message.Text, ParseMode: models.ParseModeHTML})
 		if err == nil {
@@ -177,9 +165,9 @@ func (s *Service) CapturePinnedMessage(ctx context.Context, message *models.Mess
 		}
 		markup = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{Text: "Открыть редактор контента", WebApp: &models.WebAppInfo{URL: link}}}}}
 	}
-	status := "Сообщение сохранено. Вернитесь в редактор контента: проверьте его и включите «Закрепить»."
+	status := "Сообщение сохранено. Вернитесь в редактор контента: проверьте его и включите «Закреплять при /start»."
 	if p.Enabled {
-		status = "Сообщение сохранено. Бот заменяет закреп у пользователей в фоне."
+		status = "Сообщение сохранено. Пользователи получат новый закреп перед меню при следующей команде /start."
 	}
 	_, _ = s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{ChatID: message.Chat.ID, Text: status, ReplyMarkup: markup})
 	return true, nil
@@ -221,29 +209,13 @@ func (s *Service) RetryPinnedMessages(ctx context.Context) (*database.PinnedMess
 	return s.PinnedState(ctx)
 }
 
-// Persistent reconciliation runs independently of Telegram update handlers.
-// Version checkpoints resume interrupted sends and include newly registered users.
+// Background reconciliation only removes disabled announcements. Sending and
+// pinning run exclusively inside the requesting user's /start, before the menu.
 func (s *Service) RunPinnedMessages(ctx context.Context) {
 	if s.pinnedRepository == nil {
 		return
 	}
 	for ctx.Err() == nil {
-		var chats []int64
-	drainChats:
-		for len(chats) < 128 {
-			select {
-			case chatID := <-s.pinnedChats:
-				chats = append(chats, chatID)
-			default:
-				break drainChats
-			}
-		}
-		if len(chats) > 0 {
-			if err := s.pinnedRepository.RetryChats(ctx, chats); err != nil {
-				slog.Warn("pinned message retry after start", "error", err)
-			}
-			s.pinnedCursor = 0
-		}
 		worked, err := s.processPinnedBatch(ctx)
 		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, database.ErrPinnedStateChanged) {
 			slog.Warn("pinned messages worker", "error", err)
@@ -276,8 +248,8 @@ func (s *Service) processPinnedBatch(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if p.Enabled && !p.HasMessage {
-		return false, ErrNoMessage
+	if p.Enabled {
+		return false, nil
 	}
 	if s.pinnedRevision != p.Revision {
 		s.pinnedCursor = 0
@@ -307,7 +279,32 @@ func (s *Service) processPinnedBatch(ctx context.Context) (bool, error) {
 		case <-timer.C:
 		}
 		deliveryCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		unlockChat, lockErr := s.pinnedRepository.ChatLock(deliveryCtx, d.ChatID)
+		if lockErr != nil {
+			cancel()
+			return false, lockErr
+		}
+		// Recheck after acquiring the chat lock: a concurrent toggle or /start
+		// must not let stale cleanup remove a newly enabled announcement.
+		latest, stateErr := s.pinnedRepository.Get(deliveryCtx)
+		if stateErr != nil {
+			unlockChat()
+			cancel()
+			return false, stateErr
+		}
+		if latest.Enabled || latest.Revision != p.Revision {
+			unlockChat()
+			cancel()
+			return true, nil
+		}
+		d, stateErr = s.pinnedRepository.Delivery(deliveryCtx, d.ChatID)
+		if stateErr != nil {
+			unlockChat()
+			cancel()
+			return false, stateErr
+		}
 		err = s.applyPinnedMessage(deliveryCtx, p, d)
+		unlockChat()
 		cancel()
 		if err != nil {
 			if ctx.Err() != nil {
@@ -338,6 +335,63 @@ func (s *Service) processPinnedBatch(ctx context.Context) (bool, error) {
 		s.pinnedCursor = 0
 	}
 	return len(items) > 0, nil
+}
+
+// EnsurePinnedOnStart is synchronous so the caller can send the ordinary menu
+// immediately after this announcement. No other customer's chat is touched.
+func (s *Service) EnsurePinnedOnStart(ctx context.Context, chatID int64) error {
+	if s == nil || s.pinnedRepository == nil || s.telegramBot == nil || chatID <= 0 {
+		return nil
+	}
+	p, err := s.pinnedRepository.Get(ctx)
+	if err != nil {
+		return err
+	}
+	if !p.Enabled {
+		return nil
+	}
+	unlock, err := s.pinnedRepository.ChatLock(ctx, chatID)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	p, err = s.pinnedRepository.Get(ctx)
+	if err != nil {
+		return err
+	}
+	if !p.Enabled || !p.HasMessage {
+		return nil
+	}
+	d, err := s.pinnedRepository.Delivery(ctx, chatID)
+	if err != nil {
+		return err
+	}
+	if d.MessageID != nil && d.SourceVersion == p.SourceVersion {
+		chat, lookupErr := s.telegramBot.GetChat(ctx, &bot.GetChatParams{ChatID: chatID})
+		if lookupErr != nil {
+			return lookupErr
+		}
+		if chat.PinnedMessage != nil && chat.PinnedMessage.ID == *d.MessageID {
+			return s.pinnedRepository.MarkApplied(ctx, chatID, p.Revision)
+		}
+	}
+	err = s.applyPinnedMessage(ctx, p, d)
+	if pinnedMessageMissing(err) {
+		// A deleted copy cannot be pinned again. Recreate it once during this
+		// same /start; failed pin attempts with an existing copy reuse its ID.
+		d, err = s.pinnedRepository.Delivery(ctx, chatID)
+		if err == nil {
+			err = s.applyPinnedMessage(ctx, p, d)
+		}
+	}
+	if err != nil {
+		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+		defer cancel()
+		if saveErr := s.pinnedRepository.MarkFailed(cleanup, chatID, p.Revision, err.Error(), time.Now()); saveErr != nil {
+			slog.Warn("record /start pinned message failure", "error", saveErr)
+		}
+	}
+	return err
 }
 
 func (s *Service) applyPinnedMessage(ctx context.Context, p *database.PinnedMessage, d database.PinnedDelivery) error {

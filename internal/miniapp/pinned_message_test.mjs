@@ -17,9 +17,11 @@ test('pin editor escapes captured text and enables only valid actions',()=>{
  assert.match(c.renderAdminPinnedMessage(),/data-input="admin-pinned-enabled"[^>]*disabled/);
  state.adminPinnedMessage={enabled:true,hasMessage:true,total:10,completed:8,failed:2,sourcePreview:'<script>alert(1)</script>'};
  let html=c.renderAdminPinnedMessage();assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/<script>/);
- assert.match(html,/aria-valuenow="8"/);assert.match(html,/admin-pinned-retry/);
+ assert.match(html,/Получили при \/start: 8/);assert.doesNotMatch(html,/admin-pinned-retry/);assert.doesNotMatch(html,/role="progressbar"/);
  assert.match(html,/data-input="admin-pinned-enabled"[^>]*checked/);
  state.adminPinnedMessage.awaitingMessage=true;html=c.renderAdminPinnedMessage();assert.match(html,/admin-pinned-cancel/);assert.match(html,/admin-pinned-capture" disabled/);
+ assert.match(html,/при следующем \/start/);assert.match(html,/Массовой отправки нет/);
+ state.adminPinnedMessage.enabled=false;html=c.renderAdminPinnedMessage();assert.match(html,/aria-valuenow="8"/);assert.match(html,/admin-pinned-retry/);
 });
 
 test('pin toggle uses current version and preserves unsaved content and scroll',async()=>{

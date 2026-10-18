@@ -7423,13 +7423,13 @@ function renderAdminPinnedMessage() {
 	const percent = total ? Math.min(100, Math.round(completed / total * 100)) : 0;
 	return `<section class="admin-editor__section admin-pinned-message" aria-busy="${busy}">
 		<h3>Закреплённое сообщение</h3>
-		<p class="admin-pinned-message__hint">Одно сообщение для всех в Telegram. Форматирование, ссылки, premium emoji и вложения сохраняются. Новые пользователи тоже получат закреп.</p>
-		<label class="admin-toggle"><span>Закрепить у всех</span><input type="checkbox" role="switch" data-input="admin-pinned-enabled" aria-label="Закрепить или открепить сообщение у всех" ${p?.enabled ? "checked" : ""} ${disabled || !p?.hasMessage ? "disabled" : ""}><i aria-hidden="true"></i></label>
+		<p class="admin-pinned-message__hint">По команде /start бот отправит и закрепит это сообщение, затем покажет обычное меню. Уже закреплённая актуальная копия не дублируется. Форматирование, premium emoji и вложения сохраняются.</p>
+		<label class="admin-toggle"><span>Закреплять при /start</span><input type="checkbox" role="switch" data-input="admin-pinned-enabled" aria-label="Включить или выключить закрепление при /start" ${p?.enabled ? "checked" : ""} ${disabled || !p?.hasMessage ? "disabled" : ""}><i aria-hidden="true"></i></label>
 		${p?.hasMessage ? `<div class="admin-pinned-message__preview"><span class="admin-pinned-message__badge ${p.enabled ? "is-active" : ""}">${p.enabled ? "Закреп включён" : "Закреп выключен"}</span><p>${escapeHtml(p.sourcePreview || "Сообщение с вложением")}</p></div>` : `<p class="admin-pinned-message__hint">${p ? "Сначала напишите сообщение, затем включите закрепление." : "Загружаем настройки…"}</p>`}
-		${p?.awaitingMessage ? `<div class="admin-pinned-message__capture"><p>Отправьте сообщение боту в чат. ${p.enabled ? "Оно сразу заменит текущий закреп у всех." : "После сохранения вернитесь сюда и включите закреп."}</p><button type="button" data-action="admin-pinned-open-chat">Открыть чат</button><button type="button" data-action="admin-pinned-cancel" ${disabled ? "disabled" : ""}>Отменить ввод</button></div>` : ""}
+		${p?.awaitingMessage ? `<div class="admin-pinned-message__capture"><p>Отправьте сообщение боту в чат. ${p.enabled ? "Пользователи получат новый закреп при следующем /start." : "После сохранения вернитесь сюда и включите закреп."}</p><button type="button" data-action="admin-pinned-open-chat">Открыть чат</button><button type="button" data-action="admin-pinned-cancel" ${disabled ? "disabled" : ""}>Отменить ввод</button></div>` : ""}
 		<div class="admin-pinned-message__actions"><button class="admin-reminder-test" type="button" data-action="admin-pinned-capture" ${disabled || p?.awaitingMessage ? "disabled" : ""}>${icon("send")}<span>${state.adminPinnedBusy === "capture" ? "Открываем чат…" : "Написать сообщение"}</span></button><button type="button" data-action="admin-pinned-preview" ${disabled || !p?.hasMessage ? "disabled" : ""}>Проверить в Telegram</button></div>
-		${p?.hasMessage && total > 0 ? `<div class="admin-pinned-message__progress" role="status"><div><span>${p.enabled ? "Закреплено" : "Откреплено"}: ${completed} / ${total}</span>${failed ? `<span>Ошибок: ${failed}</span>` : ""}</div><div class="admin-pinned-message__track" role="progressbar" aria-label="Обработка закрепа" aria-valuenow="${completed}" aria-valuemin="0" aria-valuemax="${total}"><i style="width:${percent}%"></i></div>${failed ? `<button type="button" data-action="admin-pinned-retry" ${disabled ? "disabled" : ""}>Повторить для недоступных</button>` : ""}</div>` : ""}
-		<p class="admin-pinned-message__hint">Изменения применяются сразу. Отключение снимает только этот закреп; сообщение остаётся в чате. Настройка рассылок на закреп не влияет.</p>
+		${p?.hasMessage && total > 0 ? `<div class="admin-pinned-message__progress" role="status"><div><span>${p.enabled ? `Получили при /start: ${completed}` : `Откреплено: ${completed} / ${total}`}</span>${failed ? `<span>Ошибок: ${failed}</span>` : ""}</div>${p.enabled ? "" : `<div class="admin-pinned-message__track" role="progressbar" aria-label="Снятие закрепа" aria-valuenow="${completed}" aria-valuemin="0" aria-valuemax="${total}"><i style="width:${percent}%"></i></div>`}${failed && !p.enabled ? `<button type="button" data-action="admin-pinned-retry" ${disabled ? "disabled" : ""}>Повторить снятие закрепа</button>` : ""}</div>` : ""}
+		<p class="admin-pinned-message__hint">Массовой отправки нет. Если пользователь открепит сообщение, бот закрепит его снова при /start. При ошибке повторит попытку при следующем /start. Выключение снимает только этот закреп.</p>
 		${state.adminPinnedError ? `<p class="admin-pinned-message__error" role="alert">${escapeHtml(state.adminPinnedError)}</p>` : ""}
 	</section>`;
 }
@@ -7468,7 +7468,7 @@ async function actAdminPinnedMessage(action, enabled) {
 			showToast("Отправьте сообщение боту в чат", "success");
 			openPinnedMessageChat();
 		} else if (action === "preview") showToast("Проверочная копия отправлена в Telegram", "success");
-		else if (action === "toggle") showToast(enabled ? "Закрепляем сообщение у пользователей" : "Снимаем закреп у пользователей", "success");
+		else if (action === "toggle") showToast(enabled ? "Сообщение будет закрепляться при /start" : "Снимаем закреп у пользователей", "success");
 	} catch (error) {
 		state.adminPinnedError = error?.message || "Не удалось изменить закреп";
 		showToast(state.adminPinnedError);

@@ -158,7 +158,7 @@ func main() {
 
 	webLogin := webauth.NewService(webauth.DefaultTTL)
 	h := handler.NewHandler(syncService, paymentService, tm, customerRepository, purchaseRepository, cryptoPayClient, yookasaClient, referralRepository, cache, runtimeSettings, errorReporter, webLogin)
-	h.SetPinnedMessageWake(broadcastService.WakePinnedMessagesForChat)
+	h.SetPinnedMessageOnStart(broadcastService.EnsurePinnedOnStart)
 	miniAppHandler := miniapp.NewHandler(customerRepository, purchaseRepository, promoCodeRepository, referralRepository, partnerRepository, walletRepository, supportRepository, reviewRepository, paymentService, remnawaveClient, b, broadcastService, subService, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository, tm, webLogin)
 	miniAppHandler.SetStatusInfo(Version, Commit, BuildDate, startedAt, pool)
 	miniAppHandler.SetWebPushService(webPushService)

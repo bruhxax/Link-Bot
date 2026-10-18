@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"time"
 
 	cachepkg "link-bot/internal/cache"
@@ -16,24 +17,26 @@ import (
 )
 
 type Handler struct {
-	customerRepository *database.CustomerRepository
-	purchaseRepository *database.PurchaseRepository
-	cryptoPayClient    *cryptopay.Client
-	yookasaClient      *yookasa.Client
-	translation        *translation.Manager
-	paymentService     *payment.PaymentService
-	syncService        *sync.SyncService
-	referralRepository *database.ReferralRepository
-	cache              *cachepkg.Cache
-	channelSubCache    *cachepkg.Cache
-	screenMessageCache *cachepkg.Cache
-	runtimeSettings    *runtimeconfig.Service
-	errorReporter      *operations.Reporter
-	webLogin           *webauth.Service
-	pinnedMessageWake  func(int64)
+	customerRepository   *database.CustomerRepository
+	purchaseRepository   *database.PurchaseRepository
+	cryptoPayClient      *cryptopay.Client
+	yookasaClient        *yookasa.Client
+	translation          *translation.Manager
+	paymentService       *payment.PaymentService
+	syncService          *sync.SyncService
+	referralRepository   *database.ReferralRepository
+	cache                *cachepkg.Cache
+	channelSubCache      *cachepkg.Cache
+	screenMessageCache   *cachepkg.Cache
+	runtimeSettings      *runtimeconfig.Service
+	errorReporter        *operations.Reporter
+	webLogin             *webauth.Service
+	pinnedMessageOnStart func(context.Context, int64) error
 }
 
-func (h *Handler) SetPinnedMessageWake(wake func(int64)) { h.pinnedMessageWake = wake }
+func (h *Handler) SetPinnedMessageOnStart(ensure func(context.Context, int64) error) {
+	h.pinnedMessageOnStart = ensure
+}
 
 func NewHandler(
 	syncService *sync.SyncService,

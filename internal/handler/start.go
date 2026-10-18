@@ -82,9 +82,6 @@ func (h Handler) StartCommandHandler(ctx context.Context, b *bot.Bot, update *mo
 		slog.Error("error updating Telegram username", "error", err)
 		return
 	}
-	if h.pinnedMessageWake != nil && update.Message.Chat.ID > 0 {
-		defer h.pinnedMessageWake(update.Message.Chat.ID)
-	}
 	username := database.NormalizeTelegramUsername(update.Message.From.Username)
 	existingCustomer.TelegramUsername = nil
 	if username != "" {
@@ -116,7 +113,7 @@ func (h Handler) StartCommandHandler(ctx context.Context, b *bot.Bot, update *mo
 	}
 
 	if h.hasMiniApp() {
-		h.sendStartPhotoMessage(ctx, b, update.Message.Chat.ID, langCode, h.miniAppKeyboardForCustomer(ctxWithTime, existingCustomer, langCode))
+		h.sendCommandStartMenu(ctx, b, update.Message.Chat.ID, langCode, h.miniAppKeyboardForCustomer(ctxWithTime, existingCustomer, langCode))
 		return
 	}
 
@@ -145,7 +142,19 @@ func (h Handler) StartCommandHandler(ctx context.Context, b *bot.Bot, update *mo
 	}
 
 	// Send start screen (photo + caption + keyboard)
-	h.sendStartPhotoMessage(ctx, b, update.Message.Chat.ID, langCode, inlineKeyboard)
+	h.sendCommandStartMenu(ctx, b, update.Message.Chat.ID, langCode, inlineKeyboard)
+}
+
+func (h Handler) sendCommandStartMenu(ctx context.Context, b *bot.Bot, chatID int64, langCode string, keyboard [][]models.InlineKeyboardButton) {
+	if h.pinnedMessageOnStart != nil && chatID > 0 {
+		pinCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
+		if err := h.pinnedMessageOnStart(pinCtx, chatID); err != nil {
+			slog.Warn("/start pinned message failed", "error", err)
+		}
+		cancel()
+	}
+	// The menu is always last, including when Telegram cannot deliver the pin.
+	h.sendStartPhotoMessage(ctx, b, chatID, langCode, keyboard)
 }
 
 func (h Handler) StartCallbackHandler(ctx context.Context, b *bot.Bot, update *models.Update) {

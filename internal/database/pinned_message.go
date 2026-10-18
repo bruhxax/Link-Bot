@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
@@ -58,8 +59,8 @@ func (r *PinnedMessageRepository) State(ctx context.Context) (*PinnedMessage, er
 	if err != nil {
 		return nil, err
 	}
-	// New and existing Telegram customers are included, regardless of newsletter preferences.
-	query := `SELECT COUNT(*), COUNT(*) FILTER(WHERE d.applied_revision=$1), COUNT(*) FILTER(WHERE d.attempt_revision=$1 AND d.applied_revision<>$1 AND d.last_error<>'') FROM customer c LEFT JOIN bot_pinned_delivery d ON d.chat_id=c.telegram_id WHERE c.telegram_id>0 AND NOT c.is_blocked AND NOT c.telegram_id_is_synthetic`
+	// Only users who have requested /start participate in announcement delivery.
+	query := `SELECT COUNT(*), COUNT(*) FILTER(WHERE applied_revision=$1), COUNT(*) FILTER(WHERE attempt_revision=$1 AND applied_revision<>$1 AND last_error<>'') FROM bot_pinned_delivery WHERE applied_revision=$1 OR attempt_revision=$1`
 	if !s.Enabled {
 		query = `SELECT COUNT(*),COUNT(*) FILTER(WHERE applied_revision=$1),COUNT(*) FILTER(WHERE attempt_revision=$1 AND applied_revision<>$1 AND last_error<>'') FROM bot_pinned_delivery WHERE message_id IS NOT NULL`
 	}
@@ -98,10 +99,12 @@ func (r *PinnedMessageRepository) SetEnabled(ctx context.Context, enabled bool, 
 }
 
 func (r *PinnedMessageRepository) Pending(ctx context.Context, s *PinnedMessage, after int64) ([]PinnedDelivery, error) {
-	query := `SELECT c.telegram_id,d.message_id,COALESCE(d.source_version,0) FROM customer c LEFT JOIN bot_pinned_delivery d ON d.chat_id=c.telegram_id WHERE c.telegram_id>$2 AND NOT c.is_blocked AND NOT c.telegram_id_is_synthetic AND COALESCE(d.applied_revision,0)<>$1 AND (COALESCE(d.attempt_revision,0)<>$1 OR (d.attempts<3 AND d.retry_at<=NOW())) ORDER BY c.telegram_id LIMIT 50`
-	if !s.Enabled {
-		query = `SELECT chat_id,message_id,source_version FROM bot_pinned_delivery WHERE chat_id>$2 AND message_id IS NOT NULL AND applied_revision<>$1 AND (attempt_revision<>$1 OR (attempts<3 AND retry_at<=NOW())) ORDER BY chat_id LIMIT 50`
+	// Background work may only remove this announcement. It must never send or
+	// pin a message to a user who has not just requested /start.
+	if s.Enabled {
+		return nil, nil
 	}
+	query := `SELECT chat_id,message_id,source_version FROM bot_pinned_delivery WHERE chat_id>$2 AND message_id IS NOT NULL AND applied_revision<>$1 AND (attempt_revision<>$1 OR (attempts<3 AND retry_at<=NOW())) ORDER BY chat_id LIMIT 50`
 	rows, err := r.pool.Query(ctx, query, s.Revision, after)
 	if err != nil {
 		return nil, err
@@ -140,19 +143,48 @@ func (r *PinnedMessageRepository) Retry(ctx context.Context) error {
 	return err
 }
 
-func (r *PinnedMessageRepository) RetryChats(ctx context.Context, chatIDs []int64) error {
-	_, err := r.pool.Exec(ctx, `UPDATE bot_pinned_delivery SET attempts=0,retry_at=NOW(),last_error='' WHERE chat_id=ANY($1) AND last_error<>''`, chatIDs)
-	return err
+func (r *PinnedMessageRepository) Delivery(ctx context.Context, chatID int64) (PinnedDelivery, error) {
+	d := PinnedDelivery{ChatID: chatID}
+	err := r.pool.QueryRow(ctx, `SELECT message_id,source_version FROM bot_pinned_delivery WHERE chat_id=$1`, chatID).Scan(&d.MessageID, &d.SourceVersion)
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = nil
+	}
+	return d, err
 }
 
 // A single worker owns the delivery table even during overlapping application restarts.
 func (r *PinnedMessageRepository) WorkerLock(ctx context.Context) (func(), error) {
+	return r.lock(ctx, 742173064, false)
+}
+
+// Private Telegram IDs are positive. Negative lock keys isolate each user's
+// /start without blocking other chats or duplicating concurrent copies.
+func (r *PinnedMessageRepository) ChatLock(ctx context.Context, chatID int64) (func(), error) {
+	if chatID <= 0 {
+		return nil, ErrPinnedStateChanged
+	}
+	return r.lock(ctx, -chatID, true)
+}
+
+func (r *PinnedMessageRepository) lock(ctx context.Context, key int64, wait bool) (func(), error) {
 	conn, err := r.pool.Acquire(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var locked bool
-	if err = conn.QueryRow(ctx, `SELECT pg_try_advisory_lock(742173064)`).Scan(&locked); err != nil || !locked {
+	if wait {
+		_, err = conn.Exec(ctx, `SELECT pg_advisory_lock($1)`, key)
+		locked = err == nil
+	} else {
+		err = conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, key).Scan(&locked)
+	}
+	if err != nil || !locked {
+		if err != nil {
+			// A cancelled lock request must never leave a session lock in the pool.
+			cleanup, cancel := context.WithTimeout(context.Background(), time.Second)
+			_ = conn.Conn().Close(cleanup)
+			cancel()
+		}
 		conn.Release()
 		if err == nil {
 			err = ErrPinnedStateChanged
@@ -162,7 +194,7 @@ func (r *PinnedMessageRepository) WorkerLock(ctx context.Context) (func(), error
 	return func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_, err := conn.Exec(cleanup, `SELECT pg_advisory_unlock(742173064)`)
+		_, err := conn.Exec(cleanup, `SELECT pg_advisory_unlock($1)`, key)
 		if err != nil {
 			_ = conn.Conn().Close(cleanup)
 		}
