@@ -56,6 +56,7 @@ test('start content editor contains only visibility and both button forms', () =
     renderAdminTelegramButton:(label,path)=>`<input data-setting-path="${path}.text"><input data-setting-path="${path}.iconCustomEmojiId"><input data-setting-path="${path}.style">`,
     renderAdminLogoField:()=>'', renderAdminBannerField:()=>'',
     renderAdminContentTestButton:kind=>`<button data-value="${kind}"></button>`,
+    renderAdminPinnedMessage:()=>'',
   });
   load(context,'renderAdminStartContent');
   const html = context.renderAdminStartContent();

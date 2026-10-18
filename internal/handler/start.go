@@ -82,6 +82,9 @@ func (h Handler) StartCommandHandler(ctx context.Context, b *bot.Bot, update *mo
 		slog.Error("error updating Telegram username", "error", err)
 		return
 	}
+	if h.pinnedMessageWake != nil && update.Message.Chat.ID > 0 {
+		defer h.pinnedMessageWake(update.Message.Chat.ID)
+	}
 	username := database.NormalizeTelegramUsername(update.Message.From.Username)
 	existingCustomer.TelegramUsername = nil
 	if username != "" {

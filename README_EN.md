@@ -25,6 +25,8 @@ Telegram bot, Mini App and web cabinet for Remnawave VPN subscriptions.
 | Subscriptions, balance and history | Payment providers and Telegram Stars | Finances, GA4 and Yandex Metrika |
 | Tickets, FAQ and AI support | Promo codes, referrals and review rewards | Broadcasts and languages: RU / EN / FA |
 
+**Content → Telegram → Main menu → Pinned message** lets administrators compose a message in the bot chat, preview it and pin it for all users. Formatting, premium emoji and attachments are preserved. Turning it off only unpins this announcement. Background delivery resumes after restarts and includes new users.
+
 ## Installation
 
 You need a VPS with Ubuntu 22.04/24.04 or Debian 12, Docker Compose, an accessible [Remnawave panel](https://github.com/remnawave/panel) and a bot from [@BotFather](https://t.me/BotFather). Point the domain's `A` record to your server and open ports `80` and `443`.

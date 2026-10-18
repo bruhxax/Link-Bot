@@ -119,6 +119,8 @@ func main() {
 	errorReporter := operations.NewReporter(runtimeSettingsRepository, b, config.GetAdminTelegramId())
 	errorReporter.SetAdminPushNotifier(webPushService)
 	broadcastService := broadcast.NewService(broadcastRepository, customerRepository, promoCodeRepository, b)
+	broadcastService.ConfigurePinnedMessages(database.NewPinnedMessageRepository(pool))
+	go broadcastService.RunPinnedMessages(ctx)
 	if err := broadcastService.RecoverInterrupted(ctx); err != nil {
 		slog.Warn("broadcast recovery failed", "error", err)
 	}
@@ -156,6 +158,7 @@ func main() {
 
 	webLogin := webauth.NewService(webauth.DefaultTTL)
 	h := handler.NewHandler(syncService, paymentService, tm, customerRepository, purchaseRepository, cryptoPayClient, yookasaClient, referralRepository, cache, runtimeSettings, errorReporter, webLogin)
+	h.SetPinnedMessageWake(broadcastService.WakePinnedMessagesForChat)
 	miniAppHandler := miniapp.NewHandler(customerRepository, purchaseRepository, promoCodeRepository, referralRepository, partnerRepository, walletRepository, supportRepository, reviewRepository, paymentService, remnawaveClient, b, broadcastService, subService, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository, tm, webLogin)
 	miniAppHandler.SetStatusInfo(Version, Commit, BuildDate, startedAt, pool)
 	miniAppHandler.SetWebPushService(webPushService)
@@ -242,8 +245,19 @@ func main() {
 		}
 		accessCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
-		return miniAppHandler.HasAdminPermission(accessCtx, update.Message.From.ID, "users.message", "broadcast")
+		return miniAppHandler.HasAdminPermission(accessCtx, update.Message.From.ID, "users.message", "broadcast", "content")
 	}, func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		if miniAppHandler.HasAdminPermission(ctx, update.Message.From.ID, "content") {
+			captured, err := broadcastService.CapturePinnedMessage(ctx, update.Message)
+			if err != nil {
+				slog.Error("pinned message capture failed", "error", err)
+				_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: update.Message.Chat.ID, Text: "Не удалось сохранить закреплённое сообщение. Попробуйте ещё раз."})
+				return
+			}
+			if captured {
+				return
+			}
+		}
 		var directCaptured bool
 		var directErr error
 		if miniAppHandler.HasAdminPermission(ctx, update.Message.From.ID, "users.message") {

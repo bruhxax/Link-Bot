@@ -48,6 +48,11 @@ type Service struct {
 	telegramBot        *bot.Bot
 	sendMu             sync.Mutex
 	audienceResolver   func(context.Context, database.BroadcastAudience) ([]int64, error)
+	pinnedRepository   *database.PinnedMessageRepository
+	pinnedWake         chan struct{}
+	pinnedChats        chan int64
+	pinnedCursor       int64
+	pinnedRevision     int64
 }
 
 func NewService(repository *database.BroadcastRepository, customerRepository *database.CustomerRepository, promoRepository *database.PromoCodeRepository, telegramBot *bot.Bot) *Service {
@@ -85,6 +90,11 @@ func (s *Service) Get(ctx context.Context) (*database.BroadcastDraft, error) {
 }
 
 func (s *Service) StartCapture(ctx context.Context, adminID int64) (*database.BroadcastDraft, error) {
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
+	if err := s.checkPinnedCapture(ctx, adminID); err != nil {
+		return nil, err
+	}
 	direct, err := s.repository.GetDirect(ctx, adminID)
 	if err != nil {
 		return nil, err

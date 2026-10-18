@@ -30,7 +30,10 @@ type Handler struct {
 	runtimeSettings    *runtimeconfig.Service
 	errorReporter      *operations.Reporter
 	webLogin           *webauth.Service
+	pinnedMessageWake  func(int64)
 }
+
+func (h *Handler) SetPinnedMessageWake(wake func(int64)) { h.pinnedMessageWake = wake }
 
 func NewHandler(
 	syncService *sync.SyncService,

@@ -2739,6 +2739,9 @@ const state = {
   adminBusy: "",
 	adminAppearanceTab:"theme", adminLandingTab:"colors", adminCursorSurface:"landing", adminAudienceDraft:{}, adminAudienceCount:{}, adminAudienceOptions:null, adminAudienceBusy:false,
 	adminBroadcast: null,
+	adminPinnedMessage: null,
+	adminPinnedBusy: "",
+	adminPinnedError: "",
 	adminBroadcastError: "",
 	adminBroadcastTab: readSetting(STORAGE_KEYS.adminBroadcastTab, "telegram") === "email" ? "email" : "telegram",
 	adminEmailBroadcast: null,
@@ -2867,6 +2870,9 @@ let adminBannerCropGesture = null;
 let adminProfilePointer = null;
 let adminPlanPointer = null;
 let adminBroadcastPollTimer = 0;
+let adminPinnedPollTimer = 0;
+let adminPinnedRequestPending = false;
+let adminPinnedMutationGeneration = 0;
 const ADMIN_LAYOUT_GRID_SIZE = 8;
 const ADMIN_LAYOUT_SNAP_THRESHOLD = 6;
 const MODAL_CLOSE_MS = 220;
@@ -3332,6 +3338,7 @@ async function boot() {
 	if (entryRoute?.customPageID) state.activeCustomPageID = entryRoute.customPageID;
 	if (state.currentPage === "admin") state.adminWorkspace = remnaAdminEnabled;
 	state.adminSection = state.currentPage === "admin" ? getEntryAdminSection() : "home";
+	if (state.adminSection === "content" && urlParams.get("content") === "start") state.adminContentSection = "start";
 	if (!entryRoute?.login && !entryRoute?.logout) persistNavigationState();
 	if (!ADMIN_SEARCH_CONTENT_SECTIONS.some(([section]) => section === state.adminContentSection)) state.adminContentSection = "start";
   state.sidebarOpen = false;
@@ -5143,6 +5150,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
   syncSupportPolling();
 	syncAdminBroadcastPolling();
   mountGoogleLoginWidgets();
+	syncAdminPinnedPolling();
 	if (realtimeDetails.length) {
 		const details = [...app.querySelectorAll("details")];
 		for (const saved of realtimeDetails) {
@@ -7404,7 +7412,80 @@ function renderAdminStartContent() {
 		${renderAdminToggle("Показывать кнопку «Уведомления»", "content.startMenu.notificationsButton.enabled")}
 		${renderAdminTelegramButton("Уведомления — вкл.", "content.startMenu.notificationsButton")}
 		${renderAdminTelegramButton("Уведомления — выкл.", "content.startMenu.notificationsOffButton")}
+	</section>${renderAdminPinnedMessage()}`;
+}
+
+function renderAdminPinnedMessage() {
+	const p = state.adminPinnedMessage;
+	const busy = Boolean(state.adminPinnedBusy);
+	const disabled = busy || !p;
+	const completed = Number(p?.completed || 0), total = Number(p?.total || 0), failed = Number(p?.failed || 0);
+	const percent = total ? Math.min(100, Math.round(completed / total * 100)) : 0;
+	return `<section class="admin-editor__section admin-pinned-message" aria-busy="${busy}">
+		<h3>Закреплённое сообщение</h3>
+		<p class="admin-pinned-message__hint">Одно сообщение для всех в Telegram. Форматирование, ссылки, premium emoji и вложения сохраняются. Новые пользователи тоже получат закреп.</p>
+		<label class="admin-toggle"><span>Закрепить у всех</span><input type="checkbox" role="switch" data-input="admin-pinned-enabled" aria-label="Закрепить или открепить сообщение у всех" ${p?.enabled ? "checked" : ""} ${disabled || !p?.hasMessage ? "disabled" : ""}><i aria-hidden="true"></i></label>
+		${p?.hasMessage ? `<div class="admin-pinned-message__preview"><span class="admin-pinned-message__badge ${p.enabled ? "is-active" : ""}">${p.enabled ? "Закреп включён" : "Закреп выключен"}</span><p>${escapeHtml(p.sourcePreview || "Сообщение с вложением")}</p></div>` : `<p class="admin-pinned-message__hint">${p ? "Сначала напишите сообщение, затем включите закрепление." : "Загружаем настройки…"}</p>`}
+		${p?.awaitingMessage ? `<div class="admin-pinned-message__capture"><p>Отправьте сообщение боту в чат. ${p.enabled ? "Оно сразу заменит текущий закреп у всех." : "После сохранения вернитесь сюда и включите закреп."}</p><button type="button" data-action="admin-pinned-open-chat">Открыть чат</button><button type="button" data-action="admin-pinned-cancel" ${disabled ? "disabled" : ""}>Отменить ввод</button></div>` : ""}
+		<div class="admin-pinned-message__actions"><button class="admin-reminder-test" type="button" data-action="admin-pinned-capture" ${disabled || p?.awaitingMessage ? "disabled" : ""}>${icon("send")}<span>${state.adminPinnedBusy === "capture" ? "Открываем чат…" : "Написать сообщение"}</span></button><button type="button" data-action="admin-pinned-preview" ${disabled || !p?.hasMessage ? "disabled" : ""}>Проверить в Telegram</button></div>
+		${p?.hasMessage && total > 0 ? `<div class="admin-pinned-message__progress" role="status"><div><span>${p.enabled ? "Закреплено" : "Откреплено"}: ${completed} / ${total}</span>${failed ? `<span>Ошибок: ${failed}</span>` : ""}</div><div class="admin-pinned-message__track" role="progressbar" aria-label="Обработка закрепа" aria-valuenow="${completed}" aria-valuemin="0" aria-valuemax="${total}"><i style="width:${percent}%"></i></div>${failed ? `<button type="button" data-action="admin-pinned-retry" ${disabled ? "disabled" : ""}>Повторить для недоступных</button>` : ""}</div>` : ""}
+		<p class="admin-pinned-message__hint">Изменения применяются сразу. Отключение снимает только этот закреп; сообщение остаётся в чате. Настройка рассылок на закреп не влияет.</p>
+		${state.adminPinnedError ? `<p class="admin-pinned-message__error" role="alert">${escapeHtml(state.adminPinnedError)}</p>` : ""}
 	</section>`;
+}
+
+async function refreshAdminPinnedMessage() {
+	if (adminPinnedRequestPending || state.adminPinnedBusy) return;
+	adminPinnedRequestPending = true;
+	const previous = JSON.stringify(state.adminPinnedMessage), previousError = state.adminPinnedError;
+	const generation = adminPinnedMutationGeneration;
+	try {
+		const response = await post("/api/mini-app/admin/content/pinned/state", {});
+		if (!state.adminPinnedBusy && generation === adminPinnedMutationGeneration) { state.adminPinnedMessage = response.data; state.adminPinnedError = ""; }
+	} catch (error) { if (generation === adminPinnedMutationGeneration) state.adminPinnedError = error?.message || "Не удалось загрузить закреп"; }
+	finally {
+		adminPinnedRequestPending = false;
+		if (state.currentPage === "admin" && state.adminSection === "content" && state.adminContentSection === "start" && (previous !== JSON.stringify(state.adminPinnedMessage) || previousError !== state.adminPinnedError)) render({ preserveScroll: true, preserveInteraction: true });
+	}
+}
+
+function openPinnedMessageChat() {
+	if (tg?.close) { tg.close(); return; }
+	openExternal(state.data?.meta?.botUrl);
+}
+
+async function actAdminPinnedMessage(action, enabled) {
+	if (state.adminPinnedBusy || !state.adminPinnedMessage) return;
+	adminPinnedMutationGeneration += 1;
+	state.adminPinnedBusy = action;
+	state.adminPinnedError = "";
+	render({ preserveScroll: true, preserveInteraction: true });
+	try {
+		const body = action === "toggle" ? { enabled, revision: state.adminPinnedMessage.revision } : {};
+		const response = await post(`/api/mini-app/admin/content/pinned/${action}`, body);
+		state.adminPinnedMessage = response.data;
+		if (action === "capture") {
+			showToast("Отправьте сообщение боту в чат", "success");
+			openPinnedMessageChat();
+		} else if (action === "preview") showToast("Проверочная копия отправлена в Telegram", "success");
+		else if (action === "toggle") showToast(enabled ? "Закрепляем сообщение у пользователей" : "Снимаем закреп у пользователей", "success");
+	} catch (error) {
+		state.adminPinnedError = error?.message || "Не удалось изменить закреп";
+		showToast(state.adminPinnedError);
+		// Refresh an optimistic-version conflict without replacing content drafts.
+		try { const current = await post("/api/mini-app/admin/content/pinned/state", {}); state.adminPinnedMessage = current.data; } catch {}
+	} finally {
+		state.adminPinnedBusy = "";
+		render({ preserveScroll: true, preserveInteraction: true });
+	}
+}
+
+function syncAdminPinnedPolling() {
+	const active = state.currentPage === "admin" && state.adminSection === "content" && state.adminContentSection === "start" && canAdmin("content");
+	if (!active) { if (adminPinnedPollTimer) clearInterval(adminPinnedPollTimer); adminPinnedPollTimer = 0; return; }
+	if (adminPinnedPollTimer) return;
+	void refreshAdminPinnedMessage();
+	adminPinnedPollTimer = setInterval(() => { if (document.visibilityState === "visible") void refreshAdminPinnedMessage(); }, 5000);
 }
 
 function renderAdminTrialContent() {
@@ -12472,6 +12553,10 @@ function bindRootActions() {
       if (action === "admin-load-subscription-target") return await loadAdminSubscriptionTarget();
       if (action === "admin-rebind-subscription") return await rebindAdminSubscription();
 			if (action === "admin-broadcast-capture") return await startAdminBroadcastCapture();
+			if (action.startsWith("admin-pinned-")) {
+				if (action === "admin-pinned-open-chat") return openPinnedMessageChat();
+				return await actAdminPinnedMessage(action.slice("admin-pinned-".length));
+			}
 			if (action === "admin-broadcast-tab" && ["telegram", "email"].includes(value)) { state.adminBroadcastTab = value; state.adminEmailConfirmOpen = false; state.adminBroadcastConfirmOpen = false; render({ preserveScroll: true }); return await refreshAdminBroadcast({ forceButtons: false }); }
 			if (action === "admin-email-save") return await saveAdminEmailBroadcast();
 			if (action === "admin-email-open-confirm") { if(state.adminEmailDraftDirty && !await saveAdminEmailBroadcast({quiet:true}))return; if(!await checkBroadcastAudience("email"))return; state.adminEmailConfirmedAt=state.adminEmailBroadcast?.draft?.updatedAt; state.adminEmailConfirmOpen = true; render({ preserveScroll: true }); return; }
@@ -12566,6 +12651,7 @@ function bindRootActions() {
 
 	app.addEventListener("change", (event) => {
 		const input = event.target;
+		if (input.dataset?.input === "admin-pinned-enabled") { void actAdminPinnedMessage("toggle", input.checked); return; }
  if(input.dataset?.audienceField){ updateBroadcastAudience(input);return; }
  if(input.dataset?.input==="admin-cursor-file"&&input.files?.[0]){void uploadSurfaceAsset(input.files[0],"cursor",input.dataset.surface,input.dataset.cursorKind);return;}
  if(input.dataset?.input==="admin-landing-background-file"&&input.files?.[0]){void uploadSurfaceAsset(input.files[0],"background");return;}

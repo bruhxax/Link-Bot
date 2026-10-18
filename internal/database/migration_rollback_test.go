@@ -37,7 +37,7 @@ func TestBroadcastRollbackMigrationHistory(t *testing.T) {
 			if err := m.Up(); err != nil {
 				t.Fatalf("startup from version %d: %v", version, err)
 			}
-			if driver.CurrentVersion != 63 || driver.IsDirty {
+			if driver.CurrentVersion != 64 || driver.IsDirty {
 				t.Fatalf("unexpected final state: version=%d dirty=%v", driver.CurrentVersion, driver.IsDirty)
 			}
 			if err := m.Up(); err != migrate.ErrNoChange {
@@ -104,7 +104,7 @@ func TestBroadcastRollbackMigrationDatabase(t *testing.T) {
 				t.Fatal(err)
 			}
 			v, dirty, err := m.Version()
-			if err != nil || v != 63 || dirty {
+			if err != nil || v != 64 || dirty {
 				t.Fatalf("version=%d dirty=%v err=%v", v, dirty, err)
 			}
 			var indexGone bool

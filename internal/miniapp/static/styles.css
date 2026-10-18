@@ -701,6 +701,22 @@ select:focus-visible {
   .admin-content-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 .admin-content-panel { min-width: 0; display: grid; }
+.admin-pinned-message__hint { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.admin-pinned-message__preview { padding: 14px; border-radius: 14px; background: var(--surface); min-width: 0; }
+.admin-pinned-message__preview p { margin: 10px 0 0; font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-pinned-message__badge { display: inline-flex; color: var(--muted); font-size: 10px; font-weight: 700; }
+.admin-pinned-message__badge.is-active { color: var(--accent); }
+.admin-pinned-message__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-pinned-message__actions button, .admin-pinned-message__capture button, .admin-pinned-message__progress button { padding: 10px 14px; border-radius: 12px; background: var(--surface); color: var(--text); font-size: 11px; }
+.admin-pinned-message__actions button:first-child { flex: 1; }
+.admin-pinned-message__capture { padding: 12px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.admin-pinned-message__capture p { margin: 0 0 10px; font-size: 11px; line-height: 1.6; }
+.admin-pinned-message__capture button + button { margin-inline-start: 8px; }
+.admin-pinned-message__progress { display: grid; gap: 8px; font-size: 10px; color: var(--muted); }
+.admin-pinned-message__progress > div:first-child { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; }
+.admin-pinned-message__track { height: 5px; border-radius: 99px; background: var(--surface); overflow: hidden; }
+.admin-pinned-message__track i { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width .3s ease; }
+.admin-pinned-message__error { margin: 0; color: #ed7373; font-size: 11px; line-height: 1.5; }
 .admin-content-panel .admin-editor__section { padding-top: 18px; display: grid; gap: 10px; }
 .admin-content-panel .admin-editor__section h3 { margin: 0 0 2px; color: var(--text); font-size: 12px; line-height: 1.25; text-transform: none; }
 .admin-content-panel .admin-editor__section-head { margin: 0 0 2px; }
