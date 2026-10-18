@@ -13,7 +13,6 @@ import {
   Button,
   ActionIcon,
   Card,
-  Paper,
   Group,
   Stack,
   Text,
@@ -1062,42 +1061,29 @@ function Plans({ model }) {
                       <Text size="sm" lineClamp={1}>{p.label}</Text>
                       <Text size="xs" c="dimmed" lineClamp={1}>{p.hint}</Text>
                     </Stack>
-                    <Group gap={4}>
-                      <IconAction action="admin-payment-method-edit" value={p.id} label={`Изменить название и описание: ${p.label}`}>
+                    <Group gap={2} wrap="nowrap">
+                      <IconAction variant="subtle" action="admin-payment-method-edit" value={p.id} label={`Изменить название и описание: ${p.label}`}>
                         <PiPencilSimple />
                       </IconAction>
-                      <Action
+                      <IconAction variant="subtle"
                         action="move-pay-method-up"
                         value={p.id}
+                        label={`Поднять ${p.label}`}
                         disabled={i === 0}
                       >
                         ↑
-                      </Action>
-                      <Action
+                      </IconAction>
+                      <IconAction variant="subtle"
                         action="move-pay-method-down"
                         value={p.id}
+                        label={`Опустить ${p.label}`}
                         disabled={i === model.paymentMethods.length - 1}
                       >
                         ↓
-                      </Action>
+                      </IconAction>
                     </Group>
                   </Group>
                 ))}
-                {model.paymentMethodEditor && (
-                  <Paper key={model.paymentMethodEditor.id} withBorder p="sm" radius="md">
-                    <Stack gap="xs">
-                      <Text size="sm" fw={600}>{model.paymentMethodEditor.systemName}</Text>
-                      <Text size="xs" c="dimmed">Пустые поля используют системное название и описание.</Text>
-                      <TextInput label="Название" maxLength={80} defaultValue={model.paymentMethodEditor.name} placeholder={model.paymentMethodEditor.systemName} data-input="admin-payment-method-name" />
-                      <Textarea label="Описание" maxLength={240} autosize minRows={2} maxRows={5} defaultValue={model.paymentMethodEditor.description} placeholder={model.paymentMethodEditor.systemDescription} data-input="admin-payment-method-description" />
-                      <Group justify="flex-end" gap="xs">
-                        <Action action="admin-payment-method-cancel">Отмена</Action>
-                        <Action action="admin-payment-method-apply">Готово</Action>
-                      </Group>
-                      <Text size="xs" c="dimmed">Нажмите «Готово», затем сохраните изменения в тарифах.</Text>
-                    </Stack>
-                  </Paper>
-                )}
               </Stack>
             </SimpleGrid>
           </Accordion.Panel>
