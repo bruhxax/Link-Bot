@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"regexp"
@@ -351,17 +350,8 @@ func (h Handler) sendScreenPhoto(
 	if strings.TrimSpace(imageURL) == "" {
 		return h.sendScreenTextFallback(ctx, b, chatID, caption, inlineKeyboard)
 	}
-	data, filename, err := readImageSource(imageURL)
-	if err != nil {
-		slog.Error("screen image download failed", "error", err)
-		return h.sendScreenTextFallback(ctx, b, chatID, caption, inlineKeyboard)
-	}
-	msg, err := b.SendPhoto(ctx, &bot.SendPhotoParams{
-		ChatID: chatID,
-		Photo: &models.InputFileUpload{
-			Filename: filename,
-			Data:     bytes.NewReader(data),
-		},
+	msg, err := telegramScreenPhotos.send(ctx, b, imageURL, &bot.SendPhotoParams{
+		ChatID:    chatID,
 		Caption:   caption,
 		ParseMode: models.ParseModeHTML,
 		ReplyMarkup: models.InlineKeyboardMarkup{

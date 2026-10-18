@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"strconv"
 	"strings"
@@ -18,6 +17,8 @@ import (
 )
 
 func (h Handler) StartCommandHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
+	started := time.Now()
+	defer func() { slog.Info("bot: start completed", "duration", time.Since(started)) }()
 	ctxWithTime, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -94,7 +95,11 @@ func (h Handler) StartCommandHandler(ctx context.Context, b *bot.Bot, update *mo
 	}
 
 	h.deleteTrackedScreenMessage(ctxWithTime, b, update.Message.Chat.ID)
-	existingCustomer = h.refreshSubscriptionForBot(ctxWithTime, existingCustomer)
+	// The Mini App entry contains navigation, not live subscription details.
+	// Its own bootstrap refreshes the selected subscription when opened.
+	if !h.hasMiniApp() {
+		existingCustomer = h.refreshSubscriptionForBot(ctxWithTime, existingCustomer)
+	}
 
 	verified, err := h.maybeAutoVerifyRequiredChannelSubscription(ctxWithTime, b, existingCustomer)
 	if err != nil {
@@ -152,7 +157,9 @@ func (h Handler) StartCallbackHandler(ctx context.Context, b *bot.Bot, update *m
 		slog.Error("error finding customer by telegram id", "error", err)
 		return
 	}
-	existingCustomer = h.refreshSubscriptionForBot(ctxWithTime, existingCustomer)
+	if !h.hasMiniApp() {
+		existingCustomer = h.refreshSubscriptionForBot(ctxWithTime, existingCustomer)
+	}
 
 	if h.hasMiniApp() {
 		msg := callback.Message.Message
@@ -203,19 +210,8 @@ func (h Handler) sendStartPhotoMessage(
 		return
 	}
 
-	data, filename, err := readImageSource(img)
-	if err != nil {
-		slog.Error("start image download failed", "error", err)
-		h.sendStartTextFallback(ctx, b, chatID, langCode, inlineKeyboard, 0)
-		return
-	}
-
-	msg, err := b.SendPhoto(ctx, &bot.SendPhotoParams{
-		ChatID: chatID,
-		Photo: &models.InputFileUpload{
-			Filename: filename,
-			Data:     bytes.NewReader(data),
-		},
+	msg, err := telegramScreenPhotos.send(ctx, b, img, &bot.SendPhotoParams{
+		ChatID:    chatID,
 		Caption:   text,
 		ParseMode: models.ParseModeHTML,
 		ReplyMarkup: models.InlineKeyboardMarkup{

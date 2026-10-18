@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -191,23 +190,15 @@ func (h Handler) showRequiredChannelSubscriptionPrompt(ctx context.Context, b *b
 
 	banner := strings.TrimSpace(h.telegramVerificationSettings().Banner)
 	if banner != "" {
-		data, filename, err := readImageSource(banner)
+		msg, err := telegramScreenPhotos.send(ctx, b, banner, &bot.SendPhotoParams{
+			ChatID:      chatID,
+			Caption:     h.requiredChannelSubscriptionText(langCode),
+			ParseMode:   models.ParseModeHTML,
+			ReplyMarkup: keyboard,
+		})
 		if err == nil {
-			msg, sendErr := b.SendPhoto(ctx, &bot.SendPhotoParams{
-				ChatID: chatID,
-				Photo: &models.InputFileUpload{
-					Filename: filename,
-					Data:     bytes.NewReader(data),
-				},
-				Caption:     h.requiredChannelSubscriptionText(langCode),
-				ParseMode:   models.ParseModeHTML,
-				ReplyMarkup: keyboard,
-			})
-			if sendErr == nil {
-				h.rememberScreenMessage(chatID, msg.ID)
-				return
-			}
-			err = sendErr
+			h.rememberScreenMessage(chatID, msg.ID)
+			return
 		}
 		slog.Error("required channel: failed to send verification banner", "chatId", utils.MaskHalfInt64(chatID), "error", err)
 	}

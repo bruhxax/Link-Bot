@@ -1,34 +1,29 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"log/slog"
 )
 
-func (h Handler) downloadAsUpload(source string) (*models.InputFileUpload, error) {
-	data, filename, err := readImageSource(source)
-	if err != nil {
-		return nil, err
-	}
-	return &models.InputFileUpload{
-		Filename: filename,
-		Data:     bytes.NewReader(data),
-	}, nil
-}
+var screenImageClient = &http.Client{Timeout: 5 * time.Second}
 
-func readImageSource(source string) ([]byte, string, error) {
+func readImageSourceContext(ctx context.Context, source string) ([]byte, string, error) {
 	source = strings.TrimSpace(source)
 	if strings.HasPrefix(strings.ToLower(source), "http://") || strings.HasPrefix(strings.ToLower(source), "https://") {
-		resp, err := http.Get(source)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, source, nil)
+		if err != nil {
+			return nil, "", err
+		}
+		resp, err := screenImageClient.Do(req)
 		if err != nil {
 			return nil, "", err
 		}
@@ -105,30 +100,10 @@ func (h Handler) editScreen(
 		return
 	}
 
-	upload, err := h.downloadAsUpload(imageURL)
-	if err != nil {
-		slog.Error("download screen image failed", "error", err)
-		// fallback: просто обновим caption если получится
-		_, editErr := b.EditMessageCaption(ctx, &bot.EditMessageCaptionParams{
-			ChatID:    chatID,
-			MessageID: messageID,
-			Caption:   caption,
-			ParseMode: models.ParseModeHTML,
-			ReplyMarkup: models.InlineKeyboardMarkup{
-				InlineKeyboard: keyboard,
-			},
-		})
-		if editErr == nil {
-			h.rememberScreenMessage(chatID, messageID)
-		}
-		return
-	}
-
 	// Сначала отправляем новый экран, и только потом удаляем старый.
 	// Так пользователь не увидит "пустоту", если Telegram временно не примет новое сообщение.
-	msg, err := b.SendPhoto(ctx, &bot.SendPhotoParams{
+	msg, err := telegramScreenPhotos.send(ctx, b, imageURL, &bot.SendPhotoParams{
 		ChatID:      chatID,
-		Photo:       upload,
 		Caption:     caption,
 		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: models.InlineKeyboardMarkup{InlineKeyboard: keyboard},
