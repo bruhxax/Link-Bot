@@ -67,7 +67,7 @@ func TestBroadcastAudiencePersistenceAndDraftGuards(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"000017_broadcast_campaign.up.sql", "000030_broadcast_html.up.sql", "000048_email_link_and_broadcast.up.sql", "000055_broadcast_audience.up.sql"} {
+	for _, name := range []string{"000017_broadcast_campaign.up.sql", "000030_broadcast_html.up.sql", "000048_email_link_and_broadcast.up.sql", "000055_broadcast_audience.up.sql", "000063_broadcast_preferences.up.sql"} {
 		raw, err := os.ReadFile(filepath.Join("..", "..", "db", "migrations", name))
 		if err != nil {
 			t.Fatal(err)
@@ -85,13 +85,72 @@ func TestBroadcastAudiencePersistenceAndDraftGuards(t *testing.T) {
 	if len(customers) != 2 || len(customers[0].Subscriptions) != 2 || !customers[0].Paid || customers[1].Paid || customers[0].Email != "one@example.com" {
 		t.Fatalf("incorrect eligible accounts: %+v", customers)
 	}
-	a := BroadcastAudience{Category: "active", Tag: "PREMIUM"}
+	t.Run("persistent unsubscribe filters Telegram, email and legacy broadcasts", func(t *testing.T) {
+		if subscribed, err := c.BroadcastSubscribed(ctx, 1); err != nil || !subscribed {
+			t.Fatalf("default=%v err=%v", subscribed, err)
+		}
+		for i := 0; i < 2; i++ {
+			if err := c.SetBroadcastSubscribed(ctx, 1, false); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if subscribed, err := NewCustomerRepository(pool).BroadcastSubscribed(ctx, 1); err != nil || subscribed {
+			t.Fatalf("recreated repository lost opt-out: %v %v", subscribed, err)
+		}
+		for _, ignore := range []bool{false, true} {
+			allowed, err := c.BroadcastTelegramAllowed(ctx, 101, ignore)
+			if err != nil || allowed != ignore {
+				t.Fatalf("Telegram ignore=%v allowed=%v err=%v", ignore, allowed, err)
+			}
+			allowed, err = c.BroadcastEmailAllowed(ctx, "one@example.com", ignore)
+			if err != nil || allowed != ignore {
+				t.Fatalf("email ignore=%v allowed=%v err=%v", ignore, allowed, err)
+			}
+			ids, err := c.ListAllTelegramIDs(ctx, ignore)
+			wantCount := 0
+			if ignore {
+				wantCount = 1
+			}
+			if err != nil || len(ids) != wantCount {
+				t.Fatalf("legacy recipients ignore=%v: %v %v", ignore, ids, err)
+			}
+		}
+		if allowed, err := c.BroadcastTelegramAllowed(ctx, 102, true); err != nil || allowed {
+			t.Fatalf("override unblocked a blocked customer: %v %v", allowed, err)
+		}
+		if allowed, err := c.BroadcastTelegramAllowed(ctx, 103, true); err != nil || allowed {
+			t.Fatalf("synthetic Telegram ID included: %v %v", allowed, err)
+		}
+		if allowed, err := c.BroadcastEmailAllowed(ctx, "missing@example.com", true); err != nil || allowed {
+			t.Fatalf("unknown email included: %v %v", allowed, err)
+		}
+		customers, err := c.BroadcastCustomers(ctx)
+		if err != nil || !customers[0].Unsubscribed || customers[1].Unsubscribed {
+			t.Fatalf("recipient preferences: %+v %v", customers, err)
+		}
+		// Sending with an override must not change the stored opt-out.
+		if subscribed, err := c.BroadcastSubscribed(ctx, 1); err != nil || subscribed {
+			t.Fatalf("override changed preference: %v %v", subscribed, err)
+		}
+		for i := 0; i < 2; i++ {
+			if err := c.SetBroadcastSubscribed(ctx, 1, true); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if allowed, err := c.BroadcastTelegramAllowed(ctx, 101, false); err != nil || !allowed {
+			t.Fatalf("resubscribe failed: %v %v", allowed, err)
+		}
+		if allowed, err := c.BroadcastEmailAllowed(ctx, "one@example.com", false); err != nil || !allowed {
+			t.Fatalf("email resubscribe failed: %v %v", allowed, err)
+		}
+	})
+	a := BroadcastAudience{Category: "active", Tag: "PREMIUM", IgnoreUnsubscribe: true}
 	_ = a.Normalize()
 	draft, err := b.SaveAudience(ctx, a, 101)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if draft.Audience.Category != "active" || draft.Audience.Tag != "PREMIUM" {
+	if draft.Audience.Category != "active" || draft.Audience.Tag != "PREMIUM" || !draft.Audience.IgnoreUnsubscribe {
 		t.Fatal("Telegram audience lost")
 	}
 	if _, err = b.StartCapture(ctx, 101); err != nil {
@@ -124,7 +183,7 @@ func TestBroadcastAudiencePersistenceAndDraftGuards(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if email.Audience.Tag != "PREMIUM" {
+	if email.Audience.Tag != "PREMIUM" || !email.Audience.IgnoreUnsubscribe {
 		t.Fatal("email audience lost")
 	}
 	if _, err = c.BeginEmailBroadcast(ctx, 1, 101, stale); err == nil {
@@ -135,5 +194,17 @@ func TestBroadcastAudiencePersistenceAndDraftGuards(t *testing.T) {
 	}
 	if _, err = c.SaveEmailAudience(ctx, a, 101); err == nil {
 		t.Fatal("changed audience during email send")
+	}
+	if err := b.Finish(ctx, BroadcastStatusFinished, 0, 0, "", 1); err != nil {
+		t.Fatal(err)
+	}
+	if finished, err := b.Get(ctx); err != nil || finished.RecipientCount != 0 || finished.FailedCount != 0 {
+		t.Fatalf("unsubscribed recipient counted as failure: %+v %v", finished, err)
+	}
+	if err := c.FinishEmailBroadcast(ctx, "finished", 0, 0, "", 1); err != nil {
+		t.Fatal(err)
+	}
+	if finished, err := c.EmailBroadcastDraft(ctx); err != nil || finished.RecipientCount != 0 || finished.FailedCount != 0 {
+		t.Fatalf("email skipped recipient counted as failure: %+v %v", finished, err)
 	}
 }

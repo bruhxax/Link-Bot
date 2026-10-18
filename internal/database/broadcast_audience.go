@@ -11,11 +11,12 @@ import (
 )
 
 type BroadcastAudience struct {
-	Category       string   `json:"category"`
-	InternalSquads []string `json:"internalSquads"`
-	ExternalSquads []string `json:"externalSquads"`
-	Tag            string   `json:"tag"`
-	Language       string   `json:"language"`
+	IgnoreUnsubscribe bool     `json:"ignoreUnsubscribe"`
+	Category          string   `json:"category"`
+	InternalSquads    []string `json:"internalSquads"`
+	ExternalSquads    []string `json:"externalSquads"`
+	Tag               string   `json:"tag"`
+	Language          string   `json:"language"`
 }
 
 func (a *BroadcastAudience) Normalize() error {
@@ -59,6 +60,7 @@ func (a *BroadcastAudience) Normalize() error {
 }
 
 type BroadcastCustomer struct {
+	Unsubscribed               bool
 	ID, TelegramID             int64
 	Synthetic, TrialUsed, Paid bool
 	Email, Language            string
@@ -76,7 +78,8 @@ type BroadcastSubscription struct {
 func (r *CustomerRepository) BroadcastCustomers(ctx context.Context) ([]BroadcastCustomer, error) {
 	rows, err := r.pool.Query(ctx, `SELECT c.id,c.telegram_id,c.telegram_id_is_synthetic,c.trial_used,
 		EXISTS(SELECT 1 FROM purchase p WHERE p.customer_id=c.id AND p.status='paid' AND p.purchase_kind='subscription' AND p.amount>0 AND NOT p.is_free_plan),
-		COALESCE(e.email,''),c.language,c.expire_at,s.panel_user_id,s.panel_user_uuid,s.expire_at
+		COALESCE(e.email,''),c.language,c.expire_at,s.panel_user_id,s.panel_user_uuid,s.expire_at,
+		EXISTS(SELECT 1 FROM customer_broadcast_unsubscribe u WHERE u.customer_id=c.id)
 		FROM customer c LEFT JOIN customer_email_auth e ON e.customer_id=c.id
 		LEFT JOIN customer_subscription s ON s.customer_id=c.id WHERE NOT c.is_blocked ORDER BY c.id,s.position`)
 	if err != nil {
@@ -88,7 +91,7 @@ func (r *CustomerRepository) BroadcastCustomers(ctx context.Context) ([]Broadcas
 	for rows.Next() {
 		var c BroadcastCustomer
 		var s BroadcastSubscription
-		if err = rows.Scan(&c.ID, &c.TelegramID, &c.Synthetic, &c.TrialUsed, &c.Paid, &c.Email, &c.Language, &c.ExpireAt, &s.PanelID, &s.PanelUUID, &s.ExpireAt); err != nil {
+		if err = rows.Scan(&c.ID, &c.TelegramID, &c.Synthetic, &c.TrialUsed, &c.Paid, &c.Email, &c.Language, &c.ExpireAt, &s.PanelID, &s.PanelUUID, &s.ExpireAt, &c.Unsubscribed); err != nil {
 			return nil, err
 		}
 		if c.ID != previous {

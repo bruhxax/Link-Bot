@@ -358,5 +358,5 @@ func (h Handler) buildStartKeyboard(existingCustomer *database.Customer, langCod
 		inlineKeyboard = append(inlineKeyboard, row3)
 	}
 
-	return inlineKeyboard
+	return appendNotificationsMenuButton(inlineKeyboard, h.telegramStartMenuSettings())
 }

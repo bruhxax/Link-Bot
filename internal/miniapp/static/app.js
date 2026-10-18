@@ -2569,7 +2569,8 @@ function buildPreviewRuntimeSettings() {
 			brandName: "Link-Bot", adminContact: "", logoUrl: previewPayload.brand.logoUrl, startTextRu: "", startImage: "", copy: { ru: {} }, faq: { ru: [] }, links: deepClone(previewPayload.links), customLinks: [], profileButtons: {}, legalDocuments: {},
 			webPage: { title: "Link-Bot", description: "Link-Bot Mini App", faviconUrl: BRAND_MARK_PATH },
 			verification: { text: "", banner: "", channelButton: { text: "Link-Bot", iconCustomEmojiId: "", style: "" }, confirmButton: { text: "Я подписался", iconCustomEmojiId: "", style: "" }, checkFailedText: "", notSubscribedText: "", verifiedText: "" },
-			startMenu: { trialButton: { text: "Попробовать бесплатно", iconCustomEmojiId: "5276422526350681413", style: "" }, dashboardButton: { text: "Вход", iconCustomEmojiId: "5278413853577734640", style: "" }, plansButton: { text: "Тарифы", iconCustomEmojiId: "5206626000665868017", style: "" }, supportButton: { text: "Чат с поддержкой", iconCustomEmojiId: "5206222720416643915", style: "" } },
+			startMenu: { notificationsButton: { enabled: false, text: "Уведомления", iconCustomEmojiId: "", style: "" }, trialButton: { text: "Попробовать бесплатно", iconCustomEmojiId: "5276422526350681413", style: "" }, dashboardButton: { text: "Вход", iconCustomEmojiId: "5278413853577734640", style: "" }, plansButton: { text: "Тарифы", iconCustomEmojiId: "5206626000665868017", style: "" }, supportButton: { text: "Чат с поддержкой", iconCustomEmojiId: "5206222720416643915", style: "" } },
+			notifications: { enabledText: "<b>Уведомления</b>\n\nРассылки включены.", disabledText: "<b>Уведомления</b>\n\nВы отписались от рассылок.", subscribeButton: { text: "Включить рассылки", iconCustomEmojiId: "", style: "success" }, unsubscribeButton: { text: "Отключить рассылки", iconCustomEmojiId: "", style: "danger" } },
 			trial: { banner: "", text: "<b>Пробный период</b>\n\nБесплатно протестируйте сервис перед покупкой.", activateButton: { text: "Активировать бесплатно", iconCustomEmojiId: "", style: "" }, activatedBanner: "", activatedText: "<b>Пробный период активирован!</b>\n\nОцените скорость и стабильность сервиса.", connectButton: { text: "Подписка", iconCustomEmojiId: "", style: "" } },
 			commerce: { banner: "", tariffsText: "", paymentMethodsText: "", paymentReadyText: "", yookassaButton: { text: "СБП | Карта", iconCustomEmojiId: "5192678313415434135", style: "" }, cryptoButton: { text: "CryptoPay", iconCustomEmojiId: "5195058841988914267", style: "" }, starsButton: { text: "Telegram Stars", iconCustomEmojiId: "5242644275014951846", style: "" }, payButton: { text: "Оплатить", iconCustomEmojiId: "5206401524200145033", style: "" }, backButton: { text: "Назад", iconCustomEmojiId: "5877629862306385808", style: "" }, successText: "", successBanner: "", successButton: { text: "Личный кабинет", iconCustomEmojiId: "5278413853577734640", style: "" } },
 			gift: {
@@ -7182,11 +7183,11 @@ function renderAdminBroadcastConfirmation() {
 }
 
 function renderAdminEmailBroadcastConfirm(english) {
-	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-email-close-confirm"></button><div class="modal__sheet admin-broadcast-confirm" role="dialog" aria-modal="true"><div class="modal__header"><div class="modal__title">${english ? "Send to selected recipients?" : "Отправить письмо выбранной аудитории?"}</div></div><p>${english ? `Recipients with verified email: ${(state.adminAudienceCount.email ?? (english ? "Not counted" : "Не подсчитано"))}. Check the preview first.` : `Получателей с подтверждённой почтой: ${(state.adminAudienceCount.email ?? (english ? "Not counted" : "Не подсчитано"))}. Проверьте тестовое письмо перед запуском.`}</p><div class="admin-broadcast-confirm__actions"><button type="button" data-action="admin-email-close-confirm">${english ? "Cancel" : "Отмена"}</button><button class="admin-broadcast-confirm__send" type="button" data-action="admin-email-send">${icon("send")}<span>${english ? "Start" : "Запустить"}</span></button></div></div></div>`;
+	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-email-close-confirm"></button><div class="modal__sheet admin-broadcast-confirm" role="dialog" aria-modal="true"><div class="modal__header"><div class="modal__title">${english ? "Send to selected recipients?" : "Отправить письмо выбранной аудитории?"}</div></div><p>${english ? `Recipients with verified email: ${(state.adminAudienceCount.email ?? (english ? "Not counted" : "Не подсчитано"))}. Check the preview first.` : `Получателей с подтверждённой почтой: ${(state.adminAudienceCount.email ?? (english ? "Not counted" : "Не подсчитано"))}. Проверьте тестовое письмо перед запуском.`}</p>${state.adminEmailBroadcast?.draft?.audience?.ignoreUnsubscribe ? `<p class="admin-broadcast-optout-note">${english ? "This broadcast includes unsubscribed users. Their preferences will stay unchanged." : "Эта рассылка придёт и отписавшимся пользователям. Их настройки не изменятся."}</p>` : ""}<div class="admin-broadcast-confirm__actions"><button type="button" data-action="admin-email-close-confirm">${english ? "Cancel" : "Отмена"}</button><button class="admin-broadcast-confirm__send" type="button" data-action="admin-email-send">${icon("send")}<span>${english ? "Start" : "Запустить"}</span></button></div></div></div>`;
 }
 
 function renderAdminBroadcastConfirm(english) {
-	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-broadcast-close-confirm" aria-label="${english ? "Cancel" : "Отмена"}"></button><div class="modal__sheet admin-broadcast-confirm" role="dialog" aria-modal="true" aria-labelledby="broadcast-confirm-title"><div class="modal__header"><div><div class="section-label">${english ? "Broadcast" : "Рассылка"}</div><div class="modal__title" id="broadcast-confirm-title">${english ? "Send to selected recipients?" : "Отправить выбранной аудитории?"}</div></div><button class="header__btn" type="button" data-action="admin-broadcast-close-confirm" aria-label="${english ? "Close" : "Закрыть"}">${icon("close")}</button></div><p>${english ? "The broadcast starts immediately. Check the preview before sending." : `Получателей: ${Number(state.adminAudienceCount.telegram||0)}. Рассылка начнётся сразу. Перед отправкой проверьте предпросмотр.`}</p><div class="admin-broadcast-confirm__actions"><button type="button" data-action="admin-broadcast-close-confirm">${english ? "Cancel" : "Отмена"}</button><button class="admin-broadcast-confirm__send" type="button" data-action="admin-broadcast-send">${icon("send")}<span>${english ? "Start" : "Запустить"}</span></button></div></div></div>`;
+	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-broadcast-close-confirm" aria-label="${english ? "Cancel" : "Отмена"}"></button><div class="modal__sheet admin-broadcast-confirm" role="dialog" aria-modal="true" aria-labelledby="broadcast-confirm-title"><div class="modal__header"><div><div class="section-label">${english ? "Broadcast" : "Рассылка"}</div><div class="modal__title" id="broadcast-confirm-title">${english ? "Send to selected recipients?" : "Отправить выбранной аудитории?"}</div></div><button class="header__btn" type="button" data-action="admin-broadcast-close-confirm" aria-label="${english ? "Close" : "Закрыть"}">${icon("close")}</button></div><p>${english ? "The broadcast starts immediately. Check the preview before sending." : `Получателей: ${Number(state.adminAudienceCount.telegram||0)}. Рассылка начнётся сразу. Перед отправкой проверьте предпросмотр.`}</p>${state.adminBroadcast?.audience?.ignoreUnsubscribe ? `<p class="admin-broadcast-optout-note">${english ? "This broadcast includes unsubscribed users. Their preferences will stay unchanged." : "Эта рассылка придёт и отписавшимся пользователям. Их настройки не изменятся."}</p>` : ""}<div class="admin-broadcast-confirm__actions"><button type="button" data-action="admin-broadcast-close-confirm">${english ? "Cancel" : "Отмена"}</button><button class="admin-broadcast-confirm__send" type="button" data-action="admin-broadcast-send">${icon("send")}<span>${english ? "Start" : "Запустить"}</span></button></div></div></div>`;
 }
 
 function broadcastStatusLabel(status, english) {
@@ -7400,6 +7401,17 @@ function renderAdminStartContent() {
 		${renderAdminTelegramButton("Вход", "content.startMenu.dashboardButton")}
 		${renderAdminTelegramButton("Тарифы", "content.startMenu.plansButton")}
 		${renderAdminTelegramButton("Чат с поддержкой", "content.startMenu.supportButton")}
+		${renderAdminToggle("Показывать кнопку «Уведомления»", "content.startMenu.notificationsButton.enabled")}
+		${renderAdminTelegramButton("Уведомления", "content.startMenu.notificationsButton")}
+	</section>
+	<section class="admin-editor__section"><h3>Настройки рассылок пользователя</h3>
+		<p>Кнопка «Уведомления» открывает управление рассылками в Telegram и на почту. Пользователь может отписаться и подписаться снова. Сообщения об оплате, подписке и поддержке продолжают приходить.</p>
+		${renderAdminSettingField("Сообщение: рассылки включены", "content.notifications.enabledText", { textarea: true, rows: 5 })}
+		${renderAdminTelegramButton("Отключить рассылки", "content.notifications.unsubscribeButton")}
+		${renderAdminContentTestButton("notifications-enabled")}
+		${renderAdminSettingField("Сообщение: пользователь отписался", "content.notifications.disabledText", { textarea: true, rows: 5 })}
+		${renderAdminTelegramButton("Включить рассылки", "content.notifications.subscribeButton")}
+		${renderAdminContentTestButton("notifications-disabled")}
 	</section>`;
 }
 
@@ -8227,6 +8239,7 @@ function currentBroadcastAudience(channel) {
       externalSquads: [],
       tag: "",
       language: "",
+      ignoreUnsubscribe: false,
     },
   ));
 }
@@ -8246,13 +8259,17 @@ function updateBroadcastAudience(input) {
   if (!["telegram", "email"].includes(channel) || state.adminAudienceBusy)
     return;
   const a = currentBroadcastAudience(channel);
-  if (input.type === "checkbox") {
+  if (key === "ignoreUnsubscribe") {
+    a[key] = Boolean(input.checked);
+  } else if (input.type === "checkbox") {
     const list = new Set(a[key] || []);
     if (input.checked) list.add(input.value);
     else list.delete(input.value);
     a[key] = [...list];
   } else a[key] = input.value;
   state.adminAudienceCount[channel] = null;
+	state.adminBroadcastConfirmOpen = false;
+	state.adminEmailConfirmOpen = false;
   if (state.adminWorkspace) {
     render({ preserveScroll: true, preserveInteraction: true });
     return;
@@ -13630,8 +13647,9 @@ function updateConsoleBroadcastButton(index,field,value) {
 }
 function updateConsoleAudience(field,value) {
  if(state.adminAudienceBusy || (state.adminBroadcastTab==="email" ? state.adminEmailBroadcast?.draft : state.adminBroadcast)?.status==="running")return;
- if(!["category","language","tag","internalSquads","externalSquads"].includes(field))return;
+ if(!["category","language","tag","internalSquads","externalSquads","ignoreUnsubscribe"].includes(field))return;
  const channel=state.adminBroadcastTab;currentBroadcastAudience(channel)[field]=value;state.adminAudienceCount[channel]=null;
+ state.adminBroadcastConfirmOpen=false;state.adminEmailConfirmOpen=false;
  render({preserveScroll:true,preserveInteraction:true});
 }
 async function consoleBroadcastTemplates(action,{name="",id=0}={}) {

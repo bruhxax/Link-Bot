@@ -208,6 +208,10 @@ func main() {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/connect", bot.MatchTypeExact, h.ConnectCommandHandler, h.SuspiciousUserFilterMiddleware, h.CreateCustomerIfNotExistMiddleware)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/sync", bot.MatchTypeExact, h.SyncUsersCommandHandler, isAdminMiddleware)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/getfileid", bot.MatchTypePrefix, h.GetFileIDCommandHandler, isAdminMiddleware)
+	// Users can manage mailing preferences even while channel/maintenance gates are active.
+	for _, callback := range []string{handler.CallbackNotifications, handler.CallbackBroadcastSubscribe, handler.CallbackBroadcastUnsubscribe} {
+		b.RegisterHandler(bot.HandlerTypeCallbackQueryData, callback, bot.MatchTypeExact, h.NotificationsCallbackHandler)
+	}
 
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, handler.CallbackCancelStarsUI, bot.MatchTypePrefix, h.CancelStarsUIHandler, h.SuspiciousUserFilterMiddleware, h.CreateCustomerIfNotExistMiddleware)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, handler.CallbackVerifyChannel, bot.MatchTypeExact, h.VerifyChannelSubscriptionCallbackHandler, h.SuspiciousUserFilterMiddleware, h.CreateCustomerIfNotExistMiddleware)

@@ -99,10 +99,14 @@ func (cr *CustomerRepository) UpdateEmailBroadcastProgress(ctx context.Context, 
 	return err
 }
 
-func (cr *CustomerRepository) FinishEmailBroadcast(ctx context.Context, status string, sent, failed int, lastError string) error {
+func (cr *CustomerRepository) FinishEmailBroadcast(ctx context.Context, status string, sent, failed int, lastError string, skipped ...int) error {
+	countSkipped := 0
+	if len(skipped) > 0 {
+		countSkipped = skipped[0]
+	}
 	_, err := cr.pool.Exec(ctx, `UPDATE email_broadcast SET status = $1, sent_count = $2,
-		failed_count = $3, last_error = $4, finished_at = NOW(), updated_at = GREATEST(NOW(), updated_at + INTERVAL '1 microsecond')
-		WHERE id = 1 AND status = 'running'`, status, sent, failed, lastError)
+		failed_count = $3, last_error = $4, recipient_count=GREATEST(0,recipient_count-$5), finished_at = NOW(), updated_at = GREATEST(NOW(), updated_at + INTERVAL '1 microsecond')
+		WHERE id = 1 AND status = 'running'`, status, sent, failed, lastError, countSkipped)
 	return err
 }
 

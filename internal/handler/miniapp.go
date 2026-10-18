@@ -69,7 +69,7 @@ func (h Handler) miniAppKeyboard(lang string) [][]models.InlineKeyboardButton {
 	supportButton := telegramButton(settings.SupportButton, h.translation.GetText(lang, "support_chat_button_text"), miniAppSupportEmojiID)
 	supportButton.WebApp = &models.WebAppInfo{URL: h.miniAppURL("support")}
 
-	return [][]models.InlineKeyboardButton{{dashboardButton}, {plansButton}, {supportButton}}
+	return appendNotificationsMenuButton([][]models.InlineKeyboardButton{{dashboardButton}, {plansButton}, {supportButton}}, settings)
 }
 
 func (h Handler) miniAppKeyboardForCustomer(ctx context.Context, customer *database.Customer, lang string) [][]models.InlineKeyboardButton {

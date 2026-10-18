@@ -635,11 +635,15 @@ func (cr *CustomerRepository) FindByTelegramIds(ctx context.Context, telegramIDs
 	return customers, nil
 }
 
-func (cr *CustomerRepository) ListAllTelegramIDs(ctx context.Context) ([]int64, error) {
+func (cr *CustomerRepository) ListAllTelegramIDs(ctx context.Context, ignoreUnsubscribe ...bool) ([]int64, error) {
 	buildSelect := sq.Select("telegram_id").
 		From("customer").
+		Where("NOT is_blocked AND NOT telegram_id_is_synthetic AND telegram_id > 0").
 		OrderBy("telegram_id ASC").
 		PlaceholderFormat(sq.Dollar)
+	if len(ignoreUnsubscribe) == 0 || !ignoreUnsubscribe[0] {
+		buildSelect = buildSelect.Where("NOT EXISTS(SELECT 1 FROM customer_broadcast_unsubscribe u WHERE u.customer_id=customer.id)")
+	}
 
 	sqlStr, args, err := buildSelect.ToSql()
 	if err != nil {

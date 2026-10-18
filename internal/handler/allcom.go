@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"link-bot/internal/config"
+	"link-bot/internal/database"
 	"link-bot/utils"
 )
 
@@ -97,9 +99,23 @@ func (h Handler) AllcomCommandHandler(ctx context.Context, b *bot.Bot, update *m
 		ParseMode: models.ParseModeHTML,
 	})
 
-	sent, failed := runAllcomBroadcast(ctx, b, msg.Chat.ID, statusMessage, targets, deliver)
+	baseDelivery := deliver
+	deliver = func(ctx context.Context, chatID int64) error {
+		allowed, err := h.customerRepository.BroadcastTelegramAllowed(ctx, chatID, false)
+		if err != nil {
+			return err
+		}
+		if !allowed {
+			return database.ErrBroadcastUnsubscribed
+		}
+		return baseDelivery(ctx, chatID)
+	}
+	sent, failed, skipped := runAllcomBroadcast(ctx, b, msg.Chat.ID, statusMessage, targets, deliver)
 
-	finalText := formatAllcomDone(len(targets), sent, failed)
+	finalText := formatAllcomDone(len(targets)-skipped, sent, failed)
+	if skipped > 0 {
+		finalText += fmt.Sprintf("\nПропущено после отписки или блокировки: %d", skipped)
+	}
 	if statusMessage != nil {
 		_, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
 			ChatID:    msg.Chat.ID,
@@ -201,10 +217,11 @@ func runAllcomBroadcast(
 	statusMessage *models.Message,
 	targets []int64,
 	deliver allcomDeliveryFunc,
-) (int, int) {
+) (int, int, int) {
 	var processed atomic.Int64
 	var succeeded atomic.Int64
 	var failed atomic.Int64
+	var skipped atomic.Int64
 
 	workerCount := resolveAllcomWorkerCount(len(targets))
 	jobs := make(chan int64)
@@ -229,7 +246,9 @@ func runAllcomBroadcast(
 					err = deliver(ctx, chatID)
 				}
 
-				if err != nil {
+				if errors.Is(err, database.ErrBroadcastUnsubscribed) {
+					skipped.Add(1)
+				} else if err != nil {
 					failed.Add(1)
 					slog.Warn("/allcom: delivery failed", "telegramId", utils.MaskHalfInt64(chatID), "error", err)
 				} else {
@@ -257,7 +276,7 @@ sendLoop:
 	wg.Wait()
 	close(done)
 
-	return int(succeeded.Load()), int(failed.Load())
+	return int(succeeded.Load()), int(failed.Load()), int(skipped.Load())
 }
 
 func allcomProgressLoop(

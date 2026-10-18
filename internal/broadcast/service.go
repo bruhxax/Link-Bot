@@ -283,7 +283,7 @@ func (s *Service) Start(ctx context.Context, adminID int64, expected ...time.Tim
 	if s.audienceResolver != nil {
 		targetIDs, err = s.audienceResolver(ctx, draft.Audience)
 	} else if draft.Audience.Category == "" || draft.Audience.Category == "all" && len(draft.Audience.InternalSquads) == 0 && len(draft.Audience.ExternalSquads) == 0 && draft.Audience.Tag == "" && draft.Audience.Language == "" {
-		targetIDs, err = s.customerRepository.ListAllTelegramIDs(ctx)
+		targetIDs, err = s.customerRepository.ListAllTelegramIDs(ctx, draft.Audience.IgnoreUnsubscribe)
 	} else {
 		return nil, errors.New("audience resolver is unavailable")
 	}
@@ -331,6 +331,7 @@ func (s *Service) run(draft database.BroadcastDraft, targets []int64, adminID in
 
 	var sent atomic.Int64
 	var failed atomic.Int64
+	var skipped atomic.Int64
 	var processed atomic.Int64
 	var lastError atomic.Value
 	jobs := make(chan int64)
@@ -356,7 +357,9 @@ func (s *Service) run(draft database.BroadcastDraft, targets []int64, adminID in
 					time.Sleep(retryDelay)
 					err = s.copyTo(ctx, draft, chatID, keyboard)
 				}
-				if err != nil {
+				if errors.Is(err, database.ErrBroadcastUnsubscribed) {
+					skipped.Add(1)
+				} else if err != nil {
 					failed.Add(1)
 					lastError.Store(shortError(err))
 					slog.Warn("broadcast delivery failed", "telegramId", utils.MaskHalfInt64(chatID), "error", err)
@@ -388,27 +391,34 @@ sendLoop:
 		status = database.BroadcastStatusFailed
 		last = "Рассылка остановлена по таймауту"
 	}
-	if err := s.repository.Finish(context.Background(), status, int(sent.Load()), int(failed.Load()), last); err != nil {
+	if err := s.repository.Finish(context.Background(), status, int(sent.Load()), int(failed.Load()), last, int(skipped.Load())); err != nil {
 		slog.Error("broadcast final status save failed", "error", err)
 	}
 	_, _ = s.telegramBot.SendMessage(context.Background(), &bot.SendMessageParams{
 		ChatID: adminID,
 		Text: fmt.Sprintf(
-			"<b>Рассылка завершена</b>\n\nПолучателей: <b>%d</b>\nУспешно: <b>%d</b>\nОшибок: <b>%d</b>",
-			len(targets), sent.Load(), failed.Load(),
+			"<b>Рассылка завершена</b>\n\nПолучателей: <b>%d</b>\nУспешно: <b>%d</b>\nОшибок: <b>%d</b>\nПропущено после отписки или блокировки: <b>%d</b>",
+			len(targets)-int(skipped.Load()), sent.Load(), failed.Load(), skipped.Load(),
 		),
 		ParseMode: models.ParseModeHTML,
 	})
 }
 
 func (s *Service) copyTo(ctx context.Context, draft database.BroadcastDraft, chatID int64, keyboard models.ReplyMarkup) error {
+	allowed, err := s.customerRepository.BroadcastTelegramAllowed(ctx, chatID, draft.Audience.IgnoreUnsubscribe)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return database.ErrBroadcastUnsubscribed
+	}
 	if draft.SourceKind == "html" {
 		_, err := s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: chatID, Text: draft.SourceHTML, ParseMode: models.ParseModeHTML, ReplyMarkup: keyboard,
 		})
 		return err
 	}
-	_, err := s.telegramBot.CopyMessage(ctx, &bot.CopyMessageParams{
+	_, err = s.telegramBot.CopyMessage(ctx, &bot.CopyMessageParams{
 		ChatID:      chatID,
 		FromChatID:  *draft.SourceChatID,
 		MessageID:   *draft.SourceMessageID,

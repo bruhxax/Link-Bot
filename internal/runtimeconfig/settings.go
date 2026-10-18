@@ -165,10 +165,11 @@ type TelegramSupportSettings struct {
 }
 
 type TelegramStartMenuSettings struct {
-	TrialButton     TelegramButtonSettings `json:"trialButton"`
-	DashboardButton TelegramButtonSettings `json:"dashboardButton"`
-	PlansButton     TelegramButtonSettings `json:"plansButton"`
-	SupportButton   TelegramButtonSettings `json:"supportButton"`
+	NotificationsButton OptionalTelegramButtonSettings `json:"notificationsButton"`
+	TrialButton         TelegramButtonSettings         `json:"trialButton"`
+	DashboardButton     TelegramButtonSettings         `json:"dashboardButton"`
+	PlansButton         TelegramButtonSettings         `json:"plansButton"`
+	SupportButton       TelegramButtonSettings         `json:"supportButton"`
 }
 
 type TelegramCommerceSettings struct {
@@ -214,26 +215,27 @@ type WebPageSettings struct {
 }
 
 type ContentSettings struct {
-	BrandName                  string                              `json:"brandName"`
-	AdminContact               string                              `json:"adminContact"`
-	LogoURL                    string                              `json:"logoUrl"`
-	WebPage                    WebPageSettings                     `json:"webPage"`
-	StartTextRU                string                              `json:"startTextRu"`
-	StartImage                 string                              `json:"startImage"`
-	Copy                       map[string]map[string]string        `json:"copy"`
-	FAQ                        map[string][]FAQItem                `json:"faq"`
-	Links                      map[string]string                   `json:"links"`
-	CustomLinks                []CustomLink                        `json:"customLinks"`
-	ProfileButtons             map[string]ProfileButtonSettings    `json:"profileButtons"`
-	LegalDocuments             map[string]LegalDocumentSettings    `json:"legalDocuments"`
-	SubscriptionReminderButton TelegramButtonSettings              `json:"subscriptionReminderButton"`
-	Verification               TelegramVerificationSettings        `json:"verification"`
-	Support                    TelegramSupportSettings             `json:"support"`
-	StartMenu                  TelegramStartMenuSettings           `json:"startMenu"`
-	Trial                      TelegramTrialSettings               `json:"trial"`
-	Commerce                   TelegramCommerceSettings            `json:"commerce"`
-	PaymentNotification        TelegramPaymentNotificationSettings `json:"paymentNotification"`
-	Gift                       TelegramGiftSettings                `json:"gift"`
+	BrandName                  string                               `json:"brandName"`
+	AdminContact               string                               `json:"adminContact"`
+	LogoURL                    string                               `json:"logoUrl"`
+	WebPage                    WebPageSettings                      `json:"webPage"`
+	StartTextRU                string                               `json:"startTextRu"`
+	StartImage                 string                               `json:"startImage"`
+	Copy                       map[string]map[string]string         `json:"copy"`
+	FAQ                        map[string][]FAQItem                 `json:"faq"`
+	Links                      map[string]string                    `json:"links"`
+	CustomLinks                []CustomLink                         `json:"customLinks"`
+	ProfileButtons             map[string]ProfileButtonSettings     `json:"profileButtons"`
+	LegalDocuments             map[string]LegalDocumentSettings     `json:"legalDocuments"`
+	SubscriptionReminderButton TelegramButtonSettings               `json:"subscriptionReminderButton"`
+	Verification               TelegramVerificationSettings         `json:"verification"`
+	Support                    TelegramSupportSettings              `json:"support"`
+	StartMenu                  TelegramStartMenuSettings            `json:"startMenu"`
+	Notifications              TelegramBroadcastPreferencesSettings `json:"notifications"`
+	Trial                      TelegramTrialSettings                `json:"trial"`
+	Commerce                   TelegramCommerceSettings             `json:"commerce"`
+	PaymentNotification        TelegramPaymentNotificationSettings  `json:"paymentNotification"`
+	Gift                       TelegramGiftSettings                 `json:"gift"`
 }
 
 type TelegramButtonSettings struct {
@@ -561,6 +563,7 @@ func DefaultSettings() Settings {
 				},
 			},
 			StartMenu: TelegramStartMenuSettings{
+				NotificationsButton: OptionalTelegramButtonSettings{TelegramButtonSettings: TelegramButtonSettings{Text: "Уведомления"}},
 				TrialButton: TelegramButtonSettings{
 					Text:              "Попробовать бесплатно",
 					IconCustomEmojiID: "5276422526350681413",
@@ -609,7 +612,8 @@ func DefaultSettings() Settings {
 					IconCustomEmojiID: "5278413853577734640",
 				},
 			},
-			Trial: defaultTelegramTrialSettings(),
+			Trial:         defaultTelegramTrialSettings(),
+			Notifications: defaultTelegramBroadcastPreferences(),
 			PaymentNotification: TelegramPaymentNotificationSettings{
 				Text: premiumPaymentNotificationTemplate(),
 				OpenUserButton: OptionalTelegramButtonSettings{
@@ -801,6 +805,19 @@ func LocalizeTelegramDefaults(content ContentSettings, language string) ContentS
 	content.StartMenu.DashboardButton.Text = localized(content.StartMenu.DashboardButton.Text, "Вход", "Account", "حساب کاربری")
 	content.StartMenu.PlansButton.Text = localized(content.StartMenu.PlansButton.Text, "Тарифы", "Plans", "تعرفه‌ها")
 	content.StartMenu.SupportButton.Text = localized(content.StartMenu.SupportButton.Text, "Чат с поддержкой", "Support chat", "گفت‌وگو با پشتیبانی")
+	content.StartMenu.NotificationsButton.Text = localized(content.StartMenu.NotificationsButton.Text, "Уведомления", "Notifications", "اعلان‌ها")
+	if content.Notifications == (TelegramBroadcastPreferencesSettings{}) {
+		content.Notifications = defaultTelegramBroadcastPreferences()
+	}
+	notificationDefaults := defaultTelegramBroadcastPreferences()
+	content.Notifications.EnabledText = localized(content.Notifications.EnabledText, notificationDefaults.EnabledText,
+		"<b>Notifications</b>\n\nTelegram and email broadcasts are <b>enabled</b>.\nYou can unsubscribe and return at any time.\n\nPayment, subscription and support messages will still arrive.",
+		"<b>اعلان‌ها</b>\n\nدریافت پیام‌های گروهی در تلگرام و ایمیل <b>فعال است</b>.\nمی‌توانید هر زمان آن‌ها را غیرفعال یا دوباره فعال کنید.\n\nپیام‌های پرداخت، اشتراک و پشتیبانی همچنان ارسال می‌شوند.")
+	content.Notifications.DisabledText = localized(content.Notifications.DisabledText, notificationDefaults.DisabledText,
+		"<b>Notifications</b>\n\nYou have <b>unsubscribed from broadcasts</b> in Telegram and email.\nEnable them whenever you want to receive news again.\n\nService messages and mandatory administrator broadcasts will still arrive.",
+		"<b>اعلان‌ها</b>\n\nدریافت پیام‌های گروهی تلگرام و ایمیل <b>غیرفعال است</b>.\nهر زمان بخواهید می‌توانید دوباره آن‌ها را فعال کنید.\n\nپیام‌های خدماتی و اطلاعیه‌های ضروری مدیر همچنان ارسال می‌شوند.")
+	content.Notifications.SubscribeButton.Text = localized(content.Notifications.SubscribeButton.Text, notificationDefaults.SubscribeButton.Text, "Enable broadcasts", "فعال‌کردن پیام‌های گروهی")
+	content.Notifications.UnsubscribeButton.Text = localized(content.Notifications.UnsubscribeButton.Text, notificationDefaults.UnsubscribeButton.Text, "Disable broadcasts", "غیرفعال‌کردن پیام‌های گروهی")
 
 	content.Commerce.TariffsText = localized(content.Commerce.TariffsText, `<b><tg-emoji emoji-id="5206626000665868017">☺️</tg-emoji> Выберите подходящий тариф</b>`, `<b><tg-emoji emoji-id="5206626000665868017">☺️</tg-emoji> Choose a plan</b>`, `<b><tg-emoji emoji-id="5206626000665868017">☺️</tg-emoji> یک تعرفه انتخاب کنید</b>`)
 	content.Commerce.PaymentMethodsText = localized(content.Commerce.PaymentMethodsText, `<b><tg-emoji emoji-id="5192678313415434135">☺️</tg-emoji> Выберите способ оплаты</b>`, `<b><tg-emoji emoji-id="5192678313415434135">☺️</tg-emoji> Choose a payment method</b>`, `<b><tg-emoji emoji-id="5192678313415434135">☺️</tg-emoji> روش پرداخت را انتخاب کنید</b>`)
@@ -1745,6 +1762,12 @@ func normalizeTelegramContent(value *ContentSettings, defaults ContentSettings, 
 	}
 	if err := normalizeTelegramButton(&value.StartMenu.SupportButton, defaults.StartMenu.SupportButton); err != nil {
 		return fmt.Errorf("start support button: %w", err)
+	}
+	if err := normalizeTelegramButton(&value.StartMenu.NotificationsButton.TelegramButtonSettings, defaults.StartMenu.NotificationsButton.TelegramButtonSettings); err != nil {
+		return fmt.Errorf("start notifications button: %w", err)
+	}
+	if err := normalizeTelegramNotifications(&value.Notifications, defaults.Notifications); err != nil {
+		return err
 	}
 
 	value.Commerce.TariffsText = normalizedRequiredText(value.Commerce.TariffsText, defaults.Commerce.TariffsText, 3500)

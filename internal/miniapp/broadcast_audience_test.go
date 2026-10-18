@@ -8,6 +8,28 @@ import (
 	"time"
 )
 
+func TestBroadcastUnsubscribeAndOverrideDoNotBypassAudienceFilters(t *testing.T) {
+	c := database.BroadcastCustomer{Unsubscribed: true, Language: "ru", Paid: true}
+	for _, category := range []string{"all", "paid", "none", "trial_used"} {
+		if matchesBroadcastCustomer(c, nil, database.BroadcastAudience{Category: category}, "", time.Now(), false) {
+			t.Fatalf("unsubscribed user included in %s", category)
+		}
+	}
+	a := database.BroadcastAudience{Category: "paid", IgnoreUnsubscribe: true}
+	if !matchesBroadcastCustomer(c, nil, a, "", time.Now(), false) {
+		t.Fatal("override did not include unsubscribed recipient")
+	}
+	a.Language = "en"
+	if matchesBroadcastCustomer(c, nil, a, "", time.Now(), false) {
+		t.Fatal("override bypassed language filter")
+	}
+	a.Language = ""
+	a.Category = "active"
+	if matchesBroadcastCustomer(c, nil, a, "", time.Now(), false) {
+		t.Fatal("override bypassed subscription filter")
+	}
+}
+
 func TestBroadcastAudienceUsesCurrentPanelState(t *testing.T) {
 	now := time.Now()
 	future := now.Add(time.Hour)

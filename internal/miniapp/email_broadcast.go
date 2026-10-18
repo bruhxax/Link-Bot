@@ -144,20 +144,28 @@ func (h *Handler) handleAdminEmailBroadcastSend(w http.ResponseWriter, r *http.R
 		h.writeError(w, http.StatusInternalServerError, "email_broadcast_failed", "Не удалось запустить рассылку")
 		return
 	}
-	go h.runEmailBroadcast(settings, recipients, draft.Subject, draft.Body)
+	go h.runEmailBroadcast(settings, recipients, draft.Subject, draft.Body, draft.Audience.IgnoreUnsubscribe)
 	h.writeJSON(w, http.StatusAccepted, map[string]any{"ok": true, "data": draft})
 }
 
-func (h *Handler) runEmailBroadcast(settings emailSMTPSettings, recipients []string, subject, body string) {
+func (h *Handler) runEmailBroadcast(settings emailSMTPSettings, recipients []string, subject, body string, ignoreUnsubscribe bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
 	defer cancel()
-	sent, failed := 0, 0
+	sent, failed, skipped := 0, 0, 0
 	lastError := ""
 	for _, recipient := range recipients {
 		if ctx.Err() != nil {
 			break
 		}
-		if err := sendSMTPMessage(ctx, settings, recipient, subject, body); err != nil {
+		allowed, err := h.customerRepository.BroadcastEmailAllowed(ctx, recipient, ignoreUnsubscribe)
+		if err == nil && !allowed {
+			skipped++
+			continue
+		}
+		if err == nil {
+			err = sendSMTPMessage(ctx, settings, recipient, subject, body)
+		}
+		if err != nil {
 			failed++
 			lastError = "Некоторые письма не доставлены. Проверьте SMTP и лимиты почтового сервиса."
 			slog.Warn("email broadcast delivery failed", "error", err)
@@ -180,7 +188,7 @@ func (h *Handler) runEmailBroadcast(settings emailSMTPSettings, recipients []str
 	}
 	finishCtx, finishCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer finishCancel()
-	if err := h.customerRepository.FinishEmailBroadcast(finishCtx, status, sent, failed, lastError); err != nil {
+	if err := h.customerRepository.FinishEmailBroadcast(finishCtx, status, sent, failed, lastError, skipped); err != nil {
 		slog.Error("email broadcast finish failed", "error", err)
 	}
 }

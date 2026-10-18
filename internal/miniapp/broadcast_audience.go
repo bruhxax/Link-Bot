@@ -11,6 +11,9 @@ import (
 )
 
 func matchesBroadcastCustomer(c database.BroadcastCustomer, users []remnawave.PanelUser, a database.BroadcastAudience, trialTag string, now time.Time, panelConfigured bool) bool {
+	if c.Unsubscribed && !a.IgnoreUnsubscribe {
+		return false
+	}
 	if a.Language != "" && c.Language != a.Language {
 		return false
 	}
