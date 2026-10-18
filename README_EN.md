@@ -27,6 +27,8 @@ Telegram bot, Mini App and web cabinet for Remnawave VPN subscriptions.
 
 **Content → Telegram → Main menu → Pinned message** lets administrators compose and preview an announcement delivered on `/start`, before the ordinary menu. A current pinned copy is not duplicated; an unpinned copy is pinned again, and a deleted copy is recreated. Formatting, premium emoji and attachments are preserved. There is no mass delivery. Turning the feature off only unpins this announcement.
 
+In the **Plans → Plan and payment method order** editor, the pencil beside each payment method lets you customize its checkout name and description. Empty fields use system defaults. Click Done, then save the plan settings.
+
 ## Installation
 
 You need a VPS with Ubuntu 22.04/24.04 or Debian 12, Docker Compose, an accessible [Remnawave panel](https://github.com/remnawave/panel) and a bot from [@BotFather](https://t.me/BotFather). Point the domain's `A` record to your server and open ports `80` and `443`.

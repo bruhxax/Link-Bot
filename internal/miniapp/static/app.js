@@ -2698,6 +2698,8 @@ const state = {
 	adminPlanDurationUnit: "months",
 	adminPlanBaseline: null,
 	adminPlanBaselinePaymentOrder: null,
+	adminPlanBaselinePaymentText: null,
+	adminPaymentMethodEditor: null,
 	adminPaymentOrderAnnouncement: "",
 	adminProfileEditorModalOpen: false,
 	adminProfileEditingID: "",
@@ -4595,6 +4597,7 @@ function mountCabinetShell(markup) {
 			layoutEntries: (state.adminSettingsDraft?.layout?.elements || []).map((item,index) => ({...item,index,label:adminLayoutMeta(item.area,item.id)[0]})),
 			editLayout: key => {state.adminLayoutSelection = key;openAdminLayoutStyleEditor();},
 			paymentMethods: getAdminPaymentMethods(),
+			paymentMethodEditor: getAdminPaymentMethodEditor(),
 			integrations: (state.data?.admin?.integrations || []).filter(item => item.enabled).length,
 			events: state.data?.admin?.events || [],
 		}, template.content.firstElementChild, () => render({preserveScroll:true}));
@@ -11386,7 +11389,7 @@ function renderPayModal() {
 	if (state.adminPlanEditing) {
 		const methods = getAdminPaymentMethods();
 		const closeLabel = localizedText("Закрыть порядок оплаты", "Close payment order", "بستن ترتیب پرداخت");
-		return `<div class="modal open ${modalStateClass("pay")}" role="dialog" aria-modal="true" aria-labelledby="pay-order-title"><button class="modal__backdrop" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}"></button><div class="modal__sheet pay-order-sheet"><div class="modal__header"><div class="modal__title" id="pay-order-title">${localizedText("Способы оплаты", "Payment methods", "روش‌های پرداخت")}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button></div><p class="pay-order-sheet__hint">${localizedText("Порядок показа при оплате. Перемещайте способы стрелками.", "Order shown at checkout. Use the arrows to move methods.", "ترتیب نمایش در پرداخت را با پیکان‌ها تغییر دهید.")}</p><span class="sr-only" role="status" aria-live="polite">${escapeHtml(state.adminPaymentOrderAnnouncement)}</span><div class="pay-order-list">${methods.map((method, index) => `<div class="pay-order-row" data-pay-order-id="${escapeAttribute(method.id)}"><span class="pay-order-row__number">${index + 1}</span><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-order-row__name">${escapeHtml(method.label)}</span><span class="pay-order-row__actions"><button type="button" data-action="move-pay-method-up" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Поднять ${method.label}`, `Move ${method.label} up`, `انتقال ${method.label} به بالا`))}" ${index === 0 ? "disabled" : ""}>${icon("arrowUp")}</button><button type="button" data-action="move-pay-method-down" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Опустить ${method.label}`, `Move ${method.label} down`, `انتقال ${method.label} به پایین`))}" ${index === methods.length - 1 ? "disabled" : ""}>${icon("arrowDown")}</button></span></div>`).join("") || `<div class="note">${localizedText("Добавьте способ оплаты, чтобы настроить порядок.", "Add a payment method to set its order.", "برای تنظیم ترتیب، روش پرداخت اضافه کنید.")}</div>`}</div><div class="pay-order-sheet__footer">${localizedText("Закройте окно и сохраните изменения в тарифах", "Close this panel and save your plan settings", "پنجره را ببندید و تنظیمات را ذخیره کنید")}</div></div></div>`;
+		return `<div class="modal open ${modalStateClass("pay")}" role="dialog" aria-modal="true" aria-labelledby="pay-order-title"><button class="modal__backdrop" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}"></button><div class="modal__sheet pay-order-sheet"><div class="modal__header"><div class="modal__title" id="pay-order-title">${localizedText("Способы оплаты", "Payment methods", "روش‌های پرداخت")}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button></div><p class="pay-order-sheet__hint">${localizedText("Порядок показа при оплате. Перемещайте способы стрелками.", "Order shown at checkout. Use the arrows to move methods.", "ترتیب نمایش در پرداخت را با پیکان‌ها تغییر دهید.")}</p><span class="sr-only" role="status" aria-live="polite">${escapeHtml(state.adminPaymentOrderAnnouncement)}</span><div class="pay-order-list">${methods.map((method, index) => `<div class="pay-order-row" data-pay-order-id="${escapeAttribute(method.id)}"><span class="pay-order-row__number">${index + 1}</span><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-order-row__name">${escapeHtml(method.label)}</span><span class="pay-order-row__actions"><button type="button" data-action="admin-payment-method-edit" data-value="${escapeAttribute(method.id)}" aria-label="Изменить название и описание">${icon("edit")}</button><button type="button" data-action="move-pay-method-up" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Поднять ${method.label}`, `Move ${method.label} up`, `انتقال ${method.label} به بالا`))}" ${index === 0 ? "disabled" : ""}>${icon("arrowUp")}</button><button type="button" data-action="move-pay-method-down" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Опустить ${method.label}`, `Move ${method.label} down`, `انتقال ${method.label} به پایین`))}" ${index === methods.length - 1 ? "disabled" : ""}>${icon("arrowDown")}</button></span></div>`).join("") || `<div class="note">${localizedText("Добавьте способ оплаты, чтобы настроить порядок.", "Add a payment method to set its order.", "برای تنظیم ترتیب، روش پرداخت اضافه کنید.")}</div>`}</div>${renderAdminPaymentMethodEditor()}<div class="pay-order-sheet__footer">${localizedText("Закройте окно и сохраните изменения в тарифах", "Close this panel and save your plan settings", "پنجره را ببندید و تنظیمات را ذخیره کنید")}</div></div></div>`;
 	}
 	const deviceOnly = state.payModalContext === "device-pack";
 	const trafficOnly = state.payModalContext === "traffic-pack";
@@ -12492,6 +12495,9 @@ function bindRootActions() {
       if (action === "open-pay-modal") { state.payModalContext = ""; state.payModalOpen = true; render(); if (state.adminPlanEditing) queueMicrotask(() => app.querySelector('.pay-order-sheet [data-action="close-pay-modal"]')?.focus()); return; }
       if (action === "move-pay-method-up") return moveAdminPaymentMethod(value, -1);
       if (action === "move-pay-method-down") return moveAdminPaymentMethod(value, 1);
+      if (action === "admin-payment-method-edit") return openAdminPaymentMethodEditor(value);
+      if (action === "admin-payment-method-apply") return applyAdminPaymentMethodEditor();
+      if (action === "admin-payment-method-cancel") { state.adminPaymentMethodEditor = null; render({ preserveScroll: true, preserveInteraction: true }); return; }
       if (action === "close-pay-modal") return closePayModal();
       if (action === "close-payment-launch") return requestModalClose("payment-launch", () => { state.paymentLaunchModalOpen = false; state.paymentLaunchURL = ""; state.paymentLaunchPurchaseId = 0; });
       if (action === "launch-payment-browser") return openPreparedPaymentInBrowser();
@@ -12687,6 +12693,7 @@ function bindRootActions() {
 
 	app.addEventListener("input", (event) => {
       const target = event.target;
+		if (["admin-payment-method-name", "admin-payment-method-description"].includes(target.dataset?.input)) { updateAdminPaymentMethodText(target); return; }
  if(target.dataset?.audienceField){updateBroadcastAudience(target);return;}
  if(target.dataset?.input==="admin-landing-background-url"){landingBackgroundURL=target.value;return;}
 		if (target.dataset.input === "admin-background-url") { adminBackgroundURL = target.value; return; }
@@ -13560,6 +13567,7 @@ async function saveAdminSettings() {
 		if (state.adminPlanEditing) {
 			state.adminPlanBaseline = deepClone(response.data.plans || []);
 			state.adminPlanBaselinePaymentOrder = deepClone(response.data.paymentMethodOrder || []);
+			state.adminPlanBaselinePaymentText = deepClone(response.data.paymentMethodText || {});
 			state.adminPlanBaselineDirty = false;
 			if (state.data) state.data.plans = (response.data.plans || []).filter((plan) => plan.enabled !== false).map(runtimePlanToPayload);
 			ensureSelections();
@@ -15074,6 +15082,8 @@ function enterAdminPlanEditor() {
 	rememberAdminMenuScroll();
 	state.adminPlanBaseline = deepClone(state.adminSettingsDraft.plans || []);
 	state.adminPlanBaselinePaymentOrder = deepClone(state.adminSettingsDraft.paymentMethodOrder || []);
+	state.adminPlanBaselinePaymentText = deepClone(state.adminSettingsDraft.paymentMethodText || {});
+	state.adminPaymentMethodEditor = null;
 	state.adminPlanBaselineDirty = state.adminSettingsDirty;
 	state.adminLayoutAddMenuOpen = false;
 	state.adminPlanEditing = !remnaAdminEnabled;
@@ -15098,6 +15108,7 @@ function exitAdminPlanEditor() {
 	if (state.adminPlanBaseline && state.adminSettingsDraft) {
 		state.adminSettingsDraft.plans = deepClone(state.adminPlanBaseline);
 		state.adminSettingsDraft.paymentMethodOrder = deepClone(state.adminPlanBaselinePaymentOrder || []);
+		state.adminSettingsDraft.paymentMethodText = deepClone(state.adminPlanBaselinePaymentText || {});
 		state.adminSettingsDirty = Boolean(state.adminPlanBaselineDirty);
 	}
 	state.adminPlanEditing = false;
@@ -15109,6 +15120,8 @@ function exitAdminPlanEditor() {
 	state.adminPlanFormDraft = null;
 	state.adminPlanBaseline = null;
 	state.adminPlanBaselinePaymentOrder = null;
+	state.adminPlanBaselinePaymentText = null;
+	state.adminPaymentMethodEditor = null;
 	state.adminPlanBaselineDirty = false;
 	state.currentPage = "admin";
 	state.adminSection = "home";
@@ -15361,6 +15374,8 @@ function resetAdminPlans() {
 	if (!state.adminSettingsDraft || !Array.isArray(state.adminPlanBaseline)) return;
 	state.adminSettingsDraft.plans = deepClone(state.adminPlanBaseline);
 	state.adminSettingsDraft.paymentMethodOrder = deepClone(state.adminPlanBaselinePaymentOrder || []);
+	state.adminSettingsDraft.paymentMethodText = deepClone(state.adminPlanBaselinePaymentText || {});
+	state.adminPaymentMethodEditor = null;
 	state.adminSettingsDirty = true;
 	state.adminPlanEditorModalOpen = false;
 	state.adminPlanEditingID = "";
@@ -18814,7 +18829,7 @@ function getSelectedPaymentMethod() {
   return methods.find((method) => method.id === state.paymentMethod) || methods[0] || null;
 }
 
-function paymentMethodMeta(id) {
+function paymentMethodMeta(id, system = false) {
   const copy = t();
   const map = {
 		balance: { id: "balance", label: localizedText("Баланс", "Balance", "موجودی"), hint: localizedText(`Доступно ${formatMoneyCents(state.data?.wallet?.balanceCents || 0)}`, `Available ${formatMoneyCents(state.data?.wallet?.balanceCents || 0)}`, `موجودی ${formatMoneyCents(state.data?.wallet?.balanceCents || 0)}`), logo: PAYMENT_LOGO_URLS.balance },
@@ -18842,7 +18857,49 @@ function paymentMethodMeta(id) {
 		kassaai: { id: "kassaai", label: "Kassa AI", hint: localizedText("СБП, карты и SberPay", "SBP, cards and SberPay", "SBP، کارت و SberPay"), logo: PAYMENT_LOGO_URLS.kassaai },
 		cloudpayments: { id: "cloudpayments", label: "CloudPayments", hint: localizedText("Оплата картой", "Card payment", "پرداخت با کارت"), logo: PAYMENT_LOGO_URLS.cloudpayments },
   };
-  return map[id] || null;
+  const method = map[id];
+  if (!method || system) return method || null;
+  const custom = getRuntimeSettings()?.paymentMethodText?.[id];
+  return { ...method, label: String(custom?.name || "").trim() || method.label, hint: String(custom?.description || "").trim() || method.hint };
+}
+
+function getAdminPaymentMethodEditor() {
+	const draft = state.adminPaymentMethodEditor;
+	const system = draft && paymentMethodMeta(draft.id, true);
+	return system ? { ...draft, systemName: system.label, systemDescription: system.hint } : null;
+}
+
+function openAdminPaymentMethodEditor(id) {
+	if ((!state.adminPlanEditing && !(state.adminWorkspace && state.adminSection === "plans")) || !state.adminSettingsDraft || state.adminBusy || !getAdminPaymentMethods().some(method => method.id === id)) return;
+	const custom = state.adminSettingsDraft.paymentMethodText?.[id];
+	state.adminPaymentMethodEditor = { id, name: custom?.name || "", description: custom?.description || "" };
+	render({ preserveScroll: true, preserveInteraction: true });
+}
+
+function updateAdminPaymentMethodText(input) {
+	if (!state.adminPaymentMethodEditor) return;
+	const field = input.dataset.input === "admin-payment-method-name" ? "name" : input.dataset.input === "admin-payment-method-description" ? "description" : "";
+	if (field) state.adminPaymentMethodEditor[field] = input.value;
+}
+
+function applyAdminPaymentMethodEditor() {
+	const editor = state.adminPaymentMethodEditor;
+	if (!editor || !state.adminSettingsDraft || state.adminBusy) return;
+	const name = editor.name.trim(), description = editor.description.trim();
+	if ([...name].length > 80 || [...description].length > 240) { showToast("Название — до 80 символов, описание — до 240"); return; }
+	const text = { ...(state.adminSettingsDraft.paymentMethodText || {}) };
+	if (name || description) text[editor.id] = { name, description };
+	else delete text[editor.id];
+	state.adminSettingsDraft.paymentMethodText = text;
+	state.adminSettingsDirty = true;
+	state.adminPaymentMethodEditor = null;
+	render({ preserveScroll: true, preserveInteraction: true });
+}
+
+function renderAdminPaymentMethodEditor() {
+	const editor = getAdminPaymentMethodEditor();
+	if (!editor) return "";
+	return `<div class="pay-method-editor"><h3>${escapeHtml(editor.systemName)}</h3><p>Пустые поля используют системное название и описание.</p><label class="admin-field"><span>Название</span><input type="text" maxlength="80" data-input="admin-payment-method-name" value="${escapeAttribute(editor.name)}" placeholder="${escapeAttribute(editor.systemName)}"></label><label class="admin-field"><span>Описание</span><textarea rows="3" maxlength="240" data-input="admin-payment-method-description" placeholder="${escapeAttribute(editor.systemDescription)}">${escapeHtml(editor.description)}</textarea></label><div class="pay-method-editor__actions"><button type="button" data-action="admin-payment-method-cancel">Отмена</button><button type="button" class="btn btn--primary" data-action="admin-payment-method-apply">Готово</button></div><p>Нажмите «Готово», затем сохраните изменения в тарифах.</p></div>`;
 }
 
 function renderPaymentMethodLogo(method) {

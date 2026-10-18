@@ -73,25 +73,31 @@ func DefaultPaymentMethodOrder() []string {
 }
 
 type Settings struct {
-	ReviewRewards      ReviewRewardSettings  `json:"reviewRewards"`
-	Version            int                   `json:"version"`
-	Localization       LocalizationSettings  `json:"localization"`
-	Maintenance        MaintenanceSettings   `json:"maintenance"`
-	Features           map[string]bool       `json:"features"`
-	Content            ContentSettings       `json:"content"`
-	Appearance         AppearanceSettings    `json:"appearance"`
-	Layout             LayoutSettings        `json:"layout"`
-	SubPage            SubPageSettings       `json:"subPage"`
-	Plans              []PlanSettings        `json:"plans"`
-	DevicePacks        []DevicePackSettings  `json:"devicePacks"`
-	TrafficPacks       []TrafficPackSettings `json:"trafficPacks"`
-	DeviceAccess       DeviceAccessSettings  `json:"deviceAccess"`
-	PaymentMethodOrder []string              `json:"paymentMethodOrder"`
-	Trial              TrialSettings         `json:"trial"`
-	Referrals          ReferralSettings      `json:"referrals"`
-	Grace              GraceSettings         `json:"grace"`
-	Panel              PanelSettings         `json:"panel"`
-	HiddenServerNodes  []string              `json:"hiddenServerNodes,omitempty"`
+	ReviewRewards      ReviewRewardSettings         `json:"reviewRewards"`
+	Version            int                          `json:"version"`
+	Localization       LocalizationSettings         `json:"localization"`
+	Maintenance        MaintenanceSettings          `json:"maintenance"`
+	Features           map[string]bool              `json:"features"`
+	Content            ContentSettings              `json:"content"`
+	Appearance         AppearanceSettings           `json:"appearance"`
+	Layout             LayoutSettings               `json:"layout"`
+	SubPage            SubPageSettings              `json:"subPage"`
+	Plans              []PlanSettings               `json:"plans"`
+	DevicePacks        []DevicePackSettings         `json:"devicePacks"`
+	TrafficPacks       []TrafficPackSettings        `json:"trafficPacks"`
+	DeviceAccess       DeviceAccessSettings         `json:"deviceAccess"`
+	PaymentMethodOrder []string                     `json:"paymentMethodOrder"`
+	PaymentMethodText  map[string]PaymentMethodText `json:"paymentMethodText"`
+	Trial              TrialSettings                `json:"trial"`
+	Referrals          ReferralSettings             `json:"referrals"`
+	Grace              GraceSettings                `json:"grace"`
+	Panel              PanelSettings                `json:"panel"`
+	HiddenServerNodes  []string                     `json:"hiddenServerNodes,omitempty"`
+}
+
+type PaymentMethodText struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 type LocalizationSettings struct {
@@ -505,6 +511,7 @@ func DefaultSettings() Settings {
 		Version:            CurrentVersion,
 		ReviewRewards:      DefaultReviewRewards(),
 		PaymentMethodOrder: DefaultPaymentMethodOrder(),
+		PaymentMethodText:  map[string]PaymentMethodText{},
 		Localization: LocalizationSettings{
 			Language:     language,
 			FontFamily:   fontFamily,
@@ -1246,6 +1253,9 @@ func NormalizeAndValidate(settings *Settings) error {
 		return err
 	}
 	settings.PaymentMethodOrder = normalizePaymentMethodOrder(settings.PaymentMethodOrder)
+	if err := normalizePaymentMethodText(settings); err != nil {
+		return err
+	}
 	if len(settings.HiddenServerNodes) > 512 {
 		return errors.New("too many hidden server nodes")
 	}
@@ -1333,6 +1343,25 @@ func NormalizeAndValidate(settings *Settings) error {
 	if err := validatePanel(&settings.Panel, defaults.Panel); err != nil {
 		return err
 	}
+	return nil
+}
+
+func normalizePaymentMethodText(settings *Settings) error {
+	clean := make(map[string]PaymentMethodText, len(settings.PaymentMethodText))
+	for id, text := range settings.PaymentMethodText {
+		if !contains(defaultPaymentMethodOrder, id) {
+			return fmt.Errorf("unknown payment method: %s", id)
+		}
+		text.Name = strings.TrimSpace(text.Name)
+		text.Description = strings.TrimSpace(text.Description)
+		if utf8.RuneCountInString(text.Name) > 80 || utf8.RuneCountInString(text.Description) > 240 {
+			return fmt.Errorf("payment method %s: name must be at most 80 characters and description at most 240", id)
+		}
+		if text.Name != "" || text.Description != "" {
+			clean[id] = text
+		}
+	}
+	settings.PaymentMethodText = clean
 	return nil
 }
 

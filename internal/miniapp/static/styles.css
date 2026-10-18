@@ -12877,6 +12877,11 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .pay-order-row__actions button:disabled { color: var(--muted); opacity: .35; cursor: default; }
 .pay-order-row__actions button:focus-visible { outline: 2px solid var(--text); outline-offset: -3px; }
 .pay-order-sheet__footer { padding-top: 14px; color: var(--muted); font-size: 11px; text-align: center; }
+.pay-method-editor { margin-top: 14px; padding: 14px; display: grid; gap: 12px; border-radius: 14px; background: var(--surface); }
+.pay-method-editor h3, .pay-method-editor p { margin: 0; }
+.pay-method-editor p { font-size: 11px; line-height: 1.5; color: var(--muted); }
+.pay-method-editor__actions { display: flex; justify-content: flex-end; gap: 8px; }
+.pay-method-editor__actions button { padding: 10px 16px; min-height: 40px; border-radius: 10px; }
 @media (hover: hover) { .pay-order-row__actions button:not(:disabled):hover { background: var(--control-bg); } }
 
 /* Keep this rule last: theme sections above may restore component borders.
