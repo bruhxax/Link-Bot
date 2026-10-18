@@ -85,7 +85,7 @@ func TestBroadcastAudiencePersistenceAndDraftGuards(t *testing.T) {
 	if len(customers) != 2 || len(customers[0].Subscriptions) != 2 || !customers[0].Paid || customers[1].Paid || customers[0].Email != "one@example.com" {
 		t.Fatalf("incorrect eligible accounts: %+v", customers)
 	}
-	t.Run("persistent unsubscribe filters Telegram, email and legacy broadcasts", func(t *testing.T) {
+	t.Run("Telegram unsubscribe preserves email and filters Telegram broadcasts", func(t *testing.T) {
 		if subscribed, err := c.BroadcastSubscribed(ctx, 1); err != nil || !subscribed {
 			t.Fatalf("default=%v err=%v", subscribed, err)
 		}
@@ -102,8 +102,8 @@ func TestBroadcastAudiencePersistenceAndDraftGuards(t *testing.T) {
 			if err != nil || allowed != ignore {
 				t.Fatalf("Telegram ignore=%v allowed=%v err=%v", ignore, allowed, err)
 			}
-			allowed, err = c.BroadcastEmailAllowed(ctx, "one@example.com", ignore)
-			if err != nil || allowed != ignore {
+			allowed, err = c.BroadcastEmailAllowed(ctx, "one@example.com")
+			if err != nil || !allowed {
 				t.Fatalf("email ignore=%v allowed=%v err=%v", ignore, allowed, err)
 			}
 			ids, err := c.ListAllTelegramIDs(ctx, ignore)
@@ -121,7 +121,7 @@ func TestBroadcastAudiencePersistenceAndDraftGuards(t *testing.T) {
 		if allowed, err := c.BroadcastTelegramAllowed(ctx, 103, true); err != nil || allowed {
 			t.Fatalf("synthetic Telegram ID included: %v %v", allowed, err)
 		}
-		if allowed, err := c.BroadcastEmailAllowed(ctx, "missing@example.com", true); err != nil || allowed {
+		if allowed, err := c.BroadcastEmailAllowed(ctx, "missing@example.com"); err != nil || allowed {
 			t.Fatalf("unknown email included: %v %v", allowed, err)
 		}
 		customers, err := c.BroadcastCustomers(ctx)
@@ -140,7 +140,7 @@ func TestBroadcastAudiencePersistenceAndDraftGuards(t *testing.T) {
 		if allowed, err := c.BroadcastTelegramAllowed(ctx, 101, false); err != nil || !allowed {
 			t.Fatalf("resubscribe failed: %v %v", allowed, err)
 		}
-		if allowed, err := c.BroadcastEmailAllowed(ctx, "one@example.com", false); err != nil || !allowed {
+		if allowed, err := c.BroadcastEmailAllowed(ctx, "one@example.com"); err != nil || !allowed {
 			t.Fatalf("email resubscribe failed: %v %v", allowed, err)
 		}
 	})
@@ -183,7 +183,7 @@ func TestBroadcastAudiencePersistenceAndDraftGuards(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if email.Audience.Tag != "PREMIUM" || !email.Audience.IgnoreUnsubscribe {
+	if email.Audience.Tag != "PREMIUM" || email.Audience.IgnoreUnsubscribe {
 		t.Fatal("email audience lost")
 	}
 	if _, err = c.BeginEmailBroadcast(ctx, 1, 101, stale); err == nil {

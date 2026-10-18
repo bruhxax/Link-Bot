@@ -803,6 +803,7 @@ select:focus-visible {
 .admin-toggle-list { display: grid; gap: 0; border: 0; }
 .admin-toggle-list--inline { grid-template-columns: repeat(3, minmax(0, 1fr)); border: 0; gap: 8px; }
 .admin-toggle {
+  position: relative;
   min-height: 44px;
   display: flex;
   align-items: center;
@@ -814,7 +815,22 @@ select:focus-visible {
 }
 .admin-toggle + .admin-toggle { border-top: 1px solid var(--line-soft); }
 .admin-toggle-list--inline .admin-toggle { border: 0; }
-.admin-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.admin-toggle input {
+  position: absolute;
+  inset-inline-end: 17px;
+  top: 50%;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  opacity: 0;
+  pointer-events: none;
+}
+.admin-toggle input:focus-visible + i { outline: 2px solid var(--accent); outline-offset: 3px; }
 .admin-toggle i { width: 34px; height: 20px; flex: 0 0 34px; padding: 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
 .admin-toggle i::after { content: ""; display: block; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); transition: transform .2s ease, background .2s ease; }
 .admin-toggle input:checked + i { border-color: var(--accent); background: var(--accent-soft); }

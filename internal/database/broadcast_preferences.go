@@ -15,15 +15,14 @@ func (r *CustomerRepository) BroadcastTelegramAllowed(ctx context.Context, teleg
 	return allowed, err
 }
 
-func (r *CustomerRepository) BroadcastEmailAllowed(ctx context.Context, email string, ignoreUnsubscribe bool) (bool, error) {
+func (r *CustomerRepository) BroadcastEmailAllowed(ctx context.Context, email string) (bool, error) {
 	var allowed bool
 	err := r.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM customer c JOIN customer_email_auth e ON e.customer_id=c.id
-		WHERE e.email=$1 AND NOT c.is_blocked
-		AND ($2 OR NOT EXISTS(SELECT 1 FROM customer_broadcast_unsubscribe u WHERE u.customer_id=c.id)))`, email, ignoreUnsubscribe).Scan(&allowed)
+		WHERE e.email=$1 AND NOT c.is_blocked)`, email).Scan(&allowed)
 	return allowed, err
 }
 
-// No row means subscribed, so existing customers keep their current behavior.
+// Telegram broadcasts only. No row means subscribed; email is independent.
 func (r *CustomerRepository) BroadcastSubscribed(ctx context.Context, customerID int64) (bool, error) {
 	var subscribed bool
 	err := r.pool.QueryRow(ctx, `SELECT NOT EXISTS(SELECT 1 FROM customer_broadcast_unsubscribe WHERE customer_id=$1)`, customerID).Scan(&subscribed)

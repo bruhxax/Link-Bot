@@ -152,6 +152,8 @@ func (h *Handler) broadcastTelegramRecipients(ctx context.Context, a database.Br
 	return ids, nil
 }
 func (h *Handler) broadcastEmailRecipients(ctx context.Context, a database.BroadcastAudience) ([]string, error) {
+	// The /start preference belongs only to Telegram, never to email.
+	a.IgnoreUnsubscribe = true
 	customers, err := h.broadcastCustomers(ctx, a)
 	if err != nil {
 		return nil, err
@@ -183,6 +185,9 @@ func (h *Handler) handleAdminBroadcastAudience(w http.ResponseWriter, r *http.Re
 	if req.Channel != "telegram" && req.Channel != "email" {
 		h.writeError(w, 400, "invalid_channel", "Выберите тип рассылки")
 		return
+	}
+	if req.Channel == "email" {
+		req.Audience.IgnoreUnsubscribe = false
 	}
 	if err := req.Audience.Normalize(); err != nil {
 		h.writeError(w, 400, "invalid_audience", err.Error())

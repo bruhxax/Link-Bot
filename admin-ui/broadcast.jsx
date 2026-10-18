@@ -229,15 +229,17 @@ function Audience({ model, disabled, hidden }) {
           </Accordion.Panel>
         </Accordion.Item>
       </Accordion>
-	  <Switch
-		mt="md"
-		label="Игнорировать отписку от рассылки"
-		description="Отправить эту рассылку также отписавшимся пользователям. Их настройки останутся прежними."
-		checked={Boolean(a.ignoreUnsubscribe)}
-		onChange={(event) => model.updateAudience("ignoreUnsubscribe", event.currentTarget.checked)}
-		disabled={disabled}
-		color="teal"
-	  />
+      {model.channel === "telegram" && (
+        <Switch
+          mt="md"
+          label="Игнорировать отписку от рассылки"
+          description="Отправить эту Telegram-рассылку также отписавшимся пользователям. Их настройки останутся прежними."
+          checked={Boolean(a.ignoreUnsubscribe)}
+          onChange={(event) => model.updateAudience("ignoreUnsubscribe", event.currentTarget.checked)}
+          disabled={disabled}
+          color="teal"
+        />
+      )}
       <div className="rn-broadcast-audience-count">
         <span>
           Получателей:{" "}

@@ -121,14 +121,9 @@ func buildContentPreview(kind string, settings runtimeconfig.Settings, plans []p
 		}
 		keyboard = append(keyboard, []models.InlineKeyboardButton{previewWebAppButton(menu.DashboardButton, "dashboard", telegram.CallbackStart)}, []models.InlineKeyboardButton{previewButton(menu.PlansButton, telegram.CallbackBuy)}, []models.InlineKeyboardButton{previewWebAppButton(menu.SupportButton, "support", telegram.CallbackStart)})
 		if menu.NotificationsButton.Enabled {
-			keyboard = append(keyboard, []models.InlineKeyboardButton{previewButton(menu.NotificationsButton.TelegramButtonSettings, telegram.CallbackNotifications)})
+			keyboard = append(keyboard, []models.InlineKeyboardButton{previewButton(menu.NotificationsButton.TelegramButtonSettings, telegram.CallbackStart)})
 		}
 		return content.StartTextRU, content.StartImage, keyboard, nil
-	case "notifications-enabled", "notifications-disabled":
-		text, buttons := telegram.NotificationsScreen(content, kind == "notifications-enabled")
-		// Preview actions return to the menu instead of changing a real preference.
-		buttons[0][0].CallbackData = telegram.CallbackStart
-		return text, "", buttons, nil
 	case "verification":
 		channel := previewButton(content.Verification.ChannelButton, telegram.CallbackStart)
 		if strings.TrimSpace(content.Links["channel"]) != "" {

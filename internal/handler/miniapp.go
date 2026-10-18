@@ -69,7 +69,7 @@ func (h Handler) miniAppKeyboard(lang string) [][]models.InlineKeyboardButton {
 	supportButton := telegramButton(settings.SupportButton, h.translation.GetText(lang, "support_chat_button_text"), miniAppSupportEmojiID)
 	supportButton.WebApp = &models.WebAppInfo{URL: h.miniAppURL("support")}
 
-	return appendNotificationsMenuButton([][]models.InlineKeyboardButton{{dashboardButton}, {plansButton}, {supportButton}}, settings)
+	return [][]models.InlineKeyboardButton{{dashboardButton}, {plansButton}, {supportButton}}
 }
 
 func (h Handler) miniAppKeyboardForCustomer(ctx context.Context, customer *database.Customer, lang string) [][]models.InlineKeyboardButton {
@@ -78,6 +78,7 @@ func (h Handler) miniAppKeyboardForCustomer(ctx context.Context, customer *datab
 		return keyboard
 	}
 
+	keyboard = h.appendCustomerNotificationsButton(ctx, keyboard, customer)
 	trialAllowed, err := h.canOfferTrial(ctx, customer)
 	if err != nil {
 		slog.Error("Error checking trial eligibility for start keyboard", "error", err)

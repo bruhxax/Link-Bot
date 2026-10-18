@@ -117,7 +117,7 @@ func (h Handler) StartCommandHandler(ctx context.Context, b *bot.Bot, update *mo
 		return
 	}
 
-	inlineKeyboard := h.buildStartKeyboard(existingCustomer, langCode)
+	inlineKeyboard := h.buildStartKeyboard(ctxWithTime, existingCustomer, langCode)
 
 	// Remove old reply keyboard (if any)
 	m, err := b.SendMessage(ctx, &bot.SendMessageParams{
@@ -178,7 +178,7 @@ func (h Handler) StartCallbackHandler(ctx context.Context, b *bot.Bot, update *m
 		return
 	}
 
-	inlineKeyboard := h.buildStartKeyboard(existingCustomer, langCode)
+	inlineKeyboard := h.buildStartKeyboard(ctxWithTime, existingCustomer, langCode)
 
 	// ✅ Без удаления: обновляем это же сообщение (картинку + caption + кнопки)
 	if callback.Message.Message != nil {
@@ -300,7 +300,7 @@ func (h Handler) resolveConnectButton(lang string) []models.InlineKeyboardButton
 	return inlineKeyboard
 }
 
-func (h Handler) buildStartKeyboard(existingCustomer *database.Customer, langCode string) [][]models.InlineKeyboardButton {
+func (h Handler) buildStartKeyboard(ctx context.Context, existingCustomer *database.Customer, langCode string) [][]models.InlineKeyboardButton {
 	var inlineKeyboard [][]models.InlineKeyboardButton
 
 	// Conditions
@@ -358,5 +358,5 @@ func (h Handler) buildStartKeyboard(existingCustomer *database.Customer, langCod
 		inlineKeyboard = append(inlineKeyboard, row3)
 	}
 
-	return appendNotificationsMenuButton(inlineKeyboard, h.telegramStartMenuSettings())
+	return h.appendCustomerNotificationsButton(ctx, inlineKeyboard, existingCustomer)
 }

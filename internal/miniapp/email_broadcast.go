@@ -144,11 +144,11 @@ func (h *Handler) handleAdminEmailBroadcastSend(w http.ResponseWriter, r *http.R
 		h.writeError(w, http.StatusInternalServerError, "email_broadcast_failed", "Не удалось запустить рассылку")
 		return
 	}
-	go h.runEmailBroadcast(settings, recipients, draft.Subject, draft.Body, draft.Audience.IgnoreUnsubscribe)
+	go h.runEmailBroadcast(settings, recipients, draft.Subject, draft.Body)
 	h.writeJSON(w, http.StatusAccepted, map[string]any{"ok": true, "data": draft})
 }
 
-func (h *Handler) runEmailBroadcast(settings emailSMTPSettings, recipients []string, subject, body string, ignoreUnsubscribe bool) {
+func (h *Handler) runEmailBroadcast(settings emailSMTPSettings, recipients []string, subject, body string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
 	defer cancel()
 	sent, failed, skipped := 0, 0, 0
@@ -157,7 +157,7 @@ func (h *Handler) runEmailBroadcast(settings emailSMTPSettings, recipients []str
 		if ctx.Err() != nil {
 			break
 		}
-		allowed, err := h.customerRepository.BroadcastEmailAllowed(ctx, recipient, ignoreUnsubscribe)
+		allowed, err := h.customerRepository.BroadcastEmailAllowed(ctx, recipient)
 		if err == nil && !allowed {
 			skipped++
 			continue

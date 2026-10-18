@@ -2569,8 +2569,7 @@ function buildPreviewRuntimeSettings() {
 			brandName: "Link-Bot", adminContact: "", logoUrl: previewPayload.brand.logoUrl, startTextRu: "", startImage: "", copy: { ru: {} }, faq: { ru: [] }, links: deepClone(previewPayload.links), customLinks: [], profileButtons: {}, legalDocuments: {},
 			webPage: { title: "Link-Bot", description: "Link-Bot Mini App", faviconUrl: BRAND_MARK_PATH },
 			verification: { text: "", banner: "", channelButton: { text: "Link-Bot", iconCustomEmojiId: "", style: "" }, confirmButton: { text: "Я подписался", iconCustomEmojiId: "", style: "" }, checkFailedText: "", notSubscribedText: "", verifiedText: "" },
-			startMenu: { notificationsButton: { enabled: false, text: "Уведомления", iconCustomEmojiId: "", style: "" }, trialButton: { text: "Попробовать бесплатно", iconCustomEmojiId: "5276422526350681413", style: "" }, dashboardButton: { text: "Вход", iconCustomEmojiId: "5278413853577734640", style: "" }, plansButton: { text: "Тарифы", iconCustomEmojiId: "5206626000665868017", style: "" }, supportButton: { text: "Чат с поддержкой", iconCustomEmojiId: "5206222720416643915", style: "" } },
-			notifications: { enabledText: "<b>Уведомления</b>\n\nРассылки включены.", disabledText: "<b>Уведомления</b>\n\nВы отписались от рассылок.", subscribeButton: { text: "Включить рассылки", iconCustomEmojiId: "", style: "success" }, unsubscribeButton: { text: "Отключить рассылки", iconCustomEmojiId: "", style: "danger" } },
+			startMenu: { notificationsButton: { enabled: false, text: "Уведомления: вкл.", iconCustomEmojiId: "", style: "success" }, notificationsOffButton: { text: "Уведомления: выкл.", iconCustomEmojiId: "", style: "danger" }, trialButton: { text: "Попробовать бесплатно", iconCustomEmojiId: "5276422526350681413", style: "" }, dashboardButton: { text: "Вход", iconCustomEmojiId: "5278413853577734640", style: "" }, plansButton: { text: "Тарифы", iconCustomEmojiId: "5206626000665868017", style: "" }, supportButton: { text: "Чат с поддержкой", iconCustomEmojiId: "5206222720416643915", style: "" } },
 			trial: { banner: "", text: "<b>Пробный период</b>\n\nБесплатно протестируйте сервис перед покупкой.", activateButton: { text: "Активировать бесплатно", iconCustomEmojiId: "", style: "" }, activatedBanner: "", activatedText: "<b>Пробный период активирован!</b>\n\nОцените скорость и стабильность сервиса.", connectButton: { text: "Подписка", iconCustomEmojiId: "", style: "" } },
 			commerce: { banner: "", tariffsText: "", paymentMethodsText: "", paymentReadyText: "", yookassaButton: { text: "СБП | Карта", iconCustomEmojiId: "5192678313415434135", style: "" }, cryptoButton: { text: "CryptoPay", iconCustomEmojiId: "5195058841988914267", style: "" }, starsButton: { text: "Telegram Stars", iconCustomEmojiId: "5242644275014951846", style: "" }, payButton: { text: "Оплатить", iconCustomEmojiId: "5206401524200145033", style: "" }, backButton: { text: "Назад", iconCustomEmojiId: "5877629862306385808", style: "" }, successText: "", successBanner: "", successButton: { text: "Личный кабинет", iconCustomEmojiId: "5278413853577734640", style: "" } },
 			gift: {
@@ -3599,8 +3598,8 @@ function captureRealtimeFocus() {
 	const active = document.activeElement;
 	if (!app.contains(active) || !active?.matches?.("input, textarea, select, [contenteditable='true']")) return null;
 	const controls = [...app.querySelectorAll("input, textarea, select, [contenteditable='true']")];
-	const key = active.getAttribute("data-input") || active.id || active.getAttribute("name") || "";
-	const matching = key ? controls.filter((element) => (element.getAttribute("data-input") || element.id || element.getAttribute("name") || "") === key) : controls;
+	const key = active.getAttribute("data-setting-path") || active.getAttribute("data-input") || active.id || active.getAttribute("name") || "";
+	const matching = key ? controls.filter((element) => (element.getAttribute("data-setting-path") || element.getAttribute("data-input") || element.id || element.getAttribute("name") || "") === key) : controls;
 	let selection = null;
 	try { selection = { start: active.selectionStart, end: active.selectionEnd, direction: active.selectionDirection }; } catch (_) {}
 	return { key, index: matching.indexOf(active), tag: active.tagName, value: active.value, selection, page: state.currentPage, section: state.adminSection };
@@ -3609,7 +3608,7 @@ function captureRealtimeFocus() {
 function restoreRealtimeFocus(snapshot) {
 	if (!snapshot || snapshot.page !== state.currentPage || snapshot.section !== state.adminSection) return;
 	const controls = [...app.querySelectorAll("input, textarea, select, [contenteditable='true']")];
-	const matching = snapshot.key ? controls.filter((element) => (element.getAttribute("data-input") || element.id || element.getAttribute("name") || "") === snapshot.key) : controls;
+	const matching = snapshot.key ? controls.filter((element) => (element.getAttribute("data-setting-path") || element.getAttribute("data-input") || element.id || element.getAttribute("name") || "") === snapshot.key) : controls;
 	const target = matching[snapshot.index];
 	if (!target || target.tagName !== snapshot.tag || target.disabled) return;
 	if (typeof snapshot.value === "string" && target.value !== snapshot.value) target.value = snapshot.value;
@@ -5003,8 +5002,9 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
 	const textTransitions = state.data && !document.hidden && !(state.adminWorkspace && isAdminUser()) ? captureRenderTextTransitions() : [];
 	realtimeRenderPending = false;
 	window.clearTimeout(realtimeRenderTimer);
-	const realtimeFocus = realtimeRefreshRunning || preserveInteraction ? captureRealtimeFocus() : null;
-	const realtimeDetails = realtimeRefreshRunning || preserveInteraction
+	const keepEditorInteraction = preserveInteraction || (preserveScroll && state.currentPage === "admin" && ADMIN_SAVE_SECTIONS.has(state.adminSection));
+	const realtimeFocus = realtimeRefreshRunning || keepEditorInteraction ? captureRealtimeFocus() : null;
+	const realtimeDetails = realtimeRefreshRunning || keepEditorInteraction
 		? [...app.querySelectorAll("details")].flatMap((element, index) => element.open ? [{ index, label: element.querySelector("summary")?.textContent || "" }] : [])
 		: [];
   bannerMediaResizeObserver?.disconnect();
@@ -5128,7 +5128,6 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
   bindRootActions();
   if (!consoleActive) mountLocalizationSelects(app);
   mountAdminContentTabs();
-  restoreScrollPosition(nextScrollTop);
 	mountRuntimeLayout();
 	mountSwitchSelections(switchSelections);
 	if (textTransitions.length) requestAnimationFrame(() => {
@@ -5154,6 +5153,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
 		}
 	}
 	restoreRealtimeFocus(realtimeFocus);
+	restoreScrollPosition(nextScrollTop);
   pageAnimationEnabled = false;
 	subscriptionSwitchAnimation = "";
 }
@@ -7183,7 +7183,7 @@ function renderAdminBroadcastConfirmation() {
 }
 
 function renderAdminEmailBroadcastConfirm(english) {
-	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-email-close-confirm"></button><div class="modal__sheet admin-broadcast-confirm" role="dialog" aria-modal="true"><div class="modal__header"><div class="modal__title">${english ? "Send to selected recipients?" : "Отправить письмо выбранной аудитории?"}</div></div><p>${english ? `Recipients with verified email: ${(state.adminAudienceCount.email ?? (english ? "Not counted" : "Не подсчитано"))}. Check the preview first.` : `Получателей с подтверждённой почтой: ${(state.adminAudienceCount.email ?? (english ? "Not counted" : "Не подсчитано"))}. Проверьте тестовое письмо перед запуском.`}</p>${state.adminEmailBroadcast?.draft?.audience?.ignoreUnsubscribe ? `<p class="admin-broadcast-optout-note">${english ? "This broadcast includes unsubscribed users. Their preferences will stay unchanged." : "Эта рассылка придёт и отписавшимся пользователям. Их настройки не изменятся."}</p>` : ""}<div class="admin-broadcast-confirm__actions"><button type="button" data-action="admin-email-close-confirm">${english ? "Cancel" : "Отмена"}</button><button class="admin-broadcast-confirm__send" type="button" data-action="admin-email-send">${icon("send")}<span>${english ? "Start" : "Запустить"}</span></button></div></div></div>`;
+	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-email-close-confirm"></button><div class="modal__sheet admin-broadcast-confirm" role="dialog" aria-modal="true"><div class="modal__header"><div class="modal__title">${english ? "Send to selected recipients?" : "Отправить письмо выбранной аудитории?"}</div></div><p>${english ? `Recipients with verified email: ${(state.adminAudienceCount.email ?? (english ? "Not counted" : "Не подсчитано"))}. Check the preview first.` : `Получателей с подтверждённой почтой: ${(state.adminAudienceCount.email ?? (english ? "Not counted" : "Не подсчитано"))}. Проверьте тестовое письмо перед запуском.`}</p><div class="admin-broadcast-confirm__actions"><button type="button" data-action="admin-email-close-confirm">${english ? "Cancel" : "Отмена"}</button><button class="admin-broadcast-confirm__send" type="button" data-action="admin-email-send">${icon("send")}<span>${english ? "Start" : "Запустить"}</span></button></div></div></div>`;
 }
 
 function renderAdminBroadcastConfirm(english) {
@@ -7402,16 +7402,8 @@ function renderAdminStartContent() {
 		${renderAdminTelegramButton("Тарифы", "content.startMenu.plansButton")}
 		${renderAdminTelegramButton("Чат с поддержкой", "content.startMenu.supportButton")}
 		${renderAdminToggle("Показывать кнопку «Уведомления»", "content.startMenu.notificationsButton.enabled")}
-		${renderAdminTelegramButton("Уведомления", "content.startMenu.notificationsButton")}
-	</section>
-	<section class="admin-editor__section"><h3>Настройки рассылок пользователя</h3>
-		<p>Кнопка «Уведомления» открывает управление рассылками в Telegram и на почту. Пользователь может отписаться и подписаться снова. Сообщения об оплате, подписке и поддержке продолжают приходить.</p>
-		${renderAdminSettingField("Сообщение: рассылки включены", "content.notifications.enabledText", { textarea: true, rows: 5 })}
-		${renderAdminTelegramButton("Отключить рассылки", "content.notifications.unsubscribeButton")}
-		${renderAdminContentTestButton("notifications-enabled")}
-		${renderAdminSettingField("Сообщение: пользователь отписался", "content.notifications.disabledText", { textarea: true, rows: 5 })}
-		${renderAdminTelegramButton("Включить рассылки", "content.notifications.subscribeButton")}
-		${renderAdminContentTestButton("notifications-disabled")}
+		${renderAdminTelegramButton("Уведомления — вкл.", "content.startMenu.notificationsButton")}
+		${renderAdminTelegramButton("Уведомления — выкл.", "content.startMenu.notificationsOffButton")}
 	</section>`;
 }
 
@@ -12817,7 +12809,7 @@ function bindRootActions() {
 			state.adminSettingsDirty = true;
  if(settingPath.startsWith("appearance.landing.")){syncLandingPalettePreview();if(type==="boolean"||target.tagName==="SELECT")render({preserveScroll:true});}
  if(settingPath.startsWith("appearance.cursors.")&&type==="number")syncCursorDemo();
-			if (settingPath === "appearance.showFrames" || settingPath === "appearance.glow" || settingPath === "appearance.glass" || settingPath === "subPage.includeBuiltIns" || enabledClient) {
+			if (settingPath === "subPage.includeBuiltIns" || enabledClient) {
                 render({ preserveScroll: true });
                 return;
             }
@@ -18040,14 +18032,20 @@ function rememberCurrentScroll() {
   state.scrollTopByPage[state.currentPage] = top;
 }
 
+let scrollRestoreGeneration = 0;
 function restoreScrollPosition(scrollTop) {
+  const generation = ++scrollRestoreGeneration;
   if (scrollTop === null || scrollTop === undefined) return;
-  requestAnimationFrame(() => {
+  const page = state.currentPage, section = state.adminSection;
+  const apply = () => {
+    if (generation !== scrollRestoreGeneration || page !== state.currentPage || section !== state.adminSection) return;
     const scroll = app.querySelector(".page-scroll");
     if (!scroll) return;
     scroll.scrollTop = scrollTop;
-    state.scrollTopByPage[state.currentPage] = scrollTop;
-  });
+    state.scrollTopByPage[page] = scrollTop;
+  };
+  apply();
+  requestAnimationFrame(apply);
 }
 
 function getSupportThreadMessagesElement() {

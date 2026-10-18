@@ -3,40 +3,67 @@ package handler
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"link-bot/internal/database"
 	"link-bot/internal/runtimeconfig"
 )
 
 const (
-	CallbackNotifications        = "notifications"
+	CallbackNotifications        = "notifications" // Compatibility with the first 2.7.0 menu.
 	CallbackBroadcastSubscribe   = "notifications:subscribe"
 	CallbackBroadcastUnsubscribe = "notifications:unsubscribe"
 )
 
-func appendNotificationsMenuButton(keyboard [][]models.InlineKeyboardButton, menu runtimeconfig.TelegramStartMenuSettings) [][]models.InlineKeyboardButton {
+func notificationsMenuButton(menu runtimeconfig.TelegramStartMenuSettings, subscribed bool) models.InlineKeyboardButton {
+	settings, callback := menu.NotificationsOffButton, CallbackBroadcastSubscribe
+	if subscribed {
+		settings, callback = menu.NotificationsButton.TelegramButtonSettings, CallbackBroadcastUnsubscribe
+	}
+	button := telegramButton(settings, settings.Text, "")
+	button.CallbackData = callback
+	return button
+}
+
+func appendNotificationsMenuButton(keyboard [][]models.InlineKeyboardButton, menu runtimeconfig.TelegramStartMenuSettings, subscribed bool) [][]models.InlineKeyboardButton {
 	if menu.NotificationsButton.Enabled {
-		button := telegramButton(menu.NotificationsButton.TelegramButtonSettings, "Уведомления", "")
-		button.CallbackData = CallbackNotifications
-		keyboard = append(keyboard, []models.InlineKeyboardButton{button})
+		keyboard = append(keyboard, []models.InlineKeyboardButton{notificationsMenuButton(menu, subscribed)})
 	}
 	return keyboard
 }
 
-// Shared with the content preview; rendering never changes the preference.
-func NotificationsScreen(content runtimeconfig.ContentSettings, subscribed bool) (string, [][]models.InlineKeyboardButton) {
-	settings := content.Notifications
-	text, buttonSettings, callback := settings.DisabledText, settings.SubscribeButton, CallbackBroadcastSubscribe
-	if subscribed {
-		text, buttonSettings, callback = settings.EnabledText, settings.UnsubscribeButton, CallbackBroadcastUnsubscribe
+func (h Handler) appendCustomerNotificationsButton(ctx context.Context, keyboard [][]models.InlineKeyboardButton, customer *database.Customer) [][]models.InlineKeyboardButton {
+	menu := h.telegramStartMenuSettings()
+	if !menu.NotificationsButton.Enabled || customer == nil {
+		return keyboard
 	}
-	button := telegramButton(buttonSettings, buttonSettings.Text, "")
-	button.CallbackData = callback
-	back := telegramButton(content.Commerce.BackButton, "Назад", botBackEmojiID)
-	back.CallbackData = CallbackStart
-	return text, [][]models.InlineKeyboardButton{{button}, {back}}
+	subscribed, err := h.customerRepository.BroadcastSubscribed(ctx, customer.ID)
+	if err != nil {
+		slog.Warn("bot: load Telegram broadcast preference", "error", err)
+		return keyboard
+	}
+	return appendNotificationsMenuButton(keyboard, menu, subscribed)
+}
+
+func updatedNotificationsMarkup(markup *models.InlineKeyboardMarkup, menu runtimeconfig.TelegramStartMenuSettings, subscribed bool) (*models.InlineKeyboardMarkup, bool) {
+	if markup == nil {
+		return nil, false
+	}
+	keyboard := make([][]models.InlineKeyboardButton, len(markup.InlineKeyboard))
+	found := false
+	for i, row := range markup.InlineKeyboard {
+		keyboard[i] = append([]models.InlineKeyboardButton(nil), row...)
+		for j, button := range row {
+			if button.CallbackData == CallbackNotifications || button.CallbackData == CallbackBroadcastSubscribe || button.CallbackData == CallbackBroadcastUnsubscribe {
+				keyboard[i][j] = notificationsMenuButton(menu, subscribed)
+				found = true
+			}
+		}
+	}
+	return &models.InlineKeyboardMarkup{InlineKeyboard: keyboard}, found
 }
 
 func (h Handler) NotificationsCallbackHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -44,7 +71,6 @@ func (h Handler) NotificationsCallbackHandler(ctx context.Context, b *bot.Bot, u
 	if callback == nil {
 		return
 	}
-	// A forwarded/group menu cannot change someone else's settings or messages.
 	message := callback.Message.Message
 	if message == nil || message.Chat.ID != callback.From.ID || callback.From.ID <= 0 {
 		_, _ = b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: callback.ID})
@@ -53,8 +79,13 @@ func (h Handler) NotificationsCallbackHandler(ctx context.Context, b *bot.Bot, u
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	fail := func(err error) {
-		slog.Error("bot: notification preferences failed", "error", err)
+		slog.Error("bot: Telegram notification preference failed", "error", err)
 		_, _ = b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: callback.ID, Text: "Не удалось сохранить настройки. Попробуйте ещё раз.", ShowAlert: true})
+	}
+	menu := h.telegramStartMenuSettings()
+	if _, found := updatedNotificationsMarkup(message.ReplyMarkup, menu, true); !found {
+		_, _ = b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: callback.ID})
+		return
 	}
 	customer, err := h.customerRepository.FindByTelegramId(ctx, callback.From.ID)
 	if err != nil {
@@ -65,23 +96,20 @@ func (h Handler) NotificationsCallbackHandler(ctx context.Context, b *bot.Bot, u
 		_, _ = b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: callback.ID, Text: "Сначала отправьте /start", ShowAlert: true})
 		return
 	}
-	if callback.Data == CallbackBroadcastSubscribe || callback.Data == CallbackBroadcastUnsubscribe {
-		if err := h.customerRepository.SetBroadcastSubscribed(ctx, customer.ID, callback.Data == CallbackBroadcastSubscribe); err != nil {
-			fail(err)
-			return
-		}
-	}
-	subscribed, err := h.customerRepository.BroadcastSubscribed(ctx, customer.ID)
-	if err != nil {
+	// Explicit target states make duplicate callback deliveries idempotent.
+	subscribed := callback.Data == CallbackBroadcastSubscribe
+	if err := h.customerRepository.SetBroadcastSubscribed(ctx, customer.ID, subscribed); err != nil {
 		fail(err)
 		return
 	}
-	_, _ = b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: callback.ID})
-	settings := runtimeconfig.DefaultSettings()
-	if h.runtimeSettings != nil {
-		settings = h.runtimeSettings.Snapshot()
+	markup, _ := updatedNotificationsMarkup(message.ReplyMarkup, menu, subscribed)
+	_, err = b.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{ChatID: message.Chat.ID, MessageID: message.ID, ReplyMarkup: markup})
+	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "message is not modified") {
+		slog.Warn("bot: update notifications button", "error", err)
 	}
-	content := runtimeconfig.LocalizeTelegramDefaults(settings.Content, settings.Localization.Language)
-	text, keyboard := NotificationsScreen(content, subscribed)
-	h.editScreen(ctx, b, message.Chat.ID, message.ID, "", text, keyboard)
+	text := "Уведомления выключены"
+	if subscribed {
+		text = "Уведомления включены"
+	}
+	_, _ = b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: callback.ID, Text: text})
 }

@@ -117,18 +117,12 @@ func TestTrialPreviewUsesDraftAndCannotActivateTrial(t *testing.T) {
 	}
 }
 
-func TestNotificationsPreviewUsesDraftWithoutChangingPreference(t *testing.T) {
+func TestNotificationsPreviewCannotChangeTelegramPreference(t *testing.T) {
 	s := runtimeconfig.DefaultSettings()
 	s.Content.StartMenu.NotificationsButton.Enabled = true
-	s.Content.StartMenu.NotificationsButton.Text = "My notifications"
-	_, _, menu, err := buildContentPreview("start", s, nil, nil)
-	if err != nil || menu[len(menu)-1][0].CallbackData != telegram.CallbackNotifications || menu[len(menu)-1][0].Text != "My notifications" {
-		t.Fatalf("menu preview: %+v %v", menu, err)
-	}
-	for _, kind := range []string{"notifications-enabled", "notifications-disabled"} {
-		text, _, buttons, err := buildContentPreview(kind, s, nil, nil)
-		if err != nil || text == "" || buttons[0][0].CallbackData != telegram.CallbackStart {
-			t.Fatalf("preview can change a real subscription: %s %+v %v", kind, buttons, err)
-		}
+	s.Content.StartMenu.NotificationsButton.Text = "Custom on form"
+	_, _, keyboard, err := buildContentPreview("start", s, nil, nil)
+	if err != nil || keyboard[len(keyboard)-1][0].Text != "Custom on form" || keyboard[len(keyboard)-1][0].CallbackData != telegram.CallbackStart {
+		t.Fatalf("unsafe preview: %+v %v", keyboard, err)
 	}
 }

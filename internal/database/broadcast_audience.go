@@ -126,6 +126,7 @@ func (r *BroadcastRepository) SaveAudience(ctx context.Context, a BroadcastAudie
 	return draft, nil
 }
 func (r *CustomerRepository) SaveEmailAudience(ctx context.Context, a BroadcastAudience, by int64) (*EmailBroadcastDraft, error) {
+	a.IgnoreUnsubscribe = false
 	if err := a.Normalize(); err != nil {
 		return nil, err
 	}

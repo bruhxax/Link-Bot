@@ -70,7 +70,7 @@ func (h Handler) VerifyChannelSubscriptionCallbackHandler(ctx context.Context, b
 		return
 	}
 
-	inlineKeyboard := h.buildStartKeyboard(customer, langCode)
+	inlineKeyboard := h.buildStartKeyboard(ctx, customer, langCode)
 	h.sendStartPhotoMessage(ctx, b, callback.From.ID, langCode, inlineKeyboard)
 }
 

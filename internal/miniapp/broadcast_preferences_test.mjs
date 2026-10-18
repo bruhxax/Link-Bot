@@ -32,6 +32,7 @@ test('audience editor exposes disabled/checked override without changing other f
   const helpers = {escapeHtml:escape, escapeAttribute:escape};
   for (const channel of ['telegram','email']) {
     const html = renderAudienceEditor({category:'paid',ignoreUnsubscribe:true}, null, 10, true, channel, helpers);
+    if(channel === "email") { assert.doesNotMatch(html, /data-audience-field="ignoreUnsubscribe"/); continue; }
     assert.match(html, /role="switch" data-audience-field="ignoreUnsubscribe"/);
     assert.match(html, new RegExp(`data-audience-field="ignoreUnsubscribe" data-channel="${channel}" checked disabled`));
     assert.match(html, /Их настройки останутся прежними/);
@@ -45,10 +46,10 @@ test('confirmation explicitly shows when opted-out recipients are included', () 
   assert.match(context.renderAdminBroadcastConfirm(false), /Эта рассылка придёт и отписавшимся/);
   assert.doesNotMatch(context.renderAdminEmailBroadcastConfirm(false), /Эта рассылка придёт и отписавшимся/);
   state.adminEmailBroadcast.draft.audience.ignoreUnsubscribe=true;
-  assert.match(context.renderAdminEmailBroadcastConfirm(false), /Эта рассылка придёт и отписавшимся/);
+  assert.doesNotMatch(context.renderAdminEmailBroadcastConfirm(false), /Эта рассылка придёт и отписавшимся/);
 });
 
-test('start content editor exposes button visibility, appearance, preference messages and safe previews', () => {
+test('start content editor contains only visibility and both button forms', () => {
   const context = vm.createContext({
     renderAdminSettingField:(label,path)=>`<input data-setting-path="${path}">`,
     renderAdminToggle:(label,path)=>`<input data-setting-path="${path}">`,
@@ -58,6 +59,6 @@ test('start content editor exposes button visibility, appearance, preference mes
   });
   load(context,'renderAdminStartContent');
   const html = context.renderAdminStartContent();
-  for(const path of ['content.startMenu.notificationsButton.enabled','content.startMenu.notificationsButton.iconCustomEmojiId','content.startMenu.notificationsButton.style','content.notifications.enabledText','content.notifications.disabledText','content.notifications.subscribeButton.text','content.notifications.unsubscribeButton.style']) assert.ok(html.includes(`data-setting-path="${path}"`),path);
-  assert.match(html, /data-value="notifications-enabled"/); assert.match(html, /data-value="notifications-disabled"/);
+  for(const path of ['content.startMenu.notificationsButton.enabled','content.startMenu.notificationsButton.iconCustomEmojiId','content.startMenu.notificationsButton.style','content.startMenu.notificationsOffButton.text','content.startMenu.notificationsOffButton.iconCustomEmojiId','content.startMenu.notificationsOffButton.style']) assert.ok(html.includes(`data-setting-path="${path}"`),path);
+  assert.doesNotMatch(html, /content.notifications|notifications-enabled|notifications-disabled|Настройки рассылок пользователя/);
 });
