@@ -42,6 +42,14 @@ func (h *Handler) handleAdminLogoUpload(w http.ResponseWriter, r *http.Request, 
 	h.handleAdminImageUpload(w, r, sess, "logo", "Logo")
 }
 
+func (h *Handler) handleAdminPaymentLogoUpload(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
+	if !sess.canAdmin("plans") {
+		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")
+		return
+	}
+	h.handleAdminImageUpload(w, r, sess, "logo", "Logo")
+}
+
 func (h *Handler) handleAdminFaviconUpload(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
 	h.handleAdminImageUpload(w, r, sess, "favicon", "Favicon")
 }

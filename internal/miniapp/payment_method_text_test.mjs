@@ -7,9 +7,9 @@ function load(c,name){const start=source.indexOf(`function ${name}(`),next=sourc
 function harness(){
  const settings={paymentMethodText:{},paymentMethodOrder:['card','sbp']};
  const state={adminWorkspace:true,adminSection:'plans',adminSettingsDraft:settings,data:{wallet:{balanceCents:500}}};
- const c=vm.createContext({state,settings,render(){},showToast(){},haptic(){},queueMicrotask:fn=>fn(),app:{querySelector:()=>null},requestModalClose:(name,closed)=>closed(),PAYMENT_LOGO_URLS:{card:'card.svg'},localizedText:ru=>ru,formatMoneyCents:cents=>String(cents),getRuntimeSettings:()=>settings,t:()=>({payMethodCard:'Карта',payMethodCardHint:'Системное описание',payMethodSbp:'СБП',payMethodSbpHint:'По номеру телефона'})});
+ const c=vm.createContext({URL,state,settings,render(){},showToast(){},haptic(){},queueMicrotask:fn=>fn(),app:{querySelector:()=>null},requestModalClose:(name,closed)=>closed(),PAYMENT_LOGO_URLS:{card:'card.svg'},localizedText:ru=>ru,formatMoneyCents:cents=>String(cents),getRuntimeSettings:()=>settings,t:()=>({payMethodCard:'Карта',payMethodCardHint:'Системное описание',payMethodSbp:'СБП',payMethodSbpHint:'По номеру телефона'})});
  c.loadAdminPaymentChannels=async()=>{};
- for(const name of ['paymentMethodBase','paymentChannelsFor','renderPaymentMethodSettings','paymentMethodMeta','getAdminPaymentMethodEditor','openAdminPaymentMethodEditor','closeAdminPaymentMethodEditor','updateAdminPaymentMethodText','applyAdminPaymentMethodEditor','renderAdminPaymentChannels'])load(c,name);
+ for(const name of ['validPaymentLogoURL','renderAdminPaymentLogoEditor','paymentMethodBase','paymentChannelsFor','renderPaymentMethodSettings','paymentMethodMeta','getAdminPaymentMethodEditor','openAdminPaymentMethodEditor','closeAdminPaymentMethodEditor','updateAdminPaymentMethodText','applyAdminPaymentMethodEditor','renderAdminPaymentChannels'])load(c,name);
  c.getAdminPaymentMethods=()=>[...new Set(['card','sbp',...Object.keys(c.settings.paymentMethodVariants||{})])].map(id=>c.paymentMethodMeta(id));return c;
 }
 test('checkout uses per-field fallback and keeps provider IDs and logos',()=>{
@@ -76,4 +76,33 @@ test('an API with only preferred methods is never described as a hard restrictio
  const c=harness();c.state.data.paymentChannels={card:{options:[{id:'card',name:'Карта'}],multiple:true,preference:true,note:'Preference only'}};
  c.escapeHtml=String;c.escapeAttribute=String;c.icon=()=>'';
  const html=c.renderAdminPaymentChannels({id:'card',channels:['card']});assert.match(html,/Другие способы могут остаться доступными/);assert.doesNotMatch(html,/В форме оплаты останутся выбранные методы/);
+});
+
+
+test('payment logo overrides persist independently, cancel cleanly, hide, and reset',()=>{
+ const c=harness();c.escapeHtml=String;c.escapeAttribute=String;c.icon=()=>'<svg></svg>';load(c,'renderPaymentMethodLogo');load(c,'setAdminPaymentLogo');load(c,'previewAdminPaymentLogo');
+ c.openAdminPaymentMethodEditor('card');c.state.adminPaymentMethodEditor.logoUrl=' https://example.com/card.svg ';
+ c.previewAdminPaymentLogo();assert.equal(c.state.adminPaymentMethodEditor.previewLogoUrl,'https://example.com/card.svg');assert.equal(c.settings.paymentMethodText.card,undefined);
+ c.applyAdminPaymentMethodEditor();assert.equal(c.paymentMethodMeta('card').logo,'https://example.com/card.svg');assert.equal(c.paymentMethodMeta('card',true).logo,'card.svg');
+ c.openAdminPaymentMethodEditor('card');c.setAdminPaymentLogo('none');c.closeAdminPaymentMethodEditor();assert.equal(c.paymentMethodMeta('card').logo,'https://example.com/card.svg');
+ c.openAdminPaymentMethodEditor('card');c.setAdminPaymentLogo('none');c.applyAdminPaymentMethodEditor();assert.equal(c.paymentMethodMeta('card').hideLogo,true);assert.equal(c.renderPaymentMethodLogo(c.paymentMethodMeta('card')),'');
+ c.openAdminPaymentMethodEditor('card');c.setAdminPaymentLogo('system');c.applyAdminPaymentMethodEditor();assert.equal(c.settings.paymentMethodText.card,undefined);assert.equal(c.paymentMethodMeta('card').logo,'card.svg');
+ c.settings.paymentMethodVariants={card__aabbccdd:{method:'card',channels:['bank_card']}};c.settings.paymentMethodText.card__aabbccdd={logoUrl:'https://example.com/copy.png'};
+ assert.equal(c.paymentMethodMeta('card__aabbccdd').logo,'https://example.com/copy.png');assert.equal(c.paymentMethodMeta('card').logo,'card.svg');
+});
+
+test('invalid logo URLs cannot be applied and image attributes are escaped',()=>{
+ const c=harness(),errors=[];c.showToast=message=>errors.push(message);c.escapeAttribute=s=>String(s).replaceAll('"','&quot;');c.icon=()=>'<svg></svg>';load(c,'renderPaymentMethodLogo');
+ for(const url of ['http://example.com/a.png','javascript:alert(1)','data:image/png;base64,x','//example.com/a.png','https://user:pass@example.com/a.png']){c.openAdminPaymentMethodEditor('card');c.state.adminPaymentMethodEditor.logoUrl=url;c.applyAdminPaymentMethodEditor();assert.equal(c.settings.paymentMethodText.card,undefined);}
+ assert.equal(errors.length,5);const markup=c.renderPaymentMethodLogo({id:'card',logo:'https://example.com/?q=" onerror="alert(1)'});assert.match(markup,/&quot;/);assert.doesNotMatch(markup,/ onerror="/);assert.match(markup,/referrerpolicy="no-referrer"/);
+});
+
+test('upload results stay in their editor draft and cannot overwrite another payment method',async()=>{
+ const c=harness();let complete,uploads=0;const start=source.indexOf('async function uploadAdminPaymentLogo('),end=start+1+source.slice(start+1).search(/\n(?:async )?function /);vm.runInContext(source.slice(start,end),c);
+ c.FormData=class{append(){}};c.postForm=()=>{uploads++;return new Promise(resolve=>{complete=resolve})};
+ c.openAdminPaymentMethodEditor('card');const pending=c.uploadAdminPaymentLogo({name:'logo.png',type:'image/png',size:100});assert.equal(c.state.adminPaymentMethodEditor.uploadingLogo,true);c.applyAdminPaymentMethodEditor();assert.equal(c.settings.paymentMethodText.card,undefined);
+ c.closeAdminPaymentMethodEditor();c.openAdminPaymentMethodEditor('sbp');complete({data:{url:'/mini-app/uploads/logo-0123456789abcdef.png'}});await pending;assert.equal(c.state.adminPaymentMethodEditor.logoUrl,'');assert.equal(c.settings.paymentMethodText.card,undefined);
+ const upload=c.uploadAdminPaymentLogo({name:'logo.png',type:'image/png',size:100});complete({data:{url:'/mini-app/uploads/logo-0123456789abcdef.png'}});await upload;
+ assert.equal(c.state.adminPaymentMethodEditor.logoUrl,'/mini-app/uploads/logo-0123456789abcdef.png');assert.equal(c.settings.paymentMethodText.sbp,undefined);c.applyAdminPaymentMethodEditor();assert.equal(c.settings.paymentMethodText.sbp.logoUrl,'/mini-app/uploads/logo-0123456789abcdef.png');
+ c.openAdminPaymentMethodEditor('card');await c.uploadAdminPaymentLogo({name:'evil.html',type:'text/html',size:10});await c.uploadAdminPaymentLogo({name:'huge.png',size:3*1024*1024});assert.equal(uploads,2);
 });

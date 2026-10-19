@@ -78,6 +78,13 @@ document.addEventListener("error", (event) => {
 		image.hidden = true;
 		return;
 	}
+  if (image instanceof HTMLImageElement && image.matches("[data-payment-logo]")) {
+    const status = image.closest(".pay-logo-editor")?.querySelector("[data-payment-logo-status]");
+    if (status) { status.textContent = "Не удалось загрузить изображение. Проверьте ссылку или выберите файл."; status.classList.add("is-error"); }
+    const fallback = image.dataset.paymentLogoFallback;
+    if (fallback && image.getAttribute("src") !== fallback && image.dataset.paymentLogoFailed !== "1") { image.dataset.paymentLogoFailed = "1"; image.src = fallback; } else image.hidden = true;
+    return;
+  }
   if (!(image instanceof HTMLImageElement) || !image.matches("[data-brand-logo]")) return;
   const browserFallback = image.closest(".browser-auth__logo-shell")?.querySelector(".browser-auth__logo-fallback");
   if (image.dataset.brandLogoFallback === "1") {
@@ -11456,7 +11463,7 @@ function renderPayModal() {
 	if (state.adminPlanEditing) {
 		const methods = getAdminPaymentMethods();
 		const closeLabel = localizedText("Закрыть порядок оплаты", "Close payment order", "بستن ترتیب پرداخت");
-		return `<div class="modal open ${modalStateClass("pay")}" role="dialog" aria-modal="true" aria-labelledby="pay-order-title"><button class="modal__backdrop" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}"></button><div class="modal__sheet pay-order-sheet"><div class="modal__header"><div class="modal__title" id="pay-order-title">${localizedText("Способы оплаты", "Payment methods", "روش‌های پرداخت")}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button></div><p class="pay-order-sheet__hint">${localizedText("Порядок показа при оплате. Перемещайте способы стрелками.", "Order shown at checkout. Use the arrows to move methods.", "ترتیب نمایش در پرداخت را با پیکان‌ها تغییر دهید.")}</p><span class="sr-only pay-order-announcement" role="status" aria-live="polite">${escapeHtml(state.adminPaymentOrderAnnouncement)}</span><div class="pay-order-list">${methods.map((method, index) => `<div class="pay-order-row" data-pay-order-id="${escapeAttribute(method.id)}"><span class="pay-order-row__number">${index + 1}</span><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-order-row__name">${escapeHtml(method.label)}</span><span class="pay-order-row__actions"><button type="button" data-action="admin-payment-method-edit" data-value="${escapeAttribute(method.id)}" aria-label="Настроить подписи и методы">${icon("pencil")}</button>${!["balance", "stars", "p2p"].includes(paymentMethodBase(method.id)) ? `<button type="button" data-action="admin-payment-method-duplicate" data-value="${escapeAttribute(method.id)}" aria-label="Дублировать платёжку">${icon("copy")}</button>` : ""}<button type="button" data-action="move-pay-method-up" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Поднять ${method.label}`, `Move ${method.label} up`, `انتقال ${method.label} به بالا`))}" ${index === 0 ? "disabled" : ""}>${icon("arrowUp")}</button><button type="button" data-action="move-pay-method-down" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Опустить ${method.label}`, `Move ${method.label} down`, `انتقال ${method.label} به پایین`))}" ${index === methods.length - 1 ? "disabled" : ""}>${icon("arrowDown")}</button></span></div>`).join("") || `<div class="note">${localizedText("Добавьте способ оплаты, чтобы настроить порядок.", "Add a payment method to set its order.", "برای تنظیم ترتیب، روش پرداخت اضافه کنید.")}</div>`}</div><div class="pay-order-sheet__footer">${localizedText("Закройте окно и сохраните изменения в тарифах", "Close this panel and save your plan settings", "پنجره را ببندید و تنظیمات را ذخیره کنید")}</div></div></div>`;
+		return `<div class="modal open ${modalStateClass("pay")}" role="dialog" aria-modal="true" aria-labelledby="pay-order-title"><button class="modal__backdrop" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}"></button><div class="modal__sheet pay-order-sheet"><div class="modal__header"><div class="modal__title" id="pay-order-title">${localizedText("Способы оплаты", "Payment methods", "روش‌های پرداخت")}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button></div><p class="pay-order-sheet__hint">${localizedText("Порядок показа при оплате. Перемещайте способы стрелками.", "Order shown at checkout. Use the arrows to move methods.", "ترتیب نمایش در پرداخت را با پیکان‌ها تغییر دهید.")}</p><span class="sr-only pay-order-announcement" role="status" aria-live="polite">${escapeHtml(state.adminPaymentOrderAnnouncement)}</span><div class="pay-order-list">${methods.map((method, index) => `<div class="pay-order-row" data-pay-order-id="${escapeAttribute(method.id)}"><span class="pay-order-row__number">${index + 1}</span><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-order-row__name">${escapeHtml(method.label)}</span><span class="pay-order-row__actions"><button type="button" data-action="admin-payment-method-edit" data-value="${escapeAttribute(method.id)}" aria-label="Настроить подписи, логотип и методы">${icon("pencil")}</button>${!["balance", "stars", "p2p"].includes(paymentMethodBase(method.id)) ? `<button type="button" data-action="admin-payment-method-duplicate" data-value="${escapeAttribute(method.id)}" aria-label="Дублировать платёжку">${icon("copy")}</button>` : ""}<button type="button" data-action="move-pay-method-up" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Поднять ${method.label}`, `Move ${method.label} up`, `انتقال ${method.label} به بالا`))}" ${index === 0 ? "disabled" : ""}>${icon("arrowUp")}</button><button type="button" data-action="move-pay-method-down" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Опустить ${method.label}`, `Move ${method.label} down`, `انتقال ${method.label} به پایین`))}" ${index === methods.length - 1 ? "disabled" : ""}>${icon("arrowDown")}</button></span></div>`).join("") || `<div class="note">${localizedText("Добавьте способ оплаты, чтобы настроить порядок.", "Add a payment method to set its order.", "برای تنظیم ترتیب، روش پرداخت اضافه کنید.")}</div>`}</div><div class="pay-order-sheet__footer">${localizedText("Закройте окно и сохраните изменения в тарифах", "Close this panel and save your plan settings", "پنجره را ببندید و تنظیمات را ذخیره کنید")}</div></div></div>`;
 	}
 	const deviceOnly = state.payModalContext === "device-pack";
 	const trafficOnly = state.payModalContext === "traffic-pack";
@@ -12572,6 +12579,9 @@ function bindRootActions() {
       if (action === "admin-payment-channel-toggle") return toggleAdminPaymentChannel(value);
       if (action === "admin-payment-channels-refresh") return await loadAdminPaymentChannels(state.adminPaymentMethodEditor?.id);
       if (action === "select-payment-channel") return confirmPaymentChannel(value);
+      if (action === "admin-payment-logo-remove") return setAdminPaymentLogo("none");
+      if (action === "admin-payment-logo-reset") return setAdminPaymentLogo("system");
+      if (action === "admin-payment-logo-preview") return previewAdminPaymentLogo();
       if (action === "admin-payment-method-apply") return applyAdminPaymentMethodEditor();
       if (action === "admin-payment-method-cancel") return closeAdminPaymentMethodEditor();
       if (action === "close-pay-modal") return closePayModal();
@@ -12764,11 +12774,13 @@ function bindRootActions() {
 			const file = input.files?.[0];
 			if (file) void uploadAdminBanner(file);
 		}
+		if (input.dataset.input === "admin-payment-logo-file" && input.files?.[0]) { void uploadAdminPaymentLogo(input.files[0]); input.value = ""; }
 		if (input.dataset.input === "admin-background-file" && input.files?.[0]) void addAdminBackground(input.files[0]);
 	});
 
 	app.addEventListener("input", (event) => {
       const target = event.target;
+		if (target.dataset?.input === "admin-payment-logo-url") { if (state.adminPaymentMethodEditor) { state.adminPaymentMethodEditor.logoUrl = target.value; state.adminPaymentMethodEditor.hideLogo = false; } return; }
 		if (["admin-payment-method-name", "admin-payment-method-description"].includes(target.dataset?.input)) { updateAdminPaymentMethodText(target); return; }
  if(target.dataset?.audienceField){updateBroadcastAudience(target);return;}
  if(target.dataset?.input==="admin-landing-background-url"){landingBackgroundURL=target.value;return;}
@@ -19098,19 +19110,19 @@ function paymentMethodMeta(id, system = false) {
   const method = map[base] ? { ...map[base], id } : null;
   if (!method || system) return method || null;
   const custom = getRuntimeSettings()?.paymentMethodText?.[id];
-  return { ...method, label: String(custom?.name || "").trim() || method.label, hint: String(custom?.description || "").trim() || method.hint };
+  return { ...method, label: String(custom?.name || "").trim() || method.label, hint: String(custom?.description || "").trim() || method.hint, logo: custom?.hideLogo ? "" : String(custom?.logoUrl || "").trim() || method.logo, hideLogo: Boolean(custom?.hideLogo), systemLogo: method.logo };
 }
 
 function getAdminPaymentMethodEditor() {
 	const draft = state.adminPaymentMethodEditor;
 	const system = draft && paymentMethodMeta(draft.id, true);
-	return system ? { ...draft, systemName: system.label, systemDescription: system.hint } : null;
+	return system ? { ...draft, systemName: system.label, systemDescription: system.hint, systemLogo: system.logo } : null;
 }
 
 function openAdminPaymentMethodEditor(id) {
 	if ((!state.adminPlanEditing && !(state.adminWorkspace && state.adminSection === "plans")) || !state.adminSettingsDraft || state.adminBusy || !getAdminPaymentMethods().some(method => method.id === id)) return;
 	const custom = state.adminSettingsDraft.paymentMethodText?.[id];
-	state.adminPaymentMethodEditor = { id, name: custom?.name || "", description: custom?.description || "", channels: [...(state.adminSettingsDraft.paymentMethodVariants?.[id]?.channels || [])], loading: false };
+	state.adminPaymentMethodEditor = { id, name: custom?.name || "", description: custom?.description || "", logoUrl: custom?.logoUrl || "", previewLogoUrl: custom?.logoUrl || "", hideLogo: Boolean(custom?.hideLogo), uploadingLogo: false, channels: [...(state.adminSettingsDraft.paymentMethodVariants?.[id]?.channels || [])], loading: false };
 	void loadAdminPaymentChannels(id);
 	render({ preserveScroll: true, preserveInteraction: true });
 	queueMicrotask(() => app.querySelector('[data-input="admin-payment-method-name"]')?.focus({ preventScroll: true }));
@@ -19133,11 +19145,13 @@ function updateAdminPaymentMethodText(input) {
 
 function applyAdminPaymentMethodEditor() {
 	const editor = state.adminPaymentMethodEditor;
-	if (!editor || !state.adminSettingsDraft || state.adminBusy) return;
+	if (!editor || !state.adminSettingsDraft || state.adminBusy || editor.uploadingLogo) return;
+	const logoUrl = String(editor.logoUrl || "").trim(), hideLogo = Boolean(editor.hideLogo);
+	if (!hideLogo && !validPaymentLogoURL(logoUrl)) { showToast("Укажите HTTPS-ссылку на изображение", "danger"); return; }
 	const name = editor.name.trim(), description = editor.description.trim();
 	if ([...name].length > 80 || [...description].length > 240) { showToast("Название — до 80 символов, описание — до 240"); return; }
 	const text = { ...(state.adminSettingsDraft.paymentMethodText || {}) };
-	if (name || description) text[editor.id] = { name, description };
+	if (name || description || logoUrl || hideLogo) text[editor.id] = { name, description, ...(hideLogo ? { hideLogo: true } : logoUrl ? { logoUrl } : {}) };
 	else delete text[editor.id];
 	state.adminSettingsDraft.paymentMethodText = text;
 	const variants = { ...(state.adminSettingsDraft.paymentMethodVariants || {}) };
@@ -19148,16 +19162,73 @@ function applyAdminPaymentMethodEditor() {
 	closeAdminPaymentMethodEditor();
 }
 
+function validPaymentLogoURL(raw) {
+ const value = String(raw || "");
+ if (!value) return true;
+ if (value.length > 2048 || /[\r\n\t\\]/.test(value)) return false;
+ if (/^\/mini-app\/uploads\/logo-[0-9a-f]{16}\.(png|jpg|webp)$/.test(value)) return true;
+ try { const url = new URL(value); return url.protocol === "https:" && Boolean(url.hostname) && !url.username && !url.password; } catch (_) { return false; }
+}
+
+function setAdminPaymentLogo(mode) {
+ const editor = state.adminPaymentMethodEditor;
+ if (!editor || editor.uploadingLogo) return;
+ editor.logoUrl = "";
+ editor.previewLogoUrl = "";
+ editor.hideLogo = mode === "none";
+ renderPaymentMethodSettings();
+}
+
+function previewAdminPaymentLogo() {
+ const editor = state.adminPaymentMethodEditor;
+ if (!editor || editor.uploadingLogo) return;
+ const url = String(editor.logoUrl || "").trim();
+ if (!validPaymentLogoURL(url)) { showToast("Укажите HTTPS-ссылку на изображение", "danger"); return; }
+ editor.logoUrl = url;
+ editor.previewLogoUrl = url;
+ editor.hideLogo = false;
+ renderPaymentMethodSettings();
+}
+
+async function uploadAdminPaymentLogo(file) {
+ const editor = state.adminPaymentMethodEditor;
+ if (!editor || !state.adminSettingsDraft || state.adminBusy || editor.uploadingLogo || !file) return;
+ if (!/\.(png|jpe?g|webp)$/i.test(file.name || "") && !["image/png", "image/jpeg", "image/webp"].includes(file.type)) { showToast("Выберите PNG, JPG или WebP", "danger"); return; }
+ if (file.size > 2 * 1024 * 1024) { showToast("Логотип должен быть не больше 2 МБ", "danger"); return; }
+ editor.uploadingLogo = true;
+ renderPaymentMethodSettings();
+ try {
+  const form = new FormData(); form.append("logo", file, file.name || "logo");
+  const response = await postForm("/api/mini-app/admin/payments/logo/upload", form);
+  const url = String(response?.data?.url || "").trim();
+  if (!url || !validPaymentLogoURL(url)) throw new Error("Не удалось получить адрес логотипа");
+  if (state.adminPaymentMethodEditor !== editor) return;
+  editor.logoUrl = url; editor.previewLogoUrl = url; editor.hideLogo = false;
+ } catch (error) {
+  if (state.adminPaymentMethodEditor === editor) showToast(error?.message || "Не удалось загрузить логотип", "danger");
+ } finally {
+  editor.uploadingLogo = false;
+  if (state.adminPaymentMethodEditor === editor) renderPaymentMethodSettings();
+ }
+}
+
+function renderAdminPaymentLogoEditor(editor) {
+ const logo = editor.previewLogoUrl || editor.systemLogo || "";
+ const busy = editor.uploadingLogo;
+ return `<section class="pay-logo-editor" aria-labelledby="pay-logo-title"><div class="pay-logo-editor__head"><span class="pay-logo-editor__preview">${editor.hideLogo ? icon("image") : logo ? `<img src="${escapeAttribute(logo)}" alt="Предпросмотр логотипа" data-payment-logo referrerpolicy="no-referrer">` : icon("wallet")}</span><div><strong id="pay-logo-title">Логотип</strong><small>${editor.hideLogo ? "Скрыт при оплате" : editor.previewLogoUrl ? "Свой логотип" : "Стандартный логотип"}</small></div></div><div class="pay-logo-editor__controls"><label class="pay-logo-editor__upload">${icon("upload")}<span>${busy ? "Загрузка…" : "Выбрать файл"}</span><input class="sr-only" type="file" accept="image/png,image/jpeg,image/webp" data-input="admin-payment-logo-file" aria-label="Выбрать логотип платёжки" ${busy ? "disabled" : ""}></label><button type="button" data-action="admin-payment-logo-reset" ${busy || (!editor.logoUrl && !editor.hideLogo) ? "disabled" : ""}>Стандартный</button><button type="button" class="pay-logo-editor__remove" data-action="admin-payment-logo-remove" aria-label="Убрать логотип" ${busy || editor.hideLogo ? "disabled" : ""}>${icon("trash")}</button></div><label class="support-field"><span class="support-field__label">Или ссылка на изображение</span><input class="support-field__input" type="url" inputmode="url" maxlength="2048" autocomplete="off" autocapitalize="off" spellcheck="false" data-input="admin-payment-logo-url" value="${escapeAttribute(editor.logoUrl || "")}" placeholder="https://example.com/logo.png" ${busy ? "disabled" : ""}></label><button type="button" class="pay-logo-editor__link" data-action="admin-payment-logo-preview" ${busy ? "disabled" : ""}>Проверить ссылку${icon("arrow")}</button><p class="pay-method-editor__hint" data-payment-logo-status role="status">PNG, JPG, WebP до 2 МБ. По ссылке — изображение HTTPS.</p></section>`;
+}
+
 function renderAdminPaymentMethodEditor() {
 	const editor = getAdminPaymentMethodEditor();
 	if (!editor) return "";
-	return `<div class="modal modal--pay-method-editor open ${modalStateClass("admin-payment-method")}" role="dialog" aria-modal="true" aria-labelledby="pay-method-editor-title"><button class="modal__backdrop" type="button" data-action="admin-payment-method-cancel" aria-label="Закрыть редактор подписей"></button><div class="modal__sheet pay-method-editor"><div class="modal__header"><div><span class="pay-method-editor__eyebrow">Настройки платёжки</span><div class="modal__title" id="pay-method-editor-title">${escapeHtml(editor.systemName)}</div></div><button class="header__btn" type="button" data-action="admin-payment-method-cancel" aria-label="Закрыть редактор подписей">${icon("close")}</button></div><div class="pay-method-editor__fields"><label class="support-field"><span class="support-field__label">Название</span><input class="support-field__input" type="text" maxlength="80" data-input="admin-payment-method-name" value="${escapeAttribute(editor.name)}" placeholder="${escapeAttribute(editor.systemName)}" aria-describedby="pay-method-editor-hint"></label><label class="support-field"><span class="support-field__label">Описание</span><textarea class="support-field__input" rows="3" maxlength="240" data-input="admin-payment-method-description" placeholder="${escapeAttribute(editor.systemDescription)}" aria-describedby="pay-method-editor-hint">${escapeHtml(editor.description)}</textarea></label></div>${renderAdminPaymentChannels(editor)}<p id="pay-method-editor-hint" class="pay-method-editor__hint">Оставьте поле пустым для системной подписи.</p><div class="pay-method-editor__actions"><button type="button" data-action="admin-payment-method-cancel">Отмена</button><button type="button" data-action="admin-payment-method-apply">Готово</button></div></div></div>`;
+	return `<div class="modal modal--pay-method-editor open ${modalStateClass("admin-payment-method")}" role="dialog" aria-modal="true" aria-labelledby="pay-method-editor-title"><button class="modal__backdrop" type="button" data-action="admin-payment-method-cancel" aria-label="Закрыть редактор подписей"></button><div class="modal__sheet pay-method-editor"><div class="modal__header"><div><span class="pay-method-editor__eyebrow">Настройки платёжки</span><div class="modal__title" id="pay-method-editor-title">${escapeHtml(editor.systemName)}</div></div><button class="header__btn" type="button" data-action="admin-payment-method-cancel" aria-label="Закрыть редактор подписей">${icon("close")}</button></div><div class="pay-method-editor__fields"><label class="support-field"><span class="support-field__label">Название</span><input class="support-field__input" type="text" maxlength="80" data-input="admin-payment-method-name" value="${escapeAttribute(editor.name)}" placeholder="${escapeAttribute(editor.systemName)}" aria-describedby="pay-method-editor-hint"></label><label class="support-field"><span class="support-field__label">Описание</span><textarea class="support-field__input" rows="3" maxlength="240" data-input="admin-payment-method-description" placeholder="${escapeAttribute(editor.systemDescription)}" aria-describedby="pay-method-editor-hint">${escapeHtml(editor.description)}</textarea></label></div>${renderAdminPaymentLogoEditor(editor)}${renderAdminPaymentChannels(editor)}<p id="pay-method-editor-hint" class="pay-method-editor__hint">Оставьте поле пустым для системной подписи.</p><div class="pay-method-editor__actions"><button type="button" data-action="admin-payment-method-cancel">Отмена</button><button type="button" data-action="admin-payment-method-apply" ${editor.uploadingLogo ? "disabled" : ""}>Готово</button></div></div></div>`;
 }
 
 function renderPaymentMethodLogo(method) {
   const source = String(method?.logo || "").trim();
+  if (method?.hideLogo) return "";
   if (!source) return icon("wallet");
-  return `<img class="payment-brand-logo${method.id === "balance" ? " payment-brand-logo--balance" : ""}" src="${escapeAttribute(source)}" alt="" aria-hidden="true">`;
+  return `<img class="payment-brand-logo${method.id === "balance" ? " payment-brand-logo--balance" : ""}" src="${escapeAttribute(source)}" data-payment-logo data-payment-logo-fallback="${escapeAttribute(method.systemLogo || "")}" referrerpolicy="no-referrer" alt="" aria-hidden="true">`;
 }
 
 function pageClass(page) {
@@ -20048,6 +20119,8 @@ function icon(name) {
 		return `<span class="app-svg-icon app-svg-icon--${ADMIN_ICON_CLASSES[name]}" data-app-icon="${escapeAttribute(name)}" aria-hidden="true"></span>`;
 	}
   const icons = {
+    upload: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>`,
+    image: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8" cy="8" r="1.5"/><path d="m21 16-5-5L6 21"/></svg>`,
     deviceSignal: `<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M18.364 19.364a9 9 0 1 0-12.728 0"/><path d="M15.536 16.536a5 5 0 1 0-7.072 0"/><path d="M11 13a1 1 0 1 0 2 0a1 1 0 1 0-2 0"/></g></svg>`,
     deviceSignalOff: `<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M18.364 19.364A9 9 0 0 0 8.643 4.647M6.155 6.156a9 9 0 0 0-.519 13.208"/><path d="M15.536 16.536A5 5 0 0 0 12 8M9 9a5 5 0 0 0-.535 7.536M12 12a1 1 0 1 0 1 1M3 3l18 18"/></g></svg>`,
     unlock: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 7.5-2M12 14v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,

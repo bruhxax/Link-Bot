@@ -164,7 +164,7 @@ func adminRouteAllowed(a adminAccess, path string) bool {
 	}
 	route := strings.TrimPrefix(path, "/api/mini-app/admin/")
 	switch route {
-	case "payments/channels":
+	case "payments/channels", "payments/logo/upload":
 		return a.can("plans")
 	case "settings/update":
 		for section := range adminSettingsFields {

@@ -1,5 +1,11 @@
 /* Layout, card and navigation styling adapted from remnawave/frontend.
  * See THIRD_PARTY_NOTICES.md and LICENSE-Remnawave. */
+:root .pay-logo-editor__controls > .rn-file-picker { flex: 1; min-width: 0; min-height: 40px; height: 40px; padding-inline: 8px; border: 0 !important; border-radius: 11px; background: var(--control-bg) !important; color: var(--text); font-size: 11px; }
+:root .pay-logo-editor .mantine-Button-label { gap: 6px; }
+:root .pay-logo-editor .rn-file-picker svg { width: 15px; height: 15px; }
+:root .pay-logo-editor__controls > .rn-adapted-button { height: 40px; padding-inline: 10px; font-size: 11px; }
+:root .pay-logo-editor__controls .pay-logo-editor__remove { height: 40px; width: 40px; }
+:root .pay-logo-editor__link { height: 30px; min-height: 30px; padding: 0; border: 0 !important; background: transparent !important; }
 .rn-content .admin-bot-update .admin-bot-update__start.rn-adapted-button {
   width: 100% !important;
   height: 42px !important;

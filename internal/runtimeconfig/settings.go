@@ -99,6 +99,8 @@ type Settings struct {
 type PaymentMethodText struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	LogoURL     string `json:"logoUrl,omitempty"`
+	HideLogo    bool   `json:"hideLogo,omitempty"`
 }
 
 type LocalizationSettings struct {
@@ -1357,10 +1359,17 @@ func normalizePaymentMethodText(settings *Settings) error {
 		}
 		text.Name = strings.TrimSpace(text.Name)
 		text.Description = strings.TrimSpace(text.Description)
+		text.LogoURL = strings.TrimSpace(text.LogoURL)
+		if !ValidPaymentLogoURL(text.LogoURL) {
+			return fmt.Errorf("payment method %s: use an HTTPS image URL or an uploaded logo", id)
+		}
+		if text.HideLogo {
+			text.LogoURL = ""
+		}
 		if utf8.RuneCountInString(text.Name) > 80 || utf8.RuneCountInString(text.Description) > 240 {
 			return fmt.Errorf("payment method %s: name must be at most 80 characters and description at most 240", id)
 		}
-		if text.Name != "" || text.Description != "" {
+		if text.Name != "" || text.Description != "" || text.LogoURL != "" || text.HideLogo {
 			clean[id] = text
 		}
 	}

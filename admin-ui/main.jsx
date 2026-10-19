@@ -1063,7 +1063,7 @@ function Plans({ model }) {
                       <Text size="xs" c="dimmed" lineClamp={1}>{p.hint}</Text>
                     </Stack>
                     <Group gap={2} wrap="nowrap">
-                      <IconAction variant="subtle" action="admin-payment-method-edit" value={p.id} label={`Изменить название и описание: ${p.label}`}>
+                      <IconAction variant="subtle" action="admin-payment-method-edit" value={p.id} label={`Настроить подписи, логотип и методы: ${p.label}`}>
                         <PiPencilSimple />
                       </IconAction>
                       {!["balance", "stars", "p2p"].includes(p.id) && <IconAction variant="subtle" action="admin-payment-method-duplicate" value={p.id} label={`Дублировать: ${p.label}`}><PiCopy /></IconAction>}
