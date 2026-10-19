@@ -19,8 +19,7 @@ if [[ ${LINK_BOT_UPDATE_REEXEC:-} != 1 ]]; then
     printf 'Обновление Link-Bot уже выполняется.\n' >&2
     exit 1
   fi
-  git fetch --tags --force origin
-  git pull --ff-only
+  bash ./scripts/update-source.sh
   exec env LINK_BOT_UPDATE_REEXEC=1 bash "$repo_root/update.sh" "$@"
 fi
 

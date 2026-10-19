@@ -135,13 +135,17 @@ var errWrongCheckout = errors.New("wrong checkout")
 
 func safeUpdateError(err error) string {
 	if errors.Is(err, errLocalChanges) {
-		return "В исходниках есть локальные изменения. Обновите вручную после их проверки; они не были удалены."
+		return "В исходниках или индексе Git есть изменения. Проверьте их вручную. Локальные настройки docker-compose.yaml и Caddyfile разрешены."
 	}
 	if errors.Is(err, errWrongCheckout) {
 		return "Обновление доступно для ветки main официального Link-Bot. Проверьте репозиторий на сервере."
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return "Обновление не завершилось за 30 минут. Проверьте журнал сервиса на сервере."
+	}
+	var commandError *exec.ExitError
+	if errors.As(err, &commandError) && (commandError.ExitCode() == 21 || commandError.ExitCode() == 22 || commandError.ExitCode() == 23) {
+		return "Обновление остановлено при объединении или проверке настроек. Они сохранены в .git/link-bot-update-backups; бот не перезапускался. Подробности: .update-agent/update.log."
 	}
 	return "Обновление не завершилось. Подробности записаны в .update-agent/update.log на сервере."
 }
@@ -162,12 +166,8 @@ func (a *Agent) execute(ctx context.Context) error {
 	if err != nil || !officialOrigin(origin) {
 		return errWrongCheckout
 	}
-	changes, err := a.git(ctx, "status", "--porcelain", "--untracked-files=no")
-	if err != nil {
+	if err := a.checkLocalChanges(ctx); err != nil {
 		return err
-	}
-	if changes != "" {
-		return errLocalChanges
 	}
 	script := filepath.Join(a.Repo, "update.sh")
 	if _, err = os.Stat(script); err != nil {
@@ -191,6 +191,20 @@ func (a *Agent) execute(ctx context.Context) error {
 			return ctx.Err()
 		}
 		return err
+	}
+	return nil
+}
+
+func (a *Agent) checkLocalChanges(ctx context.Context) error {
+	changes, err := a.git(ctx, "status", "--porcelain", "--untracked-files=no", "--", ".", ":(exclude)docker-compose.yaml", ":(exclude)Caddyfile")
+	if err != nil {
+		return err
+	}
+	if changes != "" {
+		return errLocalChanges
+	}
+	if _, err = a.git(ctx, "diff", "--cached", "--quiet"); err != nil {
+		return errLocalChanges
 	}
 	return nil
 }

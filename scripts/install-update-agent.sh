@@ -63,7 +63,5 @@ EOF
 chmod 0644 "$unit"
 systemctl daemon-reload
 systemctl enable "$service" >/dev/null
-# Updating from the Mini App must not kill its own in-flight host job. The
-# replacement binary will be picked up on the next service start.
-if ! systemctl is-active --quiet "$service"; then systemctl start "$service"; fi
+bash "$repo_root/scripts/refresh-update-agent.sh" "$service"
 printf 'Обновление из Mini App подключено: %s\n' "$service"

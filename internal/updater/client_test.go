@@ -61,7 +61,7 @@ func TestClientUsesAuthenticatedUnixSocket(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if status.ID != started.ID || !strings.Contains(status.Message, "локальные изменения") {
+	if status.ID != started.ID || !strings.Contains(status.Message, "исходниках") {
 		t.Fatal(status)
 	}
 	if err = os.WriteFile(filepath.Join(dir, "token"), []byte(strings.Repeat("x", 64)), 0600); err != nil {

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -181,6 +182,62 @@ func TestAgentCannotUpdateWrongCheckoutOrDirtyFiles(t *testing.T) {
 	// Credential state is readable by the container, never logs or job snapshots.
 	if _, err := os.Stat(filepath.Join(a.Dir, "update.log")); !os.IsNotExist(err) {
 		t.Fatal("unexpected log created before validation")
+	}
+}
+
+func TestAgentAllowsDeploymentSettingsButRefusesSourceAndStagedEdits(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is required")
+	}
+	a := testAgent(t)
+	git := func(args ...string) string {
+		t.Helper()
+		value, err := a.git(context.Background(), args...)
+		if err != nil {
+			t.Fatalf("git %v: %v", args, err)
+		}
+		return value
+	}
+	write := func(name, value string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(a.Repo, name), []byte(value), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	git("init", "--initial-branch=main")
+	git("config", "user.name", "Update test")
+	git("config", "user.email", "update@example.test")
+	git("config", "core.autocrlf", "false")
+	write("docker-compose.yaml", "services: {}\n")
+	write("Caddyfile", "localhost { respond ok }\n")
+	write("app.go", "original code\n")
+	git("add", ".")
+	git("commit", "-m", "base")
+	write("docker-compose.yaml", "services: {bot: {image: custom}}\n")
+	write("Caddyfile", "example.test { respond ok }\n")
+	write("my-banner.png", "custom media")
+	write(".env", "CUSTOM=kept\n")
+	if err := a.checkLocalChanges(context.Background()); err != nil {
+		t.Fatal("local deployment settings blocked", err)
+	}
+	write("app.go", "local code\n")
+	if err := a.checkLocalChanges(context.Background()); !errors.Is(err, errLocalChanges) {
+		t.Fatal("source edit allowed", err)
+	}
+	git("restore", "--", "app.go")
+	git("add", "docker-compose.yaml")
+	if err := a.checkLocalChanges(context.Background()); !errors.Is(err, errLocalChanges) {
+		t.Fatal("staged config allowed", err)
+	}
+	if git("diff", "--cached", "--name-only") != "docker-compose.yaml" {
+		t.Fatal("preflight modified index")
+	}
+}
+
+func TestConfigFailureMessageDoesNotExposeLogContents(t *testing.T) {
+	message := safeUpdateError(errLocalChanges)
+	if !strings.Contains(message, "Caddyfile") || !strings.Contains(message, "docker-compose.yaml") {
+		t.Fatal(message)
 	}
 }
 
