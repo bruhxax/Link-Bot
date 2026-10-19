@@ -147,7 +147,7 @@ func (h *Handler) HasAdminPermission(ctx context.Context, telegramID int64, perm
 var adminSettingsFields = map[string][]string{
 	"localization": {"localization"}, "maintenance": {"maintenance"}, "features": {"features"},
 	"content": {"content", "panel"}, "appearance": {"appearance"}, "layout": {"layout"}, "subpage": {"subPage"},
-	"plans": {"plans", "devicePacks", "trafficPacks", "deviceAccess", "paymentMethodOrder", "paymentMethodText"},
+	"plans": {"plans", "devicePacks", "trafficPacks", "deviceAccess", "paymentMethodOrder", "paymentMethodText", "paymentMethodVariants"},
 	"trial": {"trial"}, "referrals": {"referrals"}, "grace": {"grace"},
 }
 
@@ -164,6 +164,8 @@ func adminRouteAllowed(a adminAccess, path string) bool {
 	}
 	route := strings.TrimPrefix(path, "/api/mini-app/admin/")
 	switch route {
+	case "payments/channels":
+		return a.can("plans")
 	case "settings/update":
 		for section := range adminSettingsFields {
 			if a.can(section) {

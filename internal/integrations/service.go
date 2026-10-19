@@ -292,6 +292,9 @@ var definitions = []ProviderDefinition{
 			{Key: "shopId", Label: "ID магазина", Required: true},
 			{Key: "secretWord", Label: "Секретное слово", Required: true, Secret: true},
 			{Key: "secretWord2", Label: "Секретное слово 2", Required: true, Secret: true, Help: "Проверка уведомлений"},
+			{Key: "apiKey", Label: "API-ключ для выбора методов", Secret: true, Help: "Нужен только для ограничения способов оплаты. Обычная форма продолжает работать без него"},
+			{Key: "clientIP", Label: "IP для платежей из бота", Help: "Разрешённый IP для Orders API. В Mini App используется IP покупателя"},
+			{Key: "email", Label: "Email для Orders API", Help: "Запасной email при оплате из Telegram"},
 		},
 	},
 	{

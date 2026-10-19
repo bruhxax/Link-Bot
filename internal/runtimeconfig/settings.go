@@ -73,26 +73,27 @@ func DefaultPaymentMethodOrder() []string {
 }
 
 type Settings struct {
-	ReviewRewards      ReviewRewardSettings         `json:"reviewRewards"`
-	Version            int                          `json:"version"`
-	Localization       LocalizationSettings         `json:"localization"`
-	Maintenance        MaintenanceSettings          `json:"maintenance"`
-	Features           map[string]bool              `json:"features"`
-	Content            ContentSettings              `json:"content"`
-	Appearance         AppearanceSettings           `json:"appearance"`
-	Layout             LayoutSettings               `json:"layout"`
-	SubPage            SubPageSettings              `json:"subPage"`
-	Plans              []PlanSettings               `json:"plans"`
-	DevicePacks        []DevicePackSettings         `json:"devicePacks"`
-	TrafficPacks       []TrafficPackSettings        `json:"trafficPacks"`
-	DeviceAccess       DeviceAccessSettings         `json:"deviceAccess"`
-	PaymentMethodOrder []string                     `json:"paymentMethodOrder"`
-	PaymentMethodText  map[string]PaymentMethodText `json:"paymentMethodText"`
-	Trial              TrialSettings                `json:"trial"`
-	Referrals          ReferralSettings             `json:"referrals"`
-	Grace              GraceSettings                `json:"grace"`
-	Panel              PanelSettings                `json:"panel"`
-	HiddenServerNodes  []string                     `json:"hiddenServerNodes,omitempty"`
+	ReviewRewards         ReviewRewardSettings            `json:"reviewRewards"`
+	Version               int                             `json:"version"`
+	Localization          LocalizationSettings            `json:"localization"`
+	Maintenance           MaintenanceSettings             `json:"maintenance"`
+	Features              map[string]bool                 `json:"features"`
+	Content               ContentSettings                 `json:"content"`
+	Appearance            AppearanceSettings              `json:"appearance"`
+	Layout                LayoutSettings                  `json:"layout"`
+	SubPage               SubPageSettings                 `json:"subPage"`
+	Plans                 []PlanSettings                  `json:"plans"`
+	DevicePacks           []DevicePackSettings            `json:"devicePacks"`
+	TrafficPacks          []TrafficPackSettings           `json:"trafficPacks"`
+	DeviceAccess          DeviceAccessSettings            `json:"deviceAccess"`
+	PaymentMethodOrder    []string                        `json:"paymentMethodOrder"`
+	PaymentMethodText     map[string]PaymentMethodText    `json:"paymentMethodText"`
+	PaymentMethodVariants map[string]PaymentMethodVariant `json:"paymentMethodVariants"`
+	Trial                 TrialSettings                   `json:"trial"`
+	Referrals             ReferralSettings                `json:"referrals"`
+	Grace                 GraceSettings                   `json:"grace"`
+	Panel                 PanelSettings                   `json:"panel"`
+	HiddenServerNodes     []string                        `json:"hiddenServerNodes,omitempty"`
 }
 
 type PaymentMethodText struct {
@@ -1252,7 +1253,9 @@ func NormalizeAndValidate(settings *Settings) error {
 	if err := settings.ReviewRewards.Validate(); err != nil {
 		return err
 	}
-	settings.PaymentMethodOrder = normalizePaymentMethodOrder(settings.PaymentMethodOrder)
+	if err := normalizePaymentVariants(settings); err != nil {
+		return err
+	}
 	if err := normalizePaymentMethodText(settings); err != nil {
 		return err
 	}
@@ -1349,7 +1352,7 @@ func NormalizeAndValidate(settings *Settings) error {
 func normalizePaymentMethodText(settings *Settings) error {
 	clean := make(map[string]PaymentMethodText, len(settings.PaymentMethodText))
 	for id, text := range settings.PaymentMethodText {
-		if !contains(defaultPaymentMethodOrder, id) {
+		if settings.PaymentMethodBase(id) == "" {
 			return fmt.Errorf("unknown payment method: %s", id)
 		}
 		text.Name = strings.TrimSpace(text.Name)

@@ -14441,3 +14441,19 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 :root .pay-method-editor .modal__header > .header__btn { border: 0 !important; background: transparent !important; background-image: none !important; box-shadow: none !important; }
 
 #app .browser-auth__telegram [data-app-icon] { color: #fff !important; }
+:root .pay-channel-settings { margin-top: 20px; display: grid; gap: 10px; }
+:root .pay-channel-settings__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+:root .pay-channel-settings__heading strong { font-size: 13px; }
+:root .pay-channel-settings__heading button { width: 32px; height: 32px; padding: 7px; border: 0 !important; background: transparent !important; box-shadow: none !important; color: var(--text-muted, #a9b4bf); }
+:root .pay-channel-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--control-bg, #171e25); border-radius: 12px; }
+:root .pay-channel-mode button { min-height: 36px; border: 0 !important; box-shadow: none !important; border-radius: 9px; background: transparent !important; color: var(--text-muted, #a9b4bf); font-size: 12px; }
+:root .pay-channel-mode button[aria-pressed="true"] { color: var(--accent, #75b6db); background: color-mix(in srgb, var(--accent, #75b6db) 15%, transparent) !important; }
+:root .pay-channel-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; max-height: 235px; overflow: auto; overscroll-behavior: contain; }
+:root button.pay-channel-chip { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; min-height: 42px; padding: 9px 10px; border: 0 !important; border-radius: 11px; background: var(--control-bg, #171e25) !important; box-shadow: none !important; color: var(--text-muted, #a9b4bf); font-size: 12px; text-align: left; }
+:root button.pay-channel-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--accent, #75b6db) 16%, var(--control-bg, #171e25)) !important; color: var(--text, #e9f3fa); }
+:root .pay-channel-chip span { overflow-wrap: anywhere; }
+:root .pay-channel-chip i { flex: 0 0 16px; width: 16px; height: 16px; border-radius: 50%; background: color-mix(in srgb, var(--accent, #75b6db) 10%, transparent); }
+:root .pay-channel-chip i svg { width: 16px; height: 16px; color: var(--accent, #75b6db); }
+:root .pay-channel-settings .pay-method-editor__hint { margin: 0; }
+:root button.pay-method-editor__remove { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 4px 8px; background: transparent !important; border: 0 !important; box-shadow: none !important; font-size: 12px; color: #ee818b; }
+:root .pay-method-editor__remove svg { width: 15px; height: 15px; }

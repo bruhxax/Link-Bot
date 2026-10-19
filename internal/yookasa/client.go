@@ -72,6 +72,10 @@ func newHTTPClient() *http.Client {
 }
 
 func (c *Client) CreateInvoice(ctx context.Context, amount int, customerId int64, purchaseId int64, returnURL, description string) (*Payment, error) {
+	return c.CreateInvoiceWithMethod(ctx, amount, customerId, purchaseId, returnURL, description, "")
+}
+
+func (c *Client) CreateInvoiceWithMethod(ctx context.Context, amount int, customerId int64, purchaseId int64, returnURL, description, method string) (*Payment, error) {
 	rub := Amount{
 		Value:    strconv.Itoa(amount),
 		Currency: "RUB",
@@ -103,6 +107,9 @@ func (c *Client) CreateInvoice(ctx context.Context, amount int, customerId int64
 		metaData,
 	)
 	paymentRequest.SavePaymentMethod = false
+	if method != "" {
+		paymentRequest.PaymentMethodData = &PaymentMethodData{Type: method}
+	}
 
 	payment, err := c.CreatePayment(ctx, paymentRequest, uuid.New().String())
 	if err != nil {

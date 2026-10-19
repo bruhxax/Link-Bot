@@ -37,6 +37,7 @@ import (
 	"link-bot/internal/notification"
 	"link-bot/internal/operations"
 	"link-bot/internal/payment"
+	"link-bot/internal/paymentchannel"
 	planbook "link-bot/internal/plans"
 	"link-bot/internal/remnawave"
 	"link-bot/internal/runtimeconfig"
@@ -122,25 +123,26 @@ type authRequest struct {
 }
 
 type bootstrapResponse struct {
-	Brand          brandPayload           `json:"brand"`
-	User           userPayload            `json:"user"`
-	Subscription   subscriptionPayload    `json:"subscription"`
-	Subscriptions  subscriptionsPayload   `json:"subscriptions"`
-	Trial          trialPayload           `json:"trial"`
-	Referral       referralPayload        `json:"referral"`
-	Wallet         walletPayload          `json:"wallet"`
-	Reviews        reviewsPayload         `json:"reviews"`
-	Servers        serversPayload         `json:"servers"`
-	Support        supportPayload         `json:"support"`
-	Payments       paymentsPayload        `json:"payments"`
-	GiftReceipt    *giftReceiptPayload    `json:"giftReceipt,omitempty"`
-	Admin          *adminPayload          `json:"admin,omitempty"`
-	Plans          []planPayload          `json:"plans"`
-	PaymentMethods []paymentMethodPayload `json:"paymentMethods"`
-	P2P            *p2pPaymentPayload     `json:"p2p,omitempty"`
-	Links          linksPayload           `json:"links"`
-	Meta           metaPayload            `json:"meta"`
-	Runtime        runtimeconfig.Settings `json:"runtime"`
+	Brand           brandPayload                      `json:"brand"`
+	User            userPayload                       `json:"user"`
+	Subscription    subscriptionPayload               `json:"subscription"`
+	Subscriptions   subscriptionsPayload              `json:"subscriptions"`
+	Trial           trialPayload                      `json:"trial"`
+	Referral        referralPayload                   `json:"referral"`
+	Wallet          walletPayload                     `json:"wallet"`
+	Reviews         reviewsPayload                    `json:"reviews"`
+	Servers         serversPayload                    `json:"servers"`
+	Support         supportPayload                    `json:"support"`
+	Payments        paymentsPayload                   `json:"payments"`
+	GiftReceipt     *giftReceiptPayload               `json:"giftReceipt,omitempty"`
+	Admin           *adminPayload                     `json:"admin,omitempty"`
+	Plans           []planPayload                     `json:"plans"`
+	PaymentMethods  []paymentMethodPayload            `json:"paymentMethods"`
+	PaymentChannels map[string]paymentchannel.Catalog `json:"paymentChannels"`
+	P2P             *p2pPaymentPayload                `json:"p2p,omitempty"`
+	Links           linksPayload                      `json:"links"`
+	Meta            metaPayload                       `json:"meta"`
+	Runtime         runtimeconfig.Settings            `json:"runtime"`
 }
 
 type giftReceiptPayload struct {
@@ -502,6 +504,7 @@ type metaPayload struct {
 }
 
 type purchaseRequest struct {
+	PaymentChannel     string `json:"paymentChannel,omitempty"`
 	PlanID             string `json:"planId,omitempty"`
 	DevicePackID       string `json:"devicePackId,omitempty"`
 	TrafficPackID      string `json:"trafficPackId,omitempty"`
@@ -518,6 +521,7 @@ type purchaseRequest struct {
 }
 
 type giftPurchaseRequest struct {
+	PaymentChannel     string `json:"paymentChannel,omitempty"`
 	Username           string `json:"username"`
 	PlanID             string `json:"planId"`
 	Months             int    `json:"months"`
@@ -850,6 +854,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/target/refresh", h.withSession(h.handleAdminSubscriptionTarget))
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/rebind", h.withSession(h.handleAdminRebindSubscription))
 	mux.HandleFunc("/api/mini-app/admin/settings/update", h.withSession(h.handleAdminSettingsUpdate))
+	mux.HandleFunc("/api/mini-app/admin/payments/channels", h.withSession(h.handleAdminPaymentChannels))
 	mux.HandleFunc("/api/mini-app/admin/servers/visibility", h.withSession(h.handleAdminServerVisibility))
 	mux.HandleFunc("/api/mini-app/admin/wallet/withdrawal/resolve", h.withSession(h.handleAdminWithdrawalResolve))
 	mux.HandleFunc("/api/mini-app/admin/logo/upload", h.withSession(h.handleAdminLogoUpload, "multipart/form-data"))
@@ -1890,6 +1895,7 @@ func (h *Handler) handleCreatePurchase(w http.ResponseWriter, r *http.Request, s
 
 	ctxWithProfile := contextWithSessionTelegramProfile(r.Context(), sess)
 	paymentURL, purchaseID, err := h.paymentService.CreatePurchaseWithOptions(ctxWithProfile, float64(price), plan.Months, customer, invoiceType, payment.CreatePurchaseOptions{
+		PaymentMethodID: req.PaymentMethod, PaymentChannel: req.PaymentChannel,
 		DurationDays:       plan.Days,
 		AgreementAccepted:  true,
 		PlanID:             plan.ID,
@@ -2167,6 +2173,7 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 
 	ctxWithProfile := contextWithSessionTelegramProfile(r.Context(), sess)
 	paymentURL, purchaseID, err := h.paymentService.CreatePurchaseWithOptions(ctxWithProfile, float64(price), purchaseMonths, customer, invoiceType, payment.CreatePurchaseOptions{
+		PaymentMethodID: req.PaymentMethod, PaymentChannel: req.PaymentChannel,
 		DurationDays:          purchaseDays,
 		SubscriptionID:        &activeSubscription.ID,
 		AgreementAccepted:     true,
@@ -2387,6 +2394,7 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 	token := uuid.New()
 	ctxWithProfile := contextWithSessionTelegramProfile(r.Context(), sess)
 	paymentURL, purchaseID, err := h.paymentService.CreatePurchaseWithOptions(ctxWithProfile, float64(price), plan.Months, customer, invoiceType, payment.CreatePurchaseOptions{
+		PaymentMethodID: req.PaymentMethod, PaymentChannel: req.PaymentChannel,
 		DurationDays:            plan.Days,
 		AgreementAccepted:       true,
 		PlanID:                  plan.ID,
@@ -4607,16 +4615,17 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 			ShareURL:            buildReferralShareURL(customer.TelegramID, referralEnabled),
 			InviteURL:           referralInviteURL,
 		},
-		Wallet:         walletData,
-		Reviews:        reviewsData,
-		Servers:        serverStatus,
-		Support:        supportData,
-		Payments:       paymentsData,
-		GiftReceipt:    giftReceiptData,
-		Admin:          adminData,
-		Plans:          h.buildPlans(),
-		PaymentMethods: mapPaymentMethods(allowedMethods, settings.PaymentMethodOrder),
-		P2P:            h.buildP2PPaymentPayload(allowedMethods["p2p"]),
+		Wallet:          walletData,
+		Reviews:         reviewsData,
+		Servers:         serverStatus,
+		Support:         supportData,
+		Payments:        paymentsData,
+		GiftReceipt:     giftReceiptData,
+		Admin:           adminData,
+		Plans:           h.buildPlans(),
+		PaymentMethods:  mapPaymentMethods(allowedMethods, settings.PaymentMethodOrder),
+		PaymentChannels: publicPaymentChannels(),
+		P2P:             h.buildP2PPaymentPayload(allowedMethods["p2p"]),
 		Links: linksPayload{
 			Support: h.runtimeLink("support", config.SupportURL()),
 			Channel: h.runtimeLink("channel", config.ChannelURL()),

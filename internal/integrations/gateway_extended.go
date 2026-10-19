@@ -20,7 +20,7 @@ import (
 )
 
 func (g *Gateway) createAuraPay(ctx context.Context, cfg map[string]string, input CreatePaymentRequest) (CreatedPayment, error) {
-	raw, _ := json.Marshal(map[string]any{
+	raw, _ := marshalCheckoutPayload(input, map[string]any{
 		"amount": input.Amount, "order_id": strconv.FormatInt(input.PurchaseID, 10), "comment": input.Description,
 		"callback_url": g.settings.WebhookURL(ProviderAuraPay), "success_url": input.ReturnURL, "fail_url": input.ReturnURL,
 	})
@@ -88,7 +88,7 @@ func parseShopInvoiceWebhook(cfg map[string]string, headers http.Header, raw []b
 }
 
 func (g *Gateway) createParityPay(ctx context.Context, cfg map[string]string, input CreatePaymentRequest) (CreatedPayment, error) {
-	raw, _ := json.Marshal(map[string]any{
+	raw, _ := marshalCheckoutPayload(input, map[string]any{
 		"amount": input.Amount, "order_id": strconv.FormatInt(input.PurchaseID, 10), "comment": input.Description, "expire": 60,
 		"callback_url": g.settings.WebhookURL(ProviderParityPay), "success_url": input.ReturnURL, "fail_url": input.ReturnURL,
 	})
@@ -122,7 +122,7 @@ func (g *Gateway) createAntiloPay(ctx context.Context, cfg map[string]string, in
 	if !ok {
 		return CreatedPayment{}, errors.New("AntiloPay requires an RSA key")
 	}
-	raw, _ := json.Marshal(map[string]any{
+	raw, _ := marshalCheckoutPayload(input, map[string]any{
 		"project_identificator": cfg["projectId"], "order_id": strconv.FormatInt(input.PurchaseID, 10), "amount": input.Amount,
 		"currency": strings.ToLower(input.Currency), "product_name": "Подписка", "product_type": "services", "description": input.Description,
 		"customer": map[string]string{"email": input.Email, "ip": input.ClientIP}, "success_url": input.ReturnURL, "fail_url": input.ReturnURL,
@@ -203,6 +203,7 @@ func (g *Gateway) createTribute(ctx context.Context, cfg map[string]string, inpu
 		}
 		payload["shopId"] = id
 	}
+	applyCheckoutChannels(payload, input)
 	raw, _ := json.Marshal(payload)
 	var response struct {
 		UUID string `json:"uuid"`

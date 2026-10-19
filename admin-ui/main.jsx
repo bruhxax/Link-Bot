@@ -56,6 +56,7 @@ import {
   PiArrowsClockwise,
   PiPlus,
   PiPencilSimple,
+  PiCopy,
   PiTrash,
   PiList,
   PiSquaresFour,
@@ -1065,6 +1066,7 @@ function Plans({ model }) {
                       <IconAction variant="subtle" action="admin-payment-method-edit" value={p.id} label={`Изменить название и описание: ${p.label}`}>
                         <PiPencilSimple />
                       </IconAction>
+                      {!["balance", "stars", "p2p"].includes(p.id) && <IconAction variant="subtle" action="admin-payment-method-duplicate" value={p.id} label={`Дублировать: ${p.label}`}><PiCopy /></IconAction>}
                       <IconAction variant="subtle"
                         action="move-pay-method-up"
                         value={p.id}

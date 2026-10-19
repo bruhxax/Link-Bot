@@ -2699,6 +2699,10 @@ const state = {
 	adminPlanBaseline: null,
 	adminPlanBaselinePaymentOrder: null,
 	adminPlanBaselinePaymentText: null,
+	adminPlanBaselinePaymentVariants: null,
+	adminPaymentChannelCatalog: {},
+	payChannelSelection: null,
+	paymentChannelChoices: {},
 	adminPaymentMethodEditor: null,
 	adminPaymentOrderAnnouncement: "",
 	adminProfileEditorModalOpen: false,
@@ -11386,10 +11390,11 @@ function renderAdminPromoRow(item) {
 
 function renderPayModal() {
   const copy = t();
+	if (state.payChannelSelection && !state.adminPlanEditing) return renderPaymentChannelSelection();
 	if (state.adminPlanEditing) {
 		const methods = getAdminPaymentMethods();
 		const closeLabel = localizedText("Закрыть порядок оплаты", "Close payment order", "بستن ترتیب پرداخت");
-		return `<div class="modal open ${modalStateClass("pay")}" role="dialog" aria-modal="true" aria-labelledby="pay-order-title"><button class="modal__backdrop" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}"></button><div class="modal__sheet pay-order-sheet"><div class="modal__header"><div class="modal__title" id="pay-order-title">${localizedText("Способы оплаты", "Payment methods", "روش‌های پرداخت")}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button></div><p class="pay-order-sheet__hint">${localizedText("Порядок показа при оплате. Перемещайте способы стрелками.", "Order shown at checkout. Use the arrows to move methods.", "ترتیب نمایش در پرداخت را با پیکان‌ها تغییر دهید.")}</p><span class="sr-only pay-order-announcement" role="status" aria-live="polite">${escapeHtml(state.adminPaymentOrderAnnouncement)}</span><div class="pay-order-list">${methods.map((method, index) => `<div class="pay-order-row" data-pay-order-id="${escapeAttribute(method.id)}"><span class="pay-order-row__number">${index + 1}</span><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-order-row__name">${escapeHtml(method.label)}</span><span class="pay-order-row__actions"><button type="button" data-action="admin-payment-method-edit" data-value="${escapeAttribute(method.id)}" aria-label="Изменить название и описание">${icon("pencil")}</button><button type="button" data-action="move-pay-method-up" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Поднять ${method.label}`, `Move ${method.label} up`, `انتقال ${method.label} به بالا`))}" ${index === 0 ? "disabled" : ""}>${icon("arrowUp")}</button><button type="button" data-action="move-pay-method-down" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Опустить ${method.label}`, `Move ${method.label} down`, `انتقال ${method.label} به پایین`))}" ${index === methods.length - 1 ? "disabled" : ""}>${icon("arrowDown")}</button></span></div>`).join("") || `<div class="note">${localizedText("Добавьте способ оплаты, чтобы настроить порядок.", "Add a payment method to set its order.", "برای تنظیم ترتیب، روش پرداخت اضافه کنید.")}</div>`}</div><div class="pay-order-sheet__footer">${localizedText("Закройте окно и сохраните изменения в тарифах", "Close this panel and save your plan settings", "پنجره را ببندید و تنظیمات را ذخیره کنید")}</div></div></div>`;
+		return `<div class="modal open ${modalStateClass("pay")}" role="dialog" aria-modal="true" aria-labelledby="pay-order-title"><button class="modal__backdrop" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}"></button><div class="modal__sheet pay-order-sheet"><div class="modal__header"><div class="modal__title" id="pay-order-title">${localizedText("Способы оплаты", "Payment methods", "روش‌های پرداخت")}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="${escapeAttribute(closeLabel)}">${icon("close")}</button></div><p class="pay-order-sheet__hint">${localizedText("Порядок показа при оплате. Перемещайте способы стрелками.", "Order shown at checkout. Use the arrows to move methods.", "ترتیب نمایش در پرداخت را با پیکان‌ها تغییر دهید.")}</p><span class="sr-only pay-order-announcement" role="status" aria-live="polite">${escapeHtml(state.adminPaymentOrderAnnouncement)}</span><div class="pay-order-list">${methods.map((method, index) => `<div class="pay-order-row" data-pay-order-id="${escapeAttribute(method.id)}"><span class="pay-order-row__number">${index + 1}</span><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-order-row__name">${escapeHtml(method.label)}</span><span class="pay-order-row__actions"><button type="button" data-action="admin-payment-method-edit" data-value="${escapeAttribute(method.id)}" aria-label="Настроить подписи и методы">${icon("pencil")}</button>${!["balance", "stars", "p2p"].includes(paymentMethodBase(method.id)) ? `<button type="button" data-action="admin-payment-method-duplicate" data-value="${escapeAttribute(method.id)}" aria-label="Дублировать платёжку">${icon("copy")}</button>` : ""}<button type="button" data-action="move-pay-method-up" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Поднять ${method.label}`, `Move ${method.label} up`, `انتقال ${method.label} به بالا`))}" ${index === 0 ? "disabled" : ""}>${icon("arrowUp")}</button><button type="button" data-action="move-pay-method-down" data-value="${escapeAttribute(method.id)}" aria-label="${escapeAttribute(localizedText(`Опустить ${method.label}`, `Move ${method.label} down`, `انتقال ${method.label} به پایین`))}" ${index === methods.length - 1 ? "disabled" : ""}>${icon("arrowDown")}</button></span></div>`).join("") || `<div class="note">${localizedText("Добавьте способ оплаты, чтобы настроить порядок.", "Add a payment method to set its order.", "برای تنظیم ترتیب، روش پرداخت اضافه کنید.")}</div>`}</div><div class="pay-order-sheet__footer">${localizedText("Закройте окно и сохраните изменения в тарифах", "Close this panel and save your plan settings", "پنجره را ببندید و تنظیمات را ذخیره کنید")}</div></div></div>`;
 	}
 	const deviceOnly = state.payModalContext === "device-pack";
 	const trafficOnly = state.payModalContext === "traffic-pack";
@@ -11490,7 +11495,7 @@ function paymentReceiptEmail() {
 }
 
 function requirePaymentContact(context) {
-	if (getSelectedPaymentMethod()?.id !== "antilopay") return false;
+	if (paymentMethodBase(getSelectedPaymentMethod()?.id) !== "antilopay") return false;
 	if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(paymentReceiptEmail())) return false;
 	state.paymentContactContext = context;
 	render({ preserveScroll: true });
@@ -12496,6 +12501,12 @@ function bindRootActions() {
       if (action === "move-pay-method-up") return moveAdminPaymentMethod(value, -1);
       if (action === "move-pay-method-down") return moveAdminPaymentMethod(value, 1);
       if (action === "admin-payment-method-edit") return openAdminPaymentMethodEditor(value);
+      if (action === "admin-payment-method-duplicate") return duplicateAdminPaymentMethod(value);
+      if (action === "admin-payment-method-remove") return removeAdminPaymentMethod();
+      if (action === "admin-payment-channel-mode") return setAdminPaymentChannelMode(value);
+      if (action === "admin-payment-channel-toggle") return toggleAdminPaymentChannel(value);
+      if (action === "admin-payment-channels-refresh") return await loadAdminPaymentChannels(state.adminPaymentMethodEditor?.id);
+      if (action === "select-payment-channel") return confirmPaymentChannel(value);
       if (action === "admin-payment-method-apply") return applyAdminPaymentMethodEditor();
       if (action === "admin-payment-method-cancel") return closeAdminPaymentMethodEditor();
       if (action === "close-pay-modal") return closePayModal();
@@ -13575,6 +13586,7 @@ async function saveAdminSettings() {
 			state.adminPlanBaseline = deepClone(response.data.plans || []);
 			state.adminPlanBaselinePaymentOrder = deepClone(response.data.paymentMethodOrder || []);
 			state.adminPlanBaselinePaymentText = deepClone(response.data.paymentMethodText || {});
+			state.adminPlanBaselinePaymentVariants = deepClone(response.data.paymentMethodVariants || {});
 			state.adminPlanBaselineDirty = false;
 			if (state.data) state.data.plans = (response.data.plans || []).filter((plan) => plan.enabled !== false).map(runtimePlanToPayload);
 			ensureSelections();
@@ -15090,6 +15102,7 @@ function enterAdminPlanEditor() {
 	state.adminPlanBaseline = deepClone(state.adminSettingsDraft.plans || []);
 	state.adminPlanBaselinePaymentOrder = deepClone(state.adminSettingsDraft.paymentMethodOrder || []);
 	state.adminPlanBaselinePaymentText = deepClone(state.adminSettingsDraft.paymentMethodText || {});
+	state.adminPlanBaselinePaymentVariants = deepClone(state.adminSettingsDraft.paymentMethodVariants || {});
 	state.adminPaymentMethodEditor = null;
 	state.adminPlanBaselineDirty = state.adminSettingsDirty;
 	state.adminLayoutAddMenuOpen = false;
@@ -15116,6 +15129,7 @@ function exitAdminPlanEditor() {
 		state.adminSettingsDraft.plans = deepClone(state.adminPlanBaseline);
 		state.adminSettingsDraft.paymentMethodOrder = deepClone(state.adminPlanBaselinePaymentOrder || []);
 		state.adminSettingsDraft.paymentMethodText = deepClone(state.adminPlanBaselinePaymentText || {});
+		state.adminSettingsDraft.paymentMethodVariants = deepClone(state.adminPlanBaselinePaymentVariants || {});
 		state.adminSettingsDirty = Boolean(state.adminPlanBaselineDirty);
 	}
 	state.adminPlanEditing = false;
@@ -15128,6 +15142,7 @@ function exitAdminPlanEditor() {
 	state.adminPlanBaseline = null;
 	state.adminPlanBaselinePaymentOrder = null;
 	state.adminPlanBaselinePaymentText = null;
+	state.adminPlanBaselinePaymentVariants = null;
 	state.adminPaymentMethodEditor = null;
 	state.adminPlanBaselineDirty = false;
 	state.currentPage = "admin";
@@ -15382,6 +15397,7 @@ function resetAdminPlans() {
 	state.adminSettingsDraft.plans = deepClone(state.adminPlanBaseline);
 	state.adminSettingsDraft.paymentMethodOrder = deepClone(state.adminPlanBaselinePaymentOrder || []);
 	state.adminSettingsDraft.paymentMethodText = deepClone(state.adminPlanBaselinePaymentText || {});
+		state.adminSettingsDraft.paymentMethodVariants = deepClone(state.adminPlanBaselinePaymentVariants || {});
 	state.adminPaymentMethodEditor = null;
 	state.adminSettingsDirty = true;
 	state.adminPlanEditorModalOpen = false;
@@ -17545,7 +17561,10 @@ async function startPayment({ deviceOnly = false, trafficOnly = false } = {}) {
   const freeCheckout = Boolean(!deviceOnly && !trafficOnly && plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !devicePack && !trafficPack);
   if ((!deviceOnly && !trafficOnly && !plan) || (deviceOnly && !devicePack) || (trafficOnly && !trafficPack) || (!freeCheckout && !method)) return showToast(t().paymentUnavailable);
 	if (method === "p2p") return openP2PMenu({ mode: "purchase", deviceOnly, trafficOnly });
+	if (!freeCheckout && requirePaymentChannel(method, { mode: "purchase", deviceOnly, trafficOnly })) return;
 	if (!freeCheckout && requirePaymentContact({ mode: "purchase", deviceOnly, trafficOnly })) return;
+	const paymentChannel = freeCheckout ? "" : selectedPaymentChannel(method);
+	delete state.paymentChannelChoices?.[method];
 
   state.busyMethod = freeCheckout ? "free" : method;
   render();
@@ -17555,6 +17574,7 @@ async function startPayment({ deviceOnly = false, trafficOnly = false } = {}) {
       planId: plan?.id || "",
       months: plan?.months || 0,
       paymentMethod: freeCheckout ? "" : method,
+      paymentChannel,
 	  receiptEmail: paymentReceiptEmail(),
       agreementAccepted: true,
 	  promoCode: deviceOnly || trafficOnly ? "" : (getActivePromo()?.code || ""),
@@ -17620,7 +17640,10 @@ async function startGiftPayment() {
 	}
 	if (!plan || !method) return showToast(copy.paymentUnavailable, "danger");
 	if (method === "p2p") return openP2PMenu({ mode: "gift" });
+	if (requirePaymentChannel(method, { mode: "gift" })) return;
 	if (requirePaymentContact({ mode: "gift" })) return;
+	const paymentChannel = selectedPaymentChannel(method);
+	delete state.paymentChannelChoices?.[method];
 
 	state.giftBusy = method;
 	state.giftValidation = "";
@@ -17632,6 +17655,7 @@ async function startGiftPayment() {
 			planId: plan.id || "",
 			months: Number(plan.months || 0),
 			paymentMethod: method,
+			paymentChannel,
 			receiptEmail: paymentReceiptEmail(),
 			promoCode: getActivePromo()?.code || "",
 			returnTarget: paymentReturnTarget,
@@ -18340,6 +18364,7 @@ function closePayModal() {
 	if (state.adminPaymentMethodEditor) return closeAdminPaymentMethodEditor();
 	return requestModalClose("pay", () => {
 		state.payModalOpen = false;
+		state.payChannelSelection = null;
 		const deviceOnly = state.payModalContext === "device-pack";
 		state.payModalContext = "";
 		if (!deviceOnly) queueMicrotask(() => app.querySelector('[data-action="open-pay-modal"]')?.focus());
@@ -18781,7 +18806,12 @@ function getAvailableMethods(plan = getSelectedPlan()) {
 }
 
 function getConfiguredPaymentMethods() {
-	return sortConfiguredPaymentMethods((state.data?.paymentMethods || []));
+	const items = [...(state.data?.paymentMethods || [])];
+	const available = new Set(items.map(item => item.id));
+	for (const [id, variant] of Object.entries(getRuntimeSettings()?.paymentMethodVariants || {})) {
+		if (!available.has(id) && available.has(variant.method)) items.push({ id });
+	}
+	return sortConfiguredPaymentMethods(items);
 }
 
 function getAdminPaymentMethods() {
@@ -18797,6 +18827,7 @@ function getAdminPaymentMethods() {
 	for (const id of ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai", "payhot"]) {
 		if (enabled.has(id)) methods.push(id);
 	}
+	for (const [id, variant] of Object.entries(getRuntimeSettings()?.paymentMethodVariants || {})) { if (id !== variant.method && methods.includes(variant.method)) methods.push(id); }
 	return sortConfiguredPaymentMethods(methods.map((id) => ({ id })));
 }
 
@@ -18839,6 +18870,137 @@ function getSelectedPaymentMethod() {
   return methods.find((method) => method.id === state.paymentMethod) || methods[0] || null;
 }
 
+function paymentMethodBase(id) {
+	return getRuntimeSettings()?.paymentMethodVariants?.[id]?.method || id;
+}
+
+function paymentChannelsFor(id) {
+	const base = paymentMethodBase(id);
+	return state.adminPaymentChannelCatalog?.[base] || state.data?.paymentChannels?.[base] || { options: [], multiple: false, note: "Доступные методы определяются платёжной системой." };
+}
+
+function renderPaymentMethodSettings() {
+	const selectors = [".pay-channel-options", ".pay-method-editor", ".mantine-Modal-body"];
+	const positions = selectors.map(selector => ({ selector, top: app.querySelector(selector)?.scrollTop || 0 }));
+	render({ preserveScroll: true, preserveInteraction: true });
+	queueMicrotask(() => {
+		for (const position of positions) { const element = app.querySelector(position.selector); if (element) element.scrollTop = position.top; }
+	});
+}
+
+async function loadAdminPaymentChannels(id) {
+	const editor = state.adminPaymentMethodEditor;
+	if (!id || editor?.id !== id || editor.loading) return;
+	editor.loading = true;
+	renderPaymentMethodSettings();
+	try {
+		const response = await post("/api/mini-app/admin/payments/channels", { method: paymentMethodBase(id) });
+		state.adminPaymentChannelCatalog ||= {};
+		state.adminPaymentChannelCatalog[paymentMethodBase(id)] = response.data;
+	} catch (error) {
+		if (state.adminPaymentMethodEditor === editor) editor.error = error.message || "Не удалось обновить методы";
+	} finally {
+		if (state.adminPaymentMethodEditor === editor) { editor.loading = false; renderPaymentMethodSettings(); }
+	}
+}
+
+function duplicateAdminPaymentMethod(id) {
+	if ((!state.adminPlanEditing && !(state.adminWorkspace && state.adminSection === "plans")) || !state.adminSettingsDraft || state.adminBusy || !getAdminPaymentMethods().some(method => method.id === id)) return;
+	const base = paymentMethodBase(id);
+	if (["balance", "stars", "p2p"].includes(base)) return;
+	const variants = { ...(state.adminSettingsDraft.paymentMethodVariants || {}) };
+	if (Object.keys(variants).length >= 96) return showToast("Максимум 96 вариантов оплаты");
+	let copyID;
+	do { copyID = `${base}__${crypto.randomUUID().replaceAll("-", "").slice(0, 8)}`; } while (variants[copyID]);
+	variants[copyID] = { method: base, channels: [...(variants[id]?.channels || [])] };
+	state.adminSettingsDraft.paymentMethodVariants = variants;
+	state.adminSettingsDraft.paymentMethodText = { ...(state.adminSettingsDraft.paymentMethodText || {}), [copyID]: { ...(state.adminSettingsDraft.paymentMethodText?.[id] || { name: "", description: "" }) } };
+	const order = [...new Set([...(state.adminSettingsDraft.paymentMethodOrder || []), ...getAdminPaymentMethods().map(method => method.id)])].filter(item => item !== copyID);
+	order.splice(order.indexOf(id) + 1, 0, copyID);
+	state.adminSettingsDraft.paymentMethodOrder = order;
+	state.adminSettingsDirty = true;
+	openAdminPaymentMethodEditor(copyID);
+}
+
+function removeAdminPaymentMethod() {
+	const id = state.adminPaymentMethodEditor?.id;
+	if (!id || id === paymentMethodBase(id) || !state.adminSettingsDraft || state.adminBusy) return;
+	delete state.adminSettingsDraft.paymentMethodVariants[id];
+	delete state.adminSettingsDraft.paymentMethodText?.[id];
+	state.adminSettingsDraft.paymentMethodOrder = (state.adminSettingsDraft.paymentMethodOrder || []).filter(item => item !== id);
+	state.adminSettingsDirty = true;
+	closeAdminPaymentMethodEditor();
+}
+
+function setAdminPaymentChannelMode(mode) {
+	const editor = state.adminPaymentMethodEditor;
+	if (!editor) return;
+	const options = paymentChannelsFor(editor.id).options || [];
+	if (mode === "custom" && !options.length) return;
+	editor.channels = mode === "all" ? [] : editor.channels?.length ? editor.channels : [options.find(option => option.id === (paymentMethodBase(editor.id) === "card" ? "bank_card" : "sbp"))?.id || options[0].id];
+	renderPaymentMethodSettings();
+}
+
+function toggleAdminPaymentChannel(channel) {
+	const editor = state.adminPaymentMethodEditor;
+	if (!editor || (!(paymentChannelsFor(editor.id).options || []).some(option => option.id === channel) && !editor.channels?.includes(channel))) return;
+	const selected = [...(editor.channels || [])];
+	if (selected.includes(channel)) {
+		if (selected.length === 1) return showToast("Оставьте хотя бы один метод или выберите «Все способы»");
+		editor.channels = selected.filter(item => item !== channel);
+	} else editor.channels = channel === "crypto" && paymentMethodBase(editor.id) === "heleket" ? ["crypto"] : [...selected.filter(item => paymentMethodBase(editor.id) !== "heleket" || item !== "crypto"), channel];
+	for (const button of app.querySelectorAll?.('[data-action="admin-payment-channel-toggle"]') || []) {
+		const selected = editor.channels.includes(button.dataset.value);
+		button.setAttribute("aria-pressed", String(selected));
+		const indicator = button.querySelector("i");
+		if (indicator) indicator.innerHTML = selected ? icon("check") : "";
+	}
+}
+
+function renderAdminPaymentChannels(editor) {
+	const catalog = paymentChannelsFor(editor.id);
+	const options = catalog.options || [];
+	const custom = Boolean(editor.channels?.length);
+	const removed = (editor.channels || []).filter(id => !options.some(option => option.id === id));
+	return `<section class="pay-channel-settings"><div class="pay-channel-settings__heading"><strong>Методы оплаты</strong><button type="button" data-action="admin-payment-channels-refresh" aria-label="Обновить методы" ${editor.loading ? "disabled" : ""}>${icon("refresh")}</button></div>${options.length || custom ? `<div class="pay-channel-mode"><button type="button" data-action="admin-payment-channel-mode" data-value="all" aria-pressed="${!custom}">${escapeHtml(catalog.defaultLabel || "Все способы")}</button><button type="button" data-action="admin-payment-channel-mode" data-value="custom" aria-pressed="${custom}" ${!options.length ? "disabled" : ""}>Выбрать методы</button></div>${custom ? `<div class="pay-channel-options">${[...options, ...removed.map(id => ({ id, name: `${id.replaceAll(":", " · ")} · сохранён ранее` }))].map(option => `<button type="button" class="pay-channel-chip" data-action="admin-payment-channel-toggle" data-value="${escapeAttribute(option.id)}" aria-pressed="${editor.channels.includes(option.id)}"><span>${escapeHtml(option.name)}</span><i aria-hidden="true">${editor.channels.includes(option.id) ? icon("check") : ""}</i></button>`).join("")}</div><p class="pay-method-editor__hint">${catalog.preference ? "Предпочтение передаётся платёжной системе. Другие способы могут остаться доступными." : catalog.multiple ? "В форме оплаты останутся выбранные методы." : "Один метод откроется сразу. Если выбрано несколько, покупатель выберет один перед оплатой."}</p>` : ""}` : ""}<p class="pay-method-editor__hint" role="status">${escapeHtml(editor.loading ? "Проверяем доступные методы…" : editor.error || catalog.note || "")}${catalog.live && !editor.loading ? " · Получено из кассы" : ""}</p>${paymentMethodBase(editor.id) !== editor.id ? `<button class="pay-method-editor__remove" type="button" data-action="admin-payment-method-remove">${icon("trash")} Удалить копию</button>` : ""}</section>`;
+}
+
+function selectedPaymentChannel(method) {
+	const choice = state.paymentChannelChoices?.[method] || "";
+	return (getRuntimeSettings()?.paymentMethodVariants?.[method]?.channels || []).includes(choice) ? choice : "";
+}
+
+function requirePaymentChannel(method, context) {
+	const allowed = getRuntimeSettings()?.paymentMethodVariants?.[method]?.channels || [];
+	if (allowed.length <= 1 || paymentChannelsFor(method).multiple || selectedPaymentChannel(method)) return false;
+	state.payChannelSelection = { method, context };
+	state.payModalOpen = true;
+	render({ preserveScroll: true });
+	return true;
+}
+
+function renderPaymentChannelSelection() {
+	const selection = state.payChannelSelection;
+	if (!selection) return "";
+	const method = paymentMethodMeta(selection.method);
+	const allowed = getRuntimeSettings()?.paymentMethodVariants?.[selection.method]?.channels || [];
+	const catalog = paymentChannelsFor(selection.method);
+	return `<div class="modal modal--payment-methods open ${modalStateClass("pay")}" role="dialog" aria-modal="true" aria-labelledby="pay-channel-title"><button class="modal__backdrop" type="button" data-action="close-pay-modal" aria-label="Закрыть"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title" id="pay-channel-title">${escapeHtml(method?.label || "Способ оплаты")}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="Закрыть">${icon("close")}</button></div><div class="menu-list">${allowed.map(channel => `<button class="pay-row" type="button" data-action="select-payment-channel" data-value="${escapeAttribute(channel)}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(catalog.options?.find(option => option.id === channel)?.name || channel.replaceAll(":", " · "))}</strong></span><span class="pay-row__check">${icon("arrow")}</span></button>`).join("")}</div></div></div>`;
+}
+
+function confirmPaymentChannel(channel) {
+	const selection = state.payChannelSelection;
+	if (!selection || !(getRuntimeSettings()?.paymentMethodVariants?.[selection.method]?.channels || []).includes(channel)) return;
+	state.paymentChannelChoices ||= {};
+	state.paymentChannelChoices[selection.method] = channel;
+	return requestModalClose("pay", () => {
+		state.payChannelSelection = null; state.payModalOpen = false;
+		if (getSelectedPaymentMethod()?.id !== selection.method) return showToast("Способ оплаты изменился. Выберите его снова.", "danger");
+		if (selection.context.mode === "gift") void startGiftPayment().catch(error => showToast(error.message, "danger"));
+		else void startPayment(selection.context).catch(error => showToast(error.message, "danger"));
+	});
+}
+
 function paymentMethodMeta(id, system = false) {
   const copy = t();
   const map = {
@@ -18867,7 +19029,8 @@ function paymentMethodMeta(id, system = false) {
 		kassaai: { id: "kassaai", label: "Kassa AI", hint: localizedText("СБП, карты и SberPay", "SBP, cards and SberPay", "SBP، کارت و SberPay"), logo: PAYMENT_LOGO_URLS.kassaai },
 		cloudpayments: { id: "cloudpayments", label: "CloudPayments", hint: localizedText("Оплата картой", "Card payment", "پرداخت با کارت"), logo: PAYMENT_LOGO_URLS.cloudpayments },
   };
-  const method = map[id];
+  const base = paymentMethodBase(id);
+  const method = map[base] ? { ...map[base], id } : null;
   if (!method || system) return method || null;
   const custom = getRuntimeSettings()?.paymentMethodText?.[id];
   return { ...method, label: String(custom?.name || "").trim() || method.label, hint: String(custom?.description || "").trim() || method.hint };
@@ -18882,7 +19045,8 @@ function getAdminPaymentMethodEditor() {
 function openAdminPaymentMethodEditor(id) {
 	if ((!state.adminPlanEditing && !(state.adminWorkspace && state.adminSection === "plans")) || !state.adminSettingsDraft || state.adminBusy || !getAdminPaymentMethods().some(method => method.id === id)) return;
 	const custom = state.adminSettingsDraft.paymentMethodText?.[id];
-	state.adminPaymentMethodEditor = { id, name: custom?.name || "", description: custom?.description || "" };
+	state.adminPaymentMethodEditor = { id, name: custom?.name || "", description: custom?.description || "", channels: [...(state.adminSettingsDraft.paymentMethodVariants?.[id]?.channels || [])], loading: false };
+	void loadAdminPaymentChannels(id);
 	render({ preserveScroll: true, preserveInteraction: true });
 	queueMicrotask(() => app.querySelector('[data-input="admin-payment-method-name"]')?.focus({ preventScroll: true }));
 }
@@ -18911,6 +19075,10 @@ function applyAdminPaymentMethodEditor() {
 	if (name || description) text[editor.id] = { name, description };
 	else delete text[editor.id];
 	state.adminSettingsDraft.paymentMethodText = text;
+	const variants = { ...(state.adminSettingsDraft.paymentMethodVariants || {}) };
+	if (editor.channels?.length || paymentMethodBase(editor.id) !== editor.id) variants[editor.id] = { method: paymentMethodBase(editor.id), channels: [...(editor.channels || [])] };
+	else delete variants[editor.id];
+	state.adminSettingsDraft.paymentMethodVariants = variants;
 	state.adminSettingsDirty = true;
 	closeAdminPaymentMethodEditor();
 }
@@ -18918,7 +19086,7 @@ function applyAdminPaymentMethodEditor() {
 function renderAdminPaymentMethodEditor() {
 	const editor = getAdminPaymentMethodEditor();
 	if (!editor) return "";
-	return `<div class="modal modal--pay-method-editor open ${modalStateClass("admin-payment-method")}" role="dialog" aria-modal="true" aria-labelledby="pay-method-editor-title"><button class="modal__backdrop" type="button" data-action="admin-payment-method-cancel" aria-label="Закрыть редактор подписей"></button><div class="modal__sheet pay-method-editor"><div class="modal__header"><div><span class="pay-method-editor__eyebrow">Подписи платёжки</span><div class="modal__title" id="pay-method-editor-title">${escapeHtml(editor.systemName)}</div></div><button class="header__btn" type="button" data-action="admin-payment-method-cancel" aria-label="Закрыть редактор подписей">${icon("close")}</button></div><div class="pay-method-editor__fields"><label class="support-field"><span class="support-field__label">Название</span><input class="support-field__input" type="text" maxlength="80" data-input="admin-payment-method-name" value="${escapeAttribute(editor.name)}" placeholder="${escapeAttribute(editor.systemName)}" aria-describedby="pay-method-editor-hint"></label><label class="support-field"><span class="support-field__label">Описание</span><textarea class="support-field__input" rows="3" maxlength="240" data-input="admin-payment-method-description" placeholder="${escapeAttribute(editor.systemDescription)}" aria-describedby="pay-method-editor-hint">${escapeHtml(editor.description)}</textarea></label></div><p id="pay-method-editor-hint" class="pay-method-editor__hint">Оставьте поле пустым для системной подписи.</p><div class="pay-method-editor__actions"><button type="button" data-action="admin-payment-method-cancel">Отмена</button><button type="button" data-action="admin-payment-method-apply">Готово</button></div></div></div>`;
+	return `<div class="modal modal--pay-method-editor open ${modalStateClass("admin-payment-method")}" role="dialog" aria-modal="true" aria-labelledby="pay-method-editor-title"><button class="modal__backdrop" type="button" data-action="admin-payment-method-cancel" aria-label="Закрыть редактор подписей"></button><div class="modal__sheet pay-method-editor"><div class="modal__header"><div><span class="pay-method-editor__eyebrow">Настройки платёжки</span><div class="modal__title" id="pay-method-editor-title">${escapeHtml(editor.systemName)}</div></div><button class="header__btn" type="button" data-action="admin-payment-method-cancel" aria-label="Закрыть редактор подписей">${icon("close")}</button></div><div class="pay-method-editor__fields"><label class="support-field"><span class="support-field__label">Название</span><input class="support-field__input" type="text" maxlength="80" data-input="admin-payment-method-name" value="${escapeAttribute(editor.name)}" placeholder="${escapeAttribute(editor.systemName)}" aria-describedby="pay-method-editor-hint"></label><label class="support-field"><span class="support-field__label">Описание</span><textarea class="support-field__input" rows="3" maxlength="240" data-input="admin-payment-method-description" placeholder="${escapeAttribute(editor.systemDescription)}" aria-describedby="pay-method-editor-hint">${escapeHtml(editor.description)}</textarea></label></div>${renderAdminPaymentChannels(editor)}<p id="pay-method-editor-hint" class="pay-method-editor__hint">Оставьте поле пустым для системной подписи.</p><div class="pay-method-editor__actions"><button type="button" data-action="admin-payment-method-cancel">Отмена</button><button type="button" data-action="admin-payment-method-apply">Готово</button></div></div></div>`;
 }
 
 function renderPaymentMethodLogo(method) {

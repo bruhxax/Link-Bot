@@ -106,6 +106,17 @@ func nextKassaAINonce() int64 {
 }
 
 func (g *Gateway) createKassaAI(ctx context.Context, cfg map[string]string, input CreatePaymentRequest) (CreatedPayment, error) {
+	method, err := strconv.Atoi(firstNonEmpty(cfg["paymentSystemId"], "44"))
+	if err != nil || (len(input.Channels) == 0 && method != 44 && method != 36 && method != 43) {
+		return CreatedPayment{}, errors.New("invalid Kassa AI payment method")
+	}
+	if input.Provider == "" {
+		input.Provider = ProviderKassaAI
+	}
+	return g.createFKOrder(ctx, cfg, input)
+}
+
+func (g *Gateway) createFKOrder(ctx context.Context, cfg map[string]string, input CreatePaymentRequest) (CreatedPayment, error) {
 	if input.Amount <= 0 || math.IsNaN(input.Amount) || math.IsInf(input.Amount, 0) {
 		return CreatedPayment{}, errors.New("invalid Kassa AI amount")
 	}
@@ -117,7 +128,7 @@ func (g *Gateway) createKassaAI(ctx context.Context, cfg map[string]string, inpu
 		return CreatedPayment{}, errors.New("invalid Kassa AI shop ID")
 	}
 	method, err := strconv.Atoi(firstNonEmpty(cfg["paymentSystemId"], "44"))
-	if err != nil || (method != 44 && method != 36 && method != 43) {
+	if err != nil || method <= 0 {
 		return CreatedPayment{}, errors.New("invalid Kassa AI payment method")
 	}
 	ip := firstNonEmpty(input.ClientIP, cfg["clientIP"])
@@ -129,7 +140,7 @@ func (g *Gateway) createKassaAI(ctx context.Context, cfg map[string]string, inpu
 		"shopId": shopID, "nonce": nextKassaAINonce(), "paymentId": strconv.FormatInt(input.PurchaseID, 10),
 		"i": method, "email": firstNonEmpty(input.Email, cfg["email"], fmt.Sprintf("%d@telegram.org", input.CustomerID)),
 		"ip": ip, "amount": json.Number(amount), "currency": input.Currency,
-		"notification_url": g.settings.WebhookURL(ProviderKassaAI),
+		"notification_url": g.settings.WebhookURL(input.Provider),
 	}
 	if input.ReturnURL != "" {
 		params["success_url"] = input.ReturnURL

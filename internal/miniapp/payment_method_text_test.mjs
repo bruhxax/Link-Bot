@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 const source=fs.readFileSync(new URL('./static/app.js',import.meta.url),'utf8');
-function load(c,name){const start=source.indexOf(`function ${name}(`),end=source.indexOf('\nfunction ',start+1);assert.ok(start>=0&&end>start,name);vm.runInContext(source.slice(start,end),c);}
+function load(c,name){const start=source.indexOf(`function ${name}(`),next=source.slice(start+1).search(/\n(?:async )?function /),end=start+1+next;assert.ok(start>=0&&end>start,name);vm.runInContext(source.slice(start,end),c);}
 function harness(){
  const settings={paymentMethodText:{},paymentMethodOrder:['card','sbp']};
  const state={adminWorkspace:true,adminSection:'plans',adminSettingsDraft:settings,data:{wallet:{balanceCents:500}}};
  const c=vm.createContext({state,settings,render(){},showToast(){},haptic(){},queueMicrotask:fn=>fn(),app:{querySelector:()=>null},requestModalClose:(name,closed)=>closed(),PAYMENT_LOGO_URLS:{card:'card.svg'},localizedText:ru=>ru,formatMoneyCents:cents=>String(cents),getRuntimeSettings:()=>settings,t:()=>({payMethodCard:'Карта',payMethodCardHint:'Системное описание',payMethodSbp:'СБП',payMethodSbpHint:'По номеру телефона'})});
- for(const name of ['paymentMethodMeta','getAdminPaymentMethodEditor','openAdminPaymentMethodEditor','closeAdminPaymentMethodEditor','updateAdminPaymentMethodText','applyAdminPaymentMethodEditor'])load(c,name);
- c.getAdminPaymentMethods=()=>['card','sbp'].map(id=>c.paymentMethodMeta(id));return c;
+ c.loadAdminPaymentChannels=async()=>{};
+ for(const name of ['paymentMethodBase','paymentChannelsFor','renderPaymentMethodSettings','paymentMethodMeta','getAdminPaymentMethodEditor','openAdminPaymentMethodEditor','closeAdminPaymentMethodEditor','updateAdminPaymentMethodText','applyAdminPaymentMethodEditor','renderAdminPaymentChannels'])load(c,name);
+ c.getAdminPaymentMethods=()=>[...new Set(['card','sbp',...Object.keys(c.settings.paymentMethodVariants||{})])].map(id=>c.paymentMethodMeta(id));return c;
 }
 test('checkout uses per-field fallback and keeps provider IDs and logos',()=>{
  const c=harness();c.settings.paymentMethodText.card={name:'  Моя карта  ',description:''};
@@ -46,4 +47,33 @@ test('payment list has a real pencil and does not append text fields below its r
  c.openAdminPaymentMethodEditor('card');const markup=c.renderPayModal();
  assert.match(markup,/data-action="admin-payment-method-edit"[^>]*><svg data-test-icon="pencil"/);
  assert.doesNotMatch(markup,/admin-payment-method-name|<input|<textarea/);
+});
+
+test('copies keep independent names and channel settings and can be removed',()=>{
+ const c=harness();c.crypto={randomUUID:()=> 'aabbccdd-0000-0000-0000-000000000000'};
+ c.settings.paymentMethodVariants={card:{method:'card',channels:['bank_card']}};
+ c.settings.paymentMethodText.card={name:'Карта',description:'Original'};
+ for(const name of ['duplicateAdminPaymentMethod','removeAdminPaymentMethod'])load(c,name);
+ c.duplicateAdminPaymentMethod('card');const id='card__aabbccdd';
+ assert.equal(c.state.adminPaymentMethodEditor.id,id);assert.equal(c.paymentMethodMeta(id).logo,'card.svg');assert.equal(c.settings.paymentMethodOrder[1],id);
+ c.state.adminPaymentMethodEditor.name='СБП';c.state.adminPaymentMethodEditor.channels=['sbp','sberbank'];c.applyAdminPaymentMethodEditor();
+ assert.equal(c.settings.paymentMethodText[id].name,'СБП');assert.equal(c.settings.paymentMethodText.card.name,'Карта');assert.deepEqual([...c.settings.paymentMethodVariants.card.channels],['bank_card']);assert.deepEqual([...c.settings.paymentMethodVariants[id].channels],['sbp','sberbank']);
+ c.openAdminPaymentMethodEditor(id);c.removeAdminPaymentMethod();assert.equal(c.settings.paymentMethodVariants[id],undefined);assert.equal(c.settings.paymentMethodOrder.includes(id),false);assert.equal(c.settings.paymentMethodText[id],undefined);
+});
+
+test('channel chooser accepts only allowed methods and resumes checkout',()=>{
+ const c=harness();c.settings.paymentMethodVariants={sbp:{method:'sbp',channels:['sbp','sberbank']}};
+ c.state.data.paymentChannels={sbp:{multiple:false,options:[{id:'sbp',name:'СБП'},{id:'sberbank',name:'SberPay'}]}};
+ for(const name of ['selectedPaymentChannel','requirePaymentChannel','confirmPaymentChannel'])load(c,name);
+ let calls=0;c.startPayment=async()=>{calls++};c.startGiftPayment=async()=>{calls++};c.getSelectedPaymentMethod=()=>({id:'sbp'});
+ assert.equal(c.requirePaymentChannel('sbp',{mode:'purchase',deviceOnly:true}),true);
+ c.confirmPaymentChannel('bank_card');assert.equal(calls,0);
+ c.confirmPaymentChannel('sberbank');assert.equal(calls,1);assert.equal(c.selectedPaymentChannel('sbp'),'sberbank');assert.equal(c.state.payModalOpen,false);
+ c.settings.paymentMethodVariants.sbp.channels=['sbp'];assert.equal(c.selectedPaymentChannel('sbp'),'');assert.equal(c.requirePaymentChannel('sbp',{}),false);
+});
+
+test('an API with only preferred methods is never described as a hard restriction',()=>{
+ const c=harness();c.state.data.paymentChannels={card:{options:[{id:'card',name:'Карта'}],multiple:true,preference:true,note:'Preference only'}};
+ c.escapeHtml=String;c.escapeAttribute=String;c.icon=()=>'';
+ const html=c.renderAdminPaymentChannels({id:'card',channels:['card']});assert.match(html,/Другие способы могут остаться доступными/);assert.doesNotMatch(html,/В форме оплаты останутся выбранные методы/);
 });

@@ -7,6 +7,7 @@ import (
 	"link-bot/internal/config"
 	"link-bot/internal/database"
 	"link-bot/internal/integrations"
+	"link-bot/internal/paymentchannel"
 	"link-bot/internal/runtimeconfig"
 )
 
@@ -41,10 +42,14 @@ func (s PaymentService) AvailableMethods(ctx context.Context, customer *database
 		}
 		methods["stars"] = purchase != nil
 	}
+	for id, variant := range settings.PaymentMethodVariants {
+		methods[id] = methods[variant.Method]
+	}
 	return methods, nil
 }
 
 func InvoiceTypeForMethod(method string) (database.InvoiceType, error) {
+	method = paymentchannel.Base(method)
 	switch method {
 	case "balance":
 		return database.InvoiceTypeBalance, nil

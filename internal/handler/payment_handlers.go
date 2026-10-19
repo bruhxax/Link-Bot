@@ -14,6 +14,7 @@ import (
 
 	"link-bot/internal/database"
 	"link-bot/internal/payment"
+	"link-bot/internal/paymentchannel"
 	planbook "link-bot/internal/plans"
 	"link-bot/internal/runtimeconfig"
 )
@@ -135,12 +136,38 @@ func (h Handler) PaymentCallbackHandler(ctx context.Context, b *bot.Bot, update 
 		slog.Error("Error resolving payment methods", "error", err)
 		return
 	}
-	if !h.isPaymentMethodAllowedForPlan(allowedMethods, plan, invoiceType) {
+	settings := runtimeconfig.DefaultSettings()
+	if h.runtimeSettings != nil {
+		settings = h.runtimeSettings.Snapshot()
+	}
+	method := q["m"]
+	if method == "" {
+		method = payment.MethodForInvoiceType(invoiceType)
+	} else {
+		invoiceType, err = payment.InvoiceTypeForMethod(method)
+	}
+	_, priced := planbook.AmountForInvoice(plan, invoiceType)
+	if err != nil || settings.PaymentMethodBase(method) == "" || !allowedMethods[method] || !priced || invoiceType == database.InvoiceTypeP2P {
 		_, _ = b.AnswerCallbackQuery(ctx2, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: update.CallbackQuery.ID,
 			Text:            "Этот способ оплаты недоступен для выбранного тарифа",
 			ShowAlert:       false,
 		})
+		return
+	}
+	channels := settings.PaymentMethodVariants[method].Channels
+	selectedChannel := ""
+	if value, selected := q["c"]; selected {
+		index, parseErr := strconv.Atoi(value)
+		if parseErr != nil || index < 0 || index >= len(channels) {
+			return
+		}
+		selectedChannel = channels[index]
+	} else if len(channels) > 1 && !paymentchannel.For(method).Multiple {
+		keyboard := paymentChannelKeyboard(plan, method, channels)
+		keyboard = append(keyboard, []models.InlineKeyboardButton{h.premiumBackButton(fmt.Sprintf("%s?planId=%s", CallbackSell, plan.ID))})
+		_, _ = b.AnswerCallbackQuery(ctx2, &bot.AnswerCallbackQueryParams{CallbackQueryID: update.CallbackQuery.ID})
+		h.editScreenTextAndMarkup(ctx2, b, menuMsg.Chat.ID, menuMsg.ID, "Выберите способ оплаты", keyboard)
 		return
 	}
 
@@ -152,6 +179,7 @@ func (h Handler) PaymentCallbackHandler(ctx context.Context, b *bot.Bot, update 
 
 	ctxWithProfile := contextWithTelegramProfile(ctx2, update.CallbackQuery.From)
 	paymentURL, purchaseId, err := h.paymentService.CreatePurchaseWithOptions(ctxWithProfile, float64(price), plan.Months, customer, invoiceType, payment.CreatePurchaseOptions{
+		PaymentMethodID: method, PaymentChannel: selectedChannel,
 		DurationDays:      plan.Days,
 		PlanID:            plan.ID,
 		TrafficLimitBytes: &plan.TrafficLimitBytes,
@@ -329,11 +357,11 @@ func (h Handler) buildPaymentMethodsKeyboard(ctx context.Context, langCode strin
 		return nil, err
 	}
 
-	order := runtimeconfig.DefaultPaymentMethodOrder()
+	settings := runtimeconfig.DefaultSettings()
 	if h.runtimeSettings != nil {
-		order = h.runtimeSettings.Snapshot().PaymentMethodOrder
+		settings = h.runtimeSettings.Snapshot()
 	}
-	kb := PaymentMethodsKeyboard(methods, plan, h.telegramCommerceSettings(), order, h.hasMiniApp())
+	kb := configuredPaymentKeyboard(methods, plan, settings, h.hasMiniApp())
 	kb = append(kb, []models.InlineKeyboardButton{h.premiumBackButton(CallbackBuy)})
 
 	return kb, nil
@@ -549,6 +577,18 @@ func (h Handler) availablePaymentMethods(ctx context.Context, customer *database
 }
 
 func (h Handler) planFromCallbackQuery(query map[string]string) (planbook.CheckoutPlan, bool) {
+	if ref := query["r"]; ref != "" {
+		plans := planbook.All()
+		if h.runtimeSettings != nil {
+			plans = h.runtimeSettings.CheckoutPlans()
+		}
+		for _, plan := range plans {
+			if paymentPlanRef(plan.ID) == ref {
+				return plan, true
+			}
+		}
+		return planbook.CheckoutPlan{}, false
+	}
 	months, _ := strconv.Atoi(strings.TrimSpace(query["month"]))
 	if h.runtimeSettings != nil {
 		return h.runtimeSettings.CheckoutPlan(query["planId"], months)

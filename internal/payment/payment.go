@@ -28,6 +28,7 @@ import (
 	"link-bot/internal/database"
 	"link-bot/internal/integrations"
 	"link-bot/internal/operations"
+	"link-bot/internal/paymentchannel"
 	"link-bot/internal/remnawave"
 	"link-bot/internal/runtimeconfig"
 	"link-bot/internal/translation"
@@ -66,6 +67,9 @@ func (s *PaymentService) SetAdminPushNotifier(notifier adminnotify.Notifier) {
 }
 
 type CreatePurchaseOptions struct {
+	PaymentMethodID         string
+	PaymentChannel          string
+	PaymentChannels         []string
 	SubscriptionID          *int64
 	DurationDays            int
 	AgreementAccepted       bool
@@ -836,6 +840,21 @@ func (s PaymentService) CreatePurchase(ctx context.Context, amount float64, mont
 }
 
 func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount float64, months int, customer *database.Customer, invoiceType database.InvoiceType, options CreatePurchaseOptions) (url string, purchaseId int64, err error) {
+	if options.PaymentMethodID != "" {
+		settings := runtimeconfig.DefaultSettings()
+		if s.runtimeSettings != nil {
+			settings = s.runtimeSettings.Snapshot()
+		}
+		method := settings.PaymentMethodBase(options.PaymentMethodID)
+		expected, methodErr := InvoiceTypeForMethod(method)
+		if methodErr != nil || expected != invoiceType {
+			return "", 0, fmt.Errorf("этот способ оплаты недоступен")
+		}
+		options.PaymentChannels, err = paymentchannel.Resolve(method, settings.PaymentMethodVariants[options.PaymentMethodID].Channels, options.PaymentChannel)
+		if err != nil {
+			return "", 0, err
+		}
+	}
 	switch invoiceType {
 	case database.InvoiceTypeFree:
 		url, purchaseId, err = s.createFreePlanPurchase(ctx, months, customer, options)
@@ -1096,6 +1115,18 @@ func (s PaymentService) createCryptoInvoice(ctx context.Context, amount float64,
 	}
 
 	cryptoClient, acceptedAssets := s.currentCryptoPayClient()
+	if len(options.PaymentChannels) > 0 {
+		permitted := map[string]bool{}
+		for _, asset := range strings.Split(acceptedAssets, ",") {
+			permitted[strings.TrimSpace(asset)] = true
+		}
+		for _, asset := range options.PaymentChannels {
+			if !permitted[asset] {
+				return "", 0, fmt.Errorf("валюта %s отключена в Crypto Pay", asset)
+			}
+		}
+		acceptedAssets = strings.Join(options.PaymentChannels, ",")
+	}
 	if cryptoClient == nil {
 		return "", 0, errors.New("Crypto Pay не настроен")
 	}
@@ -1172,7 +1203,7 @@ func (s PaymentService) createYookasaInvoice(ctx context.Context, amount float64
 	if yookasaClient == nil {
 		return "", 0, errors.New("YooKassa не настроена")
 	}
-	invoice, err := yookasaClient.CreateInvoice(ctx, int(amount), customer.ID, purchaseId, s.buildYookassaReturnURL(purchaseId, options.ReturnTarget), BuildOrderDescription(months, options))
+	invoice, err := yookasaClient.CreateInvoiceWithMethod(ctx, int(amount), customer.ID, purchaseId, s.buildYookassaReturnURL(purchaseId, options.ReturnTarget), BuildOrderDescription(months, options), firstPaymentChannel(options.PaymentChannels))
 	if err != nil {
 		slog.Error("Error creating invoice", "error", err)
 		return "", 0, err
@@ -1232,6 +1263,7 @@ func (s PaymentService) createExternalInvoice(ctx context.Context, amount float6
 	}
 	username, _ := ctx.Value("username").(string)
 	created, err := s.integrationGateway.Create(ctx, integrations.CreatePaymentRequest{
+		Channels: options.PaymentChannels,
 		Provider: provider, PurchaseID: purchaseID, Amount: amount, Currency: "RUB",
 		Description: BuildOrderDescription(months, options), CustomerID: customer.ID,
 		Email: email, ClientIP: options.ClientIP,

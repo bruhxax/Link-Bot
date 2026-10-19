@@ -28,6 +28,7 @@ function harness({ platform = "tdesktop", ua = "Windows", navigatorPlatform = "W
     getSelectedDevicePack: () => devicePack, getSelectedTrafficPack: () => trafficPack,
     getSelectedPaymentMethod: () => ({ id: method }), getActivePromo: () => state.appliedPromo,
     paymentReceiptEmail: () => "", requirePaymentContact: () => false,
+    requirePaymentChannel: () => false, selectedPaymentChannel: () => "",
     normalizeGiftUsername: value => String(value).toLowerCase(), paymentReturnTarget: "telegram",
     render: options => renders.push(options), haptic: () => {},
     showToast: message => calls.push({ type: "toast", message }),

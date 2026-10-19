@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"link-bot/internal/paymentchannel"
 )
 
 type Gateway struct {
@@ -37,6 +38,7 @@ type Gateway struct {
 }
 
 type CreatePaymentRequest struct {
+	Channels    []string
 	Provider    string
 	PurchaseID  int64
 	Amount      float64
@@ -86,6 +88,15 @@ func (g *Gateway) Create(ctx context.Context, input CreatePaymentRequest) (Creat
 	if input.Currency == "" {
 		input.Currency = "RUB"
 	}
+	for _, channel := range input.Channels {
+		if !paymentchannel.Valid(input.Provider, channel) {
+			return CreatedPayment{}, fmt.Errorf("unsupported checkout channel")
+		}
+	}
+	if len(input.Channels) > 1 && !paymentchannel.For(input.Provider).Multiple {
+		return CreatedPayment{}, fmt.Errorf("select one checkout channel")
+	}
+	cfg = channelConfig(cfg, input)
 	switch input.Provider {
 	case ProviderPayHot:
 		return g.createPayHot(ctx, cfg, input)
@@ -100,6 +111,13 @@ func (g *Gateway) Create(ctx context.Context, input CreatePaymentRequest) (Creat
 	case ProviderPlatega:
 		return g.createPlatega(ctx, cfg, input)
 	case ProviderFreeKassa:
+		if len(input.Channels) > 0 {
+			if cfg["apiKey"] == "" {
+				return CreatedPayment{}, errors.New("FreeKassa: для ограничения методов добавьте API-ключ в интеграции")
+			}
+			cfg["paymentSystemId"] = input.Channels[0]
+			return g.createFKOrder(ctx, cfg, input)
+		}
 		return g.createFreeKassa(cfg, input)
 	case ProviderHeleket:
 		return g.createHeleket(ctx, cfg, input)
@@ -177,15 +195,16 @@ func (g *Gateway) HandleWebhook(ctx context.Context, provider string, headers ht
 
 func (g *Gateway) createLava(ctx context.Context, cfg map[string]string, input CreatePaymentRequest) (CreatedPayment, error) {
 	payload := struct {
-		Sum        float64 `json:"sum"`
-		OrderID    string  `json:"orderId"`
-		ShopID     string  `json:"shopId"`
-		HookURL    string  `json:"hookUrl"`
-		SuccessURL string  `json:"successUrl"`
-		FailURL    string  `json:"failUrl"`
-		Expire     int     `json:"expire"`
-		Comment    string  `json:"comment"`
-	}{input.Amount, strconv.FormatInt(input.PurchaseID, 10), cfg["shopId"], g.settings.WebhookURL(ProviderLava), input.ReturnURL, input.ReturnURL, 60, input.Description}
+		Sum            float64  `json:"sum"`
+		OrderID        string   `json:"orderId"`
+		ShopID         string   `json:"shopId"`
+		HookURL        string   `json:"hookUrl"`
+		SuccessURL     string   `json:"successUrl"`
+		FailURL        string   `json:"failUrl"`
+		Expire         int      `json:"expire"`
+		Comment        string   `json:"comment"`
+		IncludeService []string `json:"includeService,omitempty"`
+	}{input.Amount, strconv.FormatInt(input.PurchaseID, 10), cfg["shopId"], g.settings.WebhookURL(ProviderLava), input.ReturnURL, input.ReturnURL, 60, input.Description, input.Channels}
 	raw, _ := json.Marshal(payload)
 	signature := hmacHex(sha256.New, []byte(cfg["secretKey"]), raw)
 	var response struct {
@@ -232,6 +251,7 @@ func (g *Gateway) createPlatega(ctx context.Context, cfg map[string]string, inpu
 		"payload":  strconv.FormatInt(input.PurchaseID, 10),
 		"metadata": map[string]string{"userId": strconv.FormatInt(input.CustomerID, 10), "userName": input.Username},
 	}
+	applyCheckoutChannels(payload, input)
 	raw, _ := json.Marshal(payload)
 	var response struct {
 		TransactionID string `json:"transactionId"`
@@ -264,6 +284,7 @@ func (g *Gateway) createHeleket(ctx context.Context, cfg map[string]string, inpu
 		"url_return": input.ReturnURL, "url_success": input.ReturnURL, "url_callback": g.settings.WebhookURL(ProviderHeleket),
 		"lifetime": 3600, "theme": "dark", "additional_data": fmt.Sprintf("%d | %s", input.CustomerID, input.Description),
 	}
+	applyCheckoutChannels(payload, input)
 	raw, _ := json.Marshal(payload)
 	signSource := base64.StdEncoding.EncodeToString(raw) + cfg["apiKey"]
 	sign := fmt.Sprintf("%x", md5.Sum([]byte(signSource)))
@@ -296,6 +317,9 @@ func (g *Gateway) createPally(ctx context.Context, cfg map[string]string, input 
 		"currency_in": {input.Currency},
 		"custom":      {orderID},
 		"name":        {input.Description},
+	}
+	if len(input.Channels) > 0 {
+		form.Set("payment_method", input.Channels[0])
 	}
 	endpoint := strings.TrimRight(cfg["apiUrl"], "/") + "/api/v1/bill/create"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
@@ -344,6 +368,7 @@ func (g *Gateway) createRollyPay(ctx context.Context, cfg map[string]string, inp
 		"success_redirect_url": input.ReturnURL,
 		"fail_redirect_url":    input.ReturnURL,
 	}
+	applyCheckoutChannels(payload, input)
 	raw, _ := json.Marshal(payload)
 	var response struct {
 		PaymentID string `json:"payment_id"`
@@ -411,6 +436,7 @@ func (g *Gateway) createAnore(ctx context.Context, cfg map[string]string, input 
 		"callbackUrl": g.settings.WebhookURL(ProviderAnore),
 		"successurl":  input.ReturnURL, "failurl": input.ReturnURL,
 	}
+	applyCheckoutChannels(payload, input)
 	raw, _ := json.Marshal(payload)
 	var response struct {
 		Success    bool   `json:"success"`
