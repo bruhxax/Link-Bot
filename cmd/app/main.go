@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"link-bot/internal/appupdate"
 	"link-bot/internal/broadcast"
 	"link-bot/internal/cache"
 	"link-bot/internal/config"
@@ -206,6 +207,7 @@ func main() {
 	config.SetBotURL(fmt.Sprintf("https://t.me/%s", me.Username))
 	startPaymentNotificationBot(ctx, integrationSettings, paymentService)
 	notifyAdminAfterUpdate(ctx, b, releaseNotificationRepository)
+	go appupdate.RunNotifications(ctx, b, config.GetAdminTelegramId(), database.NewUpdateNotificationRepository(pool), Version, Commit)
 
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypePrefix, h.StartCommandHandler, h.SuspiciousUserFilterMiddleware)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/connect", bot.MatchTypeExact, h.ConnectCommandHandler, h.SuspiciousUserFilterMiddleware, h.CreateCustomerIfNotExistMiddleware)
@@ -340,7 +342,7 @@ func notifyAdminAfterUpdate(ctx context.Context, b *bot.Bot, repository *databas
 
 	if _, err := b.SendMessage(notificationCtx, &bot.SendMessageParams{
 		ChatID: config.GetAdminTelegramId(),
-		Text:   "Обновлен ✅",
+		Text:   fmt.Sprintf("✅ Link-Bot обновлён\nВерсия: %s\nКоммит: %s", Version, Commit),
 	}); err != nil {
 		slog.Warn("release notification delivery failed", "error", err)
 		return

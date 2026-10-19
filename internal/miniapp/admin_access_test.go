@@ -51,7 +51,10 @@ func TestEveryRegisteredAdminEndpointHasAnExplicitPolicy(t *testing.T) {
 		all.Permissions = append(all.Permissions, p.ID)
 	}
 	for _, path := range paths {
-		if strings.HasPrefix(path[1], "/api/mini-app/admin/administrators/") {
+		if strings.HasPrefix(path[1], "/api/mini-app/admin/administrators/") || strings.HasPrefix(path[1], "/api/mini-app/admin/bot/update") {
+			if !adminRouteAllowed(ownerAccess(), path[1]) || adminRouteAllowed(all, path[1]) || adminRouteAllowed(adminAccess{}, path[1]) {
+				t.Errorf("invalid owner-only policy for %s", path[1])
+			}
 			continue
 		}
 		if !adminRouteAllowed(all, path[1]) {

@@ -12,6 +12,14 @@ cd "$repo_root"
 # Re-execute the freshly pulled script so this remains the only command needed
 # for both a code update and a restart after editing .env.
 if [[ ${LINK_BOT_UPDATE_REEXEC:-} != 1 ]]; then
+  # A host-side lock also coordinates manual and Mini App updates. The open
+  # descriptor survives re-exec and is released when the script finishes.
+  exec 9>"$repo_root/.git/link-bot-update.lock"
+  if ! flock -n 9; then
+    printf 'Обновление Link-Bot уже выполняется.\n' >&2
+    exit 1
+  fi
+  git fetch --tags --force origin
   git pull --ff-only
   exec env LINK_BOT_UPDATE_REEXEC=1 bash "$repo_root/update.sh" "$@"
 fi
@@ -137,7 +145,7 @@ export LINK_BOT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || printf 'none'
 
 # Keep Docker's detailed output available on failure, while showing concise
 # progress in an interactive terminal. CI and verbose runs keep raw output.
-phase_total=4
+phase_total=5
 if [[ $mode == managed || $mode == new ]]; then ((phase_total += 1)); fi
 if [[ -n $cabinet_subdomain ]]; then ((phase_total += 1)); fi
 if [[ -n $admin_subdomain ]]; then ((phase_total += 1)); fi
@@ -198,6 +206,7 @@ fi
 
 run_phase 'Подготовка базы данных' docker compose up -d --no-recreate db
 run_phase 'Сборка новой версии' docker compose build bot
+run_phase 'Подключение обновлений из Mini App' bash ./scripts/install-update-agent.sh
 run_phase 'Перезапуск бота' docker compose up -d --force-recreate --no-deps bot
 
 if [[ $mode == managed ]]; then

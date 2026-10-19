@@ -13756,6 +13756,20 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .admin-status__rows strong.is-offline { color: var(--danger); }
 .admin-status__release { width: 100%; min-height: 36px; display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 13px; border: 1px solid color-mix(in srgb, var(--success) 38%, transparent); border-radius: 9px; background: color-mix(in srgb, var(--success) 10%, transparent); color: var(--success); font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; }
 .admin-status__release svg { width: 15px; height: 15px; }
+.admin-bot-update { margin-top: 12px; }
+.admin-bot-update .admin-bot-update__start { width: 100%; min-height: 42px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-contrast, #071017); font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.admin-bot-update .admin-bot-update__start:disabled { opacity: .6; cursor: default; }
+.admin-bot-update__start svg { width: 17px; height: 17px; }
+.admin-bot-update p { margin: 9px 0 0; font-size: 11px; line-height: 1.6; color: var(--muted); overflow-wrap: anywhere; }
+.admin-bot-update p.is-error { color: var(--danger); }
+.admin-bot-update--confirm { padding: 13px; border-radius: 11px; background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.admin-bot-update--confirm > strong { font-size: 12px; }
+.admin-bot-update__actions { display: flex; gap: 8px; margin-top: 12px; }
+.admin-bot-update__actions > button { flex: 1; min-width: 0; min-height: 40px; border: 0; border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
+.admin-bot-update__actions .admin-bot-update__start { width: auto; }
+.admin-bot-update.is-running .admin-bot-update__start svg { animation: admin-update-spin 1.5s linear infinite; }
+@keyframes admin-update-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .admin-bot-update.is-running .admin-bot-update__start svg { animation: none; } }
 .admin-status__skeleton { display: grid; gap: 10px; }
 .admin-status__skeleton i { height: 108px; border: 1px solid var(--line-soft); border-radius: 14px; background: linear-gradient(100deg, var(--surface) 10%, color-mix(in srgb, var(--text) 8%, var(--surface)) 48%, var(--surface) 85%); background-size: 220% 100%; animation: admin-status-shimmer 1.4s ease-in-out infinite; }
 .admin-status__error { display: grid; justify-items: start; gap: 8px; padding: 19px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }

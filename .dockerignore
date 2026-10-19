@@ -114,3 +114,4 @@ secrets/
 link-bot-backup*.sql
 **/node_modules
 tmp/
+.update-agent/

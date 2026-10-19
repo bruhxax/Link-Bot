@@ -20,6 +20,7 @@ services:
       - ./assets:/assets:ro
       - ./secrets:/app/secrets:ro
       - link-bot-upload-data:/uploads
+      - ./.update-agent:/run/link-bot-updater:ro
 
   migrate-bedolaga:
     build: .

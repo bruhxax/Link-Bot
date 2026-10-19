@@ -15,3 +15,4 @@ dist/
 uploads/*
 !uploads/.gitkeep
 secrets/
+.update-agent/

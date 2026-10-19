@@ -12,20 +12,18 @@ import (
 	"sync"
 	"time"
 
+	"link-bot/internal/appupdate"
 	"link-bot/internal/database"
+	"link-bot/internal/updater"
 
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
-const latestReleaseAPI = "https://api.github.com/repos/bruhxax/Link-Bot/releases/latest"
 const latestReleasePage = "https://github.com/bruhxax/Link-Bot/releases/latest"
-const githubCompareAPI = "https://api.github.com/repos/bruhxax/Link-Bot/compare/"
-const githubComparePage = "https://github.com/bruhxax/Link-Bot/compare/"
 const remnawaveLatestReleaseAPI = "https://api.github.com/repos/remnawave/panel/releases/latest"
 const remnawaveLatestReleasePage = "https://github.com/remnawave/panel/releases/latest"
 
 var releaseVersionPattern = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)`)
-var commitHashPattern = regexp.MustCompile(`^[0-9a-fA-F]{7,40}$`)
 
 type adminStatusInfo struct {
 	startedAt             time.Time
@@ -57,6 +55,8 @@ type adminUpdateStatus struct {
 	AheadBy       int    `json:"aheadBy,omitempty"`
 	URL           string `json:"url,omitempty"`
 	CheckedAt     string `json:"checkedAt,omitempty"`
+	LatestCommit  string `json:"latestCommit,omitempty"`
+	Summary       string `json:"summary,omitempty"`
 }
 
 type adminPanelUpdateStatus struct {
@@ -79,6 +79,8 @@ type adminStatusPayload struct {
 	Goroutines   int                    `json:"goroutines"`
 	Update       adminUpdateStatus      `json:"update"`
 	PanelUpdate  adminPanelUpdateStatus `json:"panelUpdate"`
+	Updater      *updater.State         `json:"updater,omitempty"`
+	CanUpdate    bool                   `json:"canUpdate"`
 }
 
 func (h *Handler) SetStatusInfo(version, commit, buildDate string, startedAt time.Time, pool *pgxpool.Pool) {
@@ -183,6 +185,18 @@ func (h *Handler) handleAdminStatus(w http.ResponseWriter, r *http.Request, sess
 		defer group.Done()
 		panelLatestVersion, panelReleaseOK = h.checkPanelLatestRelease(ctx, r.URL.Query().Get("refresh") == "1")
 	}()
+	if sess.access().IsOwner {
+		result.CanUpdate = true
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			status, err := (updater.Client{}).Request(ctx, false)
+			if err != nil {
+				status.Message = err.Error()
+			}
+			result.Updater = &status
+		}()
+	}
 	group.Wait()
 	result.PanelUpdate = resolvePanelUpdateStatus(panelVersion, panelLatestVersion, panelReleaseOK)
 	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": result})
@@ -241,53 +255,10 @@ func (h *Handler) checkAvailableUpdate(ctx context.Context, currentVersion, curr
 	defer cancel()
 	client := &http.Client{Timeout: 4 * time.Second}
 	currentCommit = strings.TrimSpace(currentCommit)
-	var releaseVersion string
-	var releaseOK bool
-	var aheadBy int
-	var compareOK bool
-	var checks sync.WaitGroup
-	checks.Add(1)
-	go func() {
-		defer checks.Done()
-		releaseVersion, releaseOK = fetchGitHubRelease(probeCtx, client, latestReleaseAPI)
-	}()
-	if commitHashPattern.MatchString(currentCommit) {
-		checks.Add(1)
-		go func() {
-			defer checks.Done()
-			aheadBy, compareOK = fetchGitHubAheadBy(probeCtx, client, githubCompareAPI+currentCommit+"...main?per_page=1")
-		}()
-	}
-	checks.Wait()
-	result = resolveAdminUpdateStatus(result, currentVersion, currentCommit, releaseVersion, releaseOK, aheadBy, compareOK)
+	checked := appupdate.Check(probeCtx, client, currentVersion, currentCommit)
+	result = adminUpdateStatus{State: checked.State, Kind: checked.Kind, LatestVersion: checked.LatestVersion, LatestCommit: checked.LatestCommit, Summary: checked.Summary, AheadBy: checked.AheadBy, URL: checked.URL, CheckedAt: checked.CheckedAt}
 	info.update = result
 	info.updateCheckedAt = time.Now()
-	return result
-}
-
-func resolveAdminUpdateStatus(result adminUpdateStatus, currentVersion, currentCommit, releaseVersion string, releaseOK bool, aheadBy int, compareOK bool) adminUpdateStatus {
-	result.LatestVersion = releaseVersion
-	if releaseOK {
-		if newer, comparable := isNewerRelease(currentVersion, releaseVersion); comparable {
-			result.State = "current"
-			if newer {
-				result.State = "available"
-				result.Kind = "release"
-			}
-		}
-	}
-	if commitHashPattern.MatchString(currentCommit) {
-		if compareOK && aheadBy > 0 {
-			result.AheadBy = aheadBy
-			if result.State != "available" {
-				result.State = "available"
-				result.Kind = "commit"
-				result.URL = githubComparePage + currentCommit + "...main"
-			}
-		} else if !compareOK && result.State == "current" {
-			result.State = "unknown"
-		}
-	}
 	return result
 }
 
@@ -317,16 +288,6 @@ func fetchGitHubRelease(ctx context.Context, client *http.Client, url string) (s
 		return "", false
 	}
 	return strings.TrimSpace(release.TagName), release.TagName != ""
-}
-
-func fetchGitHubAheadBy(ctx context.Context, client *http.Client, url string) (int, bool) {
-	var comparison struct {
-		AheadBy int `json:"ahead_by"`
-	}
-	if !fetchGitHubStatusJSON(ctx, client, url, 128<<10, &comparison) {
-		return 0, false
-	}
-	return comparison.AheadBy, true
 }
 
 func isNewerRelease(current, latest string) (bool, bool) {

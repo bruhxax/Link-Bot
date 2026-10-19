@@ -2788,6 +2788,9 @@ const state = {
 	adminStatus: null,
 	adminStatusBusy: false,
 	adminStatusError: "",
+	adminBotUpdateBusy: false,
+	adminBotUpdateConfirm: false,
+	adminBotUpdateConnecting: false,
 	adminPush: null,
 	adminPushBusy: "",
 	adminPushError: "",
@@ -5587,6 +5590,65 @@ function renderAdminStatusService(title, service, iconName, details) {
 	return `<article class="admin-status__service is-${status}"><div class="admin-status__service-head"><span class="admin-status__service-icon">${icon(iconName)}</span><div><strong>${escapeHtml(title)}</strong><small>${status === "online" ? `Ответ ${Number(service?.latencyMs || 0)} мс` : status === "offline" ? "Проверка не прошла" : "Ожидаем проверку"}</small></div><span class="admin-status__badge"><i aria-hidden="true"></i>${statusText}</span></div><div class="admin-status__service-metrics">${details.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div></article>`;
 }
 
+function renderAdminBotUpdater(data) {
+ if (!data?.canUpdate) return "";
+ const updater = data.updater || {};
+ const running = state.adminBotUpdateBusy || updater.state === "running";
+ const status = running ? (state.adminBotUpdateConnecting ? "Бот перезапускается. Ожидаем соединение…" : updater.stage || "Запускаем обновление…") : updater.message || "";
+ if (state.adminBotUpdateConfirm && !running && updater.available) return `<div class="admin-bot-update admin-bot-update--confirm" role="group" aria-label="Подтверждение обновления"><strong>Обновить Link-Bot?</strong><p>Установим изменения из GitHub и перезапустим бота. На это время он будет недоступен.</p><div class="admin-bot-update__actions"><button type="button" data-action="admin-bot-update-cancel">Отмена</button><button type="button" class="admin-bot-update__start" data-action="admin-bot-update-start">Обновить</button></div></div>`;
+ return `<div class="admin-bot-update ${running ? "is-running" : ""}"><button type="button" class="admin-bot-update__start" data-action="admin-bot-update-confirm" ${running || !updater.available ? "disabled" : ""}>${icon("refresh")}${running ? "Обновляем бота…" : "Обновить бота"}</button>${status ? `<p role="status" class="${updater.state === "failed" ? "is-error" : ""}">${escapeHtml(status)}</p>` : ""}</div>`;
+}
+
+function scheduleAdminStatusPoll() {
+ window.clearTimeout(adminStatusPollTimer);
+ if (state.currentPage !== "admin" || state.adminSection !== "status") return;
+ const running = state.adminBotUpdateBusy || state.adminStatus?.updater?.state === "running";
+ adminStatusPollTimer = window.setTimeout(() => { void (running ? refreshAdminBotUpdate() : refreshAdminStatus()); }, running ? 3000 : 60000);
+}
+
+async function startAdminBotUpdate() {
+ if (!state.adminStatus?.canUpdate || !state.adminStatus?.updater?.available || state.adminBotUpdateBusy || state.adminStatus.updater.state === "running" || !state.adminBotUpdateConfirm) return;
+ state.adminBotUpdateBusy = true;
+ state.adminBotUpdateConfirm = false;
+ state.adminBotUpdateConnecting = false;
+ render({ preserveScroll: true });
+ try {
+  const response = await post("/api/mini-app/admin/bot/update", { confirm: true });
+  state.adminStatus.updater = response.data;
+ } catch (error) {
+  showToast(error?.message || "Не удалось запустить обновление", "danger");
+  // If the response was lost during restart, read the host job before retrying.
+  if (!error?.code) {
+   state.adminStatus.updater = { ...state.adminStatus.updater, state: "running", stage: "Проверяем запуск обновления…" };
+   state.adminBotUpdateConnecting = true;
+  }
+  await refreshAdminBotUpdate();
+ } finally {
+  state.adminBotUpdateBusy = false;
+  if (state.currentPage === "admin" && state.adminSection === "status") render({ preserveScroll: true });
+  scheduleAdminStatusPoll();
+ }
+}
+
+async function refreshAdminBotUpdate() {
+ if (state.currentPage !== "admin" || state.adminSection !== "status" || !state.adminStatus?.canUpdate) return;
+ window.clearTimeout(adminStatusPollTimer);
+ try {
+  const response = await post("/api/mini-app/admin/bot/update/status", {});
+  state.adminBotUpdateConnecting = false;
+  state.adminStatus.updater = response.data;
+  if (response.data?.state !== "running" && !state.adminBotUpdateBusy) {
+   await refreshAdminStatus(true);
+   return;
+  }
+ } catch (_) {
+  state.adminBotUpdateConnecting = true;
+ } finally {
+  if (state.currentPage === "admin" && state.adminSection === "status") render({ preserveScroll: true });
+  scheduleAdminStatusPoll();
+ }
+}
+
 function renderAdminStatusPage() {
 	const data = state.adminStatus;
 	if (!data) return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-status">${state.adminStatusError ? `<div class="admin-status__error"><strong>Не удалось загрузить статус</strong><span>${escapeHtml(state.adminStatusError)}</span><button type="button" data-action="admin-status-refresh">Повторить</button></div>` : `<div class="admin-status__skeleton" aria-label="Проверяем сервисы" aria-busy="true"><i></i><i></i><i></i></div>`}</div></section>`;
@@ -5611,7 +5673,7 @@ function renderAdminStatusPage() {
 			${renderAdminStatusService("Бот", bot, "server", [["Время работы", adminStatusDuration(bot.uptimeSeconds)], ["Память Go", adminStatusMemory(data.heapBytes)]])}
 			${renderAdminStatusService("Панель Remnawave", panel, "server", [["Время работы сервера", adminStatusDuration(panel.uptimeSeconds)], ["Память сервера", Number(panel.memoryTotalBytes) ? `${adminStatusMemory(panel.memoryUsedBytes)} / ${adminStatusMemory(panel.memoryTotalBytes)}` : "—"]])}
 		</div>
-		<section class="admin-status__section"><h3>Сборка и обновление</h3><div class="admin-status__rows"><div><span>Версия бота</span><strong>${escapeHtml(data.version || "dev")}</strong></div><div><span>Последний релиз</span><strong>${escapeHtml(update.latestVersion || "—")}</strong></div><div><span>Обновление</span><strong class="${update.state === "available" ? "is-update" : ""}">${escapeHtml(updateText)}</strong></div>${builtText ? `<div><span>Собрано</span><strong>${escapeHtml(builtText)}</strong></div>` : ""}${data.commit && data.commit !== "none" ? `<div><span>Коммит</span><strong>${escapeHtml(data.commit)}</strong></div>` : ""}</div>${update.state === "available" ? `<button class="admin-status__release" type="button" data-action="open-link" data-value="${escapeAttribute(update.url || "https://github.com/bruhxax/Link-Bot/releases/latest")}">${update.kind === "commit" ? "Посмотреть изменения" : "Посмотреть релиз"}${icon("chevronRight")}</button>` : ""}</section>
+		<section class="admin-status__section"><h3>Сборка и обновление</h3><div class="admin-status__rows"><div><span>Версия бота</span><strong>${escapeHtml(data.version || "dev")}</strong></div><div><span>Последний релиз</span><strong>${escapeHtml(update.latestVersion || "—")}</strong></div><div><span>Обновление</span><strong class="${update.state === "available" ? "is-update" : ""}">${escapeHtml(updateText)}</strong></div>${builtText ? `<div><span>Собрано</span><strong>${escapeHtml(builtText)}</strong></div>` : ""}${data.commit && data.commit !== "none" ? `<div><span>Коммит</span><strong>${escapeHtml(data.commit)}</strong></div>` : ""}</div>${update.state === "available" ? `<button class="admin-status__release" type="button" data-action="open-link" data-value="${escapeAttribute(update.url || "https://github.com/bruhxax/Link-Bot/releases/latest")}">${update.kind === "commit" ? "Посмотреть изменения" : "Посмотреть релиз"}${icon("chevronRight")}</button>` : ""}${renderAdminBotUpdater(data)}</section>
 		<section class="admin-status__section"><h3>Обновление Remnawave</h3><div class="admin-status__rows"><div><span>Версия панели</span><strong>${escapeHtml(panelUpdate.currentVersion || "—")}</strong></div><div><span>Последний релиз</span><strong>${escapeHtml(panelUpdate.latestVersion || "—")}</strong></div><div><span>Обновление</span><strong class="${panelUpdate.state === "available" ? "is-update" : ""}">${escapeHtml(panelUpdateText)}</strong></div></div>${panelUpdate.state === "available" ? `<button class="admin-status__release" type="button" data-action="open-link" data-value="${escapeAttribute(panelUpdate.url || "https://github.com/remnawave/panel/releases/latest")}">Посмотреть релиз${icon("chevronRight")}</button>` : ""}</section>
 		<section class="admin-status__section"><h3>Система</h3><div class="admin-status__rows"><div><span>База данных</span><strong class="is-${adminStatusState(database.state)}">${database.state === "online" ? `Подключена${Number(database.latencyMs) ? ` · ${Number(database.latencyMs)} мс` : ""}` : database.state === "offline" ? "Нет связи" : "Нет данных"}</strong></div><div><span>Выделено Go</span><strong>${adminStatusMemory(data.processBytes)}</strong></div><div><span>Горутины</span><strong>${Number(data.goroutines || 0).toLocaleString("ru-RU")}</strong></div></div></section>
 	</div></section>`;
@@ -5633,7 +5695,7 @@ async function refreshAdminStatus(force = false) {
 		state.adminStatusBusy = false;
 		if (state.currentPage === "admin" && state.adminSection === "status") {
 			render({ preserveScroll: true });
-			adminStatusPollTimer = window.setTimeout(() => { void refreshAdminStatus(); }, 60000);
+			scheduleAdminStatusPoll();
 		}
 	}
 }
@@ -12179,6 +12241,9 @@ function bindRootActions() {
 	  }
 	  if (action === "admin-settings-search-open") return openAdminSettingsSearchResult(Number(value));
 	  if (action === "admin-status-refresh") return await refreshAdminStatus(true);
+      if (action === "admin-bot-update-confirm") { if (state.adminStatus?.canUpdate && state.adminStatus?.updater?.available && state.adminStatus.updater.state !== "running" && !state.adminBotUpdateBusy) state.adminBotUpdateConfirm = true; render({ preserveScroll: true }); return; }
+      if (action === "admin-bot-update-cancel") { state.adminBotUpdateConfirm = false; render({ preserveScroll: true }); return; }
+      if (action === "admin-bot-update-start") return await startAdminBotUpdate();
 	  if (action === "admin-nav-style") {
         if (!state.adminSettingsDraft || !BOTTOM_NAV_STYLES.some(([style]) => style === value)) return;
         setDeepValue(state.adminSettingsDraft, "appearance.bottomNavStyle", value);

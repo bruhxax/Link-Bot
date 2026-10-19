@@ -893,6 +893,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/overview", h.withSession(h.handleAdminOverview))
 	mux.HandleFunc("/api/mini-app/admin/analytics", h.withSession(h.handleAdminAnalytics))
 	mux.HandleFunc("/api/mini-app/admin/status", h.withSession(h.handleAdminStatus))
+	mux.HandleFunc("/api/mini-app/admin/bot/update", h.withSession(h.handleAdminBotUpdate))
+	mux.HandleFunc("/api/mini-app/admin/bot/update/status", h.withSession(h.handleAdminBotUpdateStatus))
 	mux.HandleFunc("/api/mini-app/admin/partners/state", h.withSession(h.handleAdminPartnersState))
 	mux.HandleFunc("/api/mini-app/admin/partners/review", h.withSession(h.handleAdminPartnerReview))
 	mux.HandleFunc("/api/mini-app/admin/partners/create", h.withSession(h.handleAdminPartnerCreate))

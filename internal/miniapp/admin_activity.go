@@ -31,6 +31,7 @@ type activityAction struct{ title, category, fields string }
 // Polling/state reads do not drown out actual work. All other admin endpoints
 // are recorded by default, so newly added mutations cannot silently escape it.
 var activityReadRoutes = map[string]bool{
+	"bot/update/status": true,
 	"payments/channels": true,
 	"status":            true, "finance": true, "overview": true, "analytics": true, "ai/settings": true, "ai/models": true,
 	"smtp/settings": true, "moynalog/state": true, "partners/state": true, "push/state": true,
@@ -41,6 +42,7 @@ var activityReadRoutes = map[string]bool{
 	"users/detail": true, "subscriptions/find/refresh": true, "subscriptions/target/refresh": true,
 }
 var activityActions = map[string]activityAction{
+	"bot/update":                  {"Запустил обновление Link-Bot", "system", ""},
 	"settings/update":             {"Изменил настройки", "settings", "section"},
 	"users/open":                  {"Открыл карточку пользователя", "users", "customerId panelId"},
 	"users/balance":               {"Изменил баланс пользователя", "users", "customerId balanceAction amountRub"},

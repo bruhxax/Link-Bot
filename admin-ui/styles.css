@@ -1,5 +1,33 @@
 /* Layout, card and navigation styling adapted from remnawave/frontend.
  * See THIRD_PARTY_NOTICES.md and LICENSE-Remnawave. */
+.rn-content .admin-bot-update .admin-bot-update__start.rn-adapted-button {
+  width: 100% !important;
+  height: 42px !important;
+  min-height: 42px;
+  padding-inline: 16px;
+  background: #e3e5e9 !important;
+  color: #101114 !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  font-weight: 700;
+  box-shadow: none !important;
+}
+.rn-content .admin-bot-update .admin-bot-update__start.rn-adapted-button:disabled {
+  opacity: .55;
+  cursor: default;
+}
+.rn-content .admin-bot-update__actions .rn-adapted-button {
+  flex: 1;
+  height: 42px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: #1a1b1f !important;
+  color: #dee2e6 !important;
+}
+.rn-content .admin-bot-update .admin-bot-update__actions .admin-bot-update__start {
+  width: auto !important;
+}
+.rn-content .admin-bot-update__start .mantine-Button-label { gap: 8px; }
 html[data-admin-console="on"] {
   font-size: 16px;
   color-scheme: dark;
