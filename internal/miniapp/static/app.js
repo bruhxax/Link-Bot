@@ -7765,7 +7765,8 @@ function renderAdminPaymentNotificationContent() {
 		["{{data}}", "Время покупки: 22:17 | 21.08.26"],
 		["{{integration}}", "Способ оплаты"],
 		["{{promo}}", "Использованный промокод"],
-		["{{sub}}", "Купленный тариф"],
+		["{{plan_name}}", "Название тарифа; без названия — срок"],
+		["{{sub}}", "Срок подписки"],
 		["{{username}}", "Telegram пользователя"],
 		["{{number}}", "Номер заказа"],
 		["{{price}}", "Оплаченная сумма"],
@@ -7773,7 +7774,7 @@ function renderAdminPaymentNotificationContent() {
 	];
 	return `<section class="admin-editor__section admin-payment-notification">
 		<h3>Уведомление об оплате</h3>
-		${renderAdminVariableReference("Переменные шаблона", variables, "Пустые promo, sub и device скрываются")}
+		${renderAdminVariableReference("Переменные шаблона", variables, "Пустые promo, plan_name, sub и device скрываются")}
 		${renderAdminSettingField("Текст уведомления", "content.paymentNotification.text", { textarea: true, rows: 12 })}
 		<button class="admin-reminder-test" type="button" data-action="admin-test-payment-notification" ${state.adminBusy ? "disabled" : ""}>${icon(busy ? "refresh" : "send")}<span>${busy ? "Отправляем…" : "Отправить тест"}</span></button>
 	</section>

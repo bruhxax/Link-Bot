@@ -112,7 +112,7 @@ func (s PaymentService) notifyAdminAboutPayment(ctx context.Context, purchase *d
 		}
 	}
 	settings := s.paymentNotificationSettings()
-	message := buildPaymentNotificationMessageWithTemplate(settings.Text, purchase, username, method, time.Now(), orderNumber, timezone)
+	message := buildPaymentNotificationMessageWithTemplate(settings.Text, purchase, username, method, time.Now(), orderNumber, timezone, s.paymentNotificationPlanName(purchase))
 	panelUserID := s.paymentNotificationPanelUserID(notifyCtx, purchase, customer)
 	keyboard := buildPaymentNotificationKeyboard(settings, panelUserID, profileUsername)
 	sendTo := func(destinationID int64, threadID int) error {
@@ -292,6 +292,7 @@ func buildPaymentNotificationMessageWithTemplate(
 	paidAt time.Time,
 	orderNumber int64,
 	timezone string,
+	planName ...string,
 ) string {
 	usernameText := "-"
 	if username != "" {
@@ -317,6 +318,15 @@ func buildPaymentNotificationMessageWithTemplate(
 	if purchase.PurchaseKind != database.PurchaseKindExtraDevices && purchase.PurchaseKind != database.PurchaseKindExtraTraffic && (purchase.Month > 0 || purchase.Days > 0) {
 		subscriptionText = formatTariffDuration(purchase.Month, purchase.Days)
 	}
+	planNameText := ""
+	if purchase.PurchaseKind != database.PurchaseKindExtraDevices && purchase.PurchaseKind != database.PurchaseKindExtraTraffic {
+		if len(planName) > 0 {
+			planNameText = strings.TrimSpace(planName[0])
+		}
+		if planNameText == "" {
+			planNameText = subscriptionText
+		}
+	}
 	deviceText := ""
 	if purchase.ExtraDevices > 0 {
 		deviceText = fmt.Sprintf("+%d", purchase.ExtraDevices)
@@ -331,12 +341,20 @@ func buildPaymentNotificationMessageWithTemplate(
 		"integration": strings.TrimSpace(method),
 		"promo":       promoText,
 		"sub":         subscriptionText,
+		"plan_name":   planNameText,
 		"username":    usernameText,
 		"number":      strconv.FormatInt(orderNumber, 10),
 		"price":       formatPurchaseAmount(purchase),
 		"device":      deviceText,
 		"traffic":     trafficText,
 	}
+	replacements := make([]string, 0, len(values)*2)
+	for name, value := range values {
+		replacements = append(replacements, "{{"+name+"}}", html.EscapeString(value))
+	}
+	// Replace in one pass so a tariff name containing literal {{...}} is
+	// displayed as written, rather than interpreted as another variable.
+	replacer := strings.NewReplacer(replacements...)
 	template = strings.ReplaceAll(template, "\r\n", "\n")
 	lines := strings.Split(template, "\n")
 	clean := make([]string, 0, len(lines))
@@ -344,12 +362,11 @@ func buildPaymentNotificationMessageWithTemplate(
 		if (values["promo"] == "" && strings.Contains(line, "{{promo}}")) ||
 			(values["device"] == "" && strings.Contains(line, "{{device}}")) ||
 			(values["traffic"] == "" && strings.Contains(line, "{{traffic}}")) ||
-			(values["sub"] == "" && strings.Contains(line, "{{sub}}")) {
+			(values["sub"] == "" && strings.Contains(line, "{{sub}}")) ||
+			(values["plan_name"] == "" && strings.Contains(line, "{{plan_name}}")) {
 			continue
 		}
-		for name, value := range values {
-			line = strings.ReplaceAll(line, "{{"+name+"}}", html.EscapeString(value))
-		}
+		line = replacer.Replace(line)
 		clean = append(clean, line)
 	}
 	message := strings.TrimSpace(strings.Join(clean, "\n"))
@@ -357,6 +374,47 @@ func buildPaymentNotificationMessageWithTemplate(
 		message += "\n<b>Доп. трафик:</b> <b>" + html.EscapeString(trafficText) + "</b>"
 	}
 	return message
+}
+
+func (s PaymentService) paymentNotificationPlanName(purchase *database.Purchase) string {
+	var plans []runtimeconfig.PlanSettings
+	if s.runtimeSettings != nil {
+		plans = s.runtimeSettings.Snapshot().Plans
+	}
+	return notificationPlanName(purchase, plans)
+}
+
+func notificationPlanName(purchase *database.Purchase, plans []runtimeconfig.PlanSettings) string {
+	if purchase == nil || purchase.PurchaseKind == database.PurchaseKindExtraDevices || purchase.PurchaseKind == database.PurchaseKindExtraTraffic {
+		return ""
+	}
+	if purchase.PlanID != nil {
+		for _, plan := range plans {
+			if plan.ID == strings.TrimSpace(*purchase.PlanID) {
+				if name := strings.TrimSpace(plan.Name); name != "" {
+					return name
+				}
+				break
+			}
+		}
+	}
+	if purchase.Month > 0 || purchase.Days > 0 {
+		return formatTariffDuration(purchase.Month, purchase.Days)
+	}
+	return ""
+}
+
+func paymentNotificationPreviewPurchase(plans []runtimeconfig.PlanSettings) *database.Purchase {
+	purchase := &database.Purchase{Amount: 239, Currency: "RUB", Month: 3, PurchaseKind: database.PurchaseKindSubscription, ExtraDevices: 2}
+	for _, plan := range plans {
+		if plan.Enabled && strings.TrimSpace(plan.Name) != "" {
+			id := plan.ID
+			purchase.PlanID = &id
+			purchase.Month, purchase.Days = plan.Months, plan.Days
+			break
+		}
+	}
+	return purchase
 }
 
 func purchaseTrafficDescription(purchase *database.Purchase) string {
@@ -557,13 +615,11 @@ func (s PaymentService) SendPaymentNotificationPreview(ctx context.Context, opti
 	if token == "" || chatID == 0 {
 		return fmt.Errorf("бот уведомлений об оплате не настроен")
 	}
-	purchase := &database.Purchase{
-		Amount:       239,
-		Currency:     "RUB",
-		Month:        3,
-		PurchaseKind: database.PurchaseKindSubscription,
-		ExtraDevices: 2,
+	var plans []runtimeconfig.PlanSettings
+	if s.runtimeSettings != nil {
+		plans = s.runtimeSettings.Snapshot().Plans
 	}
+	purchase := paymentNotificationPreviewPurchase(plans)
 	promo := "PROMO20"
 	discount := 20
 	purchase.PromoCodeSnapshot = &promo
@@ -582,6 +638,7 @@ func (s PaymentService) SendPaymentNotificationPreview(ctx context.Context, opti
 		time.Now(),
 		532,
 		timezone,
+		notificationPlanName(purchase, plans),
 	)
 	panelUserID := s.paymentNotificationPanelUserID(previewCtx, nil, options.Customer)
 	keyboard := buildPaymentNotificationKeyboard(options.Settings, panelUserID, username)

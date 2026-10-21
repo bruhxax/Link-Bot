@@ -17,6 +17,77 @@ import (
 	"link-bot/internal/runtimeconfig"
 )
 
+func TestPaymentNotificationPlanNameUsesExactPlanAndPreservesDurationVariable(t *testing.T) {
+	plans := []runtimeconfig.PlanSettings{
+		{ID: "limited", Name: "Старт", Months: 1, Enabled: true},
+		{ID: "unlimited", Name: "  Премиум <VIP> & {{price}}  ", Months: 1, Enabled: true},
+		{ID: "archived", Name: "Архивный тариф", Months: 1, Enabled: false},
+		{ID: "unnamed", Months: 1, Enabled: true},
+	}
+	for _, tc := range []struct {
+		id   string
+		want string
+	}{
+		{"limited", "Старт"},
+		{"unlimited", "Премиум &lt;VIP&gt; &amp; {{price}}"},
+		{"archived", "Архивный тариф"},
+		{"unnamed", "1 месяц"},
+		{"removed", "1 месяц"},
+		{"", "1 месяц"},
+	} {
+		t.Run(tc.id, func(t *testing.T) {
+			purchase := &database.Purchase{PlanID: &tc.id, Month: 1, Amount: 300, Currency: "RUB"}
+			message := buildPaymentNotificationMessageWithTemplate(
+				"Тариф: <b>{{plan_name}}</b>\nСрок: {{sub}}\nЦена: {{price}}", purchase, "user", "Smerch", time.Unix(0, 0), 42, "UTC", notificationPlanName(purchase, plans),
+			)
+			want := "Тариф: <b>" + tc.want + "</b>\nСрок: 1 месяц\nЦена: 300 RUB"
+			if message != want {
+				t.Fatalf("got %q, want %q", message, want)
+			}
+		})
+	}
+}
+
+func TestPaymentNotificationPlanNameHandlesGiftsDailyAndAddonPurchases(t *testing.T) {
+	id := "gift_week"
+	plans := []runtimeconfig.PlanSettings{{ID: id, Name: "Неделя свободы", Days: 7}}
+	for _, kind := range []database.PurchaseKind{database.PurchaseKindSubscription, database.PurchaseKindGift, database.PurchaseKindExtraDevices, database.PurchaseKindExtraTraffic} {
+		purchase := &database.Purchase{PlanID: &id, Days: 7, PurchaseKind: kind, Amount: 99, Currency: "RUB"}
+		message := buildPaymentNotificationMessageWithTemplate("Тариф: {{plan_name}}\nЦена: {{price}}", purchase, "", "YooKassa", time.Unix(0, 0), 42, "UTC", notificationPlanName(purchase, plans))
+		want := "Тариф: Неделя свободы\nЦена: 99 RUB"
+		if kind == database.PurchaseKindExtraDevices || kind == database.PurchaseKindExtraTraffic {
+			want = "Цена: 99 RUB"
+		}
+		if message != want {
+			t.Errorf("%s: %q, want %q", kind, message, want)
+		}
+	}
+	purchase := &database.Purchase{Days: 7}
+	if got := notificationPlanName(purchase, plans); got != "7 дней" {
+		t.Fatalf("unnamed daily fallback: %q", got)
+	}
+}
+
+func TestPaymentNotificationPreviewUsesConfiguredPlanName(t *testing.T) {
+	plans := []runtimeconfig.PlanSettings{
+		{ID: "old", Name: "Скрытый тариф", Months: 1},
+		{ID: "unnamed", Enabled: true, Months: 3},
+		{ID: "vip", Name: "Премиум", Enabled: true, Days: 7},
+	}
+	purchase := paymentNotificationPreviewPurchase(plans)
+	if purchase.PlanID == nil || *purchase.PlanID != "vip" || purchase.Days != 7 || purchase.Month != 0 {
+		t.Fatalf("incorrect preview purchase: %+v", purchase)
+	}
+	message := buildPaymentNotificationMessageWithTemplate("{{plan_name}} · {{sub}}", purchase, "", "Smerch", time.Unix(0, 0), 42, "UTC", notificationPlanName(purchase, plans))
+	if message != "Премиум · 7 дней" {
+		t.Fatalf("incorrect named preview: %q", message)
+	}
+	unnamed := paymentNotificationPreviewPurchase(nil)
+	if got := notificationPlanName(unnamed, nil); got != "3 месяца" {
+		t.Fatalf("preview fallback: %q", got)
+	}
+}
+
 func TestPaymentNotificationsUseGroupsInsteadOfPrivateChat(t *testing.T) {
 	ordinary := integrations.NotificationGroup{ChatID: -1001, Title: "Payments"}
 	forum := integrations.NotificationGroup{ChatID: -1002, Title: "Forum", IsForum: true, ThreadID: 42}

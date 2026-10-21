@@ -23,6 +23,7 @@ func TestPaymentNotificationEditorWiresSettingsAndPreview(t *testing.T) {
 		"{{integration}}",
 		"{{promo}}",
 		"{{sub}}",
+		"{{plan_name}}",
 		"{{username}}",
 		"{{number}}",
 		"{{price}}",

@@ -107,6 +107,7 @@ func (s PaymentService) sendP2PReviewNotification(ctx context.Context, purchase 
 		request.SubmittedAt,
 		orderNumber,
 		timezone,
+		s.paymentNotificationPlanName(purchase),
 	)
 	message := buildP2PReviewNotificationMessage(base, request)
 	message += "\n\n📦 <b>Заказ:</b> " + html.EscapeString(purchaseOrderDescription(purchase))
