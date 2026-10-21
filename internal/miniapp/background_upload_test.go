@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"mime/multipart"
 	"net"
 	"net/http"
@@ -55,6 +56,158 @@ func TestCustomBackgroundUploadAndPublicServing(t *testing.T) {
 		if result.Code != 404 {
 			t.Fatal("invalid upload path accepted")
 		}
+	}
+}
+
+func TestBackgroundUploadWithoutSystemTempDir(t *testing.T) {
+	initMiniAppTestConfig()
+	root := t.TempDir()
+	missingTemp := filepath.Join(root, "no-system-temp")
+	for _, key := range []string{"TMPDIR", "TMP", "TEMP"} {
+		t.Setenv(key, missingTemp)
+	}
+	cases := []struct {
+		name, kind string
+		size       int
+		header     []byte
+	}{
+		{"clip.webm", "video", 3_733_315, []byte{0x1a, 0x45, 0xdf, 0xa3}},
+		{"clip.mp4", "video", 24_381_533, append([]byte{0, 0, 0, 24}, []byte("ftypisom00000000")...)},
+		{"animation.gif", "gif", (2 << 20) + 1, testBannerGIF(t)},
+		{"photo.png", "image", (2 << 20) + 1, testLogoPNG(t, 2, 2)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			data := make([]byte, tc.size)
+			copy(data, tc.header)
+			var body bytes.Buffer
+			form := multipart.NewWriter(&body)
+			form.WriteField("description", "A background file")
+			file, err := form.CreateFormFile("background", tc.name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			file.Write(data)
+			form.Close()
+			req := httptest.NewRequest(http.MethodPost, "/api/mini-app/admin/background/upload", &body)
+			req.Header.Set("Content-Type", form.FormDataContentType())
+			h := &Handler{logoUploadDir: filepath.Join(root, tc.name+"-uploads")}
+			result := httptest.NewRecorder()
+			h.handleAdminBackgroundUpload(result, req, &session{User: telegramUser{ID: 1}}, nil)
+			if result.Code != http.StatusOK {
+				t.Fatalf("upload without system temp: %d %s", result.Code, result.Body.String())
+			}
+			var payload struct{ Data struct{ URL, Type string } }
+			if err := json.Unmarshal(result.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.Data.Type != tc.kind {
+				t.Fatalf("type = %q, want %q", payload.Data.Type, tc.kind)
+			}
+			stored, err := os.ReadFile(filepath.Join(h.logoUploadDir, filepath.Base(payload.Data.URL)))
+			if err != nil || !bytes.Equal(stored, data) {
+				t.Fatalf("stored media differs: %v", err)
+			}
+		})
+	}
+	if _, err := os.Stat(missingTemp); !os.IsNotExist(err) {
+		t.Fatalf("uploader should not require a system temp directory: %v", err)
+	}
+}
+
+type backgroundZeroReader struct{}
+
+func (backgroundZeroReader) Read(data []byte) (int, error) {
+	clear(data)
+	return len(data), nil
+}
+
+func TestBackgroundUploadSizeBoundary(t *testing.T) {
+	initMiniAppTestConfig()
+	h := &Handler{logoUploadDir: t.TempDir()}
+	for _, size := range []int64{maxBackgroundSize, maxBackgroundSize + 1} {
+		var framing bytes.Buffer
+		form := multipart.NewWriter(&framing)
+		file, err := form.CreateFormFile("background", "large.mp4")
+		if err != nil {
+			t.Fatal(err)
+		}
+		header := append([]byte{0, 0, 0, 24}, []byte("ftypisom00000000")...)
+		file.Write(header)
+		prefixSize := framing.Len()
+		form.Close()
+		body := io.MultiReader(bytes.NewReader(framing.Bytes()[:prefixSize]), io.LimitReader(backgroundZeroReader{}, size-int64(len(header))), bytes.NewReader(framing.Bytes()[prefixSize:]))
+		req := httptest.NewRequest(http.MethodPost, "/api/mini-app/admin/background/upload", body)
+		req.Header.Set("Content-Type", form.FormDataContentType())
+		result := httptest.NewRecorder()
+		h.handleAdminBackgroundUpload(result, req, &session{User: telegramUser{ID: 1}}, nil)
+		want := http.StatusOK
+		if size > maxBackgroundSize {
+			want = http.StatusRequestEntityTooLarge
+		}
+		if result.Code != want {
+			t.Fatalf("size %d: %d %s, want %d", size, result.Code, result.Body.String(), want)
+		}
+	}
+}
+
+func TestBackgroundUploadMultipartErrors(t *testing.T) {
+	initMiniAppTestConfig()
+	for _, name := range []string{"missing", "duplicate", "truncated", "request-too-large"} {
+		t.Run(name, func(t *testing.T) {
+			var body bytes.Buffer
+			form := multipart.NewWriter(&body)
+			if name == "request-too-large" {
+				field, err := form.CreateFormField("description")
+				if err != nil {
+					t.Fatal(err)
+				}
+				io.CopyN(field, backgroundZeroReader{}, maxBackgroundSize+(512<<10))
+			} else if name == "missing" {
+				form.WriteField("background", "not a file")
+			} else {
+				file, _ := form.CreateFormFile("background", "image.png")
+				file.Write(testLogoPNG(t, 2, 2))
+				if name == "duplicate" {
+					file, _ = form.CreateFormFile("background", "other.png")
+					file.Write(testLogoPNG(t, 3, 3))
+				}
+			}
+			form.Close()
+			data := body.Bytes()
+			if name == "truncated" {
+				data = data[:len(data)-20]
+			}
+			req := httptest.NewRequest(http.MethodPost, "/api/mini-app/admin/background/upload", bytes.NewReader(data))
+			req.Header.Set("Content-Type", form.FormDataContentType())
+			result := httptest.NewRecorder()
+			dir := t.TempDir()
+			h := &Handler{logoUploadDir: dir}
+			h.handleAdminBackgroundUpload(result, req, &session{User: telegramUser{ID: 1}}, nil)
+			want := http.StatusBadRequest
+			if name == "request-too-large" {
+				want = http.StatusRequestEntityTooLarge
+			}
+			if result.Code != want {
+				t.Fatalf("%d %s, want %d", result.Code, result.Body.String(), want)
+			}
+			if name != "request-too-large" && strings.Contains(result.Body.String(), "50 МБ") {
+				t.Fatal("a malformed request was reported as a size limit")
+			}
+			files, err := os.ReadDir(dir)
+			if err != nil || len(files) != 0 {
+				t.Fatalf("failed request left uploaded files: %v", err)
+			}
+		})
+	}
+}
+
+func TestBackgroundHTMLPageHasActionableError(t *testing.T) {
+	h := &Handler{logoUploadDir: t.TempDir()}
+	result := httptest.NewRecorder()
+	h.saveBackgroundResponse(result, []byte("<!doctype html><html><body>A sharing page, not a media file</body></html>"))
+	if result.Code != http.StatusUnsupportedMediaType || !strings.Contains(result.Body.String(), "веб-страница") {
+		t.Fatalf("HTML page: %d %s", result.Code, result.Body.String())
 	}
 }
 

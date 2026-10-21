@@ -30,6 +30,7 @@ var errBackgroundFormat = errors.New("Используйте изображен�
 var errBackgroundSize = errors.New("Фон должен быть не больше 50 МБ")
 var errBackgroundDimensions = errors.New("Слишком большое изображение: максимум 8192 пикселя по стороне и 16 мегапикселей")
 var errBackgroundGIF = errors.New("Не удалось прочитать GIF или анимация слишком тяжёлая. Уменьшите размер и число кадров или используйте MP4")
+var errBackgroundMissing = errors.New("background file missing")
 
 func (h *Handler) handleAdminBackgroundUpload(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
 	if !sess.isAdministrator() {
@@ -41,23 +42,64 @@ func (h *Handler) handleAdminBackgroundUpload(w http.ResponseWriter, r *http.Req
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxBackgroundSize+(512<<10))
-	if err := r.ParseMultipartForm(2 << 20); err != nil {
-		h.writeError(w, 400, "background_upload_invalid", "Не удалось прочитать файл. Максимум 50 МБ")
-		return
-	}
-	defer r.MultipartForm.RemoveAll()
-	file, _, err := r.FormFile("background")
+	data, err := readBackgroundMultipart(r)
 	if err != nil {
-		h.writeError(w, 400, "background_missing", "Выберите файл фона")
-		return
-	}
-	defer file.Close()
-	data, err := io.ReadAll(io.LimitReader(file, maxBackgroundSize+1))
-	if err != nil {
-		h.writeError(w, 400, "background_upload_invalid", "Не удалось прочитать файл")
+		var tooLarge *http.MaxBytesError
+		switch {
+		case errors.Is(err, errBackgroundSize), errors.As(err, &tooLarge):
+			h.writeError(w, http.StatusRequestEntityTooLarge, "background_too_large", errBackgroundSize.Error())
+		case errors.Is(err, errBackgroundMissing):
+			h.writeError(w, http.StatusBadRequest, "background_missing", "Выберите файл фона")
+		default:
+			h.writeError(w, http.StatusBadRequest, "background_upload_invalid", "Не удалось прочитать файл. Выберите его заново и повторите загрузку")
+		}
 		return
 	}
 	h.saveBackgroundResponse(w, data)
+}
+
+// ParseMultipartForm spills files larger than maxMemory into os.TempDir().
+// The scratch image has no system temp directory. Read the one media file
+// directly, with independent file and whole-request limits, without spooling.
+func readBackgroundMultipart(r *http.Request) ([]byte, error) {
+	reader, err := r.MultipartReader()
+	if err != nil {
+		return nil, err
+	}
+	var data []byte
+	found := false
+	for parts := 0; ; parts++ {
+		part, err := reader.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		if parts >= 32 {
+			return nil, errors.New("too many multipart parts")
+		}
+		if part.FormName() == "background" && part.FileName() != "" {
+			if found {
+				return nil, errors.New("multiple background files")
+			}
+			found = true
+			data, err = io.ReadAll(io.LimitReader(part, maxBackgroundSize+1))
+			if err == nil && int64(len(data)) > maxBackgroundSize {
+				err = errBackgroundSize
+			}
+		} else {
+			_, err = io.Copy(io.Discard, part)
+		}
+		if err != nil {
+			return nil, err
+		}
+		part.Close()
+	}
+	if !found {
+		return nil, errBackgroundMissing
+	}
+	return data, nil
 }
 
 func (h *Handler) handleAdminBackgroundImport(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
@@ -79,6 +121,10 @@ func (h *Handler) handleAdminBackgroundImport(w http.ResponseWriter, r *http.Req
 	}
 	data, err := downloadBackground(r.Context(), input.URL)
 	if err != nil {
+		if errors.Is(err, errBackgroundSize) {
+			h.writeError(w, http.StatusRequestEntityTooLarge, "background_too_large", errBackgroundSize.Error())
+			return
+		}
 		h.writeError(w, 400, "background_import_failed", "Не удалось загрузить фон: нужна доступная прямая HTTP/HTTPS-ссылка на файл до 50 МБ")
 		return
 	}
@@ -94,6 +140,9 @@ func (h *Handler) saveBackgroundResponse(w http.ResponseWriter, data []byte) {
 		}
 		if errors.Is(err, errBackgroundFormat) {
 			status, message = 415, err.Error()
+			if strings.HasPrefix(http.DetectContentType(data), "text/html") {
+				message = "Получена веб-страница вместо файла. Укажите прямую ссылку на изображение, GIF или видео"
+			}
 		}
 		if errors.Is(err, errBackgroundDimensions) || errors.Is(err, errBackgroundGIF) {
 			status, message = 400, err.Error()
