@@ -23,20 +23,20 @@ func (g *Gateway) PaymentChannels(ctx context.Context, method string) (paymentch
 		return catalog, fmt.Errorf("платёжная система выключена или не настроена")
 	}
 	if provider == ProviderSmerch {
-		methods, err := smerchPaymentMethods(cfg)
-		if err != nil {
-			return catalog, err
-		}
-		catalog.DefaultChannels = methods
-		if cfg["paymentMethods"] != "" {
-			catalog.Options = []paymentchannel.Option{}
-		}
-		for _, method := range methods {
-			if cfg["paymentMethods"] != "" || method != "sbp" && method != "crypto" {
+		// Old integration lists supply custom codes only; they never restrict
+		// a row's methods. The tariff editor owns all current selections.
+		var legacy []string
+		_ = json.Unmarshal([]byte(cfg["paymentMethods"]), &legacy)
+		legacy = append(legacy, cfg["paymentMethod"])
+		seen := map[string]bool{"sbp": true, "crypto": true}
+		for _, method := range legacy {
+			method = strings.TrimSpace(method)
+			if paymentchannel.Valid(provider, method) && !seen[method] {
 				catalog.Options = append(catalog.Options, paymentchannel.Option{ID: method, Name: paymentchannel.Label(provider, method)})
+				seen[method] = true
 			}
 		}
-		catalog.Note = "Способы, выбранные в интеграции Smerch. Можно оставить один для этой кнопки или создать отдельную копию."
+		catalog.Note = "Выберите метод для этой кнопки. Для отдельных кнопок СБП и криптовалюты создайте копию Smerch и назначьте каждой свой метод."
 		return catalog, nil
 	}
 	if provider == ProviderLava {

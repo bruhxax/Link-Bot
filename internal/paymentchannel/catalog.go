@@ -14,13 +14,12 @@ type Option struct {
 }
 
 type Catalog struct {
-	DefaultChannels []string `json:"defaultChannels,omitempty"`
-	Options         []Option `json:"options"`
-	Multiple        bool     `json:"multiple"`
-	Live            bool     `json:"live"`
-	Note            string   `json:"note,omitempty"`
-	Preference      bool     `json:"preference,omitempty"`
-	DefaultLabel    string   `json:"defaultLabel,omitempty"`
+	Options      []Option `json:"options"`
+	Multiple     bool     `json:"multiple"`
+	Live         bool     `json:"live"`
+	Note         string   `json:"note,omitempty"`
+	Preference   bool     `json:"preference,omitempty"`
+	DefaultLabel string   `json:"defaultLabel,omitempty"`
 }
 
 func Base(id string) string { return strings.SplitN(id, "__", 2)[0] }

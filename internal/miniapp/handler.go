@@ -3158,9 +3158,6 @@ func (h *Handler) handleAdminIntegrationUpdate(w http.ResponseWriter, r *http.Re
 		return
 	}
 	response := map[string]any{"ok": true, "message": "integration_updated", "data": view}
-	if strings.TrimSpace(req.Provider) == integrations.ProviderSmerch {
-		response["paymentChannels"] = h.checkoutPaymentChannels(r.Context())
-	}
 	// Checkout keeps its methods in the bootstrap snapshot. Return the current
 	// customer's methods so saving an integration updates checkout immediately.
 	if methods, err := h.availablePaymentMethods(r.Context(), customer); err == nil {
@@ -4630,7 +4627,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		Admin:           adminData,
 		Plans:           h.buildPlans(),
 		PaymentMethods:  mapPaymentMethods(allowedMethods, settings.PaymentMethodOrder),
-		PaymentChannels: h.checkoutPaymentChannels(ctx),
+		PaymentChannels: publicPaymentChannels(),
 		P2P:             h.buildP2PPaymentPayload(allowedMethods["p2p"]),
 		Links: linksPayload{
 			Support: h.runtimeLink("support", config.SupportURL()),

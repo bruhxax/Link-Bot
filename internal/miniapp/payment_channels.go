@@ -18,17 +18,6 @@ func publicPaymentChannels() map[string]paymentchannel.Catalog {
 	return result
 }
 
-func (h *Handler) checkoutPaymentChannels(ctx context.Context) map[string]paymentchannel.Catalog {
-	result := publicPaymentChannels()
-	// Smerch's catalog is local configuration: no provider request on bootstrap.
-	if h.paymentService != nil {
-		if catalog, err := h.paymentService.PaymentChannels(ctx, "smerch"); err == nil {
-			result["smerch"] = catalog
-		}
-	}
-	return result
-}
-
 func (h *Handler) handleAdminPaymentChannels(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
 	if !sess.isAdministrator() {
 		h.writeError(w, http.StatusForbidden, "forbidden", "Access denied")

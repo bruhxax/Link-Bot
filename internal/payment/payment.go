@@ -850,11 +850,7 @@ func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount fl
 		if methodErr != nil || expected != invoiceType {
 			return "", 0, fmt.Errorf("этот способ оплаты недоступен")
 		}
-		allowed, channelsErr := s.CheckoutChannels(ctx, method, settings.PaymentMethodVariants[options.PaymentMethodID].Channels)
-		if channelsErr != nil {
-			return "", 0, channelsErr
-		}
-		options.PaymentChannels, err = paymentchannel.Resolve(method, allowed, options.PaymentChannel)
+		options.PaymentChannels, err = paymentchannel.Resolve(method, settings.PaymentMethodVariants[options.PaymentMethodID].Channels, options.PaymentChannel)
 		if err != nil {
 			return "", 0, err
 		}

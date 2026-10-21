@@ -30,42 +30,26 @@ function harness(fields = {}) {
       return { data: { ...item, enabled: true, fields: item.fields.map(field => ({ ...field, value: field.secret ? undefined : draft.fields[field.key], configured: field.secret })) }, paymentMethods: [{ id: 'smerch' }], paymentChannels: { smerch: { defaultChannels: ['sbp', 'crypto'] } } };
     },
   });
-  for (const name of ['smerchIntegrationMethods', 'updateSmerchIntegrationMethod', 'syncSmerchIntegrationDraft', 'renderSmerchIntegrationMethods', 'renderSmerchAdvancedFields', 'renderAdminIntegrationField', 'renderAdminIntegrationRow', 'saveAdminIntegration']) load(context, name);
+  for (const name of ['renderSmerchAdvancedFields', 'renderAdminIntegrationField', 'renderAdminIntegrationRow', 'saveAdminIntegration']) load(context, name);
   return { context, state, draft, item, requests, renders };
 }
 
-test('Smerch offers both checkboxes and keeps optional signature fields collapsed', () => {
-  const h = harness();
+test('Smerch integration has credentials and no duplicate method controls', () => {
+  const h = harness({ paymentMethod: 'sbp', paymentMethods: '["sbp","crypto"]' });
   const html = h.context.renderAdminIntegrationRow(h.item);
-  assert.match(html, /data-smerch-method="sbp" checked/);
-  assert.match(html, /data-smerch-method="crypto" checked/);
+  assert.match(html, /data-integration-field="apiKey"/);
   assert.match(html, /<details class="admin-smerch-advanced"><summary>/);
   assert.match(html, /Заполнять необязательно/);
-  assert.doesNotMatch(html, /data-integration-field="paymentMethod"/);
+  assert.doesNotMatch(html, /data-smerch-method|data-smerch-other-methods|data-integration-field="paymentMethods?"/);
   assert.doesNotMatch(html, /Секрет вебхука \*/);
 });
 
-test('legacy choice survives until changed and both rails are saved as a list', async () => {
-  const h = harness({ paymentMethod: 'sbp' });
-  assert.deepEqual([...h.context.smerchIntegrationMethods(h.draft)], ['sbp']);
-  h.state.adminPaymentChannelCatalog = { smerch: { defaultChannels: ['sbp'] } };
-  h.context.updateSmerchIntegrationMethod(h.draft, 'crypto', true);
+test('saving Smerch does not introduce method defaults or require a secret', async () => {
+  const h = harness();
   await h.context.saveAdminIntegration('smerch');
-  assert.deepEqual(JSON.parse(h.requests[0].body.fields.paymentMethods), ['sbp', 'crypto']);
-  assert.deepEqual(h.state.data.paymentChannels.smerch.defaultChannels, ['sbp', 'crypto']);
-  assert.deepEqual(h.state.adminPaymentChannelCatalog.smerch.defaultChannels, ['sbp', 'crypto']);
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].body.fields.paymentMethods, undefined);
+  assert.equal(h.requests[0].body.fields.webhookSecret, undefined);
   assert.equal(h.state.adminIntegrationDrafts.smerch.fields.apiKey, '');
   assert.ok(h.renders.every(options => options.preserveScroll));
-});
-
-test('unchecking rails and editing additional methods never restores an unchecked rail', () => {
-  const h = harness();
-  h.context.updateSmerchIntegrationMethod(h.draft, 'crypto', false);
-  h.draft.smerchOtherMethods = 'card_international, card_international';
-  h.context.syncSmerchIntegrationDraft(h.draft);
-  assert.deepEqual(JSON.parse(h.draft.fields.paymentMethods), ['sbp', 'card_international']);
-  h.context.updateSmerchIntegrationMethod(h.draft, 'sbp', false);
-  h.draft.smerchOtherMethods = '';
-  h.context.syncSmerchIntegrationDraft(h.draft);
-  assert.deepEqual(JSON.parse(h.draft.fields.paymentMethods), []);
 });

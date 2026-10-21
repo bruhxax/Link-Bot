@@ -292,7 +292,7 @@ func TestSmerchMethodEditorIncludesConfiguredMethodAndKeepsCopiesSeparate(t *tes
 	}
 }
 
-func TestSmerchSupportsMultipleIntegrationMethodsAndRequiresBuyerChoice(t *testing.T) {
+func TestSmerchTariffCopiesOwnTheirMethodsWithoutIntegrationRestrictions(t *testing.T) {
 	var calls int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
@@ -301,32 +301,34 @@ func TestSmerchSupportsMultipleIntegrationMethodsAndRequiresBuyerChoice(t *testi
 		if err := json.Unmarshal(raw, &payload); err != nil {
 			t.Fatal(err)
 		}
-		if payload["payment_method"] != "crypto" {
-			t.Errorf("selected method lost: %s", raw)
+		method, _ := payload["payment_method"].(string)
+		if method != "sbp" && method != "crypto" {
+			t.Errorf("invalid row method: %s", raw)
 		}
-		_, _ = w.Write([]byte(strings.ReplaceAll(smerchTestTransaction, `"sbp"`, `"crypto"`)))
+		_, _ = w.Write([]byte(strings.ReplaceAll(smerchTestTransaction, `"sbp"`, strconv.Quote(method))))
 	}))
 	defer server.Close()
 	g, cfg := smerchTestGateway(server.URL)
-	cfg["paymentMethods"] = `["sbp","crypto"]`
-	catalog, err := g.PaymentChannels(context.Background(), ProviderSmerch)
-	if err != nil || len(catalog.DefaultChannels) != 2 || len(catalog.Options) != 2 {
-		t.Fatalf("integration methods not exposed: %+v %v", catalog, err)
-	}
-	input := CreatePaymentRequest{Provider: ProviderSmerch, PurchaseID: 42, Amount: 170.5}
-	if _, err := g.Create(context.Background(), input); err == nil || calls != 0 {
-		t.Fatal("created invoice without buyer choice")
-	}
-	input.Channels = []string{"crypto"}
-	if _, err := g.Create(context.Background(), input); err != nil || calls != 1 {
-		t.Fatalf("selected crypto not created: %v", err)
-	}
+	// The previous interface could persist this list. It must not stop a
+	// crypto row selected in Tariffs from using the same integration.
 	cfg["paymentMethods"] = `["sbp"]`
-	if _, err := g.Create(context.Background(), input); err == nil || calls != 1 {
-		t.Fatal("disabled crypto created invoice")
+	catalog, err := g.PaymentChannels(context.Background(), ProviderSmerch)
+	if err != nil || len(catalog.Options) != 2 {
+		t.Fatalf("tariff editor lost methods: %+v %v", catalog, err)
 	}
-	if _, err := smerchPaymentMethods(map[string]string{"paymentMethods": "[]"}); err == nil {
-		t.Fatal("empty method list accepted")
+	for _, method := range []string{"crypto", "sbp"} {
+		input := CreatePaymentRequest{Provider: ProviderSmerch, PurchaseID: 42, Amount: 170.5, Channels: []string{method}}
+		if _, err := g.Create(context.Background(), input); err != nil {
+			t.Fatalf("tariff row %s failed: %v", method, err)
+		}
+	}
+	// An unconfigured row keeps the previous SBP fallback instead of adding
+	// another selection screen from obsolete integration settings.
+	if _, err := g.Create(context.Background(), CreatePaymentRequest{Provider: ProviderSmerch, PurchaseID: 42, Amount: 170.5}); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 3 || cfg["paymentMethod"] != "sbp" || cfg["paymentMethods"] != `["sbp"]` {
+		t.Fatal("tariff selection mutated shared settings")
 	}
 }
 

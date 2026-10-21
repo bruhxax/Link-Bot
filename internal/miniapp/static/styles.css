@@ -14492,12 +14492,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 :root .pay-logo-editor .pay-method-editor__hint { margin: 0; }
 :root .pay-logo-editor .is-error { color: #ee818b; }
 
-/* Smerch: selectable payment rails and optional signature settings. */
-.admin-smerch-methods { margin: 0; padding: 0; border: 0; min-width: 0; }
-.admin-smerch-methods legend { margin-bottom: 8px; font-size: 11px; font-weight: 700; }
-.admin-smerch-methods > div { display: flex; gap: 8px; flex-wrap: wrap; }
-.admin-smerch-methods > div > label { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 8px 12px; background: var(--control-bg); color: var(--text); border-radius: 10px; font-size: 12px; cursor: pointer; }
-.admin-smerch-methods input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
-.admin-smerch-methods details, .admin-smerch-advanced { margin-top: 12px; }
-.admin-smerch-methods summary, .admin-smerch-advanced summary { color: var(--muted); cursor: pointer; font-size: 11px; padding: 6px 0; }
-.admin-smerch-methods details .admin-field, .admin-smerch-advanced > .admin-integration__fields { margin-top: 8px; }
+/* Smerch signature settings are optional and collapsed by default. */
+.admin-smerch-advanced { margin-top: 12px; }
+.admin-smerch-advanced summary { color: var(--muted); cursor: pointer; font-size: 11px; padding: 6px 0; }
+.admin-smerch-advanced > .admin-integration__fields { margin-top: 8px; }

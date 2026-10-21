@@ -9,7 +9,7 @@ function harness(){
  const state={adminWorkspace:true,adminSection:'plans',adminSettingsDraft:settings,data:{wallet:{balanceCents:500}}};
  const c=vm.createContext({URL,state,settings,render(){},showToast(){},haptic(){},queueMicrotask:fn=>fn(),app:{querySelector:()=>null},requestModalClose:(name,closed)=>closed(),PAYMENT_LOGO_URLS:{card:'card.svg'},localizedText:ru=>ru,formatMoneyCents:cents=>String(cents),getRuntimeSettings:()=>settings,t:()=>({payMethodCard:'Карта',payMethodCardHint:'Системное описание',payMethodSbp:'СБП',payMethodSbpHint:'По номеру телефона'})});
  c.loadAdminPaymentChannels=async()=>{};
- for(const name of ['validPaymentLogoURL','renderAdminPaymentLogoEditor','paymentMethodBase','paymentChannelsFor','allowedPaymentChannels','renderPaymentMethodSettings','paymentMethodMeta','getAdminPaymentMethodEditor','openAdminPaymentMethodEditor','closeAdminPaymentMethodEditor','updateAdminPaymentMethodText','applyAdminPaymentMethodEditor','renderAdminPaymentChannels'])load(c,name);
+ for(const name of ['validPaymentLogoURL','renderAdminPaymentLogoEditor','paymentMethodBase','paymentChannelsFor','renderPaymentMethodSettings','paymentMethodMeta','getAdminPaymentMethodEditor','openAdminPaymentMethodEditor','closeAdminPaymentMethodEditor','updateAdminPaymentMethodText','applyAdminPaymentMethodEditor','renderAdminPaymentChannels'])load(c,name);
  c.getAdminPaymentMethods=()=>[...new Set(['card','sbp',...Object.keys(c.settings.paymentMethodVariants||{})])].map(id=>c.paymentMethodMeta(id));return c;
 }
 test('checkout uses per-field fallback and keeps provider IDs and logos',()=>{
@@ -116,21 +116,4 @@ test('Smerch copies retain independent captions, branding and allowed methods',(
  c.openAdminPaymentMethodEditor(id);c.state.adminPaymentMethodEditor.name='Криптовалюта';c.state.adminPaymentMethodEditor.channels=['crypto'];c.applyAdminPaymentMethodEditor();
  assert.equal(c.paymentMethodMeta(id).logo,'payment-smerch.png');assert.equal(c.paymentMethodMeta(id).label,'Криптовалюта');assert.equal(c.paymentMethodMeta('smerch').label,'Мой СБП');
  assert.deepEqual([...c.settings.paymentMethodVariants.smerch.channels],['sbp']);assert.deepEqual([...c.settings.paymentMethodVariants[id].channels],['crypto']);
-});
-
-test('Smerch integration defaults show a buyer choice without a per-row restriction',()=>{
- const c=harness();c.state.data.paymentChannels={smerch:{multiple:false,defaultChannels:['sbp','crypto'],options:[{id:'sbp',name:'СБП'},{id:'crypto',name:'Криптовалюта'}]}};
- for(const name of ['selectedPaymentChannel','requirePaymentChannel','confirmPaymentChannel'])load(c,name);
- let calls=0;c.startPayment=async()=>{calls++};c.getSelectedPaymentMethod=()=>({id:'smerch'});
- assert.equal(c.requirePaymentChannel('smerch',{mode:'purchase'}),true);
- c.confirmPaymentChannel('bank_card');assert.equal(calls,0);
- c.confirmPaymentChannel('crypto');assert.equal(calls,1);assert.equal(c.selectedPaymentChannel('smerch'),'crypto');
- c.state.data.paymentChannels.smerch={multiple:false,defaultChannels:['sbp'],options:[{id:'sbp',name:'СБП'}]};
- assert.equal(c.selectedPaymentChannel('smerch'),'');assert.equal(c.requirePaymentChannel('smerch',{}),false);
-});
-
-test('Smerch copies use their own methods while the integration supplies defaults',()=>{
- const c=harness();c.state.data.paymentChannels={smerch:{multiple:false,defaultChannels:['sbp','crypto'],options:[{id:'sbp',name:'СБП'},{id:'crypto',name:'Криптовалюта'}]}};
- c.settings.paymentMethodVariants={smerch__aabbccdd:{method:'smerch',channels:['crypto']}};
- assert.deepEqual([...c.allowedPaymentChannels('smerch__aabbccdd')],['crypto']);assert.deepEqual([...c.allowedPaymentChannels('smerch')],['sbp','crypto']);
 });

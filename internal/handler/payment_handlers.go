@@ -156,11 +156,6 @@ func (h Handler) PaymentCallbackHandler(ctx context.Context, b *bot.Bot, update 
 		return
 	}
 	channels := settings.PaymentMethodVariants[method].Channels
-	channels, err = h.paymentService.CheckoutChannels(ctx2, method, channels)
-	if err != nil {
-		_, _ = b.AnswerCallbackQuery(ctx2, &bot.AnswerCallbackQueryParams{CallbackQueryID: update.CallbackQuery.ID, Text: "Способы оплаты изменились. Выберите другую платёжку.", ShowAlert: true})
-		return
-	}
 	selectedChannel := ""
 	if value, selected := q["c"]; selected {
 		index, parseErr := strconv.Atoi(value)
