@@ -305,4 +305,3 @@ export const PRIVACY_ARTICLE = {
 		footer: "© 2026 Link-Bot. همه حقوق محفوظ است.",
 	},
 };
-
