@@ -424,9 +424,10 @@ var definitions = []ProviderDefinition{
 		WebsiteURL: "https://smerch.io",
 		Fields: []FieldDefinition{
 			{Key: "apiKey", Label: "API-ключ", Required: true, Secret: true, Placeholder: "live_...", Help: "Рабочий ключ из Smerch → Настройки → Интеграция и API. Он же используется для подписи запросов"},
-			{Key: "webhookSecret", Label: "Секрет вебхука", Required: true, Secret: true, Help: "Отдельный webhook secret Smerch. Скопируйте Webhook URL ниже в кабинет и включите transaction.status_updated"},
-			{Key: "webhookKeyId", Label: "ID ключа вебхука", Help: "Необязательно: ID webhook secret из кабинета Smerch, для плавной смены секрета"},
-			{Key: "paymentMethod", Label: "Код метода оплаты", Required: true, Placeholder: "sbp", Help: "sbp — СБП, crypto — криптовалюта. Другие коды скопируйте из кассы Smerch. Нужен метод с RUB и ссылкой оплаты; рекурренты не поддерживаются"},
+			{Key: "webhookSecret", Label: "Секрет вебхука (необязательно)", Secret: true, Help: "Если у вас уже есть отдельный webhook secret Smerch, можно добавить проверку подписи. Без него каждый платёж подтверждается защищённым запросом к API Smerch"},
+			{Key: "webhookKeyId", Label: "ID ключа вебхука", Help: "Заполняйте только вместе с секретом, если Smerch выдал его ID"},
+			{Key: "paymentMethods", Label: "Способы оплаты", Help: "Можно включить СБП и криптовалюту одновременно. Покупатель выберет способ перед оплатой. Методы должны быть подключены к кассе с RUB и платёжной ссылкой"},
+			{Key: "paymentMethod", Label: "Ранее выбранный метод"},
 		},
 	},
 	{

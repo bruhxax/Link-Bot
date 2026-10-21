@@ -23,11 +23,20 @@ func (g *Gateway) PaymentChannels(ctx context.Context, method string) (paymentch
 		return catalog, fmt.Errorf("платёжная система выключена или не настроена")
 	}
 	if provider == ProviderSmerch {
-		method := strings.TrimSpace(cfg["paymentMethod"])
-		if paymentchannel.Valid(provider, method) && method != "sbp" && method != "crypto" {
-			catalog.Options = append(catalog.Options, paymentchannel.Option{ID: method, Name: method + " · метод интеграции"})
+		methods, err := smerchPaymentMethods(cfg)
+		if err != nil {
+			return catalog, err
 		}
-		catalog.Note = "Методы должны быть подключены к кассе с RUB и ссылкой оплаты. Другой код метода можно указать в интеграции Smerch."
+		catalog.DefaultChannels = methods
+		if cfg["paymentMethods"] != "" {
+			catalog.Options = []paymentchannel.Option{}
+		}
+		for _, method := range methods {
+			if cfg["paymentMethods"] != "" || method != "sbp" && method != "crypto" {
+				catalog.Options = append(catalog.Options, paymentchannel.Option{ID: method, Name: paymentchannel.Label(provider, method)})
+			}
+		}
+		catalog.Note = "Способы, выбранные в интеграции Smerch. Можно оставить один для этой кнопки или создать отдельную копию."
 		return catalog, nil
 	}
 	if provider == ProviderLava {

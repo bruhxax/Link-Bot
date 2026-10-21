@@ -7092,7 +7092,43 @@ function renderAdminMoyNalogReceipt(receipt) {
 	return `<article class="admin-moynalog-receipt admin-moynalog-receipt--${escapeAttribute(receipt.status || "processing")}"><div class="admin-moynalog-receipt__main"><span><strong>${escapeHtml(receipt.itemName || "Чек")}</strong><small>#${Number(receipt.purchaseId || 0)} · ${escapeHtml(formatPaymentDate(receipt.updatedAt || receipt.createdAt))}</small></span><b>${Number(receipt.amount || 0).toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽</b></div><div class="admin-moynalog-receipt__state"><i>${escapeHtml(labels[receipt.status] || receipt.status || "—")}</i><span>${receipt.receiptUuid ? `UUID: ${escapeHtml(receipt.receiptUuid)}` : escapeHtml(receipt.error || "Ожидаем ответ ФНС")}</span>${canRetry ? `<button type="button" data-action="admin-moynalog-retry" data-value="${Number(receipt.purchaseId || 0)}" ${state.adminMoyNalogBusy ? "disabled" : ""}>Повторить</button>` : ""}</div></article>`;
 }
 
-function renderAdminIntegrationField(item, field, draft) {
+function smerchIntegrationMethods(draft) {
+	if (draft.fields.paymentMethods) {
+		try { const value = JSON.parse(draft.fields.paymentMethods); return Array.isArray(value) ? value : []; } catch { return []; }
+	}
+	return draft.fields.paymentMethod ? [draft.fields.paymentMethod] : ["sbp", "crypto"];
+}
+
+function updateSmerchIntegrationMethod(draft, method, checked) {
+	const methods = new Set(smerchIntegrationMethods(draft));
+	if (checked) methods.add(method); else methods.delete(method);
+	draft.fields.paymentMethods = JSON.stringify([...methods]);
+}
+
+function syncSmerchIntegrationDraft(draft) {
+	const methods = smerchIntegrationMethods(draft);
+	const extra = draft.smerchOtherMethods ?? methods.filter(id => id !== "sbp" && id !== "crypto").join(", ");
+	draft.fields.paymentMethods = JSON.stringify([...new Set([...methods.filter(id => id === "sbp" || id === "crypto"), ...extra.split(/[,;\s]+/).filter(Boolean)])]);
+}
+
+function renderSmerchIntegrationMethods(field, draft) {
+	const methods = smerchIntegrationMethods(draft);
+	const extra = draft.smerchOtherMethods ?? methods.filter(id => id !== "sbp" && id !== "crypto").join(", ");
+	return `<fieldset class="admin-field admin-smerch-methods"><legend>${escapeHtml(field.label)}</legend><div>${[["sbp", "СБП"], ["crypto", "Криптовалюта"]].map(([id, label]) => `<label><input type="checkbox" data-integration-provider="smerch" data-smerch-method="${id}" ${methods.includes(id) ? "checked" : ""}><span>${label}</span></label>`).join("")}</div><small>${escapeHtml(field.help || "")}</small><details><summary>Другие методы кассы</summary><label class="admin-field"><span>Коды через запятую</span><input class="admin-field__control" type="text" autocomplete="off" data-integration-provider="smerch" data-smerch-other-methods value="${escapeAttribute(extra)}" placeholder="Точные коды из Smerch"></label></details></fieldset>`;
+}
+
+function renderSmerchAdvancedFields(item, draft) {
+	const fields = (item.fields || []).filter(field => field.key === "webhookSecret" || field.key === "webhookKeyId");
+	return `<details class="admin-smerch-advanced"><summary>Дополнительно: подпись вебхука</summary><p class="note">Заполнять необязательно. Бот сверяет каждую оплату через API Smerch. Если отдельный секрет уже выдан вам Smerch, здесь можно включить дополнительную проверку подписи.</p><div class="admin-integration__fields">${fields.map(field => renderAdminIntegrationField(item, field, draft, true)).join("")}</div></details>`;
+}
+
+function renderAdminIntegrationField(item, field, draft, advanced = false) {
+	if (item.id === "smerch") {
+		if (field.key === "paymentMethod") return "";
+		if (field.key === "paymentMethods") return renderSmerchIntegrationMethods(field, draft);
+		if (!advanced && (field.key === "webhookSecret" || field.key === "webhookKeyId")) return "";
+	}
+
 	if (item.id === "payhot" && field.key === "paymentMethod") {
 		const methods = [["sbp", "СБП"], ["card", "Банковская карта"], ["sberpay", "SberPay"], ["crypto", "Криптовалюта"], ["applepay", "Apple Pay"], ["googlepay", "Google Pay"]];
 		const selected = draft.fields.paymentMethod || "sbp";
@@ -7112,7 +7148,7 @@ function renderAdminIntegrationRow(item) {
 		</button>
 		${open && item.unavailableReason ? `<div class="admin-integration__body"><p class="note">${escapeHtml(item.unavailableReason)}</p><a class="admin-integration__save" href="${escapeAttribute(item.websiteUrl)}" target="_blank" rel="noopener noreferrer">Сайт сервиса ${icon("external")}</a></div>` : open ? `<div class="admin-integration__body">
 			<label class="admin-integration__toggle"><span><strong>Включить интеграцию</strong><small>${item.kind === "payment" ? "Показывать этот способ оплаты" : "Отправлять уведомления об оплатах"}</small></span><input type="checkbox" data-integration-provider="${escapeAttribute(item.id)}" data-integration-enabled ${draft.enabled ? "checked" : ""}></label>
-			${item.id === "p2p" ? renderAdminP2PIntegrationFields(draft) : `<div class="admin-integration__fields">${(item.fields || []).map((field) => renderAdminIntegrationField(item, field, draft)).join("")}</div>`}
+			${item.id === "p2p" ? renderAdminP2PIntegrationFields(draft) : `<div class="admin-integration__fields">${(item.fields || []).map((field) => renderAdminIntegrationField(item, field, draft)).join("")}</div>`}${item.id === "smerch" ? renderSmerchAdvancedFields(item, draft) : ""}
 			${item.webhookUrl ? `<div class="admin-integration__webhook"><span>Webhook URL</span><code>${escapeHtml(item.webhookUrl)}</code><button type="button" data-action="admin-integration-copy-webhook" data-value="${escapeAttribute(item.webhookUrl)}" aria-label="Скопировать webhook">${icon("copy")}</button></div>` : ""}
 			<button class="admin-integration__save" type="button" data-action="admin-integration-save" data-value="${escapeAttribute(item.id)}" ${busy ? "disabled" : ""}><span>${busy ? "Сохраняем" : "Сохранить"}</span></button>
 		</div>` : ""}
@@ -12865,6 +12901,14 @@ function bindRootActions() {
 				draft.fields.paymentMethods = JSON.stringify([...selected].sort());
 				return;
 			}
+			if (integrationProvider === "smerch" && target.dataset.smerchMethod) {
+				updateSmerchIntegrationMethod(draft, target.dataset.smerchMethod, target.checked);
+				return;
+			}
+			if (integrationProvider === "smerch" && target.hasAttribute("data-smerch-other-methods")) {
+				draft.smerchOtherMethods = target.value;
+				return;
+			}
 			const p2pIndex = Number(target.dataset.p2pIndex);
 			const p2pField = target.dataset.p2pField;
 			if (integrationProvider === "p2p" && Number.isInteger(p2pIndex) && p2pIndex >= 0 && p2pField && draft.p2pDestinations?.[p2pIndex]) {
@@ -17874,6 +17918,7 @@ async function saveAdminIntegration(provider) {
 	const draft = state.adminIntegrationDrafts[provider];
 	if (!draft || state.adminIntegrationBusy) return;
 	if (provider === "p2p") syncP2PIntegrationDraft(draft);
+	if (provider === "smerch") syncSmerchIntegrationDraft(draft);
 	state.adminIntegrationBusy = provider;
 	render({ preserveScroll: true });
 	try {
@@ -17886,6 +17931,13 @@ async function saveAdminIntegration(provider) {
 		const index = integrations.findIndex((item) => item.id === provider);
 		if (index >= 0) integrations[index] = response.data;
 		if (Array.isArray(response.paymentMethods)) state.data.paymentMethods = response.paymentMethods;
+		if (response.paymentChannels && typeof response.paymentChannels === "object") {
+			state.data.paymentChannels = response.paymentChannels;
+			if (provider === "smerch" && response.paymentChannels.smerch) {
+				state.adminPaymentChannelCatalog ||= {};
+				state.adminPaymentChannelCatalog.smerch = response.paymentChannels.smerch;
+			}
+		}
 		const nextDraft = {
 			enabled: Boolean(response.data?.enabled),
 			fields: Object.fromEntries((response.data?.fields || []).map((field) => [field.key, field.secret ? "" : String(field.value || "")])),
@@ -19043,13 +19095,22 @@ function renderAdminPaymentChannels(editor) {
 	return `<section class="pay-channel-settings"><div class="pay-channel-settings__heading"><strong>Методы оплаты</strong><button type="button" data-action="admin-payment-channels-refresh" aria-label="Обновить методы" ${editor.loading ? "disabled" : ""}>${icon("refresh")}</button></div>${options.length || custom ? `<div class="pay-channel-mode"><button type="button" data-action="admin-payment-channel-mode" data-value="all" aria-pressed="${!custom}">${escapeHtml(catalog.defaultLabel || "Все способы")}</button><button type="button" data-action="admin-payment-channel-mode" data-value="custom" aria-pressed="${custom}" ${!options.length ? "disabled" : ""}>Выбрать методы</button></div>${custom ? `<div class="pay-channel-options">${[...options, ...removed.map(id => ({ id, name: `${id.replaceAll(":", " · ")} · сохранён ранее` }))].map(option => `<button type="button" class="pay-channel-chip" data-action="admin-payment-channel-toggle" data-value="${escapeAttribute(option.id)}" aria-pressed="${editor.channels.includes(option.id)}"><span>${escapeHtml(option.name)}</span><i aria-hidden="true">${editor.channels.includes(option.id) ? icon("check") : ""}</i></button>`).join("")}</div><p class="pay-method-editor__hint">${catalog.preference ? "Предпочтение передаётся платёжной системе. Другие способы могут остаться доступными." : catalog.multiple ? "В форме оплаты останутся выбранные методы." : "Один метод откроется сразу. Если выбрано несколько, покупатель выберет один перед оплатой."}</p>` : ""}` : ""}<p class="pay-method-editor__hint" role="status">${escapeHtml(editor.loading ? "Проверяем доступные методы…" : editor.error || catalog.note || "")}${catalog.live && !editor.loading ? " · Получено из кассы" : ""}</p>${paymentMethodBase(editor.id) !== editor.id ? `<button class="pay-method-editor__remove" type="button" data-action="admin-payment-method-remove">${icon("trash")} Удалить копию</button>` : ""}</section>`;
 }
 
+function allowedPaymentChannels(method) {
+	const explicit = getRuntimeSettings()?.paymentMethodVariants?.[method]?.channels || [];
+	const catalog = paymentChannelsFor(method);
+	if (paymentMethodBase(method) !== "smerch") return explicit;
+	if (!explicit.length) return catalog.defaultChannels || [];
+	const supported = new Set((catalog.options || []).map(option => option.id));
+	return explicit.filter(channel => supported.has(channel));
+}
+
 function selectedPaymentChannel(method) {
 	const choice = state.paymentChannelChoices?.[method] || "";
-	return (getRuntimeSettings()?.paymentMethodVariants?.[method]?.channels || []).includes(choice) ? choice : "";
+	return allowedPaymentChannels(method).includes(choice) ? choice : "";
 }
 
 function requirePaymentChannel(method, context) {
-	const allowed = getRuntimeSettings()?.paymentMethodVariants?.[method]?.channels || [];
+	const allowed = allowedPaymentChannels(method);
 	if (allowed.length <= 1 || paymentChannelsFor(method).multiple || selectedPaymentChannel(method)) return false;
 	state.payChannelSelection = { method, context };
 	state.payModalOpen = true;
@@ -19061,14 +19122,14 @@ function renderPaymentChannelSelection() {
 	const selection = state.payChannelSelection;
 	if (!selection) return "";
 	const method = paymentMethodMeta(selection.method);
-	const allowed = getRuntimeSettings()?.paymentMethodVariants?.[selection.method]?.channels || [];
+	const allowed = allowedPaymentChannels(selection.method);
 	const catalog = paymentChannelsFor(selection.method);
 	return `<div class="modal modal--payment-methods open ${modalStateClass("pay")}" role="dialog" aria-modal="true" aria-labelledby="pay-channel-title"><button class="modal__backdrop" type="button" data-action="close-pay-modal" aria-label="Закрыть"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title" id="pay-channel-title">${escapeHtml(method?.label || "Способ оплаты")}</div><button class="header__btn" type="button" data-action="close-pay-modal" aria-label="Закрыть">${icon("close")}</button></div><div class="menu-list">${allowed.map(channel => `<button class="pay-row" type="button" data-action="select-payment-channel" data-value="${escapeAttribute(channel)}"><span class="pay-row__icon pay-row__icon--brand">${renderPaymentMethodLogo(method)}</span><span class="pay-row__copy"><strong>${escapeHtml(catalog.options?.find(option => option.id === channel)?.name || channel.replaceAll(":", " · "))}</strong></span><span class="pay-row__check">${icon("arrow")}</span></button>`).join("")}</div></div></div>`;
 }
 
 function confirmPaymentChannel(channel) {
 	const selection = state.payChannelSelection;
-	if (!selection || !(getRuntimeSettings()?.paymentMethodVariants?.[selection.method]?.channels || []).includes(channel)) return;
+	if (!selection || !allowedPaymentChannels(selection.method).includes(channel)) return;
 	state.paymentChannelChoices ||= {};
 	state.paymentChannelChoices[selection.method] = channel;
 	return requestModalClose("pay", () => {

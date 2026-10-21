@@ -57,6 +57,9 @@ func TestGatewaySendsConfiguredChannelsToEverySupportedAPI(t *testing.T) {
 					cfg[field.Key] = "fixture"
 				}
 			}
+			if tc.provider == ProviderSmerch {
+				cfg["paymentMethods"] = ""
+			}
 			service := &Service{baseURL: "https://vpn.example", records: map[string]record{tc.provider: {Enabled: true, Config: cfg}}}
 			calls := 0
 			g := NewGateway(service)

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -51,11 +52,11 @@ func (e *SmerchPaymentError) AdminMessage() string {
 }
 
 func normalizeSmerchConfig(cfg map[string]string) error {
-	method := strings.TrimSpace(firstNonEmpty(cfg["paymentMethod"], "sbp"))
-	if !paymentchannel.Valid(ProviderSmerch, method) {
-		return errors.New("Smerch: укажите код разового метода оплаты из кабинета, например sbp или crypto")
+	methods, err := smerchPaymentMethods(cfg)
+	if err != nil {
+		return err
 	}
-	cfg["paymentMethod"] = method
+	cfg["paymentMethod"] = methods[0]
 	if strings.HasPrefix(cfg["apiKey"], "test_") {
 		return errors.New("Smerch: нужен рабочий API-ключ live_; тестовые платежи не оплачивают подписку")
 	}
@@ -63,6 +64,33 @@ func normalizeSmerchConfig(cfg map[string]string) error {
 		return errors.New("Smerch: некорректный ID ключа вебхука")
 	}
 	return nil
+}
+
+func smerchPaymentMethods(cfg map[string]string) ([]string, error) {
+	var methods []string
+	if raw := strings.TrimSpace(cfg["paymentMethods"]); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &methods); err != nil {
+			return nil, errors.New("Smerch: выберите способы оплаты")
+		}
+	} else if legacy := strings.TrimSpace(cfg["paymentMethod"]); legacy != "" {
+		methods = []string{legacy}
+	} else {
+		methods = []string{"sbp", "crypto"}
+	}
+	if len(methods) == 0 || len(methods) > 20 {
+		return nil, errors.New("Smerch: выберите хотя бы один способ оплаты (не более 20)")
+	}
+	result := make([]string, 0, len(methods))
+	for _, method := range methods {
+		method = strings.TrimSpace(method)
+		if !paymentchannel.Valid(ProviderSmerch, method) {
+			return nil, errors.New("Smerch: некорректный код разового метода оплаты")
+		}
+		if !slices.Contains(result, method) {
+			result = append(result, method)
+		}
+	}
+	return result, nil
 }
 
 type smerchTransaction struct {
@@ -120,8 +148,22 @@ func validSmerchTransaction(t smerchTransaction) bool {
 }
 
 func (g *Gateway) createSmerch(ctx context.Context, cfg map[string]string, input CreatePaymentRequest) (CreatedPayment, error) {
+	methods, err := smerchPaymentMethods(cfg)
+	if err != nil {
+		return CreatedPayment{}, err
+	}
 	if err := normalizeSmerchConfig(cfg); err != nil {
 		return CreatedPayment{}, err
+	}
+	if len(input.Channels) > 0 {
+		// Old single-method settings were a default, not a restriction on
+		// per-row methods. Preserve those rows until the new list is saved.
+		if cfg["paymentMethods"] != "" && !slices.Contains(methods, input.Channels[0]) {
+			return CreatedPayment{}, errors.New("Smerch: этот способ оплаты выключен в интеграции")
+		}
+		cfg["paymentMethod"] = input.Channels[0]
+	} else if len(methods) > 1 {
+		return CreatedPayment{}, errors.New("Smerch: выберите способ оплаты")
 	}
 	if input.PurchaseID <= 0 || input.Currency != "RUB" || input.Amount <= 0 || math.IsNaN(input.Amount) || math.IsInf(input.Amount, 0) || input.Amount*100 > 1<<53-1 {
 		return CreatedPayment{}, errors.New("invalid Smerch order or RUB amount")
@@ -208,8 +250,10 @@ func (g *Gateway) parseSmerchWebhook(ctx context.Context, cfg map[string]string,
 	if err := normalizeSmerchConfig(cfg); err != nil {
 		return invalid(err)
 	}
-	if err := verifySmerchWebhook(cfg, headers, raw, time.Now()); err != nil {
-		return invalid(err)
+	if cfg["webhookSecret"] != "" {
+		if err := verifySmerchWebhook(cfg, headers, raw, time.Now()); err != nil {
+			return invalid(err)
+		}
 	}
 	var payload struct {
 		Event       string            `json:"event"`

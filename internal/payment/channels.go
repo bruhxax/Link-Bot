@@ -2,10 +2,36 @@ package payment
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"link-bot/internal/paymentchannel"
 )
+
+// CheckoutChannels applies the integration defaults to unrestricted Smerch
+// rows and checks explicit copies against the currently enabled methods.
+func (s PaymentService) CheckoutChannels(ctx context.Context, method string, explicit []string) ([]string, error) {
+	if paymentchannel.Provider(method) != "smerch" {
+		return explicit, nil
+	}
+	catalog, err := s.PaymentChannels(ctx, method)
+	if err != nil {
+		return nil, err
+	}
+	if len(explicit) == 0 {
+		return append([]string(nil), catalog.DefaultChannels...), nil
+	}
+	for _, channel := range explicit {
+		found := false
+		for _, option := range catalog.Options {
+			found = found || option.ID == channel
+		}
+		if !found {
+			return nil, fmt.Errorf("Smerch: способ оплаты изменился; выберите его снова")
+		}
+	}
+	return explicit, nil
+}
 
 func firstPaymentChannel(channels []string) string {
 	if len(channels) > 0 {

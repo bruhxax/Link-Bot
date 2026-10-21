@@ -291,3 +291,82 @@ func TestSmerchMethodEditorIncludesConfiguredMethodAndKeepsCopiesSeparate(t *tes
 		t.Fatal("checkout escaped the row's allowed methods")
 	}
 }
+
+func TestSmerchSupportsMultipleIntegrationMethodsAndRequiresBuyerChoice(t *testing.T) {
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		raw := assertSmerchRequest(t, r)
+		var payload map[string]any
+		if err := json.Unmarshal(raw, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload["payment_method"] != "crypto" {
+			t.Errorf("selected method lost: %s", raw)
+		}
+		_, _ = w.Write([]byte(strings.ReplaceAll(smerchTestTransaction, `"sbp"`, `"crypto"`)))
+	}))
+	defer server.Close()
+	g, cfg := smerchTestGateway(server.URL)
+	cfg["paymentMethods"] = `["sbp","crypto"]`
+	catalog, err := g.PaymentChannels(context.Background(), ProviderSmerch)
+	if err != nil || len(catalog.DefaultChannels) != 2 || len(catalog.Options) != 2 {
+		t.Fatalf("integration methods not exposed: %+v %v", catalog, err)
+	}
+	input := CreatePaymentRequest{Provider: ProviderSmerch, PurchaseID: 42, Amount: 170.5}
+	if _, err := g.Create(context.Background(), input); err == nil || calls != 0 {
+		t.Fatal("created invoice without buyer choice")
+	}
+	input.Channels = []string{"crypto"}
+	if _, err := g.Create(context.Background(), input); err != nil || calls != 1 {
+		t.Fatalf("selected crypto not created: %v", err)
+	}
+	cfg["paymentMethods"] = `["sbp"]`
+	if _, err := g.Create(context.Background(), input); err == nil || calls != 1 {
+		t.Fatal("disabled crypto created invoice")
+	}
+	if _, err := smerchPaymentMethods(map[string]string{"paymentMethods": "[]"}); err == nil {
+		t.Fatal("empty method list accepted")
+	}
+}
+
+func TestSmerchWithoutWebhookSecretStillRequiresAuthenticatedPaymentConfirmation(t *testing.T) {
+	current := smerchTestTransaction
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		assertSmerchRequest(t, r)
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/integration/transactions/"+smerchTestID {
+			t.Error("callback bypassed API verification")
+		}
+		_, _ = w.Write([]byte(current))
+	}))
+	defer server.Close()
+	g, cfg := smerchTestGateway(server.URL)
+	delete(cfg, "webhookSecret")
+	if !configured(ProviderSmerch, map[string]string{"apiKey": "live_fixture"}) {
+		t.Fatal("webhook secret is still mandatory")
+	}
+	raw := []byte(`{"event":"transaction.status_updated","transaction":` + smerchTestTransaction + `}`)
+	event, err := g.HandleWebhook(context.Background(), ProviderSmerch, nil, raw, nil)
+	if err != nil || !event.Paid || event.PurchaseID != 42 || calls != 1 {
+		t.Fatalf("verified live payment rejected: %+v %v", event, err)
+	}
+	current = strings.ReplaceAll(smerchTestTransaction, `"42"`, `"99"`)
+	if event, err := g.HandleWebhook(context.Background(), ProviderSmerch, nil, raw, nil); err == nil || event.Paid {
+		t.Fatal("forged order granted purchase")
+	}
+	current = strings.ReplaceAll(smerchTestTransaction, `"paid"`, `"pending"`)
+	if event, err := g.HandleWebhook(context.Background(), ProviderSmerch, nil, raw, nil); err == nil || event.Paid {
+		t.Fatal("unpaid transaction granted purchase")
+	}
+	current = strings.ReplaceAll(smerchTestTransaction, `"paid"`, `"refunded"`)
+	if event, err := g.HandleWebhook(context.Background(), ProviderSmerch, nil, raw, nil); err != nil || event.Paid || !event.Ignored {
+		t.Fatal("refund granted purchase")
+	}
+	cfg["webhookSecret"] = "fixture-webhook-secret"
+	before := calls
+	if _, err := g.HandleWebhook(context.Background(), ProviderSmerch, nil, raw, nil); !errors.Is(err, ErrInvalidSmerchWebhook) || calls != before {
+		t.Fatal("configured signature can be bypassed")
+	}
+}
