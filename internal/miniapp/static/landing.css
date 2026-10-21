@@ -196,3 +196,34 @@ h2{margin:0 0 9px;font-size:clamp(26px,4vw,40px);line-height:1.2;font-weight:700
   .plan-card__price{order:3;margin:auto 0 0;padding-top:14px;font-size:13px;font-weight:800;line-height:1.15;overflow-wrap:anywhere}
   .plan-card__unlimited-badge{position:absolute;top:0;right:0;display:flex;align-items:center;justify-content:center;width:60px;height:24px;padding:0 6px;border-radius:0 8px 0 12px;background:color-mix(in srgb,var(--accent) 24%,var(--surface));color:var(--text);font-size:8px;font-weight:800;line-height:1;white-space:nowrap}
 }
+
+/* Small document links stay at the very end of the landing page. */
+.legal-footer{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;padding:0 0 calc(34px + env(safe-area-inset-bottom,0px))}
+.legal-footer__button{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:color-mix(in srgb,var(--surface) 78%,transparent);color:var(--muted);font-size:10px;line-height:1.5;text-align:center;transition:color .18s,border-color .18s,background .18s}
+.legal-footer__button:hover{color:var(--text);border-color:color-mix(in srgb,var(--accent) 45%,var(--border))}
+.legal-screen{width:min(800px,calc(100% - 32px));max-width:none;height:min(86dvh,960px);max-height:calc(100dvh - 32px);margin:auto;padding:0;overflow:hidden;border:1px solid var(--border);border-radius:22px;background:var(--surface);color:var(--text);box-shadow:0 24px 100px #0008}
+.legal-screen:not([open]){display:none}
+.legal-screen[open]{display:flex;flex-direction:column;animation:legal-screen-in .2s ease-out}
+.legal-screen::backdrop{background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(7px)}
+.legal-screen__header{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:65px;padding:10px 18px;border-bottom:1px solid var(--border)}
+.legal-screen__label{color:var(--muted);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+.legal-screen button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:8px 12px;border:0;border-radius:10px;background:transparent;color:var(--text);font:inherit;font-size:12px;cursor:pointer}
+.legal-screen button:hover{background:color-mix(in srgb,var(--text) 7%,transparent)}
+.legal-screen button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.legal-screen .legal-screen__close{width:40px;font-size:24px}
+.legal-screen__scroll{min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.legal-article{max-width:720px;margin:auto;padding:32px 38px 48px;font-size:13px;line-height:1.85;overflow-wrap:anywhere}
+.legal-article h1{margin:0 0 16px;font-size:clamp(24px,4vw,34px);line-height:1.25;letter-spacing:-.035em;text-wrap:balance;outline:none}
+.legal-article h2{margin:30px 0 12px;font-size:16px;line-height:1.5;letter-spacing:-.02em}
+.legal-article p{margin:0 0 15px;white-space:pre-line}
+.legal-article ul{margin:0 0 18px;padding-left:22px}
+.legal-article li{margin:0 0 9px;white-space:pre-line}
+.legal-article__meta,.legal-article__footer{color:var(--muted);font-size:10px}
+.legal-article__lead{font-weight:600}
+.legal-article__footer{margin-top:32px!important;padding-top:20px;border-top:1px solid var(--border)}
+:root[data-glass="on"] :where(.legal-screen,.legal-footer__button){background:color-mix(in srgb,var(--surface) 78%,transparent);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+:root[data-frames="off"] :where(.legal-screen,.legal-screen__header,.legal-article__footer,.legal-footer__button){border-color:transparent}
+@keyframes legal-screen-in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:620px){.legal-footer{gap:8px;padding-bottom:calc(25px + env(safe-area-inset-bottom,0px))}.legal-footer__button{font-size:10px;padding:8px 10px}.legal-screen{width:100%;height:100dvh;max-height:100dvh;border-radius:0;border:0}.legal-screen__header{padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px}.legal-article{padding:24px 22px calc(36px + env(safe-area-inset-bottom,0px));font-size:12px}.legal-article h2{font-size:15px}}
+@media(prefers-reduced-motion:reduce){.legal-screen[open]{animation:none}.legal-footer__button{transition:none}}
+@media(prefers-reduced-transparency:reduce){:root[data-glass="on"] :where(.legal-screen,.legal-footer__button){background:var(--surface);backdrop-filter:none;-webkit-backdrop-filter:none}}

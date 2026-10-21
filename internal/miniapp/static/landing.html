@@ -78,6 +78,22 @@
     </section>
   </main>
 
+  <footer class="legal-footer container" aria-label="Правовая информация">
+    <a class="legal-footer__button" href="#terms" data-legal-document="terms">Пользовательское соглашение</a>
+    <a class="legal-footer__button" href="#privacy" data-legal-document="privacy">Политика конфиденциальности</a>
+  </footer>
+
+  <dialog class="legal-screen" id="landing-legal" aria-labelledby="landing-legal-title">
+    <div class="legal-screen__header">
+      <button class="legal-screen__back" type="button" data-legal-close><span aria-hidden="true">←</span> Назад</button>
+      <span class="legal-screen__label">Документы</span>
+      <button class="legal-screen__close" type="button" data-legal-close aria-label="Закрыть документ">×</button>
+    </div>
+    <div class="legal-screen__scroll" id="landing-legal-scroll">
+      <article class="legal-article" id="landing-legal-article"></article>
+    </div>
+  </dialog>
+
   <div class="cabinet-transition" id="cabinet-transition" role="status" aria-live="polite" hidden>
     <span class="cabinet-transition__brand" id="cabinet-transition-brand">__BRAND_NAME__</span>
     <span class="cabinet-transition__label">Открываем кабинет</span>

@@ -14,6 +14,9 @@
   };
   const visualModule=import(`./landing-appearance.mjs${assetVersion ? `?v=${encodeURIComponent(assetVersion)}` : ""}`);
   const reviewsModule = import(`./landing-reviews.mjs${assetVersion ? `?v=${encodeURIComponent(assetVersion)}` : ""}`);
+  const legalModule = import(`./landing-legal.mjs${assetVersion ? `?v=${encodeURIComponent(assetVersion)}` : ""}`);
+  let legalScreen;
+  legalModule.then(({ mountLandingLegal }) => { legalScreen = mountLandingLegal(); }).catch(() => {});
   let reviewsTicker;
  let landingText={};
  let loading = false;
@@ -236,6 +239,7 @@
       renderNodes(data.nodes, Boolean(data.nodesAvailable));
       renderPlans(data.plans);
       renderContacts(data.contacts);
+      legalModule.then(() => legalScreen?.setData(data)).catch(() => {});
       reviewsModule.then(({ createReviewTicker }) => {
         reviewsTicker ||= createReviewTicker($("landing-reviews"));
         reviewsTicker.setReviews(data.reviews);

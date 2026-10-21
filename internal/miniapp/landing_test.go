@@ -47,6 +47,9 @@ func TestLandingServesPublicPage(t *testing.T) {
 	if reviews, servers := strings.Index(body, `id="landing-reviews"`), strings.Index(body, `id="servers"`); reviews < strings.Index(body, `id="top"`) || reviews >= servers {
 		t.Error("reviews must be between hero and servers")
 	}
+	if footer := strings.Index(body, `class="legal-footer container"`); footer < strings.Index(body, `</main>`) || !strings.Contains(body, `data-legal-document="terms"`) || !strings.Contains(body, `data-legal-document="privacy"`) || !strings.Contains(body, `aria-labelledby="landing-legal-title"`) {
+		t.Error("landing must end with both legal links and an accessible document screen")
+	}
 }
 
 func TestLandingInitialThemeUsesSavedColorsSafely(t *testing.T) {
@@ -107,6 +110,9 @@ func TestLandingAPIHidesNodeAddressesAndSortsPlans(t *testing.T) {
 	}
 	if result.Data.Glass {
 		t.Fatal("landing API must leave glass disabled by default")
+	}
+	if result.Data.LegalDocuments == nil {
+		t.Error("public landing must include the cabinet's legal document configuration")
 	}
 	if result.Data.Reviews == nil || len(result.Data.Reviews) != 0 {
 		t.Error("unavailable reviews must be an empty list")

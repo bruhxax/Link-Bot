@@ -32,17 +32,19 @@ type landingContactPayload struct {
 }
 
 type landingPayload struct {
-	Brand          brandPayload                     `json:"brand"`
-	Colors         map[string]string                `json:"colors"`
-	Landing        runtimeconfig.LandingSettings    `json:"landing"`
-	Appearance     runtimeconfig.AppearanceSettings `json:"appearance"`
-	Cursor         runtimeconfig.CursorSettings     `json:"cursor"`
-	Glass          bool                             `json:"glass"`
-	Plans          []planPayload                    `json:"plans"`
-	Nodes          []landingNodePayload             `json:"nodes"`
-	NodesAvailable bool                             `json:"nodesAvailable"`
-	Contacts       []landingContactPayload          `json:"contacts"`
-	Reviews        []database.PublicReview          `json:"reviews"`
+	LegalContact   string                                         `json:"legalContact"`
+	LegalDocuments map[string]runtimeconfig.LegalDocumentSettings `json:"legalDocuments"`
+	Brand          brandPayload                                   `json:"brand"`
+	Colors         map[string]string                              `json:"colors"`
+	Landing        runtimeconfig.LandingSettings                  `json:"landing"`
+	Appearance     runtimeconfig.AppearanceSettings               `json:"appearance"`
+	Cursor         runtimeconfig.CursorSettings                   `json:"cursor"`
+	Glass          bool                                           `json:"glass"`
+	Plans          []planPayload                                  `json:"plans"`
+	Nodes          []landingNodePayload                           `json:"nodes"`
+	NodesAvailable bool                                           `json:"nodesAvailable"`
+	Contacts       []landingContactPayload                        `json:"contacts"`
+	Reviews        []database.PublicReview                        `json:"reviews"`
 }
 
 var landingTelegramUsername = regexp.MustCompile(`(?i)^[a-z0-9_]{5,32}$`)
@@ -194,6 +196,8 @@ func (h *Handler) handleLandingData(w http.ResponseWriter, r *http.Request) {
 			NodesAvailable: nodesAvailable,
 			Contacts:       landingContacts(settings, h.runtimeLink("support", config.SupportURL())),
 			Reviews:        reviews,
+			LegalDocuments: settings.Content.LegalDocuments,
+			LegalContact:   settings.Content.AdminContact,
 		},
 	})
 }
