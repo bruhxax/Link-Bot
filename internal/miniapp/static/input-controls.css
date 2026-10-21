@@ -58,18 +58,24 @@
 :root input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 :root .mantine-NumberInput-controls { display: none !important; }
 
-/* Retain checked/indeterminate behavior in tables while presenting a switch. */
-:root input[type="checkbox"]:not(.mantine-Switch-input):not(:where(.admin-toggle input, .admin-integration__toggle input, .admin-moynalog__switch input, .payments-switch__input, .theme-switch__input, .admin-access__permission input)),
+/* Native checkboxes share one track/thumb selector in every state. Only inputs
+   with a separate visual track are excluded; integrations and My Tax are native
+   inputs too. Styling the thumb without its track leaves it at the page origin.
+   Retain native checked/indeterminate behavior and delegated change events. */
+:root input[type="checkbox"]:not(:where(.mantine-Switch-input, .admin-toggle input, .payments-switch__input, .theme-switch__input, .admin-access__permission input)),
 :root .mantine-CheckboxIndicator-indicator,
 :root .control-switch-indicator,
 :root .admin-access__permission > i,
 :root .payments-switch__box {
+  -webkit-appearance: none !important;
   appearance: none !important;
   position: relative;
+  display: inline-block;
   box-sizing: border-box;
   width: 34px !important;
   height: 20px !important;
   min-width: 34px;
+  min-height: 20px !important;
   flex: 0 0 34px;
   margin: 0;
   padding: 0;
@@ -81,7 +87,7 @@
   vertical-align: middle;
   transition: background-color 180ms ease, border-color 180ms ease;
 }
-:root input[type="checkbox"]:not(.mantine-Switch-input)::before,
+:root input[type="checkbox"]:not(:where(.mantine-Switch-input, .admin-toggle input, .payments-switch__input, .theme-switch__input, .admin-access__permission input))::before,
 :root .mantine-CheckboxIndicator-indicator::before,
 :root .control-switch-indicator::before,
 :root .admin-access__permission > i::before,
@@ -96,7 +102,7 @@
   background: var(--muted, #979ba5);
   transition: transform 180ms ease, background-color 180ms ease;
 }
-:root input[type="checkbox"]:checked:not(.mantine-Switch-input),
+:root input[type="checkbox"]:not(:where(.mantine-Switch-input, .admin-toggle input, .payments-switch__input, .theme-switch__input, .admin-access__permission input)):checked,
 :root .mantine-CheckboxIndicator-indicator[data-checked],
 :root [aria-pressed="true"] .control-switch-indicator,
 :root .admin-access__permission input:checked + i,
@@ -104,7 +110,7 @@
   background: var(--accent-soft, #acb8cc26) !important;
   border-color: var(--accent, #acb8cc) !important;
 }
-:root input[type="checkbox"]:checked:not(.mantine-Switch-input)::before,
+:root input[type="checkbox"]:not(:where(.mantine-Switch-input, .admin-toggle input, .payments-switch__input, .theme-switch__input, .admin-access__permission input)):checked::before,
 :root .mantine-CheckboxIndicator-indicator[data-checked]::before,
 :root [aria-pressed="true"] .control-switch-indicator::before,
 :root .admin-access__permission input:checked + i::before,
@@ -112,18 +118,22 @@
   transform: translateX(14px);
   background: var(--accent, #acb8cc);
 }
-:root input[type="checkbox"]:indeterminate:not(.mantine-Switch-input)::before,
-:root input[type="checkbox"][data-indeterminate]:not(.mantine-Switch-input)::before,
+:root input[type="checkbox"]:not(:where(.mantine-Switch-input, .admin-toggle input, .payments-switch__input, .theme-switch__input, .admin-access__permission input)):indeterminate::before,
+:root input[type="checkbox"]:not(:where(.mantine-Switch-input, .admin-toggle input, .payments-switch__input, .theme-switch__input, .admin-access__permission input))[data-indeterminate]::before,
 :root .mantine-CheckboxIndicator-indicator[data-indeterminate]::before { transform: translateX(7px); background: var(--accent, #acb8cc); }
 :root .mantine-Checkbox-inner { width: 34px; height: 20px; flex: 0 0 34px; }
+/* Mantine menus reserve only an icon's width by default. */
+:root .mantine-Menu-itemSection:has(.mantine-Checkbox-root) { min-width: 34px; flex-shrink: 0; }
 :root .control-switch-indicator { display: inline-block; }
+/* Focus belongs to the visible track, never to an invisible proxy input. */
+:root .payments-switch__input:focus-visible + .payments-switch__box { outline: 2px solid var(--accent, #acb8cc); outline-offset: 3px; }
 :root .mantine-Checkbox-icon,
 :root .mantine-CheckboxIndicator-icon,
 :root .admin-access__permission > i > svg,
 :root .payments-switch__box::after { display: none !important; }
 :root .admin-squad-option { grid-template-columns: 34px minmax(0, 1fr); }
-:root input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent, #acb8cc); outline-offset: 3px; }
-:root input[type="checkbox"]:disabled:not(.mantine-Switch-input):not(:where(.admin-toggle input, .admin-integration__toggle input, .admin-moynalog__switch input, .payments-switch__input, .theme-switch__input, .admin-access__permission input)) { opacity: .48; cursor: default; }
+:root input[type="checkbox"]:not(:where(.mantine-Switch-input, .admin-toggle input, .payments-switch__input, .theme-switch__input, .admin-access__permission input)):focus-visible { outline: 2px solid var(--accent, #acb8cc); outline-offset: 3px; }
+:root input[type="checkbox"]:not(:where(.mantine-Switch-input, .admin-toggle input, .payments-switch__input, .theme-switch__input, .admin-access__permission input)):disabled { opacity: .48; cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   :root input[type="checkbox"], :root input[type="checkbox"]::before,
   :root .mantine-CheckboxIndicator-indicator, :root .mantine-CheckboxIndicator-indicator::before,

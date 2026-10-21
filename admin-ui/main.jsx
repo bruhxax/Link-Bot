@@ -712,7 +712,7 @@ function DataTable({
     enableGlobalFilter: !usersTable,
     layoutMode: "grid",
     displayColumnDefOptions: {
-      "mrt-row-select": { size: 32, minSize: 32, grow: false },
+      "mrt-row-select": { size: 50, minSize: 50, grow: false },
     },
     initialState: {
       showColumnFilters: !usersTable,
