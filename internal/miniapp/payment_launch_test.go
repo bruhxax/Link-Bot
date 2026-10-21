@@ -14,7 +14,7 @@ func TestPaymentLaunchActionRoutesEveryHostedProviderThroughClient(t *testing.T)
 		database.InvoiceTypeRollyPay, database.InvoiceTypeCisPay, database.InvoiceTypeAnore,
 		database.InvoiceTypeMulenPay, database.InvoiceTypeAuraPay, database.InvoiceTypeParityPay,
 		database.InvoiceTypeAntiloPay, database.InvoiceTypeTributeShop, database.InvoiceTypeCloudPayments,
-		database.InvoiceTypeDatagio, database.InvoiceTypeKassaAI, database.InvoiceTypePayHot,
+		database.InvoiceTypeDatagio, database.InvoiceTypeKassaAI, database.InvoiceTypePayHot, database.InvoiceTypeSmerch,
 		database.InvoiceType("future_provider"),
 	} {
 		if got := paymentLaunchAction(invoiceType); got != "open_in_app" {

@@ -77,6 +77,8 @@ func For(method string) Catalog {
 		c.Options = []Option{{"sbp", "СБП"}, {"card", "Банковская карта"}, {"yoomoney", "ЮMoney"}, {"crypto", "Криптовалюта"}}
 	case "kassaai":
 		c.Options = []Option{{"44", "СБП"}, {"36", "Карты РФ"}, {"43", "SberPay"}}
+	case "smerch":
+		c.Options = []Option{{"sbp", "СБП"}, {"crypto", "Криптовалюта"}}
 	case "payhot":
 		c.Options = []Option{{"sbp", "СБП"}, {"card", "Банковская карта"}, {"sberpay", "SberPay"}, {"crypto", "Криптовалюта"}, {"applepay", "Apple Pay"}, {"googlepay", "Google Pay"}}
 	case "freekassa":
@@ -100,7 +102,7 @@ func For(method string) Catalog {
 	if c.Preference {
 		c.Note = "API задаёт предпочтительный способ, но не гарантирует скрытие остальных: покупатель может изменить его на странице оплаты."
 	}
-	if Provider(method) == "cispay" || Provider(method) == "kassaai" || Provider(method) == "payhot" {
+	if Provider(method) == "cispay" || Provider(method) == "kassaai" || Provider(method) == "payhot" || Provider(method) == "smerch" {
 		c.DefaultLabel = "Как в интеграции"
 	}
 	return c
@@ -108,6 +110,7 @@ func For(method string) Catalog {
 
 var coinPattern = regexp.MustCompile(`^[A-Z0-9]{2,16}(:[a-zA-Z0-9_-]{1,32})?$`)
 var servicePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,39}$`)
+var smerchMethodPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_.-]{0,99}$`)
 var currencyIDPattern = regexp.MustCompile(`^[1-9][0-9]{0,5}$`)
 
 func Valid(method, channel string) bool {
@@ -116,7 +119,7 @@ func Valid(method, channel string) bool {
 			return true
 		}
 	}
-	return Provider(method) == "heleket" && coinPattern.MatchString(channel) || Provider(method) == "lava" && servicePattern.MatchString(channel) || (Provider(method) == "freekassa" || Provider(method) == "kassaai") && currencyIDPattern.MatchString(channel)
+	return Provider(method) == "smerch" && smerchMethodPattern.MatchString(channel) && !strings.EqualFold(channel, "sbp_recurring") || Provider(method) == "heleket" && coinPattern.MatchString(channel) || Provider(method) == "lava" && servicePattern.MatchString(channel) || (Provider(method) == "freekassa" || Provider(method) == "kassaai") && currencyIDPattern.MatchString(channel)
 }
 
 func Label(method, channel string) string {

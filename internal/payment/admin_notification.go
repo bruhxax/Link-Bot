@@ -445,6 +445,8 @@ func (s PaymentService) paymentMethodLabel(purchase *database.Purchase) string {
 		return "AntiloPay"
 	case database.InvoiceTypeParityPay:
 		return "ParityPay"
+	case database.InvoiceTypeSmerch:
+		return "Smerch"
 	case database.InvoiceTypePayHot:
 		return "PayHot"
 	case database.InvoiceTypeDatagio:

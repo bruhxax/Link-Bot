@@ -44,6 +44,7 @@ const (
 	ProviderDatagio         = "datagio"
 	ProviderKassaAI         = "kassaai"
 	ProviderPayHot          = "payhot"
+	ProviderSmerch          = "smerch"
 	ProviderP2P             = "p2p"
 	ProviderMoyNalog        = "moynalog"
 )
@@ -59,7 +60,7 @@ const (
 var moyNalogPaymentMethods = []string{
 	ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega,
 	ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay,
-	ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments, ProviderDatagio, ProviderKassaAI, ProviderPayHot,
+	ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments, ProviderDatagio, ProviderKassaAI, ProviderPayHot, ProviderSmerch,
 	ProviderP2P, "telegram",
 }
 
@@ -419,6 +420,16 @@ var definitions = []ProviderDefinition{
 		},
 	},
 	{
+		ID: ProviderSmerch, Name: "Smerch", Description: "СБП и другие методы вашей кассы Smerch", Logo: "/mini-app/assets/payment-smerch.png", Kind: "payment",
+		WebsiteURL: "https://smerch.io",
+		Fields: []FieldDefinition{
+			{Key: "apiKey", Label: "API-ключ", Required: true, Secret: true, Placeholder: "live_...", Help: "Рабочий ключ из Smerch → Настройки → Интеграция и API. Он же используется для подписи запросов"},
+			{Key: "webhookSecret", Label: "Секрет вебхука", Required: true, Secret: true, Help: "Отдельный webhook secret Smerch. Скопируйте Webhook URL ниже в кабинет и включите transaction.status_updated"},
+			{Key: "webhookKeyId", Label: "ID ключа вебхука", Help: "Необязательно: ID webhook secret из кабинета Smerch, для плавной смены секрета"},
+			{Key: "paymentMethod", Label: "Код метода оплаты", Required: true, Placeholder: "sbp", Help: "sbp — СБП, crypto — криптовалюта. Другие коды скопируйте из кассы Smerch. Нужен метод с RUB и ссылкой оплаты; рекурренты не поддерживаются"},
+		},
+	},
+	{
 		ID: ProviderP2P, Name: "P2P перевод", Description: "Ручная проверка перевода администратором", Logo: "/mini-app/assets/payment-p2p.png", Kind: "payment",
 		Fields: []FieldDefinition{
 			{Key: "destinations", Label: "Реквизиты", Required: true, Help: "Добавьте хотя бы один способ перевода"},
@@ -613,6 +624,11 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 			return ProviderView{}, errors.New("для cisPay укажите способ оплаты CARD или SBP")
 		}
 		rec.Config["paymentMethod"] = method
+	}
+	if provider == ProviderSmerch {
+		if err := normalizeSmerchConfig(rec.Config); err != nil {
+			return ProviderView{}, err
+		}
 	}
 	if provider == ProviderPayHot {
 		if err := normalizePayHotConfig(rec.Config); err != nil {
@@ -1040,7 +1056,7 @@ func firstNonEmpty(values ...string) string {
 }
 
 func SortedPaymentProviders() []string {
-	items := []string{ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega, ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay, ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments, ProviderDatagio, ProviderKassaAI, ProviderPayHot, ProviderP2P}
+	items := []string{ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega, ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay, ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments, ProviderDatagio, ProviderKassaAI, ProviderPayHot, ProviderSmerch, ProviderP2P}
 	sort.Strings(items)
 	return items
 }

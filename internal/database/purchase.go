@@ -40,6 +40,7 @@ const (
 	InvoiceTypeDatagio       InvoiceType = "datagio"
 	InvoiceTypeKassaAI       InvoiceType = "kassaai"
 	InvoiceTypePayHot        InvoiceType = "payhot"
+	InvoiceTypeSmerch        InvoiceType = "smerch"
 	InvoiceTypeP2P           InvoiceType = "p2p"
 	InvoiceTypeFree          InvoiceType = "free"
 	InvoiceTypeBalance       InvoiceType = "balance"

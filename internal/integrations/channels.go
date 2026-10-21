@@ -22,6 +22,14 @@ func (g *Gateway) PaymentChannels(ctx context.Context, method string) (paymentch
 	if !ok {
 		return catalog, fmt.Errorf("платёжная система выключена или не настроена")
 	}
+	if provider == ProviderSmerch {
+		method := strings.TrimSpace(cfg["paymentMethod"])
+		if paymentchannel.Valid(provider, method) && method != "sbp" && method != "crypto" {
+			catalog.Options = append(catalog.Options, paymentchannel.Option{ID: method, Name: method + " · метод интеграции"})
+		}
+		catalog.Note = "Методы должны быть подключены к кассе с RUB и ссылкой оплаты. Другой код метода можно указать в интеграции Smerch."
+		return catalog, nil
+	}
 	if provider == ProviderLava {
 		return g.lavaPaymentChannels(ctx, cfg, catalog)
 	}
@@ -83,7 +91,7 @@ func channelConfig(cfg map[string]string, input CreatePaymentRequest) map[string
 	}
 	if len(input.Channels) > 0 {
 		switch input.Provider {
-		case ProviderCisPay, ProviderPayHot:
+		case ProviderCisPay, ProviderPayHot, ProviderSmerch:
 			copy["paymentMethod"] = input.Channels[0]
 		case ProviderKassaAI:
 			copy["paymentSystemId"] = input.Channels[0]

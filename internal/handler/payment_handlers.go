@@ -603,7 +603,7 @@ func (h Handler) isPaymentMethodAllowedForPlan(methods map[string]bool, plan pla
 
 // PaymentMethodsKeyboard also renders the content editor's payment preview.
 func PaymentMethodsKeyboard(methods map[string]bool, plan planbook.CheckoutPlan, commerce runtimeconfig.TelegramCommerceSettings, order []string, miniAppEnabled bool) [][]models.InlineKeyboardButton {
-	labels := map[string]string{"balance": "Баланс", "p2p": "P2P перевод", "lava": "Lava", "wata": "Wata", "platega": "Platega", "freekassa": "FreeKassa", "heleket": "Heleket", "pally": "Pally", "rollypay": "RollyPay", "cispay": "CisPay", "anore": "Anore", "mulenpay": "MulenPay", "aurapay": "AuraPay", "antilopay": "AntiloPay", "paritypay": "ParityPay", "tribute": "Tribute", "cloudpayments": "CloudPayments", "datagio": "Datagio", "kassaai": "KassaAI", "payhot": "PayHot"}
+	labels := map[string]string{"balance": "Баланс", "p2p": "P2P перевод", "lava": "Lava", "wata": "Wata", "platega": "Platega", "freekassa": "FreeKassa", "heleket": "Heleket", "pally": "Pally", "rollypay": "RollyPay", "cispay": "CisPay", "anore": "Anore", "mulenpay": "MulenPay", "aurapay": "AuraPay", "antilopay": "AntiloPay", "paritypay": "ParityPay", "tribute": "Tribute", "cloudpayments": "CloudPayments", "datagio": "Datagio", "kassaai": "KassaAI", "payhot": "PayHot", "smerch": "Smerch"}
 	seen := map[database.InvoiceType]bool{}
 	keyboard := [][]models.InlineKeyboardButton{}
 	for _, method := range append(append([]string(nil), order...), runtimeconfig.DefaultPaymentMethodOrder()...) {

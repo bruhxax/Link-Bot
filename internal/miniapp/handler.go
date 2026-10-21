@@ -1912,7 +1912,7 @@ func (h *Handler) handleCreatePurchase(w http.ResponseWriter, r *http.Request, s
 	})
 	if err != nil {
 		slog.Error("mini app: create purchase", "error", err, "method", req.PaymentMethod, "months", req.Months)
-		if h.writePayHotPurchaseError(w, sess, err) {
+		if h.writeIntegrationPurchaseError(w, sess, err) {
 			return
 		}
 		h.writeError(w, http.StatusInternalServerError, "purchase_failed", "Не удалось создать оплату")
@@ -2213,7 +2213,7 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 			return
 		}
 		slog.Error("mini app: create purchase", "error", err, "method", req.PaymentMethod, "months", req.Months)
-		if h.writePayHotPurchaseError(w, sess, err) {
+		if h.writeIntegrationPurchaseError(w, sess, err) {
 			return
 		}
 		h.writeError(w, http.StatusInternalServerError, "purchase_failed", "Не удалось создать оплату")
@@ -2418,7 +2418,7 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 	})
 	if err != nil {
 		slog.Error("mini app: create gift purchase", "error", err, "method", req.PaymentMethod, "months", req.Months)
-		if h.writePayHotPurchaseError(w, sess, err) {
+		if h.writeIntegrationPurchaseError(w, sess, err) {
 			return
 		}
 		h.writeError(w, http.StatusInternalServerError, "gift_purchase_failed", "Не удалось создать оплату подарка")
@@ -3282,8 +3282,8 @@ func (h *Handler) handlePaymentIntegrationWebhook(w http.ResponseWriter, r *http
 	if err != nil {
 		slog.Warn("payment integration webhook rejected", "provider", provider, "error", err)
 		status := http.StatusBadRequest
-		if provider == integrations.ProviderPayHot && !errors.Is(err, integrations.ErrInvalidPayHotWebhook) {
-			// A storage/fulfilment failure must cause PayHot to retry delivery.
+		if provider == integrations.ProviderPayHot && !errors.Is(err, integrations.ErrInvalidPayHotWebhook) || provider == integrations.ProviderSmerch && !errors.Is(err, integrations.ErrInvalidSmerchWebhook) {
+			// A storage, API or fulfilment failure must cause the provider to retry delivery.
 			status = http.StatusInternalServerError
 		}
 		h.writeError(w, status, "invalid_webhook", "Invalid webhook")
@@ -5692,6 +5692,8 @@ func paymentMethodFallbackTitle(invoiceType database.InvoiceType, language strin
 		return "AntiloPay"
 	case database.InvoiceTypeParityPay:
 		return "ParityPay"
+	case database.InvoiceTypeSmerch:
+		return "Smerch"
 	case database.InvoiceTypePayHot:
 		return "PayHot"
 	case database.InvoiceTypeDatagio:

@@ -106,3 +106,14 @@ test('upload results stay in their editor draft and cannot overwrite another pay
  assert.equal(c.state.adminPaymentMethodEditor.logoUrl,'/mini-app/uploads/logo-0123456789abcdef.png');assert.equal(c.settings.paymentMethodText.sbp,undefined);c.applyAdminPaymentMethodEditor();assert.equal(c.settings.paymentMethodText.sbp.logoUrl,'/mini-app/uploads/logo-0123456789abcdef.png');
  c.openAdminPaymentMethodEditor('card');await c.uploadAdminPaymentLogo({name:'evil.html',type:'text/html',size:10});await c.uploadAdminPaymentLogo({name:'huge.png',size:3*1024*1024});assert.equal(uploads,2);
 });
+
+test('Smerch copies retain independent captions, branding and allowed methods',()=>{
+ const c=harness();c.PAYMENT_LOGO_URLS.smerch='payment-smerch.png';
+ c.getAdminPaymentMethods=()=>[...new Set(['smerch',...Object.keys(c.settings.paymentMethodVariants||{})])].map(id=>c.paymentMethodMeta(id));
+ c.openAdminPaymentMethodEditor('smerch');c.state.adminPaymentMethodEditor.name='Мой СБП';c.state.adminPaymentMethodEditor.channels=['sbp'];c.applyAdminPaymentMethodEditor();
+ c.crypto={randomUUID:()=> '11223344-5566-7788-99aa-bbccddeeff00'};load(c,'duplicateAdminPaymentMethod');c.duplicateAdminPaymentMethod('smerch');
+ const id=c.settings.paymentMethodOrder.find(id=>id.startsWith('smerch__'));assert.ok(id);
+ c.openAdminPaymentMethodEditor(id);c.state.adminPaymentMethodEditor.name='Криптовалюта';c.state.adminPaymentMethodEditor.channels=['crypto'];c.applyAdminPaymentMethodEditor();
+ assert.equal(c.paymentMethodMeta(id).logo,'payment-smerch.png');assert.equal(c.paymentMethodMeta(id).label,'Криптовалюта');assert.equal(c.paymentMethodMeta('smerch').label,'Мой СБП');
+ assert.deepEqual([...c.settings.paymentMethodVariants.smerch.channels],['sbp']);assert.deepEqual([...c.settings.paymentMethodVariants[id].channels],['crypto']);
+});

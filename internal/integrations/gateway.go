@@ -68,6 +68,7 @@ func (e *PaymentAPIError) Error() string {
 }
 
 type WebhookPayment struct {
+	Ignored    bool
 	PurchaseID int64
 	ExternalID string
 	Amount     float64
@@ -98,6 +99,8 @@ func (g *Gateway) Create(ctx context.Context, input CreatePaymentRequest) (Creat
 	}
 	cfg = channelConfig(cfg, input)
 	switch input.Provider {
+	case ProviderSmerch:
+		return g.createSmerch(ctx, cfg, input)
 	case ProviderPayHot:
 		return g.createPayHot(ctx, cfg, input)
 	case ProviderDatagio:
@@ -152,6 +155,8 @@ func (g *Gateway) HandleWebhook(ctx context.Context, provider string, headers ht
 		return WebhookPayment{}, errors.New("integration is disabled")
 	}
 	switch provider {
+	case ProviderSmerch:
+		return g.parseSmerchWebhook(ctx, cfg, headers, raw)
 	case ProviderPayHot:
 		return parsePayHotWebhook(cfg, headers, raw)
 	case ProviderDatagio:

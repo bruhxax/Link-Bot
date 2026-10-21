@@ -1214,6 +1214,7 @@ const PAYMENT_LOGO_URLS = Object.freeze({
 	datagio: "/mini-app/assets/payment-datagio.png",
 	kassaai: "/mini-app/assets/payment-kassaai.png",
 	payhot: "/mini-app/assets/payment-payhot.png",
+	smerch: "/mini-app/assets/payment-smerch.png",
 	p2p: "/mini-app/assets/payment-p2p.png",
 });
 
@@ -5809,7 +5810,7 @@ const ADMIN_FINANCE_PROVIDERS = [
 	["platega", "Platega", "platega"], ["freekassa", "FreeKassa", "freekassa"],
 	["heleket", "Heleket", "heleket"], ["pally", "Pally", "pally"],
 	["rollypay", "RollyPay", "rollypay"], ["cispay", "cisPay", "cispay"],
-	["anore", "anore.cc", "anore"], ["mulenpay", "MulenPay", "mulenpay"], ["aurapay", "AuraPay", "aurapay"], ["antilopay", "AntiloPay", "antilopay"], ["paritypay", "ParityPay", "paritypay"], ["cloudpayments", "CloudPayments", "cloudpayments"], ["datagio", "Datagio", "datagio"], ["kassaai", "Kassa AI", "kassaai"], ["payhot", "PayHot", "payhot"],
+	["anore", "anore.cc", "anore"], ["mulenpay", "MulenPay", "mulenpay"], ["aurapay", "AuraPay", "aurapay"], ["antilopay", "AntiloPay", "antilopay"], ["paritypay", "ParityPay", "paritypay"], ["cloudpayments", "CloudPayments", "cloudpayments"], ["datagio", "Datagio", "datagio"], ["kassaai", "Kassa AI", "kassaai"], ["payhot", "PayHot", "payhot"], ["smerch", "Smerch", "smerch"],
 	["p2p", "P2P", "p2p"],
 ];
 
@@ -7042,7 +7043,7 @@ const MOYNALOG_PAYMENT_METHODS = [
 	["yookassa", "YooKassa"], ["lava", "LAVA"], ["wata", "WATA"],
 	["platega", "Platega"], ["freekassa", "FreeKassa"], ["cryptopay", "Crypto Pay"],
   ["heleket", "Heleket"], ["pally", "Pally"], ["rollypay", "RollyPay"], ["cispay", "cisPay"],
-  ["anore", "anore.cc"], ["mulenpay", "MulenPay"], ["aurapay", "AuraPay"], ["antilopay", "AntiloPay"], ["paritypay", "ParityPay"], ["cloudpayments", "CloudPayments"], ["datagio", "Datagio"], ["kassaai", "Kassa AI"], ["payhot", "PayHot"], ["p2p", "P2P"],
+  ["anore", "anore.cc"], ["mulenpay", "MulenPay"], ["aurapay", "AuraPay"], ["antilopay", "AntiloPay"], ["paritypay", "ParityPay"], ["cloudpayments", "CloudPayments"], ["datagio", "Datagio"], ["kassaai", "Kassa AI"], ["payhot", "PayHot"], ["smerch", "Smerch"], ["p2p", "P2P"],
 	["telegram", "Telegram Stars"], ["tribute", "Tribute"],
 ];
 
@@ -11392,7 +11393,7 @@ function paymentHistoryMethodMeta(item, copy) {
   const normalized = `${invoiceType} ${title}`.toLowerCase();
 	if (invoiceType === "free") return { id: "free", label: title || localizedText("Бесплатная активация", "Free activation", "فعال‌سازی رایگان"), logo: "" };
 	if (invoiceType === "balance") return { id: "balance", label: title || localizedText("Баланс", "Balance", "موجودی"), logo: PAYMENT_LOGO_URLS.balance };
-  const providers = ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai", "payhot"];
+  const providers = ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai", "payhot", "smerch"];
   const provider = providers.find((name) => normalized.includes(name));
   if (provider) {
     const meta = paymentMethodMeta(provider);
@@ -18901,7 +18902,7 @@ function getAdminPaymentMethods() {
 	if (enabled.has("p2p") && enabled.has("notification_bot")) methods.push("p2p");
 	if (getRuntimeSettings()?.features?.stars !== false) methods.push("stars");
 	if (enabled.has("cryptopay")) methods.push("crypto");
-	for (const id of ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai", "payhot"]) {
+	for (const id of ["lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai", "payhot", "smerch"]) {
 		if (enabled.has(id)) methods.push(id);
 	}
 	for (const [id, variant] of Object.entries(getRuntimeSettings()?.paymentMethodVariants || {})) { if (id !== variant.method && methods.includes(variant.method)) methods.push(id); }
@@ -19102,6 +19103,7 @@ function paymentMethodMeta(id, system = false) {
 		paritypay: { id: "paritypay", label: "ParityPay", hint: localizedText("Карты и СБП", "Cards and SBP", "کارت و SBP"), logo: PAYMENT_LOGO_URLS.paritypay },
 		tribute: { id: "tribute", label: "Tribute", hint: localizedText("Оплата через Tribute", "Pay with Tribute", "پرداخت با Tribute"), logo: PAYMENT_LOGO_URLS.tribute },
 		datagio: { id: "datagio", label: "Datagio", hint: localizedText("СБП и криптовалюта", "SBP and cryptocurrency", "SBP و رمزارز"), logo: PAYMENT_LOGO_URLS.datagio },
+		smerch: { id: "smerch", label: "Smerch", hint: localizedText("Оплата через Smerch", "Pay with Smerch", "پرداخت با Smerch"), logo: PAYMENT_LOGO_URLS.smerch },
 		payhot: { id: "payhot", label: "PayHot", hint: localizedText("Оплата через PayHot", "Pay with PayHot", "پرداخت با PayHot"), logo: PAYMENT_LOGO_URLS.payhot },
 		kassaai: { id: "kassaai", label: "Kassa AI", hint: localizedText("СБП, карты и SberPay", "SBP, cards and SberPay", "SBP، کارت و SberPay"), logo: PAYMENT_LOGO_URLS.kassaai },
 		cloudpayments: { id: "cloudpayments", label: "CloudPayments", hint: localizedText("Оплата картой", "Card payment", "پرداخت با کارت"), logo: PAYMENT_LOGO_URLS.cloudpayments },

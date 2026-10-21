@@ -10,6 +10,10 @@ func TestResolveCannotEscapeConfiguredChannels(t *testing.T) {
 		fail     bool
 		count    int
 	}{
+		{"smerch__aabbccdd", []string{"sbp", "crypto"}, "sbp", false, 1},
+		{"smerch", []string{"sbp", "crypto"}, "", true, 0},
+		{"smerch", []string{"sbp"}, "crypto", true, 0},
+		{"smerch", []string{"sbp_recurring"}, "", true, 0},
 		{"sbp", []string{"sbp", "sberbank"}, "bank_card", true, 0},
 		{"card__aabbccdd", []string{"bank_card"}, "", false, 1},
 		{"sbp", []string{"sbp", "sberbank"}, "", true, 0},
@@ -31,7 +35,7 @@ func TestResolveCannotEscapeConfiguredChannels(t *testing.T) {
 }
 
 func TestEveryGatewayHasExplicitCapabilities(t *testing.T) {
-	for _, method := range []string{"sbp", "card", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai", "payhot"} {
+	for _, method := range []string{"sbp", "card", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai", "payhot", "smerch"} {
 		c := For(method)
 		if c.Note == "" {
 			t.Errorf("no capability explanation for %s", method)

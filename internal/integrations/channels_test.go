@@ -47,6 +47,7 @@ func TestGatewaySendsConfiguredChannelsToEverySupportedAPI(t *testing.T) {
 		{ProviderKassaAI, []string{"43"}, "i", float64(43)},
 		{ProviderFreeKassa, []string{"36"}, "i", float64(36)},
 		{ProviderPayHot, []string{"sberpay"}, "payment_method", "sberpay"},
+		{ProviderSmerch, []string{"crypto"}, "payment_method", "crypto"},
 	} {
 		t.Run(tc.provider, func(t *testing.T) {
 			cfg := map[string]string{"shopId": "123", "apiKey": "phk_v2_fixture", "apiUrl": "https://api.example", "secretKey": "fixture", "paymentMethod": "CARD", "paymentSystemId": "44", "privateKey": base64.StdEncoding.EncodeToString(der)}
@@ -76,6 +77,9 @@ func TestGatewaySendsConfiguredChannelsToEverySupportedAPI(t *testing.T) {
 					t.Error("LAVA signed payload without the selected methods")
 				}
 				response := `{"id":"external-1","uuid":"external-1","url":"https://pay.example/1","link":"https://pay.example/1","success":true,"link_page_url":"https://pay.example/1","bill_id":123,"payment_id":"external-1","pay_url":"https://pay.example/1","payment_url":"https://pay.example/1","paymentUrl":"https://pay.example/1","code":0,"transactionId":"external-1","state":0,"result":{"uuid":"external-1","url":"https://pay.example/1"},"data":{"id":"external-1","url":"https://pay.example/1"},"payment_data":{"url":"https://pay.example/1"},"type":"success","orderId":123,"location":"https://pay.example/1"}`
+				if tc.provider == ProviderSmerch {
+					response = `{"uuid":"` + smerchTestID + `","external_id":"42","amount":17000,"currency":"RUB","payment_method":"crypto","payment_url":"https://pay.smerch.io/invoice/fixture"}`
+				}
 				if tc.provider == ProviderPayHot {
 					response = `{"payment":{"id":"` + payHotTestID + `","merchant_order_reference":"42","amount_minor":"17000","currency":"RUB"},"checkout":{"url":"` + payHotTestURL + `"}}`
 				}

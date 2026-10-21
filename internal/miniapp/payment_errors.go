@@ -7,7 +7,16 @@ import (
 	"link-bot/internal/integrations"
 )
 
-func (h *Handler) writePayHotPurchaseError(w http.ResponseWriter, sess *session, err error) bool {
+func (h *Handler) writeIntegrationPurchaseError(w http.ResponseWriter, sess *session, err error) bool {
+	var smerchErr *integrations.SmerchPaymentError
+	if errors.As(err, &smerchErr) {
+		message := smerchErr.PublicMessage()
+		if sess.canAdmin("integrations") || sess.canAdmin("diagnostics") {
+			message = smerchErr.AdminMessage()
+		}
+		h.writeError(w, http.StatusBadGateway, "smerch_payment_failed", message)
+		return true
+	}
 	var paymentErr *integrations.PayHotPaymentError
 	if !errors.As(err, &paymentErr) {
 		return false

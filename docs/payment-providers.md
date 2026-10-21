@@ -13,6 +13,7 @@
 | ParityPay | ID кассы, секретный ключ №1, секретный ключ №2 | Адрес передаётся при создании счёта как `callback_url` | [ParityPay v2](https://docs.paritypay.net/) |
 | Tribute | API-ключ, Shop ID при нескольких магазинах | Вставьте Webhook URL в `callbackUrl` своего магазина | [Tribute Shop API](https://wiki.tribute.tg/for-shops/api/methods) |
 | CloudPayments | Public ID и API Secret | Настройте уведомление **Pay**, метод **POST**, формат **CloudPayments**, URL из Link-Bot | [CloudPayments](https://developers.cloudpayments.ru/) |
+| Smerch | Рабочий API-ключ, отдельный секрет вебхука, код метода оплаты | Скопируйте Webhook URL в кабинет Smerch и подключите `transaction.status_updated` | [Документация](https://docs.smerch.io/) |
 | PayHot | Рабочий API-ключ кассы, секрет вебхука, способ оплаты | Вставьте Webhook URL в кабинете PayHot и выберите `payment.succeeded` | [API](https://docs.pay.hot/overview) · [Вебхуки](https://docs.pay.hot/webhooks) |
 | Datagio | ID магазина, публичный API-ключ, секрет API, секрет вебхука | Вставьте Webhook URL и тот же секрет вебхука в настройки магазина | [Datagio Finance](https://wiki.datagio.finance/api/payments-create/) · [Вебхуки](https://wiki.datagio.finance/api/webhooks/) |
 | Kassa AI | ID магазина, API-ключ, секретное слово №2, способ оплаты | Вставьте Webhook URL в кассу; адрес также передаётся как `notification_url` | [API `api.fk.life`](https://docs.freekassa.net/) |
@@ -52,6 +53,7 @@ Tribute подключается через **Shop API**, с разовыми з
 | AuraPay | Предпочтительный способ — карта или СБП. API описывает `service` как предпочтение, скрытие остальных способов не гарантируется | [OpenAPI](https://docs.aurapay.tech/openapi.yaml) |
 | AntiloPay | Предпочтительные методы через `prefer_methods`; жёсткое скрытие остальных способов API не гарантирует | [API PDF](https://doc.antilopay.com/AntilopayAPI.pdf) |
 | Tribute | Предпочтение карты, СБП, Wallet Pay или Apple Pay через `preferredPaymentMethods`. Это подсказка форме, покупатель может сменить способ | [Shop API](https://wiki.tribute.tg/for-shops/api/methods) |
+| Smerch | СБП (`sbp`), криптовалюта (`crypto`) или код подключённого разового метода из интеграции через `payment_method` | [Платежи](https://docs.smerch.io/платежи-2267611m0.md) |
 | PayHot | СБП, карта, SberPay, криптовалюта, Apple Pay или Google Pay через `payment_method` | [Документация](https://docs.pay.hot/overview) |
 | WATA | API платёжных ссылок не предоставляет фильтр методов; набор задаётся терминалом | [Payment Links API](https://api.wata.pro/acq-api-doc/payment-links-create-post) |
 | MulenPay | API создания платежа не предоставляет фильтр методов; выбор остаётся в кассе | [Запрос создания платежа](https://docs.mulenpay.com/pays/pays_request.html) |
@@ -102,3 +104,17 @@ Tribute подключается через **Shop API**, с разовыми з
 | `payment-cloudpayments.png` | [SVG с официального сайта CloudPayments](https://cdn.t-static.ru/static/pages/files/55eadcf3-411d-41f4-96ba-e893f9a4ca17.svg) |
 
 Логотип PayHot: [официальная иконка кабинета](https://app.pay.hot/favicon-payhot.png), файл `payment-payhot.png`.
+
+## Smerch
+
+В **Админке → Интеграции → Smerch** укажите рабочий API-ключ `live_…` из **Smerch → Настройки → Интеграция и API**, отдельный **webhook secret** и код метода оплаты. По умолчанию используется `sbp` (СБП); `crypto` — криптовалюта. Для остальных методов скопируйте точный код из кабинета Smerch: публичная схема API не перечисляет все коды. Метод должен быть подключён к вашей кассе, поддерживать RUB и возвращать `payment_url`. Методы только с H2H-реквизитами и рекуррентный `sbp_recurring` не подходят для разового счёта Link-Bot.
+
+Сохраните настройки, скопируйте показанный **Webhook URL** в настройки Smerch, включите событие `transaction.status_updated` и интеграцию. ID ключа вебхука необязателен: если его заполнить, при ротации секрет выбирается по соответствующему ID, включая предыдущую подпись в переходный период. После смены секрета обновите секрет и его ID в Link-Bot.
+
+В **Тарифы → Способы оплаты → Smerch → карандаш** можно менять подписи, логотип и разрешённые методы. В списке есть СБП, криптовалюта и дополнительный метод из настроек интеграции. Копии используют общие ключи Smerch, но имеют собственные подписи и методы. При нескольких разрешённых методах покупатель выбирает один до создания счёта.
+
+API: `https://api.smerch.io/api/v1/integration/transactions`. Запросы подписываются HMAC v2 тем же API-ключом, суммы передаются целыми копейками, `external_id` — номер покупки Link-Bot. Стабильный `metadata.userId` передаётся из ID клиента; для веб-платежей передаётся также публичный IP покупателя. Webhook проверяется отдельным секретом по исходному телу. Перед выдачей покупки Link-Bot дополнительно читает транзакцию через авторизованный GET и сверяет её ID, номер заказа, сумму, RUB и успешный статус `paid`. Комиссия покупателя не подменяет сумму заказа: сверяется `amount`, а не `gross_amount` или `net_amount`. Повторные уведомления обрабатываются существующим механизмом исполнения покупок; возвраты, неполные и тестовые платежи не выдают новую подписку. При временной ошибке API или исполнения возвращается 5xx для повторной доставки.
+
+Комиссии, холд, условия и сроки вывода задаются договорённостями с Smerch; Link-Bot их не меняет и не добавляет фиксированную комиссию к тарифу.
+
+Логотип Smerch: [официальная иконка приложения](https://smerch.io/apple-icon.png), файл `payment-smerch.png`. API и подписи реализованы по [официальной документации](https://docs.smerch.io/llms.txt).

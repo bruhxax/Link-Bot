@@ -870,7 +870,7 @@ func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount fl
 		url, purchaseId, err = s.createTributeInvoice(ctx, amount, months, customer, options)
 	case database.InvoiceTypeP2P:
 		url, purchaseId, err = s.createP2PInvoice(ctx, amount, months, customer, options)
-	case database.InvoiceTypeLava, database.InvoiceTypeWata, database.InvoiceTypePlatega, database.InvoiceTypeFreeKassa, database.InvoiceTypeHeleket, database.InvoiceTypePally, database.InvoiceTypeRollyPay, database.InvoiceTypeCisPay, database.InvoiceTypeAnore, database.InvoiceTypeMulenPay, database.InvoiceTypeAuraPay, database.InvoiceTypeParityPay, database.InvoiceTypeAntiloPay, database.InvoiceTypeTributeShop, database.InvoiceTypeCloudPayments, database.InvoiceTypeDatagio, database.InvoiceTypeKassaAI, database.InvoiceTypePayHot:
+	case database.InvoiceTypeLava, database.InvoiceTypeWata, database.InvoiceTypePlatega, database.InvoiceTypeFreeKassa, database.InvoiceTypeHeleket, database.InvoiceTypePally, database.InvoiceTypeRollyPay, database.InvoiceTypeCisPay, database.InvoiceTypeAnore, database.InvoiceTypeMulenPay, database.InvoiceTypeAuraPay, database.InvoiceTypeParityPay, database.InvoiceTypeAntiloPay, database.InvoiceTypeTributeShop, database.InvoiceTypeCloudPayments, database.InvoiceTypeDatagio, database.InvoiceTypeKassaAI, database.InvoiceTypePayHot, database.InvoiceTypeSmerch:
 		url, purchaseId, err = s.createExternalInvoice(ctx, amount, months, customer, invoiceType, options)
 	default:
 		err = fmt.Errorf("unknown invoice type: %s", invoiceType)
@@ -888,7 +888,7 @@ func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount fl
 			category = "P2P перевод"
 		case database.InvoiceTypeBalance:
 			category = "Баланс"
-		case database.InvoiceTypeLava, database.InvoiceTypeWata, database.InvoiceTypePlatega, database.InvoiceTypeFreeKassa, database.InvoiceTypeHeleket, database.InvoiceTypePally, database.InvoiceTypeRollyPay, database.InvoiceTypeCisPay, database.InvoiceTypeAnore, database.InvoiceTypeMulenPay, database.InvoiceTypeAuraPay, database.InvoiceTypeParityPay, database.InvoiceTypeAntiloPay, database.InvoiceTypeTributeShop, database.InvoiceTypeCloudPayments, database.InvoiceTypeDatagio, database.InvoiceTypeKassaAI, database.InvoiceTypePayHot:
+		case database.InvoiceTypeLava, database.InvoiceTypeWata, database.InvoiceTypePlatega, database.InvoiceTypeFreeKassa, database.InvoiceTypeHeleket, database.InvoiceTypePally, database.InvoiceTypeRollyPay, database.InvoiceTypeCisPay, database.InvoiceTypeAnore, database.InvoiceTypeMulenPay, database.InvoiceTypeAuraPay, database.InvoiceTypeParityPay, database.InvoiceTypeAntiloPay, database.InvoiceTypeTributeShop, database.InvoiceTypeCloudPayments, database.InvoiceTypeDatagio, database.InvoiceTypeKassaAI, database.InvoiceTypePayHot, database.InvoiceTypeSmerch:
 			category = string(invoiceType)
 		}
 		s.errorReporter.Report(ctx, operations.ReportInput{
@@ -1341,7 +1341,7 @@ func integrationProviderForInvoiceType(invoiceType database.InvoiceType) (string
 		database.InvoiceTypeHeleket: integrations.ProviderHeleket, database.InvoiceTypePally: integrations.ProviderPally,
 		database.InvoiceTypeRollyPay: integrations.ProviderRollyPay, database.InvoiceTypeCisPay: integrations.ProviderCisPay,
 		database.InvoiceTypeAnore: integrations.ProviderAnore, database.InvoiceTypeMulenPay: integrations.ProviderMulenPay, database.InvoiceTypeAuraPay: integrations.ProviderAuraPay, database.InvoiceTypeParityPay: integrations.ProviderParityPay, database.InvoiceTypeAntiloPay: integrations.ProviderAntiloPay, database.InvoiceTypeTributeShop: integrations.ProviderTribute, database.InvoiceTypeCloudPayments: integrations.ProviderCloudPayments,
-		database.InvoiceTypeDatagio: integrations.ProviderDatagio, database.InvoiceTypeKassaAI: integrations.ProviderKassaAI, database.InvoiceTypePayHot: integrations.ProviderPayHot,
+		database.InvoiceTypeDatagio: integrations.ProviderDatagio, database.InvoiceTypeKassaAI: integrations.ProviderKassaAI, database.InvoiceTypePayHot: integrations.ProviderPayHot, database.InvoiceTypeSmerch: integrations.ProviderSmerch,
 	}
 	provider, ok := providers[invoiceType]
 	return provider, ok
@@ -1354,7 +1354,7 @@ func invoiceTypeForIntegrationProvider(provider string) (database.InvoiceType, b
 		integrations.ProviderHeleket: database.InvoiceTypeHeleket, integrations.ProviderPally: database.InvoiceTypePally,
 		integrations.ProviderRollyPay: database.InvoiceTypeRollyPay, integrations.ProviderCisPay: database.InvoiceTypeCisPay,
 		integrations.ProviderAnore: database.InvoiceTypeAnore, integrations.ProviderMulenPay: database.InvoiceTypeMulenPay, integrations.ProviderAuraPay: database.InvoiceTypeAuraPay, integrations.ProviderParityPay: database.InvoiceTypeParityPay, integrations.ProviderAntiloPay: database.InvoiceTypeAntiloPay, integrations.ProviderTribute: database.InvoiceTypeTributeShop, integrations.ProviderCloudPayments: database.InvoiceTypeCloudPayments,
-		integrations.ProviderDatagio: database.InvoiceTypeDatagio, integrations.ProviderKassaAI: database.InvoiceTypeKassaAI, integrations.ProviderPayHot: database.InvoiceTypePayHot,
+		integrations.ProviderDatagio: database.InvoiceTypeDatagio, integrations.ProviderKassaAI: database.InvoiceTypeKassaAI, integrations.ProviderPayHot: database.InvoiceTypePayHot, integrations.ProviderSmerch: database.InvoiceTypeSmerch,
 	}
 	invoiceType, ok := providers[provider]
 	return invoiceType, ok
@@ -1367,6 +1367,9 @@ func (s PaymentService) ProcessExternalWebhook(ctx context.Context, provider str
 	event, err := s.integrationGateway.HandleWebhook(ctx, provider, headers, raw, form)
 	if err != nil {
 		return "", err
+	}
+	if event.Ignored {
+		return "OK", nil
 	}
 	invoiceType, ok := invoiceTypeForIntegrationProvider(provider)
 	if !ok {
@@ -1412,7 +1415,7 @@ func (s PaymentService) ProcessExternalWebhook(ctx context.Context, provider str
 }
 
 func webhookAmountMatches(provider string, paidAmount, expectedAmount float64) bool {
-	if provider == integrations.ProviderPayHot {
+	if provider == integrations.ProviderPayHot || provider == integrations.ProviderSmerch {
 		return paidAmount > 0 && math.Round(paidAmount*100) == math.Round(expectedAmount*100)
 	}
 	if paidAmount <= 0 {
