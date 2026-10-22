@@ -9574,6 +9574,52 @@ body.is-plan-editing .page-scroll {
   margin: 13px 0 0;
 }
 
+/* Three nearby surfaces share the same checkout state and payment action. */
+.card--checkout.checkout-sections {
+  gap: 8px;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.checkout-sections > .checkout-section {
+  min-width: 0;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 12px;
+}
+.checkout-sections .checkout-summary {
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+}
+.checkout-selection .checkout-summary > div { min-width: 0; }
+.checkout-selection .summary-row__value { overflow-wrap: anywhere; }
+.checkout-selection .checkout-summary + .checkout-summary {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+.checkout-sections > .checkout-method {
+  min-width: 0;
+  min-height: 58px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.checkout-method:disabled { opacity: .55; cursor: default; }
+.checkout-method .gift-payment-row__brand { width: 30px; height: 30px; }
+.checkout-method .payment-brand-logo { transform: none; }
+.checkout-sections .checkout-promo { padding: 0; }
+.checkout-sections .promo-box__input { border-radius: 8px; }
+.checkout-sections .buy-action { margin-top: 10px; border-radius: 10px; }
+.checkout-sections .payment-stack > .buy-action:first-child { margin-top: 0; }
+.checkout-sections > .checkout-free-note { border-bottom: 1px solid var(--line); }
+.page-buy--admin-editor .checkout-method:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
 @media (max-width: 360px) {
   .page-support .support-top-grid .menu-card {
     min-height: 52px !important;
@@ -14044,20 +14090,14 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .admin-activity__body footer { padding-top: 8px; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 9px; overflow-wrap: anywhere; }
 
 /* Text reels belong to their label, so scrolling and the navigation dock keep
-   the same stacking order throughout the transition. Each cell clips its row. */
+   the same stacking order throughout the transition. Glyphs move only on Y;
+   the label keeps its final native width without a horizontal reveal. */
 [data-price-transition] { display: inline-block; }
 .text-transition-host { isolation: isolate; }
 .text-transition-run {
   font-style: inherit;
   white-space: inherit;
 }
-.text-transition-cell {
-  position: relative;
-  display: inline-block;
-  white-space: pre;
-}
-/* Give removed characters the same baseline as the surrounding text. */
-.text-transition-cell::before { content: "\200b"; }
 .text-roll {
   position: absolute;
   inset: 0;

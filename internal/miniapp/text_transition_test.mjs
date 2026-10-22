@@ -13,7 +13,7 @@ function section(start, end) {
 
 // A small DOM with controllable animation promises exercises cancellation races
 // without timers or browser frame timing determining the result.
-function harness() {
+function harness({ price = true } = {}) {
   const animations = [];
   class TextNode {
     nodeType = 3;
@@ -51,6 +51,10 @@ function harness() {
     }
     appendChild(child) { child.parentElement = this; this.childNodes.push(child); return child; }
     setAttribute(name, value) { this[name] = value; }
+    hasAttribute(name) {
+      if (name.startsWith("data-")) return name.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase()) in this.dataset;
+      return this[name] != null;
+    }
     replaceWith(...nodes) { replace(this, nodes); }
     remove() { replace(this, []); }
     normalize() {
@@ -89,10 +93,12 @@ function harness() {
   vm.runInContext(section("const activeTextTransitions =", "function textNodePath(") + section("function updateAnimatedText(", "function render("), context);
   const node = new Element("span");
   node.textContent = "Оплатить 199 ₽";
+  if (price) node.dataset.priceTransition = "";
   document.body.appendChild(node);
   return { context, node, document, reducedMotionMedia,
     get animations() { return animations.filter(animation => animation.element.className === "text-roll__glyph"); },
-    get widthAnimations() { return animations.filter(animation => animation.element.className === "text-transition-cell"); },
+    get widthAnimations() { return animations.filter(animation => animation.frames.some(frame => "width" in frame)); },
+    get appearances() { return animations.filter(animation => animation.element === node); },
     update: value => context.updateAnimatedText(node, value),
     finish: async () => { animations.forEach(animation => animation.finish()); await new Promise(setImmediate); },
   };
@@ -118,7 +124,9 @@ test("rapid changes keep the newest animation alive when cancelled promises sett
 
 test("letters and digits roll in adjacent opposite directions without fades or delays", async () => {
   const page = harness();
-  page.update("Pay 800 ₽");
+  const before = page.context.captureTextTransitionNode(page.node);
+  page.node.textContent = "Pay 800 ₽";
+  page.context.playTextTransition(before, page.node, 0, { mode: "language" });
   const moving = page.animations;
   assert.ok(moving.length > 6, "language changes animate letters as well as the price");
   for (const animation of moving) {
@@ -150,45 +158,86 @@ test("price changes roll only the changed digit positions, including separated c
   }
 });
 
-test("changing a plan word length leaves its unchanged letters and label unanimated", async () => {
-  const page = harness();
-  page.node.textContent = "6 месяцев · Безлимит";
-  page.update("3 месяца · Безлимит");
-  const movingCharacters = page.animations.map(animation => animation.element.dataset.character);
-  assert.ok(movingCharacters.includes("6") && movingCharacters.includes("3"));
-  assert.ok(movingCharacters.every(character => "63ева".includes(character)));
-  assert.equal(page.node.textContent, "3 месяца · Безлимит");
-  await page.finish();
-  assert.equal(page.node.textContent, "3 месяца · Безлимит");
+test("ordinary text and non-price numerals fade without creating glyph layers", async () => {
+  for (const [before, after] of [
+    ["6 месяцев · Безлимит", "3 месяца · Безлимит"],
+    ["Трафик: 10 GB", "Трафик: 20 GB"],
+    ["3 пользователя", "4 пользователя"],
+    ["До 21.10.26", "До 22.10.26"],
+    ["Проверяем оплату", "Оплата получена"],
+  ]) {
+    const page = harness({ price: false });
+    page.node.textContent = before;
+    page.update(after);
+    assert.equal(page.animations.length, 0);
+    assert.equal(page.node.children.length, 0, "simple appearance keeps native text and layout");
+    assert.equal(page.appearances.length, 1);
+    assert.deepEqual(Array.from(page.appearances[0].frames, frame => Object.keys(frame)), [["opacity"], ["opacity"]]);
+    assert.equal(page.node.textContent, after);
+    await page.finish();
+  }
 });
 
-test("inserted and removed symbols keep their reels inside cells that resize with the text", async () => {
+test("prices with a different number of digits roll vertically at the final width", async () => {
   for (const [before, after] of [
-    ["1 месяц · Безлимит", "12 месяцев · Безлимит"],
-    ["12 месяцев · Безлимит", "1 месяц · Безлимит"],
     ["Оплатить 700 ₽", "Оплатить 6000 ₽"],
     ["Оплатить 6000 ₽", "Оплатить 700 ₽"],
+    ["Оплатить 1 000 ₽", "Оплатить 950 ₽"],
+    ["Оплатить 950 ₽", "Оплатить 1 000 ₽"],
   ]) {
     const page = harness();
     page.node.textContent = before;
     page.update(after);
     assert.equal(page.node.textContent, after);
-    assert.ok(page.widthAnimations.length > 0, "insertion/removal resizes in-flow cells");
+    assert.equal(page.widthAnimations.length, 0, "there must be no horizontal width animation");
+    assert.ok(page.animations.length > 0);
+    assert.ok(page.animations.every(animation => /^\p{Decimal_Number}$/u.test(animation.element.dataset.character)));
     for (const animation of page.animations) {
-      const slot = animation.element.parentElement;
-      const overlay = slot.parentElement;
-      const cell = overlay.parentElement;
-      assert.equal(cell.className, "text-transition-cell");
-      assert.equal(cell.parentElement.className, "text-transition-run");
-      assert.equal(cell.parentElement.parentElement, page.node);
-      assert.equal(slot.style.width, "100%", "each reel is clipped to its own cell, never its neighbour");
-      assert.equal(slot.style.left, "0");
+      assert.ok(animation.frames.every(frame => /^translateY\(/.test(frame.transform)));
+      assert.equal(animation.element.parentElement.className, "text-roll__window");
+      assert.equal(animation.element.parentElement.parentElement.parentElement.parentElement, page.node);
     }
-    assert.ok(page.widthAnimations.some(animation => animation.frames.some(frame => frame.width === "0px")));
     await page.finish();
     assert.equal(page.node.textContent, after);
     assert.equal(page.node.children.length, 0);
   }
+});
+
+test("rapid ordinary updates and cancellation cannot leave a stale fade or text", async () => {
+  const page = harness({ price: false });
+  for (const text of ["Проверка", "Готово", "Проверка", "Сохранено"]) page.update(text);
+  await new Promise(setImmediate);
+  assert.equal(page.node.textContent, "Сохранено");
+  assert.equal(page.appearances.length, 4);
+  assert.equal(page.node.children.length, 0);
+  page.context.cancelAllTextTransitions();
+  await page.finish();
+  assert.equal(page.node.textContent, "Сохранено");
+  page.reducedMotionMedia.matches = true;
+  page.update("Отключено");
+  assert.equal(page.appearances.length, 4, "reduced motion skips simple fades too");
+  assert.equal(page.node.textContent, "Отключено");
+});
+
+test("a free plan, currency or payment-action change uses a simple appearance", async () => {
+  for (const value of ["Получить бесплатно", "Оплатить 50 ★", "Повторить оплату 199 ₽"]) {
+    const page = harness();
+    page.update(value);
+    assert.equal(page.animations.length, 0, "price markers must not roll a changed action or currency");
+    assert.equal(page.appearances.length, 1);
+    await page.finish();
+    assert.equal(page.node.textContent, value);
+  }
+});
+
+test("a gift price is explicitly recognized without rolling unrelated numbers", async () => {
+  const page = harness({ price: false });
+  page.node.dataset.giftPlanPrice = "gift-1";
+  page.node.textContent = "500 ₽";
+  page.update("350 ₽");
+  assert.ok(page.animations.length > 0);
+  assert.equal(page.appearances.length, 0);
+  await page.finish();
 });
 
 test("language reels use the target widths and one layout item, without horizontal resizing", async () => {
@@ -201,7 +250,7 @@ test("language reels use the target widths and one layout item, without horizont
     page.node.textContent = before;
     const snapshot = page.context.captureTextTransitionNode(page.node);
     page.node.textContent = after;
-    page.context.playTextTransition(snapshot, page.node, 0, { fixedLayout: true });
+    page.context.playTextTransition(snapshot, page.node, 0, { mode: "language" });
     assert.equal(page.widthAnimations.length, 0, "changing fonts/languages must not expand then collapse letters");
     assert.equal(page.node.children.length, 1, "flex/grid gets one text item rather than one per glyph");
     assert.equal(page.node.textContent, after);
@@ -217,7 +266,7 @@ test("an unloaded language font shows native text immediately instead of using s
   page.document.fonts = { check: () => false };
   const snapshot = page.context.captureTextTransitionNode(page.node);
   page.node.textContent = "Interface language";
-  page.context.playTextTransition(snapshot, page.node, 0, { fixedLayout: true });
+  page.context.playTextTransition(snapshot, page.node, 0, { mode: "language" });
   assert.equal(page.node.textContent, "Interface language");
   assert.equal(page.animations.length, 0);
   assert.equal(page.node.children.length, 0);
@@ -229,7 +278,7 @@ test("rapid language switches keep the latest native text when old reels finish"
   for (const value of ["Interface language", "Язык интерфейса", "Interface language"]) {
     const snapshot = page.context.captureTextTransitionNode(page.node);
     page.node.textContent = value;
-    page.context.playTextTransition(snapshot, page.node, 0, { fixedLayout: true });
+    page.context.playTextTransition(snapshot, page.node, 0, { mode: "language" });
   }
   await new Promise(setImmediate);
   assert.equal(page.node.textContent, "Interface language");
@@ -256,7 +305,9 @@ test("repeating the current value and hiding the page leave no stale text or lay
 test("Unicode graphemes survive rolling and reduced motion replaces text immediately", async () => {
   const page = harness();
   assert.deepEqual(Array.from(page.context.splitTransitionText("👨‍👩‍👧‍👦е́")), ["👨‍👩‍👧‍👦", "е́"]);
-  page.update("Тариф 👨‍👩‍👧‍👦 · Безлимит");
+  const snapshot = page.context.captureTextTransitionNode(page.node);
+  page.node.textContent = "Тариф 👨‍👩‍👧‍👦 · Безлимит";
+  page.context.playTextTransition(snapshot, page.node, 0, { mode: "language" });
   await page.finish();
   assert.equal(page.node.textContent, "Тариф 👨‍👩‍👧‍👦 · Безлимит");
   const count = page.animations.length;
@@ -267,7 +318,7 @@ test("Unicode graphemes survive rolling and reduced motion replaces text immedia
   assert.equal(page.node.children.length, 0);
 });
 
-test("fast plan selection animates both price and title while preserving the payment button", () => {
+test("fast plan selection updates price and title through the shared transition policy while preserving the payment button", () => {
   const titleSelector = '[data-text-transition="checkout-plan"]';
   const calls = [];
   const state = { selectedPlanId: "1" };
@@ -305,6 +356,42 @@ test("fast plan selection animates both price and title while preserving the pay
   }
   assert.equal(calls.length, 10, "each selection animates both labels even within a single frame");
   assert.equal(originalAction.querySelector().textContent, "Pay 600");
+});
+
+test("whole-page refreshes use the same explicit price/language policy as in-place updates", async () => {
+  for (const [price, mode, rolls] of [[false, "content", false], [true, "content", true], [false, "language", true]]) {
+    const page = harness({ price });
+    page.node.id = "price-or-label";
+    page.node.textContent = "Оплатить 199 ₽";
+    const snapshot = page.context.captureTextTransitionNode(page.node);
+    Object.assign(snapshot, { selector: ".page.active", rootID: "page-buy", path: [] });
+    page.node.textContent = "Оплатить 450 ₽";
+    const root = { id: "page-buy", querySelectorAll: () => [page.node] };
+    page.context.app = { querySelector: () => root };
+    page.context.nodeAtTextPath = () => page.node;
+    vm.runInContext(section("function playRenderTextTransitions(", "function updateAnimatedText("), page.context);
+    page.context.playRenderTextTransitions([snapshot], mode);
+    assert.equal(page.animations.length > 0, rolls);
+    assert.equal(page.appearances.length, rolls ? 0 : 1);
+    await page.finish();
+    assert.equal(page.node.textContent, "Оплатить 450 ₽");
+  }
+});
+
+test("a price card keeps its own animation target after cards are reordered", async () => {
+  const page = harness();
+  page.node.dataset.priceTransition = "plan:second";
+  page.node.textContent = "199 ₽";
+  const snapshot = page.context.captureTextTransitionNode(page.node);
+  Object.assign(snapshot, { selector: ".page.active", rootID: "page-buy", transitionKey: "plan:second", path: [0] });
+  page.node.textContent = "450 ₽";
+  const decoy = { dataset: { priceTransition: "plan:first" } };
+  page.context.app = { querySelector: () => ({ id: "page-buy", querySelectorAll: () => [decoy, page.node] }) };
+  vm.runInContext(section("function playRenderTextTransitions(", "function updateAnimatedText("), page.context);
+  page.context.playRenderTextTransitions([snapshot]);
+  assert.ok(page.animations.length > 0);
+  await page.finish();
+  assert.equal(page.node.textContent, "450 ₽");
 });
 
 test("language changes render immediately and persist the latest selection without timers", () => {

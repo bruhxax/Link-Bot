@@ -4450,7 +4450,7 @@ function changedTransitionCharacters(oldCharacters, nextCharacters) {
 	return changes;
 }
 
-function playLanguageTextTransition(before, node, textNode, value, changes, delay) {
+function playVerticalTextTransition(before, node, textNode, value, changes, delay) {
 	const style = transitionTextStyle(node);
 	// Show the new language immediately if its font is still loading; measuring
 	// a fallback font would leave reels at outdated positions after the swap.
@@ -4512,108 +4512,46 @@ function playLanguageTextTransition(before, node, textNode, value, changes, dela
 	else transition.cleanup();
 }
 
-function playTextTransition(before, node, delay = 0, { fixedLayout = false } = {}) {
-	if (!before || !(node instanceof HTMLElement) || before.value === node.textContent?.trim() || reducedMotionMedia?.matches || typeof node.animate !== "function") return;
-	const rect = node.getBoundingClientRect();
-	const textNode = transitionTextNode(node);
-	const value = textNode?.textContent.trim();
-	if (!value || value !== node.textContent.trim() || rect.width < 2 || rect.height < 2 || rect.bottom < 0 || rect.top > window.innerHeight) return;
-	const oldGlyphs = before.glyphs;
-	const nextCharacters = splitTransitionText(value);
-	const targetGlyphs = transitionGlyphs(textNode, value);
-	const changes = changedTransitionCharacters(oldGlyphs.map((glyph) => glyph.character), nextCharacters);
-	if (fixedLayout) return playLanguageTextTransition(before, node, textNode, value, changes, delay);
-	const changedIndexes = new Map(changes.filter((change) => change.newIndex !== null).map((change) => [change.newIndex, change]));
-	const raw = textNode.textContent;
-	const start = raw.indexOf(value);
-	const masks = new Map();
-	const replacementNodes = [];
-	let unchangedText = raw.slice(0, start);
-	const addCell = (change, character) => {
-		if (unchangedText) replacementNodes.push(document.createTextNode(unchangedText));
-		unchangedText = "";
-		const mask = document.createElement("i");
-		mask.className = "text-transition-cell";
-		mask.dataset.textTransitionMask = "";
-		mask.textContent = character;
-		Object.assign(mask.style, {
-			fontStyle: "inherit", color: "transparent", webkitTextFillColor: "transparent", textShadow: "none",
-			width: `${change.oldIndex === null ? 0 : oldGlyphs[change.oldIndex].rect.width}px`,
-		});
-		masks.set(change, mask);
-		replacementNodes.push(mask);
-	};
-	for (let index = 0; index <= nextCharacters.length; index++) {
-		for (const change of changes) {
-			if (change.newIndex === null && change.at === index) addCell(change, "");
-		}
-		if (index === nextCharacters.length) break;
-		if (changedIndexes.has(index)) addCell(changedIndexes.get(index), nextCharacters[index]);
-		else unchangedText += nextCharacters[index];
-	}
-	unchangedText += raw.slice(start + value.length);
-	if (unchangedText) replacementNodes.push(document.createTextNode(unchangedText));
-	// Keep the text as one layout item: flex/grid gaps must not separate letters.
-	const run = document.createElement("i");
-	run.className = "text-transition-run";
-	for (const child of replacementNodes) run.appendChild(child);
-	textNode.replaceWith(run);
-	const newGlyphs = new Map([...masks].map(([change, mask]) => {
-		const glyph = change.newIndex === null ? null : transitionGlyphs(mask.firstChild, mask.textContent)[0];
-		if (glyph) glyph.rect.width = targetGlyphs[change.newIndex].rect.width;
-		return [change, glyph];
-	}));
-	const style = transitionTextStyle(node);
-	node.classList.add("text-transition-host");
-	const animations = [];
-	const timing = { duration: 500, delay, easing: "cubic-bezier(.4,0,.2,1)", fill: "both" };
-	for (let index = 0; index < changes.length; index++) {
-		const change = changes[index];
-		const cell = masks.get(change);
-		const oldGlyph = change.oldIndex === null ? null : oldGlyphs[change.oldIndex];
-		const newGlyph = newGlyphs.get(change);
-		const oldWidth = oldGlyph?.rect.width || 0;
-		const newWidth = newGlyph?.rect.width || 0;
-		cell.style.width = `${newWidth}px`;
-		if (oldWidth !== newWidth) animations.push(cell.animate([{ width: `${oldWidth}px` }, { width: `${newWidth}px` }], timing));
-		const overlay = document.createElement("span");
-		overlay.className = "text-roll";
-		overlay.setAttribute("aria-hidden", "true");
-		cell.appendChild(overlay);
-		const slot = document.createElement("span");
-		slot.className = "text-roll__window";
-		Object.assign(slot.style, {
-			left: "0", top: `${newGlyph ? newGlyph.rect.top - cell.getBoundingClientRect().top : 0}px`,
-			width: "100%",
-			height: `${Math.max(oldGlyph?.rect.height || 0, newGlyph?.rect.height || 0)}px`,
-		});
-		overlay.appendChild(slot);
-		const direction = index % 2 === 0 ? -1 : 1;
-		for (const [glyph, entering, glyphStyle] of [[oldGlyph, false, before.style], [newGlyph, true, style]]) {
-			const layer = transitionGlyphLayer(glyph, glyphStyle, slot, entering, direction);
-			if (!layer) continue;
-			animations.push(layer.animate(entering
-				? [{ transform: `translateY(${-direction * 100}%)` }, { transform: "translateY(0)" }]
-				: [{ transform: "translateY(0)" }, { transform: `translateY(${direction * 100}%)` }],
-				timing));
-		}
-	}
+function playTextAppearance(node, delay = 0) {
+	const animation = node.animate([{ opacity: .25 }, { opacity: 1 }], { duration: 180, delay, easing: "ease-out" });
 	const transition = {
 		cleanup() {
 			if (activeTextTransitions.get(node) !== transition) return;
 			activeTextTransitions.delete(node);
 			runningTextTransitions.delete(transition);
-			animations.forEach((animation) => animation.cancel());
-			node.classList.remove("text-transition-host");
-			for (const mask of masks.values()) mask.replaceWith(document.createTextNode(mask.textContent));
-			run.replaceWith(...run.childNodes);
-			node.normalize();
+			animation.cancel();
 		},
 	};
 	activeTextTransitions.set(node, transition);
 	runningTextTransitions.add(transition);
-	if (animations.length) Promise.allSettled(animations.map((animation) => animation.finished)).then(() => transition.cleanup());
-	else transition.cleanup();
+	Promise.allSettled([animation.finished]).then(() => transition.cleanup());
+}
+
+function playTextTransition(before, node, delay = 0, { mode = "content" } = {}) {
+	if (!before || !(node instanceof HTMLElement) || before.value === node.textContent?.trim() || reducedMotionMedia?.matches || typeof node.animate !== "function") return;
+	const rect = node.getBoundingClientRect();
+	const textNode = transitionTextNode(node);
+	const value = textNode?.textContent.trim();
+	if (!value || value !== node.textContent.trim() || rect.width < 2 || rect.height < 2 || rect.bottom < 0 || rect.top > window.innerHeight) return;
+	const language = mode === "language";
+	const price = node.hasAttribute("data-price-transition") || node.hasAttribute("data-gift-plan-price");
+	// Generic labels, status messages and plan titles simply appear. A numeral
+	// in a label does not make it a price (traffic, dates and counts included).
+	if (!language && !price) return playTextAppearance(node, delay);
+	const oldCharacters = before.glyphs.map((glyph) => glyph.character);
+	const nextCharacters = splitTransitionText(value);
+	let changes = changedTransitionCharacters(oldCharacters, nextCharacters);
+	if (!language) {
+		// Currency / action changes (e.g. a free plan) are label changes too.
+		const label = (text) => text.replace(/[\p{Decimal_Number}\s.,٬٫]/gu, "");
+		if (label(before.value) !== label(value)) return playTextAppearance(node, delay);
+		const digit = (character) => /^\p{Decimal_Number}$/u.test(character || "");
+		changes = changes.filter((change) => digit(oldCharacters[change.oldIndex]) || digit(nextCharacters[change.newIndex]));
+		if (!changes.length) return playTextAppearance(node, delay);
+	}
+	// Use the final native text width immediately. Only translate glyphs on Y;
+	// interpolating cell widths creates an unwanted horizontal reveal.
+	playVerticalTextTransition(before, node, textNode, value, changes, delay);
 }
 
 function textNodePath(node, root) {
@@ -4636,7 +4574,7 @@ function captureRenderTextTransitions() {
 		root.querySelectorAll("[data-text-transition-mask]").forEach((mask) => activeTextTransitions.get(mask.closest(".text-transition-host"))?.cleanup());
 		const candidates = root.querySelectorAll("button, div, h1, h2, h3, label, p, small, span, strong");
 		return [...candidates].filter((node) => (node.childElementCount === 0 || node.matches(".profile-group__title")) && !node.closest(".support-message, .admin-activity, [contenteditable]"))
-			.map((node) => ({ selector, rootID: root.id, transitionKey: node.dataset.giftPlanPrice || node.dataset.textTransition || (node.hasAttribute("data-price-transition") ? "checkout-price" : ""), ...captureTextTransitionNode(node, textNodePath(node, root)) }))
+			.map((node) => ({ selector, rootID: root.id, transitionKey: node.dataset.giftPlanPrice || node.dataset.textTransition || (node.hasAttribute("data-price-transition") ? node.dataset.priceTransition || "checkout-price" : ""), ...captureTextTransitionNode(node, textNodePath(node, root)) }))
 			.filter((item) => item.path);
 	});
 }
@@ -4646,10 +4584,10 @@ function playRenderTextTransitions(snapshots, textTransitionMode = "content") {
 		const root = app.querySelector(snapshot.selector);
 		if (!root || root.id !== snapshot.rootID) continue;
 		const node = snapshot.transitionKey
-			? [...root.querySelectorAll("[data-price-transition], [data-text-transition]")].find((item) => (item.dataset.giftPlanPrice || item.dataset.textTransition || "checkout-price") === snapshot.transitionKey)
+			? [...root.querySelectorAll("[data-price-transition], [data-text-transition]")].find((item) => (item.dataset.giftPlanPrice || item.dataset.textTransition || item.dataset.priceTransition || "checkout-price") === snapshot.transitionKey)
 			: nodeAtTextPath(root, snapshot.path);
 		if (!(node instanceof HTMLElement) || node.tagName !== snapshot.tag || `${node.tagName}:${node.id}:${node.className}:${node.dataset.action || ""}` !== snapshot.identity || (node.childElementCount !== 0 && !node.matches(".profile-group__title"))) continue;
-		playTextTransition(snapshot, node, 0, { fixedLayout: textTransitionMode === "language" });
+		playTextTransition(snapshot, node, 0, { mode: textTransitionMode });
 	}
 }
 
@@ -9367,16 +9305,23 @@ function renderBuyPage() {
 	? localizedText(`Порядок отображения · ${getAdminPaymentMethods().length}`, `Display order · ${getAdminPaymentMethods().length}`, `ترتیب نمایش · ${getAdminPaymentMethods().length}`)
 	: method?.hint || copy.noPaymentMethodsHint;
   const checkoutDisabled = !plan || (!freeCheckout && !method) || state.busyMethod || state.adminPlanEditing;
-  const checkout = `<div class="card card--checkout">
-		<div class="summary-row checkout-summary"><div><div class="summary-row__title">${copy.selectedPlan}</div><div class="summary-row__value" data-text-transition="checkout-plan">${plan ? getPlanDisplayTitle(plan, state.locale) : "—"}</div></div>${plan?.recommended ? `<span class="badge badge--inline">${copy.best}</span>` : plan?.savingsPercent ? `<span class="badge badge--inline">${copy.savings(plan.savingsPercent)}</span>` : ""}</div>
+  const checkout = `<div class="card--checkout checkout-sections">
+		<section class="card checkout-section checkout-selection">
+		<div class="summary-row checkout-summary"><div><div class="summary-row__title">${copy.selectedPlan}</div><div class="summary-row__value" data-text-transition="checkout-plan">${plan ? escapeHtml(getPlanDisplayTitle(plan, state.locale)) : "—"}</div></div>${plan?.recommended ? `<span class="badge badge--inline">${copy.best}</span>` : plan?.savingsPercent ? `<span class="badge badge--inline">${copy.savings(plan.savingsPercent)}</span>` : ""}</div>
 		${devicePack ? `<div class="summary-row checkout-summary"><div><div class="summary-row__title">${localizedText("Устройства", "Devices", "دستگاه‌ها")}</div><div class="summary-row__value">${escapeHtml(devicePackTitle(devicePack.devices))}</div></div></div>` : ""}
 		${trafficPack ? `<div class="summary-row checkout-summary"><div><div class="summary-row__title">${localizedText("Трафик", "Traffic", "ترافیک")}</div><div class="summary-row__value">${escapeHtml(trafficPackTitle(trafficPack.trafficGb))}</div></div></div>` : ""}
-        <div class="payment-stack">
-		${freeCheckout && !state.adminPlanEditing ? `<div class="checkout-free-note"><span>${icon("check")}</span><div><strong>${escapeHtml(freeLabel)}</strong><small>${localizedText("Способ оплаты не нужен — тариф активируется сразу.", "No payment method or redirect is required.", "نیازی به روش پرداخت نیست؛ تعرفه فوراً فعال می‌شود.")}</small></div></div>` : `<button class="pay-selector checkout-payment ${method ? "" : "checkout-payment--empty"}" type="button" data-action="open-pay-modal" ${method || state.adminPlanEditing ? "" : "disabled aria-disabled=\"true\""}><span class="pay-selector__icon ${method ? "pay-selector__icon--brand" : ""}">${method ? renderPaymentMethodLogo(method) : icon("wallet")}</span><span class="pay-selector__copy"><strong>${escapeHtml(methodTitle)}</strong><span>${escapeHtml(methodHint)}</span></span><span class="pay-selector__tail">${icon("checkoutEdit")}</span></button>`}
+		</section>
+		${freeCheckout && !state.adminPlanEditing ? `<div class="card checkout-section checkout-free-note"><span>${icon("check")}</span><div><strong>${escapeHtml(freeLabel)}</strong><small>${localizedText("Способ оплаты не нужен — тариф активируется сразу.", "No payment method or redirect is required.", "نیازی به روش پرداخت نیست؛ تعرفه فوراً فعال می‌شود.")}</small></div></div>` : `<button class="gift-payment-row checkout-method ${method ? "" : "checkout-method--empty"}" type="button" data-action="open-pay-modal" aria-label="${escapeAttribute(`${copy.paymentMethod}: ${methodTitle}${methodHint ? `. ${methodHint}` : ""}`)}" ${method || state.adminPlanEditing ? "" : "disabled aria-disabled=\"true\""}>
+			<span class="gift-payment-row__brand">${method ? renderPaymentMethodLogo(method) : icon("wallet")}</span>
+			<span><small>${escapeHtml(state.adminPlanEditing ? methodHint : copy.paymentMethod)}</small><strong>${escapeHtml(methodTitle)}</strong></span>
+			${icon("chevronRight")}
+		</button>`}
+		<section class="card checkout-section checkout-submit">
+		<div class="payment-stack">
         ${featureEnabled("promocodes") && !freeCheckout ? `<div class="promo-box checkout-promo">
-          <span class="support-field__label">${escapeHtml(copy.promoCode || "Promo code")}</span>
+          <label class="support-field__label" for="checkout-promo-code">${escapeHtml(copy.promoCode || "Promo code")}</label>
           <div class="promo-box__row">
-            <input class="support-field__input promo-box__input" type="text" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" aria-describedby="promo-status" placeholder="${escapeAttribute(copy.promoCodePlaceholder || "")}" value="${escapeAttribute(state.promoCodeDraft)}" data-input="promo-code" ${state.adminPlanEditing ? "disabled" : ""}>
+            <input class="support-field__input promo-box__input" id="checkout-promo-code" type="text" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" aria-describedby="promo-status" placeholder="${escapeAttribute(copy.promoCodePlaceholder || "")}" value="${escapeAttribute(state.promoCodeDraft)}" data-input="promo-code" ${state.adminPlanEditing ? "disabled" : ""}>
           </div>
           <div class="promo-box__status ${promoStatus ? `promo-box__status--${escapeAttribute(promoStatus.type)}` : "promo-box__status--empty"}" id="promo-status" data-promo-status role="status" aria-live="polite">${promoStatus ? escapeHtml(promoStatus.message) : ""}</div>
 		  <div data-promo-reward-action>${renderPromoRewardAction()}</div>
@@ -9384,6 +9329,7 @@ function renderBuyPage() {
 		${state.data.meta?.starsNeedPriorPurchase && !freeCheckout ? `<div class="note">${copy.starsNeedPriorPurchase}</div>` : ""}
 		<button class="btn btn--green-filled buy-action" type="button" data-action="pay-selected" ${checkoutDisabled ? "disabled aria-disabled=\"true\"" : ""}>${icon(state.busyMethod ? "refresh" : "cart")}<span data-price-transition>${escapeHtml(payLabel)}</span></button>
         </div>
+		</section>
       </div>`;
 	return `<section class="page ${state.adminPlanEditing ? "page-buy--admin-editor" : ""} ${pageClass("buy")}" id="page-buy">${devicePackTrigger}${trafficPackTrigger}${planList}${displayedPlans.length ? checkout : ""}</section>`;
 }
@@ -9493,7 +9439,7 @@ function renderDevicePackCard(pack, selected = false) {
 				<div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(devicePackTitle(pack.devices))}</div></div>
 				<div class="pricing-card__spec">${localizedText("До", "Until", "تا")} ${escapeHtml(formatShortDateLabel(new Date(devicePackExpiry()).toISOString(), state.locale))}</div>
 			</div>
-			<div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong>${escapeHtml(price)}</strong></div></div></div>
+			<div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong data-price-transition="device-pack:${escapeAttribute(pack.id)}">${escapeHtml(price)}</strong></div></div></div>
 		</div>
 	</button>`;
 }
@@ -9508,7 +9454,7 @@ function renderAdminDevicePackCard(pack, index) {
 				<div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(devicePackTitle(pack.devices))}</div></div>
 				<div class="pricing-card__spec">За 30 дней</div>
 			</div>
-			<div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong>${escapeHtml(price)}</strong></div></div></div>
+			<div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong data-price-transition="device-pack:${id}">${escapeHtml(price)}</strong></div></div></div>
 		</div>
 		${renderAdminCommerceControls("pack", pack)}
 	</article>`;
@@ -9566,7 +9512,7 @@ function renderTrafficPackAdminTrigger(editor = false) {
 }
 
 function renderTrafficPackCard(pack, selected = false) {
-	return `<button class="pricing-card device-pack-card ${selected ? "selected" : ""} ${pack.wide ? "is-wide" : ""}" type="button" data-action="select-traffic-pack" data-value="${escapeAttribute(pack.id)}" data-selection-feedback aria-pressed="${selected}"><div class="pricing-card__content"><div class="pricing-card__copy"><div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(trafficPackTitle(pack.trafficGb))}</div></div><div class="pricing-card__spec">${localizedText("Без сброса", "No reset", "بدون بازنشانی")}</div></div><div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong>${escapeHtml(formatCurrency(pack.priceRub, state.locale))}</strong></div></div></div></div></button>`;
+	return `<button class="pricing-card device-pack-card ${selected ? "selected" : ""} ${pack.wide ? "is-wide" : ""}" type="button" data-action="select-traffic-pack" data-value="${escapeAttribute(pack.id)}" data-selection-feedback aria-pressed="${selected}"><div class="pricing-card__content"><div class="pricing-card__copy"><div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(trafficPackTitle(pack.trafficGb))}</div></div><div class="pricing-card__spec">${localizedText("Без сброса", "No reset", "بدون بازنشانی")}</div></div><div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong data-price-transition="traffic-pack:${escapeAttribute(pack.id)}">${escapeHtml(formatCurrency(pack.priceRub, state.locale))}</strong></div></div></div></div></button>`;
 }
 
 function renderTrafficPackModal() {
@@ -9593,7 +9539,7 @@ function openTrafficPackPaymentMethods() {
 }
 
 function renderAdminTrafficPackCard(pack) {
-	return `<article class="pricing-card pricing-card--admin device-pack-card device-pack-card--admin ${pack.wide ? "is-wide" : ""}" data-admin-traffic-id="${escapeAttribute(pack.id)}"><div class="pricing-card__content"><div class="pricing-card__copy"><div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(trafficPackTitle(pack.trafficGb))}</div></div><div class="pricing-card__spec">Без сброса</div></div><div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong>${escapeHtml(formatCurrency(pack.priceRub, state.locale))}</strong></div></div></div></div>${renderAdminCommerceControls("traffic", pack)}</article>`;
+	return `<article class="pricing-card pricing-card--admin device-pack-card device-pack-card--admin ${pack.wide ? "is-wide" : ""}" data-admin-traffic-id="${escapeAttribute(pack.id)}"><div class="pricing-card__content"><div class="pricing-card__copy"><div class="pricing-card__name-row"><div class="pricing-card__name">${escapeHtml(trafficPackTitle(pack.trafficGb))}</div></div><div class="pricing-card__spec">Без сброса</div></div><div class="pricing-card__price-stack"><div class="pricing-card__price-row"><div class="pricing-card__price-line"><strong data-price-transition="traffic-pack:${escapeAttribute(pack.id)}">${escapeHtml(formatCurrency(pack.priceRub, state.locale))}</strong></div></div></div></div>${renderAdminCommerceControls("traffic", pack)}</article>`;
 }
 
 function renderAdminTrafficPackModal() {
@@ -11052,7 +10998,7 @@ function renderPlanCard(plan, selected) {
         </div>
         <div class="pricing-card__price-stack">
           <div class="pricing-card__price-row">
-            <div class="pricing-card__price-line"><strong>${escapeHtml(price)}</strong></div>
+            <div class="pricing-card__price-line"><strong data-price-transition="plan:${escapeAttribute(key)}">${escapeHtml(price)}</strong></div>
           </div>
         </div>
       </div>
