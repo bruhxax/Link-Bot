@@ -9590,6 +9590,8 @@ body.is-plan-editing .page-scroll {
   padding: 14px 16px;
   border-radius: 12px;
 }
+.checkout-sections > .checkout-selection { border-end-start-radius: 8px; border-end-end-radius: 8px; }
+.checkout-sections > .checkout-submit { border-start-start-radius: 8px; border-start-end-radius: 8px; }
 .checkout-sections .checkout-summary {
   min-height: 36px;
   padding: 0;
@@ -9607,17 +9609,24 @@ body.is-plan-editing .page-scroll {
   min-height: 58px;
   margin: 0;
   padding: 10px 14px;
-  border-radius: 12px;
+  border-radius: 8px;
   cursor: pointer;
 }
 .checkout-method:disabled { opacity: .55; cursor: default; }
 .checkout-method .gift-payment-row__brand { width: 30px; height: 30px; }
 .checkout-method .payment-brand-logo { transform: none; }
 .checkout-sections .checkout-promo { padding: 0; }
-.checkout-sections .promo-box__input { border-radius: 8px; }
+.checkout-sections .promo-box__input {
+  box-sizing: border-box;
+  height: 44px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  caret-color: var(--accent);
+}
 .checkout-sections .buy-action { margin-top: 10px; border-radius: 10px; }
 .checkout-sections .payment-stack > .buy-action:first-child { margin-top: 0; }
-.checkout-sections > .checkout-free-note { border-bottom: 1px solid var(--line); }
+.checkout-sections > .checkout-free-note { border-bottom: 1px solid var(--line); border-radius: 8px; }
 .page-buy--admin-editor .checkout-method:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 
 @media (max-width: 360px) {

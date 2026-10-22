@@ -4535,13 +4535,14 @@ function playTextTransition(before, node, delay = 0, { mode = "content" } = {}) 
 	if (!value || value !== node.textContent.trim() || rect.width < 2 || rect.height < 2 || rect.bottom < 0 || rect.top > window.innerHeight) return;
 	const language = mode === "language";
 	const price = node.hasAttribute("data-price-transition") || node.hasAttribute("data-gift-plan-price");
-	// Generic labels, status messages and plan titles simply appear. A numeral
-	// in a label does not make it a price (traffic, dates and counts included).
-	if (!language && !price) return playTextAppearance(node, delay);
+	const selectedPlan = node.dataset.textTransition === "checkout-plan";
+	// Only the selected plan is a rolling label outside a language change.
+	// Other labels, traffic, dates and counts keep the simple appearance.
+	if (!language && !price && !selectedPlan) return playTextAppearance(node, delay);
 	const oldCharacters = before.glyphs.map((glyph) => glyph.character);
 	const nextCharacters = splitTransitionText(value);
 	let changes = changedTransitionCharacters(oldCharacters, nextCharacters);
-	if (!language) {
+	if (!language && !selectedPlan) {
 		// Currency / action changes (e.g. a free plan) are label changes too.
 		const label = (text) => text.replace(/[\p{Decimal_Number}\s.,٬٫]/gu, "");
 		if (label(before.value) !== label(value)) return playTextAppearance(node, delay);

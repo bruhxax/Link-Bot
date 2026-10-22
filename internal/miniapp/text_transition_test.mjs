@@ -178,6 +178,22 @@ test("ordinary text and non-price numerals fade without creating glyph layers", 
   }
 });
 
+test("the selected checkout plan rolls vertically while ordinary plan labels still fade", async () => {
+  for (const [before, after] of [["6 месяцев · Безлимит", "12 месяцев · Безлимит"], ["Базовый", "Семейный"], ["Навсегда · Безлимит", "1 месяц · Безлимит"]]) {
+    const page = harness({ price: false });
+    page.node.dataset.textTransition = "checkout-plan";
+    page.node.textContent = before;
+    page.update(after);
+    assert.ok(page.animations.length > 0);
+    assert.equal(page.appearances.length, 0);
+    assert.equal(page.widthAnimations.length, 0);
+    assert.ok(page.animations.every(animation => animation.frames.every(frame => /^translateY\(/.test(frame.transform))));
+    await page.finish();
+    assert.equal(page.node.textContent, after);
+    assert.equal(page.node.children.length, 0);
+  }
+});
+
 test("prices with a different number of digits roll vertically at the final width", async () => {
   for (const [before, after] of [
     ["Оплатить 700 ₽", "Оплатить 6000 ₽"],
