@@ -9576,7 +9576,7 @@ body.is-plan-editing .page-scroll {
 
 /* Three nearby surfaces share the same checkout state and payment action. */
 .card--checkout.checkout-sections {
-  gap: 8px;
+  gap: 4px;
   padding: 0;
   overflow: visible;
   border: 0;
