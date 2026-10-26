@@ -67,6 +67,15 @@ func (s *Service) deliverBroadcast(ctx context.Context, draft database.Broadcast
 		messageID = message.ID
 		sentAt = time.Now().UTC()
 	}
+	if draft.SurveyRunID != "" {
+		recordCtx, recordCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		recordErr := s.repository.RegisterSurveyRecipient(recordCtx, draft.SurveyRunID, chatID, messageID)
+		recordCancel()
+		if recordErr != nil {
+			_, _ = s.telegramBot.DeleteMessage(context.WithoutCancel(ctx), &bot.DeleteMessageParams{ChatID: chatID, MessageID: messageID})
+			return fmt.Errorf("%w: не удалось сохранить получателя", ErrSurvey)
+		}
+	}
 	if draft.DeleteAfterMinutes == 0 {
 		s.rememberBroadcastRecipient(ctx, chatID, messageID, sentAt)
 		return nil

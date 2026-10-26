@@ -15,6 +15,7 @@ type BroadcastTemplate struct {
 	Payload   json.RawMessage `json:"-"`
 }
 type BroadcastTemplatePayload struct {
+	Survey             *SurveyConfig     `json:"survey,omitempty"`
 	DeleteAfterMinutes int               `json:"deleteAfterMinutes,omitempty"`
 	SourceChatID       *int64            `json:"sourceChatId,omitempty"`
 	SourceMessageID    *int              `json:"sourceMessageId,omitempty"`

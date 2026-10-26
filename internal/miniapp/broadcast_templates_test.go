@@ -38,7 +38,7 @@ func TestBroadcastTemplatesRestoreDraftsWithoutSendingAndRejectStaleState(t *tes
 		t.Fatal(err)
 	}
 	defer pool.Exec(context.Background(), "DROP SCHEMA "+schema+" CASCADE")
-	for _, name := range []string{"000017_broadcast_campaign.up.sql", "000030_broadcast_html.up.sql", "000048_email_link_and_broadcast.up.sql", "000055_broadcast_audience.up.sql", "000066_temporary_broadcast.up.sql", "000067_broadcast_auto_reply.up.sql", "000059_broadcast_templates.up.sql"} {
+	for _, name := range []string{"000017_broadcast_campaign.up.sql", "000030_broadcast_html.up.sql", "000048_email_link_and_broadcast.up.sql", "000055_broadcast_audience.up.sql", "000066_temporary_broadcast.up.sql", "000067_broadcast_auto_reply.up.sql", "000059_broadcast_templates.up.sql", "000070_broadcast_surveys.up.sql"} {
 		raw, err := os.ReadFile("../../db/migrations/" + name)
 		if err != nil {
 			t.Fatal(err)
@@ -73,6 +73,11 @@ func TestBroadcastTemplatesRestoreDraftsWithoutSendingAndRejectStaleState(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
+	survey := database.SurveyConfig{Enabled: true, Title: "Опрос", StartText: "Пройти", Questions: []database.SurveyQuestion{{Text: "Как сервис?", Options: []string{"Нравится", "Улучшить"}}}, FinishText: "Спасибо"}
+	d, err = svc.SaveSurvey(ctx, 42, survey, d.UpdatedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
 	request(sess, map[string]any{"action": "save", "channel": "telegram", "name": "Сообщение", "updatedAt": d.UpdatedAt, "audience": map[string]any{"category": "active", "language": "ru"}}, 200)
 	items, err := cr.BroadcastTemplates(ctx)
 	if err != nil || len(items) != 1 {
@@ -87,7 +92,7 @@ func TestBroadcastTemplatesRestoreDraftsWithoutSendingAndRejectStaleState(t *tes
 	apply := map[string]any{"action": "apply", "channel": "telegram", "id": items[0].ID, "updatedAt": d.UpdatedAt}
 	request(sess, apply, 200)
 	restored, err := svc.Get(ctx)
-	if err != nil || restored.Status != "draft" || restored.DeleteAfterMinutes != 720 || restored.SourceMessageID == nil || *restored.SourceMessageID != 27 || restored.SentCount != 0 || restored.RecipientCount != 0 || restored.FailedCount != 0 || restored.Audience.Category != "active" || len(restored.Buttons) != 1 || !strings.Contains(restored.SourceText, "Вторая строка") || len(restored.SourceText) < 400 || !restored.UpdatedAt.After(d.UpdatedAt) {
+	if err != nil || restored.Survey == nil || !restored.Survey.Enabled || restored.Survey.Title != "Опрос" || restored.Survey.Questions[0].Options[1] != "Улучшить" || restored.Status != "draft" || restored.DeleteAfterMinutes != 720 || restored.SourceMessageID == nil || *restored.SourceMessageID != 27 || restored.SentCount != 0 || restored.RecipientCount != 0 || restored.FailedCount != 0 || restored.Audience.Category != "active" || len(restored.Buttons) != 1 || !strings.Contains(restored.SourceText, "Вторая строка") || len(restored.SourceText) < 400 || !restored.UpdatedAt.After(d.UpdatedAt) {
 		t.Fatalf("template did not restore whole draft safely: %+v %v", restored, err)
 	}
 	request(sess, apply, 409) // The first apply invalidates its nonce.

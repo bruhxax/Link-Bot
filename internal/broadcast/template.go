@@ -19,6 +19,15 @@ func (s *Service) RestoreTemplate(ctx context.Context, p database.BroadcastTempl
 	if err := database.ValidateBroadcastExpiration(p.DeleteAfterMinutes); err != nil {
 		return nil, err
 	}
+	if p.Survey == nil {
+		p.Survey = &database.SurveyConfig{}
+	}
+	if err := NormalizeSurvey(p.Survey); err != nil {
+		return nil, err
+	}
+	if p.Survey.Enabled && p.SourceKind != "text" && p.SourceKind != "html" {
+		return nil, ErrSurvey
+	}
 	clean, err := ValidateButtons(p.Buttons)
 	if err != nil {
 		return nil, err
@@ -36,5 +45,12 @@ func (s *Service) RestoreTemplate(ctx context.Context, p database.BroadcastTempl
 	if err == pgx.ErrNoRows || err == nil && draft == nil {
 		return nil, ErrDraftChanged
 	}
-	return draft, err
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.repository.SaveSurvey(ctx, *p.Survey, adminID, draft.UpdatedAt)
+	if err == nil && result == nil {
+		return nil, ErrDraftChanged
+	}
+	return result, err
 }

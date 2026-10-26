@@ -28,7 +28,7 @@ function setup(channel) {
     canAdmin: () => allowed, pageClass: () => 'active page--animate',
     escapeHtml: String, escapeAttribute: String, icon: () => '',
     broadcastStatusLabel: () => 'Draft', broadcastKindLabel: () => 'Text',
-    renderAdminBroadcastTabs: () => '', renderCurrentAudience: () => '',
+    renderAdminSurvey: () => '', renderAdminBroadcastTabs: () => '', renderCurrentAudience: () => '',
     consoleActive: false, dockMode: 'navigation', dockModeChanged: false,
     renderDesktopSidebar: () => '', isModalVisible: () => false,
     renderBottomNav: () => '<nav data-test-bottom-nav></nav>',

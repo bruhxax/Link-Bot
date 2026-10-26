@@ -127,7 +127,7 @@ func TestTemporaryBroadcastPersistsDeliveryAndResumesDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer pool.Exec(context.Background(), "DROP SCHEMA "+schema+" CASCADE; SET search_path TO public")
-	for _, name := range []string{"000017_broadcast_campaign", "000030_broadcast_html", "000055_broadcast_audience", "000066_temporary_broadcast", "000067_broadcast_auto_reply"} {
+	for _, name := range []string{"000017_broadcast_campaign", "000030_broadcast_html", "000055_broadcast_audience", "000066_temporary_broadcast", "000067_broadcast_auto_reply", "000070_broadcast_surveys"} {
 		raw, err := os.ReadFile(filepath.Join("..", "..", "db", "migrations", name+".up.sql"))
 		if err != nil {
 			t.Fatal(err)

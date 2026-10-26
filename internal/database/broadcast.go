@@ -30,6 +30,8 @@ type BroadcastButton struct {
 }
 
 type BroadcastDraft struct {
+	Survey             *SurveyConfig               `json:"survey,omitempty"`
+	SurveyRunID        string                      `json:"-"`
 	AutoReply          *BroadcastAutoReplySettings `json:"autoReply,omitempty"`
 	DeleteAfterMinutes int                         `json:"deleteAfterMinutes"`
 	Audience           BroadcastAudience           `json:"audience"`

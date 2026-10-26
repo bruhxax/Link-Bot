@@ -149,6 +149,8 @@ func (h *Handler) requireBroadcastAdmin(w http.ResponseWriter, sess *session) bo
 
 func (h *Handler) writeBroadcastError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, broadcast.ErrSurvey):
+		h.writeError(w, http.StatusBadRequest, "broadcast_invalid_survey", err.Error())
 	case errors.Is(err, broadcast.ErrAutoReplySettings):
 		h.writeError(w, http.StatusBadRequest, "broadcast_invalid_auto_reply", err.Error())
 	case errors.Is(err, database.ErrBroadcastExpiration):

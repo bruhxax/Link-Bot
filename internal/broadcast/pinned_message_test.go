@@ -76,7 +76,7 @@ func newPinFixture(t *testing.T) (*pinFixture, context.Context) {
 	if _, err = pool.Exec(ctx, `CREATE TABLE email_broadcast(id BIGINT PRIMARY KEY)`); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"000017_broadcast_campaign", "000030_broadcast_html", "000046_direct_messages", "000055_broadcast_audience", "000063_broadcast_preferences", "000064_pinned_message", "000066_temporary_broadcast", "000067_broadcast_auto_reply"} {
+	for _, name := range []string{"000017_broadcast_campaign", "000030_broadcast_html", "000046_direct_messages", "000055_broadcast_audience", "000063_broadcast_preferences", "000064_pinned_message", "000066_temporary_broadcast", "000067_broadcast_auto_reply", "000070_broadcast_surveys"} {
 		raw, err := os.ReadFile(filepath.Join("..", "..", "db", "migrations", name+".up.sql"))
 		if err != nil {
 			t.Fatal(err)

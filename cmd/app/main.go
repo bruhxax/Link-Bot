@@ -288,6 +288,7 @@ func main() {
 		}
 	})
 
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "sv:", bot.MatchTypePrefix, broadcastService.HandleSurvey)
 	b.RegisterHandlerMatchFunc(broadcast.IsAutoReplyCandidate, broadcastService.HandleAutoReply)
 
 	b.RegisterHandlerMatchFunc(func(update *models.Update) bool {

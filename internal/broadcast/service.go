@@ -96,6 +96,10 @@ func (s *Service) Get(ctx context.Context) (*database.BroadcastDraft, error) {
 	if err != nil || draft == nil {
 		return draft, err
 	}
+	draft.Survey, err = s.repository.SurveyDraft(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if s.replies != nil {
 		draft.AutoReply, err = s.replies.AutoReplySettings(ctx)
 	}
@@ -266,6 +270,22 @@ func (s *Service) Preview(ctx context.Context, adminID int64) (*database.Broadca
 	if draft == nil || !draft.HasSource() {
 		return nil, ErrNoMessage
 	}
+	if err = s.loadSurvey(ctx, draft); err != nil {
+		return nil, err
+	}
+	if draft.Survey.Enabled {
+		id, err := s.repository.CreateSurveyRun(ctx, *draft.Survey, draft.Buttons, true)
+		if err != nil {
+			return nil, err
+		}
+		previewDraft := *draft
+		previewDraft.SurveyRunID = id
+		previewDraft.DeleteAfterMinutes = 0
+		if err = s.deliverBroadcast(ctx, previewDraft, adminID, surveyIntroKeyboard(id, draft.Survey)); err != nil {
+			return nil, err
+		}
+		return draft, nil
+	}
 	if draft.SourceKind == "html" {
 		if _, err := s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: adminID, Text: draft.SourceHTML, ParseMode: models.ParseModeHTML, ReplyMarkup: buildKeyboard(draft.Buttons),
@@ -305,6 +325,10 @@ func (s *Service) Start(ctx context.Context, adminID int64, expected ...time.Tim
 	if len(expected) > 0 && !expected[0].IsZero() && !draft.UpdatedAt.Equal(expected[0]) {
 		return nil, ErrDraftChanged
 	}
+	if err = s.loadSurvey(ctx, draft); err != nil {
+		return nil, err
+	}
+	survey := draft.Survey
 	var targetIDs []int64
 	if s.audienceResolver != nil {
 		targetIDs, err = s.audienceResolver(ctx, draft.Audience)
@@ -328,6 +352,15 @@ func (s *Service) Start(ctx context.Context, adminID int64, expected ...time.Tim
 		return nil, ErrRunning
 	}
 
+	draft.Survey = survey
+	if survey.Enabled {
+		id, runErr := s.repository.CreateSurveyRun(ctx, *survey, draft.Buttons, false)
+		if runErr != nil {
+			_ = s.repository.Finish(ctx, database.BroadcastStatusFailed, 0, 0, "Не удалось создать опрос")
+			return nil, runErr
+		}
+		draft.SurveyRunID = id
+	}
 	startedDraft := *draft
 	startedDraft.Buttons = append([]database.BroadcastButton(nil), draft.Buttons...)
 	go s.run(startedDraft, targets, adminID)
@@ -335,6 +368,8 @@ func (s *Service) Start(ctx context.Context, adminID int64, expected ...time.Tim
 }
 
 func (s *Service) Reset(ctx context.Context, adminID int64) (*database.BroadcastDraft, error) {
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
 	draft, err := s.repository.Reset(ctx, adminID)
 	if err != nil {
 		return nil, normalizeRepositoryStateError(err)
@@ -342,7 +377,11 @@ func (s *Service) Reset(ctx context.Context, adminID int64) (*database.Broadcast
 	if draft == nil {
 		return nil, ErrRunning
 	}
-	return draft, nil
+	result, err := s.repository.SaveSurvey(ctx, database.SurveyConfig{}, adminID, draft.UpdatedAt)
+	if err == nil && result == nil {
+		return nil, ErrDraftChanged
+	}
+	return result, err
 }
 
 func (s *Service) run(draft database.BroadcastDraft, targets []int64, adminID int64) {
@@ -364,6 +403,9 @@ func (s *Service) run(draft database.BroadcastDraft, targets []int64, adminID in
 	workerCount := maxWorkersFor(len(targets))
 	var wg sync.WaitGroup
 	keyboard := buildKeyboard(draft.Buttons)
+	if draft.SurveyRunID != "" {
+		keyboard = surveyIntroKeyboard(draft.SurveyRunID, draft.Survey)
+	}
 	// Stay below Telegram's global bot limit while using the available throughput.
 	throttle := time.NewTicker(34 * time.Millisecond)
 	defer throttle.Stop()

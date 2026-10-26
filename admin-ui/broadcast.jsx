@@ -270,7 +270,7 @@ function Buttons({ model, disabled }) {
     <div className="rn-broadcast-buttons">
       <Group justify="space-between">
         <Switch
-          label="Добавить кнопки"
+          label={model.telegram?.survey?.enabled ? "Кнопки в конце опроса" : "Добавить кнопки"}
           color="teal"
           checked={buttons.length > 0}
           disabled={disabled}
@@ -967,6 +967,7 @@ export function Broadcast({ model: root, dispatch, hidden, Legacy }) {
                       </Button>
                     </div>
                     <Buttons model={model} disabled={disabled} />
+                    <div className="survey-workflow" dangerouslySetInnerHTML={{__html:model.surveyHTML||""}} />
                     <div className="admin-broadcast__options"><Expiration model={model} disabled={disabled} /><AutoReply model={model} disabled={disabled} /></div>
                   </>
                 )}
