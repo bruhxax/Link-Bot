@@ -234,7 +234,6 @@ function Audience({ model, disabled, hidden }) {
         <Switch
           mt="md"
           label="Игнорировать отписку от рассылки"
-          description="Отправить эту Telegram-рассылку также отписавшимся пользователям. Их настройки останутся прежними."
           checked={Boolean(a.ignoreUnsubscribe)}
           onChange={(event) => model.updateAudience("ignoreUnsubscribe", event.currentTarget.checked)}
           disabled={disabled}
@@ -422,7 +421,6 @@ function Expiration({ model, disabled }) {
           onChange={value => { setCustom(value === "custom"); if(value !== "custom") model.updateDeleteAfter(Number(value)); }} />
         {own && <NumberInput label="Срок, минут" min={1} max={2820} allowDecimal={false} allowNegative={false}
           value={minutes} disabled={disabled} clampBehavior="strict" onChange={value => { if(value !== "") model.updateDeleteAfter(Number(value)); }} />}
-        <Text size="xs" c="dimmed">От 1 минуты до 47 часов с момента отправки каждому пользователю. Срок сохраняется после перезапуска бота.</Text>
       </>}
       {model.expirationDirty && <Text size="xs" c="dimmed">Срок сохранится перед предпросмотром или отправкой.</Text>}
     </Stack>
@@ -434,7 +432,7 @@ function Progress({ draft, hidden }) {
   return (
     <div className="rn-broadcast-progress">
       <Group justify="space-between">
-        <span>{BROADCAST_STATUS[draft.status] || draft.status}</span>
+        <span>{draft.status !== "finished" ? BROADCAST_STATUS[draft.status] || draft.status : ""}</span>
         <Private hidden={hidden}>{m.percent}%</Private>
       </Group>
       <i>
@@ -826,7 +824,7 @@ export function Broadcast({ model: root, dispatch, hidden, Legacy }) {
                       : "Новое письмо"
                   : "Новое сообщение"}
               </h2>
-              {model.canBroadcast && (
+              {model.canBroadcast && draft?.status !== "finished" && (
                 <Badge color={running ? "teal" : "gray"} variant="light">
                   {BROADCAST_STATUS[draft?.status] || "Загрузка…"}
                 </Badge>

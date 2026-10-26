@@ -35,7 +35,7 @@ test('audience editor exposes disabled/checked override without changing other f
     if(channel === "email") { assert.doesNotMatch(html, /data-audience-field="ignoreUnsubscribe"/); continue; }
     assert.match(html, /role="switch" data-audience-field="ignoreUnsubscribe"/);
     assert.match(html, new RegExp(`data-audience-field="ignoreUnsubscribe" data-channel="${channel}" checked disabled`));
-    assert.match(html, /Их настройки останутся прежними/);
+    assert.doesNotMatch(html, /Их настройки останутся прежними/);
   }
 });
 

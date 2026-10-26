@@ -6786,9 +6786,9 @@ function renderAdminBroadcastPage() {
 			<div class="admin-broadcast">
 				${renderAdminBroadcastTabs()}
  ${renderCurrentAudience("telegram",running)}
-				<header class="admin-section-tools">
+				${draft.status !== "finished" ? `<header class="admin-section-tools">
 					<span class="admin-broadcast__status admin-broadcast__status--${escapeAttribute(draft.status || "idle")}">${escapeHtml(broadcastStatusLabel(draft.status, english))}</span>
-				</header>
+				</header>` : ""}
 
 				<section class="admin-broadcast__section">
 					<div class="admin-broadcast__section-head"><div><span>1</span><div><strong>${english ? "Message" : "Сообщение"}</strong><small>${english ? "Created in Telegram" : "Создаётся в Telegram"}</small></div></div></div>
@@ -6820,7 +6820,7 @@ function renderAdminBroadcastPage() {
 
 function renderAdminBroadcastExpiration(disabled, english) {
  const minutes=Number(state.adminBroadcastExpirationDraft||0);
- return `<section class="admin-broadcast__section"><label class="menu-row admin-toggle"><span class="menu-row__body"><strong>${english ? "Temporary broadcast" : "Временная рассылка"}</strong><small>${english ? "Delete each sent copy after a set time" : "Удалить сообщение у каждого получателя через заданное время"}</small></span><input type="checkbox" role="switch" aria-label="${english ? "Temporary broadcast" : "Временная рассылка"}" data-input="admin-broadcast-temporary" ${minutes>0 ? "checked" : ""} ${disabled ? "disabled" : ""}><i aria-hidden="true"></i></label>${minutes>0 ? `<label class="admin-broadcast-expiration-minutes"><span>${english ? "Delete after, minutes" : "Удалить через, минут"}</span><input type="number" min="1" max="2820" step="1" data-input="admin-broadcast-expiration-minutes" value="${minutes}" ${disabled ? "disabled" : ""}></label><p class="admin-broadcast__empty">${english ? "720 min = 12 hours. From 1 minute to 47 hours after each delivery. Resumes after restart." : "720 мин = 12 часов. От 1 минуты до 47 часов после отправки каждой копии. Удаление продолжится после перезапуска."}</p>` : ""}</section>`;
+ return `<section class="admin-broadcast__section"><label class="menu-row admin-toggle"><span class="menu-row__body"><strong>${english ? "Temporary broadcast" : "Временная рассылка"}</strong><small>${english ? "Delete each sent copy after a set time" : "Удалить сообщение у каждого получателя через заданное время"}</small></span><input type="checkbox" role="switch" aria-label="${english ? "Temporary broadcast" : "Временная рассылка"}" data-input="admin-broadcast-temporary" ${minutes>0 ? "checked" : ""} ${disabled ? "disabled" : ""}><i aria-hidden="true"></i></label>${minutes>0 ? `<label class="admin-broadcast-expiration-minutes"><span>${english ? "Delete after, minutes" : "Удалить через, минут"}</span><input type="number" min="1" max="2820" step="1" data-input="admin-broadcast-expiration-minutes" value="${minutes}" ${disabled ? "disabled" : ""}></label>` : ""}</section>`;
 }
 
 function renderAdminBroadcastTabs() {
@@ -6869,7 +6869,7 @@ function renderAdminEmailBroadcastPage() {
     <div class="admin-mail__tabs" role="tablist" aria-label="${english ? "Email editor" : "Редактор письма"}">${tabs.map(([id,label]) => `<button type="button" role="tab" aria-selected="${id === selected}" class="${id === selected ? "is-active" : ""}" data-action="admin-email-editor-tab" data-value="${id}">${label}</button>`).join("")}</div>
     <div class="admin-mail__panel" role="tabpanel">${selected === "connection" ? renderAdminMailSettings() : selected === "test" ? test : message}</div>
     ${canBroadcast ? `<div class="admin-mail__delivery">
-      <div class="admin-mail__summary"><small>${english ? "Recipients" : "Получателей"}: ${(state.adminAudienceCount.email ?? (english ? "Not counted" : "Не подсчитано"))}</small><span class="admin-broadcast__status admin-broadcast__status--${escapeAttribute(draft.status)}">${escapeHtml(broadcastStatusLabel(draft.status, english))}</span></div>
+      <div class="admin-mail__summary"><small>${english ? "Recipients" : "Получателей"}: ${(state.adminAudienceCount.email ?? (english ? "Not counted" : "Не подсчитано"))}</small>${draft.status !== "finished" ? `<span class="admin-broadcast__status admin-broadcast__status--${escapeAttribute(draft.status)}">${escapeHtml(broadcastStatusLabel(draft.status, english))}</span>` : ""}</div>
       ${!configured ? `<p class="admin-mail__hint">${english ? "Configure SMTP in Connection before sending." : "Для отправки настройте SMTP в «Подключении»."}</p>` : ""}
       ${running || total > 0 ? `<div class="admin-broadcast__progress"><div><span>${english ? "Progress" : "Прогресс"}</span><strong>${progress}%</strong></div><i><b style="width:${progress}%"></b></i><p>${english ? "Sent" : "Отправлено"}: ${Number(draft.sentCount || 0)} · ${english ? "Errors" : "Ошибок"}: ${Number(draft.failedCount || 0)} · ${english ? "Total" : "Всего"}: ${total}</p></div>` : ""}
       ${draft.lastError ? `<p class="admin-broadcast__error">${escapeHtml(draft.lastError)}</p>` : ""}
