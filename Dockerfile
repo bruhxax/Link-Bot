@@ -33,6 +33,11 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags="-w -s" -o /bin/update-agent ./cmd/update-agent
 
+# A checkout created with umask 077 contains root-only data files. The runtime
+# runs as UID 1000; normalize only the public resources copied into that image.
+RUN find /app/db /app/translations /app/assets -type d -exec chmod 0755 {} + \
+    && find /app/db /app/translations /app/assets -type f -exec chmod 0644 {} +
+
 FROM scratch
 
 ARG VERSION
