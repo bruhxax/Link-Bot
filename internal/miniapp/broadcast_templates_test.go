@@ -38,7 +38,7 @@ func TestBroadcastTemplatesRestoreDraftsWithoutSendingAndRejectStaleState(t *tes
 		t.Fatal(err)
 	}
 	defer pool.Exec(context.Background(), "DROP SCHEMA "+schema+" CASCADE")
-	for _, name := range []string{"000017_broadcast_campaign.up.sql", "000030_broadcast_html.up.sql", "000048_email_link_and_broadcast.up.sql", "000055_broadcast_audience.up.sql", "000059_broadcast_templates.up.sql"} {
+	for _, name := range []string{"000017_broadcast_campaign.up.sql", "000030_broadcast_html.up.sql", "000048_email_link_and_broadcast.up.sql", "000055_broadcast_audience.up.sql", "000066_temporary_broadcast.up.sql", "000059_broadcast_templates.up.sql"} {
 		raw, err := os.ReadFile("../../db/migrations/" + name)
 		if err != nil {
 			t.Fatal(err)
@@ -65,7 +65,7 @@ func TestBroadcastTemplatesRestoreDraftsWithoutSendingAndRejectStaleState(t *tes
 		}
 		return w.Body.String()
 	}
-	_, err = pool.Exec(ctx, `UPDATE bot_broadcast_draft SET status='finished',source_chat_id=42,source_message_id=27,source_kind='text',source_preview='Короткое описание',source_html=$1,buttons='[{"id":"one","type":"url","text":"Открыть","url":"https://example.com","style":"primary"}]',recipient_count=5,sent_count=4,failed_count=1`, strings.Repeat("Полный текст ", 40)+"\nВторая строка")
+	_, err = pool.Exec(ctx, `UPDATE bot_broadcast_draft SET status='finished',delete_after_minutes=720,source_chat_id=42,source_message_id=27,source_kind='text',source_preview='Короткое описание',source_html=$1,buttons='[{"id":"one","type":"url","text":"Открыть","url":"https://example.com","style":"primary"}]',recipient_count=5,sent_count=4,failed_count=1`, strings.Repeat("Полный текст ", 40)+"\nВторая строка")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestBroadcastTemplatesRestoreDraftsWithoutSendingAndRejectStaleState(t *tes
 	apply := map[string]any{"action": "apply", "channel": "telegram", "id": items[0].ID, "updatedAt": d.UpdatedAt}
 	request(sess, apply, 200)
 	restored, err := svc.Get(ctx)
-	if err != nil || restored.Status != "draft" || restored.SourceMessageID == nil || *restored.SourceMessageID != 27 || restored.SentCount != 0 || restored.RecipientCount != 0 || restored.FailedCount != 0 || restored.Audience.Category != "active" || len(restored.Buttons) != 1 || !strings.Contains(restored.SourceText, "Вторая строка") || len(restored.SourceText) < 400 || !restored.UpdatedAt.After(d.UpdatedAt) {
+	if err != nil || restored.Status != "draft" || restored.DeleteAfterMinutes != 720 || restored.SourceMessageID == nil || *restored.SourceMessageID != 27 || restored.SentCount != 0 || restored.RecipientCount != 0 || restored.FailedCount != 0 || restored.Audience.Category != "active" || len(restored.Buttons) != 1 || !strings.Contains(restored.SourceText, "Вторая строка") || len(restored.SourceText) < 400 || !restored.UpdatedAt.After(d.UpdatedAt) {
 		t.Fatalf("template did not restore whole draft safely: %+v %v", restored, err)
 	}
 	request(sess, apply, 409) // The first apply invalidates its nonce.

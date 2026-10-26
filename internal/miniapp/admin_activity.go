@@ -85,6 +85,7 @@ var activityActions = map[string]activityAction{
 	"content/pinned/toggle":       {"Изменил закреп сообщения у пользователей", "communication", "enabled"},
 	"content/pinned/preview":      {"Проверил закреплённое сообщение", "communication", ""},
 	"content/pinned/retry":        {"Повторил обработку закреплённого сообщения", "communication", ""},
+	"broadcast/expiration":        {"Изменил срок удаления рассылки", "communication", "deleteAfterMinutes"},
 	"broadcast/buttons":           {"Изменил кнопки рассылки", "communication", "buttons"},
 	"broadcast/audience":          {"Изменил получателей рассылки", "communication", "channel audience"},
 	"broadcast/preview":           {"Проверил рассылку", "communication", ""},

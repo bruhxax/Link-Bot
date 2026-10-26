@@ -116,7 +116,7 @@ func (r *BroadcastRepository) SaveAudience(ctx context.Context, a BroadcastAudie
 	draft, err := scanBroadcastDraft(r.pool.QueryRow(ctx, `UPDATE bot_broadcast_draft
 		SET audience=$1,updated_by=$2,updated_at=GREATEST(NOW(), updated_at + INTERVAL '1 microsecond') WHERE id=1 AND status<>'running'
 		RETURNING status, source_chat_id, source_message_id, source_kind, source_preview, source_html,
-		buttons, recipient_count, sent_count, failed_count, last_error, updated_by, started_at, finished_at, updated_at, audience`, string(raw), by))
+		buttons, recipient_count, sent_count, failed_count, last_error, updated_by, started_at, finished_at, updated_at, audience, delete_after_minutes`, string(raw), by))
 	if err != nil {
 		return nil, err
 	}

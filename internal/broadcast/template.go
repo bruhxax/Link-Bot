@@ -16,6 +16,9 @@ func (s *Service) RestoreTemplate(ctx context.Context, p database.BroadcastTempl
 	if err := p.Audience.Normalize(); err != nil {
 		return nil, err
 	}
+	if err := database.ValidateBroadcastExpiration(p.DeleteAfterMinutes); err != nil {
+		return nil, err
+	}
 	clean, err := ValidateButtons(p.Buttons)
 	if err != nil {
 		return nil, err

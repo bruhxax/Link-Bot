@@ -30,23 +30,24 @@ type BroadcastButton struct {
 }
 
 type BroadcastDraft struct {
-	Audience        BroadcastAudience `json:"audience"`
-	Status          string            `json:"status"`
-	SourceChatID    *int64            `json:"-"`
-	SourceMessageID *int              `json:"-"`
-	SourceKind      string            `json:"sourceKind"`
-	SourcePreview   string            `json:"sourcePreview"`
-	SourceText      string            `json:"sourceText,omitempty"`
-	SourceHTML      string            `json:"-"`
-	Buttons         []BroadcastButton `json:"buttons"`
-	RecipientCount  int               `json:"recipientCount"`
-	SentCount       int               `json:"sentCount"`
-	FailedCount     int               `json:"failedCount"`
-	LastError       string            `json:"lastError,omitempty"`
-	UpdatedBy       *int64            `json:"-"`
-	StartedAt       *time.Time        `json:"startedAt,omitempty"`
-	FinishedAt      *time.Time        `json:"finishedAt,omitempty"`
-	UpdatedAt       time.Time         `json:"updatedAt"`
+	DeleteAfterMinutes int               `json:"deleteAfterMinutes"`
+	Audience           BroadcastAudience `json:"audience"`
+	Status             string            `json:"status"`
+	SourceChatID       *int64            `json:"-"`
+	SourceMessageID    *int              `json:"-"`
+	SourceKind         string            `json:"sourceKind"`
+	SourcePreview      string            `json:"sourcePreview"`
+	SourceText         string            `json:"sourceText,omitempty"`
+	SourceHTML         string            `json:"-"`
+	Buttons            []BroadcastButton `json:"buttons"`
+	RecipientCount     int               `json:"recipientCount"`
+	SentCount          int               `json:"sentCount"`
+	FailedCount        int               `json:"failedCount"`
+	LastError          string            `json:"lastError,omitempty"`
+	UpdatedBy          *int64            `json:"-"`
+	StartedAt          *time.Time        `json:"startedAt,omitempty"`
+	FinishedAt         *time.Time        `json:"finishedAt,omitempty"`
+	UpdatedAt          time.Time         `json:"updatedAt"`
 }
 
 func (d BroadcastDraft) HasSource() bool {
@@ -65,7 +66,7 @@ func (r *BroadcastRepository) Get(ctx context.Context) (*BroadcastDraft, error) 
 	return scanBroadcastDraft(r.pool.QueryRow(ctx, `
 		SELECT status, source_chat_id, source_message_id, source_kind, source_preview, source_html,
 		       buttons, recipient_count, sent_count, failed_count, last_error,
-		       updated_by, started_at, finished_at, updated_at, audience
+		       updated_by, started_at, finished_at, updated_at, audience, delete_after_minutes
 		FROM bot_broadcast_draft
 		WHERE id = 1
 	`))
@@ -81,7 +82,7 @@ func (r *BroadcastRepository) StartCapture(ctx context.Context, updatedBy int64)
 		WHERE id = 1 AND status <> 'running'
 		RETURNING status, source_chat_id, source_message_id, source_kind, source_preview, source_html,
 		          buttons, recipient_count, sent_count, failed_count, last_error,
-		          updated_by, started_at, finished_at, updated_at, audience
+		          updated_by, started_at, finished_at, updated_at, audience, delete_after_minutes
 	`, updatedBy))
 }
 
@@ -95,7 +96,7 @@ func (r *BroadcastRepository) SaveSource(ctx context.Context, chatID int64, mess
 		WHERE id = 1 AND status = 'awaiting_message' AND updated_by = $6
 		RETURNING status, source_chat_id, source_message_id, source_kind, source_preview, source_html,
 		          buttons, recipient_count, sent_count, failed_count, last_error,
-		          updated_by, started_at, finished_at, updated_at, audience
+		          updated_by, started_at, finished_at, updated_at, audience, delete_after_minutes
 	`, chatID, messageID, kind, preview, sourceHTML, updatedBy))
 }
 
@@ -110,7 +111,7 @@ func (r *BroadcastRepository) SaveButtons(ctx context.Context, buttons []Broadca
 		WHERE id = 1 AND status <> 'running'
 		RETURNING status, source_chat_id, source_message_id, source_kind, source_preview, source_html,
 		          buttons, recipient_count, sent_count, failed_count, last_error,
-		          updated_by, started_at, finished_at, updated_at, audience
+		          updated_by, started_at, finished_at, updated_at, audience, delete_after_minutes
 	`, raw, updatedBy))
 }
 
@@ -125,7 +126,7 @@ func (r *BroadcastRepository) BeginSend(ctx context.Context, recipientCount int,
 		  AND updated_at = $3
 		RETURNING status, source_chat_id, source_message_id, source_kind, source_preview, source_html,
 		          buttons, recipient_count, sent_count, failed_count, last_error,
-		          updated_by, started_at, finished_at, updated_at, audience
+		          updated_by, started_at, finished_at, updated_at, audience, delete_after_minutes
 	`, recipientCount, updatedBy, expected))
 }
 
@@ -157,13 +158,13 @@ func (r *BroadcastRepository) Reset(ctx context.Context, updatedBy int64) (*Broa
 	return scanBroadcastDraft(r.pool.QueryRow(ctx, `
 		UPDATE bot_broadcast_draft
 		SET status = 'idle', source_chat_id = NULL, source_message_id = NULL,
-		    source_kind = '', source_preview = '', source_html = '', buttons = '[]'::jsonb, audience = '{}'::jsonb,
+		    source_kind = '', source_preview = '', source_html = '', buttons = '[]'::jsonb, audience = '{}'::jsonb, delete_after_minutes=0,
 		    recipient_count = 0, sent_count = 0, failed_count = 0, last_error = '',
 		    started_at = NULL, finished_at = NULL, updated_by = $1, updated_at = GREATEST(NOW(), updated_at + INTERVAL '1 microsecond')
 		WHERE id = 1 AND status <> 'running'
 		RETURNING status, source_chat_id, source_message_id, source_kind, source_preview, source_html,
 		          buttons, recipient_count, sent_count, failed_count, last_error,
-		          updated_by, started_at, finished_at, updated_at, audience
+		          updated_by, started_at, finished_at, updated_at, audience, delete_after_minutes
 	`, updatedBy))
 }
 
@@ -188,7 +189,7 @@ func scanBroadcastDraft(row broadcastRowScanner) (*BroadcastDraft, error) {
 		&draft.Status, &draft.SourceChatID, &draft.SourceMessageID, &draft.SourceKind,
 		&draft.SourcePreview, &draft.SourceHTML, &rawButtons, &draft.RecipientCount, &draft.SentCount,
 		&draft.FailedCount, &draft.LastError, &draft.UpdatedBy, &draft.StartedAt,
-		&draft.FinishedAt, &draft.UpdatedAt, &rawAudience,
+		&draft.FinishedAt, &draft.UpdatedAt, &rawAudience, &draft.DeleteAfterMinutes,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

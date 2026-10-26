@@ -17,6 +17,26 @@ type adminBroadcastSendRequest struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+func (h *Handler) handleAdminBroadcastExpiration(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
+	if !h.requireBroadcastAdmin(w, sess) {
+		return
+	}
+	var req struct {
+		DeleteAfterMinutes int       `json:"deleteAfterMinutes"`
+		UpdatedAt          time.Time `json:"updatedAt"`
+	}
+	if err := h.decodeJSONRequest(w, r, 2048, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Некорректный срок удаления рассылки")
+		return
+	}
+	draft, err := h.broadcastService.SaveExpiration(r.Context(), sess.User.ID, req.DeleteAfterMinutes, req.UpdatedAt)
+	if err != nil {
+		h.writeBroadcastError(w, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": draft})
+}
+
 func (h *Handler) handleAdminBroadcastState(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
 	if !h.requireBroadcastAdmin(w, sess) {
 		return
@@ -112,6 +132,8 @@ func (h *Handler) requireBroadcastAdmin(w http.ResponseWriter, sess *session) bo
 
 func (h *Handler) writeBroadcastError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, database.ErrBroadcastExpiration):
+		h.writeError(w, http.StatusBadRequest, "broadcast_invalid_expiration", err.Error())
 	case errors.Is(err, broadcast.ErrDraftChanged):
 		h.writeError(w, http.StatusConflict, "broadcast_draft_changed", "Черновик изменился. Проверьте сообщение и аудиторию ещё раз")
 	case errors.Is(err, broadcast.ErrRunning):

@@ -15,15 +15,16 @@ type BroadcastTemplate struct {
 	Payload   json.RawMessage `json:"-"`
 }
 type BroadcastTemplatePayload struct {
-	SourceChatID    *int64            `json:"sourceChatId,omitempty"`
-	SourceMessageID *int              `json:"sourceMessageId,omitempty"`
-	SourceKind      string            `json:"sourceKind,omitempty"`
-	SourcePreview   string            `json:"sourcePreview,omitempty"`
-	SourceHTML      string            `json:"sourceHTML,omitempty"`
-	Buttons         []BroadcastButton `json:"buttons,omitempty"`
-	Subject         string            `json:"subject,omitempty"`
-	Body            string            `json:"body,omitempty"`
-	Audience        BroadcastAudience `json:"audience"`
+	DeleteAfterMinutes int               `json:"deleteAfterMinutes,omitempty"`
+	SourceChatID       *int64            `json:"sourceChatId,omitempty"`
+	SourceMessageID    *int              `json:"sourceMessageId,omitempty"`
+	SourceKind         string            `json:"sourceKind,omitempty"`
+	SourcePreview      string            `json:"sourcePreview,omitempty"`
+	SourceHTML         string            `json:"sourceHTML,omitempty"`
+	Buttons            []BroadcastButton `json:"buttons,omitempty"`
+	Subject            string            `json:"subject,omitempty"`
+	Body               string            `json:"body,omitempty"`
+	Audience           BroadcastAudience `json:"audience"`
 }
 
 func (cr *CustomerRepository) BroadcastTemplates(ctx context.Context) ([]BroadcastTemplate, error) {
@@ -79,8 +80,8 @@ func (r *BroadcastRepository) RestoreTemplate(ctx context.Context, p BroadcastTe
 	}
 	return scanBroadcastDraft(r.pool.QueryRow(ctx, `UPDATE bot_broadcast_draft SET status='draft',source_chat_id=$1,source_message_id=$2,
  source_kind=$3,source_preview=$4,source_html=$5,buttons=$6,audience=$7,recipient_count=0,sent_count=0,failed_count=0,last_error='',
- started_at=NULL,finished_at=NULL,updated_by=$8,updated_at=GREATEST(NOW(),updated_at+INTERVAL '1 microsecond')
+ started_at=NULL,finished_at=NULL,delete_after_minutes=$10,updated_by=$8,updated_at=GREATEST(NOW(),updated_at+INTERVAL '1 microsecond')
  WHERE id=1 AND status<>'running' AND updated_at=$9
  RETURNING status,source_chat_id,source_message_id,source_kind,source_preview,source_html,buttons,recipient_count,sent_count,failed_count,
- last_error,updated_by,started_at,finished_at,updated_at,audience`, p.SourceChatID, p.SourceMessageID, p.SourceKind, p.SourcePreview, p.SourceHTML, string(raw), p.AudienceJSON(), actor, expected))
+ last_error,updated_by,started_at,finished_at,updated_at,audience, delete_after_minutes`, p.SourceChatID, p.SourceMessageID, p.SourceKind, p.SourcePreview, p.SourceHTML, string(raw), p.AudienceJSON(), actor, expected, p.DeleteAfterMinutes))
 }

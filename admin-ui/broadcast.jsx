@@ -15,6 +15,7 @@ import {
   Group,
   Modal,
   MultiSelect,
+  NumberInput,
   Radio,
   Select,
   Stack,
@@ -402,6 +403,29 @@ function Buttons({ model, disabled }) {
         </Button>
       )}
     </div>
+  );
+}
+
+function Expiration({ model, disabled }) {
+  const minutes = Number(model.deleteAfterMinutes || 0);
+  const presets = [60, 360, 720, 1440, 2820];
+  const [custom, setCustom] = useState(false);
+  const own = custom || !presets.includes(minutes);
+  return (
+    <Stack gap="sm" className="rn-broadcast-expiration">
+      <Switch label="Временная рассылка" color="teal" checked={minutes > 0}
+        description="Бот удалит отправленное сообщение из чата каждого получателя."
+        disabled={disabled} onChange={e => model.updateDeleteAfter(e.currentTarget.checked ? 720 : 0)} />
+      {minutes > 0 && <>
+        <Select label="Удалить через" value={own ? "custom" : String(minutes)} disabled={disabled}
+          data={[{value:"60",label:"1 час"},{value:"360",label:"6 часов"},{value:"720",label:"12 часов"},{value:"1440",label:"24 часа"},{value:"2820",label:"47 часов"},{value:"custom",label:"Свой срок"}]}
+          onChange={value => { setCustom(value === "custom"); if(value !== "custom") model.updateDeleteAfter(Number(value)); }} />
+        {own && <NumberInput label="Срок, минут" min={1} max={2820} allowDecimal={false} allowNegative={false}
+          value={minutes} disabled={disabled} clampBehavior="strict" onChange={value => { if(value !== "") model.updateDeleteAfter(Number(value)); }} />}
+        <Text size="xs" c="dimmed">От 1 минуты до 47 часов с момента отправки каждому пользователю. Срок сохраняется после перезапуска бота.</Text>
+      </>}
+      {model.expirationDirty && <Text size="xs" c="dimmed">Срок сохранится перед предпросмотром или отправкой.</Text>}
+    </Stack>
   );
 }
 function Progress({ draft, hidden }) {
@@ -924,6 +948,7 @@ export function Broadcast({ model: root, dispatch, hidden, Legacy }) {
                       </Button>
                     </div>
                     <Buttons model={model} disabled={disabled} />
+                    <Expiration model={model} disabled={disabled} />
                   </>
                 )}
                 <Accordion

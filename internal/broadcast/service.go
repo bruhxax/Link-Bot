@@ -42,6 +42,7 @@ var (
 )
 
 type Service struct {
+	deletions          deletionStore
 	repository         *database.BroadcastRepository
 	customerRepository *database.CustomerRepository
 	promoRepository    *database.PromoCodeRepository
@@ -55,7 +56,11 @@ type Service struct {
 }
 
 func NewService(repository *database.BroadcastRepository, customerRepository *database.CustomerRepository, promoRepository *database.PromoCodeRepository, telegramBot *bot.Bot) *Service {
-	return &Service{repository: repository, customerRepository: customerRepository, promoRepository: promoRepository, telegramBot: telegramBot}
+	service := &Service{repository: repository, customerRepository: customerRepository, promoRepository: promoRepository, telegramBot: telegramBot}
+	if repository != nil {
+		service.deletions = repository
+	}
+	return service
 }
 
 func (s *Service) SetAudienceResolver(resolve func(context.Context, database.BroadcastAudience) ([]int64, error)) {
@@ -285,6 +290,9 @@ func (s *Service) Start(ctx context.Context, adminID int64, expected ...time.Tim
 	if draft.Status == database.BroadcastStatusRunning {
 		return nil, ErrRunning
 	}
+	if err := database.ValidateBroadcastExpiration(draft.DeleteAfterMinutes); err != nil {
+		return nil, err
+	}
 	if len(expected) > 0 && !expected[0].IsZero() && !draft.UpdatedAt.Equal(expected[0]) {
 		return nil, ErrDraftChanged
 	}
@@ -421,19 +429,7 @@ func (s *Service) copyTo(ctx context.Context, draft database.BroadcastDraft, cha
 	if !allowed {
 		return database.ErrBroadcastUnsubscribed
 	}
-	if draft.SourceKind == "html" {
-		_, err := s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: chatID, Text: draft.SourceHTML, ParseMode: models.ParseModeHTML, ReplyMarkup: keyboard,
-		})
-		return err
-	}
-	_, err = s.telegramBot.CopyMessage(ctx, &bot.CopyMessageParams{
-		ChatID:      chatID,
-		FromChatID:  *draft.SourceChatID,
-		MessageID:   *draft.SourceMessageID,
-		ReplyMarkup: keyboard,
-	})
-	return err
+	return s.deliverBroadcast(ctx, draft, chatID, keyboard)
 }
 
 func ValidateButtons(buttons []database.BroadcastButton) ([]database.BroadcastButton, error) {
@@ -823,7 +819,7 @@ func maxWorkersFor(total int) int {
 }
 
 func shouldRetry(err error) bool {
-	if err == nil {
+	if err == nil || errors.Is(err, errDeletionRecording) {
 		return false
 	}
 	value := strings.ToLower(err.Error())

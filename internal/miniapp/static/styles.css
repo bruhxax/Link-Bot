@@ -14547,3 +14547,6 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .admin-smerch-advanced { margin-top: 12px; }
 .admin-smerch-advanced summary { color: var(--muted); cursor: pointer; font-size: 11px; padding: 6px 0; }
 .admin-smerch-advanced > .admin-integration__fields { margin-top: 8px; }
+
+.admin-broadcast-expiration-minutes { display: grid; gap: 8px; margin: 12px 0; font-size: 12px; color: var(--muted); }
+.admin-broadcast-expiration-minutes input { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; }

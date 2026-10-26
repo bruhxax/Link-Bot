@@ -122,6 +122,7 @@ func main() {
 	broadcastService := broadcast.NewService(broadcastRepository, customerRepository, promoCodeRepository, b)
 	broadcastService.ConfigurePinnedMessages(database.NewPinnedMessageRepository(pool))
 	go broadcastService.RunPinnedMessages(ctx)
+	go broadcastService.RunMessageDeletions(ctx)
 	if err := broadcastService.RecoverInterrupted(ctx); err != nil {
 		slog.Warn("broadcast recovery failed", "error", err)
 	}

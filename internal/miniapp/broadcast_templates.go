@@ -82,6 +82,7 @@ func (h *Handler) handleBroadcastTemplates(w http.ResponseWriter, r *http.Reques
 			p.SourcePreview = d.SourcePreview
 			p.SourceHTML = d.SourceHTML
 			p.Buttons = d.Buttons
+			p.DeleteAfterMinutes = d.DeleteAfterMinutes
 		} else {
 			d, err := h.customerRepository.EmailBroadcastDraft(r.Context())
 			if err != nil {

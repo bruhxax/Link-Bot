@@ -2461,6 +2461,8 @@ const state = {
 	adminEmailConfirmOpen: false,
 	adminBroadcastButtonsDraft: [],
 	adminBroadcastButtonsDirty: false,
+	adminBroadcastExpirationDraft: 0,
+	adminBroadcastExpirationDirty: false,
 	adminBroadcastBusy: "",
 	adminBroadcastConfirmOpen: false,
 	adminIntegrationOpen: "",
@@ -4262,6 +4264,7 @@ function mountCabinetShell(markup) {
             broadcastConsole: {
               channel:state.adminBroadcastTab,telegram:state.adminBroadcast,email:state.adminEmailBroadcast,error:state.adminBroadcastError||"",
               buttons:state.adminBroadcastButtonsDraft,buttonsDirty:state.adminBroadcastButtonsDirty,
+              deleteAfterMinutes:state.adminBroadcastExpirationDraft,expirationDirty:state.adminBroadcastExpirationDirty,updateDeleteAfter:updateConsoleBroadcastExpiration,
               telegramBusy:state.adminBroadcastBusy,emailBusy:state.adminEmailBusy,
               subject:state.adminEmailDraftSubject,body:state.adminEmailDraftBody,emailDirty:state.adminEmailDraftDirty,
               previewAddress:state.adminEmailPreviewAddress,canBroadcast:canAdmin("broadcast"),canSMTP:canAdmin("smtp"),
@@ -6799,8 +6802,9 @@ function renderAdminBroadcastPage() {
 					${buttons.length ? `<button class="admin-broadcast__secondary" type="button" data-action="admin-broadcast-save-buttons" ${running || saveBusy || !state.adminBroadcastButtonsDirty ? "disabled" : ""}><span>${english ? "Save buttons" : "Сохранить кнопки"}</span></button>` : ""}
 				</section>
 
+				${renderAdminBroadcastExpiration(running || Boolean(state.adminBroadcastBusy), english)}
 				<section class="admin-broadcast__section admin-broadcast__section--delivery">
-					<div class="admin-broadcast__section-head"><div><span>3</span><div><strong>${english ? "Delivery" : "Отправка"}</strong><small>${english ? "Preview before launch" : "Сначала проверьте предпросмотр"}</small></div></div></div>
+					<div class="admin-broadcast__section-head"><div><span>4</span><div><strong>${english ? "Delivery" : "Отправка"}</strong><small>${english ? "Preview before launch" : "Сначала проверьте предпросмотр"}</small></div></div></div>
 					${running || total > 0 ? `<div class="admin-broadcast__progress"><div><span>${english ? "Progress" : "Прогресс"}</span><strong>${progress}%</strong></div><i><b style="width:${progress}%"></b></i><p>${english ? "Sent" : "Отправлено"}: ${Number(draft.sentCount || 0)} · ${english ? "Errors" : "Ошибок"}: ${Number(draft.failedCount || 0)} · ${english ? "Total" : "Всего"}: ${total}</p></div>` : ""}
 					${draft.lastError ? `<p class="admin-broadcast__error">${escapeHtml(draft.lastError)}</p>` : ""}
 					<div class="admin-broadcast__actions">
@@ -6812,6 +6816,11 @@ function renderAdminBroadcastPage() {
 			</div>
 		</section>
 	`;
+}
+
+function renderAdminBroadcastExpiration(disabled, english) {
+ const minutes=Number(state.adminBroadcastExpirationDraft||0);
+ return `<section class="admin-broadcast__section"><label class="menu-row admin-toggle"><span class="menu-row__body"><strong>${english ? "Temporary broadcast" : "Временная рассылка"}</strong><small>${english ? "Delete each sent copy after a set time" : "Удалить сообщение у каждого получателя через заданное время"}</small></span><input type="checkbox" role="switch" aria-label="${english ? "Temporary broadcast" : "Временная рассылка"}" data-input="admin-broadcast-temporary" ${minutes>0 ? "checked" : ""} ${disabled ? "disabled" : ""}><i aria-hidden="true"></i></label>${minutes>0 ? `<label class="admin-broadcast-expiration-minutes"><span>${english ? "Delete after, minutes" : "Удалить через, минут"}</span><input type="number" min="1" max="2820" step="1" data-input="admin-broadcast-expiration-minutes" value="${minutes}" ${disabled ? "disabled" : ""}></label><p class="admin-broadcast__empty">${english ? "720 min = 12 hours. From 1 minute to 47 hours after each delivery. Resumes after restart." : "720 мин = 12 часов. От 1 минуты до 47 часов после отправки каждой копии. Удаление продолжится после перезапуска."}</p>` : ""}</section>`;
 }
 
 function renderAdminBroadcastTabs() {
@@ -6914,7 +6923,7 @@ function renderAdminEmailBroadcastConfirm(english) {
 }
 
 function renderAdminBroadcastConfirm(english) {
-	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-broadcast-close-confirm" aria-label="${english ? "Cancel" : "Отмена"}"></button><div class="modal__sheet admin-broadcast-confirm" role="dialog" aria-modal="true" aria-labelledby="broadcast-confirm-title"><div class="modal__header"><div><div class="section-label">${english ? "Broadcast" : "Рассылка"}</div><div class="modal__title" id="broadcast-confirm-title">${english ? "Send to selected recipients?" : "Отправить выбранной аудитории?"}</div></div><button class="header__btn" type="button" data-action="admin-broadcast-close-confirm" aria-label="${english ? "Close" : "Закрыть"}">${icon("close")}</button></div><p>${english ? "The broadcast starts immediately. Check the preview before sending." : `Получателей: ${Number(state.adminAudienceCount.telegram||0)}. Рассылка начнётся сразу. Перед отправкой проверьте предпросмотр.`}</p>${state.adminBroadcast?.audience?.ignoreUnsubscribe ? `<p class="admin-broadcast-optout-note">${english ? "This broadcast includes unsubscribed users. Their preferences will stay unchanged." : "Эта рассылка придёт и отписавшимся пользователям. Их настройки не изменятся."}</p>` : ""}<div class="admin-broadcast-confirm__actions"><button type="button" data-action="admin-broadcast-close-confirm">${english ? "Cancel" : "Отмена"}</button><button class="admin-broadcast-confirm__send" type="button" data-action="admin-broadcast-send">${icon("send")}<span>${english ? "Start" : "Запустить"}</span></button></div></div></div>`;
+	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-broadcast-close-confirm" aria-label="${english ? "Cancel" : "Отмена"}"></button><div class="modal__sheet admin-broadcast-confirm" role="dialog" aria-modal="true" aria-labelledby="broadcast-confirm-title"><div class="modal__header"><div><div class="section-label">${english ? "Broadcast" : "Рассылка"}</div><div class="modal__title" id="broadcast-confirm-title">${english ? "Send to selected recipients?" : "Отправить выбранной аудитории?"}</div></div><button class="header__btn" type="button" data-action="admin-broadcast-close-confirm" aria-label="${english ? "Close" : "Закрыть"}">${icon("close")}</button></div><p>${english ? "The broadcast starts immediately. Check the preview before sending." : `Получателей: ${Number(state.adminAudienceCount.telegram||0)}. Рассылка начнётся сразу. Перед отправкой проверьте предпросмотр.`}</p>${Number(state.adminBroadcast?.deleteAfterMinutes||0)>0 ? `<p>${english ? `Messages will be deleted after ${Number(state.adminBroadcast.deleteAfterMinutes)} min from delivery to each recipient.` : `Сообщение удалится у каждого получателя через ${Number(state.adminBroadcast.deleteAfterMinutes)} мин. после отправки.`}</p>` : ""}${state.adminBroadcast?.audience?.ignoreUnsubscribe ? `<p class="admin-broadcast-optout-note">${english ? "This broadcast includes unsubscribed users. Their preferences will stay unchanged." : "Эта рассылка придёт и отписавшимся пользователям. Их настройки не изменятся."}</p>` : ""}<div class="admin-broadcast-confirm__actions"><button type="button" data-action="admin-broadcast-close-confirm">${english ? "Cancel" : "Отмена"}</button><button class="admin-broadcast-confirm__send" type="button" data-action="admin-broadcast-send">${icon("send")}<span>${english ? "Start" : "Запустить"}</span></button></div></div></div>`;
 }
 
 function broadcastStatusLabel(status, english) {
@@ -12404,6 +12413,8 @@ function bindRootActions() {
  if(input.dataset?.input==="admin-landing-icon-file"&&input.files?.[0]){void uploadSurfaceAsset(input.files[0],"icon",input.dataset.iconKey);return;}
         if (input.dataset.input === "administrators-color") { render({ preserveScroll: true }); return; }
 		if (!(input instanceof HTMLInputElement)) return;
+		if (input.dataset.input === "admin-broadcast-temporary") return updateConsoleBroadcastExpiration(input.checked ? 720 : 0);
+		if (input.dataset.input === "admin-broadcast-expiration-minutes") return updateConsoleBroadcastExpiration(Math.max(1,Math.min(2820,Math.round(Number(input.value)||1))));
 		if (input.dataset.input === "admin-push-toggle") {
 			const enabled = input.checked;
 			input.checked = Boolean(state.adminPush?.subscribed && state.adminPush?.permission === "granted");
@@ -13481,6 +13492,31 @@ function updateConsoleBroadcastButton(index,field,value) {
  state.adminBroadcastButtonsDirty=true;
  render({preserveScroll:true,preserveInteraction:true});
 }
+function updateConsoleBroadcastExpiration(value) {
+ if(state.adminBroadcast?.status === "running" || state.adminBroadcastBusy || !canAdmin("broadcast")) return;
+ const minutes=Number(value);
+ if(!Number.isInteger(minutes) || minutes<0 || minutes>2820) return;
+ state.adminBroadcastExpirationDraft=minutes;
+ state.adminBroadcastExpirationDirty=minutes!==Number(state.adminBroadcast?.deleteAfterMinutes||0);
+ state.adminBroadcastConfirmOpen=false;
+ render({preserveScroll:true,preserveInteraction:true});
+}
+
+async function saveAdminBroadcastExpiration({silent=false}={}) {
+ if(state.adminBroadcastBusy || !state.adminBroadcastExpirationDirty) return state.adminBroadcast;
+ state.adminBroadcastBusy="expiration";
+ if(!silent) render({preserveScroll:true});
+ try {
+  const response=await post("/api/mini-app/admin/broadcast/expiration",{deleteAfterMinutes:state.adminBroadcastExpirationDraft,updatedAt:state.adminBroadcast?.updatedAt});
+  state.adminBroadcastExpirationDirty=false;
+  setAdminBroadcastDraft(response.data);
+  return response.data;
+ } finally {
+  state.adminBroadcastBusy="";
+  render({preserveScroll:true});
+ }
+}
+
 function updateConsoleAudience(field,value) {
  if(state.adminAudienceBusy || (state.adminBroadcastTab==="email" ? state.adminEmailBroadcast?.draft : state.adminBroadcast)?.status==="running")return;
  if(!["category","language","tag","internalSquads","externalSquads","ignoreUnsubscribe"].includes(field))return;
@@ -13501,7 +13537,7 @@ async function consoleBroadcastTemplates(action,{name="",id=0}={}) {
   if(channel==="email"){
    state.adminEmailBroadcast={...(state.adminEmailBroadcast||{}),draft:response.data};
    state.adminEmailDraftSubject=response.data.subject||"";state.adminEmailDraftBody=response.data.body||"";state.adminEmailDraftDirty=false;
-  } else setAdminBroadcastDraft(response.data,{forceButtons:true});
+  } else setAdminBroadcastDraft(response.data,{forceButtons:true,forceExpiration:true});
   state.adminAudienceDraft[channel]=deepClone(response.data.audience);state.adminAudienceCount[channel]=null;
   state.adminBroadcastConfirmOpen=false;state.adminEmailConfirmOpen=false;
   render({preserveScroll:true});
@@ -13509,9 +13545,13 @@ async function consoleBroadcastTemplates(action,{name="",id=0}={}) {
  return response.data;
 }
 
-function setAdminBroadcastDraft(draft, { forceButtons = false } = {}) {
+function setAdminBroadcastDraft(draft, { forceButtons = false, forceExpiration = false } = {}) {
 	if(!state.adminAudienceDraft.telegram)state.adminAudienceDraft.telegram=deepClone(draft?.audience||{category:"all",internalSquads:[],externalSquads:[],tag:"",language:""});
 	state.adminBroadcast = draft || { status: "idle", buttons: [], recipientCount: 0, sentCount: 0, failedCount: 0 };
+	if (forceExpiration || !state.adminBroadcastExpirationDirty) {
+		state.adminBroadcastExpirationDraft = Number(state.adminBroadcast.deleteAfterMinutes || 0);
+		state.adminBroadcastExpirationDirty = false;
+	}
 	if (forceButtons || !state.adminBroadcastButtonsDirty) {
 		state.adminBroadcastButtonsDraft = deepClone(Array.isArray(state.adminBroadcast.buttons) ? state.adminBroadcast.buttons : []);
 		state.adminBroadcastButtonsDirty = false;
@@ -13669,6 +13709,7 @@ async function saveAdminBroadcastButtons({ silent = false } = {}) {
 }
 
 async function ensureAdminBroadcastButtonsSaved() {
+	if (state.adminBroadcastExpirationDirty) await saveAdminBroadcastExpiration({silent:true});
 	if (!state.adminBroadcastButtonsDirty) return state.adminBroadcast;
 	return saveAdminBroadcastButtons({ silent: true });
 }
@@ -13717,7 +13758,7 @@ async function resetAdminBroadcast() {
 	render({ preserveScroll: true });
 	try {
 		const response = await post("/api/mini-app/admin/broadcast/reset", {});
-		setAdminBroadcastDraft(response.data, { forceButtons: true });
+		setAdminBroadcastDraft(response.data, { forceButtons: true, forceExpiration: true });
 		state.adminBroadcastBusy = "";
 		render({ preserveScroll: true });
 		showToast(state.locale === "en" ? "Draft cleared" : "Черновик очищен", "success");
