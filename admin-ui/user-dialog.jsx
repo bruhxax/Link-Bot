@@ -60,27 +60,11 @@ import {
 } from "react-icons/tb";
 import { renderSVG } from "../internal/miniapp/static/uqr.mjs";
 import { TagInput } from "./tag-input.jsx";
-import { activitySources, activityStatuses } from "../internal/miniapp/static/user-activity.mjs";
+import { renderUserActivity } from "../internal/miniapp/static/user-activity.mjs";
 
 function UserActivity({ model }) {
-  const activity = model.userActivity || {};
-  const items = activity.data?.items || [];
-  return <Card p="md" radius="md" mt="md" className="rn-user-activity">
-    <Group justify="space-between" mb="sm">
-      <Group gap="xs"><ThemeIcon variant="soft" color="cyan"><TbTimeline size={20} /></ThemeIcon><div><Text fw={600}>История действий</Text><Text size="xs" c="dimmed">Обновляется автоматически</Text></div></Group>
-      <Button size="xs" variant="subtle" data-action="admin-user-activity-refresh" disabled={activity.busy}>Обновить</Button>
-    </Group>
-    {activity.error && <Alert color="red" mb="sm">{activity.error}</Alert>}
-    <Stack gap="xs">
-      {items.map(item => <Paper key={item.id} p="sm" radius="sm" withBorder>
-        <Group justify="space-between" gap="xs" mb={4}><Text size="sm" fw={600}>{item.title}</Text><Badge size="xs" variant="light" color={{failed:"red",success:"teal",pending:"yellow",info:"gray"}[item.status] || "gray"}>{activityStatuses[item.status] || item.status}</Badge></Group>
-        <Text size="xs" c="dimmed" mb={4}>{activitySources[item.source] || item.source} · {new Date(item.createdAt).toLocaleString("ru-RU")}</Text>
-        {(item.details || []).filter(detail => detail.value).map((detail,index) => <Text key={index} size="xs" style={{overflowWrap:"anywhere"}}><Text component="span" c="dimmed">{detail.label}: </Text>{detail.value}</Text>)}
-      </Paper>)}
-      {!items.length && <Text size="sm" c="dimmed">{activity.busy ? "Загрузка истории…" : "Действий пока нет. История записывается после обновления."}</Text>}
-      {activity.data?.hasMore && <Button size="xs" variant="light" data-action="admin-user-activity-more" disabled={activity.busy}>Показать ещё</Button>}
-    </Stack>
-  </Card>;
+  const activity = {...model.userActivity, idPrefix: "console-user-activity"};
+  return <div className="rn-user-activity" dangerouslySetInnerHTML={{__html: renderUserActivity(activity)}} />;
 }
 
 function Section({

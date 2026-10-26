@@ -41,6 +41,8 @@ import {
   PiImage,
   PiVideo,
   PiMusicNote,
+  PiTimer,
+  PiChatCircleText,
 } from "react-icons/pi";
 import { animateAdminEntrance } from "./admin-entrance.mjs";
 import {
@@ -390,16 +392,17 @@ function Buttons({ model, disabled }) {
           </Accordion>
         </section>
       ))}
-      {buttons.length > 0 && (
-        <Button
-          variant="subtle"
-          size="sm"
+      {buttons.length > 0 && model.buttonsDirty && (
+        <ActionIcon
+          variant="light"
+          size={30}
           data-action="admin-broadcast-save-buttons"
-          disabled={disabled || !model.buttonsDirty}
-          leftSection={<PiCheck />}
+          disabled={disabled}
+          aria-label="Сохранить кнопки"
+          title="Сохранить кнопки"
         >
-          Сохранить кнопки
-        </Button>
+          <PiCheck />
+        </ActionIcon>
       )}
     </div>
   );
@@ -411,41 +414,38 @@ function Expiration({ model, disabled }) {
   const [custom, setCustom] = useState(false);
   const own = custom || !presets.includes(minutes);
   return (
-    <Stack gap="sm" className="rn-broadcast-expiration">
-      <Switch label="Временная рассылка" color="teal" checked={minutes > 0}
-        description="Бот удалит отправленное сообщение из чата каждого получателя."
-        disabled={disabled} onChange={e => model.updateDeleteAfter(e.currentTarget.checked ? 720 : 0)} />
-      {minutes > 0 && <>
+    <div className="broadcast-option">
+      <div className="broadcast-option__header"><span className="broadcast-option__icon"><PiTimer /></span><span className="broadcast-option__text"><strong>Временная рассылка</strong><small>{minutes > 0 ? `Удалить через ${minutes % 60 === 0 ? `${minutes / 60} ч` : `${minutes} мин`}` : "Удаление по таймеру"}</small></span>
+        <Switch size="xs" aria-label="Временная рассылка" color="teal" checked={minutes > 0} disabled={disabled} onChange={e => model.updateDeleteAfter(e.currentTarget.checked ? 720 : 0)} /></div>
+      {minutes > 0 && <div className="broadcast-option__body">
         <Select label="Удалить через" value={own ? "custom" : String(minutes)} disabled={disabled}
           data={[{value:"60",label:"1 час"},{value:"360",label:"6 часов"},{value:"720",label:"12 часов"},{value:"1440",label:"24 часа"},{value:"2820",label:"47 часов"},{value:"custom",label:"Свой срок"}]}
           onChange={value => { setCustom(value === "custom"); if(value !== "custom") model.updateDeleteAfter(Number(value)); }} />
         {own && <NumberInput label="Срок, минут" min={1} max={2820} allowDecimal={false} allowNegative={false}
           value={minutes} disabled={disabled} clampBehavior="strict" onChange={value => { if(value !== "") model.updateDeleteAfter(Number(value)); }} />}
-      </>}
-      {model.expirationDirty && <Text size="xs" c="dimmed">Срок сохранится перед предпросмотром или отправкой.</Text>}
-    </Stack>
+      </div>}
+    </div>
   );
 }
 
 function AutoReply({model,disabled}) {
   const value=model.autoReply;
   if(!value) return null;
-  return <Stack gap="sm" className="rn-broadcast-expiration">
-    <Switch label="Автоответ на рассылки" color="teal" checked={value.enabled} disabled={disabled}
-      onChange={e=>model.updateAutoReply("enabled",e.currentTarget.checked)} />
-    {value.enabled && <>
-      <Text size="xs" c="dimmed">Один ответ на последнюю рассылку. Настройка действует для всех Telegram-рассылок.</Text>
-      <Textarea label="Сообщение автоответа" description="Текст или Telegram HTML" value={value.text} maxLength={3500} minRows={4} autosize disabled={disabled}
+  return <div className="broadcast-option">
+    <div className="broadcast-option__header"><span className="broadcast-option__icon"><PiChatCircleText /></span><span className="broadcast-option__text"><strong>Автоответ на рассылки</strong><small>Ответ на сообщение получателя</small></span>
+      <Switch size="xs" aria-label="Автоответ на рассылки" color="teal" checked={value.enabled} disabled={disabled} onChange={e=>model.updateAutoReply("enabled",e.currentTarget.checked)} /></div>
+    {value.enabled && <div className="broadcast-option__body">
+      <Textarea label="Текст ответа" placeholder="Текст или Telegram HTML" value={value.text} maxLength={3500} minRows={3} autosize disabled={disabled}
         onChange={e=>model.updateAutoReply("text",e.currentTarget.value)} />
-      <NumberInput label="Ожидать ответ после рассылки, часов" value={value.windowHours} min={1} max={168} allowDecimal={false} allowNegative={false} disabled={disabled}
+      <NumberInput label="Окно ответа, часов" value={value.windowHours} min={1} max={168} allowDecimal={false} allowNegative={false} disabled={disabled}
         onChange={value=>{if(value!=="")model.updateAutoReply("windowHours",Number(value));}} />
-      <Switch label="Кнопка поддержки" color="teal" checked={value.supportButton} disabled={disabled}
+      <Switch label="Кнопка поддержки" size="xs" color="teal" checked={value.supportButton} disabled={disabled}
         onChange={e=>model.updateAutoReply("supportButton",e.currentTarget.checked)} />
       {value.supportButton && <TextInput label="Подпись кнопки" value={value.supportButtonText} maxLength={64} disabled={disabled}
         onChange={e=>model.updateAutoReply("supportButtonText",e.currentTarget.value)} />}
-    </>}
-    <Button variant="subtle" size="sm" data-action="admin-broadcast-save-auto-reply" disabled={disabled||!model.autoReplyDirty}>Сохранить автоответ</Button>
-  </Stack>;
+    </div>}
+    {model.autoReplyDirty && <div className="broadcast-option__actions"><ActionIcon variant="light" size={30} data-action="admin-broadcast-save-auto-reply" disabled={disabled} aria-label="Сохранить автоответ" title="Сохранить автоответ"><PiCheck /></ActionIcon></div>}
+  </div>;
 }
 function Progress({ draft, hidden }) {
   if (!draft || !draft.recipientCount) return null;
@@ -967,8 +967,7 @@ export function Broadcast({ model: root, dispatch, hidden, Legacy }) {
                       </Button>
                     </div>
                     <Buttons model={model} disabled={disabled} />
-                    <Expiration model={model} disabled={disabled} />
-                    <AutoReply model={model} disabled={disabled} />
+                    <div className="admin-broadcast__options"><Expiration model={model} disabled={disabled} /><AutoReply model={model} disabled={disabled} /></div>
                   </>
                 )}
                 <Accordion

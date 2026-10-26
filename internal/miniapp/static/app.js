@@ -2519,6 +2519,8 @@ const state = {
 	adminUserBlockReasonDraft: "",
 	adminUserDeleteSubscriptionOnBlock: false,
 	adminUserActivity: null,
+	adminUserActivityFilter: "all",
+	adminUserActivityExpanded: [],
 	adminUserActivityBusy: false,
 	adminUserActivityError: "",
 	adminDirectMessage: null,
@@ -4297,7 +4299,7 @@ function mountCabinetShell(markup) {
 			reviews: state.data?.reviews || {items:[],count:0,average:0},
 			canDeleteReviews: canAdmin("reviews.delete"), canRewardReviews: canAdmin("reviews.rewards"),
 			userDetail: Boolean(state.adminUserDetail || state.adminUserPending), user: state.adminUserDetail,
-			userActivity: {data:state.adminUserActivity,busy:state.adminUserActivityBusy,error:state.adminUserActivityError},
+			userActivity: {data:state.adminUserActivity,busy:state.adminUserActivityBusy,error:state.adminUserActivityError,filter:state.adminUserActivityFilter,expanded:state.adminUserActivityExpanded},
 			selectedSubscriptionID: adminUserSelectedSubscriptionID(), squads: adminSquads(),
 			canEditUser: canAdmin("users.subscription"), userBusy: Boolean(state.adminUsersBusy),
 			saveUserSettings: (subscriptionId, settings) => state.adminUserDetail?.panelOnly
@@ -6152,7 +6154,7 @@ function renderAdminUserDetailPage(user) {
 		<section class="admin-user-subscriptions"><div class="admin-user-section-head"><div><span>ДОСТУП</span><h3>Подписки пользователя</h3></div><strong>${subscriptions.length}</strong></div>
 			${subscriptions.length ? `<div class="admin-user-subscriptions__tabs" role="group" aria-label="Подписки пользователя">${subscriptions.map((item) => `<button class="admin-user-subscriptions__tab ${selected?.id === item.id ? "is-active" : ""}" type="button" aria-pressed="${selected?.id === item.id}" data-action="admin-user-view-subscription" data-value="${Number(item.id || 0)}"><strong>${escapeHtml(item.name || "Подписка")}</strong><small>${item.isSelected ? "Выбрана в Mini App" : item.isPrimary ? "Основная" : "Дополнительная"}</small></button>`).join("")}</div>${selected ? renderAdminUserSubscription(selected) : ""}` : `<div class="admin-users__empty admin-users__empty--compact"><strong>Подписок пока нет</strong></div>`}
 		</section>
-		${renderUserActivity({data:state.adminUserActivity,busy:state.adminUserActivityBusy,error:state.adminUserActivityError},{escapeHtml,escapeAttribute})}
+		${renderUserActivity({data:state.adminUserActivity,busy:state.adminUserActivityBusy,error:state.adminUserActivityError,filter:state.adminUserActivityFilter,expanded:state.adminUserActivityExpanded},{escapeHtml,escapeAttribute})}
 		<section class="admin-user-controls" aria-labelledby="admin-user-controls-title"><div class="admin-user-section-head"><div><span>ФУНКЦИИ БОТА</span><h3 id="admin-user-controls-title">Управление пользователем</h3></div></div>
 			${canAdmin("users.message") ? renderAdminDirectMessage(user) : ""}
 			<div class="admin-user-controls__group admin-user-controls__group--balance" ${canAdmin("users.balance") ? "" : "hidden"}><div><strong>Баланс Mini App</strong><span>Сейчас доступно ${escapeHtml(formatMoneyCents(referrals.balanceCents || 0))}. Операции сохраняются в истории.</span></div><label class="admin-user-balance-input"><span>Сумма, ₽</span><input type="number" min="1" max="1000000" step="1" inputmode="numeric" value="${escapeAttribute(state.adminUserBalanceDraft)}" data-input="admin-user-balance" placeholder="Например, 500"></label><div class="admin-user-balance-actions"><button class="is-credit" type="button" data-action="admin-user-credit" ${busy ? "disabled" : ""}>${icon("plus")}Пополнить</button><button class="is-debit" type="button" data-action="admin-user-debit" ${busy || Number(referrals.balanceCents || 0) < 100 ? "disabled" : ""}>${icon("minus")}Списать</button></div></div>
@@ -6368,6 +6370,8 @@ function closeAdminUserDetail() {
 function resetAdminUserActivity() {
  adminUserActivityRequestID+=1;
  state.adminUserActivity=null;
+ state.adminUserActivityFilter="all";
+ state.adminUserActivityExpanded=[];
  state.adminUserActivityBusy=false;
  state.adminUserActivityError="";
 }
@@ -6391,6 +6395,20 @@ async function refreshAdminUserActivity({more=false,silent=false}={}) {
  } finally {
   if(requestID===adminUserActivityRequestID) {state.adminUserActivityBusy=false;renderRealtime();}
  }
+}
+
+function filterAdminUserActivity(value) {
+ if(!["all","payments","errors"].includes(value)) return;
+ state.adminUserActivityFilter=value;
+ render({preserveScroll:true,preserveInteraction:true});
+}
+
+function toggleAdminUserActivity(value) {
+ if(!/^(?:payment|event):[0-9]+$/.test(value)) return;
+ const expanded=new Set(state.adminUserActivityExpanded||[]);
+ if(expanded.has(value)) expanded.delete(value);else expanded.add(value);
+ state.adminUserActivityExpanded=[...expanded].slice(-100);
+ render({preserveScroll:true,preserveInteraction:true});
 }
 
 async function refreshAdminDirectMessage(customerID = Number(state.adminUserDetail?.customerId || 0)) {
@@ -6842,11 +6860,10 @@ function renderAdminBroadcastPage() {
 				<section class="admin-broadcast__section">
 					<div class="admin-broadcast__section-head"><div><span>2</span><div><strong>${english ? "Buttons" : "Кнопки"}</strong><small>${english ? "Up to 8 buttons" : "До 8 кнопок"}</small></div></div><button class="admin-icon-button" type="button" data-action="admin-broadcast-add-button" ${running || buttons.length >= 8 ? "disabled" : ""} aria-label="${english ? "Add button" : "Добавить кнопку"}">${icon("plus")}</button></div>
 					<div class="admin-broadcast__buttons">${buttons.length ? buttons.map((button, index) => renderAdminBroadcastButton(button, index, running, english)).join("") : `<p class="admin-broadcast__empty">${english ? "The message will be sent without buttons." : "Сообщение будет отправлено без кнопок."}</p>`}</div>
-					${buttons.length ? `<button class="admin-broadcast__secondary" type="button" data-action="admin-broadcast-save-buttons" ${running || saveBusy || !state.adminBroadcastButtonsDirty ? "disabled" : ""}><span>${english ? "Save buttons" : "Сохранить кнопки"}</span></button>` : ""}
+					${buttons.length && state.adminBroadcastButtonsDirty ? `<div class="broadcast-save-row"><button class="broadcast-option__save" type="button" data-action="admin-broadcast-save-buttons" aria-label="${english ? "Save buttons" : "Сохранить кнопки"}" title="${english ? "Save buttons" : "Сохранить кнопки"}" ${running || saveBusy ? "disabled" : ""}>${icon("check")}</button></div>` : ""}
 				</section>
 
-				${renderAdminBroadcastExpiration(running || Boolean(state.adminBroadcastBusy), english)}
-				${renderAdminBroadcastAutoReply(running || Boolean(state.adminBroadcastBusy), english)}
+				<section class="admin-broadcast__options" aria-label="Broadcast options">${renderAdminBroadcastExpiration(running || Boolean(state.adminBroadcastBusy), english)}${renderAdminBroadcastAutoReply(running || Boolean(state.adminBroadcastBusy), english)}</section>
 				<section class="admin-broadcast__section admin-broadcast__section--delivery">
 					<div class="admin-broadcast__section-head"><div><span>4</span><div><strong>${english ? "Delivery" : "Отправка"}</strong><small>${english ? "Preview before launch" : "Сначала проверьте предпросмотр"}</small></div></div></div>
 					${running || total > 0 ? `<div class="admin-broadcast__progress"><div><span>${english ? "Progress" : "Прогресс"}</span><strong>${progress}%</strong></div><i><b style="width:${progress}%"></b></i><p>${english ? "Sent" : "Отправлено"}: ${Number(draft.sentCount || 0)} · ${english ? "Errors" : "Ошибок"}: ${Number(draft.failedCount || 0)} · ${english ? "Total" : "Всего"}: ${total}</p></div>` : ""}
@@ -6864,14 +6881,18 @@ function renderAdminBroadcastPage() {
 
 function renderAdminBroadcastExpiration(disabled, english) {
  const minutes=Number(state.adminBroadcastExpirationDraft||0);
- return `<section class="admin-broadcast__section"><label class="menu-row admin-toggle"><span class="menu-row__body"><strong>${english ? "Temporary broadcast" : "Временная рассылка"}</strong><small>${english ? "Delete each sent copy after a set time" : "Удалить сообщение у каждого получателя через заданное время"}</small></span><input type="checkbox" role="switch" aria-label="${english ? "Temporary broadcast" : "Временная рассылка"}" data-input="admin-broadcast-temporary" ${minutes>0 ? "checked" : ""} ${disabled ? "disabled" : ""}><i aria-hidden="true"></i></label>${minutes>0 ? `<label class="admin-broadcast-expiration-minutes"><span>${english ? "Delete after, minutes" : "Удалить через, минут"}</span><input type="number" min="1" max="2820" step="1" data-input="admin-broadcast-expiration-minutes" value="${minutes}" ${disabled ? "disabled" : ""}></label>` : ""}</section>`;
+ const title=english ? "Temporary broadcast" : "Временная рассылка";
+ const period=minutes%60===0 ? `${minutes/60} ${english ? "h" : "ч"}` : `${minutes} ${english ? "min" : "мин"}`;
+ return `<div class="broadcast-option"><label class="broadcast-option__header"><span class="broadcast-option__icon">${icon("clock")}</span><span class="broadcast-option__text"><strong>${title}</strong><small>${minutes>0 ? `${english ? "Delete after" : "Удалить через"} ${period}` : (english ? "Delete on a timer" : "Удаление по таймеру")}</small></span><input type="checkbox" role="switch" aria-label="${title}" data-input="admin-broadcast-temporary" ${minutes>0 ? "checked" : ""} ${disabled ? "disabled" : ""}></label>${minutes>0 ? `<div class="broadcast-option__body"><label class="admin-broadcast-expiration-minutes"><span>${english ? "Delete after, minutes" : "Удалить через, минут"}</span><input type="number" min="1" max="2820" step="1" data-input="admin-broadcast-expiration-minutes" value="${minutes}" ${disabled ? "disabled" : ""}></label></div>` : ""}</div>`;
 }
 
 function renderAdminBroadcastAutoReply(disabled,english) {
  const value=state.adminBroadcastAutoReplyDraft;
  if(!value)return "";
- return `<section class="admin-broadcast__section"><label class="menu-row admin-toggle"><span class="menu-row__body"><strong>${english ? "Broadcast auto-reply" : "Автоответ на рассылки"}</strong></span><input type="checkbox" role="switch" data-auto-reply-field="enabled" ${value.enabled?"checked":""} ${disabled?"disabled":""}><i aria-hidden="true"></i></label>${value.enabled ? `<p class="admin-broadcast__empty">${english ? "One reply per latest broadcast. Applies to all Telegram broadcasts." : "Один ответ на последнюю рассылку. Для всех Telegram-рассылок."}</p><label class="admin-broadcast-auto-reply-field"><span>${english ? "Reply text or Telegram HTML" : "Текст автоответа или Telegram HTML"}</span><textarea data-auto-reply-field="text" maxlength="3500" rows="4" ${disabled?"disabled":""}>${escapeHtml(value.text||"")}</textarea></label><label class="admin-broadcast-auto-reply-field"><span>${english ? "Reply window, hours" : "Ожидать ответ после рассылки, часов"}</span><input type="number" min="1" max="168" step="1" data-auto-reply-field="windowHours" value="${Number(value.windowHours)||24}" ${disabled?"disabled":""}></label><label class="menu-row admin-toggle"><span class="menu-row__body"><strong>${english ? "Support button" : "Кнопка поддержки"}</strong></span><input type="checkbox" role="switch" data-auto-reply-field="supportButton" ${value.supportButton?"checked":""} ${disabled?"disabled":""}><i aria-hidden="true"></i></label>${value.supportButton?`<label class="admin-broadcast-auto-reply-field"><span>${english ? "Button label" : "Подпись кнопки"}</span><input type="text" maxlength="64" data-auto-reply-field="supportButtonText" value="${escapeAttribute(value.supportButtonText||"")}" ${disabled?"disabled":""}></label>`:""}`:""}<button class="admin-broadcast__secondary" type="button" data-action="admin-broadcast-save-auto-reply" ${disabled||!state.adminBroadcastAutoReplyDirty?"disabled":""}>${english ? "Save auto-reply" : "Сохранить автоответ"}</button></section>`;
+ const title=english ? "Broadcast auto-reply" : "Автоответ на рассылки";
+ return `<div class="broadcast-option"><label class="broadcast-option__header"><span class="broadcast-option__icon">${icon("chat")}</span><span class="broadcast-option__text"><strong>${title}</strong><small>${english ? "Reply to a recipient's message" : "Ответ на сообщение получателя"}</small></span><input type="checkbox" role="switch" aria-label="${title}" data-auto-reply-field="enabled" ${value.enabled?"checked":""} ${disabled?"disabled":""}></label>${value.enabled ? `<div class="broadcast-option__body"><label class="admin-broadcast-auto-reply-field"><span>${english ? "Reply text" : "Текст ответа"}</span><textarea data-auto-reply-field="text" maxlength="3500" rows="3" placeholder="Telegram HTML" ${disabled?"disabled":""}>${escapeHtml(value.text||"")}</textarea></label><label class="admin-broadcast-auto-reply-field"><span>${english ? "Reply window, hours" : "Окно ответа, часов"}</span><input type="number" min="1" max="168" step="1" data-auto-reply-field="windowHours" value="${Number(value.windowHours)||24}" ${disabled?"disabled":""}></label><label class="broadcast-option__support"><span>${english ? "Support button" : "Кнопка поддержки"}</span><input type="checkbox" role="switch" aria-label="${english ? "Support button" : "Кнопка поддержки"}" data-auto-reply-field="supportButton" ${value.supportButton?"checked":""} ${disabled?"disabled":""}></label>${value.supportButton?`<label class="admin-broadcast-auto-reply-field"><span>${english ? "Button label" : "Подпись кнопки"}</span><input type="text" maxlength="64" data-auto-reply-field="supportButtonText" value="${escapeAttribute(value.supportButtonText||"")}" ${disabled?"disabled":""}></label>`:""}</div>`:""}${state.adminBroadcastAutoReplyDirty ? `<div class="broadcast-option__actions"><button class="broadcast-option__save" type="button" data-action="admin-broadcast-save-auto-reply" aria-label="${english ? "Save auto-reply" : "Сохранить автоответ"}" title="${english ? "Save auto-reply" : "Сохранить автоответ"}" ${disabled?"disabled":""}>${icon("check")}</button></div>` : ""}</div>`;
 }
+
 
 function renderAdminBroadcastTabs() {
   if (!canAdmin("broadcast")) return "";
@@ -12370,6 +12391,8 @@ function bindRootActions() {
 			if (action === "admin-broadcast-add-button") return addAdminBroadcastButton();
 			if (action === "admin-broadcast-remove-button") return removeAdminBroadcastButton(Number(value));
 			if (action === "admin-broadcast-set-style") return setAdminBroadcastButtonStyle(Number(target.dataset.broadcastIndex), value);
+			if (action === "admin-user-activity-filter") return filterAdminUserActivity(target.dataset.value);
+			if (action === "admin-user-activity-toggle") return toggleAdminUserActivity(target.dataset.value);
 			if (action === "admin-user-activity-refresh") return await refreshAdminUserActivity();
 			if (action === "admin-user-activity-more") return await refreshAdminUserActivity({more:true});
 			if (action === "admin-broadcast-save-auto-reply") return await saveAdminBroadcastAutoReply();
