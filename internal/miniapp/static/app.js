@@ -10242,6 +10242,7 @@ function renderGiftPage() {
 	const ownUsername = normalizeGiftUsername(state.data?.user?.username || "");
 	const validUsername = /^[a-z0-9_]{5,32}$/.test(username) && username !== ownUsername;
 	const busy = Boolean(state.giftBusy);
+	const balance = giftBalancePayment(selected, method);
 	const error = state.giftValidation || (username && username === ownUsername ? copy.giftSelf : "");
 
 	return `
@@ -10278,7 +10279,8 @@ function renderGiftPage() {
 					<span><small>${escapeHtml(copy.paymentMethod)}</small><strong>${escapeHtml(method?.label || copy.choosePaymentMethod)}</strong></span>
 					${icon("chevronRight")}
 				</button>
-				<button class="gift-submit" type="button" data-action="start-gift-payment" ${!selected || !method || !validUsername || busy ? "disabled" : ""}>${busy ? icon("refresh") : icon("gift")}<span>${escapeHtml(busy ? localizedText("Открываем оплату…", "Opening payment…", "در حال باز کردن پرداخت…") : copy.giftAction)}</span></button>
+				${balance ? `<p class="gift-balance-hint ${balance.insufficient ? "is-error" : ""}" role="status">${escapeHtml(giftBalanceHint(balance))}</p>` : ""}
+				<button class="gift-submit" type="button" data-action="start-gift-payment" ${!selected || !method || !validUsername || busy || balance?.insufficient ? "disabled" : ""}>${busy ? icon("refresh") : icon("gift")}<span data-gift-payment-label ${balance ? 'data-price-transition="gift-checkout"' : ""}>${escapeHtml(giftPaymentLabel(selected, method, busy))}</span></button>
 			</section>
 		</section>
 	`;
@@ -12857,7 +12859,7 @@ function bindRootActions() {
 			const username = normalizeGiftUsername(cleaned);
 			const own = normalizeGiftUsername(state.data?.user?.username || "");
 			const button = app.querySelector('[data-action="start-gift-payment"]');
-			if (button) button.disabled = !/^[a-z0-9_]{5,32}$/.test(username) || username === own || !getSelectedGiftPlan() || !getSelectedPaymentMethod() || Boolean(state.giftBusy);
+			if (button) button.disabled = !/^[a-z0-9_]{5,32}$/.test(username) || username === own || !getSelectedGiftPlan() || !getSelectedPaymentMethod() || Boolean(state.giftBusy) || Boolean(giftBalancePayment()?.insufficient);
 			const help = app.querySelector("#gift-username-help");
 			if (help && username === own) {
 				help.textContent = t().giftSelf;
@@ -17070,6 +17072,7 @@ function updateCheckoutPriceDom() {
 			const plan = getGiftPlans().find((item) => planKey(item) === node.dataset.giftPlanPrice);
 			if (plan) updateAnimatedText(node, formatGiftPlanPrice(plan));
 		});
+		syncGiftBalancePaymentDOM();
 		return;
 	}
 	const action = app.querySelector(".buy-action");
@@ -17352,6 +17355,7 @@ async function startPayment({ deviceOnly = false, trafficOnly = false } = {}) {
 }
 
 async function startGiftPayment() {
+	if (state.giftBusy) return;
 	const copy = t();
 	const plan = getSelectedGiftPlan();
 	const method = getSelectedPaymentMethod()?.id || "";
@@ -17368,6 +17372,7 @@ async function startGiftPayment() {
 		return;
 	}
 	if (!plan || !method) return showToast(copy.paymentUnavailable, "danger");
+	if (method === "balance" && giftBalancePayment(plan, { id: method })?.insufficient) return showToast(localizedText("Недостаточно средств на балансе", "Insufficient balance", "موجودی کافی نیست"), "danger");
 	if (method === "p2p") return openP2PMenu({ mode: "gift" });
 	if (requirePaymentChannel(method, { mode: "gift" })) return;
 	if (requirePaymentContact({ mode: "gift" })) return;
@@ -17390,7 +17395,12 @@ async function startGiftPayment() {
 			returnTarget: paymentReturnTarget,
 		});
 		const { action, url, purchaseId } = response.data || {};
-		if (action === "open_invoice") {
+		if (action === "completed") {
+			state.appliedPromo = null;
+			state.promoCodeDraft = "";
+			await safeRefresh();
+			showToast(copy.giftSentTitle, "success");
+		} else if (action === "open_invoice") {
 			if (typeof tg?.openInvoice === "function") {
 				tg.openInvoice(url, async (status) => {
 					if (status === "paid") {
@@ -18515,6 +18525,43 @@ function getGiftPlanTitle(plan, locale) {
 	return `${title} | ${unlimited}`;
 }
 
+function giftBalanceHint(balance) {
+	return localizedText(`На балансе ${formatMoneyCents(Math.round(balance.availableRub * 100))}${balance.insufficient ? ` · Не хватает ${formatMoneyCents(Math.round(balance.shortfallRub * 100))}` : ""}`, `Balance ${formatMoneyCents(Math.round(balance.availableRub * 100))}${balance.insufficient ? ` · Missing ${formatMoneyCents(Math.round(balance.shortfallRub * 100))}` : ""}`, `موجودی ${formatMoneyCents(Math.round(balance.availableRub * 100))}${balance.insufficient ? ` · کسری ${formatMoneyCents(Math.round(balance.shortfallRub * 100))}` : ""}`);
+}
+
+function giftPaymentLabel(plan, method, busy) {
+	const balance = paymentMethodBase(method?.id) === "balance";
+	if (busy) return localizedText(balance ? "Отправляем подарок…" : "Открываем оплату…", balance ? "Sending gift…" : "Opening payment…", balance ? "در حال ارسال هدیه…" : "در حال باز کردن پرداخت…");
+	return balance ? localizedText(`Оплатить ${formatGiftPlanPrice(plan)} с баланса`, `Pay ${formatGiftPlanPrice(plan)} from balance`, `پرداخت ${formatGiftPlanPrice(plan)} از موجودی`) : t().giftAction;
+}
+
+function syncGiftBalancePaymentDOM() {
+	const plan = getSelectedGiftPlan();
+	const method = getSelectedPaymentMethod();
+	const balance = giftBalancePayment(plan, method);
+	const hint = app.querySelector(".gift-balance-hint");
+	if (hint && balance) {
+		hint.textContent = giftBalanceHint(balance);
+		hint.classList.toggle("is-error", balance.insufficient);
+	}
+	const button = app.querySelector('[data-action="start-gift-payment"]');
+	if (button) {
+		const username = normalizeGiftUsername(state.giftUsernameDraft);
+		button.disabled = !plan || !method || !/^[a-z0-9_]{5,32}$/.test(username) || username === normalizeGiftUsername(state.data?.user?.username) || Boolean(state.giftBusy) || Boolean(balance?.insufficient);
+		updateAnimatedText(button.querySelector("[data-gift-payment-label]"), giftPaymentLabel(plan, method, Boolean(state.giftBusy)));
+	}
+}
+
+function giftBalancePayment(plan = getSelectedGiftPlan(), method = getSelectedPaymentMethod()) {
+	if (!plan || paymentMethodBase(method?.id) !== "balance") return null;
+	const promo = getActivePromo();
+	const price = Number(plan.priceRub || 0);
+	const amountRub = promo?.discountPercent ? Math.max(1, Math.round(price * (100 - promo.discountPercent) / 100)) : price;
+	const availableCents = Number(state.data?.wallet?.balanceCents || 0);
+	const shortfallCents = Math.max(0, Math.round(amountRub * 100) - availableCents);
+	return { amountRub, availableRub: availableCents / 100, shortfallRub: shortfallCents / 100, insufficient: shortfallCents > 0 };
+}
+
 function formatGiftPlanPrice(plan) {
 	const methodID = getSelectedPaymentMethod()?.id || state.paymentMethod;
 	const basePrice = methodID === "stars" ? Number(plan?.priceStars || 0) : Number(plan?.priceRub || 0);
@@ -18527,11 +18574,12 @@ function formatGiftPlanPrice(plan) {
 }
 
 function getAvailableMethods(plan = getSelectedPlan()) {
-  const pack = getSelectedDevicePack();
-	const trafficPack = getSelectedTrafficPack();
+	const gift = state.currentPage === "gift";
+	const pack = gift ? null : getSelectedDevicePack();
+	const trafficPack = gift ? null : getSelectedTrafficPack();
 	return getConfiguredPaymentMethods()
-		.filter((method) => state.currentPage !== "gift" || method.id !== "balance")
-    .filter((method) => method.id !== "stars" || Number(plan?.priceStars || 0) + Number(pack?.priceStars || 0) + Number(trafficPack?.priceStars || 0) > 0);
+		.filter((method) => !gift || paymentMethodBase(method.id) !== "balance" || Number(plan?.priceRub || 0) > 0)
+		.filter((method) => method.id !== "stars" || Number(plan?.priceStars || 0) + Number(pack?.priceStars || 0) + Number(trafficPack?.priceStars || 0) > 0);
 }
 
 function getConfiguredPaymentMethods() {

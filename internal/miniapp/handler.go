@@ -2332,10 +2332,6 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 		h.writeError(w, http.StatusBadRequest, "unsupported_payment_method", "Этот способ оплаты недоступен")
 		return
 	}
-	if invoiceType == database.InvoiceTypeBalance {
-		h.writeError(w, http.StatusBadRequest, "unsupported_payment_method", "Подарки нельзя оплатить внутренним балансом")
-		return
-	}
 	allowedMethods, err := h.availablePaymentMethods(r.Context(), customer)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "payment_config_failed", "Не удалось определить способы оплаты")
@@ -2363,7 +2359,9 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 		unlockPromo := lockPromoPurchase(req.PromoCode)
 		defer unlockPromo()
 
-		promo, normalizedCode, promoErrCode, promoErr := h.resolvePromoCode(r.Context(), customer.ID, req.PromoCode)
+		var normalizedCode, promoErrCode string
+		var promoErr error
+		promo, normalizedCode, promoErrCode, promoErr = h.resolvePromoCode(r.Context(), customer.ID, req.PromoCode)
 		if promoErr != nil {
 			slog.Error("mini app: resolve gift promo code", "error", promoErr, "method", req.PaymentMethod, "months", req.Months)
 			h.writeError(w, http.StatusInternalServerError, "promo_failed", promoErrorMessage("promo_failed"))
@@ -2417,6 +2415,10 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 		ClientIP:                publicRequestIP(r),
 	})
 	if err != nil {
+		if errors.Is(err, database.ErrInsufficientBalance) {
+			h.writeError(w, http.StatusConflict, "insufficient_balance", "Недостаточно средств на балансе")
+			return
+		}
 		slog.Error("mini app: create gift purchase", "error", err, "method", req.PaymentMethod, "months", req.Months)
 		if h.writeIntegrationPurchaseError(w, sess, err) {
 			return

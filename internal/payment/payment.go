@@ -981,48 +981,7 @@ func (s PaymentService) createBalancePurchase(ctx context.Context, amount float6
 	if s.walletRepository == nil || customer == nil || amount <= 0 {
 		return "", 0, errors.New("balance payments are unavailable")
 	}
-	amountCents := int64(math.Round(amount * 100))
-	purchaseID, err := s.purchaseRepository.Create(ctx, &database.Purchase{
-		InvoiceType:              database.InvoiceTypeBalance,
-		Status:                   database.PurchaseStatusNew,
-		Amount:                   amount,
-		Currency:                 "RUB",
-		CustomerID:               customer.ID,
-		SubscriptionID:           options.SubscriptionID,
-		Month:                    months,
-		Days:                     options.DurationDays,
-		PlanID:                   optionalTrimmedStringPointer(options.PlanID),
-		TrafficLimitBytes:        options.TrafficLimitBytes,
-		DeviceLimitCount:         options.DeviceLimitCount,
-		AgreementAccepted:        options.AgreementAccepted,
-		PurchaseKind:             options.PurchaseKind,
-		ExtraDevices:             options.ExtraDevices,
-		ExtraTrafficBytes:        options.ExtraTrafficBytes,
-		ExtraTrafficUnlimited:    options.ExtraTrafficUnlimited,
-		DeviceExpiresAt:          options.DeviceExpiresAt,
-		IsFreePlan:               options.IsFreePlan,
-		FreePlanOneTime:          options.FreePlanOneTime,
-		PromoCodeID:              options.PromoCodeID,
-		PromoCodeSnapshot:        optionalTrimmedStringPointer(options.PromoCodeCode),
-		PromoCodeDiscountPercent: optionalPositiveIntPointer(options.PromoDiscountPercent),
-	})
-	if err != nil {
-		return "", 0, err
-	}
-	_, _, err = s.walletRepository.Apply(ctx, customer.ID, -amountCents, "purchase", fmt.Sprintf("balance-purchase:%d", purchaseID), "Оплата покупки с баланса")
-	if err != nil {
-		_ = s.purchaseRepository.UpdateFields(ctx, purchaseID, map[string]interface{}{"status": database.PurchaseStatusCancel})
-		return "", purchaseID, err
-	}
-	if err := s.ProcessPurchaseById(ctx, purchaseID); err != nil {
-		current, findErr := s.purchaseRepository.FindById(ctx, purchaseID)
-		if findErr == nil && current != nil && current.Status != database.PurchaseStatusPaid {
-			_, _, _ = s.walletRepository.Apply(ctx, customer.ID, amountCents, "purchase_refund", fmt.Sprintf("balance-purchase-refund:%d", purchaseID), "Возврат за неисполненную покупку")
-			_ = s.purchaseRepository.UpdateFields(ctx, purchaseID, map[string]interface{}{"status": database.PurchaseStatusCancel})
-		}
-		return "", purchaseID, err
-	}
-	return "", purchaseID, nil
+	return settleBalancePurchase(ctx, s.purchaseRepository, s.walletRepository, amount, months, customer, options, s.ProcessPurchaseById)
 }
 
 var ErrCustomerNotFound = errors.New("customer not found")
