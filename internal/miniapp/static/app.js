@@ -1,3 +1,4 @@
+import { mergeUserActivity, renderUserActivity } from "./user-activity.mjs";
 import { TERMS_ARTICLE, PRIVACY_ARTICLE } from "./legal-articles.mjs";
 import {
   SETUP_PLATFORM_IDS,
@@ -166,6 +167,7 @@ let adminUsersSearchRequestID = 0;
 let adminUserDetailRequestID = 0;
 let dashboardDataVersion = 0;
 let adminDirectRequestID = 0;
+let adminUserActivityRequestID = 0;
 let adminFinanceRequestID = 0;
 let adminAnalyticsRequestID = 0;
 let browserDeviceFingerprintPromise = null;
@@ -2516,6 +2518,9 @@ const state = {
 	adminUserTrafficDraft: "",
 	adminUserBlockReasonDraft: "",
 	adminUserDeleteSubscriptionOnBlock: false,
+	adminUserActivity: null,
+	adminUserActivityBusy: false,
+	adminUserActivityError: "",
 	adminDirectMessage: null,
 	adminDirectMessageBusy: "",
 	adminDirectConfirmOpen: false,
@@ -3371,12 +3376,14 @@ async function refreshRealtimeData({ panelOnly = false } = {}) {
 						if (state.adminUserDetail?.customerId || state.adminUserDetail?.panelOnly) {
 							const customerId = state.adminUserDetail.customerId;
 							const requestID = adminUserDetailRequestID;
+							const activityTask = refreshAdminUserActivity({silent:true});
 							const previous = JSON.stringify(state.adminUserDetail);
 							const response = await post("/api/mini-app/admin/users/detail", state.adminUserDetail.panelId || state.adminUserDetail.panelOnly ? {panelId:state.adminUserDetail.panelId,panelUuid:state.adminUserDetail.panelUuid} : { customerId });
 							if (requestID === adminUserDetailRequestID && !state.adminUsersBusy && state.adminSection === "users" && state.adminUserDetail?.customerId === customerId) {
 								state.adminUserDetail = mergeAdminUserObservation(state.adminUserDetail, response.data);
 								if (previous !== JSON.stringify(state.adminUserDetail)) renderRealtime();
 							}
+							await activityTask;
 						} else await refreshAdminUsers({ silent: true });
 						break;
 					case "subscriptions":
@@ -4290,6 +4297,7 @@ function mountCabinetShell(markup) {
 			reviews: state.data?.reviews || {items:[],count:0,average:0},
 			canDeleteReviews: canAdmin("reviews.delete"), canRewardReviews: canAdmin("reviews.rewards"),
 			userDetail: Boolean(state.adminUserDetail || state.adminUserPending), user: state.adminUserDetail,
+			userActivity: {data:state.adminUserActivity,busy:state.adminUserActivityBusy,error:state.adminUserActivityError},
 			selectedSubscriptionID: adminUserSelectedSubscriptionID(), squads: adminSquads(),
 			canEditUser: canAdmin("users.subscription"), userBusy: Boolean(state.adminUsersBusy),
 			saveUserSettings: (subscriptionId, settings) => state.adminUserDetail?.panelOnly
@@ -6144,6 +6152,7 @@ function renderAdminUserDetailPage(user) {
 		<section class="admin-user-subscriptions"><div class="admin-user-section-head"><div><span>ДОСТУП</span><h3>Подписки пользователя</h3></div><strong>${subscriptions.length}</strong></div>
 			${subscriptions.length ? `<div class="admin-user-subscriptions__tabs" role="group" aria-label="Подписки пользователя">${subscriptions.map((item) => `<button class="admin-user-subscriptions__tab ${selected?.id === item.id ? "is-active" : ""}" type="button" aria-pressed="${selected?.id === item.id}" data-action="admin-user-view-subscription" data-value="${Number(item.id || 0)}"><strong>${escapeHtml(item.name || "Подписка")}</strong><small>${item.isSelected ? "Выбрана в Mini App" : item.isPrimary ? "Основная" : "Дополнительная"}</small></button>`).join("")}</div>${selected ? renderAdminUserSubscription(selected) : ""}` : `<div class="admin-users__empty admin-users__empty--compact"><strong>Подписок пока нет</strong></div>`}
 		</section>
+		${renderUserActivity({data:state.adminUserActivity,busy:state.adminUserActivityBusy,error:state.adminUserActivityError},{escapeHtml,escapeAttribute})}
 		<section class="admin-user-controls" aria-labelledby="admin-user-controls-title"><div class="admin-user-section-head"><div><span>ФУНКЦИИ БОТА</span><h3 id="admin-user-controls-title">Управление пользователем</h3></div></div>
 			${canAdmin("users.message") ? renderAdminDirectMessage(user) : ""}
 			<div class="admin-user-controls__group admin-user-controls__group--balance" ${canAdmin("users.balance") ? "" : "hidden"}><div><strong>Баланс Mini App</strong><span>Сейчас доступно ${escapeHtml(formatMoneyCents(referrals.balanceCents || 0))}. Операции сохраняются в истории.</span></div><label class="admin-user-balance-input"><span>Сумма, ₽</span><input type="number" min="1" max="1000000" step="1" inputmode="numeric" value="${escapeAttribute(state.adminUserBalanceDraft)}" data-input="admin-user-balance" placeholder="Например, 500"></label><div class="admin-user-balance-actions"><button class="is-credit" type="button" data-action="admin-user-credit" ${busy ? "disabled" : ""}>${icon("plus")}Пополнить</button><button class="is-debit" type="button" data-action="admin-user-debit" ${busy || Number(referrals.balanceCents || 0) < 100 ? "disabled" : ""}>${icon("minus")}Списать</button></div></div>
@@ -6285,6 +6294,7 @@ async function openAdminUser(customerID) {
 	window.clearTimeout(adminUsersSearchTimer);
 	adminUsersSearchRequestID += 1;
 	const detailRequestID = ++adminUserDetailRequestID;
+	resetAdminUserActivity();
 	if (previewMode && state.adminUserPreviewDetail) {
 		state.adminUserDetail = deepClone(state.adminUserPreviewDetail);
 		state.adminUserPending = null;
@@ -6324,6 +6334,7 @@ async function openAdminUser(customerID) {
 		state.adminUsersBusy = "";
 		render({ preserveScroll: true });
 		void refreshAdminDirectMessage(customerID);
+		void refreshAdminUserActivity();
 	} catch (error) {
 		if (detailRequestID !== adminUserDetailRequestID) return;
 		state.adminUserPending = null;
@@ -6335,6 +6346,7 @@ async function openAdminUser(customerID) {
 }
 
 function closeAdminUserDetail() {
+	resetAdminUserActivity();
 	adminUserDetailRequestID += 1;
 	if (state.adminUsersBusy === "detail") state.adminUsersBusy = "";
 	state.adminUserDetail = null;
@@ -6351,6 +6363,34 @@ function closeAdminUserDetail() {
 	state.adminDirectConfirmOpen = false;
 	haptic("light");
 	renderAdminTransition({preserveScroll:true});
+}
+
+function resetAdminUserActivity() {
+ adminUserActivityRequestID+=1;
+ state.adminUserActivity=null;
+ state.adminUserActivityBusy=false;
+ state.adminUserActivityError="";
+}
+
+async function refreshAdminUserActivity({more=false,silent=false}={}) {
+ const customerId=Number(state.adminUserDetail?.customerId||0);
+ if(!canAdmin("users") || !customerId || state.adminUserDetail?.panelOnly || state.adminSection!=="users" || state.adminUserActivityBusy || previewMode) return;
+ const requestID=++adminUserActivityRequestID;
+ const detailRequestID=adminUserDetailRequestID;
+ const beforeId=more ? state.adminUserActivity?.items?.at(-1)?.id || 0 : 0;
+ state.adminUserActivityBusy=true;
+ if(!silent) {state.adminUserActivityError="";renderRealtime();}
+ try {
+  const response=await post("/api/mini-app/admin/users/activity",{customerId,beforeId});
+  if(requestID!==adminUserActivityRequestID || detailRequestID!==adminUserDetailRequestID || state.adminSection!=="users" || Number(state.adminUserDetail?.customerId)!==customerId) return;
+  state.adminUserActivity=mergeUserActivity(state.adminUserActivity,response.data,more);
+  state.adminUserActivityError="";
+ } catch(error) {
+  if(requestID!==adminUserActivityRequestID || detailRequestID!==adminUserDetailRequestID) return;
+  state.adminUserActivityError=error.message||"Не удалось загрузить историю";
+ } finally {
+  if(requestID===adminUserActivityRequestID) {state.adminUserActivityBusy=false;renderRealtime();}
+ }
 }
 
 async function refreshAdminDirectMessage(customerID = Number(state.adminUserDetail?.customerId || 0)) {
@@ -12330,6 +12370,8 @@ function bindRootActions() {
 			if (action === "admin-broadcast-add-button") return addAdminBroadcastButton();
 			if (action === "admin-broadcast-remove-button") return removeAdminBroadcastButton(Number(value));
 			if (action === "admin-broadcast-set-style") return setAdminBroadcastButtonStyle(Number(target.dataset.broadcastIndex), value);
+			if (action === "admin-user-activity-refresh") return await refreshAdminUserActivity();
+			if (action === "admin-user-activity-more") return await refreshAdminUserActivity({more:true});
 			if (action === "admin-broadcast-save-auto-reply") return await saveAdminBroadcastAutoReply();
 			if (action === "admin-broadcast-save-buttons") return await saveAdminBroadcastButtons();
 			if (action === "admin-broadcast-preview") return await previewAdminBroadcast();

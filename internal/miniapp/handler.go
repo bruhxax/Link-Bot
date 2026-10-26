@@ -58,6 +58,7 @@ var (
 )
 
 type Handler struct {
+	userActivityRepository  userActivityRepository
 	activitySettingsMu      sync.Mutex
 	adminActivityRepository adminActivityRepository
 	administratorRepository administratorLookup
@@ -909,6 +910,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	}
 	mux.HandleFunc("/api/mini-app/admin/administrators/logs", h.withSession(h.handleAdminActivity))
 	mux.HandleFunc("/api/mini-app/admin/users/search", h.withSession(h.handleAdminUsersSearch))
+	mux.HandleFunc("/api/mini-app/admin/users/activity", h.withSession(h.handleAdminUserActivity))
 	mux.HandleFunc("/api/mini-app/admin/users/detail", h.withSession(h.handleAdminUserDetail))
 	mux.HandleFunc("/api/mini-app/admin/users/open", h.withSession(h.handleAdminUserDetail))
 	mux.HandleFunc("/api/mini-app/admin/users/balance", h.withSession(h.handleAdminUserBalance))
@@ -1376,7 +1378,9 @@ func (h *Handler) withSession(next func(http.ResponseWriter, *http.Request, *ses
 			return
 		}
 
-		h.runAdminActivity(w, r, sess, customer, next)
+		h.runAdminActivity(w, r, sess, customer, func(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
+			h.runUserActivity(w, r, sess, customer, next)
+		})
 	}
 }
 
@@ -6841,6 +6845,7 @@ func (h *Handler) decodeJSONRequest(w http.ResponseWriter, r *http.Request, maxB
 	}
 
 	h.captureAdminActivityPayload(r, target)
+	h.captureUserActivityPayload(r, target)
 	return nil
 }
 
@@ -6849,6 +6854,9 @@ func (h *Handler) writeError(w http.ResponseWriter, status int, code, message st
 }
 
 func (h *Handler) writeErrorWithMeta(w http.ResponseWriter, status int, code, message string, meta any) {
+	if capture, ok := w.(interface{ RecordActivityError(string) }); ok {
+		capture.RecordActivityError(code)
+	}
 	h.writeJSON(w, status, map[string]any{
 		"ok": false,
 		"error": map[string]any{

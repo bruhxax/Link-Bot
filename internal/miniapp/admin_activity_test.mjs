@@ -64,7 +64,7 @@ test("one card visit and ten realtime refreshes request exactly one audited open
     window: { clearTimeout() {} }, document: { hidden: false }, previewMode: false,
     adminUsersSearchTimer: 0, adminUsersSearchRequestID: 0, adminUserDetailRequestID: 0,
     realtimeRefreshRunning: false, realtimeRefreshPending: false, realtimeBatching: false, realtimeBatchRenderRequested: false, realtimeLastRefresh: 0,
-    hasAuth: () => true, isAdminUser: () => true, haptic() {}, render() {}, renderRealtime() {}, refreshDashboard: async () => {}, refreshAdminDirectMessage() {},
+    hasAuth: () => true, isAdminUser: () => true, haptic() {}, render() {}, renderRealtime() {}, refreshDashboard: async () => {}, refreshAdminDirectMessage() {}, resetAdminUserActivity() {}, refreshAdminUserActivity: async () => {},
     post: async (url, body) => { calls.push({ url, body }); return { data: detail }; },
   });
   vm.runInContext(source.slice(source.indexOf("async function openAdminUser("), source.indexOf("function closeAdminUserDetail(")), context);

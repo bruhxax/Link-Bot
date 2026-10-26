@@ -39,7 +39,7 @@ var activityReadRoutes = map[string]bool{
 	"content/pinned/state":       true,
 	"broadcast/audience/options": true,
 	"users/search":               true, "administrators/list": true, "administrators/logs": true,
-	"users/detail": true, "subscriptions/find/refresh": true, "subscriptions/target/refresh": true,
+	"users/activity": true, "users/detail": true, "subscriptions/find/refresh": true, "subscriptions/target/refresh": true,
 }
 var activityActions = map[string]activityAction{
 	"payments/logo/upload":        {"Загрузил логотип способа оплаты", "settings", ""},

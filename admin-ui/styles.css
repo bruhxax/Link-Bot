@@ -299,6 +299,7 @@ body::after {
   align-items: start;
 }
 .rn-user-operations .admin-user-detail__header,
+.rn-user-operations .admin-user-activity,
 .rn-user-operations .admin-user-subscriptions {
   display: none;
 }

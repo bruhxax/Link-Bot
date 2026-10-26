@@ -19,7 +19,7 @@ function setup(overrides = {}) {
     realtimeBatching: false, realtimeBatchRenderRequested: false, previewMode: false, tg: null,
     hasAuth: () => true, isAdminUser: () => true, render() { renders++; }, renderRealtime() { renders++; },
     syncGiftReceiptState() {}, syncLocalizationFromSettings() {}, syncAdminSettingsDraft() {}, ensureSelections() {},
-    queueRealtimeRefresh() {}, haptic() {}, showToast() {}, refreshAdminUsers: async () => {},
+    queueRealtimeRefresh() {}, haptic() {}, showToast() {}, refreshAdminUsers: async () => {}, refreshAdminUserActivity: async () => {},
     post: (url, body) => new Promise((resolve, reject) => requests.push({url, body, resolve, reject})),
     ...overrides,
   });

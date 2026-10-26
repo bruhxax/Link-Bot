@@ -194,7 +194,7 @@ func adminRouteAllowed(a adminAccess, path string) bool {
 		return a.can("content")
 	case "events/resolve":
 		return a.can("diagnostics")
-	case "users/search", "users/detail", "users/open":
+	case "users/search", "users/detail", "users/open", "users/activity":
 		return a.can("users")
 	case "users/balance":
 		return a.can("users.balance")

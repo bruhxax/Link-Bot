@@ -37,7 +37,7 @@ func TestBroadcastRollbackMigrationHistory(t *testing.T) {
 			if err := m.Up(); err != nil {
 				t.Fatalf("startup from version %d: %v", version, err)
 			}
-			if driver.CurrentVersion != 67 || driver.IsDirty {
+			if driver.CurrentVersion != 68 || driver.IsDirty {
 				t.Fatalf("unexpected final state: version=%d dirty=%v", driver.CurrentVersion, driver.IsDirty)
 			}
 			if err := m.Up(); err != migrate.ErrNoChange {
@@ -72,6 +72,7 @@ func TestBroadcastRollbackMigrationDatabase(t *testing.T) {
 				t.Fatal(err)
 			}
 			if _, err := db.ExecContext(ctx, `CREATE TABLE bot_broadcast_draft(id INT PRIMARY KEY); CREATE TABLE customer(id BIGINT PRIMARY KEY); CREATE TABLE customer_subscription(id BIGINT PRIMARY KEY);
+ CREATE FUNCTION miniapp_notify_change() RETURNS TRIGGER AS $$ BEGIN RETURN NEW; END; $$ LANGUAGE plpgsql;
 				CREATE TABLE app_runtime_settings(id INT,config JSONB);
 				CREATE TABLE purchase(customer_id BIGINT, status TEXT, purchase_kind TEXT, amount BIGINT, is_free_plan BOOLEAN);
 				INSERT INTO purchase VALUES(1,'paid','subscription',100,false);
@@ -104,7 +105,7 @@ func TestBroadcastRollbackMigrationDatabase(t *testing.T) {
 				t.Fatal(err)
 			}
 			v, dirty, err := m.Version()
-			if err != nil || v != 67 || dirty {
+			if err != nil || v != 68 || dirty {
 				t.Fatalf("version=%d dirty=%v err=%v", v, dirty, err)
 			}
 			var indexGone bool
