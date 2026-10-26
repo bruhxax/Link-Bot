@@ -33,7 +33,7 @@ function setup(channel) {
     renderDesktopSidebar: () => '', isModalVisible: () => false,
     renderBottomNav: () => '<nav data-test-bottom-nav></nav>',
   });
-  for (const name of ['renderAdminBroadcastExpiration', 'renderAdminBroadcastPage', 'renderAdminEmailBroadcastPage',
+  for (const name of ['renderAdminBroadcastAutoReply', 'renderAdminBroadcastExpiration', 'renderAdminBroadcastPage', 'renderAdminEmailBroadcastPage',
     'renderAdminBroadcastConfirmation', 'renderAdminEmailBroadcastConfirm', 'renderAdminBroadcastConfirm']) {
     vm.runInContext(functionSource(name), context);
   }

@@ -30,24 +30,25 @@ type BroadcastButton struct {
 }
 
 type BroadcastDraft struct {
-	DeleteAfterMinutes int               `json:"deleteAfterMinutes"`
-	Audience           BroadcastAudience `json:"audience"`
-	Status             string            `json:"status"`
-	SourceChatID       *int64            `json:"-"`
-	SourceMessageID    *int              `json:"-"`
-	SourceKind         string            `json:"sourceKind"`
-	SourcePreview      string            `json:"sourcePreview"`
-	SourceText         string            `json:"sourceText,omitempty"`
-	SourceHTML         string            `json:"-"`
-	Buttons            []BroadcastButton `json:"buttons"`
-	RecipientCount     int               `json:"recipientCount"`
-	SentCount          int               `json:"sentCount"`
-	FailedCount        int               `json:"failedCount"`
-	LastError          string            `json:"lastError,omitempty"`
-	UpdatedBy          *int64            `json:"-"`
-	StartedAt          *time.Time        `json:"startedAt,omitempty"`
-	FinishedAt         *time.Time        `json:"finishedAt,omitempty"`
-	UpdatedAt          time.Time         `json:"updatedAt"`
+	AutoReply          *BroadcastAutoReplySettings `json:"autoReply,omitempty"`
+	DeleteAfterMinutes int                         `json:"deleteAfterMinutes"`
+	Audience           BroadcastAudience           `json:"audience"`
+	Status             string                      `json:"status"`
+	SourceChatID       *int64                      `json:"-"`
+	SourceMessageID    *int                        `json:"-"`
+	SourceKind         string                      `json:"sourceKind"`
+	SourcePreview      string                      `json:"sourcePreview"`
+	SourceText         string                      `json:"sourceText,omitempty"`
+	SourceHTML         string                      `json:"-"`
+	Buttons            []BroadcastButton           `json:"buttons"`
+	RecipientCount     int                         `json:"recipientCount"`
+	SentCount          int                         `json:"sentCount"`
+	FailedCount        int                         `json:"failedCount"`
+	LastError          string                      `json:"lastError,omitempty"`
+	UpdatedBy          *int64                      `json:"-"`
+	StartedAt          *time.Time                  `json:"startedAt,omitempty"`
+	FinishedAt         *time.Time                  `json:"finishedAt,omitempty"`
+	UpdatedAt          time.Time                   `json:"updatedAt"`
 }
 
 func (d BroadcastDraft) HasSource() bool {

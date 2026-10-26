@@ -288,6 +288,8 @@ func main() {
 		}
 	})
 
+	b.RegisterHandlerMatchFunc(broadcast.IsAutoReplyCandidate, broadcastService.HandleAutoReply)
+
 	b.RegisterHandlerMatchFunc(func(update *models.Update) bool {
 		return update.PreCheckoutQuery != nil
 	}, h.PreCheckoutCallbackHandler, h.SuspiciousUserFilterMiddleware, h.CreateCustomerIfNotExistMiddleware)

@@ -426,6 +426,27 @@ function Expiration({ model, disabled }) {
     </Stack>
   );
 }
+
+function AutoReply({model,disabled}) {
+  const value=model.autoReply;
+  if(!value) return null;
+  return <Stack gap="sm" className="rn-broadcast-expiration">
+    <Switch label="Автоответ на рассылки" color="teal" checked={value.enabled} disabled={disabled}
+      onChange={e=>model.updateAutoReply("enabled",e.currentTarget.checked)} />
+    {value.enabled && <>
+      <Text size="xs" c="dimmed">Один ответ на последнюю рассылку. Настройка действует для всех Telegram-рассылок.</Text>
+      <Textarea label="Сообщение автоответа" description="Текст или Telegram HTML" value={value.text} maxLength={3500} minRows={4} autosize disabled={disabled}
+        onChange={e=>model.updateAutoReply("text",e.currentTarget.value)} />
+      <NumberInput label="Ожидать ответ после рассылки, часов" value={value.windowHours} min={1} max={168} allowDecimal={false} allowNegative={false} disabled={disabled}
+        onChange={value=>{if(value!=="")model.updateAutoReply("windowHours",Number(value));}} />
+      <Switch label="Кнопка поддержки" color="teal" checked={value.supportButton} disabled={disabled}
+        onChange={e=>model.updateAutoReply("supportButton",e.currentTarget.checked)} />
+      {value.supportButton && <TextInput label="Подпись кнопки" value={value.supportButtonText} maxLength={64} disabled={disabled}
+        onChange={e=>model.updateAutoReply("supportButtonText",e.currentTarget.value)} />}
+    </>}
+    <Button variant="subtle" size="sm" data-action="admin-broadcast-save-auto-reply" disabled={disabled||!model.autoReplyDirty}>Сохранить автоответ</Button>
+  </Stack>;
+}
 function Progress({ draft, hidden }) {
   if (!draft || !draft.recipientCount) return null;
   const m = broadcastMetrics(draft);
@@ -947,6 +968,7 @@ export function Broadcast({ model: root, dispatch, hidden, Legacy }) {
                     </div>
                     <Buttons model={model} disabled={disabled} />
                     <Expiration model={model} disabled={disabled} />
+                    <AutoReply model={model} disabled={disabled} />
                   </>
                 )}
                 <Accordion

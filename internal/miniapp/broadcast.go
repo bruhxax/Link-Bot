@@ -17,6 +17,23 @@ type adminBroadcastSendRequest struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+func (h *Handler) handleAdminBroadcastAutoReply(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
+	if !h.requireBroadcastAdmin(w, sess) {
+		return
+	}
+	var req database.BroadcastAutoReplySettings
+	if err := h.decodeJSONRequest(w, r, 24<<10, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Некорректные настройки автоответа")
+		return
+	}
+	value, err := h.broadcastService.SaveAutoReply(r.Context(), req)
+	if err != nil {
+		h.writeBroadcastError(w, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": value})
+}
+
 func (h *Handler) handleAdminBroadcastExpiration(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
 	if !h.requireBroadcastAdmin(w, sess) {
 		return
@@ -132,6 +149,8 @@ func (h *Handler) requireBroadcastAdmin(w http.ResponseWriter, sess *session) bo
 
 func (h *Handler) writeBroadcastError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, broadcast.ErrAutoReplySettings):
+		h.writeError(w, http.StatusBadRequest, "broadcast_invalid_auto_reply", err.Error())
 	case errors.Is(err, database.ErrBroadcastExpiration):
 		h.writeError(w, http.StatusBadRequest, "broadcast_invalid_expiration", err.Error())
 	case errors.Is(err, broadcast.ErrDraftChanged):

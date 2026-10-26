@@ -68,6 +68,7 @@ func (s *Service) deliverBroadcast(ctx context.Context, draft database.Broadcast
 		sentAt = time.Now().UTC()
 	}
 	if draft.DeleteAfterMinutes == 0 {
+		s.rememberBroadcastRecipient(ctx, chatID, messageID, sentAt)
 		return nil
 	}
 
@@ -78,6 +79,7 @@ func (s *Service) deliverBroadcast(ctx context.Context, draft database.Broadcast
 	for attempt := 0; attempt < 3; attempt++ {
 		err = s.deletions.ScheduleDeletion(recordCtx, chatID, messageID, sentAt, draft.DeleteAfterMinutes)
 		if err == nil {
+			s.rememberBroadcastRecipient(ctx, chatID, messageID, sentAt)
 			return nil
 		}
 		if recordCtx.Err() != nil {

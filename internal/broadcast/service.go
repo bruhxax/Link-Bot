@@ -42,6 +42,7 @@ var (
 )
 
 type Service struct {
+	replies            autoReplyStore
 	deletions          deletionStore
 	repository         *database.BroadcastRepository
 	customerRepository *database.CustomerRepository
@@ -59,6 +60,7 @@ func NewService(repository *database.BroadcastRepository, customerRepository *da
 	service := &Service{repository: repository, customerRepository: customerRepository, promoRepository: promoRepository, telegramBot: telegramBot}
 	if repository != nil {
 		service.deletions = repository
+		service.replies = repository
 	}
 	return service
 }
@@ -90,7 +92,14 @@ func (s *Service) Get(ctx context.Context) (*database.BroadcastDraft, error) {
 	if s == nil || s.repository == nil {
 		return nil, errors.New("broadcast service is unavailable")
 	}
-	return s.repository.Get(ctx)
+	draft, err := s.repository.Get(ctx)
+	if err != nil || draft == nil {
+		return draft, err
+	}
+	if s.replies != nil {
+		draft.AutoReply, err = s.replies.AutoReplySettings(ctx)
+	}
+	return draft, err
 }
 
 func (s *Service) StartCapture(ctx context.Context, adminID int64) (*database.BroadcastDraft, error) {

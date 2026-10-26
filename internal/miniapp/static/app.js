@@ -2463,6 +2463,8 @@ const state = {
 	adminBroadcastButtonsDirty: false,
 	adminBroadcastExpirationDraft: 0,
 	adminBroadcastExpirationDirty: false,
+	adminBroadcastAutoReplyDraft: null,
+	adminBroadcastAutoReplyDirty: false,
 	adminBroadcastBusy: "",
 	adminBroadcastConfirmOpen: false,
 	adminIntegrationOpen: "",
@@ -4265,6 +4267,7 @@ function mountCabinetShell(markup) {
               channel:state.adminBroadcastTab,telegram:state.adminBroadcast,email:state.adminEmailBroadcast,error:state.adminBroadcastError||"",
               buttons:state.adminBroadcastButtonsDraft,buttonsDirty:state.adminBroadcastButtonsDirty,
               deleteAfterMinutes:state.adminBroadcastExpirationDraft,expirationDirty:state.adminBroadcastExpirationDirty,updateDeleteAfter:updateConsoleBroadcastExpiration,
+              autoReply:state.adminBroadcastAutoReplyDraft,autoReplyDirty:state.adminBroadcastAutoReplyDirty,updateAutoReply:updateConsoleBroadcastAutoReply,
               telegramBusy:state.adminBroadcastBusy,emailBusy:state.adminEmailBusy,
               subject:state.adminEmailDraftSubject,body:state.adminEmailDraftBody,emailDirty:state.adminEmailDraftDirty,
               previewAddress:state.adminEmailPreviewAddress,canBroadcast:canAdmin("broadcast"),canSMTP:canAdmin("smtp"),
@@ -6803,6 +6806,7 @@ function renderAdminBroadcastPage() {
 				</section>
 
 				${renderAdminBroadcastExpiration(running || Boolean(state.adminBroadcastBusy), english)}
+				${renderAdminBroadcastAutoReply(running || Boolean(state.adminBroadcastBusy), english)}
 				<section class="admin-broadcast__section admin-broadcast__section--delivery">
 					<div class="admin-broadcast__section-head"><div><span>4</span><div><strong>${english ? "Delivery" : "Отправка"}</strong><small>${english ? "Preview before launch" : "Сначала проверьте предпросмотр"}</small></div></div></div>
 					${running || total > 0 ? `<div class="admin-broadcast__progress"><div><span>${english ? "Progress" : "Прогресс"}</span><strong>${progress}%</strong></div><i><b style="width:${progress}%"></b></i><p>${english ? "Sent" : "Отправлено"}: ${Number(draft.sentCount || 0)} · ${english ? "Errors" : "Ошибок"}: ${Number(draft.failedCount || 0)} · ${english ? "Total" : "Всего"}: ${total}</p></div>` : ""}
@@ -6821,6 +6825,12 @@ function renderAdminBroadcastPage() {
 function renderAdminBroadcastExpiration(disabled, english) {
  const minutes=Number(state.adminBroadcastExpirationDraft||0);
  return `<section class="admin-broadcast__section"><label class="menu-row admin-toggle"><span class="menu-row__body"><strong>${english ? "Temporary broadcast" : "Временная рассылка"}</strong><small>${english ? "Delete each sent copy after a set time" : "Удалить сообщение у каждого получателя через заданное время"}</small></span><input type="checkbox" role="switch" aria-label="${english ? "Temporary broadcast" : "Временная рассылка"}" data-input="admin-broadcast-temporary" ${minutes>0 ? "checked" : ""} ${disabled ? "disabled" : ""}><i aria-hidden="true"></i></label>${minutes>0 ? `<label class="admin-broadcast-expiration-minutes"><span>${english ? "Delete after, minutes" : "Удалить через, минут"}</span><input type="number" min="1" max="2820" step="1" data-input="admin-broadcast-expiration-minutes" value="${minutes}" ${disabled ? "disabled" : ""}></label>` : ""}</section>`;
+}
+
+function renderAdminBroadcastAutoReply(disabled,english) {
+ const value=state.adminBroadcastAutoReplyDraft;
+ if(!value)return "";
+ return `<section class="admin-broadcast__section"><label class="menu-row admin-toggle"><span class="menu-row__body"><strong>${english ? "Broadcast auto-reply" : "Автоответ на рассылки"}</strong></span><input type="checkbox" role="switch" data-auto-reply-field="enabled" ${value.enabled?"checked":""} ${disabled?"disabled":""}><i aria-hidden="true"></i></label>${value.enabled ? `<p class="admin-broadcast__empty">${english ? "One reply per latest broadcast. Applies to all Telegram broadcasts." : "Один ответ на последнюю рассылку. Для всех Telegram-рассылок."}</p><label class="admin-broadcast-auto-reply-field"><span>${english ? "Reply text or Telegram HTML" : "Текст автоответа или Telegram HTML"}</span><textarea data-auto-reply-field="text" maxlength="3500" rows="4" ${disabled?"disabled":""}>${escapeHtml(value.text||"")}</textarea></label><label class="admin-broadcast-auto-reply-field"><span>${english ? "Reply window, hours" : "Ожидать ответ после рассылки, часов"}</span><input type="number" min="1" max="168" step="1" data-auto-reply-field="windowHours" value="${Number(value.windowHours)||24}" ${disabled?"disabled":""}></label><label class="menu-row admin-toggle"><span class="menu-row__body"><strong>${english ? "Support button" : "Кнопка поддержки"}</strong></span><input type="checkbox" role="switch" data-auto-reply-field="supportButton" ${value.supportButton?"checked":""} ${disabled?"disabled":""}><i aria-hidden="true"></i></label>${value.supportButton?`<label class="admin-broadcast-auto-reply-field"><span>${english ? "Button label" : "Подпись кнопки"}</span><input type="text" maxlength="64" data-auto-reply-field="supportButtonText" value="${escapeAttribute(value.supportButtonText||"")}" ${disabled?"disabled":""}></label>`:""}`:""}<button class="admin-broadcast__secondary" type="button" data-action="admin-broadcast-save-auto-reply" ${disabled||!state.adminBroadcastAutoReplyDirty?"disabled":""}>${english ? "Save auto-reply" : "Сохранить автоответ"}</button></section>`;
 }
 
 function renderAdminBroadcastTabs() {
@@ -12320,6 +12330,7 @@ function bindRootActions() {
 			if (action === "admin-broadcast-add-button") return addAdminBroadcastButton();
 			if (action === "admin-broadcast-remove-button") return removeAdminBroadcastButton(Number(value));
 			if (action === "admin-broadcast-set-style") return setAdminBroadcastButtonStyle(Number(target.dataset.broadcastIndex), value);
+			if (action === "admin-broadcast-save-auto-reply") return await saveAdminBroadcastAutoReply();
 			if (action === "admin-broadcast-save-buttons") return await saveAdminBroadcastButtons();
 			if (action === "admin-broadcast-preview") return await previewAdminBroadcast();
 			if (action === "admin-broadcast-open-confirm") { await ensureAdminBroadcastButtonsSaved(); if(!await checkBroadcastAudience("telegram"))return; state.adminBroadcastConfirmedAt=state.adminBroadcast?.updatedAt; state.adminBroadcastConfirmOpen = true; render({ preserveScroll: true }); return; }
@@ -12406,6 +12417,7 @@ function bindRootActions() {
 
 	app.addEventListener("change", (event) => {
 		const input = event.target;
+		if(input.dataset?.autoReplyField) {updateConsoleBroadcastAutoReply(input.dataset.autoReplyField,input.type==="checkbox"?input.checked:input.value);return;}
 		if (input.dataset?.input === "admin-pinned-enabled") { void actAdminPinnedMessage("toggle", input.checked); return; }
  if(input.dataset?.audienceField){ updateBroadcastAudience(input);return; }
  if(input.dataset?.input==="admin-cursor-file"&&input.files?.[0]){void uploadSurfaceAsset(input.files[0],"cursor",input.dataset.surface,input.dataset.cursorKind);return;}
@@ -12667,6 +12679,7 @@ function bindRootActions() {
 			syncAdminSaveBarDOM();
 			return;
 		}
+		if(target?.dataset?.autoReplyField && ["text","supportButtonText"].includes(target.dataset.autoReplyField)) {updateConsoleBroadcastAutoReply(target.dataset.autoReplyField,target.value);return;}
 		const inputKey = target?.dataset?.input;
 		if (!inputKey) return;
 		if (inputKey === "device-limit-gb") { state.deviceLimitDraft = target.value; return; }
@@ -13492,6 +13505,30 @@ function updateConsoleBroadcastButton(index,field,value) {
  state.adminBroadcastButtonsDirty=true;
  render({preserveScroll:true,preserveInteraction:true});
 }
+function updateConsoleBroadcastAutoReply(field,value) {
+ if(!canAdmin("broadcast") || state.adminBroadcast?.status==="running" || state.adminBroadcastBusy || !state.adminBroadcastAutoReplyDraft) return;
+ if(!["enabled","text","windowHours","supportButton","supportButtonText"].includes(field)) return;
+ if(["enabled","supportButton"].includes(field)) value=Boolean(value);
+ if(field==="windowHours") {value=Number(value);if(!Number.isInteger(value)||value<1||value>168)return;}
+ state.adminBroadcastAutoReplyDraft[field]=value;
+ state.adminBroadcastAutoReplyDirty=true;
+ state.adminBroadcastConfirmOpen=false;
+ render({preserveScroll:true,preserveInteraction:true});
+}
+
+async function saveAdminBroadcastAutoReply({silent=false}={}) {
+ if(state.adminBroadcastBusy || !state.adminBroadcastAutoReplyDirty) return;
+ state.adminBroadcastBusy="auto-reply";
+ if(!silent) render({preserveScroll:true});
+ try {
+  const response=await post("/api/mini-app/admin/broadcast/auto-reply",state.adminBroadcastAutoReplyDraft);
+  state.adminBroadcastAutoReplyDraft=deepClone(response.data);
+  state.adminBroadcastAutoReplyDirty=false;
+  if(state.adminBroadcast)state.adminBroadcast.autoReply=response.data;
+  if(!silent)showToast("Автоответ сохранён","success");
+ } finally {state.adminBroadcastBusy="";render({preserveScroll:true});}
+}
+
 function updateConsoleBroadcastExpiration(value) {
  if(state.adminBroadcast?.status === "running" || state.adminBroadcastBusy || !canAdmin("broadcast")) return;
  const minutes=Number(value);
@@ -13548,6 +13585,7 @@ async function consoleBroadcastTemplates(action,{name="",id=0}={}) {
 function setAdminBroadcastDraft(draft, { forceButtons = false, forceExpiration = false } = {}) {
 	if(!state.adminAudienceDraft.telegram)state.adminAudienceDraft.telegram=deepClone(draft?.audience||{category:"all",internalSquads:[],externalSquads:[],tag:"",language:""});
 	state.adminBroadcast = draft || { status: "idle", buttons: [], recipientCount: 0, sentCount: 0, failedCount: 0 };
+	if(draft?.autoReply && !state.adminBroadcastAutoReplyDirty && !(Date.parse(draft.autoReply.updatedAt)<Date.parse(state.adminBroadcastAutoReplyDraft?.updatedAt))) state.adminBroadcastAutoReplyDraft=deepClone(draft.autoReply);
 	if (forceExpiration || !state.adminBroadcastExpirationDirty) {
 		state.adminBroadcastExpirationDraft = Number(state.adminBroadcast.deleteAfterMinutes || 0);
 		state.adminBroadcastExpirationDirty = false;
@@ -13709,6 +13747,7 @@ async function saveAdminBroadcastButtons({ silent = false } = {}) {
 }
 
 async function ensureAdminBroadcastButtonsSaved() {
+	if(state.adminBroadcastAutoReplyDirty) await saveAdminBroadcastAutoReply({silent:true});
 	if (state.adminBroadcastExpirationDirty) await saveAdminBroadcastExpiration({silent:true});
 	if (!state.adminBroadcastButtonsDirty) return state.adminBroadcast;
 	return saveAdminBroadcastButtons({ silent: true });

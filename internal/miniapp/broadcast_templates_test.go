@@ -38,7 +38,7 @@ func TestBroadcastTemplatesRestoreDraftsWithoutSendingAndRejectStaleState(t *tes
 		t.Fatal(err)
 	}
 	defer pool.Exec(context.Background(), "DROP SCHEMA "+schema+" CASCADE")
-	for _, name := range []string{"000017_broadcast_campaign.up.sql", "000030_broadcast_html.up.sql", "000048_email_link_and_broadcast.up.sql", "000055_broadcast_audience.up.sql", "000066_temporary_broadcast.up.sql", "000059_broadcast_templates.up.sql"} {
+	for _, name := range []string{"000017_broadcast_campaign.up.sql", "000030_broadcast_html.up.sql", "000048_email_link_and_broadcast.up.sql", "000055_broadcast_audience.up.sql", "000066_temporary_broadcast.up.sql", "000067_broadcast_auto_reply.up.sql", "000059_broadcast_templates.up.sql"} {
 		raw, err := os.ReadFile("../../db/migrations/" + name)
 		if err != nil {
 			t.Fatal(err)
