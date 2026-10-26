@@ -41,6 +41,7 @@ const (
 	InvoiceTypeKassaAI       InvoiceType = "kassaai"
 	InvoiceTypePayHot        InvoiceType = "payhot"
 	InvoiceTypeSmerch        InvoiceType = "smerch"
+	InvoiceTypeLaveshka      InvoiceType = "laveshka"
 	InvoiceTypeP2P           InvoiceType = "p2p"
 	InvoiceTypeFree          InvoiceType = "free"
 	InvoiceTypeBalance       InvoiceType = "balance"

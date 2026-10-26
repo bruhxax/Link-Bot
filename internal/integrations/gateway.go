@@ -33,8 +33,9 @@ import (
 )
 
 type Gateway struct {
-	settings   *Service
-	httpClient *http.Client
+	settings       *Service
+	httpClient     *http.Client
+	laveshkaQuotes laveshkaQuoteStore
 }
 
 type CreatePaymentRequest struct {
@@ -78,7 +79,11 @@ type WebhookPayment struct {
 }
 
 func NewGateway(settings *Service) *Gateway {
-	return &Gateway{settings: settings, httpClient: &http.Client{Timeout: 12 * time.Second}}
+	g := &Gateway{settings: settings, httpClient: &http.Client{Timeout: 12 * time.Second}}
+	if settings != nil && settings.repository != nil {
+		g.laveshkaQuotes = settings.repository
+	}
+	return g
 }
 
 func (g *Gateway) Create(ctx context.Context, input CreatePaymentRequest) (CreatedPayment, error) {
@@ -99,6 +104,8 @@ func (g *Gateway) Create(ctx context.Context, input CreatePaymentRequest) (Creat
 	}
 	cfg = channelConfig(cfg, input)
 	switch input.Provider {
+	case ProviderLaveshka:
+		return g.createLaveshka(ctx, cfg, input)
 	case ProviderSmerch:
 		return g.createSmerch(ctx, cfg, input)
 	case ProviderPayHot:
@@ -155,6 +162,8 @@ func (g *Gateway) HandleWebhook(ctx context.Context, provider string, headers ht
 		return WebhookPayment{}, errors.New("integration is disabled")
 	}
 	switch provider {
+	case ProviderLaveshka:
+		return g.parseLaveshkaWebhook(ctx, cfg, headers, raw)
 	case ProviderSmerch:
 		return g.parseSmerchWebhook(ctx, cfg, headers, raw)
 	case ProviderPayHot:

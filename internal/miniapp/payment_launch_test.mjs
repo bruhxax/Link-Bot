@@ -122,3 +122,20 @@ test("device and traffic pack purchases follow the same desktop/mobile rule", as
     }
   }
 });
+
+
+test("Laveshka Telegram checkout opens natively and keeps pending payment on desktop and mobile", () => {
+  for (const platform of ["tdesktop", "android", "ios"]) {
+    const h = harness({ platform, method: "laveshka" });
+    const opened = [];
+    h.context.tg.openTelegramLink = url => opened.push(url);
+    const external = source.slice(source.indexOf("function openExternal("), source.indexOf("function openBrowserExternal("));
+    vm.runInContext(external, h.context);
+    const url = "https://t.me/laveshka?startapp=lpay_Xyug2fo4Mwuj54Wd";
+    assert.equal(h.context.launchPaymentPage(url, 77), false);
+    assert.deepEqual(opened, [url]);
+    assert.equal(h.calls.find(call => call.type === "pending").purchaseId, 77);
+    assert.equal(h.calls.some(call => ["navigate", "external"].includes(call.type)), false);
+    assert.equal(h.timers.length, 1);
+  }
+});

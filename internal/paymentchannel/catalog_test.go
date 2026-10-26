@@ -35,12 +35,12 @@ func TestResolveCannotEscapeConfiguredChannels(t *testing.T) {
 }
 
 func TestEveryGatewayHasExplicitCapabilities(t *testing.T) {
-	for _, method := range []string{"sbp", "card", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai", "payhot", "smerch"} {
+	for _, method := range []string{"sbp", "card", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai", "payhot", "smerch", "laveshka"} {
 		c := For(method)
 		if c.Note == "" {
 			t.Errorf("no capability explanation for %s", method)
 		}
-		if len(c.Options) == 0 && method != "wata" && method != "mulenpay" && method != "cloudpayments" && method != "datagio" {
+		if len(c.Options) == 0 && method != "wata" && method != "mulenpay" && method != "cloudpayments" && method != "datagio" && method != "laveshka" {
 			t.Errorf("methods missing for %s", method)
 		}
 		for _, option := range c.Options {

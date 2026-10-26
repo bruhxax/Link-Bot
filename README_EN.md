@@ -29,6 +29,8 @@ Telegram bot, Mini App and web cabinet for Remnawave VPN subscriptions.
 
 In the **Plans → Plan and payment method order** editor, the pencil beside each payment method lets you customize its checkout name and description. Empty fields use system defaults. Click Done, then save the plan settings.
 
+In **Integrations → Laveshka**, enter the Lave Pay API key, a separate webhook signing secret and the RUB/USD exchange rate. Copy the displayed Webhook URL into Laveshka's webhook settings and save it, then enable the method for your plans. Subscriptions, gifts and packages use the existing checkout. Prices remain in RUB; invoices are in USD ($0.10–$10,000), rounded up to the nearest cent. Both amounts are stored when the invoice is created, so changing the rate does not change pending payments. Customers choose an available payment channel on Laveshka's page; SBP requires merchant verification. [Lave Pay documentation](https://laveshka.io/docs/lave-pay).
+
 ## Installation
 
 You need a VPS with Ubuntu 22.04/24.04 or Debian 12, Docker Compose, an accessible [Remnawave panel](https://github.com/remnawave/panel) and a bot from [@BotFather](https://t.me/BotFather). Point the domain's `A` record to your server and open ports `80` and `443`.

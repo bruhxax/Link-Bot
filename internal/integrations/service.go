@@ -45,6 +45,7 @@ const (
 	ProviderKassaAI         = "kassaai"
 	ProviderPayHot          = "payhot"
 	ProviderSmerch          = "smerch"
+	ProviderLaveshka        = "laveshka"
 	ProviderP2P             = "p2p"
 	ProviderMoyNalog        = "moynalog"
 )
@@ -60,7 +61,7 @@ const (
 var moyNalogPaymentMethods = []string{
 	ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega,
 	ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay,
-	ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments, ProviderDatagio, ProviderKassaAI, ProviderPayHot, ProviderSmerch,
+	ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments, ProviderDatagio, ProviderKassaAI, ProviderPayHot, ProviderSmerch, ProviderLaveshka,
 	ProviderP2P, "telegram",
 }
 
@@ -431,6 +432,15 @@ var definitions = []ProviderDefinition{
 		},
 	},
 	{
+		ID: ProviderLaveshka, Name: "Лавешка", Description: "Оплата через Lave Pay", Logo: "/mini-app/assets/payment-laveshka.svg", Kind: "payment",
+		WebsiteURL: "https://laveshka.io/docs/lave-pay",
+		Fields: []FieldDefinition{
+			{Key: "apiKey", Label: "API-ключ", Required: true, Secret: true, Placeholder: "LAVE-ID-...", Help: "Ключ из приложения Лавешки → Lave Pay"},
+			{Key: "webhookSecret", Label: "Секрет вебхука", Required: true, Secret: true, Placeholder: "whsec_...", Help: "Отдельный секрет подписи вебхуков Lave Pay. Укажите Webhook URL ниже в настройках Лавешки"},
+			{Key: "rubPerUsd", Label: "Курс ₽/USD", Required: true, Placeholder: "Например: 100", Help: "Сколько рублей в одном долларе. Счёт в USD округляется вверх до цента. Новый курс применяется только к новым счетам"},
+		},
+	},
+	{
 		ID: ProviderP2P, Name: "P2P перевод", Description: "Ручная проверка перевода администратором", Logo: "/mini-app/assets/payment-p2p.png", Kind: "payment",
 		Fields: []FieldDefinition{
 			{Key: "destinations", Label: "Реквизиты", Required: true, Help: "Добавьте хотя бы один способ перевода"},
@@ -625,6 +635,11 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 			return ProviderView{}, errors.New("для cisPay укажите способ оплаты CARD или SBP")
 		}
 		rec.Config["paymentMethod"] = method
+	}
+	if provider == ProviderLaveshka {
+		if err := normalizeLaveshkaConfig(rec.Config); err != nil {
+			return ProviderView{}, err
+		}
 	}
 	if provider == ProviderSmerch {
 		if err := normalizeSmerchConfig(rec.Config); err != nil {
@@ -1057,7 +1072,7 @@ func firstNonEmpty(values ...string) string {
 }
 
 func SortedPaymentProviders() []string {
-	items := []string{ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega, ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay, ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments, ProviderDatagio, ProviderKassaAI, ProviderPayHot, ProviderSmerch, ProviderP2P}
+	items := []string{ProviderYooKassa, ProviderLava, ProviderWata, ProviderPlatega, ProviderFreeKassa, ProviderCryptoPay, ProviderHeleket, ProviderPally, ProviderRollyPay, ProviderCisPay, ProviderAnore, ProviderMulenPay, ProviderAuraPay, ProviderAntiloPay, ProviderParityPay, ProviderTribute, ProviderCloudPayments, ProviderDatagio, ProviderKassaAI, ProviderPayHot, ProviderSmerch, ProviderLaveshka, ProviderP2P}
 	sort.Strings(items)
 	return items
 }

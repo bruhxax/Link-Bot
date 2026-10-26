@@ -48,7 +48,7 @@ func TestNormalizeAndValidatePaymentMethodOrder(t *testing.T) {
 	if err := NormalizeAndValidate(&settings); err != nil {
 		t.Fatalf("NormalizeAndValidate() error = %v", err)
 	}
-	if want := []string{"stars", "card", "sbp", "balance", "p2p", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai", "payhot", "smerch"}; !reflect.DeepEqual(settings.PaymentMethodOrder, want) {
+	if want := []string{"stars", "card", "sbp", "balance", "p2p", "crypto", "lava", "wata", "platega", "freekassa", "heleket", "pally", "rollypay", "cispay", "anore", "mulenpay", "aurapay", "antilopay", "paritypay", "tribute", "cloudpayments", "datagio", "kassaai", "payhot", "smerch", "laveshka"}; !reflect.DeepEqual(settings.PaymentMethodOrder, want) {
 		t.Fatalf("payment method order = %v, want %v", settings.PaymentMethodOrder, want)
 	}
 }

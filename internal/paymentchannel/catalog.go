@@ -77,6 +77,8 @@ func For(method string) Catalog {
 		c.Options = []Option{{"sbp", "СБП"}, {"card", "Банковская карта"}, {"yoomoney", "ЮMoney"}, {"crypto", "Криптовалюта"}}
 	case "kassaai":
 		c.Options = []Option{{"44", "СБП"}, {"36", "Карты РФ"}, {"43", "SberPay"}}
+	case "laveshka":
+		c.Note = "Способ выбирается на странице Лавешки. СБП доступен верифицированным магазинам. Счёт выставляется в USD по курсу из интеграции."
 	case "smerch":
 		c.Options = []Option{{"sbp", "СБП"}, {"crypto", "Криптовалюта"}}
 	case "payhot":

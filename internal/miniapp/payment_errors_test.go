@@ -71,3 +71,28 @@ func TestSmerchPurchaseErrorIsSafeAndActionable(t *testing.T) {
 		}
 	}
 }
+
+func TestLaveshkaPurchaseErrorUsesSafeRoleAppropriateMessage(t *testing.T) {
+	for _, owner := range []bool{false, true} {
+		sess := &session{}
+		if owner {
+			sess.AdminAccess = ownerAccess()
+		}
+		w := httptest.NewRecorder()
+		if !(&Handler{}).writeIntegrationPurchaseError(w, sess, fmt.Errorf("create: %w", &integrations.LaveshkaPaymentError{StatusCode: 401, Code: "payment_api_error"})) {
+			t.Fatal("unhandled provider error")
+		}
+		var response struct {
+			Error struct{ Code, Message string }
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		if w.Code != 502 || response.Error.Code != "laveshka_payment_failed" {
+			t.Fatal(w.Body.String())
+		}
+		if strings.Contains(response.Error.Message, "API-ключ") != owner {
+			t.Fatal("incorrect role-specific diagnostics")
+		}
+	}
+}

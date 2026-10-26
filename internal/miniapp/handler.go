@@ -3290,7 +3290,7 @@ func (h *Handler) handlePaymentIntegrationWebhook(w http.ResponseWriter, r *http
 	if err != nil {
 		slog.Warn("payment integration webhook rejected", "provider", provider, "error", err)
 		status := http.StatusBadRequest
-		if provider == integrations.ProviderPayHot && !errors.Is(err, integrations.ErrInvalidPayHotWebhook) || provider == integrations.ProviderSmerch && !errors.Is(err, integrations.ErrInvalidSmerchWebhook) {
+		if provider == integrations.ProviderLaveshka && !errors.Is(err, integrations.ErrInvalidLaveshkaWebhook) || provider == integrations.ProviderPayHot && !errors.Is(err, integrations.ErrInvalidPayHotWebhook) || provider == integrations.ProviderSmerch && !errors.Is(err, integrations.ErrInvalidSmerchWebhook) {
 			// A storage, API or fulfilment failure must cause the provider to retry delivery.
 			status = http.StatusInternalServerError
 		}
@@ -5700,6 +5700,8 @@ func paymentMethodFallbackTitle(invoiceType database.InvoiceType, language strin
 		return "AntiloPay"
 	case database.InvoiceTypeParityPay:
 		return "ParityPay"
+	case database.InvoiceTypeLaveshka:
+		return "Лавешка"
 	case database.InvoiceTypeSmerch:
 		return "Smerch"
 	case database.InvoiceTypePayHot:
