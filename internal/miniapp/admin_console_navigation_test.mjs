@@ -130,7 +130,7 @@ test('legacy admin entry renders its original settings menu instead of an empty 
   const code = source.slice(source.indexOf('function renderAdminPage()'), source.indexOf('let adminSettingsSearchCatalog'));
   const context = vm.createContext({state:{adminSection:'home'}, remnaAdminEnabled:false,
     syncAdminSettingsDraft:()=>{}, pageClass:()=> 'active', localizedText:ru=>ru,
-    renderAdminSettingsSearch:()=> '<input type="search">', renderAdminExtraAccess:()=> '',
+    renderAdminSettingsSearch:()=> '<input type="search">',
     renderAdminMenuGroup:(_,items)=>items.map(item=> `<button data-value="${item[2]}">${item[0]}</button>`).join('')});
   vm.runInContext(code,context);
   const menu = context.renderAdminPage();

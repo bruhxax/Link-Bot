@@ -305,6 +305,7 @@
   --surface-strong: #0b0d12;
   --surface-soft: #101218;
   --line: rgba(255, 255, 255, 0.14);
+  --border: var(--line);
   --line-soft: rgba(255, 255, 255, 0.08);
   --text: #f3f3f3;
   --muted: rgba(243, 243, 243, 0.66);
@@ -855,11 +856,18 @@ select:focus-visible {
 
 .admin-feature-groups {
   display: grid;
-  gap: 26px;
+  gap: 12px;
+  align-items: start;
 }
 
 .admin-feature-group {
   min-width: 0;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
 }
 
 .admin-feature-group__header {
@@ -869,19 +877,6 @@ select:focus-visible {
   align-items: center;
   gap: 11px;
   border-bottom: 1px solid var(--line);
-}
-
-.admin-feature-group__header > span {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  font-size: 9px;
-  font-weight: 800;
 }
 
 .admin-feature-group__header > div {
@@ -9815,8 +9810,9 @@ body.is-plan-editing .page-scroll {
 
 .admin-appearance-groups {
   display: grid;
-  gap: 0;
-  margin-top: 14px;
+  gap: 12px;
+  min-width: 0;
+  align-items: start;
 }
 
 .admin-appearance-group .admin-color-grid {
@@ -13312,7 +13308,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
    Keep noise in the background so it cannot cover text or intercept clicks. */
 :root[data-glass="on"] {
   --glass-background: color-mix(in srgb, var(--surface) 28%, transparent);
-  --glass-border: color-mix(in srgb, var(--text) 14%, transparent);
+  --glass-border: var(--line);
   --glass-surface-shadow: 0 8px 24px rgba(0, 0, 0, .18);
   --glass-backdrop: blur(2.5px) saturate(1.08);
   --glass-menu-backdrop: blur(8px) saturate(1.08);
@@ -13329,7 +13325,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   .server-summary-panel, .review-card, .review-detail__comment, .login-method-card,
   .media-empty-card, .empty-design-card, .partner-application-card,
   .admin-users__list, .admin-user-subscriptions__list, .admin-partner-entry,
-  .appearance-tabs, .surface-settings .surface-card,
+  .appearance-tabs, .surface-settings .surface-card, .admin-feature-group,
   .appearance-theme > .admin-editor__section,
   .appearance-theme > .admin-toggle-list, .appearance-theme .admin-appearance-group,
   .appearance-theme .admin-background-option,
@@ -14029,7 +14025,7 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   .admin-status__section, .admin-status__error, .admin-user-direct,
   .admin-settings-search__field, .admin-settings-search__results,
   .admin-settings-search__empty, .admin-background-option,
-  .appearance-tabs, .surface-settings .surface-card,
+  .appearance-tabs, .surface-settings .surface-card, .admin-feature-group,
   .appearance-theme > .admin-editor__section,
   .appearance-theme > .admin-toggle-list, .appearance-theme .admin-appearance-group,
   .modal__sheet, .desktop-sidebar, .browser-auth, .bottom-nav,

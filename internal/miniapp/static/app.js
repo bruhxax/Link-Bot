@@ -5046,7 +5046,6 @@ function renderAdminPage() {
 				[localizedText("Рассылка", "Broadcast", "ارسال همگانی"), "", "broadcast", "adminBroadcast"],
 				[localizedText("Промокоды", "Promo codes", "کدهای تخفیف"), "", "promocodes", "adminPromocodes"],
 			])}
-            ${renderAdminExtraAccess()}
 		</section>
 	`;
 }
@@ -5882,17 +5881,6 @@ function adminUserAvatar(user, size = "normal") {
 
 function adminUserStatusCopy(status) {
 	return ({ active: "Активна", expired: "Истекла", blocked: "Заблокирован", unavailable: "Нет связи", none: "Нет подписки" })[status] || "Нет подписки";
-}
-
-function renderAdminExtraAccess() {
-	const items = [
-		["support.view", "Обращения", "go-page", "support", "chat"],
-		["servers.view", "Список нод", "go-page", "servers", "server"],
-		["reviews.rewards", "Вознаграждение за отзыв", "open-review-rewards", "", "star"],
-		["reviews.delete", "Отзывы", "go-page", "reviews", "star"],
-	].filter(([permission]) => canAdmin(permission));
-	if (!items.length) return "";
-	return `<section class="admin-menu-group"><h2 class="admin-menu-group__title"><span></span>Другие действия</h2><div class="admin-menu-group__rows">${items.map(([, title, action, value, glyph]) => renderMenuRow(title, "", action, value, glyph, { showTail: true, compact: true })).join("")}</div></section>`;
 }
 
 function renderAdministratorsPreservingFocus() {
@@ -7100,7 +7088,7 @@ function renderAdminFeaturesPage() {
 			items: [
 				["mini_app", "Mini App", "Доступ к личному кабинету"],
 				["additional_subscriptions", "Доп. подписки", "Создание, переключение и удаление дополнительных подписок"],
-				["personal_device_profiles", "Личное управление устройствами по умолчанию", "Отдельные профили на любых тарифах без администраторских лимитов: пользователь задаёт трафик, выключает и блокирует устройства. При первом включении общую ссылку нужно импортировать заново. При выключении возвращаются исходные профили и ссылки; тарифы с лимитами администратора продолжают работать отдельно."],
+				["personal_device_profiles", "Личное управление устройствами по умолчанию", "Трафик и блокировка устройств без лимитов администратора. Первое включение — импорт ссылки заново; выключение — возврат исходных профилей."],
 				["google", "Gmail", "Авторизация через Google"],
 				["email_auth", "Вход по почте", "Вход и регистрация по почте в веб-кабинете"],
 				["stars", "Telegram Stars", "Оплата звёздами Telegram"],
@@ -7136,10 +7124,9 @@ function renderAdminFeaturesPage() {
 	if (customButtons.length) groups.push({ id: "custom", title: "Свои кнопки", hint: "Добавленные вами ссылки и страницы в профиле", items: customButtons });
 	return renderAdminEditorPage(
 		"Управление функциями",
-		`<div class="admin-feature-groups">${groups.map((group, index) => `
+		`<div class="admin-feature-groups">${groups.map((group) => `
 			<section class="admin-feature-group" aria-labelledby="admin-feature-${escapeAttribute(group.id)}">
 				<header class="admin-feature-group__header">
-					<span aria-hidden="true">${String(index + 1).padStart(2, "0")}</span>
 					<div>
 						<h2 id="admin-feature-${escapeAttribute(group.id)}">${escapeHtml(group.title)}</h2>
 						<p>${escapeHtml(group.hint)}</p>

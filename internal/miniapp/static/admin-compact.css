@@ -260,7 +260,7 @@ html[data-admin-console="on"] .rn-main :is(.rn-clickable-card, .rn-settings-pane
   .admin-partner-entry__resource, .admin-partner-entry__metrics > span,
   .admin-email-broadcast__field input, .admin-email-broadcast__field textarea,
   .admin-broadcast-button, .admin-broadcast-button input, .admin-broadcast-button select,
-  .admin-broadcast__message, .audience-squads label,
+  .admin-broadcast__message,
   .admin-promo-row, .admin-withdrawal,
   button:not(.admin-localization-menu__option), .admin-broadcast__tabs, .admin-mail__tabs, .admin-promo-type-switch, .admin-promo-unit-switch
 ) {
