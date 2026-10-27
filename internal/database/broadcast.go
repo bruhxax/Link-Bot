@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v4"
@@ -54,7 +55,7 @@ type BroadcastDraft struct {
 }
 
 func (d BroadcastDraft) HasSource() bool {
-	return d.SourceChatID != nil && d.SourceMessageID != nil && *d.SourceMessageID > 0
+	return d.Survey != nil && d.Survey.Enabled && strings.TrimSpace(d.Survey.IntroText) != "" || d.SourceChatID != nil && d.SourceMessageID != nil && *d.SourceMessageID > 0
 }
 
 type BroadcastRepository struct {
@@ -115,22 +116,23 @@ func (r *BroadcastRepository) SaveButtons(ctx context.Context, buttons []Broadca
 		RETURNING status, source_chat_id, source_message_id, source_kind, source_preview, source_html,
 		          buttons, recipient_count, sent_count, failed_count, last_error,
 		          updated_by, started_at, finished_at, updated_at, audience, delete_after_minutes
-	`, raw, updatedBy))
+	`, string(raw), updatedBy))
 }
 
-func (r *BroadcastRepository) BeginSend(ctx context.Context, recipientCount int, updatedBy int64, expected time.Time) (*BroadcastDraft, error) {
+func (r *BroadcastRepository) BeginSend(ctx context.Context, recipientCount int, updatedBy int64, expected time.Time, standaloneSurvey ...bool) (*BroadcastDraft, error) {
+	allowStandalone := len(standaloneSurvey) > 0 && standaloneSurvey[0]
 	return scanBroadcastDraft(r.pool.QueryRow(ctx, `
 		UPDATE bot_broadcast_draft
 		SET status = 'running', recipient_count = $1, sent_count = 0, failed_count = 0,
 		    last_error = '', started_at = NOW(), finished_at = NULL,
 		    updated_by = $2, updated_at = GREATEST(NOW(), updated_at + INTERVAL '1 microsecond')
 		WHERE id = 1 AND status <> 'running'
-		  AND source_chat_id IS NOT NULL AND source_message_id IS NOT NULL
+		  AND ((source_chat_id IS NOT NULL AND source_message_id IS NOT NULL) OR $4)
 		  AND updated_at = $3
 		RETURNING status, source_chat_id, source_message_id, source_kind, source_preview, source_html,
 		          buttons, recipient_count, sent_count, failed_count, last_error,
 		          updated_by, started_at, finished_at, updated_at, audience, delete_after_minutes
-	`, recipientCount, updatedBy, expected))
+	`, recipientCount, updatedBy, expected, allowStandalone))
 }
 
 func (r *BroadcastRepository) UpdateProgress(ctx context.Context, sent, failed int, lastError string) error {

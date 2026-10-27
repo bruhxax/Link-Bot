@@ -100,6 +100,15 @@ func (s *Service) Get(ctx context.Context) (*database.BroadcastDraft, error) {
 	if err != nil {
 		return nil, err
 	}
+	if draft.Survey.Enabled {
+		hydrateSurveyInvitation(draft.Survey, draft)
+		if err = NormalizeSurvey(draft.Survey); err != nil {
+			return nil, err
+		}
+		if draft.Survey.FinalButtons == nil {
+			draft.Survey.FinalButtons = append([]database.BroadcastButton{}, draft.Buttons...)
+		}
+	}
 	if s.replies != nil {
 		draft.AutoReply, err = s.replies.AutoReplySettings(ctx)
 	}
@@ -267,11 +276,15 @@ func (s *Service) Preview(ctx context.Context, adminID int64) (*database.Broadca
 	if err != nil {
 		return nil, err
 	}
-	if draft == nil || !draft.HasSource() {
+	if draft == nil {
 		return nil, ErrNoMessage
 	}
+	savedDraft := *draft
 	if err = s.loadSurvey(ctx, draft); err != nil {
 		return nil, err
+	}
+	if !draft.HasSource() {
+		return nil, ErrNoMessage
 	}
 	if draft.Survey.Enabled {
 		id, err := s.repository.CreateSurveyRun(ctx, *draft.Survey, draft.Buttons, true)
@@ -284,7 +297,8 @@ func (s *Service) Preview(ctx context.Context, adminID int64) (*database.Broadca
 		if err = s.deliverBroadcast(ctx, previewDraft, adminID, surveyIntroKeyboard(id, draft.Survey)); err != nil {
 			return nil, err
 		}
-		return draft, nil
+		savedDraft.Survey = draft.Survey
+		return &savedDraft, nil
 	}
 	if draft.SourceKind == "html" {
 		if _, err := s.telegramBot.SendMessage(ctx, &bot.SendMessageParams{
@@ -313,7 +327,7 @@ func (s *Service) Start(ctx context.Context, adminID int64, expected ...time.Tim
 	if err != nil {
 		return nil, err
 	}
-	if draft == nil || !draft.HasSource() {
+	if draft == nil {
 		return nil, ErrNoMessage
 	}
 	if draft.Status == database.BroadcastStatusRunning {
@@ -327,6 +341,9 @@ func (s *Service) Start(ctx context.Context, adminID int64, expected ...time.Tim
 	}
 	if err = s.loadSurvey(ctx, draft); err != nil {
 		return nil, err
+	}
+	if !draft.HasSource() {
+		return nil, ErrNoMessage
 	}
 	survey := draft.Survey
 	var targetIDs []int64
@@ -344,7 +361,7 @@ func (s *Service) Start(ctx context.Context, adminID int64, expected ...time.Tim
 	if len(targets) == 0 {
 		return nil, errors.New("broadcast recipient list is empty")
 	}
-	draft, err = s.repository.BeginSend(ctx, len(targets), adminID, draft.UpdatedAt)
+	draft, err = s.repository.BeginSend(ctx, len(targets), adminID, draft.UpdatedAt, survey.Enabled)
 	if err != nil {
 		return nil, normalizeRepositoryStateError(err)
 	}
@@ -353,7 +370,9 @@ func (s *Service) Start(ctx context.Context, adminID int64, expected ...time.Tim
 	}
 
 	draft.Survey = survey
+	responseDraft := *draft
 	if survey.Enabled {
+		applySurveyInvitation(draft, survey)
 		id, runErr := s.repository.CreateSurveyRun(ctx, *survey, draft.Buttons, false)
 		if runErr != nil {
 			_ = s.repository.Finish(ctx, database.BroadcastStatusFailed, 0, 0, "Не удалось создать опрос")
@@ -364,7 +383,7 @@ func (s *Service) Start(ctx context.Context, adminID int64, expected ...time.Tim
 	startedDraft := *draft
 	startedDraft.Buttons = append([]database.BroadcastButton(nil), draft.Buttons...)
 	go s.run(startedDraft, targets, adminID)
-	return draft, nil
+	return &responseDraft, nil
 }
 
 func (s *Service) Reset(ctx context.Context, adminID int64) (*database.BroadcastDraft, error) {

@@ -12,7 +12,7 @@ function load(ctx,name,async=false) {
 const settings=()=>({enabled:false,text:"Это рассылка",windowHours:24,supportButton:true,supportButtonText:"Поддержка",updatedAt:"settings-one"});
 function setup() {
   const state={adminBroadcast:{status:"draft",updatedAt:"campaign-one"},adminBroadcastBusy:"",adminAudienceDraft:{telegram:{}},adminBroadcastButtonsDirty:false,adminBroadcastAutoReplyDraft:settings(),adminBroadcastAutoReplyDirty:false,adminBroadcastConfirmOpen:true};
-  const ctx=vm.createContext({state,deepClone:structuredClone,canAdmin:()=>true,render(){},showToast(){},escapeHtml:String,escapeAttribute:String,icon:()=>"<svg></svg>"});
+  const ctx=vm.createContext({adminBroadcastWorkflowMode:()=>"message",defaultAdminSurvey:()=>({enabled:false}),state,deepClone:structuredClone,canAdmin:()=>true,render(){},showToast(){},escapeHtml:String,escapeAttribute:String,icon:()=>"<svg></svg>"});
   for(const name of ["updateConsoleBroadcastAutoReply","setAdminBroadcastDraft","renderAdminBroadcastAutoReply"])load(ctx,name);
   load(ctx,"saveAdminBroadcastAutoReply",true);
   load(ctx,"ensureAdminBroadcastButtonsSaved",true);

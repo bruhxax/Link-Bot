@@ -10,7 +10,7 @@ import (
 func (s *Service) RestoreTemplate(ctx context.Context, p database.BroadcastTemplatePayload, adminID int64, expected time.Time) (*database.BroadcastDraft, error) {
 	s.sendMu.Lock()
 	defer s.sendMu.Unlock()
-	if p.SourceChatID == nil || p.SourceMessageID == nil || *p.SourceMessageID <= 0 {
+	if (p.Survey == nil || !p.Survey.Enabled) && (p.SourceChatID == nil || p.SourceMessageID == nil || *p.SourceMessageID <= 0) {
 		return nil, ErrNoMessage
 	}
 	if err := p.Audience.Normalize(); err != nil {
@@ -25,8 +25,10 @@ func (s *Service) RestoreTemplate(ctx context.Context, p database.BroadcastTempl
 	if err := NormalizeSurvey(p.Survey); err != nil {
 		return nil, err
 	}
-	if p.Survey.Enabled && p.SourceKind != "text" && p.SourceKind != "html" {
-		return nil, ErrSurvey
+	if p.Survey.Enabled {
+		if err := s.validatePromoButtons(ctx, p.Survey.FinalButtons); err != nil {
+			return nil, err
+		}
 	}
 	clean, err := ValidateButtons(p.Buttons)
 	if err != nil {

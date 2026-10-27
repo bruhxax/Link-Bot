@@ -12,7 +12,7 @@ function load(context,name,async=false) {
 }
 function context() {
   const state={adminBroadcast:{updatedAt:"one",deleteAfterMinutes:0},adminBroadcastExpirationDraft:0,adminBroadcastExpirationDirty:false,adminAudienceDraft:{telegram:{}},adminBroadcastButtonsDraft:[],adminBroadcastButtonsDirty:false,adminBroadcastBusy:"",adminBroadcastConfirmOpen:true};
-  const ctx=vm.createContext({state,canAdmin:()=>true,render(){},deepClone:structuredClone,icon:()=>"<svg></svg>"});
+  const ctx=vm.createContext({adminBroadcastWorkflowMode:()=>"message",defaultAdminSurvey:()=>({enabled:false}),state,canAdmin:()=>true,render(){},deepClone:structuredClone,icon:()=>"<svg></svg>"});
   load(ctx,"setAdminBroadcastDraft");
   load(ctx,"updateConsoleBroadcastExpiration");
   load(ctx,"saveAdminBroadcastExpiration",true);

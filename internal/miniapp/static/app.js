@@ -4274,9 +4274,11 @@ function mountCabinetShell(markup) {
               remove:id=>mutateConsolePromo("delete",{id}),
             },
             broadcastConsole: {
+              telegramWorkflowHTML:state.adminSection==="broadcast"&&state.adminBroadcastTab!=="email"?renderAdminBroadcastPage(true):"",
               channel:state.adminBroadcastTab,telegram:state.adminBroadcast,email:state.adminEmailBroadcast,error:state.adminBroadcastError||"",
-              buttons:state.adminBroadcastButtonsDraft,buttonsDirty:state.adminBroadcastButtonsDirty,
+              buttons:activeAdminBroadcastButtons(),buttonsDirty:adminBroadcastWorkflowMode()==="survey"?state.adminSurveyDirty:state.adminBroadcastButtonsDirty,
               deleteAfterMinutes:state.adminBroadcastExpirationDraft,expirationDirty:state.adminBroadcastExpirationDirty,updateDeleteAfter:updateConsoleBroadcastExpiration,
+              workflowMode:adminBroadcastWorkflowMode(),workflowTabsHTML:renderAdminBroadcastWorkflowTabs(state.locale==="en"),surveyResultsHTML:renderAdminSurveyResults(state.locale==="en"),ready:adminBroadcastReadiness(),buttonsHTML:renderAdminBroadcastOptionalButtons(Boolean(state.adminBroadcastBusy)||state.adminBroadcast?.status==="running",state.locale==="en"),
               surveyHTML:renderAdminSurvey(Boolean(state.adminBroadcastBusy)||state.adminBroadcast?.status==="running",state.locale==="en"),
               autoReply:state.adminBroadcastAutoReplyDraft,autoReplyDirty:state.adminBroadcastAutoReplyDirty,updateAutoReply:updateConsoleBroadcastAutoReply,
               telegramBusy:state.adminBroadcastBusy,emailBusy:state.adminEmailBusy,
@@ -4288,7 +4290,7 @@ function mountCabinetShell(markup) {
               updateAudience:(field,value)=>updateConsoleAudience(field,value),
               checkAudience:()=>checkBroadcastAudience(state.adminBroadcastTab),loadAudience:loadAudienceOptions,
               updateButton:updateConsoleBroadcastButton,addButton:addAdminBroadcastButton,removeButton:removeAdminBroadcastButton,
-              clearButtons:()=>{if(state.adminBroadcast?.status!=="running"){state.adminBroadcastButtonsDraft=[];state.adminBroadcastButtonsDirty=true;render({preserveScroll:true});}},
+              clearButtons:()=>{if(state.adminBroadcast?.status!=="running"){if(adminBroadcastWorkflowMode()==="survey"){state.adminSurveyDraft.finalButtons=[];state.adminSurveyDirty=true;}else{state.adminBroadcastButtonsDraft=[];state.adminBroadcastButtonsDirty=true;}render({preserveScroll:true});}},
               updateEmail:(field,value)=>{if(state.adminEmailBroadcast?.draft?.status==="running")return;if(field==="subject")state.adminEmailDraftSubject=value;else state.adminEmailDraftBody=value;state.adminEmailDraftDirty=true;render({preserveScroll:true,preserveInteraction:true});},
               updatePreviewAddress:value=>{state.adminEmailPreviewAddress=value;},
               templates:consoleBroadcastTemplates,
@@ -6828,71 +6830,78 @@ function renderAdminIntegrationRow(item) {
 	</article>`;
 }
 
-function renderAdminBroadcastPage() {
-    if (!canAdmin("broadcast")) state.adminBroadcastTab = "email";
-	if (state.adminBroadcastTab === "email") return renderAdminEmailBroadcastPage();
-	const english = state.locale === "en";
-	const draft = state.adminBroadcast || { status: "idle", buttons: [], recipientCount: 0, sentCount: 0, failedCount: 0 };
-	const running = draft.status === "running";
-	const awaiting = draft.status === "awaiting_message";
-	const hasMessage = Boolean(draft.sourceKind);
-	const buttons = state.adminBroadcastButtonsDraft || [];
-	const total = Math.max(0, Number(draft.recipientCount || 0));
-	const processed = Math.min(total, Math.max(0, Number(draft.sentCount || 0) + Number(draft.failedCount || 0)));
-	const progress = total > 0 ? Math.round((processed / total) * 100) : 0;
-	const captureBusy = state.adminBroadcastBusy === "capture";
-	const saveBusy = state.adminBroadcastBusy === "buttons";
-	const previewBusy = state.adminBroadcastBusy === "preview";
-	const sendBusy = state.adminBroadcastBusy === "send";
 
-	return `
-		<section class="page admin-page ${pageClass("admin")}" id="page-admin">
-			<div class="admin-broadcast">
-				${renderAdminBroadcastTabs()}
- ${renderCurrentAudience("telegram",running)}
-				${draft.status !== "finished" ? `<header class="admin-section-tools">
-					<span class="admin-broadcast__status admin-broadcast__status--${escapeAttribute(draft.status || "idle")}">${escapeHtml(broadcastStatusLabel(draft.status, english))}</span>
-				</header>` : ""}
-
-				<section class="admin-broadcast__section">
-					<div class="admin-broadcast__section-head"><div><span>1</span><div><strong>${english ? "Message" : "Сообщение"}</strong><small>${english ? "Created in Telegram" : "Создаётся в Telegram"}</small></div></div></div>
-					${hasMessage ? `<div class="admin-broadcast__message"><span>${escapeHtml(broadcastKindLabel(draft.sourceKind, english))}</span><p>${escapeHtml(draft.sourcePreview || (english ? "Message without text" : "Сообщение без текста"))}</p></div>` : `<p class="admin-broadcast__empty">${awaiting ? (english ? "Send the next message to the bot." : "Отправьте следующее сообщение боту.") : (english ? "No message selected yet." : "Сообщение пока не выбрано.")}</p>`}
-					<button class="admin-broadcast__primary" type="button" data-action="admin-broadcast-capture" ${running || captureBusy ? "disabled" : ""}>${icon(captureBusy ? "refresh" : "send")}<span>${escapeHtml(hasMessage ? (english ? "Replace message" : "Заменить сообщение") : (english ? "Write a message" : "Написать сообщение"))}</span></button>
-				</section>
-
-				<section class="admin-broadcast__section">
-					<div class="admin-broadcast__section-head"><div><span>2</span><div><strong>${state.adminSurveyDraft?.enabled ? (english ? "Final buttons" : "Кнопки в конце опроса") : (english ? "Buttons" : "Кнопки")}</strong><small>${english ? "Up to 8 buttons" : "До 8 кнопок"}</small></div></div><button class="admin-icon-button" type="button" data-action="admin-broadcast-add-button" ${running || buttons.length >= 8 ? "disabled" : ""} aria-label="${english ? "Add button" : "Добавить кнопку"}">${icon("plus")}</button></div>
-					<div class="admin-broadcast__buttons">${buttons.length ? buttons.map((button, index) => renderAdminBroadcastButton(button, index, running, english)).join("") : `<p class="admin-broadcast__empty">${english ? "The message will be sent without buttons." : "Сообщение будет отправлено без кнопок."}</p>`}</div>
-					${buttons.length && state.adminBroadcastButtonsDirty ? `<div class="broadcast-save-row"><button class="broadcast-option__save" type="button" data-action="admin-broadcast-save-buttons" aria-label="${english ? "Save buttons" : "Сохранить кнопки"}" title="${english ? "Save buttons" : "Сохранить кнопки"}" ${running || saveBusy ? "disabled" : ""}>${icon("check")}</button></div>` : ""}
-				</section>
-
-				<section class="admin-broadcast__options" aria-label="Broadcast options">${renderAdminSurvey(running || Boolean(state.adminBroadcastBusy),english)}${renderAdminBroadcastExpiration(running || Boolean(state.adminBroadcastBusy), english)}${renderAdminBroadcastAutoReply(running || Boolean(state.adminBroadcastBusy), english)}</section>
-				<section class="admin-broadcast__section admin-broadcast__section--delivery">
-					<div class="admin-broadcast__section-head"><div><span>4</span><div><strong>${english ? "Delivery" : "Отправка"}</strong><small>${english ? "Preview before launch" : "Сначала проверьте предпросмотр"}</small></div></div></div>
-					${running || total > 0 ? `<div class="admin-broadcast__progress"><div><span>${english ? "Progress" : "Прогресс"}</span><strong>${progress}%</strong></div><i><b style="width:${progress}%"></b></i><p>${english ? "Sent" : "Отправлено"}: ${Number(draft.sentCount || 0)} · ${english ? "Errors" : "Ошибок"}: ${Number(draft.failedCount || 0)} · ${english ? "Total" : "Всего"}: ${total}</p></div>` : ""}
-					${draft.lastError ? `<p class="admin-broadcast__error">${escapeHtml(draft.lastError)}</p>` : ""}
-					<div class="admin-broadcast__actions">
-						<button type="button" data-action="admin-broadcast-preview" ${!hasMessage || running || previewBusy ? "disabled" : ""}>${icon(previewBusy ? "refresh" : "eye")}<span>${english ? "Preview" : "Предпросмотр"}</span></button>
-						<button class="admin-broadcast__send" type="button" data-action="admin-broadcast-open-confirm" ${!hasMessage || running || sendBusy ? "disabled" : ""}>${icon(sendBusy ? "refresh" : "send")}<span>${english ? "Send" : "Запустить"}</span></button>
-					</div>
-					<button class="admin-broadcast__reset" type="button" data-action="admin-broadcast-reset" ${running ? "disabled" : ""}>${icon("reset")}<span>${english ? "Clear draft" : "Очистить черновик"}</span></button>
-				</section>
-			</div>
-		</section>
-	`;
+function renderAdminBroadcastPage(embedded=false) {
+ if(!canAdmin("broadcast"))state.adminBroadcastTab="email";
+ if(state.adminBroadcastTab==="email")return renderAdminEmailBroadcastPage();
+ const english=state.locale==="en",mode=adminBroadcastWorkflowMode(),survey=mode==="survey",draft=state.adminBroadcast||{},running=draft.status==="running",busy=Boolean(state.adminBroadcastBusy),ready=adminBroadcastReadiness();
+ const message=`<section class="admin-broadcast__section broadcast-content"><div class="broadcast-card-heading">${icon("telegram")}<strong>${english?"Message":"Сообщение"}</strong></div>${draft.sourceKind?`<p class="broadcast-message-text">${escapeHtml(draft.sourceText||draft.sourcePreview||"")}</p>`:`<p class="broadcast-help">${draft.status==="awaiting_message"?(english?"Send a message to the bot, then return here.":"Отправьте сообщение боту и вернитесь сюда."):(english?"Create a message in the bot. Text and attachments are supported.":"Создайте сообщение в боте: текст или вложение.")}</p>`}<button class="broadcast-inline-action" type="button" data-action="admin-broadcast-capture" ${running||busy?"disabled":""}>${icon("send")}${draft.sourceKind?(english?"Replace message":"Заменить сообщение"):(english?"Write to the bot":"Написать боту")}</button></section>`;
+ const body=`${renderAdminBroadcastWorkflowTabs(english)}<div class="broadcast-workflow-panel ${state.adminBroadcastMotion==="mode"?"is-entering":""}">
+ ${mode==="results"?renderAdminSurveyResults(english):`<header class="broadcast-workflow-heading"><h3>${survey?(english?"New survey":"Новый опрос"):(english?"New broadcast":"Новое сообщение")}</h3><p>${survey?(english?"Invitation → questions → final message. Recipients see one message.":"Приглашение → вопросы → завершение. У получателя — одно сообщение."):(english?"Prepare a message, select recipients, then send.":"Подготовьте сообщение, выберите получателей и отправьте.")}</p></header>
+ ${survey?renderAdminSurvey(running||busy,english):message}${renderAdminBroadcastOptionalButtons(running||busy,english)}
+ <section class="admin-broadcast__section broadcast-audience">${renderCurrentAudience("telegram",running)}</section>
+ <details class="broadcast-extra"><summary>${icon("grid")} ${english?"Additional settings":"Дополнительные настройки"}${icon("arrowRight")}</summary><div class="admin-broadcast__options">${renderAdminBroadcastExpiration(running||busy,english)}${!survey?renderAdminBroadcastAutoReply(running||busy,english):""}</div></details>
+ <section class="admin-broadcast__section broadcast-delivery"><div class="broadcast-card-heading">${icon("send")}<strong>${survey?(english?"Send survey":"Отправка опроса"):(english?"Send message":"Отправка сообщения")}</strong></div>${running?renderAdminBroadcastLiveProgress(english):`<p class="broadcast-help">${escapeHtml(ready.error|| (english?"Check the preview. We will confirm recipients before sending.":"Проверьте предпросмотр. Перед отправкой покажем получателей и запросим подтверждение."))}</p>`}${draft.status==="failed"&&draft.lastError?`<p class="admin-broadcast__error">${escapeHtml(draft.lastError)}</p>`:""}<div class="admin-broadcast__actions"><button type="button" data-action="admin-broadcast-preview" ${!ready.ready||running||busy?"disabled":""}>${icon("eye")}${english?"Preview":"Предпросмотр"}</button><button class="admin-broadcast__send" type="button" data-action="admin-broadcast-open-confirm" ${!ready.ready||running||busy?"disabled":""}>${icon("send")}${survey?(english?"Send survey":"Отправить опрос"):(english?"Send message":"Отправить сообщение")}</button></div><button class="broadcast-reset" type="button" data-action="admin-broadcast-reset" ${running||busy?"disabled":""}>${icon("reset")}${english?"Clear draft":"Очистить черновик"}</button></section>`}</div>`;
+ return embedded?`<div class="admin-broadcast broadcast-workflow">${body}</div>`:`<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-broadcast broadcast-workflow">${renderAdminBroadcastTabs()}${body}</div></section>`;
 }
-
+function adminBroadcastWorkflowMode() {
+ return ["message","survey","results"].includes(state.adminBroadcastMode)?state.adminBroadcastMode:(state.adminSurveyDraft?.enabled||state.adminBroadcast?.survey?.enabled?"survey":"message");
+}
+function activeAdminBroadcastButtons() {
+ if(adminBroadcastWorkflowMode()==="survey"){state.adminSurveyDraft||=defaultAdminSurvey();state.adminSurveyDraft.finalButtons||=[];return state.adminSurveyDraft.finalButtons;}return state.adminBroadcastButtonsDraft||[];
+}
+function markAdminBroadcastButtonsDirty() {
+ if(adminBroadcastWorkflowMode()==="survey")state.adminSurveyDirty=true;else state.adminBroadcastButtonsDirty=true;
+ state.adminBroadcastConfirmOpen=false;
+}
+function renderAdminBroadcastWorkflowTabs(english=false) {
+ const mode=adminBroadcastWorkflowMode(),running=state.adminBroadcast?.status==="running",active=state.adminBroadcast?.survey?.enabled?"survey":"message";
+ return `<nav class="broadcast-workflow-tabs" role="tablist" aria-label="${english?"Telegram broadcast type":"Что отправить в Telegram"}">${[["message",english?"Message":"Сообщение","telegram"],["survey",english?"Survey":"Опрос","chat"],["results",english?"Answers":"Ответы","chartLine"]].map(([id,label,glyph])=>`<button type="button" role="tab" aria-selected="${mode===id}" data-action="broadcast-workflow-mode" data-value="${id}" ${running&&id!=="results"&&id!==active?"disabled":""}>${icon(glyph)}<span>${label}</span></button>`).join("")}</nav>`;
+}
+async function setAdminBroadcastWorkflowMode(mode) {
+ if(!canAdmin("broadcast")||!["message","survey","results"].includes(mode)||state.adminBroadcastBusy)return;
+ if(state.adminBroadcast?.status==="running"&&mode!=="results"&&mode!==(state.adminBroadcast?.survey?.enabled?"survey":"message"))return;
+ if(adminBroadcastWorkflowMode()===mode)return;
+ state.adminBroadcastMode=mode;state.adminBroadcastConfirmOpen=false;state.adminBroadcastButtonsOpen=undefined;state.adminBroadcastMotion="mode";
+ if(mode!=="results"&&state.adminBroadcast?.status!=="running"){
+  state.adminSurveyDraft||=defaultAdminSurvey();const cfg=state.adminSurveyDraft,defaults=defaultAdminSurvey();cfg.enabled=mode==="survey";
+  if(cfg.enabled){for(const field of ["title","introText","startText","finishText"])cfg[field]||=defaults[field];if(!cfg.questions?.length)cfg.questions=defaults.questions;cfg.finalButtons||=[];}
+  state.adminSurveyDirty=true;
+ }
+ render({preserveScroll:true});setTimeout(()=>{state.adminBroadcastMotion="";},220);
+ if(mode==="results")await loadAdminSurveyResults();
+}
+function adminBroadcastReadiness() {
+ const english=state.locale==="en";
+ if(adminBroadcastWorkflowMode()!=="survey")return{ready:Boolean(state.adminBroadcast?.sourceKind),error:state.adminBroadcast?.sourceKind?"":(english?"Add a message first.":"Сначала добавьте сообщение.")};
+ const cfg=state.adminSurveyDraft||{};let error="";
+ if(!String(cfg.introText||"").trim())error=english?"Write an invitation.":"Напишите приглашение к опросу.";
+ else if(!String(cfg.startText||"").trim()||!String(cfg.title||"").trim())error=english?"Set a title and start button.":"Укажите название и кнопку начала.";
+ else if(!cfg.questions?.length)error=english?"Add a question.":"Добавьте хотя бы один вопрос.";
+ else {const i=cfg.questions.findIndex(q=>!String(q.text||"").trim()||!q.options?.length||q.options.some(o=>!String(o).trim()));if(i>=0)error=english?`Complete question ${i+1} and its answers.`:`Заполните вопрос ${i+1} и его варианты ответов.`;}
+ if(!error&&!String(cfg.finishText||"").trim())error=english?"Write a final message.":"Напишите завершающее сообщение.";
+ return{ready:!error,error};
+}
+function renderAdminBroadcastOptionalButtons(disabled,english=false) {
+ const buttons=activeAdminBroadcastButtons(),survey=adminBroadcastWorkflowMode()==="survey",open=state.adminBroadcastButtonsOpen??buttons.length>0;
+ return `<section class="admin-broadcast__section broadcast-optional-buttons"><div class="broadcast-card-heading"><button class="broadcast-disclosure" type="button" data-action="broadcast-buttons-toggle" aria-expanded="${open}">${icon("plus")}<span>${survey?(english?"Final buttons":"Кнопки завершения"):(english?"Message buttons":"Кнопки сообщения")}</span><small>${buttons.length?buttons.length:(english?"Optional":"Необязательно")}</small>${icon("arrowRight")}</button></div>${open?`<div class="broadcast-reveal"><div class="admin-broadcast__buttons">${buttons.map((b,i)=>renderAdminBroadcastButton(b,i,disabled,english)).join("")}</div><button class="broadcast-inline-action" type="button" data-action="admin-broadcast-add-button" ${disabled||buttons.length>=8?"disabled":""}>${icon("plus")}${english?"Add button":"Добавить кнопку"}</button></div>`:""}</section>`;
+}
+function renderAdminBroadcastLiveProgress(english=false) {
+ const d=state.adminBroadcast||{},total=Number(d.recipientCount||0),done=Number(d.sentCount||0)+Number(d.failedCount||0),percent=total?Math.min(100,Math.round(done/total*100)):0;
+ return `<div class="admin-broadcast__progress"><div><span>${english?"Sending":"Отправляется"}</span><strong>${percent}%</strong></div><i><b style="width:${percent}%"></b></i><p>${Number(d.sentCount||0)} ${english?"sent":"отправлено"} · ${Number(d.failedCount||0)} ${english?"errors":"ошибок"}</p></div>`;
+}
 
 function defaultAdminSurvey() {
- return {enabled:false,title:"Опрос",startText:"Пройти опрос",questions:[{text:"Как вам наш сервис?",options:["Нравится","Есть предложения"]}],finishText:"Спасибо за ваши ответы!"};
+ return {enabled:false,title:"Опрос",introText:"Пройдите короткий опрос — помогите нам стать лучше.",startText:"Пройти опрос",questions:[{text:"",options:["",""]}],finishText:"Спасибо за ваши ответы!",finalButtons:[]};
 }
+
 function updateAdminSurveyField(input) {
  if(!canAdmin("broadcast") || state.adminBroadcastBusy || state.adminBroadcast?.status==="running")return;
  const cfg=state.adminSurveyDraft||=defaultAdminSurvey(),field=input.dataset.surveyField;
- if(field==="enabled") {cfg.enabled=Boolean(input.checked);if(cfg.enabled){const defaults=defaultAdminSurvey();for(const key of ["title","startText","finishText"])cfg[key]||=defaults[key];if(!cfg.questions?.length)cfg.questions=defaults.questions;}}
- else if(["title","startText","finishText"].includes(field))cfg[field]=String(input.value);
+ if(field==="enabled") {cfg.enabled=Boolean(input.checked);if(cfg.enabled){const defaults=defaultAdminSurvey();for(const key of ["title","introText","startText","finishText"])cfg[key]||=defaults[key];if(!cfg.questions?.length)cfg.questions=defaults.questions;}}
+ else if(["title","introText","startText","finishText"].includes(field))cfg[field]=String(input.value);
  else {const q=cfg.questions?.[Number(input.dataset.question)];if(!q)return;if(field==="text")q.text=String(input.value);else if(field==="option"&&q.options?.[Number(input.dataset.option)]!==undefined)q.options[Number(input.dataset.option)]=String(input.value);else return;}
- state.adminSurveyDirty=true;state.adminBroadcastConfirmOpen=false;
+ state.adminSurveyDirty=true;state.adminBroadcastConfirmOpen=false;state.adminSurveyMotion="";
  render({preserveScroll:true,preserveInteraction:true});
 }
 function editAdminSurvey(action,qindex,oindex) {
@@ -6901,7 +6910,7 @@ function editAdminSurvey(action,qindex,oindex) {
  if(action==="addQuestion"&&cfg.questions.length<64){cfg.questions.push({text:"",options:["",""]});state.adminSurveyOpenQuestion=cfg.questions.length-1;}
  else if(action==="removeQuestion"&&Number.isInteger(qindex)&&qindex>=0&&qindex<cfg.questions.length){cfg.questions.splice(qindex,1);state.adminSurveyOpenQuestion=Math.max(0,qindex-1);}
  else {const q=cfg.questions[qindex];if(!q)return;if(action==="addOption"&&q.options.length<100)q.options.push("");else if(action==="removeOption"&&Number.isInteger(oindex)&&oindex>=0&&oindex<q.options.length)q.options.splice(oindex,1);else return;}
- state.adminSurveyDirty=true;state.adminBroadcastConfirmOpen=false;render({preserveScroll:true});
+ state.adminSurveyDirty=true;state.adminBroadcastConfirmOpen=false;state.adminSurveyMotion="question";render({preserveScroll:true});setTimeout(()=>{state.adminSurveyMotion="";},220);
 }
 async function saveAdminSurvey() {
  if(state.adminBroadcastBusy || !state.adminSurveyDirty)return state.adminBroadcast;
@@ -6921,21 +6930,21 @@ async function loadAdminSurveyResults(id="",more=false) {
  finally {state.adminSurveyResultsBusy=false;render({preserveScroll:true});}
 }
 function surveyPlainText(text) {return String(text||"").replace(/<[^>]*>/g,"");}
+
 function renderAdminSurvey(disabled,english=false) {
  const cfg=state.adminSurveyDraft||defaultAdminSurvey(),d=disabled?"disabled":"";
  const field=(key,label,value,max=80,q="",o="")=>`<label class="survey-field"><span>${label}</span><input type="text" data-input="survey-${key}-${q}-${o}" data-survey-field="${key}" data-question="${q}" data-option="${o}" maxlength="${max}" value="${escapeAttribute(value||"")}" ${d}></label>`;
- const area=(key,label,value,q="")=>`<label class="survey-field"><span>${label}</span><textarea rows="2" data-input="survey-${key}-${q}" data-survey-field="${key}" data-question="${q}" maxlength="3500" ${d}>${escapeHtml(value||"")}</textarea></label>`;
- const title=english?"Survey":"Опрос";
- return `<section class="survey-editor"><label class="broadcast-option__header"><span class="broadcast-option__icon">${icon("chat")}</span><span class="broadcast-option__text"><strong>${title}</strong><small>${english?"Questions in one message":"Вопросы в одном сообщении"}</small></span><input type="checkbox" role="switch" aria-label="${title}" data-survey-field="enabled" ${cfg.enabled?"checked":""} ${d}></label>
- ${cfg.enabled?`<div class="survey-editor__body"><div class="survey-editor__fields">${field("title",english?"Name":"Название",cfg.title)}${field("startText",english?"Start button":"Кнопка начала",cfg.startText,64)}</div><p class="survey-hint">${english?"Use a text broadcast as the invitation. Its buttons will appear at the end.":"Сообщение рассылки — приглашение без вложений. Обычные кнопки появятся в конце опроса."}</p>
- <div class="survey-questions">${(cfg.questions||[]).map((q,i)=>`<section class="survey-question"><div class="survey-question__head"><button type="button" data-action="survey-question-open" data-question="${i}" aria-expanded="${Number(state.adminSurveyOpenQuestion||0)===i}" ${d}><small>${i+1}</small><span>${escapeHtml(surveyPlainText(q.text)|| (english?"New question":"Новый вопрос"))}</span>${icon("arrowRight")}</button><button class="survey-icon" type="button" data-action="survey-question-remove" data-question="${i}" aria-label="${english?"Delete question":"Удалить вопрос"}" ${d}>${icon("trash")}</button></div>${Number(state.adminSurveyOpenQuestion||0)===i?`<div class="survey-question__body">${area("text",english?"Question · Telegram HTML":"Вопрос · Telegram HTML",q.text,i)}<div class="survey-answers">${(q.options||[]).map((o,j)=>`<div>${field("option",`${english?"Answer":"Ответ"} ${j+1}`,o,64,i,j)}<button class="survey-icon" type="button" data-action="survey-option-remove" data-question="${i}" data-option="${j}" aria-label="${english?"Delete answer":"Удалить ответ"}" ${d}>${icon("trash")}</button></div>`).join("")}</div><button class="survey-add" type="button" data-action="survey-option-add" data-question="${i}" ${disabled||q.options?.length>=100?"disabled":""}>${icon("plus")}${english?"Answer":"Ответ"}</button></div>`:""}</section>`).join("")}</div>
- <button class="survey-add" type="button" data-action="survey-question-add" ${disabled||cfg.questions?.length>=64?"disabled":""}>${icon("plus")}${english?"Question":"Вопрос"}</button>${area("finishText",english?"Final text · Telegram HTML":"Завершение · Telegram HTML",cfg.finishText)}</div>`:""}
- <div class="survey-editor__actions"><button class="survey-add" type="button" data-action="survey-results" ${state.adminSurveyResultsBusy?"disabled":""}>${icon("chat")}${english?"Answers":"Ответы"}</button>${state.adminSurveyDirty?`<button class="survey-icon" type="button" data-action="survey-save" aria-label="${english?"Save survey":"Сохранить опрос"}" title="${english?"Save survey":"Сохранить опрос"}" ${d}>${icon("check")}</button>`:""}</div>${renderAdminSurveyResults(english)}</section>`;
+ const area=(key,label,value,q="")=>`<label class="survey-field"><span>${label}</span><textarea rows="3" data-input="survey-${key}-${q}" data-survey-field="${key}" data-question="${q}" maxlength="3500" ${d}>${escapeHtml(value||"")}</textarea></label>`;
+ return `<div class="survey-composer"><section class="survey-editor"><div class="broadcast-card-heading"><span class="broadcast-step">1</span><strong>${english?"Invitation":"Приглашение"}</strong></div><div class="survey-editor__body">${field("title",english?"Survey name · only for you":"Название опроса · видно только вам",cfg.title)}${area("introText",english?"First message recipients will see":"Первое сообщение для получателя",cfg.introText)}${field("startText",english?"Start button":"Кнопка под приглашением",cfg.startText,64)}</div></section>
+ <section class="survey-editor"><div class="broadcast-card-heading"><span class="broadcast-step">2</span><strong>${english?"Questions":"Вопросы"}</strong><small>${cfg.questions?.length||0}</small></div><div class="survey-editor__body"><div class="survey-questions">${(cfg.questions||[]).map((q,i)=>`<section class="survey-question"><div class="survey-question__head"><button type="button" data-action="survey-question-open" data-question="${i}" aria-expanded="${Number(state.adminSurveyOpenQuestion||0)===i}" ${d}><small>${i+1}</small><span>${escapeHtml(surveyPlainText(q.text)|| (english?`Question ${i+1}`:`Вопрос ${i+1}`))}</span>${icon("arrowRight")}</button><button class="survey-icon" type="button" data-action="survey-question-remove" data-question="${i}" aria-label="${english?"Delete question":"Удалить вопрос"}" ${d}>${icon("trash")}</button></div>${Number(state.adminSurveyOpenQuestion||0)===i?`<div class="survey-question__body ${state.adminSurveyMotion==="question"?"is-entering":""}">${area("text",english?"Question text":"Текст вопроса",q.text,i)}<div class="survey-answers">${(q.options||[]).map((o,j)=>`<div>${field("option",`${english?"Button":"Кнопка"} ${j+1}`,o,64,i,j)}<button class="survey-icon" type="button" data-action="survey-option-remove" data-question="${i}" data-option="${j}" aria-label="${english?"Delete answer":"Удалить ответ"}" ${d}>${icon("trash")}</button></div>`).join("")}</div><button class="survey-add" type="button" data-action="survey-option-add" data-question="${i}" ${disabled||q.options?.length>=100?"disabled":""}>${icon("plus")}${english?"Add answer":"Добавить ответ"}</button></div>`:""}</section>`).join("")}</div><button class="survey-add" type="button" data-action="survey-question-add" ${disabled||cfg.questions?.length>=64?"disabled":""}>${icon("plus")}${english?"Add question":"Добавить вопрос"}</button></div></section>
+ <section class="survey-editor"><div class="broadcast-card-heading"><span class="broadcast-step">3</span><strong>${english?"Finish":"Завершение"}</strong></div><div class="survey-editor__body">${area("finishText",english?"Message after the final answer":"Сообщение после последнего ответа",cfg.finishText)}</div></section>${state.adminSurveyDirty?`<div class="survey-editor__actions"><span class="broadcast-help">${english?"Saves automatically before preview and sending":"Сохранится перед предпросмотром и отправкой"}</span><button class="survey-icon" type="button" data-action="survey-save" aria-label="${english?"Save survey":"Сохранить опрос"}" title="${english?"Save survey":"Сохранить опрос"}" ${d}>${icon("check")}</button></div>`:""}</div>`;
 }
+
 function renderAdminSurveyResults(english=false) {
- if(!state.adminSurveyResultsOpen)return "";
+ if(!state.adminSurveyResultsOpen)return `<div class="broadcast-empty">${icon("chat")}<strong>${english?"Survey answers":"Ответы на опросы"}</strong><p>${english?"Open this tab after sending a survey.":"Здесь появятся результаты отправленных опросов."}</p></div>`;
  const result=state.adminSurveyResults||{},report=result.report;
- return `<div class="survey-results">${state.adminSurveyResultsError?`<p role="alert">${escapeHtml(state.adminSurveyResultsError)}</p>`:""}<div class="survey-results__head"><select aria-label="${english?"Survey results":"Результаты опроса"}" data-survey-run="select" ${state.adminSurveyResultsBusy?"disabled":""}>${(result.runs||[]).map(r=>`<option value="${escapeAttribute(r.id)}" ${r.id===report?.run?.id?"selected":""}>${escapeHtml(r.config?.title||"Опрос")} · ${escapeHtml(new Date(r.createdAt).toLocaleDateString(english?"en-US":"ru-RU"))}</option>`).join("")}</select><button class="survey-icon" type="button" data-action="survey-results" aria-label="${english?"Refresh answers":"Обновить ответы"}" ${state.adminSurveyResultsBusy?"disabled":""}>${icon("refresh")}</button></div>
+ if(!state.adminSurveyResultsBusy&&!state.adminSurveyResultsError&&!report&&!(result.runs||[]).length)return `<div class="broadcast-empty">${icon("chat")}<strong>${english?"No answers yet":"Опросов пока нет"}</strong><p>${english?"Create a survey in the Survey tab and send it to your audience.":"Создайте опрос во вкладке «Опрос» и отправьте выбранным получателям. Результаты появятся здесь."}</p><button class="broadcast-inline-action" type="button" data-action="broadcast-workflow-mode" data-value="survey">${icon("plus")}${english?"Create survey":"Создать опрос"}</button></div>`;
+ return `<div class="survey-results">${state.adminSurveyResultsError?`<p role="alert">${escapeHtml(state.adminSurveyResultsError)}</p>`:""}<div class="survey-results__head">${(result.runs||[]).length?`<select aria-label="${english?"Survey results":"Результаты опроса"}" data-survey-run="select" ${state.adminSurveyResultsBusy?"disabled":""}>${(result.runs||[]).map(r=>`<option value="${escapeAttribute(r.id)}" ${r.id===report?.run?.id?"selected":""}>${escapeHtml(r.config?.title||"Опрос")} · ${escapeHtml(new Date(r.createdAt).toLocaleDateString(english?"en-US":"ru-RU"))}</option>`).join("")}</select>`:""}<button class="survey-icon" type="button" data-action="survey-results" aria-label="${english?"Refresh answers":"Обновить ответы"}" ${state.adminSurveyResultsBusy?"disabled":""}>${icon("refresh")}</button></div>
  ${report?`<div class="survey-stats">${[[english?"Delivered":"Доставлено",report.run.delivered],[english?"Started":"Начали",report.run.started],[english?"Completed":"Прошли",report.run.completed]].map(([label,n])=>`<span><strong>${Number(n||0).toLocaleString()}</strong><small>${label}</small></span>`).join("")}</div>
  <div class="survey-totals">${report.run.config.questions.map((q,i)=>`<details><summary>${i+1}. ${escapeHtml(surveyPlainText(q.text))}</summary>${q.options.map((o,j)=>`<div><span>${escapeHtml(o)}</span><b>${Number(report.counts?.[i]?.[j]||0).toLocaleString()}</b></div>`).join("")}</details>`).join("")}</div>
  <div class="survey-people">${report.recipients.map(p=>`<details><summary><span>${escapeHtml(p.username?`@${p.username}`:String(p.telegramId))}</span><small>${p.step>=report.run.config.questions.length?(english?"Completed":"Пройден"):p.step<0?(english?"Not started":"Не начат"):`${p.answers?.length||0} / ${report.run.config.questions.length}`}</small></summary>${(p.answers||[]).map((o,i)=>`<p><span>${i+1}. ${escapeHtml(surveyPlainText(report.run.config.questions[i]?.text))}</span><strong>${escapeHtml(report.run.config.questions[i]?.options?.[o]||"—")}</strong></p>`).join("")}</details>`).join("")}</div>${report.hasMore?`<button class="survey-add" type="button" data-action="survey-results" data-more="true" ${state.adminSurveyResultsBusy?"disabled":""}>${icon("plus")}${english?"More":"Ещё"}</button>`:""}`:`<p class="survey-hint">${state.adminSurveyResultsBusy?(english?"Loading…":"Загрузка…"):(english?"No surveys sent yet":"Отправленных опросов пока нет")}</p>`}</div>`;
@@ -7056,7 +7065,7 @@ function renderAdminEmailBroadcastConfirm(english) {
 }
 
 function renderAdminBroadcastConfirm(english) {
-	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-broadcast-close-confirm" aria-label="${english ? "Cancel" : "Отмена"}"></button><div class="modal__sheet admin-broadcast-confirm" role="dialog" aria-modal="true" aria-labelledby="broadcast-confirm-title"><div class="modal__header"><div><div class="section-label">${english ? "Broadcast" : "Рассылка"}</div><div class="modal__title" id="broadcast-confirm-title">${english ? "Send to selected recipients?" : "Отправить выбранной аудитории?"}</div></div><button class="header__btn" type="button" data-action="admin-broadcast-close-confirm" aria-label="${english ? "Close" : "Закрыть"}">${icon("close")}</button></div><p>${english ? "The broadcast starts immediately. Check the preview before sending." : `Получателей: ${Number(state.adminAudienceCount.telegram||0)}. Рассылка начнётся сразу. Перед отправкой проверьте предпросмотр.`}</p>${Number(state.adminBroadcast?.deleteAfterMinutes||0)>0 ? `<p>${english ? `Messages will be deleted after ${Number(state.adminBroadcast.deleteAfterMinutes)} min from delivery to each recipient.` : `Сообщение удалится у каждого получателя через ${Number(state.adminBroadcast.deleteAfterMinutes)} мин. после отправки.`}</p>` : ""}${state.adminBroadcast?.audience?.ignoreUnsubscribe ? `<p class="admin-broadcast-optout-note">${english ? "This broadcast includes unsubscribed users. Their preferences will stay unchanged." : "Эта рассылка придёт и отписавшимся пользователям. Их настройки не изменятся."}</p>` : ""}<div class="admin-broadcast-confirm__actions"><button type="button" data-action="admin-broadcast-close-confirm">${english ? "Cancel" : "Отмена"}</button><button class="admin-broadcast-confirm__send" type="button" data-action="admin-broadcast-send">${icon("send")}<span>${english ? "Start" : "Запустить"}</span></button></div></div></div>`;
+	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-broadcast-close-confirm" aria-label="${english ? "Cancel" : "Отмена"}"></button><div class="modal__sheet admin-broadcast-confirm" role="dialog" aria-modal="true" aria-labelledby="broadcast-confirm-title"><div class="modal__header"><div><div class="section-label">${english ? "Broadcast" : "Рассылка"}</div><div class="modal__title" id="broadcast-confirm-title">${adminBroadcastWorkflowMode()==="survey"?(english?"Send survey to selected recipients?":"Отправить опрос выбранным получателям?"):(english ? "Send to selected recipients?" : "Отправить выбранной аудитории?")}</div></div><button class="header__btn" type="button" data-action="admin-broadcast-close-confirm" aria-label="${english ? "Close" : "Закрыть"}">${icon("close")}</button></div><p>${english ? "The broadcast starts immediately. Check the preview before sending." : `Получателей: ${Number(state.adminAudienceCount.telegram||0)}. Рассылка начнётся сразу. Перед отправкой проверьте предпросмотр.`}</p>${Number(state.adminBroadcast?.deleteAfterMinutes||0)>0 ? `<p>${english ? `Messages will be deleted after ${Number(state.adminBroadcast.deleteAfterMinutes)} min from delivery to each recipient.` : `Сообщение удалится у каждого получателя через ${Number(state.adminBroadcast.deleteAfterMinutes)} мин. после отправки.`}</p>` : ""}${state.adminBroadcast?.audience?.ignoreUnsubscribe ? `<p class="admin-broadcast-optout-note">${english ? "This broadcast includes unsubscribed users. Their preferences will stay unchanged." : "Эта рассылка придёт и отписавшимся пользователям. Их настройки не изменятся."}</p>` : ""}<div class="admin-broadcast-confirm__actions"><button type="button" data-action="admin-broadcast-close-confirm">${english ? "Cancel" : "Отмена"}</button><button class="admin-broadcast-confirm__send" type="button" data-action="admin-broadcast-send">${icon("send")}<span>${english ? "Start" : "Запустить"}</span></button></div></div></div>`;
 }
 
 function broadcastStatusLabel(status, english) {
@@ -12457,13 +12466,15 @@ function bindRootActions() {
 			if (action === "admin-user-activity-toggle") return toggleAdminUserActivity(target.dataset.value);
 			if (action === "admin-user-activity-refresh") return await refreshAdminUserActivity();
 			if (action === "admin-user-activity-more") return await refreshAdminUserActivity({more:true});
-			if (action === "survey-save") return await saveAdminSurvey();
+			if(action==="broadcast-workflow-mode")return await setAdminBroadcastWorkflowMode(value);
+ if(action==="broadcast-buttons-toggle"){state.adminBroadcastButtonsOpen=!(state.adminBroadcastButtonsOpen??activeAdminBroadcastButtons().length>0);render({preserveScroll:true});return;}
+ if (action === "survey-save") return await saveAdminSurvey();
  if(action === "survey-results") return await loadAdminSurveyResults(target.dataset.run||"",target.dataset.more==="true");
  if(action === "survey-question-add") return editAdminSurvey("addQuestion");
  if(action === "survey-question-remove") return editAdminSurvey("removeQuestion",Number(target.dataset.question));
  if(action === "survey-option-add") return editAdminSurvey("addOption",Number(target.dataset.question));
  if(action === "survey-option-remove") return editAdminSurvey("removeOption",Number(target.dataset.question),Number(target.dataset.option));
- if(action === "survey-question-open") {state.adminSurveyOpenQuestion=Number(target.dataset.question);render({preserveScroll:true});return;}
+ if(action === "survey-question-open") {state.adminSurveyOpenQuestion=Number(state.adminSurveyOpenQuestion||0)===Number(target.dataset.question)?-1:Number(target.dataset.question);state.adminSurveyMotion="question";render({preserveScroll:true});setTimeout(()=>{state.adminSurveyMotion="";},220);return;}
  if (action === "admin-broadcast-save-auto-reply") return await saveAdminBroadcastAutoReply();
 			if (action === "admin-broadcast-save-buttons") return await saveAdminBroadcastButtons();
 			if (action === "admin-broadcast-preview") return await previewAdminBroadcast();
@@ -12697,21 +12708,8 @@ function bindRootActions() {
 		}
 		const broadcastIndex = Number(target?.dataset?.broadcastIndex);
 		const broadcastField = target?.dataset?.broadcastField;
-		if (Number.isInteger(broadcastIndex) && broadcastIndex >= 0 && broadcastField && state.adminBroadcastButtonsDraft[broadcastIndex]) {
-			const button = state.adminBroadcastButtonsDraft[broadcastIndex];
-			button[broadcastField] = target.value;
-			if (broadcastField === "type") {
-				const allowedTypes = ["url", "promo", "main", "reviews", "referrals", "login_methods", "support", "devices"];
-				button.type = allowedTypes.includes(target.value) ? target.value : "url";
-				if (button.type !== "url") button.url = "";
-				if (button.type !== "promo") button.promoCode = "";
-				state.adminBroadcastButtonsDirty = true;
-				render({ preserveScroll: true });
-				return;
-			}
-			state.adminBroadcastButtonsDirty = true;
-			const saveButton = app.querySelector('[data-action="admin-broadcast-save-buttons"]');
-			if (saveButton) saveButton.disabled = false;
+		if (Number.isInteger(broadcastIndex) && broadcastIndex >= 0 && broadcastField) {
+			updateConsoleBroadcastButton(broadcastIndex,broadcastField,target.value);
 			return;
 		}
 		const giftKind = target?.dataset?.giftKind;
@@ -13634,12 +13632,12 @@ function syncAdminSaveBarDOM() {
 
 
 function updateConsoleBroadcastButton(index,field,value) {
- if(state.adminBroadcast?.status==="running" || state.adminBroadcastBusy || !state.adminBroadcastButtonsDraft[index])return;
+ if(state.adminBroadcast?.status==="running" || state.adminBroadcastBusy || !activeAdminBroadcastButtons()[index])return;
  const allowed=["text","type","url","promoCode","iconCustomEmojiId","style"];
  if(!allowed.includes(field))return;
- const button=state.adminBroadcastButtonsDraft[index];button[field]=value;
+ const button=activeAdminBroadcastButtons()[index];button[field]=value;
  if(field==="type"){if(value!=="url")button.url="";if(value!=="promo")button.promoCode="";}
- state.adminBroadcastButtonsDirty=true;
+ markAdminBroadcastButtonsDirty();
  render({preserveScroll:true,preserveInteraction:true});
 }
 function updateConsoleBroadcastAutoReply(field,value) {
@@ -13711,7 +13709,7 @@ async function consoleBroadcastTemplates(action,{name="",id=0}={}) {
   if(channel==="email"){
    state.adminEmailBroadcast={...(state.adminEmailBroadcast||{}),draft:response.data};
    state.adminEmailDraftSubject=response.data.subject||"";state.adminEmailDraftBody=response.data.body||"";state.adminEmailDraftDirty=false;
-  } else setAdminBroadcastDraft(response.data,{forceButtons:true,forceExpiration:true});
+  } else setAdminBroadcastDraft(response.data,{forceButtons:true,forceExpiration:true,forceSurvey:true});
   state.adminAudienceDraft[channel]=deepClone(response.data.audience);state.adminAudienceCount[channel]=null;
   state.adminBroadcastConfirmOpen=false;state.adminEmailConfirmOpen=false;
   render({preserveScroll:true});
@@ -13719,9 +13717,11 @@ async function consoleBroadcastTemplates(action,{name="",id=0}={}) {
  return response.data;
 }
 
-function setAdminBroadcastDraft(draft, { forceButtons = false, forceExpiration = false } = {}) {
+function setAdminBroadcastDraft(draft, { forceButtons = false, forceExpiration = false, forceSurvey = false } = {}) {
+ if(draft && !draft.survey && state.adminBroadcast?.survey)draft={...draft,survey:deepClone(state.adminBroadcast.survey)};
 	if(!state.adminAudienceDraft.telegram)state.adminAudienceDraft.telegram=deepClone(draft?.audience||{category:"all",internalSquads:[],externalSquads:[],tag:"",language:""});
-	if(forceButtons || !state.adminSurveyDirty){state.adminSurveyDraft=deepClone(draft?.survey||{});state.adminSurveyDirty=false;}
+	if(forceSurvey || !state.adminSurveyDirty && (draft?.survey || !state.adminSurveyDraft)){state.adminSurveyDraft=deepClone(draft?.survey||{});if(state.adminSurveyDraft.enabled)state.adminSurveyDraft.introText||=defaultAdminSurvey().introText;state.adminSurveyDraft.finalButtons??=state.adminSurveyDraft.enabled?deepClone(draft?.buttons||[]):[];state.adminSurveyDirty=false;}
+ if(!state.adminBroadcastMode||forceSurvey)state.adminBroadcastMode=draft?.survey?.enabled?"survey":"message";
 	state.adminBroadcast = draft || { status: "idle", buttons: [], recipientCount: 0, sentCount: 0, failedCount: 0 };
 	if(draft?.autoReply && !state.adminBroadcastAutoReplyDirty && !(Date.parse(draft.autoReply.updatedAt)<Date.parse(state.adminBroadcastAutoReplyDraft?.updatedAt))) state.adminBroadcastAutoReplyDraft=deepClone(draft.autoReply);
 	if (forceExpiration || !state.adminBroadcastExpirationDirty) {
@@ -13843,30 +13843,31 @@ async function startAdminBroadcastCapture() {
 }
 
 function addAdminBroadcastButton() {
-	if (state.adminBroadcastButtonsDraft.length >= 8 || state.adminBroadcast?.status === "running") return;
-	state.adminBroadcastButtonsDraft.push({ id: `button_${Date.now().toString(36)}`, type: "url", text: "", iconCustomEmojiId: "", style: "", url: "https://", promoCode: "" });
-	state.adminBroadcastButtonsDirty = true;
+	if (activeAdminBroadcastButtons().length >= 8 || state.adminBroadcast?.status === "running") return;
+	activeAdminBroadcastButtons().push({ id: `button_${Date.now().toString(36)}`, type: "url", text: "", iconCustomEmojiId: "", style: "", url: "https://", promoCode: "" });
+	markAdminBroadcastButtonsDirty();state.adminBroadcastButtonsOpen=true;
 	haptic("light");
 	render({ preserveScroll: true });
 }
 
 function setAdminBroadcastButtonStyle(index, style) {
-	if (!Number.isInteger(index) || index < 0 || index >= state.adminBroadcastButtonsDraft.length || state.adminBroadcast?.status === "running") return;
-	state.adminBroadcastButtonsDraft[index].style = ["primary", "success", "danger"].includes(style) ? style : "";
-	state.adminBroadcastButtonsDirty = true;
+	if (!Number.isInteger(index) || index < 0 || index >= activeAdminBroadcastButtons().length || state.adminBroadcast?.status === "running") return;
+	activeAdminBroadcastButtons()[index].style = ["primary", "success", "danger"].includes(style) ? style : "";
+	markAdminBroadcastButtonsDirty();state.adminBroadcastButtonsOpen=true;
 	haptic("light");
 	render({ preserveScroll: true });
 }
 
 function removeAdminBroadcastButton(index) {
-	if (!Number.isInteger(index) || index < 0 || index >= state.adminBroadcastButtonsDraft.length || state.adminBroadcast?.status === "running") return;
-	state.adminBroadcastButtonsDraft.splice(index, 1);
-	state.adminBroadcastButtonsDirty = true;
+	if (!Number.isInteger(index) || index < 0 || index >= activeAdminBroadcastButtons().length || state.adminBroadcast?.status === "running") return;
+	activeAdminBroadcastButtons().splice(index, 1);
+	markAdminBroadcastButtonsDirty();state.adminBroadcastButtonsOpen=true;
 	haptic("light");
 	render({ preserveScroll: true });
 }
 
-async function saveAdminBroadcastButtons({ silent = false } = {}) {
+async function saveAdminBroadcastButtons({ silent = false, forceMessage=false } = {}) {
+ if(!forceMessage&&adminBroadcastWorkflowMode()==="survey")return saveAdminSurvey();
 	if (state.adminBroadcastBusy || (!state.adminBroadcastButtonsDirty && silent)) return state.adminBroadcast;
 	state.adminBroadcastBusy = "buttons";
 	if (!silent) render({ preserveScroll: true });
@@ -13885,11 +13886,12 @@ async function saveAdminBroadcastButtons({ silent = false } = {}) {
 }
 
 async function ensureAdminBroadcastButtonsSaved() {
+ const survey=adminBroadcastWorkflowMode()==="survey";state.adminSurveyDraft||=defaultAdminSurvey();if(state.adminSurveyDraft.enabled!==survey){state.adminSurveyDraft.enabled=survey;state.adminSurveyDirty=true;}
  if(state.adminSurveyDirty) await saveAdminSurvey();
 	if(state.adminBroadcastAutoReplyDirty) await saveAdminBroadcastAutoReply({silent:true});
 	if (state.adminBroadcastExpirationDirty) await saveAdminBroadcastExpiration({silent:true});
 	if (!state.adminBroadcastButtonsDirty) return state.adminBroadcast;
-	return saveAdminBroadcastButtons({ silent: true });
+	return saveAdminBroadcastButtons({ silent: true,forceMessage:true });
 }
 
 async function previewAdminBroadcast() {
@@ -13936,7 +13938,7 @@ async function resetAdminBroadcast() {
 	render({ preserveScroll: true });
 	try {
 		const response = await post("/api/mini-app/admin/broadcast/reset", {});
-		setAdminBroadcastDraft(response.data, { forceButtons: true, forceExpiration: true });
+		setAdminBroadcastDraft(response.data, { forceButtons: true, forceExpiration: true, forceSurvey:true });
 		state.adminBroadcastBusy = "";
 		render({ preserveScroll: true });
 		showToast(state.locale === "en" ? "Draft cleared" : "Черновик очищен", "success");

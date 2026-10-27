@@ -16,9 +16,12 @@ import (
 	"link-bot/internal/database"
 )
 
+const DefaultSurveyInvitation = "Пройдите короткий опрос — помогите нам стать лучше."
+
 var ErrSurvey = errors.New("Некорректный опрос")
 
 func NormalizeSurvey(c *database.SurveyConfig) error {
+	c.IntroText = strings.TrimSpace(c.IntroText)
 	c.Title = strings.TrimSpace(c.Title)
 	c.StartText = strings.TrimSpace(c.StartText)
 	c.FinishText = strings.TrimSpace(c.FinishText)
@@ -31,7 +34,17 @@ func NormalizeSurvey(c *database.SurveyConfig) error {
 	if len([]rune(c.Title)) < 1 || len([]rune(c.Title)) > 80 || len([]rune(c.StartText)) < 1 || len([]rune(c.StartText)) > 64 || len(c.Questions) == 0 {
 		return fmt.Errorf("%w: нужны название, кнопка начала и вопросы", ErrSurvey)
 	}
-	texts := []string{c.FinishText}
+	if c.IntroText == "" {
+		c.IntroText = DefaultSurveyInvitation
+	}
+	if c.FinalButtons != nil {
+		buttons, err := ValidateButtons(c.FinalButtons)
+		if err != nil {
+			return err
+		}
+		c.FinalButtons = buttons
+	}
+	texts := []string{c.IntroText, c.FinishText}
 	for i := range c.Questions {
 		q := &c.Questions[i]
 		q.Text = strings.TrimSpace(q.Text)
@@ -66,6 +79,11 @@ func (s *Service) SaveSurvey(ctx context.Context, admin int64, cfg database.Surv
 	if expected.IsZero() {
 		return nil, ErrDraftChanged
 	}
+	if cfg.Enabled {
+		if err := s.validatePromoButtons(ctx, cfg.FinalButtons); err != nil {
+			return nil, err
+		}
+	}
 	s.sendMu.Lock()
 	defer s.sendMu.Unlock()
 	draft, err := s.repository.SaveSurvey(ctx, cfg, admin, expected)
@@ -81,13 +99,12 @@ func (s *Service) loadSurvey(ctx context.Context, draft *database.BroadcastDraft
 		return err
 	}
 	draft.Survey = cfg
+	hydrateSurveyInvitation(cfg, draft)
 	if err = NormalizeSurvey(cfg); err != nil {
 		return err
 	}
 	if cfg.Enabled {
-		if draft.SourceKind != "text" && draft.SourceKind != "html" {
-			return fmt.Errorf("%w: для опроса выберите текстовое сообщение", ErrSurvey)
-		}
+		applySurveyInvitation(draft, cfg)
 		if _, err = ValidateButtons(draft.Buttons); err != nil {
 			return err
 		}
@@ -107,7 +124,11 @@ func surveyIntroKeyboard(id string, cfg *database.SurveyConfig) models.ReplyMark
 
 func surveyScreen(run *database.SurveyRun, step int) (string, models.ReplyMarkup) {
 	if step < 0 {
-		return html.EscapeString(run.Config.Title), surveyIntroKeyboard(run.ID, &run.Config)
+		intro := run.Config.IntroText
+		if intro == "" {
+			intro = run.Config.Title
+		}
+		return surveyHTML(intro), surveyIntroKeyboard(run.ID, &run.Config)
 	}
 	if step >= len(run.Config.Questions) {
 		keys := buildKeyboard(run.Buttons)
@@ -209,4 +230,31 @@ func surveyHTML(text string) string {
 		return text
 	}
 	return html.EscapeString(text)
+}
+
+func applySurveyInvitation(draft *database.BroadcastDraft, cfg *database.SurveyConfig) {
+	if cfg.FinalButtons == nil {
+		cfg.FinalButtons = append([]database.BroadcastButton{}, draft.Buttons...)
+	}
+	draft.Survey = cfg
+	draft.SourceKind = "html"
+	draft.SourceHTML = surveyHTML(cfg.IntroText)
+	draft.SourceText = cfg.IntroText
+	draft.SourcePreview = cfg.IntroText
+	draft.Buttons = cfg.FinalButtons
+}
+
+// Existing surveys used the ordinary message as their invitation.
+func hydrateSurveyInvitation(cfg *database.SurveyConfig, draft *database.BroadcastDraft) {
+	if !cfg.Enabled || cfg.IntroText != "" {
+		return
+	}
+	if draft.SourceKind == "html" {
+		cfg.IntroText = draft.SourceHTML
+	} else if draft.SourceKind == "text" {
+		cfg.IntroText = draft.SourceText
+		if cfg.IntroText == "" {
+			cfg.IntroText = draft.SourcePreview
+		}
+	}
 }

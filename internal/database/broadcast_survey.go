@@ -15,11 +15,13 @@ type SurveyQuestion struct {
 	Options []string `json:"options"`
 }
 type SurveyConfig struct {
-	Enabled    bool             `json:"enabled"`
-	Title      string           `json:"title"`
-	StartText  string           `json:"startText"`
-	Questions  []SurveyQuestion `json:"questions"`
-	FinishText string           `json:"finishText"`
+	IntroText    string            `json:"introText,omitempty"`
+	FinalButtons []BroadcastButton `json:"finalButtons"`
+	Enabled      bool              `json:"enabled"`
+	Title        string            `json:"title"`
+	StartText    string            `json:"startText"`
+	Questions    []SurveyQuestion  `json:"questions"`
+	FinishText   string            `json:"finishText"`
 }
 type SurveyRun struct {
 	ID        string            `json:"id"`

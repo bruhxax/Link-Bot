@@ -24,7 +24,7 @@ function setup(channel) {
     adminEmailDraftSubject: 'Test subject', adminEmailDraftBody: 'Test email',
   };
   let allowed = true;
-  const context = vm.createContext({state, Number,
+  const context = vm.createContext({state, Number, adminBroadcastWorkflowMode:()=>"message", activeAdminBroadcastButtons:()=>[], adminBroadcastReadiness:()=>({ready:true}), renderAdminBroadcastWorkflowTabs:()=>"",renderAdminBroadcastOptionalButtons:()=>"",
     canAdmin: () => allowed, pageClass: () => 'active page--animate',
     escapeHtml: String, escapeAttribute: String, icon: () => '',
     broadcastStatusLabel: () => 'Draft', broadcastKindLabel: () => 'Text',

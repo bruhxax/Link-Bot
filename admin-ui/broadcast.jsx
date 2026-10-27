@@ -803,16 +803,17 @@ export function Broadcast({ model: root, dispatch, hidden, Legacy }) {
             variant="default"
             size="xs"
             leftSection={<PiBookmarkSimple />}
-            disabled={disabled || !draft?.updatedAt}
+            disabled={disabled || !draft?.updatedAt || (!email && model.workflowMode==="results")}
             onClick={() => setTemplates("list")}
           >
             Шаблоны
           </Button>
         )}
       </div>
-      {model.canBroadcast && (
+      {email && model.canBroadcast && (
         <Stats draft={draft} loaded={Boolean(draft)} hidden={hidden} />
       )}
+      {!email && <div className="broadcast-native-workflow" dangerouslySetInnerHTML={{__html:model.telegramWorkflowHTML||""}} />}
       {email && (
         <Group className="rn-email-section-tabs" gap="xs">
           {[
@@ -832,6 +833,7 @@ export function Broadcast({ model: root, dispatch, hidden, Legacy }) {
           ))}
         </Group>
       )}
+      {email && (
       <div className="rn-broadcast-grid">
         <div className="rn-broadcast-editor-column">
           <section className="rn-broadcast-card rn-broadcast-editor">
@@ -1066,6 +1068,7 @@ export function Broadcast({ model: root, dispatch, hidden, Legacy }) {
         </div>
         <Preview model={model} brand={root.brand} hidden={hidden} />
       </div>
+      )}
       {templates && (
         <Templates
           key={`${channel}:${templates}`}
