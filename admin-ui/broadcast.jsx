@@ -251,15 +251,7 @@ function Audience({ model, disabled, hidden }) {
               : number(model.audienceCount)}
           </Private>
         </span>
-        <Button
-          variant="subtle"
-          size="xs"
-          onClick={() => model.checkAudience()}
-          disabled={disabled}
-          loading={model.audienceBusy}
-        >
-          Посчитать аудиторию
-        </Button>
+
       </div>
     </div>
   );
@@ -392,18 +384,7 @@ function Buttons({ model, disabled }) {
           </Accordion>
         </section>
       ))}
-      {buttons.length > 0 && model.buttonsDirty && (
-        <ActionIcon
-          variant="light"
-          size={30}
-          data-action="admin-broadcast-save-buttons"
-          disabled={disabled}
-          aria-label="Сохранить кнопки"
-          title="Сохранить кнопки"
-        >
-          <PiCheck />
-        </ActionIcon>
-      )}
+
     </div>
   );
 }
@@ -444,7 +425,7 @@ function AutoReply({model,disabled}) {
       {value.supportButton && <TextInput label="Подпись кнопки" value={value.supportButtonText} maxLength={64} disabled={disabled}
         onChange={e=>model.updateAutoReply("supportButtonText",e.currentTarget.value)} />}
     </div>}
-    {model.autoReplyDirty && <div className="broadcast-option__actions"><ActionIcon variant="light" size={30} data-action="admin-broadcast-save-auto-reply" disabled={disabled} aria-label="Сохранить автоответ" title="Сохранить автоответ"><PiCheck /></ActionIcon></div>}
+
   </div>;
 }
 function Progress({ draft, hidden }) {
@@ -927,14 +908,7 @@ export function Broadcast({ model: root, dispatch, hidden, Legacy }) {
                       <Text size="xs" c="dimmed">
                         Текстовое письмо · {model.body?.length || 0}/20 000
                       </Text>
-                      <Button
-                        variant="subtle"
-                        size="sm"
-                        data-action="admin-email-save"
-                        disabled={disabled || !hasMessage || !model.emailDirty}
-                      >
-                        Сохранить письмо
-                      </Button>
+
                     </Group>
                   </div>
                 ) : (

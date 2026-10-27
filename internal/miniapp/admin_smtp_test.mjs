@@ -23,7 +23,7 @@ test("SMTP requests send only fields accepted by the strict server decoder", asy
   const source=fs.readFileSync(new URL("./static/app.js",import.meta.url),"utf8");
   let payload;
   const state={adminSection:"broadcast",adminBroadcastTab:"email",adminEmailPreviewAddress:"test@example.com",adminEmailBroadcast:{configured:false},adminSMTP:{draft:{host:"smtp.example.com",port:587,user:"sender",password:"",from:"sender@example.com",proxyUrl:"",enabled:true,passwordConfigured:true,proxyConfigured:true,source:"admin"},busy:""}};
-  const context=vm.createContext({state,canAdmin:()=>true,render(){},showToast(){},previewMode:false,post:async(path,body)=>{payload={path,body};return{data:{host:"smtp.example.com",enabled:true,passwordConfigured:true}}}});
+  const context=vm.createContext({scheduleAdminBroadcastSave(){},flushAdminBroadcastAutoSave:async()=>{},discardAdminBroadcastAutoSave:async()=>{},state,canAdmin:()=>true,render(){},showToast(){},previewMode:false,post:async(path,body)=>{payload={path,body};return{data:{host:"smtp.example.com",enabled:true,passwordConfigured:true}}}});
   vm.runInContext(source.slice(source.indexOf("async function submitAdminSMTP("),source.indexOf("async function checkAdminAI(")),context);
   await context.submitAdminSMTP("save");
   assert.equal(payload.path,"/api/mini-app/admin/smtp/update");
@@ -37,7 +37,7 @@ test("SMTP settings are inside email broadcast and remain independently restrict
   const source=fs.readFileSync(new URL("./static/app.js",import.meta.url),"utf8");
   const state={locale:"ru",adminSMTP:{draft:{host:"smtp.example.com"}},adminEmailBroadcast:{},adminAudienceCount:{},adminBroadcastTab:"email",adminEmailEditorTab:"message"};
   let permissions=new Set(["smtp"]);
-  const context=vm.createContext({state,canAdmin:p=>permissions.has(p),emailAuthText:s=>s,...helpers,pageClass:()=>"",renderCurrentAudience:()=>"",renderSMTPSettings, broadcastStatusLabel:()=>"Пусто"});
+  const context=vm.createContext({scheduleAdminBroadcastSave(){},flushAdminBroadcastAutoSave:async()=>{},discardAdminBroadcastAutoSave:async()=>{},state,canAdmin:p=>permissions.has(p),emailAuthText:s=>s,...helpers,pageClass:()=>"",renderCurrentAudience:()=>"",renderSMTPSettings, broadcastStatusLabel:()=>"Пусто"});
   vm.runInContext(source.slice(source.indexOf("function canAdminSection("),source.indexOf("function getBottomNavPages(")),context);
   vm.runInContext(source.slice(source.indexOf("function renderAdminBroadcastTabs("),source.indexOf("function renderAdminBroadcastButton(")),context);
   assert.equal(context.canAdminSection("broadcast"),true);
@@ -63,7 +63,7 @@ test("test email saves the latest editor content then previews that same draft",
   const source=fs.readFileSync(new URL("./static/app.js",import.meta.url),"utf8");
   const requests=[];
   const state={adminEmailDraftDirty:true,adminEmailDraftSubject:"Тема",adminEmailDraftBody:"Новый текст",adminEmailPreviewAddress:"test@example.com",adminEmailBusy:"",adminEmailBroadcast:{}};
-  const context=vm.createContext({state,render(){},showToast(){},emailAuthText:s=>s,post:async(path,body)=>{requests.push({path,body});return{data:{subject:body.subject,body:body.body}}}});
+  const context=vm.createContext({scheduleAdminBroadcastSave(){},flushAdminBroadcastAutoSave:async()=>{},discardAdminBroadcastAutoSave:async()=>{},state,render(){},showToast(){},emailAuthText:s=>s,post:async(path,body)=>{requests.push({path,body});return{data:{subject:body.subject,body:body.body}}}});
   vm.runInContext(source.slice(source.indexOf("async function saveAdminEmailBroadcast("),source.indexOf("async function sendAdminEmailBroadcast(")),context);
   await context.previewAdminEmailBroadcast();
   assert.equal(requests.length,2);

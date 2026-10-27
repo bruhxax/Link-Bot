@@ -169,7 +169,7 @@
   min-height: 36px; max-width: 100%; padding: 8px 11px; border: 1px solid var(--line-soft); border-radius: 9px;
   background: var(--control-bg); color: var(--text); font: inherit; font-size: 11px; font-weight: 550; cursor: pointer;
 }
-#app .broadcast-workflow .broadcast-replace { min-height: 42px; padding-inline: 16px; font-size: 11.5px; }
+#app .broadcast-workflow .broadcast-replace { width: 100%; min-height: 42px; padding-inline: 16px; font-size: 11.5px; }
 .broadcast-inline-action svg, .survey-add svg { width: 16px; height: 16px; flex-shrink: 0; }
 #app .broadcast-workflow .admin-broadcast__buttons { display: grid; gap: 12px; margin: 0; }
 #app :is(#page-admin, .rn-content, .broadcast-native-workflow) .broadcast-workflow .admin-broadcast-button {
@@ -181,7 +181,7 @@
 #app .broadcast-workflow .admin-broadcast-button__head { margin: 0; }
 #app .broadcast-workflow .admin-broadcast-button__head strong { font-size: 11px; }
 #app .broadcast-workflow .survey-editor__body { padding: 0; gap: 12px; }
-#app .broadcast-workflow .survey-invitation-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+#app .broadcast-workflow .survey-invitation-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .survey-field--wide { grid-column: 1 / -1; }
 #app .broadcast-workflow :is(.survey-field, .admin-field, .admin-broadcast-auto-reply-field, .admin-broadcast-expiration-minutes) { display: grid; gap: 6px; margin: 0; min-width: 0; }
 #app .broadcast-workflow :is(.survey-field > span, .admin-field > span, .admin-email-broadcast__field > span, .admin-broadcast-button label > span, .admin-broadcast-auto-reply-field > span, .admin-broadcast-expiration-minutes > span, .survey-answers__label) { color: var(--muted); font-size: 10px; font-weight: 500; line-height: 1.5; }
@@ -195,11 +195,17 @@
 #app .broadcast-workflow :is(input, textarea)::placeholder { color: var(--muted); opacity: .7; font-weight: 400; }
 #app .broadcast-workflow :is(input, textarea, select, button, .admin-localization-select):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #app .broadcast-workflow .survey-questions { gap: 12px; }
-#app .broadcast-workflow .survey-question { min-width: 0; border: 0; border-top: 1px solid var(--line-soft); border-radius: 0; }
-#app .broadcast-workflow .survey-question:first-child { border-top: 0; }
+#app .broadcast-workflow .survey-question { min-width: 0; padding: 10px; border: 1px solid var(--line-soft); border-radius: 10px; background: color-mix(in srgb, var(--control-material, var(--control-bg)) 40%, var(--surface) 60%); }
 #app .broadcast-workflow .survey-question__head { padding: 0; gap: 6px; min-height: 36px; }
 #app .broadcast-workflow .survey-question__head > button:first-child { min-height: 36px; padding: 6px 0; font-size: 11px; font-weight: 550; }
 #app .broadcast-workflow .survey-question__head svg { transition: transform .18s ease; }
+#app .broadcast-workflow .survey-question__chevron {
+  width: 16px; height: 16px; flex: 0 0 16px; background: var(--icon-color); pointer-events: none;
+  -webkit-mask: var(--select-chevron-mask) center / contain no-repeat;
+  mask: var(--select-chevron-mask) center / contain no-repeat;
+  transition: transform 220ms cubic-bezier(.22, 1, .36, 1);
+}
+#app .broadcast-workflow [aria-expanded="true"] .survey-question__chevron { transform: rotate(180deg); }
 #app .broadcast-workflow .survey-question__body { padding: 8px 0 4px; gap: 12px; }
 #app .broadcast-workflow .survey-answers { gap: 8px; }
 #app .broadcast-workflow .survey-answers > div { align-items: center; gap: 8px; }

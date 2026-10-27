@@ -15,7 +15,7 @@ test("audience editor preserves squad identities and escapes panel text",()=>{
  const id='11111111-1111-4111-8111-111111111111';
  const html=renderAudienceEditor({category:'trial',language:'ru',tag:'<script>',internalSquads:[id]}, {internal:[{uuid:id,name:'<img onerror="bad">'}]}, 15,false,'telegram',helpers);
  assert.match(html,new RegExp(`value="${id}" checked`));assert.match(html,/15 получателей/);assert.match(html,/value="trial" selected/);assert.doesNotMatch(html,/<script>|<img onerror/);
- const running=renderAudienceEditor({category:'active'},null,null,true,'email',helpers);assert.match(running,/data-action="admin-audience-check" data-value="email" disabled/);
+ const running=renderAudienceEditor({category:'active'},null,null,true,'email',helpers);assert.doesNotMatch(running,/admin-audience-check/);assert.match(running,/data-audience-field="category" data-channel="email" disabled/);
 });
 test("surface editors expose separate cursors and per-section backgrounds",()=>{
  const a={colors:{accent:'#123456'},landing:{text:{heroTitle:'<script>unsafe</script>'}}};

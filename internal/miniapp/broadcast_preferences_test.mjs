@@ -14,7 +14,7 @@ const escape = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<'
 
 test('unsubscribe override is a boolean switch, isolated per channel and invalidates confirmed audience', () => {
   const state = {adminBroadcastTab:'telegram', adminAudienceDraft:{}, adminAudienceCount:{telegram:40,email:20}, adminBroadcast:{audience:{category:'paid',ignoreUnsubscribe:false}}, adminBroadcastConfirmOpen:true, adminEmailConfirmOpen:true};
-  const context = vm.createContext({adminBroadcastWorkflowMode:()=>"message",state, deepClone:structuredClone, render(){}});
+  const context = vm.createContext({scheduleAdminBroadcastSave(){},flushAdminBroadcastAutoSave:async()=>{},discardAdminBroadcastAutoSave:async()=>{},adminBroadcastWorkflowMode:()=>"message",state, deepClone:structuredClone, render(){}});
   load(context, 'currentBroadcastAudience'); load(context, 'updateBroadcastAudience'); load(context, 'updateConsoleAudience');
   context.updateBroadcastAudience({type:'checkbox', checked:true, dataset:{channel:'telegram',audienceField:'ignoreUnsubscribe'}, closest(){return null;}});
   assert.equal(state.adminAudienceDraft.telegram.ignoreUnsubscribe,true);
@@ -41,7 +41,7 @@ test('audience editor exposes disabled/checked override without changing other f
 
 test('confirmation explicitly shows when opted-out recipients are included', () => {
   const state = {adminAudienceCount:{telegram:30,email:10}, adminBroadcast:{audience:{ignoreUnsubscribe:true}}, adminEmailBroadcast:{draft:{audience:{ignoreUnsubscribe:false}}}};
-  const context = vm.createContext({adminBroadcastWorkflowMode:()=>"message",state, icon:()=>'', escapeAttribute:escape});
+  const context = vm.createContext({scheduleAdminBroadcastSave(){},flushAdminBroadcastAutoSave:async()=>{},discardAdminBroadcastAutoSave:async()=>{},adminBroadcastWorkflowMode:()=>"message",state, icon:()=>'', escapeAttribute:escape});
   load(context,'renderAdminBroadcastConfirm'); load(context,'renderAdminEmailBroadcastConfirm');
   assert.match(context.renderAdminBroadcastConfirm(false), /Эта рассылка придёт и отписавшимся/);
   assert.doesNotMatch(context.renderAdminEmailBroadcastConfirm(false), /Эта рассылка придёт и отписавшимся/);
@@ -50,7 +50,7 @@ test('confirmation explicitly shows when opted-out recipients are included', () 
 });
 
 test('start content editor contains only visibility and both button forms', () => {
-  const context = vm.createContext({
+  const context = vm.createContext({scheduleAdminBroadcastSave(){},flushAdminBroadcastAutoSave:async()=>{},discardAdminBroadcastAutoSave:async()=>{},
     renderAdminSettingField:(label,path)=>`<input data-setting-path="${path}">`,
     renderAdminToggle:(label,path)=>`<input data-setting-path="${path}">`,
     renderAdminTelegramButton:(label,path)=>`<input data-setting-path="${path}.text"><input data-setting-path="${path}.iconCustomEmojiId"><input data-setting-path="${path}.style">`,

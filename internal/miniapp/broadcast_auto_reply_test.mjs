@@ -12,7 +12,7 @@ function load(ctx,name,async=false) {
 const settings=()=>({enabled:false,text:"Это рассылка",windowHours:24,supportButton:true,supportButtonText:"Поддержка",updatedAt:"settings-one"});
 function setup() {
   const state={adminBroadcast:{status:"draft",updatedAt:"campaign-one"},adminBroadcastBusy:"",adminAudienceDraft:{telegram:{}},adminBroadcastButtonsDirty:false,adminBroadcastAutoReplyDraft:settings(),adminBroadcastAutoReplyDirty:false,adminBroadcastConfirmOpen:true};
-  const ctx=vm.createContext({adminBroadcastWorkflowMode:()=>"message",defaultAdminSurvey:()=>({enabled:false}),state,deepClone:structuredClone,canAdmin:()=>true,render(){},showToast(){},escapeHtml:String,escapeAttribute:String,icon:()=>"<svg></svg>"});
+  const ctx=vm.createContext({scheduleAdminBroadcastSave(){},flushAdminBroadcastAutoSave:async()=>{},discardAdminBroadcastAutoSave:async()=>{},adminBroadcastWorkflowMode:()=>"message",defaultAdminSurvey:()=>({enabled:false}),state,deepClone:structuredClone,canAdmin:()=>true,render(){},showToast(){},escapeHtml:String,escapeAttribute:String,icon:()=>"<svg></svg>"});
   for(const name of ["updateConsoleBroadcastAutoReply","setAdminBroadcastDraft","renderAdminBroadcastAutoReply"])load(ctx,name);
   load(ctx,"saveAdminBroadcastAutoReply",true);
   load(ctx,"ensureAdminBroadcastButtonsSaved",true);
@@ -35,15 +35,15 @@ test("editing auto-reply invalidates confirmation and guards running campaigns, 
   assert.equal(ctx.state.adminBroadcastAutoReplyDraft.text,"Это рассылка");
 });
 
-test("compact auto-reply only offers save after edits, including when switched off",()=>{
+test("auto-reply settings have no manual save button, including when switched off",()=>{
   const ctx=setup();
   assert.doesNotMatch(ctx.renderAdminBroadcastAutoReply(false,false),/data-action="admin-broadcast-save-auto-reply"/);
   ctx.updateConsoleBroadcastAutoReply("enabled",true);
-  assert.match(ctx.renderAdminBroadcastAutoReply(false,false),/data-action="admin-broadcast-save-auto-reply"/);
+  assert.doesNotMatch(ctx.renderAdminBroadcastAutoReply(false,false),/data-action="admin-broadcast-save-auto-reply"/);
   ctx.updateConsoleBroadcastAutoReply("enabled",false);
   const html=ctx.renderAdminBroadcastAutoReply(false,false);
   assert.doesNotMatch(html,/<textarea/);
-  assert.match(html,/data-action="admin-broadcast-save-auto-reply"/);
+  assert.doesNotMatch(html,/data-action="admin-broadcast-save-auto-reply"/);
 });
 
 test("polling and draft reset preserve unsaved global auto-reply settings",()=>{

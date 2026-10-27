@@ -20,6 +20,7 @@ import { validDeviceTrafficRules, sortedDeviceTrafficRules, deviceTrafficLabels,
 import { deviceClientName } from "./device-client.mjs";
 import { renderSMTPSettings } from "./admin-smtp.mjs";
 import { mountLocalizationSelects, closeLocalizationMenu } from "./localization-select.mjs";
+import { createBroadcastAutosave } from "./broadcast-autosave.mjs";
 import { syncCustomBackground, probeBackground, draggedPosition } from "./custom-background.mjs";
 import { DEFAULT_BACKGROUND_MOTION, presetBackgroundColors } from "./background-palette.mjs";
 import {applyCustomCursor,cursorValues} from "./custom-cursor.mjs";
@@ -4290,8 +4291,8 @@ function mountCabinetShell(markup) {
               updateAudience:(field,value)=>updateConsoleAudience(field,value),
               checkAudience:()=>checkBroadcastAudience(state.adminBroadcastTab),loadAudience:loadAudienceOptions,
               updateButton:updateConsoleBroadcastButton,addButton:addAdminBroadcastButton,removeButton:removeAdminBroadcastButton,
-              clearButtons:()=>{if(state.adminBroadcast?.status!=="running"){if(adminBroadcastWorkflowMode()==="survey"){state.adminSurveyDraft.finalButtons=[];state.adminSurveyDirty=true;}else{state.adminBroadcastButtonsDraft=[];state.adminBroadcastButtonsDirty=true;}render({preserveScroll:true});}},
-              updateEmail:(field,value)=>{if(state.adminEmailBroadcast?.draft?.status==="running")return;if(field==="subject")state.adminEmailDraftSubject=value;else state.adminEmailDraftBody=value;state.adminEmailDraftDirty=true;render({preserveScroll:true,preserveInteraction:true});},
+              clearButtons:()=>{if(state.adminBroadcast?.status!=="running"){if(adminBroadcastWorkflowMode()==="survey"){state.adminSurveyDraft.finalButtons=[];state.adminSurveyDirty=true;}else{state.adminBroadcastButtonsDraft=[];state.adminBroadcastButtonsDirty=true;}scheduleAdminBroadcastSave(adminBroadcastWorkflowMode()==="survey"?"survey":"buttons");render({preserveScroll:true});}},
+              updateEmail:(field,value)=>{if(state.adminEmailBroadcast?.draft?.status==="running")return;if(field==="subject")state.adminEmailDraftSubject=value;else state.adminEmailDraftBody=value;state.adminEmailDraftDirty=true;state.adminEmailConfirmOpen=false;scheduleAdminBroadcastSave("email");render({preserveScroll:true,preserveInteraction:true});},
               updatePreviewAddress:value=>{state.adminEmailPreviewAddress=value;},
               templates:consoleBroadcastTemplates,
             },
@@ -6843,6 +6844,7 @@ function activeAdminBroadcastButtons() {
 function markAdminBroadcastButtonsDirty() {
  if(adminBroadcastWorkflowMode()==="survey")state.adminSurveyDirty=true;else state.adminBroadcastButtonsDirty=true;
  state.adminBroadcastConfirmOpen=false;
+ scheduleAdminBroadcastSave(adminBroadcastWorkflowMode()==="survey"?"survey":"buttons");
 }
 function renderAdminBroadcastWorkflowTabs(english=false) {
  const mode=adminBroadcastWorkflowMode(),running=state.adminBroadcast?.status==="running",active=state.adminBroadcast?.survey?.enabled?"survey":"message";
@@ -6856,7 +6858,7 @@ async function setAdminBroadcastWorkflowMode(mode) {
  if(state.adminBroadcast?.status!=="running"){
   state.adminSurveyDraft||=defaultAdminSurvey();const cfg=state.adminSurveyDraft,defaults=defaultAdminSurvey();cfg.enabled=mode==="survey";
   if(cfg.enabled){for(const field of ["title","introText","startText","finishText"])cfg[field]||=defaults[field];if(!cfg.questions?.length)cfg.questions=defaults.questions;cfg.finalButtons||=[];}
-  state.adminSurveyDirty=true;
+  state.adminSurveyDirty=true;scheduleAdminBroadcastSave("survey");
  }
  render({preserveScroll:true});setTimeout(()=>{state.adminBroadcastMotion="";},220);
  if(mode==="survey"&&!state.adminSurveyResultsOpen)await loadAdminSurveyResults();
@@ -6867,7 +6869,7 @@ function adminBroadcastReadiness() {
  if(adminBroadcastWorkflowMode()!=="survey")return{ready:Boolean(state.adminBroadcast?.sourceKind),error:state.adminBroadcast?.sourceKind?"":(english?"Add a message first.":"Сначала добавьте сообщение.")};
  const cfg=state.adminSurveyDraft||{};let error="";
  if(!String(cfg.introText||"").trim())error=english?"Write an invitation.":"Напишите приглашение к опросу.";
- else if(!String(cfg.startText||"").trim()||!String(cfg.title||"").trim())error=english?"Set a title and start button.":"Укажите название и кнопку начала.";
+ else if(!String(cfg.startText||"").trim())error=english?"Set a start button.":"Укажите кнопку начала.";
  else if(!cfg.questions?.length)error=english?"Add a question.":"Добавьте хотя бы один вопрос.";
  else {const i=cfg.questions.findIndex(q=>!String(q.text||"").trim()||!q.options?.length||q.options.some(o=>!String(o).trim()));if(i>=0)error=english?`Complete question ${i+1} and its answers.`:`Заполните вопрос ${i+1} и его варианты ответов.`;}
  if(!error&&!String(cfg.finishText||"").trim())error=english?"Write a final message.":"Напишите завершающее сообщение.";
@@ -6886,14 +6888,44 @@ function defaultAdminSurvey() {
  return {enabled:false,title:"Опрос",introText:"Пройдите короткий опрос — помогите нам стать лучше.",startText:"Пройти опрос",questions:[{text:"",options:["",""]}],finishText:"Спасибо за ваши ответы!",finalButtons:[]};
 }
 
+let broadcastDraftAutosaver;
+function adminBroadcastAutosaver() {
+ return broadcastDraftAutosaver ||= createBroadcastAutosave({state,post,applyTelegramDraft:setAdminBroadcastDraft,
+  onChange:()=>{if(state.currentPage==="admin"&&state.adminSection==="broadcast")render({preserveScroll:true,preserveInteraction:true});},
+  onError:error=>showToast(error?.message||"Не удалось сохранить изменения рассылки", "danger")});
+}
+function scheduleAdminBroadcastSave(key) { adminBroadcastAutosaver().schedule(key); }
+async function flushAdminBroadcastAutoSave() { await broadcastDraftAutosaver?.flush(); }
+async function discardAdminBroadcastAutoSave() { await broadcastDraftAutosaver?.discard(); }
+
 function updateAdminSurveyField(input) {
  if(!canAdmin("broadcast") || state.adminBroadcastBusy || state.adminBroadcast?.status==="running")return;
  const cfg=state.adminSurveyDraft||=defaultAdminSurvey(),field=input.dataset.surveyField;
+ const previous=JSON.stringify(cfg);
  if(field==="enabled") {cfg.enabled=Boolean(input.checked);if(cfg.enabled){const defaults=defaultAdminSurvey();for(const key of ["title","introText","startText","finishText"])cfg[key]||=defaults[key];if(!cfg.questions?.length)cfg.questions=defaults.questions;}}
  else if(["title","introText","startText","finishText"].includes(field))cfg[field]=String(input.value);
  else {const q=cfg.questions?.[Number(input.dataset.question)];if(!q)return;if(field==="text")q.text=String(input.value);else if(field==="option"&&q.options?.[Number(input.dataset.option)]!==undefined)q.options[Number(input.dataset.option)]=String(input.value);else return;}
+ if(JSON.stringify(cfg)===previous)return;
  state.adminSurveyDirty=true;state.adminBroadcastConfirmOpen=false;state.adminSurveyMotion="";
+ scheduleAdminBroadcastSave("survey");
  render({preserveScroll:true,preserveInteraction:true});
+}
+function toggleAdminSurveyQuestion(index) {
+ if(!Number.isInteger(index)||!state.adminSurveyDraft?.questions?.[index])return;
+ state.adminSurveyOpenQuestion=Number(state.adminSurveyOpenQuestion??0)===index?-1:index;
+ state.adminSurveyMotion="question";
+ const template=document.createElement("template");
+ template.innerHTML=renderAdminSurvey(Boolean(state.adminBroadcastBusy)||state.adminBroadcast?.status==="running",state.locale==="en");
+ const desired=[...template.content.querySelectorAll(".survey-question")];
+ const questions=[...app.querySelectorAll(".broadcast-workflow .survey-question")];
+ if(questions.length!==desired.length){render({preserveScroll:true});return;}
+ questions.forEach((question,i)=>{
+  question.querySelector('[data-action="survey-question-open"]')?.setAttribute("aria-expanded",String(i===state.adminSurveyOpenQuestion));
+  const current=question.querySelector(".survey-question__body"),next=desired[i]?.querySelector(".survey-question__body");
+  if(!next)current?.remove();
+  else if(!current)question.append(next);
+ });
+ setTimeout(()=>{state.adminSurveyMotion="";},220);
 }
 function editAdminSurvey(action,qindex,oindex) {
  if(!canAdmin("broadcast") || state.adminBroadcastBusy || state.adminBroadcast?.status==="running")return;
@@ -6902,11 +6934,12 @@ function editAdminSurvey(action,qindex,oindex) {
  else if(action==="removeQuestion"&&Number.isInteger(qindex)&&qindex>=0&&qindex<cfg.questions.length){cfg.questions.splice(qindex,1);state.adminSurveyOpenQuestion=Math.max(0,qindex-1);}
  else {const q=cfg.questions[qindex];if(!q)return;if(action==="addOption"&&q.options.length<100)q.options.push("");else if(action==="removeOption"&&Number.isInteger(oindex)&&oindex>=0&&oindex<q.options.length)q.options.splice(oindex,1);else return;}
  state.adminSurveyDirty=true;state.adminBroadcastConfirmOpen=false;state.adminSurveyMotion="question";render({preserveScroll:true});setTimeout(()=>{state.adminSurveyMotion="";},220);
+ scheduleAdminBroadcastSave("survey");
 }
 async function saveAdminSurvey() {
  if(state.adminBroadcastBusy || !state.adminSurveyDirty)return state.adminBroadcast;
  state.adminBroadcastBusy="survey";render({preserveScroll:true});
- try {const response=await post("/api/mini-app/admin/broadcast/survey",{survey:state.adminSurveyDraft,updatedAt:state.adminBroadcast?.updatedAt});state.adminSurveyDirty=false;setAdminBroadcastDraft(response.data);return response.data;}
+ try {const response=await post("/api/mini-app/admin/broadcast/survey",{survey:{...state.adminSurveyDraft,title:state.adminSurveyDraft.title||"Опрос"},updatedAt:state.adminBroadcast?.updatedAt});state.adminSurveyDirty=false;setAdminBroadcastDraft(response.data);return response.data;}
  finally {state.adminBroadcastBusy="";render({preserveScroll:true});}
 }
 async function loadAdminSurveyResults(id="",more=false) {
@@ -6926,15 +6959,15 @@ function renderAdminSurvey(disabled,english=false) {
  const cfg=state.adminSurveyDraft||defaultAdminSurvey(),d=disabled?"disabled":"";
  const field=(key,label,value,max=80)=>`<label class="survey-field"><span>${label}</span><input type="text" data-input="survey-${key}--" data-survey-field="${key}" maxlength="${max}" value="${escapeAttribute(value||"")}" ${d}></label>`;
  const area=(key,label,value,q="")=>`<label class="survey-field survey-field--wide"><span>${label}</span><textarea rows="2" data-input="survey-${key}-${q}" data-survey-field="${key}" data-question="${q}" maxlength="3500" ${d}>${escapeHtml(value||"")}</textarea></label>`;
- return `<div class="survey-composer"><section class="survey-editor"><div class="broadcast-card-heading">${icon("chat")}<strong>${english?"Invitation":"Приглашение"}</strong></div><div class="survey-editor__body survey-invitation-fields">${field("title",english?"Survey name":"Название опроса",cfg.title)}${field("startText",english?"Start button":"Кнопка начала",cfg.startText,64)}${area("introText",english?"Invitation text":"Текст приглашения",cfg.introText)}</div></section>
- <section class="survey-editor"><div class="broadcast-card-heading">${icon("menu")}<strong>${english?"Questions":"Вопросы"}</strong></div><div class="survey-editor__body"><div class="survey-questions">${(cfg.questions||[]).map((q,i)=>`<section class="survey-question"><div class="survey-question__head"><button type="button" data-action="survey-question-open" data-question="${i}" aria-expanded="${Number(state.adminSurveyOpenQuestion||0)===i}" ${d}><span>${escapeHtml(surveyPlainText(q.text)|| (english?"New question":"Новый вопрос"))}</span>${icon("arrowRight")}</button><button class="survey-icon" type="button" data-action="survey-question-remove" data-question="${i}" aria-label="${english?"Delete question":"Удалить вопрос"}" ${d}>${icon("trash")}</button></div>${Number(state.adminSurveyOpenQuestion||0)===i?`<div class="survey-question__body ${state.adminSurveyMotion==="question"?"is-entering":""}">${area("text",english?"Question text":"Текст вопроса",q.text,i)}<div class="survey-answers"><span class="survey-answers__label">${english?"Answer options":"Варианты ответа"}</span>${(q.options||[]).map((o,j)=>`<div><input type="text" class="survey-answer-input" data-input="survey-option-${i}-${j}" data-survey-field="option" data-question="${i}" data-option="${j}" maxlength="64" aria-label="${english?"Answer option":"Вариант ответа"} ${j+1}" placeholder="${english?"Answer option":"Вариант ответа"}" value="${escapeAttribute(o||"")}" ${d}><button class="survey-icon" type="button" data-action="survey-option-remove" data-question="${i}" data-option="${j}" aria-label="${english?"Delete answer":"Удалить ответ"}" ${d}>${icon("trash")}</button></div>`).join("")}</div><button class="survey-add" type="button" data-action="survey-option-add" data-question="${i}" ${disabled||q.options?.length>=100?"disabled":""}>${icon("plus")}${english?"Add answer":"Добавить ответ"}</button></div>`:""}</section>`).join("")}</div><button class="survey-add" type="button" data-action="survey-question-add" ${disabled||cfg.questions?.length>=64?"disabled":""}>${icon("plus")}${english?"Add question":"Добавить вопрос"}</button></div></section>
- <section class="survey-editor"><div class="broadcast-card-heading">${icon("check")}<strong>${english?"Finish":"Завершение"}</strong>${state.adminSurveyDirty?`<button class="survey-icon" type="button" data-action="survey-save" aria-label="${english?"Save survey":"Сохранить опрос"}" title="${english?"Save survey":"Сохранить опрос"}" ${d}>${icon("check")}</button>`:""}</div><div class="survey-editor__body">${area("finishText",english?"Final message":"Финальное сообщение",cfg.finishText)}</div></section>${renderAdminBroadcastOptionalButtons(disabled,english)}</div>`;
+ return `<div class="survey-composer"><section class="survey-editor"><div class="broadcast-card-heading">${icon("chat")}<strong>${english?"Invitation":"Приглашение"}</strong></div><div class="survey-editor__body survey-invitation-fields">${field("startText",english?"Start button":"Кнопка начала",cfg.startText,64)}${area("introText",english?"Invitation text":"Текст приглашения",cfg.introText)}</div></section>
+ <section class="survey-editor"><div class="broadcast-card-heading">${icon("menu")}<strong>${english?"Questions":"Вопросы"}</strong></div><div class="survey-editor__body"><div class="survey-questions">${(cfg.questions||[]).map((q,i)=>`<section class="survey-question"><div class="survey-question__head"><button type="button" data-action="survey-question-open" data-question="${i}" aria-expanded="${Number(state.adminSurveyOpenQuestion||0)===i}" ${d}><span>${escapeHtml(surveyPlainText(q.text)|| (english?"New question":"Новый вопрос"))}</span><span class="survey-question__chevron" aria-hidden="true"></span></button><button class="survey-icon" type="button" data-action="survey-question-remove" data-question="${i}" aria-label="${english?"Delete question":"Удалить вопрос"}" ${d}>${icon("trash")}</button></div>${Number(state.adminSurveyOpenQuestion||0)===i?`<div class="survey-question__body ${state.adminSurveyMotion==="question"?"is-entering":""}">${area("text",english?"Question text":"Текст вопроса",q.text,i)}<div class="survey-answers"><span class="survey-answers__label">${english?"Answer options":"Варианты ответа"}</span>${(q.options||[]).map((o,j)=>`<div><input type="text" class="survey-answer-input" data-input="survey-option-${i}-${j}" data-survey-field="option" data-question="${i}" data-option="${j}" maxlength="64" aria-label="${english?"Answer option":"Вариант ответа"} ${j+1}" placeholder="${english?"Answer option":"Вариант ответа"}" value="${escapeAttribute(o||"")}" ${d}><button class="survey-icon" type="button" data-action="survey-option-remove" data-question="${i}" data-option="${j}" aria-label="${english?"Delete answer":"Удалить ответ"}" ${d}>${icon("trash")}</button></div>`).join("")}</div><button class="survey-add" type="button" data-action="survey-option-add" data-question="${i}" ${disabled||q.options?.length>=100?"disabled":""}>${icon("plus")}${english?"Add answer":"Добавить ответ"}</button></div>`:""}</section>`).join("")}</div><button class="survey-add" type="button" data-action="survey-question-add" ${disabled||cfg.questions?.length>=64?"disabled":""}>${icon("plus")}${english?"Add question":"Добавить вопрос"}</button></div></section>
+ <section class="survey-editor"><div class="broadcast-card-heading">${icon("check")}<strong>${english?"Finish":"Завершение"}</strong></div><div class="survey-editor__body">${area("finishText",english?"Final message":"Финальное сообщение",cfg.finishText)}</div></section>${renderAdminBroadcastOptionalButtons(disabled,english)}</div>`;
 }
 
 function renderAdminSurveyResults(english=false) {
  const result=state.adminSurveyResults||{},report=result.report;
  if(!state.adminSurveyResultsBusy&&!state.adminSurveyResultsError&&!report&&!(result.runs||[]).length)return `<p class="survey-results-empty">${english?"No surveys sent yet":"Отправленных опросов пока нет"}</p>`;
- return `<div class="survey-results">${state.adminSurveyResultsError?`<p role="alert">${escapeHtml(state.adminSurveyResultsError)}</p>`:""}<div class="survey-results__head">${(result.runs||[]).length?`<select aria-label="${english?"Survey results":"Результаты опроса"}" data-survey-run="select" ${state.adminSurveyResultsBusy?"disabled":""}>${(result.runs||[]).map(r=>`<option value="${escapeAttribute(r.id)}" ${r.id===report?.run?.id?"selected":""}>${escapeHtml(r.config?.title||"Опрос")} · ${escapeHtml(new Date(r.createdAt).toLocaleDateString(english?"en-US":"ru-RU"))}</option>`).join("")}</select>`:""}</div>
+ return `<div class="survey-results">${state.adminSurveyResultsError?`<p role="alert">${escapeHtml(state.adminSurveyResultsError)}</p>`:""}<div class="survey-results__head">${(result.runs||[]).length?`<select aria-label="${english?"Survey results":"Результаты опроса"}" data-survey-run="select" ${state.adminSurveyResultsBusy?"disabled":""}>${(result.runs||[]).map(r=>`<option value="${escapeAttribute(r.id)}" ${r.id===report?.run?.id?"selected":""}>${english?"Sent":"Отправлен"} · ${escapeHtml(new Date(r.createdAt).toLocaleDateString(english?"en-US":"ru-RU"))}</option>`).join("")}</select>`:""}</div>
  ${report?`<div class="survey-stats">${[[english?"Delivered":"Доставлено",report.run.delivered],[english?"Started":"Начали",report.run.started],[english?"Completed":"Прошли",report.run.completed]].map(([label,n])=>`<span><strong>${Number(n||0).toLocaleString()}</strong><small>${label}</small></span>`).join("")}</div>
  <div class="survey-totals">${report.run.config.questions.map((q,i)=>`<details><summary>${escapeHtml(surveyPlainText(q.text))}</summary>${q.options.map((o,j)=>`<div><span>${escapeHtml(o)}</span><b>${Number(report.counts?.[i]?.[j]||0).toLocaleString()}</b></div>`).join("")}</details>`).join("")}</div>
  <div class="survey-people">${report.recipients.map(p=>`<details><summary><span>${escapeHtml(p.username?`@${p.username}`:String(p.telegramId))}</span><small>${p.step>=report.run.config.questions.length?(english?"Completed":"Пройден"):p.step<0?(english?"Not started":"Не начат"):`${p.answers?.length||0} / ${report.run.config.questions.length}`}</small></summary>${(p.answers||[]).map((o,i)=>`<p><span>${escapeHtml(surveyPlainText(report.run.config.questions[i]?.text))}</span><strong>${escapeHtml(report.run.config.questions[i]?.options?.[o]||"—")}</strong></p>`).join("")}</details>`).join("")}</div>${report.hasMore?`<button class="survey-add" type="button" data-action="survey-results" data-more="true" ${state.adminSurveyResultsBusy?"disabled":""}>${icon("plus")}${english?"More":"Ещё"}</button>`:""}`:`<p class="survey-hint">${state.adminSurveyResultsBusy?(english?"Loading…":"Загрузка…"):(english?"No surveys sent yet":"Отправленных опросов пока нет")}</p>`}</div>`;
@@ -6951,7 +6984,7 @@ function renderAdminBroadcastAutoReply(disabled,english) {
  const value=state.adminBroadcastAutoReplyDraft;
  if(!value)return "";
  const title=english ? "Broadcast auto-reply" : "Автоответ на рассылки";
- return `<div class="broadcast-option"><label class="broadcast-option__header"><span class="broadcast-option__icon">${icon("chat")}</span><span class="broadcast-option__text"><strong>${title}</strong><small>${english ? "Reply to a recipient's message" : "Ответ на сообщение получателя"}</small></span><input type="checkbox" role="switch" aria-label="${title}" data-auto-reply-field="enabled" ${value.enabled?"checked":""} ${disabled?"disabled":""}></label>${value.enabled ? `<div class="broadcast-option__body"><label class="admin-broadcast-auto-reply-field"><span>${english ? "Reply text" : "Текст ответа"}</span><textarea data-auto-reply-field="text" maxlength="3500" rows="3" placeholder="Telegram HTML" ${disabled?"disabled":""}>${escapeHtml(value.text||"")}</textarea></label><label class="admin-broadcast-auto-reply-field"><span>${english ? "Reply window, hours" : "Окно ответа, часов"}</span><input type="number" min="1" max="168" step="1" data-auto-reply-field="windowHours" value="${Number(value.windowHours)||24}" ${disabled?"disabled":""}></label><label class="broadcast-option__support"><span>${english ? "Support button" : "Кнопка поддержки"}</span><input type="checkbox" role="switch" aria-label="${english ? "Support button" : "Кнопка поддержки"}" data-auto-reply-field="supportButton" ${value.supportButton?"checked":""} ${disabled?"disabled":""}></label>${value.supportButton?`<label class="admin-broadcast-auto-reply-field"><span>${english ? "Button label" : "Подпись кнопки"}</span><input type="text" maxlength="64" data-auto-reply-field="supportButtonText" value="${escapeAttribute(value.supportButtonText||"")}" ${disabled?"disabled":""}></label>`:""}</div>`:""}${state.adminBroadcastAutoReplyDirty ? `<div class="broadcast-option__actions"><button class="broadcast-option__save" type="button" data-action="admin-broadcast-save-auto-reply" aria-label="${english ? "Save auto-reply" : "Сохранить автоответ"}" title="${english ? "Save auto-reply" : "Сохранить автоответ"}" ${disabled?"disabled":""}>${icon("check")}</button></div>` : ""}</div>`;
+ return `<div class="broadcast-option"><label class="broadcast-option__header"><span class="broadcast-option__icon">${icon("chat")}</span><span class="broadcast-option__text"><strong>${title}</strong><small>${english ? "Reply to a recipient's message" : "Ответ на сообщение получателя"}</small></span><input type="checkbox" role="switch" aria-label="${title}" data-auto-reply-field="enabled" ${value.enabled?"checked":""} ${disabled?"disabled":""}></label>${value.enabled ? `<div class="broadcast-option__body"><label class="admin-broadcast-auto-reply-field"><span>${english ? "Reply text" : "Текст ответа"}</span><textarea data-auto-reply-field="text" maxlength="3500" rows="3" placeholder="Telegram HTML" ${disabled?"disabled":""}>${escapeHtml(value.text||"")}</textarea></label><label class="admin-broadcast-auto-reply-field"><span>${english ? "Reply window, hours" : "Окно ответа, часов"}</span><input type="number" min="1" max="168" step="1" data-auto-reply-field="windowHours" value="${Number(value.windowHours)||24}" ${disabled?"disabled":""}></label><label class="broadcast-option__support"><span>${english ? "Support button" : "Кнопка поддержки"}</span><input type="checkbox" role="switch" aria-label="${english ? "Support button" : "Кнопка поддержки"}" data-auto-reply-field="supportButton" ${value.supportButton?"checked":""} ${disabled?"disabled":""}></label>${value.supportButton?`<label class="admin-broadcast-auto-reply-field"><span>${english ? "Button label" : "Подпись кнопки"}</span><input type="text" maxlength="64" data-auto-reply-field="supportButtonText" value="${escapeAttribute(value.supportButtonText||"")}" ${disabled?"disabled":""}></label>`:""}</div>`:""}</div>`;
 }
 
 
@@ -6987,7 +7020,6 @@ function renderAdminEmailBroadcastPage() {
   const message = `${renderCurrentAudience("email",running)}<div class="admin-mail__form">
       <label class="admin-email-broadcast__field"><span>${english ? "Subject" : "Тема"}</span><input data-admin-email-subject maxlength="160" placeholder="${english ? "Email subject" : "Тема письма"}" value="${escapeAttribute(state.adminEmailDraftSubject)}" ${running ? "disabled" : ""}></label>
       <label class="admin-email-broadcast__field"><span>${english ? "Message" : "Текст письма"}</span><textarea data-admin-email-body maxlength="20000" rows="4" placeholder="${english ? "Write the message" : "Напишите текст письма"}" ${running ? "disabled" : ""}>${escapeHtml(state.adminEmailDraftBody)}</textarea></label>
-      <button class="admin-mail__button" type="button" data-action="admin-email-save" ${running || busy ? "disabled" : ""}>${icon("check")}<span>${english ? "Save email" : "Сохранить письмо"}</span></button>
 
   </div>`;
   const test = `<div class="admin-mail__form">
@@ -8189,9 +8221,10 @@ function renderCurrentAudience(channel, running) {
 function updateBroadcastAudience(input) {
   const channel = input.dataset.channel,
     key = input.dataset.audienceField;
-  if (!["telegram", "email"].includes(channel) || state.adminAudienceBusy)
+  if (!["telegram", "email"].includes(channel) || state.adminAudienceBusy || (channel === "email" ? state.adminEmailBroadcast?.draft : state.adminBroadcast)?.status === "running")
     return;
   const a = currentBroadcastAudience(channel);
+  const previous = JSON.stringify(a);
   if (key === "ignoreUnsubscribe") {
     a[key] = Boolean(input.checked);
   } else if (input.type === "checkbox") {
@@ -8200,7 +8233,10 @@ function updateBroadcastAudience(input) {
     else list.delete(input.value);
     a[key] = [...list];
   } else a[key] = input.value;
+  if (JSON.stringify(a) === previous) return;
   state.adminAudienceCount[channel] = null;
+	(state.adminAudienceDirty ||= {})[channel] = true;
+	scheduleAdminBroadcastSave(`audience:${channel}`);
 	state.adminBroadcastConfirmOpen = false;
 	state.adminEmailConfirmOpen = false;
   if (state.adminWorkspace) {
@@ -8229,6 +8265,7 @@ async function loadAudienceOptions() {
   }
 }
 async function checkBroadcastAudience(channel) {
+  await flushAdminBroadcastAutoSave();
   if (state.adminAudienceBusy) return false;
   state.adminAudienceBusy = true;
   render({ preserveScroll: true });
@@ -12445,7 +12482,7 @@ function bindRootActions() {
 			}
 			if (action === "admin-broadcast-tab" && ["telegram", "email"].includes(value)) { state.adminBroadcastTab = value; state.adminEmailConfirmOpen = false; state.adminBroadcastConfirmOpen = false; render({ preserveScroll: true }); return await refreshAdminBroadcast({ forceButtons: false }); }
 			if (action === "admin-email-save") return await saveAdminEmailBroadcast();
-			if (action === "admin-email-open-confirm") { if(state.adminEmailDraftDirty && !await saveAdminEmailBroadcast({quiet:true}))return; if(!await checkBroadcastAudience("email"))return; state.adminEmailConfirmedAt=state.adminEmailBroadcast?.draft?.updatedAt; state.adminEmailConfirmOpen = true; render({ preserveScroll: true }); return; }
+			if (action === "admin-email-open-confirm") { await flushAdminBroadcastAutoSave(); if(state.adminEmailDraftDirty && !await saveAdminEmailBroadcast({quiet:true}))return; if(!await checkBroadcastAudience("email"))return; state.adminEmailConfirmedAt=state.adminEmailBroadcast?.draft?.updatedAt; state.adminEmailConfirmOpen = true; render({ preserveScroll: true }); return; }
 			if (action === "admin-email-close-confirm") { state.adminEmailConfirmOpen = false; render({ preserveScroll: true }); return; }
 			if (action === "admin-email-send") return await sendAdminEmailBroadcast();
 			if (action === "admin-broadcast-add-button") return addAdminBroadcastButton();
@@ -12462,7 +12499,7 @@ function bindRootActions() {
  if(action === "survey-question-remove") return editAdminSurvey("removeQuestion",Number(target.dataset.question));
  if(action === "survey-option-add") return editAdminSurvey("addOption",Number(target.dataset.question));
  if(action === "survey-option-remove") return editAdminSurvey("removeOption",Number(target.dataset.question),Number(target.dataset.option));
- if(action === "survey-question-open") {state.adminSurveyOpenQuestion=Number(state.adminSurveyOpenQuestion||0)===Number(target.dataset.question)?-1:Number(target.dataset.question);state.adminSurveyMotion="question";render({preserveScroll:true});setTimeout(()=>{state.adminSurveyMotion="";},220);return;}
+ if(action === "survey-question-open") return toggleAdminSurveyQuestion(Number(target.dataset.question));
  if (action === "admin-broadcast-save-auto-reply") return await saveAdminBroadcastAutoReply();
 			if (action === "admin-broadcast-save-buttons") return await saveAdminBroadcastButtons();
 			if (action === "admin-broadcast-preview") return await previewAdminBroadcast();
@@ -12598,8 +12635,8 @@ function bindRootActions() {
  if(target.dataset?.input==="admin-landing-background-url"){landingBackgroundURL=target.value;return;}
 		if (target.dataset.input === "admin-background-url") { adminBackgroundURL = target.value; return; }
         if (target.dataset.input?.startsWith("administrators-")) { handleAdministratorsInput(target); return; }
-		if (target.matches?.("[data-admin-email-subject]")) { state.adminEmailDraftSubject = target.value; state.adminEmailDraftDirty = true; return; }
-		if (target.matches?.("[data-admin-email-body]")) { state.adminEmailDraftBody = target.value; state.adminEmailDraftDirty = true; return; }
+		if (target.matches?.("[data-admin-email-subject]")) { state.adminEmailDraftSubject = target.value; state.adminEmailDraftDirty = true; state.adminEmailConfirmOpen=false; scheduleAdminBroadcastSave("email"); return; }
+		if (target.matches?.("[data-admin-email-body]")) { state.adminEmailDraftBody = target.value; state.adminEmailDraftDirty = true; state.adminEmailConfirmOpen=false; scheduleAdminBroadcastSave("email"); return; }
 		if (target.matches?.("[data-admin-email-preview]")) { state.adminEmailPreviewAddress = target.value; return; }
 		if (target.matches?.("[data-email-link-email]")) { emailLink.email = target.value; return; }
 		if (target.matches?.("[data-email-link-password]")) { emailLink.password = target.value; return; }
@@ -12802,7 +12839,8 @@ function bindRootActions() {
 			return;
 		}
 		if(target?.dataset?.surveyField && target.type!=="checkbox"){updateAdminSurveyField(target);return;}
-		if(target?.dataset?.autoReplyField && ["text","supportButtonText"].includes(target.dataset.autoReplyField)) {updateConsoleBroadcastAutoReply(target.dataset.autoReplyField,target.value);return;}
+ if(target?.dataset?.autoReplyField && ["text","supportButtonText","windowHours"].includes(target.dataset.autoReplyField)) {updateConsoleBroadcastAutoReply(target.dataset.autoReplyField,target.value);return;}
+ if(target?.dataset?.input==="admin-broadcast-expiration-minutes"){const minutes=Number(target.value);if(target.value!==""&&Number.isInteger(minutes)&&minutes>=1&&minutes<=2820)updateConsoleBroadcastExpiration(minutes);return;}
 		const inputKey = target?.dataset?.input;
 		if (!inputKey) return;
 		if (inputKey === "device-limit-gb") { state.deviceLimitDraft = target.value; return; }
@@ -13623,6 +13661,7 @@ function updateConsoleBroadcastButton(index,field,value) {
  if(state.adminBroadcast?.status==="running" || state.adminBroadcastBusy || !activeAdminBroadcastButtons()[index])return;
  const allowed=["text","type","url","promoCode","iconCustomEmojiId","style"];
  if(!allowed.includes(field))return;
+ if(activeAdminBroadcastButtons()[index][field]===value)return;
  const button=activeAdminBroadcastButtons()[index];button[field]=value;
  if(field==="type"){if(value!=="url")button.url="";if(value!=="promo")button.promoCode="";}
  markAdminBroadcastButtonsDirty();
@@ -13633,8 +13672,10 @@ function updateConsoleBroadcastAutoReply(field,value) {
  if(!["enabled","text","windowHours","supportButton","supportButtonText"].includes(field)) return;
  if(["enabled","supportButton"].includes(field)) value=Boolean(value);
  if(field==="windowHours") {value=Number(value);if(!Number.isInteger(value)||value<1||value>168)return;}
+ if(state.adminBroadcastAutoReplyDraft[field]===value)return;
  state.adminBroadcastAutoReplyDraft[field]=value;
  state.adminBroadcastAutoReplyDirty=true;
+ scheduleAdminBroadcastSave("auto-reply");
  state.adminBroadcastConfirmOpen=false;
  render({preserveScroll:true,preserveInteraction:true});
 }
@@ -13656,8 +13697,10 @@ function updateConsoleBroadcastExpiration(value) {
  if(state.adminBroadcast?.status === "running" || state.adminBroadcastBusy || !canAdmin("broadcast")) return;
  const minutes=Number(value);
  if(!Number.isInteger(minutes) || minutes<0 || minutes>2820) return;
+ if(state.adminBroadcastExpirationDraft===minutes)return;
  state.adminBroadcastExpirationDraft=minutes;
  state.adminBroadcastExpirationDirty=minutes!==Number(state.adminBroadcast?.deleteAfterMinutes||0);
+ scheduleAdminBroadcastSave("expiration");
  state.adminBroadcastConfirmOpen=false;
  render({preserveScroll:true,preserveInteraction:true});
 }
@@ -13680,11 +13723,14 @@ async function saveAdminBroadcastExpiration({silent=false}={}) {
 function updateConsoleAudience(field,value) {
  if(state.adminAudienceBusy || (state.adminBroadcastTab==="email" ? state.adminEmailBroadcast?.draft : state.adminBroadcast)?.status==="running")return;
  if(!["category","language","tag","internalSquads","externalSquads","ignoreUnsubscribe"].includes(field))return;
+ if(JSON.stringify(currentBroadcastAudience(state.adminBroadcastTab)[field])===JSON.stringify(value))return;
  const channel=state.adminBroadcastTab;currentBroadcastAudience(channel)[field]=value;state.adminAudienceCount[channel]=null;
+ (state.adminAudienceDirty ||= {})[channel]=true;scheduleAdminBroadcastSave(`audience:${channel}`);
  state.adminBroadcastConfirmOpen=false;state.adminEmailConfirmOpen=false;
  render({preserveScroll:true,preserveInteraction:true});
 }
 async function consoleBroadcastTemplates(action,{name="",id=0}={}) {
+ if(action==="apply")await discardAdminBroadcastAutoSave();else await flushAdminBroadcastAutoSave();
  const channel=state.adminBroadcastTab;
  if(!canAdmin("broadcast"))throw new Error("Недостаточно прав");
  if(["save","apply"].includes(action)){
@@ -13726,7 +13772,7 @@ let adminTelegramStatePending=false,adminEmailStatePending=false;
 async function refreshAdminBroadcast({ silent = false, forceButtons = false } = {}) {
  if(!canAdmin("broadcast"))state.adminBroadcastTab="email";
  if(state.adminBroadcastTab==="email")return refreshAdminEmailBroadcast({silent});
- if(state.adminSection!=="broadcast" || state.adminBroadcastBusy || adminTelegramStatePending)return;
+ if(state.adminSection!=="broadcast" || state.adminBroadcastBusy || state.adminBroadcastAutoSaving || adminTelegramStatePending)return;
  adminTelegramStatePending=true;
  const previous=JSON.stringify(state.adminBroadcast||{}),stamp=state.adminBroadcast?.updatedAt,previousError=state.adminBroadcastError||"";
  state.adminBroadcastError="";
@@ -13745,7 +13791,7 @@ async function refreshAdminBroadcast({ silent = false, forceButtons = false } = 
 }
 async function refreshAdminEmailBroadcast({silent=false}={}) {
  if(state.adminEmailEditorTab==="connection"||!canAdmin("broadcast"))void loadAdminSMTP();
- if(!canAdmin("broadcast")||state.adminSection!=="broadcast"||state.adminEmailBusy||adminEmailStatePending)return;
+ if(!canAdmin("broadcast")||state.adminSection!=="broadcast"||state.adminEmailBusy||state.adminBroadcastAutoSaving||adminEmailStatePending)return;
  adminEmailStatePending=true;
  const previous=JSON.stringify(state.adminEmailBroadcast||{}),stamp=state.adminEmailBroadcast?.draft?.updatedAt,previousError=state.adminBroadcastError||"";
  state.adminBroadcastError="";
@@ -13785,6 +13831,7 @@ async function saveAdminEmailBroadcast({ quiet = false } = {}) {
 }
 
 async function previewAdminEmailBroadcast() {
+  await flushAdminBroadcastAutoSave();
   if (state.adminEmailDraftDirty && !await saveAdminEmailBroadcast({ quiet: true })) return;
   if (state.adminEmailBusy) return;
   const email = String(state.adminEmailPreviewAddress || "").trim();
@@ -13814,6 +13861,7 @@ async function sendAdminEmailBroadcast() {
 }
 
 async function startAdminBroadcastCapture() {
+ await flushAdminBroadcastAutoSave();
 	if (state.adminBroadcastBusy) return;
 	state.adminBroadcastBusy = "capture";
 	render({ preserveScroll: true });
@@ -13875,6 +13923,7 @@ async function saveAdminBroadcastButtons({ silent = false, forceMessage=false } 
 }
 
 async function ensureAdminBroadcastButtonsSaved() {
+ await flushAdminBroadcastAutoSave();
  const survey=adminBroadcastWorkflowMode()==="survey";state.adminSurveyDraft||=defaultAdminSurvey();if(state.adminSurveyDraft.enabled!==survey){state.adminSurveyDraft.enabled=survey;state.adminSurveyDirty=true;}
  if(state.adminSurveyDirty) await saveAdminSurvey();
 	if(state.adminBroadcastAutoReplyDirty) await saveAdminBroadcastAutoReply({silent:true});
@@ -13924,11 +13973,14 @@ async function sendAdminBroadcast() {
 async function resetAdminBroadcast() {
 	if (state.adminBroadcastBusy || state.adminBroadcast?.status === "running") return;
 	state.adminBroadcastBusy = "reset";
+	try { await flushAdminBroadcastAutoSave(); } catch { /* Reset can replace an invalid campaign draft. */ }
+	await discardAdminBroadcastAutoSave();
 	render({ preserveScroll: true });
 	try {
 		const response = await post("/api/mini-app/admin/broadcast/reset", {});
 		setAdminBroadcastDraft(response.data, { forceButtons: true, forceExpiration: true, forceSurvey:true });
 		state.adminBroadcastBusy = "";
+		if(state.adminBroadcastAutoReplyDirty)scheduleAdminBroadcastSave("auto-reply");
 		render({ preserveScroll: true });
 		showToast(state.locale === "en" ? "Draft cleared" : "Черновик очищен", "success");
 	} catch (error) {

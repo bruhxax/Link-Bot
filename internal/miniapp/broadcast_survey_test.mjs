@@ -7,7 +7,7 @@ function load(c,name){let start=source.indexOf(`function ${name}(`);assert.ok(st
 function harness(){
  const requests=[],renders=[],state={adminAudienceDraft:{},adminBroadcast:{status:'draft',updatedAt:'stamp'},adminBroadcastButtonsDraft:[]};
  const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const c=vm.createContext({state,setTimeout:()=>0,canAdmin:()=>true,deepClone:x=>JSON.parse(JSON.stringify(x)),render:x=>renders.push(x),icon:()=>'<svg></svg>',escapeHtml:escape,escapeAttribute:escape,post:async(url,body)=>{requests.push({url,body});return{data:{status:'draft',updatedAt:'new-stamp',survey:JSON.parse(JSON.stringify(body.survey))}};}});
+ const c=vm.createContext({scheduleAdminBroadcastSave(){},flushAdminBroadcastAutoSave:async()=>{},discardAdminBroadcastAutoSave:async()=>{},state,setTimeout:()=>0,canAdmin:()=>true,deepClone:x=>JSON.parse(JSON.stringify(x)),render:x=>renders.push(x),icon:()=>'<svg></svg>',escapeHtml:escape,escapeAttribute:escape,post:async(url,body)=>{requests.push({url,body});return{data:{status:'draft',updatedAt:'new-stamp',survey:JSON.parse(JSON.stringify(body.survey))}};}});
  for(const name of ['defaultAdminSurvey','updateAdminSurveyField','editAdminSurvey','saveAdminSurvey','loadAdminSurveyResults','surveyPlainText','renderAdminSurvey','renderAdminSurveyResults','setAdminBroadcastDraft','adminBroadcastWorkflowMode','activeAdminBroadcastButtons','markAdminBroadcastButtonsDirty','setAdminBroadcastWorkflowMode','adminBroadcastReadiness','renderAdminBroadcastWorkflowTabs','renderAdminBroadcastOptionalButtons','renderAdminBroadcastButton'])load(c,name);
  return{c,state,requests,renders};
 }
@@ -31,7 +31,7 @@ test('saving uses the current draft version and reset discards old survey edits'
 test('running surveys cannot be modified and all controls are disabled',()=>{
  const{c,state}=harness();state.adminSurveyDraft=c.defaultAdminSurvey();state.adminSurveyDraft.enabled=true;state.adminBroadcast.status='running';
  c.editAdminSurvey('addQuestion');c.updateAdminSurveyField({dataset:{surveyField:'title'},value:'bad'});assert.equal(state.adminSurveyDraft.questions.length,1);assert.notEqual(state.adminSurveyDraft.title,'bad');
- assert.match(c.renderAdminSurvey(true),/data-survey-field="title"[^>]*disabled/);
+ assert.match(c.renderAdminSurvey(true),/data-survey-field="startText"[^>]*disabled/);
 });
 test('results escape customer content and expose counts, individual answers and pagination',()=>{
  const{c,state}=harness();state.adminSurveyResultsOpen=true;state.adminSurveyResults={runs:[],report:{run:{id:'run',config:{questions:[{text:'<b>Service?</b>',options:['<script>evil</script>','Good']}]},delivered:3,started:2,completed:1},counts:[[0,1]],recipients:[{id:1,telegramId:42,username:'<img onerror=evil>',step:1,answers:[1]}],hasMore:true}};

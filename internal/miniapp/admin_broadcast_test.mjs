@@ -7,7 +7,7 @@ const source=fs.readFileSync(new URL("./static/app.js",import.meta.url),"utf8");
 const refreshCode=source.slice(source.indexOf("let adminTelegramStatePending="),source.indexOf("async function saveAdminEmailBroadcast("));
 function refreshContext(state){
  let renders=0;
- const ctx=vm.createContext({state,canAdmin:()=>true,adminBroadcastWorkflowMode:()=>state.adminBroadcastMode||"message",loadAdminSurveyResults(){state.adminSurveyResultsOpen=true},loadAdminSMTP(){},deepClone:structuredClone,render(){renders++},post:async()=>({data:{}}),setAdminBroadcastDraft(d){state.adminBroadcast=d}});
+ const ctx=vm.createContext({scheduleAdminBroadcastSave(){},flushAdminBroadcastAutoSave:async()=>{},discardAdminBroadcastAutoSave:async()=>{},state,canAdmin:()=>true,adminBroadcastWorkflowMode:()=>state.adminBroadcastMode||"message",loadAdminSurveyResults(){state.adminSurveyResultsOpen=true},loadAdminSMTP(){},deepClone:structuredClone,render(){renders++},post:async()=>({data:{}}),setAdminBroadcastDraft(d){state.adminBroadcast=d}});
  vm.runInContext(refreshCode,ctx);return{ctx,get renders(){return renders}};
 }
 test("broadcast metrics show delivery errors and handle empty or excessive progress",()=>{
@@ -47,7 +47,7 @@ test("opening a saved survey loads its inline answers once without replacing the
 });
 test("applying a Telegram template uses the saved nonce and only restores state",async()=>{
  const state={adminBroadcastTab:"telegram",adminBroadcast:{updatedAt:"one"},adminAudienceDraft:{},adminAudienceCount:{telegram:18},adminBroadcastConfirmOpen:true,adminEmailConfirmOpen:true};let saved=0,payload;
- const ctx=vm.createContext({state,canAdmin:()=>true,ensureAdminBroadcastButtonsSaved:async()=>{saved++;state.adminBroadcast.updatedAt="saved"},currentBroadcastAudience:()=>({category:"active"}),deepClone:structuredClone,render(){},setAdminBroadcastDraft(d){state.adminBroadcast=d},post:async(url,body)=>{payload={url,body};return{data:{updatedAt:"restored",audience:{category:"trial"}}}}});
+ const ctx=vm.createContext({scheduleAdminBroadcastSave(){},flushAdminBroadcastAutoSave:async()=>{},discardAdminBroadcastAutoSave:async()=>{},state,canAdmin:()=>true,ensureAdminBroadcastButtonsSaved:async()=>{saved++;state.adminBroadcast.updatedAt="saved"},currentBroadcastAudience:()=>({category:"active"}),deepClone:structuredClone,render(){},setAdminBroadcastDraft(d){state.adminBroadcast=d},post:async(url,body)=>{payload={url,body};return{data:{updatedAt:"restored",audience:{category:"trial"}}}}});
  vm.runInContext(source.slice(source.indexOf("async function consoleBroadcastTemplates("),source.indexOf("function setAdminBroadcastDraft(")),ctx);
  await ctx.consoleBroadcastTemplates("apply",{id:7});assert.equal(saved,1);assert.equal(payload.url,"/api/mini-app/admin/broadcast/templates");assert.equal(payload.body.updatedAt,"saved");assert.equal(payload.body.id,7);assert.equal(state.adminBroadcast.updatedAt,"restored");assert.equal(state.adminAudienceDraft.telegram.category,"trial");assert.equal(state.adminAudienceCount.telegram,null);assert.equal(state.adminBroadcastConfirmOpen,false);assert.equal(state.adminEmailConfirmOpen,false);
 });
