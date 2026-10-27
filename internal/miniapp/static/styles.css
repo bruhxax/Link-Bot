@@ -14279,12 +14279,6 @@ body.is-layout-editing .layout-editor-grid { background: none; }
   color: var(--text); background: var(--surface); border: 1px solid var(--line-soft);
   border-radius: 12px; cursor: pointer;
 }
-.admin-localization-select::after {
-  content: ''; position: absolute; inset-inline-end: 16px; top: 17px;
-  width: 7px; height: 7px; border-inline-end: 1.5px solid var(--icon-color);
-  border-bottom: 1.5px solid var(--icon-color); transform: rotate(45deg);
-}
-.admin-localization-select[aria-expanded="true"]::after { top: 20px; transform: rotate(225deg); }
 .admin-localization-select:disabled,
 .admin-localization-menu__option:disabled { opacity: .45; cursor: default; }
 .admin-localization-select:focus-visible,

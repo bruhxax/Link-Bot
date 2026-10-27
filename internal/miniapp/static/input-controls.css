@@ -53,6 +53,33 @@
   .device-row__toggle, .device-tabs > button { transition: none; }
   .device-row__toggle svg, .device-row__toggle.is-loading svg { animation: none; }
 }
+
+/* Dropdown indicators are icons, independent of decorative frame visibility. */
+:root {
+  --select-chevron-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m5 9 7 7 7-7' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.admin-localization-select::after,
+:is(.mantine-Select-section, .mantine-MultiSelect-section, .mantine-NativeSelect-section)[data-position="right"]:has([data-combobox-chevron])::after {
+  content: ''; position: absolute; top: 50%; width: 16px; height: 16px;
+  border: 0; pointer-events: none; background: var(--icon-color, currentColor);
+  -webkit-mask: var(--select-chevron-mask) center / contain no-repeat;
+  mask: var(--select-chevron-mask) center / contain no-repeat;
+  transition: transform 220ms cubic-bezier(.22, 1, .36, 1);
+}
+.admin-localization-select::after { inset-inline-end: 12px; transform: translateY(-50%); }
+.admin-localization-select[aria-expanded="true"]::after { transform: translateY(-50%) rotate(180deg); }
+:is(.mantine-Select-section, .mantine-MultiSelect-section, .mantine-NativeSelect-section)[data-position="right"]:has([data-combobox-chevron])::after {
+  left: 50%; transform: translate(-50%, -50%);
+}
+:is(.mantine-Select-section, .mantine-MultiSelect-section, .mantine-NativeSelect-section)[data-position="right"] [data-combobox-chevron] { visibility: hidden; }
+:is(.mantine-Select-wrapper, .mantine-MultiSelect-wrapper):has([aria-expanded="true"]) [data-position="right"]::after { transform: translate(-50%, -50%) rotate(180deg); }
+@supports selector(select:open) {
+  .mantine-NativeSelect-wrapper:has(select:open) [data-position="right"]::after { transform: translate(-50%, -50%) rotate(180deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-localization-select::after,
+  :is(.mantine-Select-section, .mantine-MultiSelect-section, .mantine-NativeSelect-section)[data-position="right"]::after { transition: none; }
+}
 :root input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 :root input[type="number"]::-webkit-inner-spin-button,
 :root input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }

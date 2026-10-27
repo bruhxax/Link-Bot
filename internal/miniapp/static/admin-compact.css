@@ -116,8 +116,6 @@
 .admin-localization-select {
   min-height: 36px; padding: 8px 32px 8px 10px; border-radius: 7px;
 }
-.admin-localization-select::after,
-.admin-localization-select[aria-expanded="true"]::after { top: calc(50% - 5px); inset-inline-end: 12px; }
 .admin-localization-menu { padding: 4px; border-radius: 9px; }
 .admin-localization-menu__option { min-height: 36px; padding-block: 8px; border-radius: 6px; }
 
