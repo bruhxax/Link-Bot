@@ -8,7 +8,7 @@ function harness(){
  const requests=[],renders=[],state={adminAudienceDraft:{},adminBroadcast:{status:'draft',updatedAt:'stamp'},adminBroadcastButtonsDraft:[]};
  const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const c=vm.createContext({state,setTimeout:()=>0,canAdmin:()=>true,deepClone:x=>JSON.parse(JSON.stringify(x)),render:x=>renders.push(x),icon:()=>'<svg></svg>',escapeHtml:escape,escapeAttribute:escape,post:async(url,body)=>{requests.push({url,body});return{data:{status:'draft',updatedAt:'new-stamp',survey:JSON.parse(JSON.stringify(body.survey))}};}});
- for(const name of ['defaultAdminSurvey','updateAdminSurveyField','editAdminSurvey','saveAdminSurvey','loadAdminSurveyResults','surveyPlainText','renderAdminSurvey','renderAdminSurveyResults','setAdminBroadcastDraft','adminBroadcastWorkflowMode','activeAdminBroadcastButtons','markAdminBroadcastButtonsDirty','setAdminBroadcastWorkflowMode','adminBroadcastReadiness','renderAdminBroadcastWorkflowTabs'])load(c,name);
+ for(const name of ['defaultAdminSurvey','updateAdminSurveyField','editAdminSurvey','saveAdminSurvey','loadAdminSurveyResults','surveyPlainText','renderAdminSurvey','renderAdminSurveyResults','setAdminBroadcastDraft','adminBroadcastWorkflowMode','activeAdminBroadcastButtons','markAdminBroadcastButtonsDirty','setAdminBroadcastWorkflowMode','adminBroadcastReadiness','renderAdminBroadcastWorkflowTabs','renderAdminBroadcastOptionalButtons','renderAdminBroadcastButton'])load(c,name);
  return{c,state,requests,renders};
 }
 test('survey editor can add questions and arbitrary answer buttons and keeps dirty input on polling',()=>{
@@ -21,7 +21,7 @@ test('survey editor can add questions and arbitrary answer buttons and keeps dir
  c.setAdminBroadcastDraft({status:'draft',updatedAt:'poll',survey:{enabled:false}});
  assert.equal(state.adminSurveyDraft.enabled,true);assert.equal(state.adminSurveyDraft.questions[1].options[2],'Другое');
  c.editAdminSurvey('removeOption',1,1);c.editAdminSurvey('removeQuestion',0);assert.equal(state.adminSurveyDraft.questions.length,1);
- const html=c.renderAdminSurvey(false);assert.match(html,/Первое сообщение/);assert.match(html,/survey-question-add/);assert.match(html,/survey-option-add/);
+ const html=c.renderAdminSurvey(false);assert.match(html,/Текст приглашения/);assert.match(html,/survey-question-add/);assert.match(html,/survey-option-add/);
 });
 test('saving uses the current draft version and reset discards old survey edits',async()=>{
  const{c,state,requests}=harness();c.updateAdminSurveyField({dataset:{surveyField:'enabled'},checked:true});
@@ -60,23 +60,26 @@ test('switching workflows preserves separate texts and buttons without requiring
  assert.equal(state.adminSurveyDraft.introText,'Наше приглашение','polling/button save discarded survey edits');
 });
 
-test('results are a distinct screen and old completed progress does not appear in a new draft',()=>{
+test('survey answers stay inside the survey composer while completed broadcast progress stays hidden',()=>{
  const{c,state}=harness();
- Object.assign(c,{renderAdminBroadcastTabs:()=>'',renderCurrentAudience:()=>'<div>Audience controls</div>',renderAdminBroadcastOptionalButtons:()=>'',renderAdminBroadcastExpiration:()=>'',renderAdminBroadcastAutoReply:()=>'',pageClass:()=>''});
+ Object.assign(c,{renderAdminBroadcastTabs:()=>'',renderCurrentAudience:()=>'<div>Audience controls</div>',renderAdminBroadcastExpiration:()=>'<div>Timer control</div>',renderAdminBroadcastAutoReply:()=>'<div>Reply control</div>',pageClass:()=>''});
  load(c,'renderAdminBroadcastLiveProgress');load(c,'renderAdminBroadcastPage');
  state.adminBroadcast={status:'finished',sourceKind:'text',sourcePreview:'An ad',recipientCount:100,sentCount:99,failedCount:1,lastError:'blocked-old-error'};
  let html=c.renderAdminBroadcastPage(true);
- assert.doesNotMatch(html,/blocked-old-error|100%|admin-broadcast__progress/);
- assert.match(html,/Отправить сообщение/);
- state.adminBroadcastMode='results';state.adminSurveyResultsOpen=true;state.adminSurveyResults={runs:[]};
+ assert.doesNotMatch(html,/blocked-old-error|100%|admin-broadcast__progress|Проверьте предпросмотр|broadcast-extra|data-value="results"/);
+ assert.match(html,/Отправить/);assert.match(html,/Timer control/);assert.match(html,/Reply control/);
+ state.adminBroadcastMode='survey';state.adminSurveyDraft=c.defaultAdminSurvey();state.adminSurveyResultsOpen=true;state.adminSurveyResults={runs:[]};
  html=c.renderAdminBroadcastPage(true);
- assert.match(html,/Опросов пока нет/);assert.doesNotMatch(html,/<select|Audience controls|admin-broadcast-open-confirm|survey-question-add/);
+ assert.match(html,/Ответы на опросы/);assert.match(html,/Отправленных опросов пока нет/);
+ assert.match(html,/Audience controls/);assert.match(html,/admin-broadcast-open-confirm/);assert.match(html,/survey-question-add/);
+ assert.doesNotMatch(html,/data-value="results"|broadcast-step|Reply control/);
+ assert.equal((html.match(/role="tab"/g)||[]).length,2);
 });
 
-test('an active campaign locks the other composer while answers remain accessible',async()=>{
+test('an active campaign locks the other composer without adding a results category',async()=>{
  const{c,state}=harness();state.adminBroadcast={status:'running',survey:{enabled:true}};state.adminBroadcastMode='survey';
  await c.setAdminBroadcastWorkflowMode('message');assert.equal(state.adminBroadcastMode,'survey');
- const html=c.renderAdminBroadcastWorkflowTabs();assert.match(html,/data-value="message" disabled/);assert.doesNotMatch(html,/data-value="results" disabled/);
+ const html=c.renderAdminBroadcastWorkflowTabs();assert.match(html,/data-value="message" disabled/);assert.doesNotMatch(html,/data-value="results"/);
 });
 
 test('questions can all collapse to leave a compact survey overview',()=>{
@@ -101,4 +104,12 @@ test('editing final buttons updates the survey only through the shared input han
  assert.equal(state.adminSurveyDraft.finalButtons[0].text,'Поддержка');assert.equal(state.adminSurveyDraft.finalButtons[0].url,'');
  assert.equal(state.adminSurveyDirty,true);assert.equal(state.adminBroadcastButtonsDraft[0].text,'Buy');
  assert.ok(source.includes('updateConsoleBroadcastButton(broadcastIndex,broadcastField,target.value)'));
+});
+
+test('survey editor removes decorative numbers and repeated answer labels but keeps accessible option names',()=>{
+ const{c,state}=harness();state.adminBroadcastMode='survey';state.adminSurveyDraft={...c.defaultAdminSurvey(),questions:[{text:'Выберите сервер',options:['Швейцария','Турция','США','Нидерланды','Албания']}]};
+ const html=c.renderAdminSurvey(false);
+ assert.doesNotMatch(html,/broadcast-step|<small>1<\/small>|<span>Кнопка [1-5]<\/span>/);
+ assert.equal((html.match(/class="survey-answer-input"/g)||[]).length,5);
+ assert.match(html,/aria-label="Вариант ответа 5"/);
 });

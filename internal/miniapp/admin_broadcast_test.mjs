@@ -7,7 +7,7 @@ const source=fs.readFileSync(new URL("./static/app.js",import.meta.url),"utf8");
 const refreshCode=source.slice(source.indexOf("let adminTelegramStatePending="),source.indexOf("async function saveAdminEmailBroadcast("));
 function refreshContext(state){
  let renders=0;
- const ctx=vm.createContext({state,canAdmin:()=>true,loadAdminSMTP(){},deepClone:structuredClone,render(){renders++},post:async()=>({data:{}}),setAdminBroadcastDraft(d){state.adminBroadcast=d}});
+ const ctx=vm.createContext({state,canAdmin:()=>true,adminBroadcastWorkflowMode:()=>state.adminBroadcastMode||"message",loadAdminSurveyResults(){state.adminSurveyResultsOpen=true},loadAdminSMTP(){},deepClone:structuredClone,render(){renders++},post:async()=>({data:{}}),setAdminBroadcastDraft(d){state.adminBroadcast=d}});
  vm.runInContext(refreshCode,ctx);return{ctx,get renders(){return renders}};
 }
 test("broadcast metrics show delivery errors and handle empty or excessive progress",()=>{
@@ -35,6 +35,15 @@ test("a rejected refresh releases its request guard so retry can load the draft"
  const state={adminSection:"broadcast",adminBroadcastTab:"telegram",adminBroadcastBusy:"",adminBroadcast:null};const {ctx}=refreshContext(state);
  ctx.post=async()=>{throw Error("offline")};await ctx.refreshAdminBroadcast();assert.equal(state.adminBroadcastError,"offline");assert.equal(state.adminBroadcastBusy,"");
  ctx.post=async()=>({data:{updatedAt:"new"}});await ctx.refreshAdminBroadcast();assert.equal(state.adminBroadcast.updatedAt,"new");assert.equal(state.adminBroadcastError,"");
+});
+
+test("opening a saved survey loads its inline answers once without replacing the composer",async()=>{
+ const state={adminSection:"broadcast",adminBroadcastTab:"telegram",adminBroadcastMode:"survey",adminBroadcastBusy:"",adminBroadcast:null};
+ const{ctx}=refreshContext(state);let loads=0;
+ ctx.loadAdminSurveyResults=()=>{loads++;state.adminSurveyResultsOpen=true};
+ ctx.post=async()=>({data:{updatedAt:"survey",survey:{enabled:true}}});
+ await ctx.refreshAdminBroadcast();await ctx.refreshAdminBroadcast({silent:true});
+ assert.equal(loads,1);assert.equal(state.adminBroadcastMode,"survey");assert.equal(state.adminBroadcastError,"");
 });
 test("applying a Telegram template uses the saved nonce and only restores state",async()=>{
  const state={adminBroadcastTab:"telegram",adminBroadcast:{updatedAt:"one"},adminAudienceDraft:{},adminAudienceCount:{telegram:18},adminBroadcastConfirmOpen:true,adminEmailConfirmOpen:true};let saved=0,payload;

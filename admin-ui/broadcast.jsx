@@ -803,7 +803,7 @@ export function Broadcast({ model: root, dispatch, hidden, Legacy }) {
             variant="default"
             size="xs"
             leftSection={<PiBookmarkSimple />}
-            disabled={disabled || !draft?.updatedAt || (!email && model.workflowMode==="results")}
+            disabled={disabled || !draft?.updatedAt}
             onClick={() => setTemplates("list")}
           >
             Шаблоны
