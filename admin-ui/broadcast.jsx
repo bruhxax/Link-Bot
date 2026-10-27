@@ -1,4 +1,5 @@
-import {playBroadcastReveals} from "../internal/miniapp/static/broadcast-reveal.mjs";
+import {patchBroadcastWorkflow} from "../internal/miniapp/static/broadcast-dom.mjs";
+import {captureBroadcastReveals,playBroadcastReveals} from "../internal/miniapp/static/broadcast-reveal.mjs";
 import React, {
   useMemo,
   useState,
@@ -708,13 +709,25 @@ function Templates({ model, channel, save, onClose }) {
     </Modal>
   );
 }
+function TelegramWorkflow({html}) {
+ const ref=useRef(null);
+ useLayoutEffect(()=>{
+  const root=ref.current?.closest(".rn-broadcast-section"),before=captureBroadcastReveals(root);
+  const template=document.createElement("template");template.innerHTML=html||"";
+  const next=template.content.firstElementChild,current=ref.current?.firstElementChild;
+  if(current&&next)patchBroadcastWorkflow(current,next);
+  else ref.current?.replaceChildren(...template.content.childNodes);
+  if(root)playBroadcastReveals(root,before);
+ },[html]);
+ return <div ref={ref} className="broadcast-native-workflow"/>;
+}
 export function Broadcast({ model: root, dispatch, hidden, Legacy }) {
   const model = root.broadcastConsole || {},
     channel = model.channel || "telegram",
     email = channel === "email",
     draft = email ? model.email?.draft : model.telegram;
   const revealRoot=useRef(null);
-  useLayoutEffect(()=>{if(revealRoot.current)playBroadcastReveals(revealRoot.current);});
+  useLayoutEffect(()=>{if(email&&revealRoot.current)playBroadcastReveals(revealRoot.current);});
   const [templates, setTemplates] = useState(null);
   const mounted = useRef(false);
   useLayoutEffect(() => {
@@ -792,7 +805,7 @@ export function Broadcast({ model: root, dispatch, hidden, Legacy }) {
       {email && model.canBroadcast && (
         <Stats draft={draft} loaded={Boolean(draft)} hidden={hidden} />
       )}
-      {!email && <div className="broadcast-native-workflow" dangerouslySetInnerHTML={{__html:model.telegramWorkflowHTML||""}} />}
+      {!email && <TelegramWorkflow html={model.telegramWorkflowHTML}/>}
       {email && (
         <Group className="rn-email-section-tabs" gap="xs">
           {[

@@ -24,6 +24,7 @@ import { createBroadcastAutosave } from "./broadcast-autosave.mjs";
 import { syncCustomBackground, probeBackground, draggedPosition } from "./custom-background.mjs";
 import { DEFAULT_BACKGROUND_MOTION, presetBackgroundColors } from "./background-palette.mjs";
 import {applyCustomCursor,cursorValues} from "./custom-cursor.mjs";
+import {patchBroadcastWorkflow} from "./broadcast-dom.mjs";
 import {captureBroadcastReveals,playBroadcastReveals} from "./broadcast-reveal.mjs";
 import {renderTelegramMessagePreview} from "./telegram-message-preview.mjs";
 import {ensureSurfaceSettings,renderCursorEditor,renderLandingEditor,renderAudienceEditor,previewButtonColor} from "./surface-editors.mjs";
@@ -4338,6 +4339,11 @@ function mountCabinetShell(markup) {
 	const currentShell = app.firstElementChild;
 	const template = document.createElement("template");
 	template.innerHTML = markup.trim();
+    // Background acknowledgements must not detach a pressed broadcast control.
+    const currentBroadcast=app.querySelector("#page-admin .broadcast-workflow"),nextBroadcast=template.content.querySelector("#page-admin .broadcast-workflow");
+    if(state.currentPage==="admin"&&state.adminSection==="broadcast"&&!state.adminLayoutEditing&&currentBroadcast&&nextBroadcast&&!app.querySelector(".modal")&&!template.content.querySelector(".modal")&&currentBroadcast.dataset.revealScope?.split(":")[0]===nextBroadcast.dataset.revealScope?.split(":")[0]){
+      patchBroadcastWorkflow(currentBroadcast,nextBroadcast);return;
+    }
 	reuseAdminUserRows(app, template.content);
 	if (!isWideCabinet() || !currentShell?.classList.contains("app-shell") || state.adminLayoutEditing || currentShell.classList.contains("app-shell--layout-editor")) {
 		app.replaceChildren(...template.content.childNodes);
@@ -4673,13 +4679,14 @@ function mountSwitchSelections(previous = new Map()) {
 
 function render({ preserveScroll = true, scrollTop = null, preserveInteraction = false, textTransitionMode = "content" } = {}) {
  const broadcastReveals=captureBroadcastReveals(app);
-  closeLocalizationMenu();
+ const sameBroadcast=state.currentPage==="admin"&&state.adminSection==="broadcast"&&broadcastReveals.scope===(state.adminBroadcastTab==="email"?"email":`telegram:${adminBroadcastWorkflowMode()}`);
+ if(!sameBroadcast||state.adminBroadcastConfirmOpen||state.adminEmailConfirmOpen)closeLocalizationMenu();
   normalizeAppearanceSection();
 	const switchSelections = captureSwitchSelections();
 	const bottomNavSelection = captureBottomNavSelection();
 	const transitionGeneration = ++textTransitionRenderGeneration;
 	cancelAllTextTransitions();
-	const textTransitions = state.data && !document.hidden && !(state.adminWorkspace && isAdminUser()) ? captureRenderTextTransitions() : [];
+	const textTransitions = state.data && !document.hidden && !(state.adminWorkspace && isAdminUser()) && !(state.currentPage==="admin"&&state.adminSection==="broadcast") ? captureRenderTextTransitions() : [];
 	realtimeRenderPending = false;
 	window.clearTimeout(realtimeRenderTimer);
 	const keepEditorInteraction = preserveInteraction || (preserveScroll && state.currentPage === "admin" && ADMIN_SAVE_SECTIONS.has(state.adminSection));
@@ -6829,7 +6836,7 @@ function renderAdminBroadcastPage(embedded=false) {
  if(state.adminBroadcastTab==="email")return renderAdminEmailBroadcastPage();
  const english=state.locale==="en",survey=adminBroadcastWorkflowMode()==="survey",draft=state.adminBroadcast||{},running=draft.status==="running",busy=Boolean(state.adminBroadcastBusy||draft.survey?.capture),ready=adminBroadcastReadiness();
  const message=`<section class="admin-broadcast__section broadcast-content" data-reveal-container="message-content"><div class="broadcast-card-heading">${icon("telegram")}<strong>${english?"Message":"Сообщение"}</strong></div>${draft.sourceKind?`<div class="broadcast-message-preview" data-reveal-key="message-preview" aria-label="${english?"Message preview":"Просмотр сообщения"}"><p class="broadcast-message-text">${escapeHtml(draft.sourceText||draft.sourcePreview||(english?"Message with attachment":"Сообщение с вложением"))}</p></div>`:`<p class="broadcast-help">${draft.status==="awaiting_message"?(english?"Send a message to the bot, then return here.":"Отправьте сообщение боту и вернитесь сюда."):(english?"Create a message in the bot. Text and attachments are supported.":"Создайте сообщение в боте: текст или вложение.")}</p>`}<div class="broadcast-content__actions"><button class="broadcast-inline-action broadcast-replace" type="button" data-action="admin-broadcast-capture" ${running||busy?"disabled":""}>${icon("send")}${draft.sourceKind?(english?"Replace message":"Заменить сообщение"):(english?"Write to the bot":"Написать боту")}</button></div></section>${renderAdminBroadcastOptionalButtons(running||busy,english)}`;
- const body=`${renderAdminBroadcastWorkflowTabs(english)}<div class="broadcast-workflow-panel ${state.adminBroadcastMotion==="mode"?"is-entering":""}">
+ const body=`${renderAdminBroadcastWorkflowTabs(english)}<div class="broadcast-workflow-panel">
  ${survey?renderAdminSurvey(running||busy,english):message}
  ${renderCurrentAudience("telegram",running||busy)}
  <div class="admin-broadcast__options">${renderAdminBroadcastExpiration(running||busy,english)}${!survey?renderAdminBroadcastAutoReply(running||busy,english):""}</div>
@@ -6858,13 +6865,13 @@ async function setAdminBroadcastWorkflowMode(mode) {
  if(!canAdmin("broadcast")||!["message","survey"].includes(mode)||state.adminBroadcastBusy||state.adminBroadcast?.survey?.capture)return;
  if(state.adminBroadcast?.status==="running"&&mode!==(state.adminBroadcast?.survey?.enabled?"survey":"message"))return;
  if(adminBroadcastWorkflowMode()===mode)return;
- state.adminBroadcastMode=mode;state.adminBroadcastConfirmOpen=false;state.adminBroadcastMotion="mode";
+ state.adminBroadcastMode=mode;state.adminBroadcastConfirmOpen=false;
  if(state.adminBroadcast?.status!=="running"){
   state.adminSurveyDraft||=defaultAdminSurvey();const cfg=state.adminSurveyDraft,defaults=defaultAdminSurvey();cfg.enabled=mode==="survey";
   if(cfg.enabled){for(const field of ["title","introText","startText","finishText"])cfg[field]||=defaults[field];if(!cfg.questions?.length)cfg.questions=defaults.questions;cfg.finalButtons||=[];}
   state.adminSurveyDirty=true;scheduleAdminBroadcastSave("survey");
  }
- render({preserveScroll:true});setTimeout(()=>{state.adminBroadcastMotion="";},220);
+ render({preserveScroll:true});
  if(mode==="survey"&&!state.adminSurveyResultsOpen)await loadAdminSurveyResults();
 }
 
@@ -12674,7 +12681,7 @@ function bindRootActions() {
       const target = event.target;
 		if (target.dataset?.input === "admin-payment-logo-url") { if (state.adminPaymentMethodEditor) { state.adminPaymentMethodEditor.logoUrl = target.value; state.adminPaymentMethodEditor.hideLogo = false; } return; }
 		if (["admin-payment-method-name", "admin-payment-method-description"].includes(target.dataset?.input)) { updateAdminPaymentMethodText(target); return; }
- if(target.dataset?.audienceField){updateBroadcastAudience(target);return;}
+ if(target.dataset?.audienceField&&target.type!=="checkbox"){updateBroadcastAudience(target);return;}
  if(target.dataset?.input==="admin-landing-background-url"){landingBackgroundURL=target.value;return;}
 		if (target.dataset.input === "admin-background-url") { adminBackgroundURL = target.value; return; }
         if (target.dataset.input?.startsWith("administrators-")) { handleAdministratorsInput(target); return; }
@@ -13742,7 +13749,7 @@ function updateConsoleBroadcastExpiration(value) {
  if(!Number.isInteger(minutes) || minutes<0 || minutes>2820) return;
  if(state.adminBroadcastExpirationDraft===minutes)return;
  state.adminBroadcastExpirationDraft=minutes;
- state.adminBroadcastExpirationDirty=minutes!==Number(state.adminBroadcast?.deleteAfterMinutes||0);
+ state.adminBroadcastExpirationDirty=true;
  scheduleAdminBroadcastSave("expiration");
  state.adminBroadcastConfirmOpen=false;
  render({preserveScroll:true,preserveInteraction:true});
