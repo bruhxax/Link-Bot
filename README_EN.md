@@ -25,14 +25,6 @@ Telegram bot, Mini App and web cabinet for Remnawave VPN subscriptions.
 | Subscriptions, balance and history | Payment providers and Telegram Stars | Finances, GA4 and Yandex Metrika |
 | Tickets, FAQ and AI support | Promo codes, referrals and review rewards | Broadcasts and languages: RU / EN / FA |
 
-**Content → Telegram → Main menu → Pinned message** lets administrators compose and preview an announcement delivered on `/start`, before the ordinary menu. A current pinned copy is not duplicated; an unpinned copy is pinned again, and a deleted copy is recreated. Formatting, premium emoji and attachments are preserved. There is no mass delivery. Turning the feature off only unpins this announcement.
-
-In the **Plans → Plan and payment method order** editor, the pencil beside each payment method lets you customize its checkout name and description. Empty fields use system defaults. Click Done, then save the plan settings.
-
-In **Integrations → Laveshka**, enter the Lave Pay API key, a separate webhook signing secret and the RUB/USD exchange rate. Copy the displayed Webhook URL into Laveshka's webhook settings and save it, then enable the method for your plans. Subscriptions, gifts and packages use the existing checkout. Prices remain in RUB; invoices are in USD ($0.10–$10,000), rounded up to the nearest cent. Both amounts are stored when the invoice is created, so changing the rate does not change pending payments. Customers choose an available payment channel on Laveshka's page; SBP requires merchant verification. [Lave Pay documentation](https://laveshka.io/docs/lave-pay).
-
-In **Broadcasts → Telegram → Survey**, configure a start button, questions with answer buttons and a final message. Use a text broadcast as the invitation. Each step edits the same recipient message; ordinary broadcast buttons appear at the end, including a promo code or support link. Completing a survey does not automatically issue a subscription: configure any reward through the final button or promo code. Administrator previews are excluded from results. **Answers** shows delivery, starts, completions, option counts and individual responses. Sent questions and responses survive restarts and subsequent draft changes. Up to 64 questions and 100 answer buttons per question are supported, with plain text or Telegram HTML for questions and the final message.
-
 ## Installation
 
 You need a VPS with Ubuntu 22.04/24.04 or Debian 12, Docker Compose, an accessible [Remnawave panel](https://github.com/remnawave/panel) and a bot from [@BotFather](https://t.me/BotFather). Point the domain's `A` record to your server and open ports `80` and `443`.
