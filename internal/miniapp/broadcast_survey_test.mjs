@@ -7,8 +7,8 @@ function load(c,name){let start=source.indexOf(`function ${name}(`);assert.ok(st
 function harness(){
  const requests=[],renders=[],state={adminAudienceDraft:{},adminBroadcast:{status:'draft',updatedAt:'stamp'},adminBroadcastButtonsDraft:[]};
  const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const c=vm.createContext({scheduleAdminBroadcastSave(){},flushAdminBroadcastAutoSave:async()=>{},discardAdminBroadcastAutoSave:async()=>{},state,setTimeout:()=>0,canAdmin:()=>true,deepClone:x=>JSON.parse(JSON.stringify(x)),render:x=>renders.push(x),icon:()=>'<svg></svg>',escapeHtml:escape,escapeAttribute:escape,post:async(url,body)=>{requests.push({url,body});return{data:{status:'draft',updatedAt:'new-stamp',survey:JSON.parse(JSON.stringify(body.survey))}};}});
- for(const name of ['defaultAdminSurvey','updateAdminSurveyField','editAdminSurvey','saveAdminSurvey','loadAdminSurveyResults','surveyPlainText','renderAdminSurvey','renderAdminSurveyResults','setAdminBroadcastDraft','adminBroadcastWorkflowMode','activeAdminBroadcastButtons','markAdminBroadcastButtonsDirty','setAdminBroadcastWorkflowMode','adminBroadcastReadiness','renderAdminBroadcastWorkflowTabs','renderAdminBroadcastOptionalButtons','renderAdminBroadcastButton'])load(c,name);
+ const c=vm.createContext({scheduleAdminBroadcastSave(){},flushAdminBroadcastAutoSave:async()=>{},discardAdminBroadcastAutoSave:async()=>{},renderTelegramMessagePreview:(text,formatted,escape)=>escape(text),state,setTimeout:()=>0,canAdmin:()=>true,deepClone:x=>JSON.parse(JSON.stringify(x)),render:x=>renders.push(x),icon:()=>'<svg></svg>',escapeHtml:escape,escapeAttribute:escape,post:async(url,body)=>{requests.push({url,body});return{data:{status:'draft',updatedAt:'new-stamp',survey:JSON.parse(JSON.stringify(body.survey))}};}});
+ for(const name of ['defaultAdminSurvey','updateAdminSurveyField','editAdminSurvey','saveAdminSurvey','loadAdminSurveyResults','surveyPlainText','renderAdminSurveyMessage','renderAdminSurvey','renderAdminSurveyResults','setAdminBroadcastDraft','adminBroadcastWorkflowMode','activeAdminBroadcastButtons','markAdminBroadcastButtonsDirty','setAdminBroadcastWorkflowMode','adminBroadcastReadiness','renderAdminBroadcastWorkflowTabs','renderAdminBroadcastOptionalButtons','renderAdminBroadcastButton'])load(c,name);
  return{c,state,requests,renders};
 }
 test('survey editor can add questions and arbitrary answer buttons and keeps dirty input on polling',()=>{
@@ -21,7 +21,7 @@ test('survey editor can add questions and arbitrary answer buttons and keeps dir
  c.setAdminBroadcastDraft({status:'draft',updatedAt:'poll',survey:{enabled:false}});
  assert.equal(state.adminSurveyDraft.enabled,true);assert.equal(state.adminSurveyDraft.questions[1].options[2],'Другое');
  c.editAdminSurvey('removeOption',1,1);c.editAdminSurvey('removeQuestion',0);assert.equal(state.adminSurveyDraft.questions.length,1);
- const html=c.renderAdminSurvey(false);assert.match(html,/Текст приглашения/);assert.match(html,/survey-question-add/);assert.match(html,/survey-option-add/);
+ const html=c.renderAdminSurvey(false);assert.match(html,/Заменить в Telegram/);assert.doesNotMatch(html,/<textarea/);assert.match(html,/survey-question-add/);assert.match(html,/survey-option-add/);
 });
 test('saving uses the current draft version and reset discards old survey edits',async()=>{
  const{c,state,requests}=harness();c.updateAdminSurveyField({dataset:{surveyField:'enabled'},checked:true});
@@ -112,4 +112,12 @@ test('survey editor removes decorative numbers and repeated answer labels but ke
  assert.doesNotMatch(html,/broadcast-step|<small>1<\/small>|<span>Кнопка [1-5]<\/span>/);
  assert.equal((html.match(/class="survey-answer-input"/g)||[]).length,5);
  assert.match(html,/aria-label="Вариант ответа 5"/);
+});
+
+test('reopening a pending bot capture reveals its question and blocks sending and editing',()=>{
+ const {c,state}=harness();const survey={...c.defaultAdminSurvey(),enabled:true,questions:[{text:'Первый',options:['Да']},{text:'Второй',options:['Нет']}],capture:{id:'capture',target:'question',question:1}};
+ c.setAdminBroadcastDraft({status:'draft',updatedAt:'waiting',survey},{forceSurvey:true});
+ assert.equal(state.adminSurveyOpenQuestion,1);assert.equal(c.adminBroadcastReadiness().ready,false);
+ c.editAdminSurvey('removeQuestion',1);assert.equal(state.adminSurveyDraft.questions.length,2);
+ const html=c.renderAdminSurvey(true);assert.match(html,/survey-capture-cancel/);assert.match(html,/Ждём сообщение/);
 });

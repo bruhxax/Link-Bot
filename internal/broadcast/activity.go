@@ -24,12 +24,16 @@ func (s *Service) recordCapturedActivity(ctx context.Context, message *models.Me
 	} else if admin, err := s.customerRepository.AdministratorForTelegramID(ctx, message.From.ID); err == nil && admin != nil {
 		entry.ActorRole = admin.Role
 	}
-	labels := map[string]string{"text": "Текст", "html": "HTML-текст", "photo": "Фото", "video": "Видео", "audio": "Аудио", "document": "Файл", "voice": "Голосовое сообщение", "animation": "Анимация"}
+	labels := map[string]string{"survey": "Сообщение опроса", "text": "Текст", "html": "HTML-текст", "photo": "Фото", "video": "Видео", "audio": "Аудио", "document": "Файл", "voice": "Голосовое сообщение", "animation": "Анимация"}
 	label := labels[kind]
 	if label == "" {
 		label = kind
 	}
 	entry.Details = []database.AdminActivityDetail{{Label: "Тип сообщения", Value: label}}
+	if kind == "survey" {
+		entry.Action = "broadcast/survey/source"
+		entry.Title = "Сохранил сообщение опроса из Telegram"
+	}
 	if customerID > 0 {
 		entry.Action = "users/message/source"
 		entry.Title = "Сохранил личное сообщение из Telegram"

@@ -3,6 +3,7 @@ package miniapp
 import (
 	"encoding/json"
 	"github.com/jackc/pgx/v4"
+	"link-bot/internal/broadcast"
 	"link-bot/internal/database"
 	"net/http"
 	"strings"
@@ -74,6 +75,10 @@ func (h *Handler) handleBroadcastTemplates(w http.ResponseWriter, r *http.Reques
 			}
 			if !d.HasSource() {
 				h.writeError(w, 400, "broadcast_message_required", "Сначала добавьте сообщение")
+				return
+			}
+			if d.Survey != nil && d.Survey.Capture != nil {
+				h.writeBroadcastError(w, broadcast.ErrSurveyCapturePending)
 				return
 			}
 			p.SourceChatID = d.SourceChatID

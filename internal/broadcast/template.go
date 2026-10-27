@@ -10,6 +10,9 @@ import (
 func (s *Service) RestoreTemplate(ctx context.Context, p database.BroadcastTemplatePayload, adminID int64, expected time.Time) (*database.BroadcastDraft, error) {
 	s.sendMu.Lock()
 	defer s.sendMu.Unlock()
+	if err := s.checkSurveyCapture(ctx, 0); err != nil {
+		return nil, err
+	}
 	if (p.Survey == nil || !p.Survey.Enabled) && (p.SourceChatID == nil || p.SourceMessageID == nil || *p.SourceMessageID <= 0) {
 		return nil, ErrNoMessage
 	}
@@ -22,6 +25,7 @@ func (s *Service) RestoreTemplate(ctx context.Context, p database.BroadcastTempl
 	if p.Survey == nil {
 		p.Survey = &database.SurveyConfig{}
 	}
+	p.Survey.Capture = nil
 	if err := NormalizeSurvey(p.Survey); err != nil {
 		return nil, err
 	}

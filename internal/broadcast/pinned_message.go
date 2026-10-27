@@ -53,6 +53,9 @@ func (s *Service) checkPinnedCapture(ctx context.Context, adminID int64) error {
 func (s *Service) StartPinnedCapture(ctx context.Context, adminID int64) (*database.PinnedMessage, error) {
 	s.sendMu.Lock()
 	defer s.sendMu.Unlock()
+	if err := s.checkSurveyCapture(ctx, 0); err != nil {
+		return nil, err
+	}
 	if s.pinnedRepository == nil {
 		return nil, errors.New("pinned messages unavailable")
 	}

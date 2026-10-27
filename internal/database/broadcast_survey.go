@@ -11,10 +11,22 @@ import (
 )
 
 type SurveyQuestion struct {
-	Text    string   `json:"text"`
-	Options []string `json:"options"`
+	ID       string   `json:"id,omitempty"`
+	Text     string   `json:"text"`
+	TextHTML bool     `json:"textHtml,omitempty"`
+	Options  []string `json:"options"`
+}
+type SurveyCapture struct {
+	ID        string    `json:"id"`
+	AdminID   int64     `json:"adminId"`
+	Target    string    `json:"target"`
+	Question  int       `json:"question"`
+	StartedAt time.Time `json:"startedAt"`
 }
 type SurveyConfig struct {
+	Capture      *SurveyCapture    `json:"capture,omitempty"`
+	IntroHTML    bool              `json:"introHtml,omitempty"`
+	FinishHTML   bool              `json:"finishHtml,omitempty"`
 	IntroText    string            `json:"introText,omitempty"`
 	FinalButtons []BroadcastButton `json:"finalButtons"`
 	Enabled      bool              `json:"enabled"`

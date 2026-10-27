@@ -287,3 +287,21 @@
   #app .broadcast-workflow .broadcast-replace { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { #app .broadcast-workflow .is-entering { animation: none; } #app .broadcast-workflow * { transition: none !important; } }
+
+/* Survey messages are composed in Telegram and shown in a safe formatted bubble. */
+#app .broadcast-workflow .survey-message-editor { display: grid; gap: 10px; min-width: 0; }
+#app .broadcast-workflow .survey-editor > .survey-field { margin-top: 12px; }
+#app .broadcast-workflow .survey-capture-wait { display: grid; gap: 8px; }
+#app .broadcast-workflow .telegram-message-preview { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+#app .broadcast-workflow .telegram-message-preview a { color: var(--accent); text-decoration: underline; }
+#app .broadcast-workflow .telegram-message-preview blockquote { margin: 6px 0; padding: 5px 10px; border-inline-start: 3px solid var(--accent); border-radius: 4px; background: color-mix(in srgb, var(--accent) 8%, transparent); }
+#app .broadcast-workflow .telegram-message-preview :is(pre,code) { font-family: ui-monospace, monospace; font-size: .95em; background: color-mix(in srgb, var(--text) 8%, transparent); border-radius: 4px; }
+#app .broadcast-workflow .telegram-message-preview pre { padding: 8px; white-space: pre-wrap; }
+#app .broadcast-workflow .telegram-preview-spoiler { background: color-mix(in srgb, var(--text) 14%, transparent); border-radius: 3px; }
+#app .broadcast-workflow .broadcast-audience__body .audience-editor { padding: 0; }
+#app .broadcast-workflow .broadcast-option__text { min-width: 0; }
+#app .broadcast-workflow [data-reveal-container] { box-sizing: border-box; }
+@media (prefers-reduced-motion: reduce) {
+ #app .broadcast-workflow .is-entering { animation: none; }
+ #app .broadcast-workflow .survey-question__chevron { transition: none; }
+}

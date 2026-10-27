@@ -52,11 +52,12 @@ test('a rejected button does not prevent independent recipient settings from sav
   h.queue.schedule('buttons');h.queue.schedule('audience:telegram');await assert.rejects(h.queue.flush(),/unknown promo/);
   assert.equal(s.adminBroadcastButtonsDirty,true);assert.equal(s.adminAudienceDirty.telegram,false);assert.equal(s.adminAudienceCount.telegram,7);assert.equal(h.errors.length,1);
 });
-test('survey metadata gets a default name and new questions wait until completed',async()=>{
-  const h=harness(),s=h.state;s.adminSurveyDraft={enabled:true,startText:'Пройти',introText:'Вступление',finishText:'Спасибо',questions:[{text:'',options:['Да']}]};s.adminSurveyDirty=true;
-  h.queue.schedule('survey');await h.queue.flush();assert.equal(h.requests.length,0);
-  s.adminSurveyDraft.questions[0].text='Нравится?';h.queue.schedule('survey');await h.queue.flush();assert.equal(h.requests[0].body.survey.title,'Опрос');assert.equal(s.adminSurveyDirty,false);
+test('partial survey drafts persist before capturing a new question and get a default name',async()=>{
+ const h=harness(),s=h.state;s.adminSurveyDraft={enabled:true,startText:'Пройти',introText:'Вступление',finishText:'Спасибо',questions:[{text:'',options:['Да']}]};s.adminSurveyDirty=true;
+ h.queue.schedule('survey');await h.queue.flush();assert.equal(h.requests.length,1);assert.equal(h.requests[0].body.draft,true);assert.equal(h.requests[0].body.survey.questions[0].text,'');assert.equal(h.requests[0].body.survey.title,'Опрос');
+ s.adminSurveyDraft.questions[0].text='Нравится?';s.adminSurveyDirty=true;h.queue.schedule('survey');await h.queue.flush();assert.equal(h.requests[1].body.survey.questions[0].text,'Нравится?');assert.equal(s.adminSurveyDirty,false);
 });
+
 test('auto-reply edits during a request retain their text and use the next settings version',async()=>{
   const h=harness(),s=h.state,first=deferred();s.adminBroadcastAutoReplyDirty=true;
   h.reply=async()=>h.requests.length===1?first.promise:{data:{...h.requests.at(-1).body,updatedAt:'reply2'}};

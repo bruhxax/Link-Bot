@@ -27,6 +27,9 @@ func (s *Service) GetDirect(ctx context.Context, adminID int64) (*database.Direc
 func (s *Service) StartDirectCapture(ctx context.Context, adminID, customerID int64) (*database.DirectMessageDraft, error) {
 	s.sendMu.Lock()
 	defer s.sendMu.Unlock()
+	if err := s.checkSurveyCapture(ctx, 0); err != nil {
+		return nil, err
+	}
 	if err := s.checkPinnedCapture(ctx, adminID); err != nil {
 		return nil, err
 	}

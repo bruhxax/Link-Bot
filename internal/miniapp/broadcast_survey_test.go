@@ -2,6 +2,8 @@ package miniapp
 
 import (
 	"link-bot/internal/broadcast"
+	"link-bot/internal/database"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -29,6 +31,18 @@ func TestSurveyEndpointsValidateBeforeStorageAndRequireBroadcastPermission(t *te
 		h.handleAdminBroadcastSurveyResults(w, httptest.NewRequest("POST", "/results", strings.NewReader(body)), admin, nil)
 		if w.Code != 400 {
 			t.Fatal(w.Body.String())
+		}
+	}
+}
+
+func TestSurveyCaptureRequiresBroadcastPermission(t *testing.T) {
+	h := &Handler{broadcastService: broadcast.NewService(nil, nil, nil, nil)}
+	limited := &session{User: telegramUser{ID: 42}, AdminAccess: adminAccess{IsAdmin: true, Permissions: []string{"integrations"}}}
+	for _, handler := range []func(http.ResponseWriter, *http.Request, *session, *database.Customer){h.handleAdminSurveyCaptureStart, h.handleAdminSurveyCaptureCancel} {
+		w := httptest.NewRecorder()
+		handler(w, httptest.NewRequest("POST", "/capture", strings.NewReader(`{}`)), limited, nil)
+		if w.Code != 403 {
+			t.Fatalf("capture without permission: %d %s", w.Code, w.Body.String())
 		}
 	}
 }

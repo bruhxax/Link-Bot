@@ -1,3 +1,4 @@
+import {playBroadcastReveals} from "../internal/miniapp/static/broadcast-reveal.mjs";
 import React, {
   useMemo,
   useState,
@@ -110,7 +111,16 @@ function Stats({ draft, loaded, hidden }) {
     </div>
   );
 }
-function Audience({ model, disabled, hidden }) {
+function Audience(props) {
+ const [open,setOpen]=useState(false),{model,disabled,hidden}=props;
+ const ref=useRef(null);
+ useLayoutEffect(()=>{const root=ref.current?.closest(".rn-broadcast-section");if(root)playBroadcastReveals(root);});
+ return <section ref={ref} className="broadcast-option" data-reveal-container="audience:email">
+ <div className="broadcast-option__header"><span className="broadcast-option__icon"><PiGear size={18}/></span><span className="broadcast-option__text"><strong>Кому отправлять</strong><small><Private hidden={hidden}>{model.audienceCount==null?"Настроить получателей":`${number(model.audienceCount)} получателей`}</Private></small></span><Switch checked={open} onChange={event=>setOpen(event.currentTarget.checked)} disabled={disabled} aria-label="Показать настройки аудитории" aria-expanded={open}/></div>
+ {open&&<div className="broadcast-option__body" data-reveal-key="audience-body:email"><AudienceFields {...props}/></div>}
+ </section>;
+}
+function AudienceFields({ model, disabled, hidden }) {
   const a = model.audience || {},
     [mode, setMode] = useState(
       a.tag && a.category === "all" ? "tag" : a.category || "all",
@@ -133,9 +143,6 @@ function Audience({ model, disabled, hidden }) {
     (items || []).map((s) => ({ value: s.uuid, label: s.name }));
   return (
     <div className="rn-broadcast-audience">
-      <Text size="sm" mb={8}>
-        Кому отправлять
-      </Text>
       <Radio.Group value={mode} onChange={choose}>
         <Group gap="lg" wrap="wrap">
           {[
@@ -242,17 +249,6 @@ function Audience({ model, disabled, hidden }) {
           color="teal"
         />
       )}
-      <div className="rn-broadcast-audience-count">
-        <span>
-          Получателей:{" "}
-          <Private hidden={hidden}>
-            {model.audienceCount == null
-              ? "Не подсчитано"
-              : number(model.audienceCount)}
-          </Private>
-        </span>
-
-      </div>
     </div>
   );
 }
@@ -717,6 +713,8 @@ export function Broadcast({ model: root, dispatch, hidden, Legacy }) {
     channel = model.channel || "telegram",
     email = channel === "email",
     draft = email ? model.email?.draft : model.telegram;
+  const revealRoot=useRef(null);
+  useLayoutEffect(()=>{if(revealRoot.current)playBroadcastReveals(revealRoot.current);});
   const [templates, setTemplates] = useState(null);
   const mounted = useRef(false);
   useLayoutEffect(() => {
@@ -745,7 +743,7 @@ export function Broadcast({ model: root, dispatch, hidden, Legacy }) {
         : "connection"
     : "message";
   return (
-    <div className="rn-broadcast-section">
+    <div ref={revealRoot} className={`rn-broadcast-section ${email?"broadcast-workflow":""}`} data-reveal-scope="email">
       {model.error && (
         <Alert color="red">
           {model.error}

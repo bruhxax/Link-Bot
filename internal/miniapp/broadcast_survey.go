@@ -20,12 +20,66 @@ func (h *Handler) handleAdminBroadcastSurvey(w http.ResponseWriter, r *http.Requ
 	var req struct {
 		Survey    database.SurveyConfig `json:"survey"`
 		UpdatedAt time.Time             `json:"updatedAt"`
+		Draft     bool                  `json:"draft"`
 	}
 	if err := h.decodeJSONRequest(w, r, 3<<20, &req); err != nil {
 		h.writeError(w, 400, "invalid_request", "Некорректный опрос")
 		return
 	}
-	draft, err := h.broadcastService.SaveSurvey(r.Context(), sess.User.ID, req.Survey, req.UpdatedAt)
+	var draft *database.BroadcastDraft
+	var err error
+	if req.Draft {
+		draft, err = h.broadcastService.SaveSurveyDraft(r.Context(), sess.User.ID, req.Survey, req.UpdatedAt)
+	} else {
+		draft, err = h.broadcastService.SaveSurvey(r.Context(), sess.User.ID, req.Survey, req.UpdatedAt)
+	}
+	if err != nil {
+		h.writeBroadcastError(w, err)
+		return
+	}
+	h.writeJSON(w, 200, map[string]any{"ok": true, "data": draft})
+}
+func (h *Handler) handleAdminSurveyCaptureStart(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
+	if !h.requireBroadcastAdmin(w, sess) {
+		return
+	}
+	if !sess.canAdmin("broadcast") {
+		h.writeError(w, 403, "forbidden", "Недостаточно прав")
+		return
+	}
+	var req struct {
+		Target    string                `json:"target"`
+		Question  int                   `json:"question"`
+		Survey    database.SurveyConfig `json:"survey"`
+		UpdatedAt time.Time             `json:"updatedAt"`
+	}
+	if err := h.decodeJSONRequest(w, r, 3<<20, &req); err != nil {
+		h.writeError(w, 400, "invalid_request", "Некорректное сообщение опроса")
+		return
+	}
+	draft, err := h.broadcastService.StartSurveyCapture(r.Context(), sess.User.ID, req.Target, req.Question, req.Survey, req.UpdatedAt)
+	if err != nil {
+		h.writeBroadcastError(w, err)
+		return
+	}
+	h.writeJSON(w, 200, map[string]any{"ok": true, "data": draft})
+}
+func (h *Handler) handleAdminSurveyCaptureCancel(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
+	if !h.requireBroadcastAdmin(w, sess) {
+		return
+	}
+	if !sess.canAdmin("broadcast") {
+		h.writeError(w, 403, "forbidden", "Недостаточно прав")
+		return
+	}
+	var req struct {
+		ID string `json:"id"`
+	}
+	if err := h.decodeJSONRequest(w, r, 1024, &req); err != nil {
+		h.writeError(w, 400, "invalid_request", "Некорректный запрос")
+		return
+	}
+	draft, err := h.broadcastService.CancelSurveyCapture(r.Context(), sess.User.ID, req.ID)
 	if err != nil {
 		h.writeBroadcastError(w, err)
 		return

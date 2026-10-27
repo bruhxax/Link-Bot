@@ -44,11 +44,17 @@ func NormalizeSurvey(c *database.SurveyConfig) error {
 		}
 		c.FinalButtons = buttons
 	}
-	texts := []string{c.IntroText, c.FinishText}
+	texts := []struct {
+		text      string
+		formatted bool
+	}{{c.IntroText, c.IntroHTML}, {c.FinishText, c.FinishHTML}}
 	for i := range c.Questions {
 		q := &c.Questions[i]
 		q.Text = strings.TrimSpace(q.Text)
-		texts = append(texts, q.Text)
+		texts = append(texts, struct {
+			text      string
+			formatted bool
+		}{q.Text, q.TextHTML})
 		if len(q.Options) < 1 || len(q.Options) > 100 {
 			return fmt.Errorf("%w: от 1 до 100 кнопок в вопросе", ErrSurvey)
 		}
@@ -59,20 +65,16 @@ func NormalizeSurvey(c *database.SurveyConfig) error {
 			}
 		}
 	}
-	for _, text := range texts {
-		if len([]rune(text)) < 1 || len([]rune(text)) > 3500 {
-			return fmt.Errorf("%w: текст вопроса и завершения от 1 до 3500 символов", ErrSurvey)
-		}
-		if looksLikeBroadcastHTML(text) {
-			if err := ValidateHTML(text); err != nil {
-				return fmt.Errorf("%w: %v", ErrSurvey, err)
-			}
+	for _, value := range texts {
+		if err := validateSurveyMessage(value.text, value.formatted); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
 func (s *Service) SaveSurvey(ctx context.Context, admin int64, cfg database.SurveyConfig, expected time.Time) (*database.BroadcastDraft, error) {
+	cfg.Capture = nil
 	if err := NormalizeSurvey(&cfg); err != nil {
 		return nil, err
 	}
@@ -86,6 +88,9 @@ func (s *Service) SaveSurvey(ctx context.Context, admin int64, cfg database.Surv
 	}
 	s.sendMu.Lock()
 	defer s.sendMu.Unlock()
+	if err := s.checkSurveyCapture(ctx, 0); err != nil {
+		return nil, err
+	}
 	draft, err := s.repository.SaveSurvey(ctx, cfg, admin, expected)
 	if err == nil && draft == nil {
 		return nil, ErrDraftChanged
@@ -99,6 +104,9 @@ func (s *Service) loadSurvey(ctx context.Context, draft *database.BroadcastDraft
 		return err
 	}
 	draft.Survey = cfg
+	if cfg.Capture != nil {
+		return ErrSurveyCapturePending
+	}
 	hydrateSurveyInvitation(cfg, draft)
 	if err = NormalizeSurvey(cfg); err != nil {
 		return err
@@ -128,21 +136,21 @@ func surveyScreen(run *database.SurveyRun, step int) (string, models.ReplyMarkup
 		if intro == "" {
 			intro = run.Config.Title
 		}
-		return surveyHTML(intro), surveyIntroKeyboard(run.ID, &run.Config)
+		return surveyHTML(intro, run.Config.IntroHTML), surveyIntroKeyboard(run.ID, &run.Config)
 	}
 	if step >= len(run.Config.Questions) {
 		keys := buildKeyboard(run.Buttons)
 		if keys == nil {
 			keys = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{}}
 		}
-		return surveyHTML(run.Config.FinishText), keys
+		return surveyHTML(run.Config.FinishText, run.Config.FinishHTML), keys
 	}
 	q := run.Config.Questions[step]
 	rows := make([][]models.InlineKeyboardButton, 0, len(q.Options))
 	for i, label := range q.Options {
 		rows = append(rows, []models.InlineKeyboardButton{{Text: label, CallbackData: surveyData(run.ID, step, i)}})
 	}
-	return fmt.Sprintf("<b>%d / %d</b>\n\n%s", step+1, len(run.Config.Questions), surveyHTML(q.Text)), &models.InlineKeyboardMarkup{InlineKeyboard: rows}
+	return fmt.Sprintf("<b>%d / %d</b>\n\n%s", step+1, len(run.Config.Questions), surveyHTML(q.Text, q.TextHTML)), &models.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
 func (s *Service) HandleSurvey(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -225,8 +233,8 @@ func (s *Service) SurveyResults(ctx context.Context, id string, before int64) ([
 	return runs, report, err
 }
 
-func surveyHTML(text string) string {
-	if looksLikeBroadcastHTML(text) {
+func surveyHTML(text string, formatted ...bool) string {
+	if len(formatted) > 0 && formatted[0] || looksLikeBroadcastHTML(text) {
 		return text
 	}
 	return html.EscapeString(text)
@@ -238,7 +246,7 @@ func applySurveyInvitation(draft *database.BroadcastDraft, cfg *database.SurveyC
 	}
 	draft.Survey = cfg
 	draft.SourceKind = "html"
-	draft.SourceHTML = surveyHTML(cfg.IntroText)
+	draft.SourceHTML = surveyHTML(cfg.IntroText, cfg.IntroHTML)
 	draft.SourceText = cfg.IntroText
 	draft.SourcePreview = cfg.IntroText
 	draft.Buttons = cfg.FinalButtons

@@ -928,6 +928,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/broadcast/state", h.withSession(h.handleAdminBroadcastState))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/templates", h.withSession(h.handleBroadcastTemplates))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/capture/start", h.withSession(h.handleAdminBroadcastCaptureStart))
+	mux.HandleFunc("/api/mini-app/admin/broadcast/survey/capture/start", h.withSession(h.handleAdminSurveyCaptureStart))
+	mux.HandleFunc("/api/mini-app/admin/broadcast/survey/capture/cancel", h.withSession(h.handleAdminSurveyCaptureCancel))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/buttons", h.withSession(h.handleAdminBroadcastButtons))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/expiration", h.withSession(h.handleAdminBroadcastExpiration))
 	mux.HandleFunc("/api/mini-app/admin/broadcast/survey", h.withSession(h.handleAdminBroadcastSurvey))

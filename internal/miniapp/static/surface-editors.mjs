@@ -182,6 +182,7 @@ export function renderAudienceEditor(
   running,
   channel,
   { escapeHtml: e, escapeAttribute: q },
+  showHeader = true,
 ) {
   const categories = [
     ["all", "Все пользователи"],
@@ -196,7 +197,7 @@ export function renderAudienceEditor(
     `<label class="admin-field surface-field"><span>${label}</span><select class="admin-field__control" data-audience-field="${key}" data-channel="${channel}" ${running ? "disabled" : ""}>${values.map(([id, text]) => `<option value="${q(id)}" ${a[key] === id ? "selected" : ""}>${e(text)}</option>`).join("")}</select></label>`;
   const squads = (key, title, items) =>
     `<div class="audience-squads"><h4>${title}</h4>${items?.length ? items.map((s) => `<label><input type="checkbox" data-audience-field="${key}" data-channel="${channel}" value="${q(s.uuid)}" ${(a[key] || []).includes(s.uuid) ? "checked" : ""} ${running ? "disabled" : ""}><span>${e(s.name)}</span></label>`).join("") : "<p>Сквады не загружены. Нажмите «Обновить сквады».</p>"}</div>`;
-  return `<section class="admin-editor__section surface-card surface-settings audience-editor"><div class="surface-inline"><div><h3>Кому отправлять</h3></div><strong class="audience-count" role="status">${count === null || count === undefined ? "Не подсчитано" : `${count} получателей`}</strong></div><div class="admin-editor__grid">${select("category", "Категория", categories)}${select(
+  return `<section class="admin-editor__section surface-card surface-settings audience-editor">${showHeader?`<div class="surface-inline"><div><h3>Кому отправлять</h3></div><strong class="audience-count" role="status">${count === null || count === undefined ? "Не подсчитано" : `${count} получателей`}</strong></div>`:""}<div class="admin-editor__grid">${select("category", "Категория", categories)}${select(
     "language",
     "Язык",
     [
@@ -205,5 +206,5 @@ export function renderAudienceEditor(
       ["en", "English"],
       ["fa", "فارسی"],
     ],
-  )}<label class="admin-field surface-field"><span>Тег в панели</span><input class="admin-field__control" data-audience-field="tag" data-channel="${channel}" value="${q(a.tag || "")}" placeholder="Любой тег" ${running ? "disabled" : ""}></label></div><details><summary>Отбор по сквадам <small>${(a.internalSquads?.length || 0) + (a.externalSquads?.length || 0)} выбрано</small></summary><div class="surface-editor-grid">${squads("internalSquads", "Внутренние сквады", options?.internal)}${squads("externalSquads", "Внешние сквады", options?.external)}</div><button class="surface-button" type="button" data-action="admin-audience-options" ${running ? "disabled" : ""}>Обновить сквады</button></details>${channel === "telegram" ? `<label class="admin-toggle admin-feature-toggle"><span class="admin-feature-toggle__copy"><strong>Игнорировать отписку от рассылки</strong></span><input type="checkbox" role="switch" data-audience-field="ignoreUnsubscribe" data-channel="${channel}" ${a.ignoreUnsubscribe ? "checked" : ""} ${running ? "disabled" : ""}><i aria-hidden="true"></i></label>` : ""}</section>`;
+  )}<label class="admin-field surface-field"><span>Тег в панели</span><input class="admin-field__control" data-audience-field="tag" data-channel="${channel}" value="${q(a.tag || "")}" placeholder="Любой тег" ${running ? "disabled" : ""}></label></div><details data-reveal-container="squads:${channel}"><summary>Отбор по сквадам <small>${(a.internalSquads?.length || 0) + (a.externalSquads?.length || 0)} выбрано</small></summary><div class="surface-editor-grid" data-reveal-key="squads-body:${channel}">${squads("internalSquads", "Внутренние сквады", options?.internal)}${squads("externalSquads", "Внешние сквады", options?.external)}</div><button class="surface-button" type="button" data-action="admin-audience-options" ${running ? "disabled" : ""}>Обновить сквады</button></details>${channel === "telegram" ? `<label class="admin-toggle admin-feature-toggle"><span class="admin-feature-toggle__copy"><strong>Игнорировать отписку от рассылки</strong></span><input type="checkbox" role="switch" data-audience-field="ignoreUnsubscribe" data-channel="${channel}" ${a.ignoreUnsubscribe ? "checked" : ""} ${running ? "disabled" : ""}><i aria-hidden="true"></i></label>` : ""}</section>`;
 }

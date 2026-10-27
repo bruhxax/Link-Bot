@@ -30,7 +30,7 @@ export function createBroadcastAutosave({ state, post, applyTelegramDraft, onCha
     return null;
   }
   function complete(key, value) {
-    if (key === 'survey' && value.enabled) return filled(value.introText) && filled(value.startText) && filled(value.finishText) && value.questions?.length && value.questions.every(q => filled(q.text) && q.options?.length && q.options.every(filled)) && completeButtons(value.finalButtons);
+    if (key === 'survey') return true; // Incomplete survey drafts are safe to persist; delivery validates them.
     if (key === 'buttons') return completeButtons(value);
     if (key === 'auto-reply') return filled(value.text) && value.windowHours >= 1 && value.windowHours <= 168;
     if (key === 'email') return String(value.subject || '').trim().length >= 2 && String(value.body || '').trim().length >= 2;
@@ -38,10 +38,10 @@ export function createBroadcastAutosave({ state, post, applyTelegramDraft, onCha
   }
   async function save(key, value) {
     const channel = key.startsWith('audience:') ? key.split(':')[1] : key === 'email' ? 'email' : 'telegram';
-    if ((channel === 'email' ? state.adminEmailBroadcast?.draft : state.adminBroadcast)?.status === 'running') return;
+    if ((channel === 'email' ? state.adminEmailBroadcast?.draft : state.adminBroadcast)?.status === 'running' || channel==='telegram'&&state.adminBroadcast?.survey?.capture) return;
     let path, body;
     if (key.startsWith('audience:')) { path = 'audience'; body = { channel, audience: value }; }
-    else if (key === 'survey') { path = 'survey'; body = { survey: value, updatedAt: state.adminBroadcast?.updatedAt }; }
+    else if (key === 'survey') { path = 'survey'; body = { survey: value, updatedAt: state.adminBroadcast?.updatedAt, draft:true }; }
     else if (key === 'buttons') { path = 'buttons'; body = { buttons: value }; }
     else if (key === 'expiration') { path = 'expiration'; body = { deleteAfterMinutes: value, updatedAt: state.adminBroadcast?.updatedAt }; }
     else if (key === 'email') { path = 'email/save'; body = value; }

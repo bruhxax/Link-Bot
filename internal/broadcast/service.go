@@ -30,11 +30,12 @@ const (
 )
 
 var (
-	ErrRunning       = errors.New("broadcast is already running")
-	ErrDraftChanged  = errors.New("broadcast draft changed")
-	ErrNoMessage     = errors.New("broadcast message is not selected")
-	ErrInvalidButton = errors.New("invalid broadcast button")
-	ErrInvalidHTML   = errors.New("invalid broadcast HTML")
+	ErrRunning              = errors.New("broadcast is already running")
+	ErrDraftChanged         = errors.New("broadcast draft changed")
+	ErrNoMessage            = errors.New("broadcast message is not selected")
+	ErrInvalidButton        = errors.New("invalid broadcast button")
+	ErrInvalidHTML          = errors.New("invalid broadcast HTML")
+	ErrSurveyCapturePending = errors.New("Сначала завершите или отмените ввод сообщения опроса")
 
 	customEmojiTagPattern = regexp.MustCompile(`(?is)<tg-emoji\s+emoji-id\s*=\s*["']([0-9]{5,32})["'][^>]*>.*?</tg-emoji>`)
 	customEmojiIDPattern  = regexp.MustCompile(`^[0-9]{5,32}$`)
@@ -102,9 +103,6 @@ func (s *Service) Get(ctx context.Context) (*database.BroadcastDraft, error) {
 	}
 	if draft.Survey.Enabled {
 		hydrateSurveyInvitation(draft.Survey, draft)
-		if err = NormalizeSurvey(draft.Survey); err != nil {
-			return nil, err
-		}
 		if draft.Survey.FinalButtons == nil {
 			draft.Survey.FinalButtons = append([]database.BroadcastButton{}, draft.Buttons...)
 		}
@@ -118,6 +116,9 @@ func (s *Service) Get(ctx context.Context) (*database.BroadcastDraft, error) {
 func (s *Service) StartCapture(ctx context.Context, adminID int64) (*database.BroadcastDraft, error) {
 	s.sendMu.Lock()
 	defer s.sendMu.Unlock()
+	if err := s.checkSurveyCapture(ctx, 0); err != nil {
+		return nil, err
+	}
 	if err := s.checkPinnedCapture(ctx, adminID); err != nil {
 		return nil, err
 	}
@@ -157,6 +158,9 @@ func (s *Service) StartCapture(ctx context.Context, adminID int64) (*database.Br
 func (s *Service) CaptureMessage(ctx context.Context, message *models.Message) (bool, error) {
 	if s == nil || s.repository == nil || message == nil || message.From == nil {
 		return false, nil
+	}
+	if captured, err := s.CaptureSurveyMessage(ctx, message); captured || err != nil {
+		return captured, err
 	}
 	draft, err := s.repository.Get(ctx)
 	if err != nil || draft == nil || draft.Status != database.BroadcastStatusAwaitingMessage {
@@ -667,7 +671,7 @@ func looksLikeBroadcastHTML(value string) bool {
 
 // ValidateHTML checks the Telegram HTML subset before a draft is stored. The
 // Telegram API performs the final validation again when the admin previews it.
-func ValidateHTML(value string) error {
+func ValidateHTML(value string, allowPlain ...bool) error {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return fmt.Errorf("%w: текст пуст", ErrInvalidHTML)
@@ -694,7 +698,7 @@ func ValidateHTML(value string) error {
 			if len(stack) != 0 {
 				return fmt.Errorf("%w: тег <%s> не закрыт", ErrInvalidHTML, stack[len(stack)-1])
 			}
-			if !hasTag {
+			if !hasTag && !(len(allowPlain) > 0 && allowPlain[0]) {
 				return fmt.Errorf("%w: поддерживаемые HTML-теги не найдены", ErrInvalidHTML)
 			}
 			if strings.TrimSpace(visible.String()) == "" {
