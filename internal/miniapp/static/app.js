@@ -6823,7 +6823,7 @@ function renderAdminBroadcastPage(embedded=false) {
  if(!canAdmin("broadcast"))state.adminBroadcastTab="email";
  if(state.adminBroadcastTab==="email")return renderAdminEmailBroadcastPage();
  const english=state.locale==="en",survey=adminBroadcastWorkflowMode()==="survey",draft=state.adminBroadcast||{},running=draft.status==="running",busy=Boolean(state.adminBroadcastBusy),ready=adminBroadcastReadiness();
- const message=`<section class="admin-broadcast__section broadcast-content"><div class="broadcast-card-heading">${icon("telegram")}<strong>${english?"Message":"Сообщение"}</strong></div>${draft.sourceKind?`<p class="broadcast-message-text">${escapeHtml(draft.sourceText||draft.sourcePreview||"")}</p>`:`<p class="broadcast-help">${draft.status==="awaiting_message"?(english?"Send a message to the bot, then return here.":"Отправьте сообщение боту и вернитесь сюда."):(english?"Create a message in the bot. Text and attachments are supported.":"Создайте сообщение в боте: текст или вложение.")}</p>`}<button class="broadcast-inline-action" type="button" data-action="admin-broadcast-capture" ${running||busy?"disabled":""}>${icon("send")}${draft.sourceKind?(english?"Replace message":"Заменить сообщение"):(english?"Write to the bot":"Написать боту")}</button>${renderAdminBroadcastOptionalButtons(running||busy,english)}</section>`;
+ const message=`<section class="admin-broadcast__section broadcast-content"><div class="broadcast-card-heading">${icon("telegram")}<strong>${english?"Message":"Сообщение"}</strong></div>${draft.sourceKind?`<div class="broadcast-message-preview" aria-label="${english?"Message preview":"Просмотр сообщения"}"><p class="broadcast-message-text">${escapeHtml(draft.sourceText||draft.sourcePreview||(english?"Message with attachment":"Сообщение с вложением"))}</p></div>`:`<p class="broadcast-help">${draft.status==="awaiting_message"?(english?"Send a message to the bot, then return here.":"Отправьте сообщение боту и вернитесь сюда."):(english?"Create a message in the bot. Text and attachments are supported.":"Создайте сообщение в боте: текст или вложение.")}</p>`}<div class="broadcast-content__actions"><button class="broadcast-inline-action broadcast-replace" type="button" data-action="admin-broadcast-capture" ${running||busy?"disabled":""}>${icon("send")}${draft.sourceKind?(english?"Replace message":"Заменить сообщение"):(english?"Write to the bot":"Написать боту")}</button></div></section>${renderAdminBroadcastOptionalButtons(running||busy,english)}`;
  const body=`${renderAdminBroadcastWorkflowTabs(english)}<div class="broadcast-workflow-panel ${state.adminBroadcastMotion==="mode"?"is-entering":""}">
  ${survey?renderAdminSurvey(running||busy,english):message}
  <section class="admin-broadcast__section broadcast-audience">${renderCurrentAudience("telegram",running)}</section>
@@ -6852,7 +6852,7 @@ async function setAdminBroadcastWorkflowMode(mode) {
  if(!canAdmin("broadcast")||!["message","survey"].includes(mode)||state.adminBroadcastBusy)return;
  if(state.adminBroadcast?.status==="running"&&mode!==(state.adminBroadcast?.survey?.enabled?"survey":"message"))return;
  if(adminBroadcastWorkflowMode()===mode)return;
- state.adminBroadcastMode=mode;state.adminBroadcastConfirmOpen=false;state.adminBroadcastButtonsOpen=undefined;state.adminBroadcastMotion="mode";
+ state.adminBroadcastMode=mode;state.adminBroadcastConfirmOpen=false;state.adminBroadcastMotion="mode";
  if(state.adminBroadcast?.status!=="running"){
   state.adminSurveyDraft||=defaultAdminSurvey();const cfg=state.adminSurveyDraft,defaults=defaultAdminSurvey();cfg.enabled=mode==="survey";
   if(cfg.enabled){for(const field of ["title","introText","startText","finishText"])cfg[field]||=defaults[field];if(!cfg.questions?.length)cfg.questions=defaults.questions;cfg.finalButtons||=[];}
@@ -6874,8 +6874,8 @@ function adminBroadcastReadiness() {
  return{ready:!error,error};
 }
 function renderAdminBroadcastOptionalButtons(disabled,english=false) {
- const buttons=activeAdminBroadcastButtons(),survey=adminBroadcastWorkflowMode()==="survey",open=state.adminBroadcastButtonsOpen??buttons.length>0;
- return `<div class="broadcast-optional-buttons"><div class="broadcast-card-heading"><button class="broadcast-disclosure" type="button" data-action="broadcast-buttons-toggle" aria-expanded="${open}">${icon("plus")}<span>${survey?(english?"Final buttons":"Кнопки завершения"):(english?"Message buttons":"Кнопки сообщения")}</span><small>${buttons.length?buttons.length:(english?"Optional":"Необязательно")}</small>${icon("arrowRight")}</button></div>${open?`<div class="broadcast-reveal"><div class="admin-broadcast__buttons">${buttons.map((b,i)=>renderAdminBroadcastButton(b,i,disabled,english)).join("")}</div><button class="broadcast-inline-action" type="button" data-action="admin-broadcast-add-button" ${disabled||buttons.length>=8?"disabled":""}>${icon("plus")}${english?"Add button":"Добавить кнопку"}</button></div>`:""}</div>`;
+ const buttons=activeAdminBroadcastButtons(),survey=adminBroadcastWorkflowMode()==="survey";
+ return `<section class="admin-broadcast__section broadcast-buttons"><div class="broadcast-card-heading">${icon("menu")}<strong>${survey?(english?"Final buttons":"Кнопки завершения"):(english?"Message buttons":"Кнопки сообщения")}</strong><button class="broadcast-inline-action" type="button" data-action="admin-broadcast-add-button" ${disabled||buttons.length>=8?"disabled":""}>${icon("plus")}${english?"Add":"Добавить"}</button></div>${buttons.length?`<div class="admin-broadcast__buttons">${buttons.map((b,i)=>renderAdminBroadcastButton(b,i,disabled,english)).join("")}</div>`:`<p class="broadcast-help">${english?"Links and actions under the message.":"Ссылки и действия под сообщением."}</p>`}</section>`;
 }
 function renderAdminBroadcastLiveProgress(english=false) {
  const d=state.adminBroadcast||{},total=Number(d.recipientCount||0),done=Number(d.sentCount||0)+Number(d.failedCount||0),percent=total?Math.min(100,Math.round(done/total*100)):0;
@@ -6928,7 +6928,7 @@ function renderAdminSurvey(disabled,english=false) {
  const area=(key,label,value,q="")=>`<label class="survey-field survey-field--wide"><span>${label}</span><textarea rows="2" data-input="survey-${key}-${q}" data-survey-field="${key}" data-question="${q}" maxlength="3500" ${d}>${escapeHtml(value||"")}</textarea></label>`;
  return `<div class="survey-composer"><section class="survey-editor"><div class="broadcast-card-heading">${icon("chat")}<strong>${english?"Invitation":"Приглашение"}</strong></div><div class="survey-editor__body survey-invitation-fields">${field("title",english?"Survey name":"Название опроса",cfg.title)}${field("startText",english?"Start button":"Кнопка начала",cfg.startText,64)}${area("introText",english?"Invitation text":"Текст приглашения",cfg.introText)}</div></section>
  <section class="survey-editor"><div class="broadcast-card-heading">${icon("menu")}<strong>${english?"Questions":"Вопросы"}</strong></div><div class="survey-editor__body"><div class="survey-questions">${(cfg.questions||[]).map((q,i)=>`<section class="survey-question"><div class="survey-question__head"><button type="button" data-action="survey-question-open" data-question="${i}" aria-expanded="${Number(state.adminSurveyOpenQuestion||0)===i}" ${d}><span>${escapeHtml(surveyPlainText(q.text)|| (english?"New question":"Новый вопрос"))}</span>${icon("arrowRight")}</button><button class="survey-icon" type="button" data-action="survey-question-remove" data-question="${i}" aria-label="${english?"Delete question":"Удалить вопрос"}" ${d}>${icon("trash")}</button></div>${Number(state.adminSurveyOpenQuestion||0)===i?`<div class="survey-question__body ${state.adminSurveyMotion==="question"?"is-entering":""}">${area("text",english?"Question text":"Текст вопроса",q.text,i)}<div class="survey-answers"><span class="survey-answers__label">${english?"Answer options":"Варианты ответа"}</span>${(q.options||[]).map((o,j)=>`<div><input type="text" class="survey-answer-input" data-input="survey-option-${i}-${j}" data-survey-field="option" data-question="${i}" data-option="${j}" maxlength="64" aria-label="${english?"Answer option":"Вариант ответа"} ${j+1}" placeholder="${english?"Answer option":"Вариант ответа"}" value="${escapeAttribute(o||"")}" ${d}><button class="survey-icon" type="button" data-action="survey-option-remove" data-question="${i}" data-option="${j}" aria-label="${english?"Delete answer":"Удалить ответ"}" ${d}>${icon("trash")}</button></div>`).join("")}</div><button class="survey-add" type="button" data-action="survey-option-add" data-question="${i}" ${disabled||q.options?.length>=100?"disabled":""}>${icon("plus")}${english?"Add answer":"Добавить ответ"}</button></div>`:""}</section>`).join("")}</div><button class="survey-add" type="button" data-action="survey-question-add" ${disabled||cfg.questions?.length>=64?"disabled":""}>${icon("plus")}${english?"Add question":"Добавить вопрос"}</button></div></section>
- <section class="survey-editor"><div class="broadcast-card-heading">${icon("check")}<strong>${english?"Finish":"Завершение"}</strong>${state.adminSurveyDirty?`<button class="survey-icon" type="button" data-action="survey-save" aria-label="${english?"Save survey":"Сохранить опрос"}" title="${english?"Save survey":"Сохранить опрос"}" ${d}>${icon("check")}</button>`:""}</div><div class="survey-editor__body">${area("finishText",english?"Final message":"Финальное сообщение",cfg.finishText)}</div>${renderAdminBroadcastOptionalButtons(disabled,english)}</section></div>`;
+ <section class="survey-editor"><div class="broadcast-card-heading">${icon("check")}<strong>${english?"Finish":"Завершение"}</strong>${state.adminSurveyDirty?`<button class="survey-icon" type="button" data-action="survey-save" aria-label="${english?"Save survey":"Сохранить опрос"}" title="${english?"Save survey":"Сохранить опрос"}" ${d}>${icon("check")}</button>`:""}</div><div class="survey-editor__body">${area("finishText",english?"Final message":"Финальное сообщение",cfg.finishText)}</div></section>${renderAdminBroadcastOptionalButtons(disabled,english)}</div>`;
 }
 
 function renderAdminSurveyResults(english=false) {
@@ -6996,7 +6996,7 @@ function renderAdminEmailBroadcastPage() {
     <button class="admin-mail__button" type="button" data-action="admin-email-test" ${running || busy || (canBroadcast && !configured) ? "disabled" : ""}>${icon("profileLetter")}<span>${state.adminEmailBusy === "preview" || state.adminSMTP.busy === "test" ? (english ? "Sending…" : "Отправляем…") : (english ? "Send test email" : "Отправить тестовое письмо")}</span></button>
     ${!canBroadcast && state.adminSMTP.error ? `<p class="admin-ai__error" role="alert">${escapeHtml(state.adminSMTP.error)}</p>` : ""}
   </div>`;
-  return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-broadcast admin-mail">
+  return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-broadcast admin-mail broadcast-workflow">
     ${renderAdminBroadcastTabs()}
     <div class="admin-mail__tabs" role="tablist" aria-label="${english ? "Email editor" : "Редактор письма"}">${tabs.map(([id,label]) => `<button type="button" role="tab" aria-selected="${id === selected}" class="${id === selected ? "is-active" : ""}" data-action="admin-email-editor-tab" data-value="${id}">${label}</button>`).join("")}</div>
     <div class="admin-mail__panel" role="tabpanel">${selected === "connection" ? renderAdminMailSettings() : selected === "test" ? test : message}</div>
@@ -12456,7 +12456,6 @@ function bindRootActions() {
 			if (action === "admin-user-activity-refresh") return await refreshAdminUserActivity();
 			if (action === "admin-user-activity-more") return await refreshAdminUserActivity({more:true});
 			if(action==="broadcast-workflow-mode")return await setAdminBroadcastWorkflowMode(value);
- if(action==="broadcast-buttons-toggle"){state.adminBroadcastButtonsOpen=!(state.adminBroadcastButtonsOpen??activeAdminBroadcastButtons().length>0);render({preserveScroll:true});return;}
  if (action === "survey-save") return await saveAdminSurvey();
  if(action === "survey-results") return await loadAdminSurveyResults(target.dataset.run||"",target.dataset.more==="true");
  if(action === "survey-question-add") return editAdminSurvey("addQuestion");
@@ -13835,7 +13834,7 @@ async function startAdminBroadcastCapture() {
 function addAdminBroadcastButton() {
 	if (activeAdminBroadcastButtons().length >= 8 || state.adminBroadcast?.status === "running") return;
 	activeAdminBroadcastButtons().push({ id: `button_${Date.now().toString(36)}`, type: "url", text: "", iconCustomEmojiId: "", style: "", url: "https://", promoCode: "" });
-	markAdminBroadcastButtonsDirty();state.adminBroadcastButtonsOpen=true;
+	markAdminBroadcastButtonsDirty();
 	haptic("light");
 	render({ preserveScroll: true });
 }
@@ -13843,7 +13842,7 @@ function addAdminBroadcastButton() {
 function setAdminBroadcastButtonStyle(index, style) {
 	if (!Number.isInteger(index) || index < 0 || index >= activeAdminBroadcastButtons().length || state.adminBroadcast?.status === "running") return;
 	activeAdminBroadcastButtons()[index].style = ["primary", "success", "danger"].includes(style) ? style : "";
-	markAdminBroadcastButtonsDirty();state.adminBroadcastButtonsOpen=true;
+	markAdminBroadcastButtonsDirty();
 	haptic("light");
 	render({ preserveScroll: true });
 }
@@ -13851,7 +13850,7 @@ function setAdminBroadcastButtonStyle(index, style) {
 function removeAdminBroadcastButton(index) {
 	if (!Number.isInteger(index) || index < 0 || index >= activeAdminBroadcastButtons().length || state.adminBroadcast?.status === "running") return;
 	activeAdminBroadcastButtons().splice(index, 1);
-	markAdminBroadcastButtonsDirty();state.adminBroadcastButtonsOpen=true;
+	markAdminBroadcastButtonsDirty();
 	haptic("light");
 	render({ preserveScroll: true });
 }
@@ -18372,6 +18371,7 @@ function applyAppearance() {
 		"--control-border": colors.border,
 		"--control-border-soft": colors.border ? hexToRGBA(colors.border, 0.72) : "",
 		"--button-text": colors.buttonText,
+		"--broadcast-action-text": previewButtonColor(accentColor),
 		"--icon-color": colors.icon,
 		"--glass-selected": colors.surfaceStrong,
 		"--success": colors.success,

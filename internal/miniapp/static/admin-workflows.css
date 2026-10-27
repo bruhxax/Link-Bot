@@ -129,85 +129,155 @@
 .survey-people p { display: grid; gap: 4px; margin: 7px 0 0 8px; font-size: 10px; line-height: 1.5; }.survey-people p span { color: var(--muted); }
 .survey-workflow .survey-editor { margin: 8px 0; }
 
-/* Compact broadcast layout; use grid gaps so adjacent cards never collapse. */
+/* Broadcast composer. Card, field and action surfaces have distinct roles. */
 .broadcast-native-workflow { margin-top: 10px; }
-#app .broadcast-workflow { max-width: 780px; margin-inline: auto; padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
-#app .broadcast-workflow-panel, #app .survey-composer { display: grid; gap: 10px; align-content: start; min-width: 0; }
-#app .broadcast-workflow-tabs { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; padding: 4px; margin: 10px 0; border-radius: 8px; background: var(--surface); }
-#app .broadcast-workflow .broadcast-workflow-tabs button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 6px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; transition: background .18s ease,color .18s ease; }
-#app .broadcast-workflow .broadcast-workflow-tabs button[aria-selected=true] { background: var(--control-bg,var(--surface-soft)); border-color: var(--line-soft); color: var(--text); }
-.broadcast-workflow-tabs svg { width: 14px; height: 14px; }
-#app .broadcast-workflow :is(.admin-broadcast__section,.survey-editor,.survey-responses) { margin: 0; padding: 12px; min-width: 0; border: 1px solid var(--line-soft); border-radius: 9px; background: var(--surface); box-shadow: none; }
-#app .broadcast-workflow .broadcast-card-heading { display: flex; align-items: center; gap: 7px; margin: 0 0 8px; min-height: 24px; }
-.broadcast-card-heading > svg { width: 14px; height: 14px; color: var(--icon-color,var(--accent)); flex-shrink: 0; }
-.broadcast-card-heading > strong { flex: 1; font-size: 11px; font-weight: 650; line-height: 1.4; }
-.broadcast-help { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
-#app .broadcast-workflow .survey-editor__body { padding: 0; gap: 8px; }
-#app .broadcast-workflow .survey-invitation-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+#app .broadcast-workflow {
+  --broadcast-field-bg: color-mix(in srgb, var(--control-material, var(--control-bg)) 98%, var(--text) 2%);
+  max-width: 780px; margin-inline: auto;
+  padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+}
+#app :is(.broadcast-workflow-panel, .survey-composer) { display: grid; gap: 12px; align-content: start; min-width: 0; }
+#app .broadcast-workflow :is(.admin-broadcast__tabs, .broadcast-workflow-tabs) {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px;
+  padding: 4px; margin: 0; border: 0; border-radius: 12px; background: var(--surface);
+}
+#app .broadcast-workflow .broadcast-workflow-tabs { margin: 0 0 12px; }
+#app .broadcast-workflow :is(.admin-broadcast__tabs, .broadcast-workflow-tabs) button {
+  min-width: 0; min-height: 40px; padding: 9px 8px; display: flex; align-items: center; justify-content: center; gap: 7px;
+  border: 0; border-radius: 9px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+}
+#app .broadcast-workflow :is(.admin-broadcast__tabs, .broadcast-workflow-tabs) button[aria-selected="true"] { background: var(--control-bg); color: var(--text); }
+#app .broadcast-workflow :is(.admin-broadcast__tabs, .broadcast-workflow-tabs) svg { width: 16px; height: 16px; flex-shrink: 0; }
+#app :is(#page-admin, .rn-content, .broadcast-native-workflow) .broadcast-workflow :is(.admin-broadcast__section, .survey-editor, .survey-responses) {
+  display: grid; gap: 12px; margin: 0; padding: 14px; min-width: 0;
+  border: 1px solid var(--line-soft); border-radius: 12px; background: var(--surface); box-shadow: none;
+}
+#app .broadcast-workflow .broadcast-card-heading { display: flex; align-items: center; gap: 8px; margin: 0; min-height: 26px; min-width: 0; }
+.broadcast-card-heading > svg { width: 16px; height: 16px; color: var(--icon-color, var(--accent)); flex-shrink: 0; }
+.broadcast-card-heading > strong { flex: 1; min-width: 0; font-size: 11.5px; font-weight: 650; line-height: 1.45; }
+.broadcast-help { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+#app .broadcast-workflow .broadcast-message-preview {
+  min-width: 0; min-height: 90px; max-height: 280px; padding: 14px 16px; overflow: auto;
+  border-radius: 14px 14px 4px 14px;
+  background: color-mix(in srgb, var(--control-material, var(--control-bg)) 88%, var(--accent) 12%);
+}
+#app .broadcast-workflow .broadcast-message-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); font-size: 12px; font-weight: 450; line-height: 1.7; }
+#app .broadcast-workflow .broadcast-content__actions { display: flex; justify-content: flex-end; }
+#app .broadcast-workflow .broadcast-inline-action,
+#app .broadcast-workflow .survey-add {
+  display: inline-flex; align-items: center; justify-content: center; justify-self: start; gap: 7px;
+  min-height: 36px; max-width: 100%; padding: 8px 11px; border: 1px solid var(--line-soft); border-radius: 9px;
+  background: var(--control-bg); color: var(--text); font: inherit; font-size: 11px; font-weight: 550; cursor: pointer;
+}
+#app .broadcast-workflow .broadcast-replace { min-height: 42px; padding-inline: 16px; font-size: 11.5px; }
+.broadcast-inline-action svg, .survey-add svg { width: 16px; height: 16px; flex-shrink: 0; }
+#app .broadcast-workflow .admin-broadcast__buttons { display: grid; gap: 12px; margin: 0; }
+#app :is(#page-admin, .rn-content, .broadcast-native-workflow) .broadcast-workflow .admin-broadcast-button {
+  display: grid; gap: 12px; min-width: 0; margin: 0; padding: 12px;
+  border: 1px solid var(--line-soft); border-radius: 10px;
+  background: color-mix(in srgb, var(--control-material, var(--control-bg)) 35%, var(--surface) 65%);
+}
+#app .broadcast-workflow .admin-broadcast-button label { min-width: 0; display: grid; gap: 6px; margin: 0; }
+#app .broadcast-workflow .admin-broadcast-button__head { margin: 0; }
+#app .broadcast-workflow .admin-broadcast-button__head strong { font-size: 11px; }
+#app .broadcast-workflow .survey-editor__body { padding: 0; gap: 12px; }
+#app .broadcast-workflow .survey-invitation-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .survey-field--wide { grid-column: 1 / -1; }
-#app .broadcast-workflow .survey-field { gap: 5px; }
-#app .broadcast-workflow .survey-field > span, .survey-answers__label { font-size: 9px; line-height: 1.4; color: var(--muted); }
-#app .broadcast-workflow :is(.survey-field input,.survey-field textarea,.survey-answer-input) { width: 100%; min-width: 0; box-sizing: border-box; min-height: 34px; padding: 7px 9px; border: 1px solid var(--line-soft); border-radius: 6px; background: var(--control-bg,var(--surface-soft)); color: var(--text); font: inherit; font-size: 11px; font-weight: 500; line-height: 1.45; box-shadow: none; }
-#app .broadcast-workflow .survey-field textarea { min-height: 58px; resize: vertical; }
-#app .broadcast-workflow :is(input,textarea):focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
-#app .broadcast-workflow .survey-question { border: 0; border-top: 1px solid var(--line-soft); border-radius: 0; }
+#app .broadcast-workflow :is(.survey-field, .admin-field, .admin-broadcast-auto-reply-field, .admin-broadcast-expiration-minutes) { display: grid; gap: 6px; margin: 0; min-width: 0; }
+#app .broadcast-workflow :is(.survey-field > span, .admin-field > span, .admin-email-broadcast__field > span, .admin-broadcast-button label > span, .admin-broadcast-auto-reply-field > span, .admin-broadcast-expiration-minutes > span, .survey-answers__label) { color: var(--muted); font-size: 10px; font-weight: 500; line-height: 1.5; }
+#app :is(#page-admin, .rn-content, .broadcast-native-workflow) .broadcast-workflow :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select, .admin-localization-select) {
+  width: 100%; min-width: 0; box-sizing: border-box; min-height: 42px; height: auto;
+  padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: 10px;
+  color: var(--text); background: var(--broadcast-field-bg); font: inherit; font-size: 11.5px; font-weight: 500; line-height: 1.5; box-shadow: none;
+}
+#app .broadcast-workflow .admin-localization-select { padding-inline-end: 32px; }
+#app .broadcast-workflow textarea { min-height: 88px; resize: vertical; }
+#app .broadcast-workflow :is(input, textarea)::placeholder { color: var(--muted); opacity: .7; font-weight: 400; }
+#app .broadcast-workflow :is(input, textarea, select, button, .admin-localization-select):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#app .broadcast-workflow .survey-questions { gap: 12px; }
+#app .broadcast-workflow .survey-question { min-width: 0; border: 0; border-top: 1px solid var(--line-soft); border-radius: 0; }
 #app .broadcast-workflow .survey-question:first-child { border-top: 0; }
-#app .broadcast-workflow .survey-question__head { padding: 0; gap: 5px; min-height: 34px; }
-#app .broadcast-workflow .survey-question__head > button:first-child { min-height: 34px; padding: 5px 0; font-size: 10.5px; font-weight: 600; }
-#app .broadcast-workflow .survey-question__body { padding: 6px 0 10px; gap: 8px; }
+#app .broadcast-workflow .survey-question__head { padding: 0; gap: 6px; min-height: 36px; }
+#app .broadcast-workflow .survey-question__head > button:first-child { min-height: 36px; padding: 6px 0; font-size: 11px; font-weight: 550; }
 #app .broadcast-workflow .survey-question__head svg { transition: transform .18s ease; }
-#app .broadcast-workflow .survey-answers { gap: 6px; }
-#app .broadcast-workflow .survey-answers > div { align-items: center; gap: 5px; }
+#app .broadcast-workflow .survey-question__body { padding: 8px 0 4px; gap: 12px; }
+#app .broadcast-workflow .survey-answers { gap: 8px; }
+#app .broadcast-workflow .survey-answers > div { align-items: center; gap: 8px; }
 #app .broadcast-workflow .survey-answer-input { flex: 1; }
-#app .broadcast-workflow .survey-icon { display: inline-grid; place-items: center; width: 28px; height: 28px; min-height: 28px; flex: 0 0 28px; margin: 0; padding: 6px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
-#app .broadcast-workflow .survey-icon svg { width: 14px; height: 14px; }
-#app .broadcast-workflow :is(.survey-add,.broadcast-inline-action) { display: inline-flex; align-items: center; justify-content: center; justify-self: start; gap: 6px; min-height: 30px; padding: 6px 9px; border: 1px solid var(--line-soft); border-radius: 6px; background: var(--control-bg,var(--surface-soft)); color: var(--text); font: inherit; font-size: 10px; font-weight: 600; cursor: pointer; }
-.broadcast-inline-action svg, .survey-add svg { width: 13px; height: 13px; }
-#app .broadcast-workflow .broadcast-optional-buttons { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
-#app .broadcast-workflow .broadcast-optional-buttons > .broadcast-card-heading { margin: 0; min-height: 28px; }
-#app .broadcast-workflow .broadcast-disclosure { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 28px; padding: 4px 0; font: inherit; font-size: 10px; font-weight: 600; text-align: start; cursor: pointer; }
-.broadcast-disclosure > span { flex: 1; }.broadcast-disclosure > small { font-size: 9px; color: var(--muted); }
-.broadcast-disclosure svg { width: 13px; height: 13px; }.broadcast-disclosure[aria-expanded=true] svg:last-child { transform: rotate(90deg); }
-.broadcast-reveal { padding-top: 8px; }
-#app .broadcast-workflow .broadcast-content > .broadcast-inline-action { margin-top: 10px; }
-#app .broadcast-workflow .broadcast-message-text { margin: 0; max-height: 140px; overflow: auto; white-space: pre-wrap; font-size: 11px; line-height: 1.6; }
-#app .broadcast-workflow .admin-broadcast__options { display: grid; gap: 10px; margin: 0; padding: 0; border: 0; background: transparent; overflow: visible; }
-#app .broadcast-workflow .broadcast-option { min-width: 0; border: 1px solid var(--line-soft); border-radius: 9px; background: var(--surface); overflow: hidden; }
-#app .broadcast-workflow .broadcast-option__header { min-height: 46px; padding: 9px 12px; grid-template-columns: 23px minmax(0,1fr) 34px; gap: 8px; }
-#app .broadcast-workflow .broadcast-option__icon { width: 23px; height: 23px; border-radius: 6px; }
-#app .broadcast-workflow .broadcast-option__icon svg { width: 14px; height: 14px; }
-#app .broadcast-workflow .broadcast-option__text strong { font-size: 10.5px; }
-#app .broadcast-workflow .broadcast-option__text small { font-size: 9px; }
-#app .broadcast-workflow .broadcast-option__body { padding: 0 12px 10px; gap: 8px; }
-#app .broadcast-workflow .broadcast-delivery .broadcast-help { margin-bottom: 8px; }
-#app .broadcast-workflow .admin-broadcast__actions { gap: 8px; }
-#app .broadcast-workflow .admin-broadcast__actions button { min-height: 34px; padding: 7px 9px; font-size: 10px; font-weight: 650; white-space: nowrap; }
-#app .broadcast-workflow .admin-audience { margin: 0; padding: 0; border: 0; background: transparent; }
-#app .broadcast-workflow .survey-results { padding: 0; border: 0; background: transparent; gap: 8px; }
-#app .broadcast-workflow .survey-results__head:empty { display: none; }
-#app .broadcast-workflow .survey-results-empty { margin: 0; font-size: 10px; color: var(--muted); line-height: 1.5; }
-#app .broadcast-workflow button:disabled { cursor: default; opacity: .45; }
-/* Override shared card grids here: card spacing belongs to the outer workflow. */
-#app :is(#page-admin,.rn-content) .broadcast-workflow :is(.admin-broadcast__section,.survey-editor,.survey-responses) { display: block; }
-#app :is(#page-admin,.rn-content) .broadcast-workflow .audience-editor { margin: 0; padding: 0; gap: 10px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-#app :is(#page-admin,.rn-content) .broadcast-workflow .audience-editor .admin-editor__grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+#app .broadcast-workflow :is(.survey-icon, .admin-icon-button) {
+  display: inline-grid; place-items: center; width: 34px; height: 34px; min-height: 34px; flex: 0 0 34px;
+  margin: 0; padding: 8px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer;
+}
+#app .broadcast-workflow :is(.survey-icon, .admin-icon-button) svg { width: 16px; height: 16px; }
+#app .broadcast-workflow .admin-broadcast__options { display: grid; gap: 12px; margin: 0; padding: 0; border: 0; background: transparent; overflow: visible; }
+#app .broadcast-workflow .broadcast-option { min-width: 0; border: 1px solid var(--line-soft); border-radius: 12px; background: var(--surface); overflow: hidden; }
+#app .broadcast-workflow .broadcast-option__header { min-height: 60px; padding: 12px 14px; grid-template-columns: 28px minmax(0, 1fr) 34px; gap: 10px; }
+#app .broadcast-workflow .broadcast-option__icon { width: 28px; height: 28px; border-radius: 8px; }
+#app .broadcast-workflow .broadcast-option__icon svg { width: 16px; height: 16px; }
+#app .broadcast-workflow .broadcast-option__text strong { font-size: 11px; }
+#app .broadcast-workflow .broadcast-option__text small { font-size: 10px; }
+#app .broadcast-workflow .broadcast-option__body { padding: 0 14px 14px; gap: 12px; }
+#app .broadcast-workflow .broadcast-option__support { min-height: 36px; font-size: 11px; }
+#app .broadcast-workflow .admin-broadcast__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+#app :is(#page-admin, .rn-content, .broadcast-native-workflow) .broadcast-workflow :is(.admin-broadcast__actions button, .admin-mail__button) {
+  min-width: 0; min-height: 46px; padding: 11px 12px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: 0; border-radius: 11px; font: inherit; font-size: 11.5px; font-weight: 650; white-space: nowrap; cursor: pointer;
+}
+#app .broadcast-workflow .admin-broadcast__actions svg { width: 18px; height: 18px; flex-shrink: 0; }
+#app .broadcast-workflow :is(.admin-broadcast__actions .admin-broadcast__send, .admin-mail__button--primary) { background: var(--accent); color: var(--broadcast-action-text, var(--accent-contrast, #071017)) !important; }
+#app :is(#page-admin, .rn-content, .broadcast-native-workflow) .broadcast-workflow .audience-editor { margin: 0; padding: 0; gap: 14px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+#app :is(#page-admin, .rn-content, .broadcast-native-workflow) .broadcast-workflow .audience-editor .admin-editor__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 #app .broadcast-workflow .audience-editor .admin-editor__grid > label:last-child { grid-column: 1 / -1; }
-#app .broadcast-workflow .audience-editor :is(.admin-field__control,.admin-localization-select) { min-height: 34px; padding-block: 7px; font-size: 11px; }
-#app .broadcast-workflow .audience-editor :is(.admin-field > span,.audience-count) { font-size: 10px; }
-#app .broadcast-workflow .audience-editor > .admin-toggle { padding: 5px 0; min-height: 34px; }
-#app .broadcast-workflow :is(input[role="switch"],.admin-toggle > i) { box-shadow: inset 0 0 0 1px color-mix(in srgb,var(--text) 18%,transparent) !important; background: color-mix(in srgb,var(--control-bg) 88%,var(--text) 12%) !important; }
-#app .broadcast-workflow :is(input[role="switch"]:checked,.admin-toggle input:checked + i) { background: var(--accent-soft) !important; box-shadow: inset 0 0 0 1px var(--accent) !important; }
+#app .broadcast-workflow .audience-count { font-size: 10px; }
+#app .broadcast-workflow .audience-editor > .admin-toggle { min-height: 42px; padding: 6px 0; }
+#app .broadcast-workflow .audience-editor > .surface-inline > .surface-button { min-height: 42px; border-radius: 10px; font-size: 11px; }
+#app .broadcast-workflow .survey-results { padding: 0; border: 0; background: transparent; gap: 12px; }
+#app .broadcast-workflow .survey-results__head:empty { display: none; }
+#app .broadcast-workflow .survey-results-empty { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.6; }
+#app .broadcast-workflow :is(input[role="switch"], .admin-toggle > i) { background: color-mix(in srgb, var(--control-bg) 82%, var(--text) 18%) !important; }
+#app .broadcast-workflow :is(input[role="switch"]:checked, .admin-toggle input:checked + i) { background: color-mix(in srgb, var(--control-bg) 70%, var(--accent) 30%) !important; }
+#app .broadcast-workflow button:disabled { cursor: default; opacity: .45; }
 @keyframes broadcast-panel-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 #app .broadcast-workflow .is-entering { animation: broadcast-panel-in .18s ease-out both; }
+
+/* Match the shared important control layer, including frame visibility. */
 @layer control-material {
-  :root:not([data-admin-console="on"]) #app .broadcast-workflow :is(button,input:not([type="checkbox"]):not([type="radio"]),textarea,select,.admin-localization-select) {
-    background: color-mix(in srgb,var(--control-material,var(--control-bg)) 94%,var(--text) 6%) !important;
-    border-color: color-mix(in srgb,var(--text) 12%,transparent) !important;
+  :root:not([data-admin-console="on"]) #app .broadcast-workflow :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select, .admin-localization-select) {
+    background: var(--broadcast-field-bg) !important; border-color: var(--line-soft) !important; color: var(--text) !important;
+    min-height: 42px !important; padding: 10px 12px !important; border-radius: 10px !important;
+    font-size: 11.5px !important; font-weight: 500 !important; line-height: 1.5 !important;
   }
-  :root:not([data-admin-console="on"]) #app .broadcast-workflow :is(.survey-question__head > button:first-child,.broadcast-disclosure,.survey-icon,.broadcast-workflow-tabs button,.audience-editor > .admin-toggle) {
-    background: transparent !important; background-image: none !important; border: 0 !important; box-shadow: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  :root:not([data-admin-console="on"]) #app .broadcast-workflow textarea { min-height: 88px !important; }
+  :root:not([data-admin-console="on"]) #app .broadcast-workflow .admin-localization-select { padding-inline-end: 32px !important; }
+  :root:not([data-admin-console="on"]) #app .broadcast-workflow :is(.survey-question__head > button:first-child, .survey-icon, .admin-icon-button) {
+    background: transparent !important; background-image: none !important; border: 0 !important;
+    box-shadow: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
   }
-  :root:not([data-admin-console="on"]) #app .broadcast-workflow .broadcast-workflow-tabs button[aria-selected=true] { background: color-mix(in srgb,var(--control-material,var(--control-bg)) 88%,var(--text) 12%) !important; }
-  :root:not([data-admin-console="on"]) #app .broadcast-workflow .admin-broadcast__send { border-color: var(--accent-border) !important; }
+  :root:not([data-admin-console="on"]) #app .broadcast-workflow :is(.admin-broadcast__tabs, .broadcast-workflow-tabs) button {
+    background: transparent !important; background-image: none !important; border: 0 !important;
+    box-shadow: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; color: var(--muted) !important;
+  }
+  :root:not([data-admin-console="on"]) #app .broadcast-workflow :is(.admin-broadcast__tabs, .broadcast-workflow-tabs) button[aria-selected="true"] { background: var(--control-material, var(--control-bg)) !important; color: var(--text) !important; }
+  :root:not([data-admin-console="on"]) #app .broadcast-workflow .admin-broadcast__actions button {
+    background: color-mix(in srgb, var(--control-material, var(--control-bg)) 90%, var(--accent) 10%) !important;
+    color: var(--text) !important; background-image: none !important; box-shadow: none !important;
+  }
+  :root:not([data-admin-console="on"]) #app .broadcast-workflow :is(.admin-broadcast__actions .admin-broadcast__send, .admin-mail__button--primary) {
+    background: var(--accent) !important; color: var(--broadcast-action-text, var(--accent-contrast, #071017)) !important;
+  }
+  :root:not([data-admin-console="on"]) #app .broadcast-workflow :is(.admin-broadcast__actions button, .admin-mail__button) svg { color: inherit !important; }
+  /* Hidden frames also cover native switch tracks and any generated pseudo-elements. */
+  :root:not([data-admin-console="on"])[data-frames="off"] #app :is(#page-admin, .rn-content, .broadcast-native-workflow) .broadcast-workflow,
+  :root:not([data-admin-console="on"])[data-frames="off"] #app :is(#page-admin, .rn-content, .broadcast-native-workflow) .broadcast-workflow *,
+  :root:not([data-admin-console="on"])[data-frames="off"] #app :is(#page-admin, .rn-content, .broadcast-native-workflow) .broadcast-workflow *::before,
+  :root:not([data-admin-console="on"])[data-frames="off"] #app :is(#page-admin, .rn-content, .broadcast-native-workflow) .broadcast-workflow *::after { border-color: transparent !important; }
+  :root:not([data-admin-console="on"])[data-frames="off"] #app :is(#page-admin, .rn-content, .broadcast-native-workflow) .broadcast-workflow :is(input[role="switch"], .admin-toggle > i) { box-shadow: none !important; }
 }
-@media(prefers-reduced-motion:reduce) { #app .broadcast-workflow .is-entering { animation: none; } #app .broadcast-workflow * { transition: none !important; } }
+@media (max-width: 520px) {
+  #app .broadcast-workflow .survey-invitation-fields { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 360px) {
+  #app .broadcast-workflow .admin-broadcast__actions { grid-template-columns: minmax(0, 1fr); }
+  #app .broadcast-workflow .broadcast-replace { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { #app .broadcast-workflow .is-entering { animation: none; } #app .broadcast-workflow * { transition: none !important; } }
