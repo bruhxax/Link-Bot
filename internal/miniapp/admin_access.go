@@ -22,6 +22,7 @@ type adminPermission struct {
 }
 
 var adminPermissions = []adminPermission{
+	{"torrents", "Торренты", "Операции", nil},
 	{"status", "Статус", "Система", nil}, {"localization", "Язык и шрифт", "Система", nil},
 	{"maintenance", "Режим аварии", "Система", nil}, {"diagnostics", "Диагностика", "Система", nil},
 	{"push", "Push-уведомления", "Система", nil}, {"features", "Управление функциями", "Система", nil},
@@ -145,6 +146,7 @@ func (h *Handler) HasAdminPermission(ctx context.Context, telegramID int64, perm
 }
 
 var adminSettingsFields = map[string][]string{
+	"torrents":     {"torrents"},
 	"localization": {"localization"}, "maintenance": {"maintenance"}, "features": {"features"},
 	"content": {"content", "panel"}, "appearance": {"appearance"}, "layout": {"layout"}, "subpage": {"subPage"},
 	"plans": {"plans", "devicePacks", "trafficPacks", "deviceAccess", "paymentMethodOrder", "paymentMethodText", "paymentMethodVariants"},
@@ -164,6 +166,8 @@ func adminRouteAllowed(a adminAccess, path string) bool {
 	}
 	route := strings.TrimPrefix(path, "/api/mini-app/admin/")
 	switch route {
+	case "torrents/reports":
+		return a.can("torrents")
 	case "payments/channels", "payments/logo/upload":
 		return a.can("plans")
 	case "settings/update":
@@ -378,6 +382,9 @@ func mergeAdminSettings(current, next runtimeconfig.Settings, section string) (r
 }
 
 func adminSettingsForAccess(settings runtimeconfig.Settings, access adminAccess) runtimeconfig.Settings {
+	if !access.can("torrents") {
+		settings.Torrents = runtimeconfig.TorrentSettings{}
+	}
 	if !access.can("servers.view") {
 		settings.HiddenServerNodes = nil
 	}

@@ -73,6 +73,7 @@ func DefaultPaymentMethodOrder() []string {
 }
 
 type Settings struct {
+	Torrents              TorrentSettings                 `json:"torrents"`
 	ReviewRewards         ReviewRewardSettings            `json:"reviewRewards"`
 	Version               int                             `json:"version"`
 	Localization          LocalizationSettings            `json:"localization"`
@@ -526,6 +527,7 @@ func DefaultSettings() Settings {
 			TextRU:   "Сервис временно недоступен. Попробуйте немного позже.",
 			ReasonRU: "Плановые работы",
 		},
+		Torrents: DefaultTorrentSettings(),
 		Features: features,
 		Content: ContentSettings{
 			BrandName:    "Link-Bot",
@@ -1248,6 +1250,9 @@ func NormalizeAndValidate(settings *Settings) error {
 	}
 	defaults := DefaultSettings()
 	previousVersion := settings.Version
+	if err := ValidateTorrentSettings(&settings.Torrents); err != nil {
+		return err
+	}
 	settings.Version = CurrentVersion
 	if previousVersion < 27 && settings.ReviewRewards == (ReviewRewardSettings{}) {
 		settings.ReviewRewards = defaults.ReviewRewards

@@ -37,6 +37,7 @@ export function workspaceNavigationURL(target, telegram) {
 const CONSOLE_ROUTES = [
   ["Управление", "Management", [
     ["users", "Пользователи", "Users", "users", "users"],
+    ["torrents", "Торренты", "Torrents", "adminDiagnostics", "torrents"],
     ["subscriptions", "Подписки", "Subscriptions", "adminSubscriptions", "subscriptions"],
     ["plans", "Тарифы", "Plans", "cartShopping", "plans"],
     ["servers", "Ноды", "Nodes", "server", "servers.view", "page"],
@@ -77,7 +78,7 @@ const CONSOLE_ROUTES = [
 
 const allConsoleRoutes = CONSOLE_ROUTES.flatMap(group=>group[2]);
 export const CONSOLE_GROUPS = [
-  ["Управление","Management",["users","partners","broadcast","promocodes","referrals","finance","analytics"]],
+  ["Управление","Management",["users","torrents","partners","broadcast","promocodes","referrals","finance","analytics"]],
   ["Поддержка","Support",["support","reviews","content","ai"]],
   ["Настройки","Settings",["subscriptions","plans","servers","appearance","layout","subpage","integrations","moynalog","administrators","localization","status","diagnostics","features","trial","grace","maintenance","push"]],
 ].map(([ru,en,ids])=>[ru,en,ids.map(id=>allConsoleRoutes.find(route=>route[0]===id))]);

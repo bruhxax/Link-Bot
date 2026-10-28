@@ -5,6 +5,7 @@ export const CUSTOMER_ROUTES = Object.freeze({
   "login-methods": "account/security", payments: "payments", terms: "terms", privacy: "privacy",
 });
 export const ADMIN_SECTIONS = Object.freeze([
+  "torrents",
   "home", "users", "subscriptions", "plans", "servers", "support", "reviews", "administrators",
   "finance", "analytics", "promocodes", "referrals", "partners", "broadcast", "integrations", "moynalog",
   "content", "appearance", "landing", "cursors", "layout", "subpage", "localization", "status", "diagnostics", "features",

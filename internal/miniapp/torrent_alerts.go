@@ -121,14 +121,6 @@ func torrentReportDetails(report torrentReport) []database.UserActivityDetail {
 	return details
 }
 
-func formatTorrentAlert(report torrentReport, occurred time.Time) string {
-	message := "🧲 <b>Обнаружен торрент-трафик</b>\n\n"
-	for _, detail := range torrentReportDetails(report) {
-		message += safeSecurityText(detail.Label) + ": <code>" + safeSecurityText(detail.Value) + "</code>\n"
-	}
-	return message + "🕒 Время: " + formatSecurityTime(occurred)
-}
-
 func (h *Handler) handleTorrentReport(w http.ResponseWriter, r *http.Request, event remnawaveSecurityEvent) {
 	report, occurred, err := parseTorrentReport(event.Data)
 	if err != nil {
@@ -145,9 +137,37 @@ func (h *Handler) handleTorrentReport(w http.ResponseWriter, r *http.Request, ev
 	}
 	key := torrentEventKey(report, occurred)
 	entry := database.UserActivity{Title: "Обнаружен торрент-трафик", Details: torrentReportDetails(report), CreatedAt: occurred}
+	if store := h.torrentWorkspaceStore(); store != nil {
+		var until *time.Time
+		if *report.Report.Action.Blocked {
+			parsed, _ := parseTorrentTime(report.Report.Action.WillUnblockAt)
+			until = &parsed
+		}
+		clean := func(value string) string {
+			runes := []rune(strings.TrimSpace(value))
+			if len(runes) > 160 {
+				return string(runes[:160])
+			}
+			return string(runes)
+		}
+		err := store.SaveTorrentReport(r.Context(), database.TorrentReport{EventKey: key, UserUUID: report.User.UUID, PanelUserID: report.User.ID, Username: clean(report.User.Username), Node: clean(report.Node.Name), IP: net.ParseIP(report.Report.Action.IP).String(), Blocked: *report.Report.Action.Blocked, Duration: report.Report.Action.BlockDuration, UnblockAt: until, OccurredAt: occurred, Protocol: clean(report.Report.Xray.Protocol), Network: clean(report.Report.Xray.Network)})
+		if err != nil {
+			http.Error(w, "report persistence failed", 503)
+			return
+		}
+	}
 	if err := repo.RecordTorrentAlert(r.Context(), key, report.User.UUID, report.User.ID, entry); err != nil {
 		slog.Warn("torrent report persistence failed", "error", err)
 		http.Error(w, "report persistence failed", http.StatusServiceUnavailable)
+		return
+	}
+	userErr := h.sendTorrentUserAlerts(r.Context(), key, report, occurred)
+	if !h.torrentSettings().AdminEnabled {
+		if userErr != nil {
+			http.Error(w, "user notification failed", 503)
+			return
+		}
+		w.WriteHeader(204)
 		return
 	}
 	token := uuid.New()
@@ -158,17 +178,21 @@ func (h *Handler) handleTorrentReport(w http.ResponseWriter, r *http.Request, ev
 		return
 	}
 	if delivered {
+		if userErr != nil {
+			http.Error(w, "user notification failed", 503)
+			return
+		}
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
-	err = h.sendSecurityAlert(ctx, formatTorrentAlert(report, occurred))
+	err = h.sendSecurityAlert(ctx, renderTorrentTemplate(h.torrentSettings().AdminText, report, occurred, false))
 	cancel()
 	finishCtx, finishCancel := context.WithTimeout(context.WithoutCancel(r.Context()), 3*time.Second)
 	defer finishCancel()
 	finishErr := repo.FinishTorrentAlert(finishCtx, key, token, err == nil)
-	if err != nil || finishErr != nil {
-		slog.Warn("torrent alert notification failed", "send_error", err, "save_error", finishErr)
+	if err != nil || finishErr != nil || userErr != nil {
+		slog.Warn("torrent alert notification failed", "send_error", err, "save_error", finishErr, "user_error", userErr)
 		http.Error(w, "notification failed", http.StatusServiceUnavailable)
 		return
 	}

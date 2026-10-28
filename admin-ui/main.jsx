@@ -366,12 +366,18 @@ function attributes(node) {
   }
   return p;
 }
+function TorrentWorkspace({node}) {
+  const ref=useRef(null),markup=node.outerHTML;
+  useLayoutEffect(()=>{ref.current?.replaceChildren(node.cloneNode(true));},[markup]);
+  return <div ref={ref} className="rn-torrent-workspace" />;
+}
 function convert(node, key) {
   if (node.nodeType === 3) return node.textContent;
   if (node.nodeType !== 1) return null;
   const tag = node.tagName.toLowerCase(),
     p = attributes(node);
   p.key = key;
+  if(node.matches('.torrent-workspace')) return <TorrentWorkspace key={key} node={node} />;
   if (tag === "script" || tag === "style") return null;
   if (
     node.matches(
@@ -1494,7 +1500,7 @@ function Admin({ model, content, dialogs, dispatch }) {
     [
       "Инструменты",
       "Tools",
-      ["support", "reviews", "broadcast", "diagnostics", "ai"],
+      ["support", "reviews", "torrents", "broadcast", "diagnostics", "ai"],
       "grid",
     ],
     [

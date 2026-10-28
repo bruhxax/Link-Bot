@@ -31,6 +31,7 @@ type activityAction struct{ title, category, fields string }
 // Polling/state reads do not drown out actual work. All other admin endpoints
 // are recorded by default, so newly added mutations cannot silently escape it.
 var activityReadRoutes = map[string]bool{
+	"torrents/reports":  true,
 	"bot/update/status": true,
 	"payments/channels": true,
 	"status":            true, "finance": true, "overview": true, "analytics": true, "ai/settings": true, "ai/models": true,
@@ -459,6 +460,7 @@ func activityDiff(details *[]database.AdminActivityDetail, path string, before, 
 
 func activityLabel(path string) string {
 	labels := map[string]string{
+		"torrents": "Торренты", "userEnabled": "Уведомления пользователю", "adminEnabled": "Уведомления администратору", "userText": "Шаблон пользователю", "adminText": "Шаблон администратору",
 		"bottomNavStyle":    "Дизайн нижнего меню",
 		"paymentMethodText": "Подписи и логотипы способов оплаты", "description": "Описание",
 		"paymentMethodVariants": "Копии и методы платёжных систем", "channels": "Методы оплаты",

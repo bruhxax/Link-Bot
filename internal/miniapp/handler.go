@@ -911,6 +911,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	}
 	mux.HandleFunc("/api/mini-app/admin/administrators/logs", h.withSession(h.handleAdminActivity))
 	mux.HandleFunc("/api/mini-app/admin/users/search", h.withSession(h.handleAdminUsersSearch))
+	mux.HandleFunc("/api/mini-app/admin/torrents/reports", h.withSession(h.handleAdminTorrentReports))
 	mux.HandleFunc("/api/mini-app/admin/users/activity", h.withSession(h.handleAdminUserActivity))
 	mux.HandleFunc("/api/mini-app/admin/users/detail", h.withSession(h.handleAdminUserDetail))
 	mux.HandleFunc("/api/mini-app/admin/users/open", h.withSession(h.handleAdminUserDetail))
@@ -967,6 +968,7 @@ func (h *Handler) handlePublicConfig(w http.ResponseWriter, r *http.Request) {
 		settings = h.runtimeSettings.Snapshot()
 	}
 	settings.HiddenServerNodes = nil
+	settings.Torrents = runtimeconfig.TorrentSettings{}
 	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": settings})
 }
 
@@ -4585,6 +4587,9 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 
 	referralInviteURL := buildReferralInviteURL(customer.TelegramID, referralEnabled)
 	runtimeForUser := settings
+	if !sess.canAdmin("torrents") {
+		runtimeForUser.Torrents = runtimeconfig.TorrentSettings{}
+	}
 	if !sess.canAdmin("servers.view") {
 		runtimeForUser.HiddenServerNodes = nil
 	}
