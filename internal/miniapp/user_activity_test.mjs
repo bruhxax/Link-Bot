@@ -4,6 +4,16 @@ import fs from "node:fs";
 import vm from "node:vm";
 import { mergeUserActivity, renderUserActivity, formatActivityAmount, activityRows, activityDetails } from "./static/user-activity.mjs";
 
+test("torrent reports have a dedicated filter and escape panel data in both admin histories",()=>{
+  const torrent={id:2,source:"remnawave",action:"torrent_blocker.report",title:"Обнаружен торрент-трафик",status:"info",createdAt:"2026-10-28T10:00:00Z",details:[{label:"Нода",value:"<script>bad()</script>"},{label:"IP",value:"2001:db8::1"},{label:"Результат",value:"IP заблокирован на ноде"}]};
+  const ordinary={id:1,source:"miniapp",action:"purchase",status:"success",details:[]};
+  assert.deepEqual(activityRows([ordinary,torrent],"torrents").map(row=>row.item.id),[2]);
+  const html=renderUserActivity({data:{items:[ordinary,torrent]},filter:"torrents",expanded:["event:2"]});
+  assert.match(html,/data-value="torrents" aria-pressed="true"/);
+  assert.match(html,/Remnawave/);assert.match(html,/2001:db8::1/);assert.match(html,/&lt;script&gt;/);
+  assert.doesNotMatch(html,/<script>/);assert.doesNotMatch(html,/Запрос оплаты/);
+});
+
 test("activity amounts trim storage zeroes and preserve fractional and crypto amounts",()=>{
   assert.equal(formatActivityAmount("89.00000000 RUB"),"89 ₽");
   assert.equal(formatActivityAmount("10.500000 USD"),"10,5 $");

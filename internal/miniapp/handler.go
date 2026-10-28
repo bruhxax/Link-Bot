@@ -58,6 +58,7 @@ var (
 )
 
 type Handler struct {
+	torrentAlertRepository  torrentAlertRepository
 	userActivityRepository  userActivityRepository
 	activitySettingsMu      sync.Mutex
 	adminActivityRepository adminActivityRepository

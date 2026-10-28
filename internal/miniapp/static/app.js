@@ -6403,7 +6403,7 @@ async function refreshAdminUserActivity({more=false,silent=false}={}) {
 }
 
 function filterAdminUserActivity(value) {
- if(!["all","payments","errors"].includes(value)) return;
+ if(!["all","payments","errors","torrents"].includes(value)) return;
  state.adminUserActivityFilter=value;
  render({preserveScroll:true,preserveInteraction:true});
 }

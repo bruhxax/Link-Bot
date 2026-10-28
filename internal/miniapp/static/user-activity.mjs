@@ -1,4 +1,4 @@
-export const activitySources = { miniapp: "Кабинет", telegram: "Telegram", payment: "Платёж" };
+export const activitySources = { miniapp: "Кабинет", telegram: "Telegram", payment: "Платёж", remnawave: "Remnawave" };
 export const activityStatuses = { info: "Действие", pending: "Ожидание", success: "Успешно", failed: "Ошибка" };
 
 export function mergeUserActivity(current, incoming, append = false) {
@@ -29,6 +29,7 @@ const glyphs = {
   arrow: svg('<path d="m9 5 7 7-7 7"/>'),
   action: svg('<path d="m5 4 5 16 3-7 7-3Z"/>'),
   more: svg('<path d="m6 9 6 6 6-6"/>'),
+  torrent: svg('<path d="M8 3v9a4 4 0 0 0 8 0V3M5 3h6M13 3h6M5 7h6M13 7h6"/>'),
 };
 
 export function formatActivityAmount(value) {
@@ -62,19 +63,19 @@ export function activityRows(items, filter = "all") {
     if (!rows.has(key)) rows.set(key, {key,item,events:[]});
     rows.get(key).events.push(item);
   }
-  return [...rows.values()].filter(row => filter === "errors" ? row.events.some(item => item.status === "failed")
+  return [...rows.values()].filter(row => filter === "torrents" ? row.item.action === "torrent_blocker.report" : filter === "errors" ? row.events.some(item => item.status === "failed")
     : filter === "payments" ? row.item.source === "payment" || ["purchase","gifts/purchase","purchase/cancel","payment"].includes(row.item.action) : true);
 }
 
 export function renderUserActivity(model = {}, { escapeHtml = escapeActivityHTML, escapeAttribute = escapeActivityHTML } = {}) {
   const items = model.data?.items || [];
-  const filter = ["all","payments","errors"].includes(model.filter) ? model.filter : "all";
+  const filter = ["all","payments","errors","torrents"].includes(model.filter) ? model.filter : "all";
   const rows = activityRows(items, filter);
   const expanded = new Set(model.expanded || []);
   const disabled = model.busy ? "disabled" : "";
   const prefix = escapeAttribute(model.idPrefix || "user-activity");
   return `<section class="admin-user-activity" aria-labelledby="${prefix}-title"><header class="admin-user-activity__head"><h3 id="${prefix}-title">${glyphs.history}<span>История действий</span></h3><button class="user-activity-icon" type="button" data-action="admin-user-activity-refresh" aria-label="Обновить историю" title="Обновить историю" ${disabled}>${glyphs.refresh}</button></header>
-    ${items.length ? `<nav class="user-activity-filters" aria-label="Фильтр истории">${[["all","Все"],["payments","Оплаты"],["errors","Ошибки"]].map(([value,label]) => `<button type="button" data-action="admin-user-activity-filter" data-value="${value}" aria-pressed="${filter === value}">${label}</button>`).join("")}</nav>` : ""}
+    ${items.length ? `<nav class="user-activity-filters" aria-label="Фильтр истории">${[["all","Все"],["payments","Оплаты"],["errors","Ошибки"],["torrents","Торренты"]].map(([value,label]) => `<button type="button" data-action="admin-user-activity-filter" data-value="${value}" aria-pressed="${filter === value}">${label}</button>`).join("")}</nav>` : ""}
     ${model.error ? `<p class="user-activity-error" role="alert">${escapeHtml(model.error)}</p>` : ""}
     <ol class="user-activity-list">${rows.map(row => {
       const {item,key,events} = row;
@@ -84,7 +85,7 @@ export function renderUserActivity(model = {}, { escapeHtml = escapeActivityHTML
       const reason = item.status === "failed" ? details.find(detail => detail.label === "Причина")?.value : "";
       const date = new Date(item.createdAt);
       const stamp = date.toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
-      const kind = item.action === "payment.cancel" ? "close" : {success:"check",failed:"close",pending:"clock"}[item.status] || "action";
+      const kind = item.action === "torrent_blocker.report" ? "torrent" : item.action === "payment.cancel" ? "close" : {success:"check",failed:"close",pending:"clock"}[item.status] || "action";
       const open = expanded.has(key);
       return `<li class="user-activity-entry" data-status="${escapeAttribute(item.status)}"><button class="user-activity-row" type="button" data-action="admin-user-activity-toggle" data-value="${escapeAttribute(key)}" aria-expanded="${open}" aria-controls="${prefix}-${escapeAttribute(key.replace(":","-"))}"><span class="user-activity-glyph" title="${escapeAttribute(activityStatuses[item.status] || item.status)}">${glyphs[kind]}</span><span class="user-activity-copy"><strong>${escapeHtml(activityTitle(item))}</strong><small>${escapeHtml(reason || info)}</small></span><span class="user-activity-value">${amount ? `<b>${escapeHtml(amount)}</b>` : ""}<time datetime="${escapeAttribute(item.createdAt)}" title="${escapeAttribute(date.toLocaleString("ru-RU"))}">${escapeHtml(stamp)}</time></span><span class="user-activity-chevron">${glyphs.arrow}</span></button>
       ${open ? `<div class="user-activity-details" id="${prefix}-${escapeAttribute(key.replace(":","-"))}"><dl>${details.map(detail => `<div><dt>${escapeHtml(detail.label)}</dt><dd>${escapeHtml(detail.value)}</dd></div>`).join("")}<div><dt>Источник</dt><dd>${escapeHtml(activitySources[item.source] || item.source)}</dd></div><div><dt>Время</dt><dd>${escapeHtml(date.toLocaleString("ru-RU"))}</dd></div></dl>${events.length > 1 ? `<div class="user-activity-states">${events.map(event => `<span><i data-status="${escapeAttribute(event.status)}"></i>${escapeHtml(activityTitle(event))}<time>${escapeHtml(new Date(event.createdAt).toLocaleTimeString("ru-RU"))}</time></span>`).join("")}</div>` : ""}</div>` : ""}</li>`;

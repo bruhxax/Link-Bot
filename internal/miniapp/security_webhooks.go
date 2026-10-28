@@ -26,17 +26,10 @@ import (
 const securityWebhookBodyLimit = 64 << 10
 
 type remnawaveSecurityEvent struct {
-	Scope     string    `json:"scope"`
-	Event     string    `json:"event"`
-	Timestamp time.Time `json:"timestamp"`
-	Data      struct {
-		LoginAttempt struct {
-			Username    string `json:"username"`
-			IP          string `json:"ip"`
-			UserAgent   string `json:"userAgent"`
-			Description string `json:"description"`
-		} `json:"loginAttempt"`
-	} `json:"data"`
+	Scope     string          `json:"scope"`
+	Event     string          `json:"event"`
+	Timestamp time.Time       `json:"timestamp"`
+	Data      json.RawMessage `json:"data"`
 }
 
 // Remnawave signs the exact JSON body with WEBHOOK_SECRET_HEADER using HMAC-SHA256.
@@ -72,7 +65,9 @@ func (h *Handler) handleRemnawaveSecurityWebhook(w http.ResponseWriter, r *http.
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
-	if event.Scope != "service" || (event.Event != "service.login_attempt_failed" && event.Event != "service.login_attempt_success") {
+	isTorrent := event.Scope == "torrent_blocker" && event.Event == "torrent_blocker.report"
+	isLogin := event.Scope == "service" && (event.Event == "service.login_attempt_failed" || event.Event == "service.login_attempt_success")
+	if !isTorrent && !isLogin {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -87,7 +82,23 @@ func (h *Handler) handleRemnawaveSecurityWebhook(w http.ResponseWriter, r *http.
 			return
 		}
 	}
-	login := event.Data.LoginAttempt
+	if isTorrent {
+		h.handleTorrentReport(w, r, event)
+		return
+	}
+	var data struct {
+		LoginAttempt struct {
+			Username    string `json:"username"`
+			IP          string `json:"ip"`
+			UserAgent   string `json:"userAgent"`
+			Description string `json:"description"`
+		} `json:"loginAttempt"`
+	}
+	if err := json.Unmarshal(event.Data, &data); err != nil {
+		http.Error(w, "invalid login event", http.StatusBadRequest)
+		return
+	}
+	login := data.LoginAttempt
 	geo := lookupSecurityGeo(r.Context(), login.IP)
 	status := "✅ <b>Вход в панель Remnawave</b>"
 	if event.Event == "service.login_attempt_failed" {
