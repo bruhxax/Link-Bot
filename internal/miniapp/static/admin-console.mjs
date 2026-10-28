@@ -37,7 +37,7 @@ export function workspaceNavigationURL(target, telegram) {
 const CONSOLE_ROUTES = [
   ["Управление", "Management", [
     ["users", "Пользователи", "Users", "users", "users"],
-    ["torrents", "Торренты", "Torrents", "adminDiagnostics", "torrents"],
+    ["torrents", "Торренты", "Torrents", "adminTorrents", "torrents"],
     ["subscriptions", "Подписки", "Subscriptions", "adminSubscriptions", "subscriptions"],
     ["plans", "Тарифы", "Plans", "cartShopping", "plans"],
     ["servers", "Ноды", "Nodes", "server", "servers.view", "page"],

@@ -244,6 +244,7 @@ const theme = createTheme({
   },
 });
 let mountedRoot, mountedElement, mountedSignature;
+const TorrentIcon = ({ size = 16 }) => <span className="app-svg-icon app-svg-icon--diagnostics" style={{ width: size, height: size }} aria-hidden="true" />;
 const glyphs = {
   users: PiUsers,
   cartShopping: PiCreditCard,
@@ -260,6 +261,7 @@ const glyphs = {
   adminAppearance: TbPalette,
   language: TbLanguage,
   adminDiagnostics: TbActivity,
+  adminTorrents: TorrentIcon,
   adminFeatures: TbToggleRight,
   adminTrial: TbClock,
   adminMaintenance: TbAlertTriangle,

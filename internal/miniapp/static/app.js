@@ -1,7 +1,12 @@
 import { mergeUserActivity, renderUserActivity } from "./user-activity.mjs";
 import {createTorrentController,renderTorrentWorkspace,torrentTemplatePreview,torrentSample} from "./torrents.mjs";
+import {createTorrentAutosave} from "./torrent-autosave.mjs";
 const torrentWorkspace=createTorrentController({post:(url,body)=>previewMode?Promise.resolve({data:{items:[],hasMore:false,summary:{},webhookConfigured:false}}):post(url,body),render:()=>render({preserveScroll:true,preserveInteraction:true}),isActive:()=>state.currentPage==="admin"&&state.adminSection==="torrents"&&canAdmin("torrents")});
 let torrentSearchTimer;
+const torrentAutosave=createTorrentAutosave({save:saveTorrentSettings,onState:updateTorrentSaveStatus});
+let torrentSaveDirty=false;
+let torrentHadOtherDirty=false;
+let torrentOtherSignature="";
 import { TERMS_ARTICLE, PRIVACY_ARTICLE } from "./legal-articles.mjs";
 import {
   SETUP_PLATFORM_IDS,
@@ -4146,7 +4151,7 @@ function getBottomNavPages() {
 	return pages.filter((page) => PAGES.includes(page) && (page !== "admin" || isAdminUser()) && pageFeatureEnabled(page));
 }
 
-const ADMIN_SAVE_SECTIONS = new Set(["torrents", "landing", "cursors", "localization", "maintenance", "features", "subpage", "content", "appearance", "layout", "plans", "trial", "referrals", "grace", "moynalog", "ai"]);
+const ADMIN_SAVE_SECTIONS = new Set(["landing", "cursors", "localization", "maintenance", "features", "subpage", "content", "appearance", "layout", "plans", "trial", "referrals", "grace", "moynalog", "ai"]);
 let lastBottomDockMode = "navigation";
 
 function adminEditorSaveState() {
@@ -5003,7 +5008,7 @@ function renderConsoleSaveBar() {
 function renderAdminPage() {
 	if (state.adminLayoutEditing || state.adminPlanEditing) return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"></section>`;
 	syncAdminSettingsDraft();
-	if (state.adminSection === "torrents") return `<section class="page admin-page ${pageClass("admin")}" id="page-admin">${renderTorrentWorkspace(torrentWorkspace.model,state.adminSettingsDraft?.torrents,{canUsers:canAdmin("users"),saving:state.adminBusy==="save-settings"})}</section>`;
+	if (state.adminSection === "torrents") return `<section class="page admin-page ${pageClass("admin")}" id="page-admin">${renderTorrentWorkspace(torrentWorkspace.model,state.adminSettingsDraft?.torrents,{canUsers:canAdmin("users"),saveStatus:torrentAutosave.state.phase,saveMessage:torrentSaveMessage()})}</section>`;
   if (state.adminSection === "push") return renderAdminEditorPage(state.locale === "en" ? "Push notifications" : "Push-уведомления", `<section class="admin-editor__section">${renderAdminPushToggle(state.locale === "en" ? "Enable notifications" : "Включить уведомления")}<p>${escapeHtml(state.adminPushError || (state.locale === "en" ? "Receive alerts on this device" : "Получайте уведомления на этом устройстве"))}</p><button class="rw-refresh" type="button" data-action="admin-push-test">${state.locale === "en" ? "Send test" : "Отправить тест"}</button></section>`);
 	if (state.adminSection === "promocodes") return renderAdminPromocodesPage();
 	if (state.adminSection === "subscriptions") return renderAdminSubscriptionsPage();
@@ -11938,7 +11943,8 @@ function bindRootActions() {
 	for (const eventName of ["pointerdown", "touchmove", "wheel", "scroll"]) {
 		app.addEventListener(eventName, () => { realtimeLastInteraction = Date.now(); }, { passive: true, capture: true });
 	}
-	app.addEventListener("focusout", () => {
+	app.addEventListener("focusout", (event) => {
+		if (event.target?.dataset?.input === "torrent-template") void torrentAutosave.flush();
 		if (realtimeRenderPending) window.setTimeout(() => { if (realtimeRenderPending) renderRealtime(); }, 0);
 	});
 	app.addEventListener("toggle", () => {
@@ -12652,7 +12658,7 @@ function bindRootActions() {
 
 	app.addEventListener("change", (event) => {
  const input = event.target;
- if(input.dataset?.settingPath?.startsWith("torrents.")){if(!state.adminSettingsDraft||!canAdmin("torrents"))return;setDeepValue(state.adminSettingsDraft,input.dataset.settingPath,input.checked);state.adminSettingsDirty=true;syncAdminSaveBarDOM();return;}
+ if(input.dataset?.settingPath?.startsWith("torrents.")){if(!state.adminSettingsDraft||!canAdmin("torrents"))return;setDeepValue(state.adminSettingsDraft,input.dataset.settingPath,input.checked);scheduleTorrentSettingsSave();return;}
 		if(input.dataset?.surveyField){updateAdminSurveyField(input);return;}
  if(input.dataset?.surveyRun){void loadAdminSurveyResults(input.value);return;}
  if(input.dataset?.autoReplyField) {updateConsoleBroadcastAutoReply(input.dataset.autoReplyField,input.type==="checkbox"?input.checked:input.value);return;}
@@ -13535,10 +13541,50 @@ function applyAdminAppearancePreset(id) {
 function updateTorrentTemplate(kind,value){
  if(!["user","admin"].includes(kind)||!canAdmin("torrents")||!state.adminSettingsDraft)return;
  state.adminSettingsDraft.torrents ||= {};
- state.adminSettingsDraft.torrents[`${kind}Text`]=value;state.adminSettingsDirty=true;
+ state.adminSettingsDraft.torrents[`${kind}Text`]=value;
  const preview=app.querySelector(`[data-torrent-preview="${kind}"]`);
  if(preview)preview.innerHTML=torrentTemplatePreview(value,kind==="user");
+ scheduleTorrentSettingsSave();
+}
+function torrentSaveMessage(){
+ const {phase,error}=torrentAutosave.state;
+ if(phase==="pending")return "Ожидает автосохранения…";
+ if(phase==="saving")return "Сохраняем изменения…";
+ if(phase==="saved")return "Сохранено автоматически";
+ if(phase==="error")return `Не сохранено: ${error}`;
+ return "Изменения сохраняются автоматически";
+}
+function updateTorrentSaveStatus(){
+ const label=app.querySelector('[data-torrent-save-status]');
+ if(label){label.dataset.state=torrentAutosave.state.phase;label.textContent=torrentSaveMessage();}
  syncAdminSaveBarDOM();
+}
+function scheduleTorrentSettingsSave(){
+ if(!state.adminSettingsDraft||!canAdmin("torrents"))return;
+ if(!torrentSaveDirty){torrentHadOtherDirty=Boolean(state.adminSettingsDirty);torrentOtherSignature=torrentOtherSettingsSignature();}
+ torrentSaveDirty=true;
+ state.adminSettingsDirty=true;
+ torrentAutosave.schedule({torrents:deepClone(state.adminSettingsDraft.torrents),hadOtherDirty:torrentHadOtherDirty});
+}
+function torrentOtherSettingsSignature(){
+ const {torrents,...rest}=state.adminSettingsDraft||{};
+ return JSON.stringify(rest);
+}
+async function saveTorrentSettings(payload){
+ const response=previewMode?{data:state.adminSettingsDraft}:await post("/api/mini-app/admin/settings/update",{settings:{torrents:payload.torrents},section:"torrents"});
+ const settings=response.data;
+ if(!settings?.torrents)throw Error("Сервер не вернул настройки торрентов");
+ state.publicSettings=settings;
+ if(state.data){state.data.runtime=settings;if(state.data.admin)state.data.admin.settings=settings;}
+ const sameTorrent=JSON.stringify(state.adminSettingsDraft?.torrents)===JSON.stringify(payload.torrents);
+ if(sameTorrent){
+  const otherUnchanged=torrentOtherSettingsSignature()===torrentOtherSignature;
+  state.adminSettingsDraft.torrents=deepClone(settings.torrents);
+  torrentSaveDirty=false;
+  torrentHadOtherDirty=false;
+  torrentOtherSignature="";
+  if(otherUnchanged&&!payload.hadOtherDirty)state.adminSettingsDirty=false;
+ }
 }
 function insertTorrentVariable(kind,key){
  if(!["user","admin"].includes(kind)||!Object.hasOwn(torrentSample,key)||kind==="user"&&["ip","user_uuid"].includes(key))return;
