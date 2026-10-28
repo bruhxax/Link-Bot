@@ -193,7 +193,7 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	if purchase == nil {
 		return fmt.Errorf("purchase with crypto invoice id %s not found", utils.MaskHalfInt64(purchaseId))
 	}
-	if purchase.Status == database.PurchaseStatusPaid {
+	if purchase.Status == database.PurchaseStatusPaid || purchase.PaidAt != nil {
 		if s.partnerRepository != nil {
 			if commissionErr := s.partnerRepository.AccrueCommission(context.Background(), purchase); commissionErr != nil {
 				slog.Error("payment: recover partner commission failed", "error", commissionErr, "purchase_id", utils.MaskHalfInt64(purchase.ID))
@@ -1355,12 +1355,14 @@ func (s PaymentService) ProcessExternalWebhook(ctx context.Context, provider str
 	if event.Currency != "" && !strings.EqualFold(event.Currency, purchase.Currency) {
 		return "", errors.New("payment currency mismatch")
 	}
-	if event.Paid && purchase.Status != database.PurchaseStatusPaid {
+	if event.Paid && purchase.Status != database.PurchaseStatusPaid && purchase.PaidAt == nil {
 		if err := s.ProcessPurchaseById(ctx, purchase.ID); err != nil {
 			return "", err
 		}
 	} else if event.Cancelled && purchase.Status != database.PurchaseStatusPaid && purchase.Status != database.PurchaseStatusCancel {
-		if err := s.purchaseRepository.UpdateFields(ctx, purchase.ID, map[string]interface{}{"status": database.PurchaseStatusCancel}); err != nil {
+		// The purchase may have been fulfilled since it was read above. Guard the
+		// update in the database so a late cancellation cannot erase that marker.
+		if err := s.purchaseRepository.CancelIfUnpaid(ctx, purchase.ID); err != nil {
 			return "", err
 		}
 	}

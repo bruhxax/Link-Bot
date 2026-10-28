@@ -542,6 +542,15 @@ func (p *PurchaseRepository) UpdateFields(ctx context.Context, id int64, updates
 	return nil
 }
 
+// CancelIfUnpaid preserves proof of fulfillment when callbacks arrive concurrently.
+func (pr *PurchaseRepository) CancelIfUnpaid(ctx context.Context, purchaseID int64) error {
+	_, err := pr.pool.Exec(ctx, `
+		UPDATE purchase SET status = $2
+		WHERE id = $1 AND status <> $3 AND paid_at IS NULL
+	`, purchaseID, PurchaseStatusCancel, PurchaseStatusPaid)
+	return err
+}
+
 func (pr *PurchaseRepository) MarkAsPaid(ctx context.Context, purchaseID int64) error {
 	currentTime := time.Now()
 

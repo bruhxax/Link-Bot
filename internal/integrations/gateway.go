@@ -748,9 +748,23 @@ func parsePlategaWebhook(cfg map[string]string, headers http.Header, raw []byte)
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return WebhookPayment{}, err
 	}
-	// Platega's callback does not include merchant payload, so the local purchase is resolved by external ID.
-	status := strings.ToLower(payload.Status)
-	return WebhookPayment{ExternalID: payload.ID, Amount: payload.Amount, Currency: payload.Currency, Paid: status == "confirmed", Cancelled: status == "canceled" || status == "chargebacked"}, nil
+	if strings.TrimSpace(payload.ID) == "" {
+		return WebhookPayment{}, errors.New("missing Platega payment ID")
+	}
+	// Resolve by the provider's transaction ID, never by the optional merchant payload.
+	event := WebhookPayment{ExternalID: payload.ID, Amount: payload.Amount, Currency: payload.Currency}
+	switch strings.ToUpper(strings.TrimSpace(payload.Status)) {
+	case "CONFIRMED":
+		event.Paid = true
+	case "CANCELED", "CHARGEBACKED":
+		event.Cancelled = true
+	default:
+		// DISPUTED only freezes the merchant's funds; it does not undo fulfillment.
+		// Preserve the paid marker so DISPUTED -> CONFIRMED cannot grant it again.
+		// Partial refunds and subscription events also do not create a new purchase.
+		event.Ignored = true
+	}
+	return event, nil
 }
 
 func parseFreeKassaWebhook(cfg map[string]string, form url.Values) (WebhookPayment, error) {
