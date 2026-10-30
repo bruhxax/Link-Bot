@@ -40,6 +40,16 @@ func TestAdministratorStatusOnlyAccessAndDefaultDeny(t *testing.T) {
 	}
 }
 
+func TestAbuseScanRequiresItsOwnPermission(t *testing.T) {
+	path := "/api/mini-app/admin/abuses/scan"
+	if adminRouteAllowed(adminAccess{IsAdmin: true, Permissions: []string{"users"}}, path) {
+		t.Fatal("user lookup permission exposed IP and HWID evidence")
+	}
+	if !adminRouteAllowed(adminAccess{IsAdmin: true, Permissions: []string{"abuses"}}, path) {
+		t.Fatal("abuse reviewer cannot scan")
+	}
+}
+
 func TestEveryRegisteredAdminEndpointHasAnExplicitPolicy(t *testing.T) {
 	raw, err := os.ReadFile("handler.go")
 	if err != nil {

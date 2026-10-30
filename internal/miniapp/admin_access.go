@@ -22,6 +22,7 @@ type adminPermission struct {
 }
 
 var adminPermissions = []adminPermission{
+	{"abuses", "Абузы", "Операции", nil},
 	{"torrents", "Торренты", "Операции", nil},
 	{"status", "Статус", "Система", nil}, {"localization", "Язык и шрифт", "Система", nil},
 	{"maintenance", "Режим аварии", "Система", nil}, {"diagnostics", "Диагностика", "Система", nil},
@@ -166,6 +167,8 @@ func adminRouteAllowed(a adminAccess, path string) bool {
 	}
 	route := strings.TrimPrefix(path, "/api/mini-app/admin/")
 	switch route {
+	case "abuses/scan":
+		return a.can("abuses")
 	case "torrents/reports":
 		return a.can("torrents")
 	case "payments/channels", "payments/logo/upload":

@@ -32,6 +32,7 @@ type activityAction struct{ title, category, fields string }
 // are recorded by default, so newly added mutations cannot silently escape it.
 var activityReadRoutes = map[string]bool{
 	"torrents/reports":  true,
+	"abuses/scan":       true,
 	"bot/update/status": true,
 	"payments/channels": true,
 	"status":            true, "finance": true, "overview": true, "analytics": true, "ai/settings": true, "ai/models": true,

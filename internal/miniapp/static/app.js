@@ -1,6 +1,8 @@
 import { mergeUserActivity, renderUserActivity } from "./user-activity.mjs";
 import {createTorrentController,renderTorrentWorkspace,torrentTemplatePreview,torrentSample} from "./torrents.mjs";
 import {createTorrentAutosave} from "./torrent-autosave.mjs";
+import {createAbuseController,renderAbuseWorkspace} from "./abuses.mjs";
+const abuseWorkspace=createAbuseController({post:(url,body)=>previewMode?Promise.resolve({data:{items:[{key:"sharing:preview",kind:"sharing",username:"alex_vpn",customerId:7,subscriptionId:9,deviceLimit:2,ips:[{ip:"203.0.113.42",node:"Frankfurt",lastSeen:"2026-10-30T07:00:00Z"},{ip:"198.51.100.17",node:"Amsterdam",lastSeen:"2026-10-30T07:01:00Z"},{ip:"2001:db8::12",node:"Warsaw",lastSeen:"2026-10-30T07:02:00Z"}]},{key:"trial:preview",kind:"trial",username:"maria",customerId:8,hwid:"device-87ab30d2",subscriptions:[{customerId:6,subscriptionId:12,username:"maria_old",createdAt:"2026-10-19T12:00:00Z"},{customerId:8,subscriptionId:18,username:"maria",createdAt:"2026-10-30T07:00:00Z"}]}],checkedAt:new Date().toISOString(),checkedUsers:48,failedChecks:0,scanning:false}}):post(url,body),render:()=>render({preserveScroll:true,preserveInteraction:true}),isActive:()=>state.currentPage==="admin"&&state.adminSection==="abuses"&&canAdmin("abuses")});
 const torrentWorkspace=createTorrentController({post:(url,body)=>previewMode?Promise.resolve({data:{items:[],hasMore:false,summary:{},webhookConfigured:false}}):post(url,body),render:()=>render({preserveScroll:true,preserveInteraction:true}),isActive:()=>state.currentPage==="admin"&&state.adminSection==="torrents"&&canAdmin("torrents")});
 let torrentSearchTimer;
 const torrentAutosave=createTorrentAutosave({save:saveTorrentSettings,onState:updateTorrentSaveStatus});
@@ -3107,6 +3109,7 @@ async function boot() {
 
 function refreshRestoredAdminSection() {
 	if (state.adminSection === "torrents") void torrentWorkspace.load();
+	if (state.adminSection === "abuses") void abuseWorkspace.load();
 	if (state.adminSection === "layout") return enterAdminLayoutEditor();
 	if (state.adminSection === "plans") return enterAdminPlanEditor();
 	if (state.adminSection === "ai") void loadAdminAI();
@@ -3383,6 +3386,7 @@ async function refreshRealtimeData({ panelOnly = false } = {}) {
 					case "finance": await refreshAdminFinance({ live: true }); break;
 					case "analytics": await refreshAdminAnalytics({ live: true }); break;
 					case "torrents": if(!torrentWorkspace.model.busy&&torrentWorkspace.model.tab==="reports") await torrentWorkspace.load({silent:true}); break;
+					case "abuses": if(!abuseWorkspace.model.busy&&!abuseWorkspace.model.data?.scanning) await abuseWorkspace.load({silent:true}); break;
 					case "partners": await refreshAdminPartners({ silent: true }); break;
 					case "moynalog": await refreshAdminMoyNalog({ silent: true }); break;
 					case "broadcast": await refreshAdminBroadcast({ silent: true }); break;
@@ -5009,6 +5013,7 @@ function renderAdminPage() {
 	if (state.adminLayoutEditing || state.adminPlanEditing) return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"></section>`;
 	syncAdminSettingsDraft();
 	if (state.adminSection === "torrents") return `<section class="page admin-page ${pageClass("admin")}" id="page-admin">${renderTorrentWorkspace(torrentWorkspace.model,state.adminSettingsDraft?.torrents,{canUsers:canAdmin("users"),saveStatus:torrentAutosave.state.phase,saveMessage:torrentSaveMessage()})}</section>`;
+	if (state.adminSection === "abuses") return `<section class="page admin-page ${pageClass("admin")}" id="page-admin">${renderAbuseWorkspace(abuseWorkspace.model,{canBlock:canAdmin("users.block"),canRevoke:canAdmin("users.subscription"),showTitle:!remnaAdminEnabled})}</section>`;
   if (state.adminSection === "push") return renderAdminEditorPage(state.locale === "en" ? "Push notifications" : "Push-уведомления", `<section class="admin-editor__section">${renderAdminPushToggle(state.locale === "en" ? "Enable notifications" : "Включить уведомления")}<p>${escapeHtml(state.adminPushError || (state.locale === "en" ? "Receive alerts on this device" : "Получайте уведомления на этом устройстве"))}</p><button class="rw-refresh" type="button" data-action="admin-push-test">${state.locale === "en" ? "Send test" : "Отправить тест"}</button></section>`);
 	if (state.adminSection === "promocodes") return renderAdminPromocodesPage();
 	if (state.adminSection === "subscriptions") return renderAdminSubscriptionsPage();
@@ -5062,6 +5067,7 @@ function renderAdminPage() {
 			${renderAdminMenuGroup(localizedText("Операции", "Operations", "عملیات"), [
 				[localizedText("Пользователи", "Users", "کاربران"), "", "users", "users"],
 				["Торренты", "", "torrents", "adminDiagnostics"],
+				["Абузы", "", "abuses", "shield"],
 				[localizedText("Администраторы", "Administrators", "مدیران"), "", "administrators", "users"],
 				[localizedText("Финансы", "Finance", "امور مالی"), "", "finance", "chartLine"],
 				[localizedText("Аналитика", "Analytics", "تحلیل"), "", "analytics", "google"],
@@ -5079,6 +5085,7 @@ let adminSettingsSearchResults = [];
 
 const ADMIN_SEARCH_SECTIONS = [
 	["torrents", "Торренты", "torrent блокировка ip нода уведомления шаблоны"],
+	["abuses", "Абузы", "шаринг ip hwid триал пробные подписки блокировка"],
 	["status", "Статус", "бот панель версия обновление память время работы"],
 	["localization", "Язык и шрифт", "локализация язык шрифт"],
 	["maintenance", "Режим аварии", "технические работы"],
@@ -5201,6 +5208,7 @@ function openAdminSettingsSearchResult(index) {
 	if (item.section === "users") void refreshAdminUsers();
 	if (item.section === "partners") void refreshAdminPartners();
 	if (item.section === "torrents") void torrentWorkspace.load();
+	if (item.section === "abuses") void abuseWorkspace.load();
 	if (item.section === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 	if (item.section === "moynalog") void refreshAdminMoyNalog();
 	if (item.section === "ai") void loadAdminAI();
@@ -11985,6 +11993,11 @@ function bindRootActions() {
  if(action==="torrent-more")return await torrentWorkspace.load({more:true});
  if(action==="torrent-variable")return insertTorrentVariable(target.dataset.kind,value);
  if(action==="torrent-open-user"&&canAdmin("users")){state.adminSection="users";render();return await openAdminUser(Number(value));}
+ if(action==="abuse-toggle"){abuseWorkspace.toggle(value);return;}
+ if(action==="abuse-filter"){abuseWorkspace.model.filter=value;render({preserveScroll:true});return;}
+ if(action==="abuse-refresh"){await abuseWorkspace.load({refresh:true});return;}
+ if(action==="abuse-cancel"){abuseWorkspace.cancel();return;}
+ if(action==="abuse-act"){await abuseWorkspace.act(value,target.dataset.abuseOperation);return;}
 		if (target.hasAttribute("data-selection-feedback")) queueSelectionFeedback(action, value);
 		if (state.adminLayoutAddMenuOpen && target.closest(".admin-layout-add-menu [role=menuitem]")) state.adminLayoutAddMenuOpen = false;
 		if (state.adminLayoutAddMenuOpen && !event.target.closest(".admin-layout-more, .admin-layout-add-menu")) {
@@ -12144,6 +12157,7 @@ function bindRootActions() {
 		if (value === "administrators") void refreshAdministrators();
 		if (value === "partners") void refreshAdminPartners();
 		if (value === "torrents") void torrentWorkspace.load();
+		if (value === "abuses") void abuseWorkspace.load();
 		return;
 	  }
 	  if (action === "admin-settings-search-open") return openAdminSettingsSearchResult(Number(value));
@@ -12703,6 +12717,7 @@ function bindRootActions() {
 	app.addEventListener("input", (event) => {
       const target = event.target;
 		if(target.dataset?.input==="torrent-search"){torrentWorkspace.model.query=target.value;clearTimeout(torrentSearchTimer);torrentSearchTimer=setTimeout(()=>void torrentWorkspace.load(),350);return;}
+		if(target.dataset?.input==="abuse-search"){abuseWorkspace.model.query=target.value;const end=target.selectionStart;render({preserveScroll:true,preserveInteraction:true});const input=app.querySelector('[data-input="abuse-search"]');if(input){input.focus();input.setSelectionRange(end,end);}return;}
 		if(target.dataset?.input==="torrent-template"){updateTorrentTemplate(target.dataset.kind,target.value);return;}
 		if (target.dataset?.input === "admin-payment-logo-url") { if (state.adminPaymentMethodEditor) { state.adminPaymentMethodEditor.logoUrl = target.value; state.adminPaymentMethodEditor.hideLogo = false; } return; }
 		if (["admin-payment-method-name", "admin-payment-method-description"].includes(target.dataset?.input)) { updateAdminPaymentMethodText(target); return; }

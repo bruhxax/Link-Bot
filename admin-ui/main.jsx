@@ -262,6 +262,7 @@ const glyphs = {
   language: TbLanguage,
   adminDiagnostics: TbActivity,
   adminTorrents: TorrentIcon,
+  shield: PiShieldCheck,
   adminFeatures: TbToggleRight,
   adminTrial: TbClock,
   adminMaintenance: TbAlertTriangle,
@@ -379,7 +380,7 @@ function convert(node, key) {
   const tag = node.tagName.toLowerCase(),
     p = attributes(node);
   p.key = key;
-  if(node.matches('.torrent-workspace')) return <TorrentWorkspace key={key} node={node} />;
+  if(node.matches('.torrent-workspace,.ab-workspace')) return <TorrentWorkspace key={key} node={node} />;
   if (tag === "script" || tag === "style") return null;
   if (
     node.matches(
@@ -1502,7 +1503,7 @@ function Admin({ model, content, dialogs, dispatch }) {
     [
       "Инструменты",
       "Tools",
-      ["support", "reviews", "torrents", "broadcast", "diagnostics", "ai"],
+      ["support", "reviews", "torrents", "abuses", "broadcast", "diagnostics", "ai"],
       "grid",
     ],
     [
