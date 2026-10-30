@@ -6846,17 +6846,52 @@ function renderAdminIntegrationRow(item) {
 	const open = state.adminIntegrationOpen === item.id;
 	const busy = state.adminIntegrationBusy === item.id;
 	const status = item.unavailableReason ? "Недоступно" : item.enabled && item.configured ? "Работает" : item.configured ? "Выключено" : "Не настроено";
+	const body = item.unavailableReason ? `<div class="admin-integration__body"><p class="note">${escapeHtml(item.unavailableReason)}</p><a class="admin-integration__save" href="${escapeAttribute(item.websiteUrl)}" target="_blank" rel="noopener noreferrer">Сайт сервиса ${icon("external")}</a></div>` : `<div class="admin-integration__body">
+		<label class="admin-integration__toggle"><span><strong>Включить интеграцию</strong><small>${item.kind === "payment" ? "Показывать этот способ оплаты" : "Отправлять уведомления об оплатах"}</small></span><input type="checkbox" data-integration-provider="${escapeAttribute(item.id)}" data-integration-enabled ${draft.enabled ? "checked" : ""}></label>
+		${item.id === "p2p" ? renderAdminP2PIntegrationFields(draft) : `<div class="admin-integration__fields">${(item.fields || []).map((field) => renderAdminIntegrationField(item, field, draft)).join("")}</div>`}${item.id === "smerch" ? renderSmerchAdvancedFields(item, draft) : ""}
+		${item.webhookUrl ? `<div class="admin-integration__webhook"><span>Webhook URL</span><code>${escapeHtml(item.webhookUrl)}</code><button type="button" data-action="admin-integration-copy-webhook" data-value="${escapeAttribute(item.webhookUrl)}" aria-label="Скопировать webhook">${icon("copy")}</button></div>` : ""}
+		<button class="admin-integration__save" type="button" data-action="admin-integration-save" data-value="${escapeAttribute(item.id)}" ${busy ? "disabled" : ""}><span>${busy ? "Сохраняем" : "Сохранить"}</span></button>
+	</div>`;
 	return `<article class="admin-integration ${open ? "is-open" : ""}">
 		<button class="admin-integration__summary" type="button" data-action="admin-integration-open" data-value="${escapeAttribute(item.id)}" aria-expanded="${open ? "true" : "false"}">
 			<img src="${escapeAttribute(item.logo || BRAND_MARK_URL)}" alt="" aria-hidden="true"><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.description || "")}</small></span><i class="admin-integration__status ${item.enabled && item.configured ? "is-active" : ""}">${escapeHtml(status)}</i>${icon("chevron")}
 		</button>
-		${open && item.unavailableReason ? `<div class="admin-integration__body"><p class="note">${escapeHtml(item.unavailableReason)}</p><a class="admin-integration__save" href="${escapeAttribute(item.websiteUrl)}" target="_blank" rel="noopener noreferrer">Сайт сервиса ${icon("external")}</a></div>` : open ? `<div class="admin-integration__body">
-			<label class="admin-integration__toggle"><span><strong>Включить интеграцию</strong><small>${item.kind === "payment" ? "Показывать этот способ оплаты" : "Отправлять уведомления об оплатах"}</small></span><input type="checkbox" data-integration-provider="${escapeAttribute(item.id)}" data-integration-enabled ${draft.enabled ? "checked" : ""}></label>
-			${item.id === "p2p" ? renderAdminP2PIntegrationFields(draft) : `<div class="admin-integration__fields">${(item.fields || []).map((field) => renderAdminIntegrationField(item, field, draft)).join("")}</div>`}${item.id === "smerch" ? renderSmerchAdvancedFields(item, draft) : ""}
-			${item.webhookUrl ? `<div class="admin-integration__webhook"><span>Webhook URL</span><code>${escapeHtml(item.webhookUrl)}</code><button type="button" data-action="admin-integration-copy-webhook" data-value="${escapeAttribute(item.webhookUrl)}" aria-label="Скопировать webhook">${icon("copy")}</button></div>` : ""}
-			<button class="admin-integration__save" type="button" data-action="admin-integration-save" data-value="${escapeAttribute(item.id)}" ${busy ? "disabled" : ""}><span>${busy ? "Сохраняем" : "Сохранить"}</span></button>
-		</div>` : ""}
+		<div class="admin-integration__expand" ${open ? "" : 'inert aria-hidden="true"'}><div class="admin-integration__clip">${open ? body : ""}</div></div>
+		${open ? "" : `<template class="admin-integration__template">${body}</template>`}
 	</article>`;
+}
+
+function toggleAdminIntegration(provider) {
+	const next = state.adminIntegrationOpen === provider ? "" : provider;
+	state.adminIntegrationOpen = next;
+	let found = !next;
+	for (const row of app.querySelectorAll("#page-admin .admin-integration")) {
+		const summary = row.querySelector(".admin-integration__summary");
+		const expand = row.querySelector(".admin-integration__expand");
+		const active = summary?.dataset.value === next;
+		summary?.setAttribute("aria-expanded", String(active));
+		if (!active) {
+			row.classList.remove("is-open");
+			expand?.setAttribute("inert", "");
+			expand?.setAttribute("aria-hidden", "true");
+			continue;
+		}
+		found = true;
+		const template = row.querySelector(".admin-integration__template");
+		if (template) {
+			const clip = row.querySelector(".admin-integration__clip");
+			clip?.append(template.content.cloneNode(true));
+			template.remove();
+			if (document.documentElement.dataset.adminConsole !== "on" && clip) mountLocalizationSelects(clip);
+		}
+		expand?.removeAttribute("inert");
+		expand?.removeAttribute("aria-hidden");
+		// Give the closed grid row a paint before starting its height transition.
+		requestAnimationFrame(() => requestAnimationFrame(() => {
+			if (state.adminIntegrationOpen === next && row.isConnected) row.classList.add("is-open");
+		}));
+	}
+	if (!found) render({ preserveScroll: true });
 }
 
 
@@ -12643,7 +12678,7 @@ function bindRootActions() {
 			if (action === "admin-move-layout") return moveAdminLayoutElement(Number(value), Number(target.dataset.direction || 0));
 			if (action === "admin-move-plan") return moveAdminPlan(Number(value), Number(target.dataset.direction || 0));
 			if (action === "admin-resolve-event") return await resolveAdminEvent(Number(value));
-			if (action === "admin-integration-open") { state.adminIntegrationOpen = state.adminIntegrationOpen === value ? "" : value; render({ preserveScroll: true }); return; }
+			if (action === "admin-integration-open") { toggleAdminIntegration(value); return; }
 			if (action === "admin-p2p-add-destination") return addAdminP2PDestination();
 			if (action === "admin-p2p-remove-destination") return removeAdminP2PDestination(Number(value));
 			if (action === "admin-integration-save") return await saveAdminIntegration(value);

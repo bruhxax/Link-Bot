@@ -653,6 +653,9 @@ select:focus-visible {
 .admin-integration.is-open .admin-integration__summary > svg { transform: rotate(180deg); }
 .admin-integration__status { color: var(--muted); font-size: 9px; font-style: normal; font-weight: 800; white-space: nowrap; }
 .admin-integration__status.is-active { color: var(--success); }
+.admin-integration__expand { display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition: grid-template-rows .32s cubic-bezier(.2, .8, .2, 1), opacity .22s ease, visibility 0s linear .32s; }
+.admin-integration.is-open .admin-integration__expand { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition: grid-template-rows .32s cubic-bezier(.2, .8, .2, 1), opacity .22s ease; }
+.admin-integration__clip { min-height: 0; overflow: hidden; }
 .admin-integration__body { display: grid; gap: 13px; padding: 2px 12px 14px 60px; }
 .admin-integration__toggle { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
 .admin-integration__toggle span { min-width: 0; }
@@ -670,6 +673,7 @@ select:focus-visible {
 .admin-integration__webhook svg { width: 16px; height: 16px; }
 .admin-integration__save { display: inline-flex; gap: 7px; align-items: center; justify-content: center; justify-self: end; min-width: 130px; min-height: 38px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 7px; color: var(--button-text); background: var(--control-bg); font-weight: 800; }
 .admin-integration__save svg { width: 16px; height: 16px; }
+@media (prefers-reduced-motion: reduce) { .admin-integration__expand, .admin-integration__summary > svg { transition: none; } }
 
 @media (max-width: 430px) {
   .admin-integration__summary { grid-template-columns: 36px minmax(0, 1fr) 16px; padding-inline: 10px; }
