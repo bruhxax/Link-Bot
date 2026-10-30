@@ -4838,6 +4838,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
 	});
 	mountBannerMedia();
 	mountCustomBackgroundPreview();
+  mountAdminBackgroundPreviews();
   syncBottomNavIndicator(bottomNavSelection);
   restoreSupportThreadScrollState(supportThreadScrollState);
   hydrateSupportMedia();
@@ -7865,8 +7866,8 @@ function adminAppearancePresetSelected(preset) {
 }
 
 function renderAdminAppearancePresets() {
-	return `<section class="admin-editor__section admin-appearance-presets">
-		<h3>Шаблоны цветов</h3>
+	return `<details class="admin-editor__section admin-appearance-presets">
+		<summary><strong>Шаблоны цветов</strong>${icon("chevron")}</summary>
 		<div class="admin-preset-grid" role="radiogroup" aria-label="Шаблоны цветов">
 			${ADMIN_APPEARANCE_PRESETS.map((preset) => {
 				const selected = adminAppearancePresetSelected(preset);
@@ -7877,7 +7878,7 @@ function renderAdminAppearancePresets() {
 				</button>`;
 			}).join("")}
 		</div>
-	</section>`;
+	</details>`;
 }
 
 function getAdminBackgroundMotion(mode) {
@@ -7889,15 +7890,122 @@ function getAdminBackgroundMotion(mode) {
 	};
 }
 
+function renderAdminBackgroundPreview(mode, className) {
+	const layers = {
+		animated: '<canvas class="bg-media__canvas"></canvas><span class="bg-media__scrim"></span>',
+		grid: '<span class="bg-media__grid"></span>',
+		grid2: '<span class="bg-media__grid2"></span>',
+		blocks: '<span class="bg-media__blocks"></span>',
+		morphic: '<span class="bg-media__morphic"><span class="bg-media__morphic-particles"></span></span>',
+		twinkle: '<span class="bg-media__twinkle"><canvas class="bg-media__twinkle-canvas"></canvas></span>',
+		backtyan: '<video class="bg-media__video" src="/mini-app/assets/background-backtyan.mp4" poster="/mini-app/assets/background-backtyan-poster.jpg" muted loop playsinline preload="metadata"></video>',
+		custom: '<span class="admin-background-stage__custom custom-background"><span class="custom-background__shade"></span></span>',
+	};
+	return `<span class="${className}" data-preview-background="${escapeAttribute(mode)}" aria-hidden="true"><span class="admin-background-stage" data-background-preview-stage="${escapeAttribute(mode)}">${layers[mode] || ""}${mode === "custom" ? "" : '<span class="bg-media__shade"></span>'}</span></span>`;
+}
+
+let adminBackgroundPreviewEngines = [];
+let adminBackgroundPreviewObserver = null;
+
+function createAdminWavePreview(canvas) {
+	const source = document.querySelector(".bg-media > .bg-media__canvas");
+	const context = canvas?.getContext("2d");
+	let frame = 0, lastDraw = 0;
+	const draw = (now = 0) => {
+		frame = 0;
+		if (source?.width && source?.height && context && (!now || now - lastDraw >= 90)) {
+			if (canvas.width !== source.width || canvas.height !== source.height) {
+				canvas.width = source.width;
+				canvas.height = source.height;
+			}
+			context.drawImage(source, 0, 0);
+			lastDraw = now;
+		}
+		if (running) frame = requestAnimationFrame(draw);
+	};
+	let running = false;
+	draw();
+	return {
+		setConfig() { if (frame) cancelAnimationFrame(frame); draw(); },
+		setPaused(paused) {
+			if (running === !paused) return;
+			running = !paused;
+			if (frame) cancelAnimationFrame(frame);
+			frame = running ? requestAnimationFrame(draw) : 0;
+		},
+		destroy() { running = false; if (frame) cancelAnimationFrame(frame); },
+	};
+}
+
+function updateAdminBackgroundPreviewColors() {
+	const colors = state.adminSettingsDraft?.appearance?.colors || {};
+	for (const preview of adminBackgroundPreviewEngines) {
+		const { mode, stage, engine } = preview;
+		const motion = getAdminBackgroundMotion(mode);
+		const dimming = mode === "custom" ? Number(selectedCustomBackground()?.dimming || 0) : motion.dimming;
+		const duration = 9.2 - ((motion.speed - 10) / 90) * 6.7;
+		stage.style.setProperty("--background-dimming", String(dimming / 100));
+		stage.style.setProperty("--background-animation-duration", `${duration.toFixed(2)}s`);
+		stage.style.setProperty("--background-texture-duration", `${(duration * 3.4).toFixed(2)}s`);
+		stage.style.setProperty("--blocks-duration", `${(duration * 1.6).toFixed(2)}s`);
+		if (mode === "morphic") engine?.setConfig({ color: colors.morphicBall || "#ff69b4", speed: motion.speed });
+		if (mode === "twinkle") engine?.setConfig({ color: colors.twinkleStar || "#ffffff", speed: motion.speed });
+		if (mode === "animated") engine?.setConfig({ speed: motion.speed });
+		if (mode === "custom") syncCustomBackground(stage.querySelector(".admin-background-stage__custom"), selectedCustomBackground(), { paused: preview.paused !== false });
+	}
+}
+
+function mountAdminBackgroundPreviews() {
+	adminBackgroundPreviewObserver?.disconnect();
+	adminBackgroundPreviewObserver = null;
+	for (const { engine, video } of adminBackgroundPreviewEngines) { engine?.destroy(); video?.pause(); }
+	adminBackgroundPreviewEngines = [];
+	const stages = app.querySelectorAll("[data-background-preview-stage]");
+	if (!stages.length) return;
+	adminBackgroundPreviewObserver = new IntersectionObserver((entries) => {
+		for (const entry of entries) {
+			const preview = adminBackgroundPreviewEngines.find(({ stage }) => stage === entry.target);
+			if (!preview) continue;
+			const selectedMode = getDeepValue(state.adminSettingsDraft, "appearance.backgroundMode", "animated");
+			const paused = !entry.isIntersecting || document.hidden || Boolean(reducedMotionMedia?.matches)
+				|| preview.mode !== selectedMode || preview.stage.parentElement.classList.contains("admin-background-settings__sample");
+			preview.paused = paused;
+			preview.engine?.setPaused(paused);
+			if (preview.video) { if (paused) preview.video.pause(); else void preview.video.play().catch(() => {}); }
+			if (preview.mode === "custom") syncCustomBackground(preview.stage.querySelector(".admin-background-stage__custom"), selectedCustomBackground(), { paused });
+		}
+	}, { rootMargin: "80px" });
+	for (const stage of stages) {
+		const host = stage.parentElement;
+		const scale = Math.max(1, host.clientWidth) / 390;
+		stage.style.setProperty("--preview-scale", String(scale));
+		const mode = stage.dataset.backgroundPreviewStage;
+		const visibleHeight = Math.max(1, host.clientHeight / scale);
+		const stageHeight = ["animated", "backtyan", "custom"].includes(mode) ? Math.max(640, window.innerHeight) : visibleHeight;
+		stage.style.height = `${stageHeight}px`;
+		stage.style.setProperty("--preview-shift", `${-Math.max(0, stageHeight - visibleHeight) * scale / 2}px`);
+		let engine = null;
+		try {
+			if (mode === "animated") engine = createAdminWavePreview(stage.querySelector("canvas"));
+			if (mode === "morphic") engine = window.__linkBotCreateMorphicBackground?.(stage.querySelector(".bg-media__morphic-particles"));
+			if (mode === "twinkle") engine = window.__linkBotCreateTwinkleBackground?.(stage.querySelector("canvas"));
+		} catch (error) { console.warn("Background preview unavailable", error); }
+		engine?.setPaused(true);
+		const video = stage.querySelector("video");
+		adminBackgroundPreviewEngines.push({ mode, stage, engine, video });
+		adminBackgroundPreviewObserver.observe(stage);
+	}
+	updateAdminBackgroundPreviewColors();
+}
+
 function renderAdminBackgroundOptions(currentMode) {
 	return `<section class="admin-editor__section admin-background-picker">
 		<h3>Фон</h3>
-		<p class="admin-background-picker__hint">Выберите стиль. Настройки применяются к предпросмотру сразу.</p>
 		<div class="admin-background-options" role="radiogroup" aria-label="Стиль фона">
 			${ADMIN_BACKGROUND_OPTIONS.map(([mode, label, hint]) => {
 				const selected = currentMode === mode;
 				return `<button class="admin-background-option ${selected ? "is-selected" : ""}" type="button" role="radio" aria-checked="${selected}" data-action="admin-background-mode" data-value="${escapeAttribute(mode)}" data-selection-feedback>
-					<span class="admin-background-option__preview" data-preview-background="${escapeAttribute(mode)}" aria-hidden="true"><i></i></span>
+					${renderAdminBackgroundPreview(mode, "admin-background-option__preview")}
 					<span class="admin-background-option__copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(hint)}</small></span>
 				</button>`;
 			}).join("")}
@@ -7907,20 +8015,14 @@ function renderAdminBackgroundOptions(currentMode) {
 
 function renderAdminBackgroundControls(mode) {
 	if (mode === "custom") return renderCustomBackgroundEditor(state.adminSettingsDraft.appearance, { html: escapeHtml, attr: escapeAttribute, icon, range: renderAdminRangeField, text: localizedText }, adminBackgroundBusy, adminBackgroundURL);
-	const option = ADMIN_BACKGROUND_OPTIONS.find(([value]) => value === mode) || ADMIN_BACKGROUND_OPTIONS[0];
 	const motion = getAdminBackgroundMotion(mode);
 	const colorFields = ADMIN_BACKGROUND_COLOR_FIELDS[mode] || ADMIN_BACKGROUND_COLOR_FIELDS.animated;
-	const speedHint = mode === "twinkle"
-		? "Частота изменения яркости звёзд"
-		: mode === "solid"
-			? "Скорость едва заметного движения текстуры"
-			: "Плавность движения без резких рывков";
 	return `<section class="admin-editor__section admin-background-settings">
-		<div class="admin-background-settings__heading"><div><h3>Настройка фона</h3><p>Отдельные параметры для «${escapeHtml(option[1])}»</p></div><span class="admin-background-settings__sample" data-preview-background="${escapeAttribute(mode)}" aria-hidden="true"><i></i></span></div>
+		<div class="admin-background-settings__heading"><h3>Настройка фона</h3>${renderAdminBackgroundPreview(mode, "admin-background-settings__sample")}</div>
 		${colorFields.length ? `<div class="admin-color-grid">${colorFields.map(([path, label]) => renderAdminColorField(label, path)).join("")}</div>` : ""}
 		<div class="admin-background-settings__ranges">
-			${renderAdminRangeField("Затемнение", "От светлого к глубокому тёмному фону", `appearance.backgroundMotion.${mode}.dimming`, { value: motion.dimming, min: 0, max: 80, suffix: "%", minLabel: "Светлее", maxLabel: "Темнее" })}
-			${renderAdminRangeField("Скорость", speedHint, `appearance.backgroundMotion.${mode}.speed`, { value: motion.speed, min: 10, max: 100, suffix: "%", minLabel: "Медленно", maxLabel: "Быстрее" })}
+			${renderAdminRangeField("Затемнение", "", `appearance.backgroundMotion.${mode}.dimming`, { value: motion.dimming, min: 0, max: 80, suffix: "%", hideScale: true })}
+			${renderAdminRangeField("Скорость", "", `appearance.backgroundMotion.${mode}.speed`, { value: motion.speed, min: 10, max: 100, suffix: "%", hideScale: true })}
 		</div>
 	</section>`;
 }
@@ -8080,7 +8182,7 @@ function bottomNavSurface(style) {
 
 function renderAdminBottomNavStyles() {
   const selected = bottomNavStyle(getDeepValue(state.adminSettingsDraft, "appearance.bottomNavStyle", "classic"));
-  return `<section class="admin-editor__section admin-nav-picker"><h3>${escapeHtml(localizedText("Нижнее меню", "Bottom menu", "منوی پایین"))}</h3><p>${escapeHtml(localizedText("Для узких экранов. Цвета и стекло — из вашей темы.", "For narrow screens. Uses your theme colors and glass.", "برای صفحه‌های باریک، با رنگ و شیشه پوسته شما."))}</p><div class="admin-nav-options" role="radiogroup" aria-label="${escapeAttribute(localizedText("Дизайн меню", "Menu design", "طرح منو"))}">${BOTTOM_NAV_STYLES.map(([style, ru, en, fa]) => `<button type="button" class="admin-nav-option ${style === selected ? "is-selected" : ""}" role="radio" aria-checked="${style === selected}" data-action="admin-nav-style" data-value="${style}"><span class="admin-nav-preview" data-nav-style="${style}" aria-hidden="true">${bottomNavSurface(style)}<span class="bottom-nav__indicator">${bottomNavDecoration(style)}</span>${["houseLine", "shop", "sms", "userAlt", "grid"].map((name, i) => `<span class="bottom-nav__item ${i === 0 ? "active" : ""}"><span class="bottom-nav__icon">${icon(name)}</span></span>`).join("")}</span><strong>${escapeHtml(localizedText(ru, en, fa))}</strong></button>`).join("")}</div></section>`;
+  return `<section class="admin-editor__section admin-nav-picker"><h3>${escapeHtml(localizedText("Нижнее меню", "Bottom menu", "منوی پایین"))}</h3><div class="admin-nav-options" role="radiogroup" aria-label="${escapeAttribute(localizedText("Дизайн меню", "Menu design", "طرح منو"))}">${BOTTOM_NAV_STYLES.map(([style, ru, en, fa]) => `<button type="button" class="admin-nav-option ${style === selected ? "is-selected" : ""}" role="radio" aria-checked="${style === selected}" data-action="admin-nav-style" data-value="${style}"><span class="admin-nav-preview" data-nav-style="${style}" aria-hidden="true">${bottomNavSurface(style)}<span class="bottom-nav__indicator">${bottomNavDecoration(style)}</span>${["houseLine", "shop", "sms", "userAlt", "grid"].map((name, i) => `<span class="bottom-nav__item ${i === 0 ? "active" : ""}"><span class="bottom-nav__icon">${icon(name)}</span></span>`).join("")}</span><strong>${escapeHtml(localizedText(ru, en, fa))}</strong></button>`).join("")}</div></section>`;
 }
 
 function normalizeAppearanceSection() {
@@ -9175,9 +9277,9 @@ function renderAdminRangeField(label, hint, path, options = {}) {
 	const suffix = String(options.suffix || "");
 	const output = `${value}${suffix}`;
 	return `<label class="admin-range-field">
-		<span class="admin-range-field__head"><span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(hint)}</small></span><output>${escapeHtml(output)}</output></span>
+		<span class="admin-range-field__head"><span><strong>${escapeHtml(label)}</strong>${hint ? `<small>${escapeHtml(hint)}</small>` : ""}</span><output>${escapeHtml(output)}</output></span>
 		<input type="range" min="${min}" max="${max}" step="${Number(options.step || 1)}" value="${value}" style="--range-progress:${progress.toFixed(2)}%" data-setting-path="${escapeAttribute(path)}" data-setting-type="number" data-range-suffix="${escapeAttribute(suffix)}" aria-label="${escapeAttribute(label)}" aria-valuetext="${escapeAttribute(output)}">
-		<span class="admin-range-field__scale" aria-hidden="true"><small>${escapeHtml(options.minLabel || String(min))}</small><small>${escapeHtml(options.maxLabel || String(max))}</small></span>
+		${options.hideScale ? "" : `<span class="admin-range-field__scale" aria-hidden="true"><small>${escapeHtml(options.minLabel || String(min))}</small><small>${escapeHtml(options.maxLabel || String(max))}</small></span>`}
 	</label>`;
 }
 
@@ -10947,20 +11049,21 @@ function captureBottomNavSelection() {
     remaining: Math.max(0, motion.ends - performance.now()) };
 }
 
-function bottomNavCurve(width, height, x, depth, notch = false) {
+function bottomNavCurve(width, height, x, depth, notch = false, scale = 1) {
   const baseline = notch ? 0 : height - 5;
-  const half = notch ? 29 : 30;
+	const half = (notch ? 29 : 30) * scale;
   const left = x - half, right = x + half;
   const peak = baseline + (notch ? depth : -depth);
   // The shoulders change height as the selection travels: this is a deforming
   // curve, not a rigid shape translated between tabs.
-  return `M0 ${baseline} H${left} C${x - 15} ${baseline} ${x - 19} ${peak} ${x} ${peak} C${x + 19} ${peak} ${x + 15} ${baseline} ${right} ${baseline} H${width}`;
+	return `M0 ${baseline} H${left} C${x - 15 * scale} ${baseline} ${x - 19 * scale} ${peak} ${x} ${peak} C${x + 19 * scale} ${peak} ${x + 15 * scale} ${baseline} ${right} ${baseline} H${width}`;
 }
 
 function paintBottomNavMotion(nav, items, motion) {
   const width = nav.clientWidth, height = nav.clientHeight;
   const style = nav.dataset.navStyle;
-  const depth = (style === "notch" ? 23 : Math.max(0, height - 9)) * motion.bend;
+	const previewScale = nav.classList.contains("admin-nav-preview") ? Math.min(1, width / 290) : 1;
+	const depth = (style === "notch" ? 23 : Math.max(0, height - 9)) * motion.bend * (nav.classList.contains("admin-nav-preview") ? height / 50 : 1);
   const indicator = nav.querySelector(".bottom-nav__indicator");
   const active = items[clampIndex(Number(nav.dataset.activeIndex), items.length)];
   const centerY = active.offsetTop + active.offsetHeight / 2;
@@ -10968,9 +11071,9 @@ function paintBottomNavMotion(nav, items, motion) {
   nav.style.setProperty("--nav-selection-x", `${motion.x}px`);
   nav.style.setProperty("--nav-selection-y", `${indicatorY}px`);
   if (style === "contour") {
-    indicator.querySelector("[data-nav-curve]")?.setAttribute("d", bottomNavCurve(width, height, motion.x, depth));
+		indicator.querySelector("[data-nav-curve]")?.setAttribute("d", bottomNavCurve(width, height, motion.x, depth, false, previewScale));
   } else if (style === "notch") {
-    const curve = bottomNavCurve(width, height, motion.x, depth, true);
+		const curve = bottomNavCurve(width, height, motion.x, depth, true, previewScale);
     nav.querySelector("[data-nav-cutout]")?.setAttribute("d", `${curve} V${height} H0 Z`);
     nav.querySelector("[data-nav-rim]")?.setAttribute("d", curve);
     const mix = motion.mix ?? 1;
@@ -12944,6 +13047,7 @@ function bindRootActions() {
 				}
 				applyAppearance();
 				mountCustomBackgroundPreview();
+				updateAdminBackgroundPreviewColors();
 			}
 			if (settingPath.endsWith(".balanceMode")) {
 				state.adminSettingsDirty = true;

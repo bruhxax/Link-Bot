@@ -24,6 +24,7 @@ export function createMorphicBackground(target) {
 	}
 
 	function particleLimit() {
+		if (target.closest(".admin-background-stage")) return 5;
 		return document.documentElement.dataset.performance === "low" ? 8 : 12;
 	}
 
@@ -165,4 +166,5 @@ export function createMorphicBackground(target) {
 }
 
 const morphicBackground = createMorphicBackground(morphicParticleLayer);
+window.__linkBotCreateMorphicBackground = createMorphicBackground;
 window.__linkBotMorphic = morphicBackground || { setConfig() {}, setPaused() {} };

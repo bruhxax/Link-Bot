@@ -30,6 +30,7 @@ export function createTwinkleBackground(canvas) {
 	function targetStarCount() {
 		const lowPerformance = document.documentElement.dataset.performance === "low";
 		const area = width * height;
+		if (canvas.closest(".admin-background-stage")) return Math.round(Math.max(12, Math.min(80, area / (lowPerformance ? 4200 : 2400))));
 		return Math.round(Math.max(lowPerformance ? 54 : 96, Math.min(lowPerformance ? 100 : 200, area / (lowPerformance ? 4200 : 2400))));
 	}
 
@@ -137,4 +138,5 @@ export function createTwinkleBackground(canvas) {
 }
 
 const twinkleBackground = createTwinkleBackground(twinkleCanvas);
+window.__linkBotCreateTwinkleBackground = createTwinkleBackground;
 window.__linkBotTwinkle = twinkleBackground || { setConfig() {}, setPaused() {} };

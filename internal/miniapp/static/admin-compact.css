@@ -109,7 +109,7 @@
 #app :is(#page-admin, .rn-content) .admin-menu-group .menu-row { min-height: 40px; padding: 8px 10px; border-radius: 7px; }
 #app :is(#page-admin, .rn-content) .admin-range-field { padding-block: 9px 7px; }
 #app :is(#page-admin, .rn-content) .admin-color-field { min-height: 42px; border-radius: 7px; }
-#app :is(#page-admin, .rn-content) .admin-color-field input[type="color"] { height: 42px; }
+#app :is(#page-admin, .rn-content) .admin-color-field input[type="color"] { height: auto; min-height: 0; align-self: stretch; }
 #app :is(#page-admin, .rn-content) .admin-nav-option { padding: 24px 8px 10px; gap: 8px; border-radius: 10px; }
 
 /* These dropdowns are portalled outside the admin page. */
@@ -446,4 +446,90 @@ html[data-admin-console="off"] #app #page-admin .admin-content-panel details[ope
 @media (prefers-reduced-motion: reduce) {
   html[data-admin-console="off"] #app #page-admin .admin-content-panel details > summary > svg,
   html[data-admin-console="off"] #app #page-admin .admin-content-panel details::details-content { transition: none; }
+}
+
+html[data-admin-console="off"] #app #page-admin .appearance-theme > .admin-appearance-presets {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  interpolate-size: allow-keywords;
+}
+html[data-admin-console="off"] #app #page-admin .admin-appearance-presets > summary {
+  min-height: 42px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+html[data-admin-console="off"] #app #page-admin .admin-appearance-presets > summary::-webkit-details-marker { display: none; }
+html[data-admin-console="off"] #app #page-admin .admin-appearance-presets > summary strong { color: var(--text); font-size: 11px; }
+html[data-admin-console="off"] #app #page-admin .admin-appearance-presets > summary svg {
+  width: 16px;
+  height: 16px;
+  color: var(--icon-color);
+  transition: transform .26s ease;
+}
+html[data-admin-console="off"] #app #page-admin .admin-appearance-presets[open] > summary svg { transform: rotate(180deg); }
+html[data-admin-console="off"] #app #page-admin .admin-appearance-presets .admin-preset-grid { padding: 2px 10px 10px; }
+html[data-admin-console="off"] #app #page-admin .admin-appearance-presets::details-content {
+  block-size: 0;
+  opacity: 0;
+  overflow: clip;
+  transition: block-size .28s ease, opacity .2s ease, content-visibility .28s allow-discrete;
+}
+html[data-admin-console="off"] #app #page-admin .admin-appearance-presets[open]::details-content { block-size: auto; opacity: 1; }
+
+html[data-admin-console="off"] #app #page-admin .admin-nav-option {
+  min-height: 0;
+  padding: 9px 7px 8px;
+  gap: 7px;
+  border-radius: var(--admin-card-radius);
+}
+html[data-admin-console="off"] #app #page-admin .admin-nav-option > strong { font-size: 10px; }
+html[data-admin-console="off"] #app #page-admin .admin-nav-preview { height: 38px; padding: 3px; }
+html[data-admin-console="off"] #app #page-admin .admin-nav-preview .bottom-nav__item { height: 30px; }
+html[data-admin-console="off"] #app #page-admin .admin-nav-preview .bottom-nav__icon svg { width: 13px; height: 13px; }
+html[data-admin-console="off"] #app #page-admin .admin-nav-preview[data-nav-style="notch"] .bottom-nav__indicator { width: 28px; height: 28px; }
+html[data-admin-console="off"] #app #page-admin .admin-nav-preview[data-nav-style="capsule"] .bottom-nav__indicator { width: 26px; height: 28px; }
+
+html[data-admin-console="off"] #app #page-admin .admin-background-option {
+  min-height: 0;
+  grid-template-rows: auto 1fr;
+}
+html[data-admin-console="off"] #app #page-admin .admin-background-option__preview {
+  aspect-ratio: 390 / 180;
+  background: var(--bg);
+}
+html[data-admin-console="off"] #app #page-admin .admin-background-stage {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 390px;
+  height: 180px;
+  overflow: hidden;
+  transform: translateY(var(--preview-shift, 0px)) scale(var(--preview-scale, .4));
+  transform-origin: 0 0;
+  background: var(--bg);
+  pointer-events: none;
+}
+html[data-admin-console="off"] #app #page-admin .admin-background-stage[data-background-preview-stage="animated"] { background: var(--wave-background); }
+html[data-admin-console="off"] #app #page-admin .admin-background-stage[data-background-preview-stage="grid"] { background: var(--grid-background); }
+html[data-admin-console="off"] #app #page-admin .admin-background-stage[data-background-preview-stage="grid2"] { background: var(--grid2-background); }
+html[data-admin-console="off"] #app #page-admin .admin-background-stage[data-background-preview-stage="blocks"] { background: var(--blocks-background); }
+html[data-admin-console="off"] #app #page-admin .admin-background-stage[data-background-preview-stage="morphic"] { background: var(--morphic-background); }
+html[data-admin-console="off"] #app #page-admin .admin-background-stage[data-background-preview-stage="twinkle"] { background: var(--twinkle-background); }
+html[data-admin-console="off"] #app #page-admin .admin-background-stage > :is(.bg-media__canvas, .bg-media__scrim, .bg-media__grid, .bg-media__grid2, .bg-media__blocks, .bg-media__morphic, .bg-media__twinkle, .bg-media__video) { display: block !important; }
+html[data-admin-console="off"] #app #page-admin .admin-background-stage .bg-media__grid,
+html[data-admin-console="off"] #app #page-admin .admin-background-stage .bg-media__grid2,
+html[data-admin-console="off"] #app #page-admin .admin-background-stage .bg-media__morphic,
+html[data-admin-console="off"] #app #page-admin .admin-background-stage .bg-media__twinkle { contain: paint; }
+html[data-admin-console="off"] #app #page-admin .admin-background-stage .bg-media__shade { position: absolute; inset: 0; }
+html[data-admin-console="off"] #app #page-admin .admin-background-stage__custom { position: absolute; inset: 0; }
+html[data-admin-console="off"] #app #page-admin .admin-background-stage .bg-media__video { width: 100%; height: 100%; object-fit: cover; }
+html[data-admin-console="off"] #app #page-admin .admin-background-settings__sample { display: block; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-admin-console="off"] #app #page-admin .admin-appearance-presets > summary svg,
+  html[data-admin-console="off"] #app #page-admin .admin-appearance-presets::details-content { transition: none; }
 }

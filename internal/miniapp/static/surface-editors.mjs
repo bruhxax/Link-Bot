@@ -68,16 +68,16 @@ export function renderCursorEditor(
         `<button type="button" role="tab" aria-selected="${surface === id}" data-action="admin-cursor-surface" data-value="${id}">${label}</button>`,
     )
     .join("")}</div>
- <div class="surface-editor-grid"><section class="admin-editor__section surface-card"><h3>Вид курсора</h3><p>Настройки сохраняются отдельно для каждой поверхности.</p>
+ <div class="surface-editor-grid"><section class="admin-editor__section surface-card"><h3>Вид курсора</h3>
  <div class="cursor-presets">${CURSOR_PRESETS.map(([id, label]) => `<button type="button" class="cursor-preset ${c.mode === id ? "is-active" : ""}" aria-pressed="${c.mode === id}" data-action="admin-cursor-preset" data-value="${id}">${presetCursor(id) ? `<img src="${q(presetCursor(id))}" alt="" width="32" height="32">` : '<span class="cursor-preset__symbol" aria-hidden="true">↖</span>'}<span>${label}</span></button>`).join("")}</div>
- <div class="surface-number-grid">${field("Размер, px", "size", "number", 'min="16" max="64"')}${field("Точка X", "hotspotX", "number", `min="0" max="${c.size - 1}"`)}${field("Точка Y", "hotspotY", "number", `min="0" max="${c.size - 1}"`)}</div><p>Активная точка — место клика внутри изображения. У лапки, кольца и прицела она находится в центре.</p></section>
+ <div class="surface-number-grid">${field("Размер, px", "size", "number", 'min="16" max="64"')}${field("Точка X", "hotspotX", "number", `min="0" max="${c.size - 1}"`)}${field("Точка Y", "hotspotY", "number", `min="0" max="${c.size - 1}"`)}</div></section>
  <section class="admin-editor__section surface-card"><h3>Свои курсоры</h3><p>PNG, SVG, JPG, WebP, GIF или CUR · до 2 МБ. Изображение будет уменьшено до выбранного размера.</p>
  ${field("Основной курсор — ссылка", "url")}
  <label class="surface-upload"><span>Загрузить основной курсор</span><input class="surface-upload__input" type="file" accept="image/*,.cur" data-input="admin-cursor-file" data-surface="${surface}" data-cursor-kind="url"></label>
  ${field("Курсор над кнопками — ссылка (необязательно)", "pointerUrl")}
  <label class="surface-upload"><span>Загрузить курсор для кнопок</span><input class="surface-upload__input" type="file" accept="image/*,.cur" data-input="admin-cursor-file" data-surface="${surface}" data-cursor-kind="pointerUrl"></label>
- <p>На сенсорных экранах курсор не отображается. Поля ввода и недоступные кнопки сохраняют понятные системные указатели.</p></section></div>
- <section class="admin-editor__section surface-card cursor-demo"><h3>Проверка курсора</h3><div data-cursor-demo="${surface}"><span>Наведите курсор сюда</span><button class="surface-button" type="button" data-action="admin-cursor-test">Обычная кнопка</button><input class="admin-field__control" placeholder="Поле ввода" aria-label="Проверка текстового курсора"></div><p>Настройки начнут действовать после сохранения.</p></section></div>`;
+ </section></div>
+ <section class="admin-editor__section surface-card cursor-demo"><h3>Проверка курсора</h3><div data-cursor-demo="${surface}"><span>Наведите курсор сюда</span><button class="surface-button" type="button" data-action="admin-cursor-test">Обычная кнопка</button><input class="admin-field__control" placeholder="Поле ввода" aria-label="Проверка текстового курсора"></div></section></div>`;
 }
 export function renderLandingEditor(
   a,
@@ -109,7 +109,7 @@ export function renderLandingEditor(
   ];
   let body = "";
   if (tab === "colors")
-    body = `<div class="surface-editor-grid"><section class="admin-editor__section surface-card"><h3>Палитра лендинга</h3><p>Цвета кабинета и админки настраиваются отдельно.</p><div class="admin-color-grid">${[
+    body = `<div class="surface-editor-grid"><section class="admin-editor__section surface-card"><h3>Палитра лендинга</h3><div class="admin-color-grid">${[
       ["background", "Основной фон"],
       ["surface", "Карточки"],
       ["surfaceStrong", "Плотные поверхности"],
@@ -125,7 +125,7 @@ export function renderLandingEditor(
         "",
       )}</div><label class="admin-field surface-field"><span>Скругление кнопок, px</span><input class="admin-field__control" type="number" min="0" max="24" data-setting-type="number" data-setting-path="${path}.buttonRadius" value="${l.buttonRadius}"></label></section><section class="admin-editor__section surface-card"><h3>Предпросмотр палитры</h3><div class="landing-editor-preview" data-landing-preview style="--preview-bg:${q(l.colors.background)};--preview-surface:${q(l.colors.surface)};--preview-text:${q(l.colors.text)};--preview-muted:${q(l.colors.muted)};--preview-accent:${q(l.colors.accent)};--preview-button-text:${previewButtonColor(l.colors.accent)};--preview-radius:${l.buttonRadius}px"><small>ГЛАВНАЯ</small><strong>${e(l.text.heroTitle || "Интернет без ограничений")}</strong><p>${e(l.text.heroLead || "Стабильное соединение для работы и общения.")}</p><button class="surface-button" type="button" data-action="admin-cursor-test">${e(l.text.trialButton || "Попробовать бесплатно")}</button><div><b>Тариф</b><span>Сервера · Поддержка</span></div></div></section></div>`;
   if (tab === "backgrounds")
-    body = `<section class="admin-editor__section surface-card"><h3>Фон лендинга</h3><label class="admin-toggle"><span>Отдельный фон для каждого раздела</span><input type="checkbox" data-setting-type="boolean" data-setting-path="${path}.perPage" ${l.perPage ? "checked" : ""}><i aria-hidden="true"></i></label><p>Лендинг состоит из четырёх разделов: главная, сервера, тарифы и поддержка. Можно задать один фон на всю страницу или отдельный фон каждому разделу.</p></section><div class="surface-editor-grid">${bg("Общий фон", "background", l.background, false)}${
+    body = `<section class="admin-editor__section surface-card"><h3>Фон лендинга</h3><label class="admin-toggle"><span>Отдельный фон для каждого раздела</span><input type="checkbox" data-setting-type="boolean" data-setting-path="${path}.perPage" ${l.perPage ? "checked" : ""}><i aria-hidden="true"></i></label></section><div class="surface-editor-grid">${bg("Общий фон", "background", l.background, false)}${
       l.perPage
         ? [
             ["home", "Главная"],
