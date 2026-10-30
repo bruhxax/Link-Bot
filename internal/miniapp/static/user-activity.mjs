@@ -21,7 +21,6 @@ export function escapeActivityHTML(value) {
 
 const svg = path => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
 const glyphs = {
-  history: svg('<path d="M3 11a9 9 0 1 1 2.6 7M3 4v7h7M12 7v5l3 2"/>'),
   refresh: svg('<path d="M20 7v5h-5M4 17v-5h5M5.5 7a8 8 0 0 1 13-2L20 7M4 17l1.5 2a8 8 0 0 0 13-2"/>'),
   check: svg('<path d="m5 12 4 4L19 6"/>'),
   clock: svg('<circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/>'),
@@ -74,7 +73,7 @@ export function renderUserActivity(model = {}, { escapeHtml = escapeActivityHTML
   const expanded = new Set(model.expanded || []);
   const disabled = model.busy ? "disabled" : "";
   const prefix = escapeAttribute(model.idPrefix || "user-activity");
-  return `<section class="admin-user-activity" aria-labelledby="${prefix}-title"><header class="admin-user-activity__head"><h3 id="${prefix}-title">${glyphs.history}<span>История действий</span></h3><button class="user-activity-icon" type="button" data-action="admin-user-activity-refresh" aria-label="Обновить историю" title="Обновить историю" ${disabled}>${refreshIcon}</button></header>
+  return `<section class="admin-user-activity" aria-labelledby="${prefix}-title"><header class="admin-user-activity__head"><h3 id="${prefix}-title">История действий</h3><button class="user-activity-icon" type="button" data-action="admin-user-activity-refresh" aria-label="Обновить историю" title="Обновить историю" ${disabled}>${refreshIcon}</button></header>
     ${items.length ? `<nav class="user-activity-filters" aria-label="Фильтр истории">${[["all","Все"],["payments","Оплаты"],["errors","Ошибки"],["torrents","Торренты"]].map(([value,label]) => `<button type="button" data-action="admin-user-activity-filter" data-value="${value}" aria-pressed="${filter === value}">${label}</button>`).join("")}</nav>` : ""}
     ${model.error ? `<p class="user-activity-error" role="alert">${escapeHtml(model.error)}</p>` : ""}
     <ol class="user-activity-list">${rows.map(row => {

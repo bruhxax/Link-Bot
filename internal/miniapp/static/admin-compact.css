@@ -612,40 +612,61 @@ html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscripti
 html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription[open]::details-content { block-size: auto; opacity: 1; }
 
 html[data-admin-console="off"] #app #page-admin .admin-user-block-delete {
+  position: relative;
   justify-content: space-between;
   min-height: 44px;
   padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--danger) 36%, var(--line));
   border-radius: var(--admin-card-radius);
+  background: color-mix(in srgb, var(--danger) 5%, var(--control-bg));
 }
 html[data-admin-console="off"] #app #page-admin .admin-user-block-delete input {
-  appearance: none;
+  position: absolute;
+  inset-inline-end: 17px;
+  top: 50%;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  opacity: 0;
+  pointer-events: none;
+}
+html[data-admin-console="off"] #app #page-admin .admin-user-block-delete i {
   width: 36px;
   height: 21px;
-  margin: 0;
-  border: 1px solid var(--icon-color);
+  flex: 0 0 36px;
+  padding: 2px;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: var(--control-bg);
-  cursor: pointer;
-  transition: background .2s ease, border-color .2s ease;
+  background: var(--surface);
 }
-html[data-admin-console="off"] #app #page-admin .admin-user-block-delete input::before {
+html[data-admin-console="off"] #app #page-admin .admin-user-block-delete i::after {
   content: "";
   display: block;
   width: 15px;
   height: 15px;
-  margin: 2px;
   border-radius: 50%;
   background: var(--muted);
   transition: transform .2s ease, background .2s ease;
 }
-html[data-admin-console="off"] #app #page-admin .admin-user-block-delete input:checked { border-color: var(--accent); background: var(--accent); }
-html[data-admin-console="off"] #app #page-admin .admin-user-block-delete input:checked::before { background: var(--button-text); transform: translateX(15px); }
+html[data-admin-console="off"] #app #page-admin .admin-user-block-delete input:focus-visible + i { outline: 2px solid var(--accent); outline-offset: 3px; }
+html[data-admin-console="off"] #app #page-admin .admin-user-block-delete input:checked + i {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 16%, var(--surface));
+}
+html[data-admin-console="off"] #app #page-admin .admin-user-block-delete input:checked + i::after {
+  transform: translateX(15px);
+  background: var(--danger);
+}
 html[data-admin-console="off"] #app #page-admin .admin-user-activity .user-activity-icon { color: var(--icon-color); cursor: pointer; }
 html[data-admin-console="off"] #app #page-admin .admin-user-activity .user-activity-icon:hover { background: var(--surface-strong); }
 html[data-admin-console="off"] #app #page-admin .admin-user-activity .user-activity-icon svg { width: 17px; height: 17px; }
 @media (prefers-reduced-motion: reduce) {
   html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription > summary svg,
   html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription::details-content,
-  html[data-admin-console="off"] #app #page-admin .admin-user-block-delete input,
-  html[data-admin-console="off"] #app #page-admin .admin-user-block-delete input::before { transition: none; }
+  html[data-admin-console="off"] #app #page-admin .admin-user-block-delete i::after { transition: none; }
 }
