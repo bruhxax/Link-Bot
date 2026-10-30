@@ -7430,13 +7430,11 @@ function renderAdminPinnedMessage() {
 	const percent = total ? Math.min(100, Math.round(completed / total * 100)) : 0;
 	return `<section class="admin-editor__section admin-pinned-message" aria-busy="${busy}">
 		<h3>Закреплённое сообщение</h3>
-		<p class="admin-pinned-message__hint">По команде /start бот отправит и закрепит это сообщение, затем покажет обычное меню. Уже закреплённая актуальная копия не дублируется. Форматирование, premium emoji и вложения сохраняются.</p>
 		<label class="admin-toggle"><span>Закреплять при /start</span><input type="checkbox" role="switch" data-input="admin-pinned-enabled" aria-label="Включить или выключить закрепление при /start" ${p?.enabled ? "checked" : ""} ${disabled || !p?.hasMessage ? "disabled" : ""}><i aria-hidden="true"></i></label>
 		${p?.hasMessage ? `<div class="admin-pinned-message__preview"><span class="admin-pinned-message__badge ${p.enabled ? "is-active" : ""}">${p.enabled ? "Закреп включён" : "Закреп выключен"}</span><p>${escapeHtml(p.sourcePreview || "Сообщение с вложением")}</p></div>` : `<p class="admin-pinned-message__hint">${p ? "Сначала напишите сообщение, затем включите закрепление." : "Загружаем настройки…"}</p>`}
 		${p?.awaitingMessage ? `<div class="admin-pinned-message__capture"><p>Отправьте сообщение боту в чат. ${p.enabled ? "Пользователи получат новый закреп при следующем /start." : "После сохранения вернитесь сюда и включите закреп."}</p><button type="button" data-action="admin-pinned-open-chat">Открыть чат</button><button type="button" data-action="admin-pinned-cancel" ${disabled ? "disabled" : ""}>Отменить ввод</button></div>` : ""}
 		<div class="admin-pinned-message__actions"><button class="admin-reminder-test" type="button" data-action="admin-pinned-capture" ${disabled || p?.awaitingMessage ? "disabled" : ""}>${icon("send")}<span>${state.adminPinnedBusy === "capture" ? "Открываем чат…" : "Написать сообщение"}</span></button><button type="button" data-action="admin-pinned-preview" ${disabled || !p?.hasMessage ? "disabled" : ""}>Проверить в Telegram</button></div>
 		${p?.hasMessage && total > 0 ? `<div class="admin-pinned-message__progress" role="status"><div><span>${p.enabled ? `Получили при /start: ${completed}` : `Откреплено: ${completed} / ${total}`}</span>${failed ? `<span>Ошибок: ${failed}</span>` : ""}</div>${p.enabled ? "" : `<div class="admin-pinned-message__track" role="progressbar" aria-label="Снятие закрепа" aria-valuenow="${completed}" aria-valuemin="0" aria-valuemax="${total}"><i style="width:${percent}%"></i></div>`}${failed && !p.enabled ? `<button type="button" data-action="admin-pinned-retry" ${disabled ? "disabled" : ""}>Повторить снятие закрепа</button>` : ""}</div>` : ""}
-		<p class="admin-pinned-message__hint">Массовой отправки нет. Если пользователь открепит сообщение, бот закрепит его снова при /start. При ошибке повторит попытку при следующем /start. Выключение снимает только этот закреп.</p>
 		${state.adminPinnedError ? `<p class="admin-pinned-message__error" role="alert">${escapeHtml(state.adminPinnedError)}</p>` : ""}
 	</section>`;
 }
@@ -7543,7 +7541,7 @@ function renderAdminFaviconField() {
 				</div>
 			</div>
 		</div>
-		<details class="admin-logo-field__advanced"><summary>Внешняя ссылка</summary>${renderAdminSettingField("HTTPS-адрес", "content.webPage.faviconUrl", { type: "url", placeholder: "https://example.com/favicon.png", compact: true })}</details>
+		<details class="admin-logo-field__advanced"><summary>Внешняя ссылка${icon("chevron")}</summary>${renderAdminSettingField("HTTPS-адрес", "content.webPage.faviconUrl", { type: "url", placeholder: "https://example.com/favicon.png", compact: true })}</details>
 		<div class="admin-logo-field__status" role="status" aria-live="polite">${escapeHtml(source)}</div>
 	</div>`;
 }
@@ -7572,7 +7570,7 @@ function renderAdminLogoField() {
 				</div>
 			</div>
 		</div>
-		<details class="admin-logo-field__advanced"><summary>Внешняя ссылка</summary>${renderAdminSettingField("HTTPS-адрес", "content.logoUrl", { type: "url", placeholder: "https://example.com/logo.png", compact: true })}</details>
+		<details class="admin-logo-field__advanced"><summary>Внешняя ссылка${icon("chevron")}</summary>${renderAdminSettingField("HTTPS-адрес", "content.logoUrl", { type: "url", placeholder: "https://example.com/logo.png", compact: true })}</details>
 		<div class="admin-logo-field__status" role="status" aria-live="polite">${escapeHtml(source)}</div>
 	</div>`;
 }
@@ -7816,7 +7814,7 @@ function renderAdminFAQItem(item, index, total) {
 }
 
 function renderAdminContentDisclosure(title, body, meta = "") {
-	return `<details class="admin-content-disclosure"><summary><strong>${escapeHtml(title)}</strong><span>${escapeHtml(meta)}</span></summary><div class="admin-content-disclosure__body">${body}</div></details>`;
+	return `<details class="admin-content-disclosure"><summary><strong>${escapeHtml(title)}</strong><span>${escapeHtml(meta)}</span>${icon("chevron")}</summary><div class="admin-content-disclosure__body">${body}</div></details>`;
 }
 
 function renderAdminVariableReference(title, variables, note = "") {
@@ -7830,7 +7828,7 @@ function renderAdminBannerField(label, path, example) {
 }
 
 function renderAdminTelegramButton(title, path) {
-	return `<details class="admin-telegram-button"><summary><strong>${escapeHtml(title)}</strong><span>Настроить</span></summary>
+	return `<details class="admin-telegram-button"><summary><strong>${escapeHtml(title)}</strong>${icon("chevron")}</summary>
 		<div class="admin-telegram-button__body">
 			<div class="admin-editor__grid admin-editor__grid--two">${renderAdminSettingField("Текст", `${path}.text`)}${renderAdminSettingField("Premium emoji", `${path}.iconCustomEmojiId`, { placeholder: "ID или код <tg-emoji>" })}</div>
 			${renderAdminTelegramButtonStyle(`${path}.style`)}
@@ -7841,7 +7839,7 @@ function renderAdminTelegramButton(title, path) {
 function renderAdminReminderTemplate(kind, label, path) {
 	const busy = state.adminBusy === `test-reminder-${kind}`;
 	return `<details class="admin-reminder-template">
-		<summary><strong>${escapeHtml(label)}</strong><span>Изменить</span></summary>
+		<summary><strong>${escapeHtml(label)}</strong>${icon("chevron")}</summary>
 		<div class="admin-reminder-template__body">
 			${renderAdminSettingField("Текст уведомления", path, { textarea: true, rows: 7 })}
 			<div class="admin-reminder-template__actions"><button class="admin-reminder-test" type="button" data-action="admin-test-reminder" data-value="${escapeAttribute(kind)}" ${state.adminBusy ? "disabled" : ""}>${icon(busy ? "refresh" : "send")}<span>${busy ? "Отправляем…" : "Отправить тест"}</span></button></div>

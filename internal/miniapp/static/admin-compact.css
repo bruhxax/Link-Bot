@@ -386,3 +386,64 @@ html[data-admin-console="off"] #app #page-admin .admin-moynalog__metrics span {
   text-overflow: clip;
   white-space: normal;
 }
+
+html[data-admin-console="off"] #app #page-admin .admin-pinned-message__preview {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--admin-card-radius);
+  background: var(--control-bg);
+  box-shadow: var(--glass-shadow-soft);
+}
+
+html[data-admin-console="off"] #app #page-admin .admin-content-panel details {
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--admin-card-radius);
+  background: var(--surface);
+  interpolate-size: allow-keywords;
+}
+html[data-admin-console="off"] #app #page-admin .admin-content-panel details > summary {
+  min-height: 40px;
+  padding: 9px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: var(--admin-card-radius);
+  background: transparent;
+  color: var(--text);
+  list-style: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+html[data-admin-console="off"] #app #page-admin .admin-content-panel details > summary::marker { content: ""; }
+html[data-admin-console="off"] #app #page-admin .admin-content-panel details > summary::-webkit-details-marker { display: none; }
+html[data-admin-console="off"] #app #page-admin .admin-content-panel details > summary strong { flex: 1; }
+html[data-admin-console="off"] #app #page-admin .admin-content-panel details > summary > span:empty { display: none; }
+html[data-admin-console="off"] #app #page-admin .admin-content-panel details > summary > span::after { content: none; }
+html[data-admin-console="off"] #app #page-admin .admin-content-panel details > summary > svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin-left: auto;
+  color: var(--icon-color);
+  transition: transform .26s ease;
+}
+html[data-admin-console="off"] #app #page-admin .admin-content-panel details[open] > summary > svg { transform: rotate(180deg); }
+html[data-admin-console="off"] #app #page-admin .admin-content-panel details > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+html[data-admin-console="off"] #app #page-admin .admin-content-panel details::details-content {
+  block-size: 0;
+  opacity: 0;
+  overflow: clip;
+  transition: block-size .28s ease, opacity .2s ease, content-visibility .28s allow-discrete;
+}
+html[data-admin-console="off"] #app #page-admin .admin-content-panel details[open]::details-content {
+  block-size: auto;
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-admin-console="off"] #app #page-admin .admin-content-panel details > summary > svg,
+  html[data-admin-console="off"] #app #page-admin .admin-content-panel details::details-content { transition: none; }
+}
