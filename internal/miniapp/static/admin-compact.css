@@ -360,3 +360,29 @@ html[data-admin-console="off"] #app #page-admin :is(.admin-status__service.is-un
 
 html[data-admin-console="off"] #app #page-admin .admin-localization .admin-editor__grid { gap: 8px; }
 html[data-admin-console="off"] #app #page-admin .admin-localization .admin-field { gap: 4px; margin-bottom: 0; }
+
+html[data-admin-console="off"] #app #page-admin .admin-moynalog__metrics {
+  gap: 7px;
+  overflow: visible;
+  border: 0;
+}
+html[data-admin-console="off"] #app #page-admin .admin-moynalog__metrics > div {
+  min-height: 64px;
+  padding: 8px 10px;
+  place-content: center start;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--admin-card-radius);
+  background: var(--surface);
+  box-shadow: var(--glass-shadow-soft);
+  text-align: left;
+}
+html[data-admin-console="off"] #app #page-admin .admin-moynalog__metrics > div + div { border-inline-start: 1px solid var(--line); }
+html[data-admin-console="off"] #app #page-admin .admin-moynalog__metrics strong { font-size: 21px; }
+html[data-admin-console="off"] #app #page-admin .admin-moynalog__metrics span {
+  overflow: visible;
+  font-size: 9px;
+  line-height: 1.15;
+  text-overflow: clip;
+  white-space: normal;
+}
