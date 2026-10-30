@@ -268,3 +268,92 @@ html[data-admin-console="on"] .rn-main :is(.rn-clickable-card, .rn-settings-pane
 }
 :root[data-glass="on"] #app :is(#page-admin, .rn-content) :is(.admin-broadcast__tabs, .admin-mail__tabs, .admin-promo-type-switch, .admin-promo-unit-switch) button.is-active { border-color: var(--accent); }
 :root[data-glass="on"] #app .admin-broadcast-style__option.is-selected { border-color: var(--accent); }
+
+/* Status in the regular mini app: dense cards and readable signal lights. */
+html[data-admin-console="off"] #app #page-admin .admin-status {
+  gap: 8px;
+  padding: 2px 2px 12px;
+}
+html[data-admin-console="off"] #app #page-admin .admin-status__topline,
+html[data-admin-console="off"] #app #page-admin .admin-status__grid { gap: 8px; }
+html[data-admin-console="off"] #app #page-admin .admin-status__overview {
+  --status-signal: var(--success);
+  min-height: 48px;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 10px;
+}
+html[data-admin-console="off"] #app #page-admin .admin-status__overview.is-attention,
+html[data-admin-console="off"] #app #page-admin .admin-status__service.is-offline,
+html[data-admin-console="off"] #app #page-admin .admin-status__inline-state.is-offline { --status-signal: var(--danger); }
+html[data-admin-console="off"] #app #page-admin .admin-status__service.is-unknown,
+html[data-admin-console="off"] #app #page-admin .admin-status__inline-state.is-unknown { --status-signal: var(--muted); }
+html[data-admin-console="off"] #app #page-admin :is(.admin-status__service, .admin-status__section) {
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+html[data-admin-console="off"] #app #page-admin .admin-status__service-icon {
+  width: 27px;
+  height: 27px;
+  border-radius: 8px;
+}
+html[data-admin-console="off"] #app #page-admin .admin-status__service-icon svg { width: 15px; height: 15px; }
+html[data-admin-console="off"] #app #page-admin .admin-status__service-head { gap: 8px; }
+html[data-admin-console="off"] #app #page-admin .admin-status__service-metrics { margin-top: 8px; }
+html[data-admin-console="off"] #app #page-admin :is(.admin-status__service-metrics, .admin-status__rows) > div {
+  gap: 8px;
+  padding: 6px 0;
+  line-height: 1.3;
+}
+html[data-admin-console="off"] #app #page-admin .admin-status__section h3 { margin-bottom: 4px; }
+html[data-admin-console="off"] #app #page-admin .admin-status__release { min-height: 32px; margin-top: 9px; }
+html[data-admin-console="off"] #app #page-admin .admin-bot-update { margin-top: 9px; }
+html[data-admin-console="off"] #app #page-admin .admin-bot-update .admin-bot-update__start { min-height: 36px; }
+html[data-admin-console="off"] #app #page-admin .admin-status__badge,
+html[data-admin-console="off"] #app #page-admin .admin-status__inline-state {
+  --status-signal: var(--success);
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+}
+html[data-admin-console="off"] #app #page-admin .admin-status__service.is-offline .admin-status__badge,
+html[data-admin-console="off"] #app #page-admin .admin-status__inline-state.is-offline { --status-signal: var(--danger); }
+html[data-admin-console="off"] #app #page-admin .admin-status__service.is-unknown .admin-status__badge,
+html[data-admin-console="off"] #app #page-admin .admin-status__inline-state.is-unknown { --status-signal: var(--muted); }
+html[data-admin-console="off"] #app #page-admin :is(.admin-status__overview > i, .admin-status__badge i, .admin-status__inline-state i) {
+  position: relative;
+  display: block;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: var(--status-signal);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--status-signal) 13%, transparent), 0 0 11px 2px color-mix(in srgb, var(--status-signal) 75%, transparent);
+  animation: admin-status-beacon 2.2s ease-in-out infinite;
+}
+html[data-admin-console="off"] #app #page-admin :is(.admin-status__overview > i, .admin-status__badge i, .admin-status__inline-state i)::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border: 1px solid color-mix(in srgb, var(--status-signal) 50%, transparent);
+  border-radius: 50%;
+  animation: admin-status-ring 2.2s ease-out infinite;
+}
+html[data-admin-console="off"] #app #page-admin .admin-status__db-value { display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
+html[data-admin-console="off"] #app #page-admin .admin-status__inline-state { width: 18px; height: 18px; }
+html[data-admin-console="off"] #app #page-admin :is(.admin-status__service.is-unknown .admin-status__badge i, .admin-status__inline-state.is-unknown i) { animation: none; }
+html[data-admin-console="off"] #app #page-admin :is(.admin-status__service.is-unknown .admin-status__badge i, .admin-status__inline-state.is-unknown i)::after { display: none; }
+@keyframes admin-status-beacon {
+  50% { opacity: .65; box-shadow: 0 0 0 4px color-mix(in srgb, var(--status-signal) 9%, transparent), 0 0 6px 1px color-mix(in srgb, var(--status-signal) 55%, transparent); }
+}
+@keyframes admin-status-ring {
+  0% { opacity: .7; transform: scale(.55); }
+  75%, 100% { opacity: 0; transform: scale(1.25); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-admin-console="off"] #app #page-admin :is(.admin-status__overview > i, .admin-status__badge i, .admin-status__inline-state i),
+  html[data-admin-console="off"] #app #page-admin :is(.admin-status__overview > i, .admin-status__badge i, .admin-status__inline-state i)::after { animation: none; }
+}
