@@ -45,7 +45,8 @@ export function applyAbuseFilters(root, model) {
   if (!root) return;
   const visible = new Set(visibleAbuseItems(model).map(item => item.key));
   for (const card of root.querySelectorAll('[data-abuse-key]')) {
-    card.hidden = !visible.has(card.dataset.abuseKey);
+    const hidden = !visible.has(card.dataset.abuseKey);
+    if (card.hidden !== hidden) card.hidden = hidden;
   }
   for (const tab of root.querySelectorAll('[data-action="abuse-filter"]')) {
     tab.setAttribute('aria-pressed', String(tab.dataset.value === model.filter));
@@ -57,6 +58,19 @@ export function applyAbuseFilters(root, model) {
     empty.querySelector('h2').textContent = title;
     empty.querySelector('p').textContent = description;
   }
+}
+
+// Coalesce rapid typing into a single DOM update before the next paint.
+export function createAbuseFilterScheduler(frame = callback => requestAnimationFrame(callback)) {
+  let pending = false;
+  return (root, model) => {
+    if (pending) return;
+    pending = true;
+    frame(() => {
+      pending = false;
+      applyAbuseFilters(root, model);
+    });
+  };
 }
 
 export function createAbuseController({post, render, isActive = () => true}) {
@@ -113,12 +127,13 @@ export function createAbuseController({post, render, isActive = () => true}) {
       void inside.offsetHeight;
     }
     card.classList.toggle('is-open', open);
-    card.querySelector('.ab-card__head')?.setAttribute('aria-expanded', String(open));
+    const head = card.querySelector('.ab-card__head');
+    head?.setAttribute('aria-expanded', String(open));
+    const currentLabel = head?.getAttribute?.('aria-label');
+    if (currentLabel) head.setAttribute('aria-label', currentLabel.replace(/^(Открыть|Свернуть):/, `${open ? 'Свернуть' : 'Открыть'}:`));
     const details = card.querySelector('.ab-card__expand');
     if (open) details?.removeAttribute('inert');
     else details?.setAttribute('inert', '');
-    const toggleLabel = card.querySelector('.ab-card__toggle');
-    if (toggleLabel) toggleLabel.textContent = open ? 'Свернуть' : 'Подробнее';
   }
 
   async function act(key, action) {
@@ -194,9 +209,9 @@ function card(item, model, options, visible) {
     ${confirm ? `<div class="ab-confirm" role="group"><strong>${model.confirm.action === 'block' ? 'Заблокировать пользователя?' : model.confirm.action === 'all' ? 'Отозвать все совпадающие подписки?' : 'Отозвать подписку?'}</strong><span>Доступ будет отключён в панели Remnawave.</span><div><button type="button" data-action="abuse-cancel">Отмена</button><button type="button" data-action="abuse-act" data-value="${escapeHtml(item.key)}" data-abuse-operation="${escapeHtml(model.confirm.action)}" class="ab-confirm__yes" ${model.acting ? 'disabled' : ''}>${model.acting ? 'Выполняется…' : 'Подтвердить'}</button></div></div>` : ''}`;
 
   return `<article class="ab-card ${open ? 'is-open' : ''}" data-abuse-key="${escapeHtml(item.key)}" data-kind="${trial ? 'trial' : 'sharing'}" ${visible ? '' : 'hidden'}>
-    <button class="ab-card__head" type="button" data-action="abuse-toggle" data-value="${escapeHtml(item.key)}" aria-expanded="${open}" aria-label="${title}: ${escapeHtml(item.username || 'Пользователь')}, ${count} ${plural(count, words)}">
+    <button class="ab-card__head" type="button" data-action="abuse-toggle" data-value="${escapeHtml(item.key)}" aria-expanded="${open}" aria-label="${open ? 'Свернуть' : 'Открыть'}: ${title}, ${escapeHtml(item.username || 'Пользователь')}, ${count} ${plural(count, words)}">
       <span class="ab-card__main"><strong>${title}</strong><small>${escapeHtml(item.username || 'Пользователь')}</small></span>
-      <span class="ab-card__count">${count}</span><span class="ab-card__toggle">${open ? 'Свернуть' : 'Подробнее'}</span>
+      <span class="ab-card__count" aria-label="${count} ${plural(count, words)}">${count} <small>${trial ? plural(count, ['подписка', 'подписки', 'подписок']) : 'IP'}</small></span><span class="ab-card__toggle" aria-hidden="true">${options.icons?.expand || ''}</span>
     </button>
     <div class="ab-card__expand" ${open ? '' : 'inert'}><div class="ab-card__inside">${open ? details : ''}</div></div>
     ${open ? '' : `<template class="ab-card__template">${details}</template>`}
@@ -218,7 +233,7 @@ export function renderAbuseWorkspace(model, options = {}) {
       <div class="ab-metric"><span>Триал</span><strong>${trial}</strong></div>
     </div>
     <div class="ab-toolbar">
-      <label class="ab-search"><span class="ab-search__icon" aria-hidden="true"></span><input type="search" data-input="abuse-search" aria-label="Поиск абузов" placeholder="Поиск по пользователю, IP или HWID" autocomplete="off" value="${escapeHtml(model.query)}"></label>
+      <label class="ab-search"><span class="ab-search__icon" aria-hidden="true">${options.icons?.search || ''}</span><input type="search" data-input="abuse-search" aria-label="Поиск абузов" placeholder="Поиск по пользователю, IP или HWID" autocomplete="off" value="${escapeHtml(model.query)}"></label>
       <div class="ab-tabs" role="group" aria-label="Тип нарушения">${[['all', 'Все'], ['sharing', 'Шаринг'], ['trial', 'Триал']].map(([key, label]) => `<button type="button" data-action="abuse-filter" data-value="${key}" aria-pressed="${model.filter === key}">${label}</button>`).join('')}</div>
     </div>
     ${data.scanning ? '<div class="ab-status is-loading"><span class="ab-pulse"></span><span>Проверяем подключения и устройства…</span></div>' : ''}

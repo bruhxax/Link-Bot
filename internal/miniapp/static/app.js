@@ -1,7 +1,8 @@
 import { mergeUserActivity, renderUserActivity } from "./user-activity.mjs";
 import {createTorrentController,renderTorrentWorkspace,torrentTemplatePreview,torrentSample} from "./torrents.mjs";
 import {createTorrentAutosave} from "./torrent-autosave.mjs";
-import {createAbuseController,renderAbuseWorkspace,applyAbuseFilters} from "./abuses.mjs";
+import {createAbuseController,renderAbuseWorkspace,applyAbuseFilters,createAbuseFilterScheduler} from "./abuses.mjs";
+const scheduleAbuseFilters = createAbuseFilterScheduler();
 const abuseWorkspace=createAbuseController({post:(url,body)=>previewMode?Promise.resolve({data:{items:[{key:"sharing:preview",kind:"sharing",username:"alex_vpn",customerId:7,subscriptionId:9,deviceLimit:2,ips:[{ip:"203.0.113.42",node:"Frankfurt",lastSeen:"2026-10-30T07:00:00Z"},{ip:"198.51.100.17",node:"Amsterdam",lastSeen:"2026-10-30T07:01:00Z"},{ip:"2001:db8::12",node:"Warsaw",lastSeen:"2026-10-30T07:02:00Z"}]},{key:"trial:preview",kind:"trial",username:"maria",customerId:8,hwid:"device-87ab30d2",subscriptions:[{customerId:6,subscriptionId:12,username:"maria_old",createdAt:"2026-10-19T12:00:00Z"},{customerId:8,subscriptionId:18,username:"maria",createdAt:"2026-10-30T07:00:00Z"}]}],checkedAt:new Date().toISOString(),checkedUsers:48,failedChecks:0,scanning:false}}):post(url,body),render:()=>render({preserveScroll:true,preserveInteraction:true}),isActive:()=>state.currentPage==="admin"&&state.adminSection==="abuses"&&canAdmin("abuses")});
 const torrentWorkspace=createTorrentController({post:(url,body)=>previewMode?Promise.resolve({data:{items:[],hasMore:false,summary:{},webhookConfigured:false}}):post(url,body),render:()=>render({preserveScroll:true,preserveInteraction:true}),isActive:()=>state.currentPage==="admin"&&state.adminSection==="torrents"&&canAdmin("torrents")});
 let torrentSearchTimer;
@@ -5013,7 +5014,7 @@ function renderAdminPage() {
 	if (state.adminLayoutEditing || state.adminPlanEditing) return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"></section>`;
 	syncAdminSettingsDraft();
 	if (state.adminSection === "torrents") return `<section class="page admin-page ${pageClass("admin")}" id="page-admin">${renderTorrentWorkspace(torrentWorkspace.model,state.adminSettingsDraft?.torrents,{canUsers:canAdmin("users"),saveStatus:torrentAutosave.state.phase,saveMessage:torrentSaveMessage()})}</section>`;
-	if (state.adminSection === "abuses") return `<section class="page admin-page ${pageClass("admin")}" id="page-admin">${renderAbuseWorkspace(abuseWorkspace.model,{canBlock:canAdmin("users.block"),canRevoke:canAdmin("users.subscription")})}</section>`;
+	if (state.adminSection === "abuses") return `<section class="page admin-page ${pageClass("admin")}" id="page-admin">${renderAbuseWorkspace(abuseWorkspace.model,{canBlock:canAdmin("users.block"),canRevoke:canAdmin("users.subscription"),icons:{search:icon("search"),expand:icon("arrowDown")}})}</section>`;
   if (state.adminSection === "push") return renderAdminEditorPage(state.locale === "en" ? "Push notifications" : "Push-уведомления", `<section class="admin-editor__section">${renderAdminPushToggle(state.locale === "en" ? "Enable notifications" : "Включить уведомления")}<p>${escapeHtml(state.adminPushError || (state.locale === "en" ? "Receive alerts on this device" : "Получайте уведомления на этом устройстве"))}</p><button class="rw-refresh" type="button" data-action="admin-push-test">${state.locale === "en" ? "Send test" : "Отправить тест"}</button></section>`);
 	if (state.adminSection === "promocodes") return renderAdminPromocodesPage();
 	if (state.adminSection === "subscriptions") return renderAdminSubscriptionsPage();
@@ -12716,7 +12717,7 @@ function bindRootActions() {
 	app.addEventListener("input", (event) => {
       const target = event.target;
 		if(target.dataset?.input==="torrent-search"){torrentWorkspace.model.query=target.value;clearTimeout(torrentSearchTimer);torrentSearchTimer=setTimeout(()=>void torrentWorkspace.load(),350);return;}
-		if(target.dataset?.input==="abuse-search"){abuseWorkspace.model.query=target.value;applyAbuseFilters(app.querySelector('.ab-workspace'),abuseWorkspace.model);return;}
+		if(target.dataset?.input==="abuse-search"){abuseWorkspace.model.query=target.value;scheduleAbuseFilters(app.querySelector('.ab-workspace'),abuseWorkspace.model);return;}
 		if(target.dataset?.input==="torrent-template"){updateTorrentTemplate(target.dataset.kind,target.value);return;}
 		if (target.dataset?.input === "admin-payment-logo-url") { if (state.adminPaymentMethodEditor) { state.adminPaymentMethodEditor.logoUrl = target.value; state.adminPaymentMethodEditor.hideLogo = false; } return; }
 		if (["admin-payment-method-name", "admin-payment-method-description"].includes(target.dataset?.input)) { updateAdminPaymentMethodText(target); return; }
