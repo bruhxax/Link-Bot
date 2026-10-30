@@ -67,14 +67,14 @@ export function activityRows(items, filter = "all") {
     : filter === "payments" ? row.item.source === "payment" || ["purchase","gifts/purchase","purchase/cancel","payment"].includes(row.item.action) : true);
 }
 
-export function renderUserActivity(model = {}, { escapeHtml = escapeActivityHTML, escapeAttribute = escapeActivityHTML } = {}) {
+export function renderUserActivity(model = {}, { escapeHtml = escapeActivityHTML, escapeAttribute = escapeActivityHTML, refreshIcon = glyphs.refresh } = {}) {
   const items = model.data?.items || [];
   const filter = ["all","payments","errors","torrents"].includes(model.filter) ? model.filter : "all";
   const rows = activityRows(items, filter);
   const expanded = new Set(model.expanded || []);
   const disabled = model.busy ? "disabled" : "";
   const prefix = escapeAttribute(model.idPrefix || "user-activity");
-  return `<section class="admin-user-activity" aria-labelledby="${prefix}-title"><header class="admin-user-activity__head"><h3 id="${prefix}-title">${glyphs.history}<span>История действий</span></h3><button class="user-activity-icon" type="button" data-action="admin-user-activity-refresh" aria-label="Обновить историю" title="Обновить историю" ${disabled}>${glyphs.refresh}</button></header>
+  return `<section class="admin-user-activity" aria-labelledby="${prefix}-title"><header class="admin-user-activity__head"><h3 id="${prefix}-title">${glyphs.history}<span>История действий</span></h3><button class="user-activity-icon" type="button" data-action="admin-user-activity-refresh" aria-label="Обновить историю" title="Обновить историю" ${disabled}>${refreshIcon}</button></header>
     ${items.length ? `<nav class="user-activity-filters" aria-label="Фильтр истории">${[["all","Все"],["payments","Оплаты"],["errors","Ошибки"],["torrents","Торренты"]].map(([value,label]) => `<button type="button" data-action="admin-user-activity-filter" data-value="${value}" aria-pressed="${filter === value}">${label}</button>`).join("")}</nav>` : ""}
     ${model.error ? `<p class="user-activity-error" role="alert">${escapeHtml(model.error)}</p>` : ""}
     <ol class="user-activity-list">${rows.map(row => {

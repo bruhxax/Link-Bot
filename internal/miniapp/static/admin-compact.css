@@ -533,3 +533,119 @@ html[data-admin-console="off"] #app #page-admin .admin-background-settings__samp
   html[data-admin-console="off"] #app #page-admin .admin-appearance-presets > summary svg,
   html[data-admin-console="off"] #app #page-admin .admin-appearance-presets::details-content { transition: none; }
 }
+
+/* User detail in the regular Mini App admin. */
+html[data-admin-console="off"] #app #page-admin .admin-user-metrics {
+  gap: 7px;
+  overflow: visible;
+  border: 0;
+}
+html[data-admin-console="off"] #app #page-admin .admin-user-metrics > div {
+  min-height: 64px;
+  padding: 9px 7px;
+  place-content: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--admin-card-radius);
+  background: var(--surface);
+  box-shadow: var(--glass-shadow-soft);
+  text-align: center;
+}
+html[data-admin-console="off"] #app #page-admin .admin-user-metrics > div + div { border-inline-start: 1px solid var(--line); }
+html[data-admin-console="off"] #app #page-admin .admin-user-metrics strong { font-size: 15px; line-height: 1.1; }
+html[data-admin-console="off"] #app #page-admin .admin-user-metrics span { font-size: 8px; line-height: 1.15; }
+
+html[data-admin-console="off"] #app #page-admin .admin-user-subscriptions__tabs {
+  display: grid;
+  grid-template-columns: repeat(var(--subscription-count, 1), minmax(0, 1fr));
+  gap: 7px;
+  overflow: visible;
+  padding: 0;
+}
+html[data-admin-console="off"] #app #page-admin .admin-user-subscriptions__tab {
+  min-width: 0;
+  max-width: none;
+  min-height: 56px;
+  padding: 9px 10px;
+}
+html[data-admin-console="off"] #app #page-admin .admin-user-subscriptions__tab strong { font-size: 10px; }
+
+html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--admin-card-radius);
+  background: var(--surface);
+  box-shadow: var(--glass-shadow-soft);
+  interpolate-size: allow-keywords;
+}
+html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription.is-disabled { opacity: .58; }
+html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 54px;
+  padding: 11px 12px;
+  list-style: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription > summary::-webkit-details-marker { display: none; }
+html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription > summary > div { min-width: 0; display: grid; gap: 3px; }
+html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription > summary strong { color: var(--text); font-size: 11px; }
+html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription > summary span { overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription > summary svg { width: 17px; height: 17px; flex: 0 0 auto; color: var(--icon-color); transition: transform .28s ease; }
+html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription[open] > summary svg { transform: rotate(180deg); }
+html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription-body {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription::details-content {
+  block-size: 0;
+  opacity: 0;
+  overflow: clip;
+  transition: block-size .28s ease, opacity .2s ease, content-visibility .28s allow-discrete;
+}
+html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription[open]::details-content { block-size: auto; opacity: 1; }
+
+html[data-admin-console="off"] #app #page-admin .admin-user-block-delete {
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 9px 11px;
+  border-radius: var(--admin-card-radius);
+}
+html[data-admin-console="off"] #app #page-admin .admin-user-block-delete input {
+  appearance: none;
+  width: 36px;
+  height: 21px;
+  margin: 0;
+  border: 1px solid var(--icon-color);
+  border-radius: 999px;
+  background: var(--control-bg);
+  cursor: pointer;
+  transition: background .2s ease, border-color .2s ease;
+}
+html[data-admin-console="off"] #app #page-admin .admin-user-block-delete input::before {
+  content: "";
+  display: block;
+  width: 15px;
+  height: 15px;
+  margin: 2px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform .2s ease, background .2s ease;
+}
+html[data-admin-console="off"] #app #page-admin .admin-user-block-delete input:checked { border-color: var(--accent); background: var(--accent); }
+html[data-admin-console="off"] #app #page-admin .admin-user-block-delete input:checked::before { background: var(--button-text); transform: translateX(15px); }
+html[data-admin-console="off"] #app #page-admin .admin-user-activity .user-activity-icon { color: var(--icon-color); cursor: pointer; }
+html[data-admin-console="off"] #app #page-admin .admin-user-activity .user-activity-icon:hover { background: var(--surface-strong); }
+html[data-admin-console="off"] #app #page-admin .admin-user-activity .user-activity-icon svg { width: 17px; height: 17px; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription > summary svg,
+  html[data-admin-console="off"] #app #page-admin .admin-user-controls__subscription::details-content,
+  html[data-admin-console="off"] #app #page-admin .admin-user-block-delete input,
+  html[data-admin-console="off"] #app #page-admin .admin-user-block-delete input::before { transition: none; }
+}
