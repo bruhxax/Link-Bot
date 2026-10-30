@@ -357,3 +357,6 @@ html[data-admin-console="off"] #app #page-admin :is(.admin-status__service.is-un
   html[data-admin-console="off"] #app #page-admin :is(.admin-status__overview > i, .admin-status__badge i, .admin-status__inline-state i),
   html[data-admin-console="off"] #app #page-admin :is(.admin-status__overview > i, .admin-status__badge i, .admin-status__inline-state i)::after { animation: none; }
 }
+
+html[data-admin-console="off"] #app #page-admin .admin-localization .admin-editor__grid { gap: 8px; }
+html[data-admin-console="off"] #app #page-admin .admin-localization .admin-field { gap: 4px; margin-bottom: 0; }
