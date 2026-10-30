@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createAbuseController,renderAbuseWorkspace} from './static/abuses.mjs';
+import {createAbuseController,renderAbuseWorkspace,applyAbuseFilters} from './static/abuses.mjs';
 
 test('expanded evidence escapes panel data and hides actions without permission',()=>{
  const c=createAbuseController({post:async()=>{},render:()=>{}});
@@ -21,4 +21,38 @@ test('trial actions target every matching subscription and require confirmation'
  assert.match(html,/Отозвать все подписки/);assert.match(html,/Отозвать последнюю подписку/);
  await c.act(item.key,'all');assert.equal(calls.length,0);
  await c.act(item.key,'all');assert.deepEqual(calls.filter(call=>call.url.endsWith('/delete')).map(call=>call.body.subscriptionId),[11,22]);
+});
+
+test('compact workspace omits the extra heading, refresh control, and card icons',()=>{
+ const c=createAbuseController({post:async()=>{},render:()=>{}});
+ c.model.data={items:[{key:'trial:one',kind:'trial',username:'alex',hwid:'device',subscriptions:[{customerId:1,subscriptionId:2,username:'alex'}]}]};
+ const html=renderAbuseWorkspace(c.model,{});
+ assert.match(html,/>Всего</);assert.match(html,/>Шаринг</);assert.match(html,/>Триал</);
+ assert.doesNotMatch(html,/БЕЗОПАСНОСТЬ ПОДПИСОК|Подозрительные подключения и повторные пробные периоды|abuse-refresh|ab-card__glyph|<svg/);
+});
+
+test('search and expansion update existing cards without rebuilding the workspace',()=>{
+ let renders=0;
+ const c=createAbuseController({post:async()=>{},render:()=>{renders++}});
+ c.model.data={items:[{key:'sharing:one',kind:'sharing',username:'alex',ips:[{ip:'203.0.113.1'}]},{key:'trial:two',kind:'trial',username:'maria',hwid:'device-42'}]};
+ const head={setAttribute(name,value){this[name]=value}};
+ const label={textContent:'Подробнее'};
+ const details={inert:true,removeAttribute(){this.inert=false},setAttribute(){this.inert=true}};
+ const inside={appended:false,append(){this.appended=true},offsetHeight:0};
+ const template={content:{cloneNode(){return {}}},remove(){this.removed=true}};
+ const card={dataset:{abuseKey:'trial:two'},hidden:false,open:false,classList:{toggle(name,value){card.open=value}},querySelector(selector){return selector==='.ab-card__head'?head:selector==='.ab-card__expand'?details:selector==='.ab-card__inside'?inside:selector==='.ab-card__template'?template:label}};
+ const root={querySelectorAll(selector){return selector==='[data-abuse-key]'?[card]:[]},querySelector(){return null}};
+ c.toggle('trial:two',root);
+ assert.equal(renders,0);assert.equal(card.open,true);assert.equal(head['aria-expanded'],'true');assert.equal(label.textContent,'Свернуть');assert.equal(details.inert,false);assert.equal(inside.appended,true);
+ c.model.query='alex';applyAbuseFilters(root,c.model);
+ assert.equal(card.hidden,true);assert.equal(renders,0);
+});
+
+test('background polling does not redraw an unchanged list',async()=>{
+ let renders=0;
+ const c=createAbuseController({post:async()=>({data:{items:[],checkedAt:'2026-10-30T08:00:00Z',scanning:false}}),render:()=>{renders++}});
+ await c.load();
+ const first=renders;
+ await c.load({silent:true});
+ assert.equal(renders,first);
 });

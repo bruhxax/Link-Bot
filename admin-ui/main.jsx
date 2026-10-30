@@ -1857,7 +1857,8 @@ function Admin({ model, content, dialogs, dispatch }) {
                   )}
                   {active !== "home" &&
                     active !== "users" &&
-                    active !== "partners" && (
+                    active !== "partners" &&
+                    active !== "abuses" && (
                       <IconAction action="refresh" label="Обновить">
                         <PiArrowsClockwise size={20} />
                       </IconAction>
