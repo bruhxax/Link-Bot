@@ -33,3 +33,17 @@
 @media(max-width:500px){.torrent-workspace .tp-metrics{gap:9px;margin-top:0;margin-bottom:10px}.torrent-workspace .tp-metric{padding:14px;min-height:91px}.torrent-workspace .tp-metric>span{font-size:10px;line-height:1.35;margin-bottom:11px}.torrent-workspace .tp-metric>strong{font-size:27px}.torrent-workspace .tp-setup summary{gap:8px;padding:12px}.torrent-workspace .tp-setup__heading strong{font-size:11px}.torrent-workspace .tp-setup__heading small{font-size:9px}.torrent-workspace .tp-setup .tp-connection{font-size:9px;padding:5px 7px}.torrent-workspace .tp-tabs{gap:8px;margin-bottom:17px}.torrent-workspace .tp-tabs button{min-height:58px}.torrent-workspace .tp-tabs button strong{font-size:12px}.torrent-workspace .tp-tabs button small{font-size:9px}.torrent-workspace .tp-filters{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:5px;margin-bottom:15px}.torrent-workspace .tp-filters::-webkit-scrollbar{display:none}.torrent-workspace .tp-filters button{flex:none;font-size:10px;min-height:31px;padding:6px 9px}.torrent-workspace .tp-search input{font-size:12px}.torrent-workspace .tp-search button{font-size:11px}.torrent-workspace .tp-empty{padding:28px 16px}.torrent-workspace .tp-empty h3{margin-top:0;font-size:13px}.torrent-workspace .tp-empty p{font-size:11px}}
 @media(max-width:500px){.torrent-workspace .tp-setup summary{grid-template-columns:minmax(0,1fr) 16px;grid-template-areas:'heading chevron' 'status status';row-gap:10px}.torrent-workspace .tp-setup__heading{grid-area:heading}.torrent-workspace .tp-setup__chevron{grid-area:chevron}.torrent-workspace .tp-setup .tp-connection{grid-area:status;justify-self:start}}
 @media(prefers-reduced-motion:reduce){.torrent-workspace *{animation:none!important;transition:none!important}}
+
+/* Shared Mini App controls and disclosure motion. */
+.torrent-workspace .tp-setup{interpolate-size:allow-keywords}
+.torrent-workspace .tp-setup__chevron{display:grid;place-items:center;width:17px;height:17px}
+.torrent-workspace .tp-setup__chevron svg{width:17px;height:17px;color:var(--icon-color,var(--tp-muted))}
+.torrent-workspace .tp-setup::details-content{block-size:0;opacity:0;overflow:clip;transition:block-size .28s ease,opacity .2s ease,content-visibility .28s allow-discrete}
+.torrent-workspace .tp-setup[open]::details-content{block-size:auto;opacity:1}
+.torrent-workspace .tp-search{background:var(--control-material,var(--tp-panel))}
+.torrent-workspace .tp-search input[type=search]{border:0;box-shadow:none;outline:0}
+.torrent-workspace .tp-search:focus-within{border-color:var(--accent,var(--tp-accent))}
+.torrent-workspace .tp-report header{gap:8px}
+.torrent-workspace .tp-template>header>div{min-width:0}
+@media(max-width:500px){.torrent-workspace .tp-badge{margin-left:0}}
+@media(prefers-reduced-motion:reduce){.torrent-workspace .tp-setup::details-content{transition:none}}
