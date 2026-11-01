@@ -13956,6 +13956,25 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .admin-ga4__setup > span { max-width: 540px; color: var(--muted); font-size: 9px; line-height: 1.5; }
 .admin-ga4__setup a { width: fit-content; display: inline-flex; align-items: center; gap: 6px; margin-top: 2px; color: var(--accent); font-size: 9px; font-weight: 800; text-decoration: none; }
 .admin-ga4__setup a svg { width: 14px; height: 14px; }
+.admin-analytics { gap: 10px; padding: 0 0 96px; }
+.admin-analytics .admin-section-tools { min-height: 36px; margin: 0; }
+.admin-analytics .admin-finance-period { min-width: 0; }
+.admin-analytics .admin-ga4 { padding: 12px; border-radius: 12px; }
+.admin-analytics .admin-ga4__head { gap: 9px; }
+.admin-analytics .admin-ga4__mark { width: 27px; height: 27px; border-radius: 8px; font-size: 15px; }
+.admin-analytics .admin-ga4__head h3 { font-size: 12px; }
+.admin-analytics .admin-ga4__metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 11px; }
+.admin-analytics .admin-ga4__metrics > div { min-height: 54px; gap: 5px; padding: 7px; }
+.admin-analytics .admin-ga4__metrics span { font-size: 8px; }
+.admin-analytics .admin-ga4__metrics strong { font-size: 16px; line-height: 1; }
+.admin-analytics .admin-ga4__chart { height: 72px; margin-top: 12px; }
+.admin-analytics .admin-ga4__channels { margin-top: 10px; }
+.admin-analytics .admin-ga4__empty { padding: 11px 0 0; font-size: 10px; }
+.admin-analytics .admin-ga4__setup { gap: 6px; margin-top: 11px; padding-top: 10px; }
+.admin-analytics .admin-ga4__setup strong { font-size: 11px; }
+.admin-analytics .admin-ga4__setup > span { font-size: 10px; }
+.admin-analytics .admin-ga4__setup a { margin-top: 0; font-size: 10px; }
+.admin-analytics__loading .admin-finance__chart-skeleton { min-height: 72px; margin-top: 12px; }
 :root[data-glass="on"] .admin-finance-provider,
 :root[data-glass="on"] .admin-ga4__metrics > div { background: var(--glass-background); background-image: var(--glass-texture); background-size: 128px 128px, 100% 100%; border-color: var(--glass-border); backdrop-filter: var(--glass-backdrop); -webkit-backdrop-filter: var(--glass-backdrop); }
 @media (max-width: 390px) {
