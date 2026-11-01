@@ -101,6 +101,19 @@ type abuseResult struct {
 	Failures int
 }
 
+// The panel keeps connection snapshots briefly. Users whose last connection
+// predates that window cannot add IP evidence to the current sharing scan.
+// Legacy users have no reliable onlineAt field, so keep checking them.
+func abuseNeedsIPScan(user remnawave.PanelUser, now time.Time) bool {
+	if user.HwidDeviceLimit == nil || *user.HwidDeviceLimit <= 0 || !strings.EqualFold(user.Status, "ACTIVE") {
+		return false
+	}
+	if user.ID <= 0 {
+		return true
+	}
+	return user.UserTraffic.OnlineAt != nil && !user.UserTraffic.OnlineAt.Before(now.Add(-2*time.Hour))
+}
+
 func (h *Handler) collectAbuses(ctx context.Context) abuseSnapshot {
 	result := abuseSnapshot{Items: []abuseFinding{}, CheckedAt: time.Now()}
 	users, err := h.remnawaveClient.GetUsers(ctx)
@@ -159,7 +172,7 @@ func (h *Handler) collectAbuses(ctx context.Context) abuseSnapshot {
 	jobs := make(chan abuseTarget)
 	results := make(chan abuseResult, len(targets))
 	var workers sync.WaitGroup
-	for i := 0; i < 8; i++ {
+	for i := 0; i < min(12, len(targets)); i++ {
 		workers.Add(1)
 		go func() {
 			defer workers.Done()
@@ -173,7 +186,7 @@ func (h *Handler) collectAbuses(ctx context.Context) abuseSnapshot {
 						slog.Warn("abuse scan hwid", "error", err, "panelUserId", target.User.ID)
 					}
 				}
-				if target.User.HwidDeviceLimit != nil && *target.User.HwidDeviceLimit > 0 && strings.EqualFold(target.User.Status, "ACTIVE") {
+				if abuseNeedsIPScan(target.User, result.CheckedAt) {
 					var err error
 					entry.IPs, err = h.remnawaveClient.FetchUserIPs(ctx, target.User.ID, target.User.UUID)
 					if err != nil {

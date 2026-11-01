@@ -79,3 +79,11 @@ test('background polling does not redraw an unchanged list',async()=>{
  await c.load({silent:true});
  assert.equal(renders,first);
 });
+
+test('scan hides stale failures and shows a correctly worded current warning',()=>{
+ const c=createAbuseController({post:async()=>{},render:()=>{}});
+ c.model.data={items:[],scanning:true,failedChecks:1};
+ assert.doesNotMatch(renderAbuseWorkspace(c.model,{}),/Не удалось проверить/);
+ c.model.data.scanning=false;
+ assert.match(renderAbuseWorkspace(c.model,{}),/Не удалось проверить 1 источник данных/);
+});

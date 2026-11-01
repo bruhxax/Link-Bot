@@ -46,10 +46,10 @@
   padding: 0 12px;
   border: 1px solid var(--ab-line);
   border-radius: 9px;
-  background: var(--ab-panel);
+  background: var(--control-material, var(--ab-panel));
   cursor: text;
 }
-.ab-search:focus-within { border-color: #7188a6; }
+.ab-search:focus-within { border-color: var(--accent, #7188a6); }
 .ab-search__icon { display: grid; place-items: center; width: 17px; height: 17px; flex: none; color: var(--ab-muted); }
 .ab-search__icon svg { display: block; width: 17px; height: 17px; }
 .ab-workspace .ab-search input {
@@ -74,7 +74,7 @@
 .ab-search input::placeholder { color: var(--ab-muted); opacity: .8; }
 .ab-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; width: 100%; padding: 3px; border: 1px solid var(--ab-line); border-radius: 9px; background: var(--ab-panel); }
 .ab-tabs button { min-width: 0; min-height: 30px; padding: 5px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ab-muted); font-size: 11px; font-weight: 550; }
-.ab-tabs button[aria-pressed=true] { background: #313944; color: var(--ab-text); }
+.ab-tabs button[aria-pressed=true] { background: color-mix(in srgb, var(--accent) 13%, var(--ab-panel)); color: var(--ab-text); }
 
 .ab-status { display: flex; align-items: center; gap: 9px; margin: 8px 0; padding: 10px 12px; border: 1px solid #47596d; border-radius: 9px; background: #1e2a37; color: #cad9eb; font-size: 11px; }
 .ab-status.is-error { border-color: #795057; background: #36262b; color: #f3cbd0; }
@@ -86,26 +86,22 @@
 .ab-card {
   min-width: 0;
   overflow: hidden;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 56px;
   border: 1px solid var(--ab-line);
   border-radius: 10px;
   background: var(--ab-panel);
   transition: border-color .22s ease, background-color .22s ease;
 }
 .ab-card[hidden], .ab-empty[hidden] { display: none; }
-.ab-card[data-kind=sharing] { border-left: 2px solid #8799b4; }
-.ab-card[data-kind=trial] { border-left: 2px solid #a791ae; }
-.ab-card.is-open { border-color: #697c94; content-visibility: visible; contain-intrinsic-size: none; }
+.ab-card.is-open { border-color: color-mix(in srgb, var(--accent) 55%, var(--ab-line)); }
 .ab-card__head { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 57px; padding: 9px 12px; border: 0; background: transparent; color: inherit; text-align: left; }
 .ab-card__main { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
 .ab-card__main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 650; }
 .ab-card__main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ab-muted); font-size: 10px; }
-.ab-card__count { flex: none; min-width: 25px; padding: 4px 6px; border-radius: 6px; background: #293541; color: #c7d7ea; text-align: center; font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ab-card__count { flex: none; min-width: 25px; padding: 4px 6px; border-radius: 6px; background: color-mix(in srgb, var(--icon-color) 13%, var(--ab-panel)); color: var(--icon-color); text-align: center; font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ab-card__count small { font: inherit; font-weight: 500; }
-.ab-card__toggle { display: grid; place-items: center; flex: none; width: 18px; height: 18px; color: #9cb0c6; transition: transform .22s ease, color .22s ease; }
+.ab-card__toggle { display: grid; place-items: center; flex: none; width: 18px; height: 18px; color: var(--icon-color); transition: transform .22s ease, color .22s ease; }
 .ab-card__toggle svg { display: block; width: 18px; height: 18px; }
-.ab-card.is-open .ab-card__toggle { color: #c4d2e3; transform: rotate(180deg); }
+.ab-card.is-open .ab-card__toggle { transform: rotate(180deg); }
 .ab-card__expand { display: grid; grid-template-rows: 0fr; pointer-events: none; transition: grid-template-rows .28s ease; }
 .ab-card.is-open .ab-card__expand { grid-template-rows: 1fr; pointer-events: auto; }
 .ab-card__inside { min-height: 0; overflow: hidden; opacity: 0; transform: translateY(-6px); transition: opacity .19s ease, transform .25s ease; }

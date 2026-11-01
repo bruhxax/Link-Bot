@@ -238,7 +238,7 @@ export function renderAbuseWorkspace(model, options = {}) {
     </div>
     ${data.scanning ? '<div class="ab-status is-loading"><span class="ab-pulse"></span><span>Проверяем подключения и устройства…</span></div>' : ''}
     ${data.error ? `<div class="ab-status is-error">${escapeHtml(data.error)}</div>` : ''}
-    ${data.failedChecks ? `<div class="ab-status is-warning">Не удалось проверить ${Number(data.failedChecks)} источников данных. Список может быть неполным.</div>` : ''}
+    ${!data.scanning && data.failedChecks ? `<div class="ab-status is-warning">Не удалось проверить ${Number(data.failedChecks)} ${plural(Number(data.failedChecks), ['источник данных', 'источника данных', 'источников данных'])}. Список может быть неполным.</div>` : ''}
     ${model.error ? `<div class="ab-status is-error" role="alert">${escapeHtml(model.error)}</div>` : ''}
     <div class="ab-cards">${items.map(item => card(item, model, options, visible.has(item.key))).join('')}
       <div class="ab-empty" data-abuse-empty ${visible.size ? 'hidden' : ''}><h2>${emptyTitle}</h2><p>${emptyDescription}</p></div>
