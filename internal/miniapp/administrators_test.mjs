@@ -55,4 +55,7 @@ test("owner row cannot be saved, recolored or removed", () => {
   const output = renderAdministrators({ catalog, editor: { customerId: 1, telegramId: 1, username: "owner", role: "Главный администратор", color: "#69a8d4", permissions: [], isOwner: true } }, helpers);
   for (const action of ["administrators-save", "administrators-remove", "administrators-color"]) assert.ok(!output.includes(`data-action="${action}"`));
   assert.equal((output.match(/checked disabled/g) || []).length, catalog.length);
+  assert.equal((output.match(/class="admin-access__lock"/g) || []).length, catalog.length);
+  assert.equal((output.match(/data-icon="lockAlt"/g) || []).length, catalog.length);
+  assert.ok(!output.includes('data-icon="check"'));
 });

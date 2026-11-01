@@ -41,6 +41,18 @@ test('ordinary mini app uses its shared search and expand icons',()=>{
  assert.match(html,/1 <small>подписка<\/small>/);
 });
 
+test('abuse filters move a single selection without rebuilding the page',()=>{
+ const c=createAbuseController({post:async()=>{},render:()=>{}});
+ c.model.data={items:[]};
+ assert.match(renderAbuseWorkspace(c.model,{}),/class="ab-tabs" data-filter="all"[^>]*><span class="ab-tabs__selection"/);
+ const tabs={dataset:{filter:'all'}};
+ const buttons=['all','sharing','trial'].map(value=>({dataset:{value},setAttribute(name,result){this[name]=result}}));
+ const root={querySelectorAll(selector){return selector==='[data-action="abuse-filter"]'?buttons:[]},querySelector(selector){return selector==='.ab-tabs'?tabs:null}};
+ c.model.filter='trial';applyAbuseFilters(root,c.model);
+ assert.equal(tabs.dataset.filter,'trial');
+ assert.deepEqual(buttons.map(button=>button['aria-pressed']),['false','false','true']);
+});
+
 test('search and expansion update existing cards without rebuilding the workspace',()=>{
  let renders=0;
  const c=createAbuseController({post:async()=>{},render:()=>{renders++}});

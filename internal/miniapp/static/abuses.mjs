@@ -51,6 +51,8 @@ export function applyAbuseFilters(root, model) {
   for (const tab of root.querySelectorAll('[data-action="abuse-filter"]')) {
     tab.setAttribute('aria-pressed', String(tab.dataset.value === model.filter));
   }
+  const tabs = root.querySelector('.ab-tabs');
+  if (tabs) tabs.dataset.filter = model.filter;
   const empty = root.querySelector('[data-abuse-empty]');
   if (empty) {
     empty.hidden = visible.size > 0;
@@ -234,7 +236,7 @@ export function renderAbuseWorkspace(model, options = {}) {
     </div>
     <div class="ab-toolbar">
       <label class="ab-search"><span class="ab-search__icon" aria-hidden="true">${options.icons?.search || ''}</span><input type="search" data-input="abuse-search" aria-label="Поиск абузов" placeholder="Поиск по пользователю, IP или HWID" autocomplete="off" value="${escapeHtml(model.query)}"></label>
-      <div class="ab-tabs" role="group" aria-label="Тип нарушения">${[['all', 'Все'], ['sharing', 'Шаринг'], ['trial', 'Триал']].map(([key, label]) => `<button type="button" data-action="abuse-filter" data-value="${key}" aria-pressed="${model.filter === key}">${label}</button>`).join('')}</div>
+      <div class="ab-tabs" data-filter="${model.filter}" role="group" aria-label="Тип нарушения"><span class="ab-tabs__selection" aria-hidden="true"></span>${[['all', 'Все'], ['sharing', 'Шаринг'], ['trial', 'Триал']].map(([key, label]) => `<button type="button" data-action="abuse-filter" data-value="${key}" aria-pressed="${model.filter === key}">${label}</button>`).join('')}</div>
     </div>
     ${data.scanning ? '<div class="ab-status is-loading"><span class="ab-pulse"></span><span>Проверяем подключения и устройства…</span></div>' : ''}
     ${data.error ? `<div class="ab-status is-error">${escapeHtml(data.error)}</div>` : ''}

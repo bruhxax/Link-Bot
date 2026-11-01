@@ -50,6 +50,10 @@
     background: transparent !important; background-image: none !important;
     backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
   }
+  :root:not([data-admin-console="on"]) #app .ab-tabs > button {
+    background: transparent !important; background-image: none !important;
+    backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  }
   :root:not([data-admin-console="on"]) #app .switch-selection { border-color: var(--accent) !important; }
   :root:not([data-admin-console="on"]) #app :is(.admin-telegram-button, .admin-reminder-template, .admin-content-disclosure, .admin-logo-field__advanced) > summary { border-radius: inherit; }
 }
@@ -85,6 +89,11 @@
   :root:not([data-admin-console="on"]) #app .device-pack-trigger-row > button {
     background: transparent !important; background-image: none !important;
     box-shadow: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  }
+
+  :root:not([data-admin-console="on"])[data-glass="on"] #app .ab-tabs > button {
+    background: transparent !important; background-image: none !important;
+    backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
   }
 
   /* Switch rows are plain labels around the switch, rather than extra surfaces. */
