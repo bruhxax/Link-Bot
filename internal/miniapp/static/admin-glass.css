@@ -1,0 +1,147 @@
+/* Keep new admin surfaces on the same material as the rest of the Mini App. */
+:root:not([data-admin-console="on"])[data-glass="on"] #app :is(
+  .admin-ai__card, .admin-ai__power,
+  .admin-moynalog__metrics > div,
+  .admin-user-metrics > div,
+  .admin-user-controls__subscription,
+  .admin-user-activity,
+  .admin-pinned-message__preview,
+  .admin-content-panel details,
+  .admin-activity__entry,
+  .admin-referrals > .admin-editor__section,
+  .admin-partners__create,
+  .admin-mail__form, .admin-mail__delivery,
+  .admin-promo-panel, .admin-promo-row,
+  .admin-withdrawal,
+  .broadcast-workflow .admin-broadcast__section,
+  .broadcast-workflow .survey-editor,
+  .broadcast-workflow .broadcast-option,
+  .broadcast-workflow .survey-question,
+  .broadcast-workflow .admin-broadcast-button,
+  .ab-metric, .ab-search, .ab-tabs, .ab-card, .ab-empty,
+  .torrent-workspace .tp-metric,
+  .torrent-workspace .tp-setup,
+  .torrent-workspace .tp-tabs button,
+  .torrent-workspace .tp-report,
+  .torrent-workspace .tp-template,
+  .torrent-workspace .tp-empty
+) {
+  background: var(--glass-background) !important;
+  background-image: var(--glass-texture) !important;
+  background-size: 128px 128px, 100% 100% !important;
+  box-shadow: var(--glass-surface-shadow) !important;
+  backdrop-filter: var(--glass-backdrop) !important;
+  -webkit-backdrop-filter: var(--glass-backdrop) !important;
+}
+
+/* A long abuse list can contain dozens of cards; their translucent material
+   stays light to scroll while the fixed toolbar and metrics provide blur. */
+:root:not([data-admin-console="on"])[data-glass="on"] #app .ab-card {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* The Google heading and report are one pane, without a dark seam between them. */
+:root:not([data-admin-console="on"])[data-glass="on"] #app .admin-analytics__hero {
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--glass-background);
+  background-image: var(--glass-texture);
+  background-size: 128px 128px, 100% 100%;
+  box-shadow: var(--glass-surface-shadow);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+}
+:root:not([data-admin-console="on"])[data-glass="on"] #app .admin-analytics__hero :is(
+  .admin-analytics__hero-brand, .admin-ga4
+) {
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+:root:not([data-admin-console="on"])[data-glass="on"] #app .admin-analytics__hero-brand::after {
+  display: none;
+}
+
+/* Selected tabs keep a visible accent on top of the shared material. */
+:root:not([data-admin-console="on"])[data-glass="on"] #app :is(
+  .ab-tabs__selection,
+  .torrent-workspace .tp-tabs button[aria-pressed="true"]
+) {
+  background: color-mix(in srgb, var(--accent) 14%, var(--glass-background)) !important;
+  background-image: var(--glass-texture) !important;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--glass-border));
+}
+
+:root:not([data-admin-console="on"])[data-glass="on"] #app :is(
+  .broadcast-workflow .broadcast-workflow-tabs,
+  .broadcast-workflow .admin-broadcast__tabs,
+  .broadcast-workflow .broadcast-message-preview,
+  .admin-broadcast__message,
+  .admin-partner-entry__metrics > span,
+  .admin-partner-entry__resource,
+  .ab-evidence, .ab-confirm,
+  .torrent-workspace .tp-search,
+  .torrent-workspace .tp-report__facts
+) {
+  background: var(--glass-background) !important;
+  background-image: var(--glass-texture) !important;
+  background-size: 128px 128px, 100% 100% !important;
+  backdrop-filter: var(--glass-backdrop) !important;
+  -webkit-backdrop-filter: var(--glass-backdrop) !important;
+}
+
+/* The partner row lives inside an already frosted card. */
+:root:not([data-admin-console="on"])[data-glass="on"] #app .admin-partner-entry__summary {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+:root:not([data-admin-console="on"])[data-glass="on"] #app .ab-status {
+  background: color-mix(in srgb, #1e2a37 38%, transparent);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+}
+:root:not([data-admin-console="on"])[data-glass="on"] #app .ab-status.is-warning {
+  background: color-mix(in srgb, #806138 35%, transparent);
+}
+:root:not([data-admin-console="on"])[data-glass="on"] #app .ab-status.is-error {
+  background: color-mix(in srgb, #803640 35%, transparent);
+}
+
+@layer control-material {
+  :root:not([data-admin-console="on"])[data-glass="on"] #app :is(
+    .broadcast-workflow .admin-broadcast__actions button,
+    .broadcast-workflow .admin-mail__button,
+    .broadcast-workflow .broadcast-inline-action,
+    .broadcast-workflow .survey-add,
+    .ab-card__actions button,
+    .ab-confirm button,
+    .torrent-workspace .tp-search button,
+    .torrent-workspace .tp-refresh,
+    .torrent-workspace .tp-filters button,
+    .torrent-workspace .tp-more,
+    .torrent-workspace .tp-variables button
+  ) {
+    background-image: var(--glass-texture) !important;
+    background-size: 128px 128px, 100% 100% !important;
+    box-shadow: var(--glass-surface-shadow) !important;
+    backdrop-filter: var(--glass-backdrop) !important;
+    -webkit-backdrop-filter: var(--glass-backdrop) !important;
+  }
+  :root:not([data-admin-console="on"])[data-glass="on"] #app .broadcast-workflow :is(
+    .admin-broadcast__actions .admin-broadcast__send,
+    .admin-mail__button--primary
+  ) {
+    background: color-mix(in srgb, var(--accent) 78%, transparent) !important;
+    background-image: var(--glass-texture) !important;
+    color: var(--broadcast-action-text, var(--accent-contrast, #071017)) !important;
+  }
+  :root:not([data-admin-console="on"])[data-glass="on"] #app .ab-card__actions button.ab-danger {
+    background: color-mix(in srgb, var(--danger) 18%, var(--control-material)) !important;
+    background-image: var(--glass-texture) !important;
+  }
+}
