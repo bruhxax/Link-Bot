@@ -5518,7 +5518,7 @@ function renderAdminFinanceProviders(items) {
 	}).join("")}</div></section>`;
 }
 
-function renderAdminSiteAnalytics(reportData, provider = "google") {
+function renderAdminSiteAnalytics(reportData, provider = "google", inHero = false) {
 	const yandex = provider === "yandex";
 	const name = yandex ? "Яндекс Метрика" : "Google Analytics 4";
 	const titleID = yandex ? "admin-yandex-title" : "admin-ga4-title";
@@ -5531,7 +5531,8 @@ function renderAdminSiteAnalytics(reportData, provider = "google") {
 	const channels = (Array.isArray(report.channels) ? report.channels : []).slice(0, 5);
 	const channelList = channels.length ? `<div class="admin-ga4__channels">${channels.map((item) => `<span><b>${escapeHtml(item.name || "Другое")}</b><strong>${Number(item.sessions || 0).toLocaleString("ru-RU")}</strong></span>`).join("")}</div>` : "";
 	const setupTitle = report.state === "error" && report.message ? report.message : yandex ? "Подключите Яндекс Метрику" : "Подключите Google Analytics 4";
-	return `<section class="admin-ga4 admin-finance-card ${yandex ? "admin-yandex" : ""}" aria-labelledby="${titleID}"><div class="admin-ga4__head"><span class="admin-ga4__mark ${yandex ? "admin-yandex__mark" : ""}">${yandex ? "Я" : "G"}</span><h3 id="${titleID}">${name}</h3>${ready && report.sampled ? `<small>Выборка</small>` : ""}</div>${ready ? `<div class="admin-ga4__metrics"><div><span>${yandex ? "Посетители" : "Пользователи"}</span><strong>${Number(report.activeUsers || 0).toLocaleString("ru-RU")}</strong></div><div><span>Новые</span><strong>${Number(report.newUsers || 0).toLocaleString("ru-RU")}</strong></div><div><span>${yandex ? "Визиты" : "Сеансы"}</span><strong>${Number(report.sessions || 0).toLocaleString("ru-RU")}</strong></div><div><span>Просмотры</span><strong>${Number(report.pageViews || 0).toLocaleString("ru-RU")}</strong></div></div>${chart}${channelList}` : `<div class="admin-ga4__setup"><strong>${escapeHtml(setupTitle)}</strong><span>${yandex ? "Нужны ID счётчика и OAuth-токен для отчётов." : "Нужны ID ресурса и сервисный аккаунт для отчётов."}</span><a href="${yandex ? "https://metrika.yandex.ru/" : "https://analytics.google.com/"}" target="_blank" rel="noopener noreferrer">Открыть ${yandex ? "Метрику" : "Google Analytics"} ${icon("arrowRight")}</a></div>`}</section>`;
+	const heading = inHero ? "" : `<div class="admin-ga4__head"><span class="admin-ga4__mark ${yandex ? "admin-yandex__mark" : ""}">${yandex ? "Я" : "G"}</span><h3 id="${titleID}">${name}</h3>${ready && report.sampled ? `<small>Выборка</small>` : ""}</div>`;
+	return `<section class="admin-ga4 admin-finance-card ${yandex ? "admin-yandex" : ""}" aria-labelledby="${titleID}">${heading}${ready ? `<div class="admin-ga4__metrics"><div><span>${yandex ? "Посетители" : "Пользователи"}</span><strong>${Number(report.activeUsers || 0).toLocaleString("ru-RU")}</strong></div><div><span>Новые</span><strong>${Number(report.newUsers || 0).toLocaleString("ru-RU")}</strong></div><div><span>${yandex ? "Визиты" : "Сеансы"}</span><strong>${Number(report.sessions || 0).toLocaleString("ru-RU")}</strong></div><div><span>Просмотры</span><strong>${Number(report.pageViews || 0).toLocaleString("ru-RU")}</strong></div></div>${chart}${channelList}` : `<div class="admin-ga4__setup"><strong>${escapeHtml(setupTitle)}</strong><span>${yandex ? "Нужны ID счётчика и OAuth-токен для отчётов." : "Нужны ID ресурса и сервисный аккаунт для отчётов."}</span><a href="${yandex ? "https://metrika.yandex.ru/" : "https://analytics.google.com/"}" target="_blank" rel="noopener noreferrer">Открыть ${yandex ? "Метрику" : "Google Analytics"} ${icon("arrowRight")}</a></div>`}</section>`;
 }
 
 function renderAdminFinancePage() {
@@ -5556,20 +5557,20 @@ function renderAdminFinancePage() {
 	</div></section>`;
 }
 
-function renderAdminAnalyticsLoading(provider) {
+function renderAdminAnalyticsLoading(provider, inHero = false) {
   const yandex = provider === "yandex";
-  return `<section class="admin-ga4 admin-finance-card admin-analytics__loading ${yandex ? "admin-yandex" : ""}" aria-busy="true"><div class="admin-ga4__head"><span class="admin-ga4__mark ${yandex ? "admin-yandex__mark" : ""}">${yandex ? "Я" : "G"}</span><h3>${yandex ? "Яндекс Метрика" : "Google Analytics 4"}</h3></div><div class="admin-ga4__metrics">${Array.from({ length: 4 }, () => `<div><span></span><strong></strong></div>`).join("")}</div><div class="admin-finance__chart-skeleton"></div></section>`;
+  return `<section class="admin-ga4 admin-finance-card admin-analytics__loading ${yandex ? "admin-yandex" : ""}" aria-busy="true">${inHero ? "" : `<div class="admin-ga4__head"><span class="admin-ga4__mark ${yandex ? "admin-yandex__mark" : ""}">${yandex ? "Я" : "G"}</span><h3>${yandex ? "Яндекс Метрика" : "Google Analytics 4"}</h3></div>`}<div class="admin-ga4__metrics">${Array.from({ length: 4 }, () => `<div><span></span><strong></strong></div>`).join("")}</div><div class="admin-finance__chart-skeleton"></div></section>`;
 }
 
 function renderAdminAnalyticsPage() {
 	const data = state.adminAnalytics;
 	const custom = state.adminAnalyticsPeriod === "custom";
-	const loading = !data || state.adminAnalyticsBusy;
+	const loading = !data;
 
 	return `<section class="page admin-page ${pageClass("admin")}" id="page-admin"><div class="admin-finance admin-analytics">
-		<div class="admin-section-tools">${renderAdminFinancePeriodPicker()}</div>
+		<div class="admin-analytics__hero"><div class="admin-analytics__hero-top"><div class="admin-analytics__hero-brand admin-ga4__head"><span class="admin-ga4__mark">G</span><h3 id="admin-ga4-title">Google Analytics 4</h3>${data?.google?.sampled ? `<small>Выборка</small>` : ""}</div><div class="admin-section-tools">${renderAdminFinancePeriodPicker()}</div></div>${loading ? renderAdminAnalyticsLoading("google", true) : renderAdminSiteAnalytics(data.google, "google", true)}</div>
 		${custom ? `<div class="admin-finance__custom"><label><span>С</span><input type="date" data-input="admin-analytics-from" value="${escapeAttribute(state.adminAnalyticsFrom || data?.from || "")}" max="${escapeAttribute(financeTodayISO())}"></label><i aria-hidden="true">—</i><label><span>По</span><input type="date" data-input="admin-analytics-to" value="${escapeAttribute(state.adminAnalyticsTo || data?.to || "")}" max="${escapeAttribute(financeTodayISO())}"></label><button type="button" data-action="admin-analytics-apply" ${state.adminAnalyticsBusy ? "disabled" : ""}>Показать</button></div>` : ""}
-		${loading ? renderAdminAnalyticsLoading("google") + renderAdminAnalyticsLoading("yandex") : renderAdminSiteAnalytics(data.google) + renderAdminSiteAnalytics(data.yandex, "yandex")}
+		${loading ? renderAdminAnalyticsLoading("yandex") : renderAdminSiteAnalytics(data.yandex, "yandex")}
 	</div></section>`;
 }
 

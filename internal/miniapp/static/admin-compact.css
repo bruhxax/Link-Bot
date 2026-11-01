@@ -27,6 +27,10 @@
   .admin-settings-search__empty, .admin-localization__preview
 ) { border-radius: var(--admin-card-radius); }
 
+#app :is(#page-admin, .rn-content) .admin-analytics__hero > .admin-ga4 {
+  border-radius: 0 var(--admin-card-radius) var(--admin-card-radius) var(--admin-card-radius);
+}
+
 #app :is(#page-admin, .rn-content) :is(
   .admin-content-panel .admin-editor__subsection,
   .admin-content-panel .admin-broadcast-button, .admin-content-panel .admin-faq-item
