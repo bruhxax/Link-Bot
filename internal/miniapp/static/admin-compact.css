@@ -149,6 +149,9 @@ html[data-admin-console="on"] .rn-main :is(.rn-clickable-card, .rn-settings-pane
 #app :is(#page-admin, .rn-content) .admin-access__permission input:checked + i { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 #app :is(#page-admin, .rn-content) .admin-access__permission input:checked + i svg { color: var(--accent); }
 #app :is(#page-admin, .rn-content) .admin-access__permission:has(input:disabled) { cursor: default; }
+#app :is(#page-admin, .rn-content) .admin-access__permission.is-owner input {
+  -webkit-appearance: none; appearance: none; opacity: 0 !important;
+}
 #app :is(#page-admin, .rn-content) .admin-access__permission.is-owner input:disabled + i { opacity: 1; cursor: default; }
 #app :is(#page-admin, .rn-content) .admin-access__permission.is-owner .admin-access__lock {
   position: absolute; z-index: 1; top: 2px; left: 2px;
