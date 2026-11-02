@@ -1,5 +1,6 @@
 import { syncPresetBackground } from "./preset-background.mjs";
 import { applyCustomCursor } from "./custom-cursor.mjs";
+import { syncSeasonalDecorations } from "./seasonal-decorations.mjs";
 let previous = "";
 export function applyLandingAppearance(data) {
   const key = JSON.stringify([data.landing, data.appearance, data.cursor]);
@@ -7,6 +8,7 @@ export function applyLandingAppearance(data) {
   previous = key;
   const settings = data.landing || {},
     appearance = data.appearance || {};
+  syncSeasonalDecorations(appearance.seasonal, {surface:"landing"});
   document.documentElement.dataset.frames = appearance.showFrames === false ? "off" : "on";
   document.documentElement.style.setProperty(
     "--landing-button-radius",

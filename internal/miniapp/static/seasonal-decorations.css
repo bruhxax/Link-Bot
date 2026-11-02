@@ -1,0 +1,31 @@
+.seasonal-decor{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;isolation:isolate;opacity:var(--seasonal-opacity,.55)}
+.seasonal-decor[data-surface="cabinet"]{right:auto;left:50%;width:min(560px,100%);transform:translateX(-50%)}
+.seasonal-decor[data-surface="landing"]{z-index:0}
+.seasonal-garland{position:absolute;top:0;left:0;width:100%;height:clamp(54px,9vw,86px);filter:drop-shadow(0 2px 8px rgba(0,0,0,.45));animation:seasonal-lights 4s ease-in-out infinite}
+.seasonal-flake{position:absolute;top:-30px;left:var(--x);width:var(--size);height:var(--size);color:#e4f5ff;filter:drop-shadow(0 0 5px rgba(185,229,255,.7));opacity:.75;animation:seasonal-snow var(--duration) linear var(--delay) infinite}
+.seasonal-flake svg{display:block;width:100%;height:100%}
+.seasonal-drift{position:absolute;bottom:-1px;left:0;width:100%;height:clamp(54px,11vw,112px);object-fit:fill;filter:drop-shadow(0 -8px 18px rgba(150,216,255,.15))}
+:root[data-season="winter"]:not([data-admin-console="on"]) :where(#app .card,#app .pricing-card,.plan-card)::after{content:"";position:absolute;inset:auto 0 0;height:22px;border-radius:inherit;background:url("/mini-app/assets/season-snowdrift.svg") center bottom/100% 32px no-repeat;opacity:.38;pointer-events:none}
+.seasonal-skull{position:absolute;left:var(--x);top:var(--y);width:var(--size);height:auto;opacity:.55;filter:drop-shadow(0 4px 8px rgba(0,0,0,.55));animation:seasonal-float 8s ease-in-out var(--delay) infinite alternate}
+.seasonal-leaf{position:absolute;top:-10%;left:var(--x);width:var(--size);height:auto;filter:drop-shadow(0 3px 3px rgba(0,0,0,.4));animation:seasonal-leaves var(--duration) linear var(--delay) infinite}
+.seasonal-fog{position:absolute;left:-25%;width:150%;height:36%;border-radius:50%;background:radial-gradient(ellipse at 50% 60%,rgba(166,174,171,.18),rgba(91,101,100,.08) 46%,transparent 72%);filter:blur(28px);animation:seasonal-mist 18s ease-in-out infinite alternate}
+.seasonal-fog--one{bottom:-9%}.seasonal-fog--two{bottom:16%;opacity:.5;animation-delay:-9s;animation-duration:25s}
+.seasonal-decor--still :is(.seasonal-garland,.seasonal-flake,.seasonal-skull,.seasonal-leaf,.seasonal-fog){animation:none!important}
+.seasonal-decor--still .seasonal-flake,.seasonal-decor--still .seasonal-leaf{top:var(--still-y);opacity:.65}
+@keyframes seasonal-lights{0%,100%{opacity:.82}50%{opacity:1}}
+@keyframes seasonal-snow{from{transform:translate3d(0,-5vh,0) rotate(0);opacity:0}12%{opacity:.75}88%{opacity:.75}to{transform:translate3d(28px,112vh,0) rotate(110deg);opacity:0}}
+@keyframes seasonal-float{to{transform:translate3d(4px,-9px,0) rotate(4deg)}}
+@keyframes seasonal-leaves{from{transform:translate3d(0,-5vh,0) rotate(-25deg);opacity:0}15%{opacity:.85}85%{opacity:.85}to{transform:translate3d(56px,112vh,0) rotate(180deg);opacity:0}}
+@keyframes seasonal-mist{to{transform:translate3d(12%,0,0) scale(1.12)}}
+@media(prefers-reduced-motion:reduce){.seasonal-decor :is(.seasonal-garland,.seasonal-flake,.seasonal-skull,.seasonal-leaf,.seasonal-fog){animation:none!important}.seasonal-decor :is(.seasonal-flake,.seasonal-leaf){top:var(--still-y);opacity:.65}}
+@media(max-width:600px){.seasonal-fog{opacity:.4}}
+.seasonal-preview{position:relative;isolation:isolate;height:178px;overflow:hidden;border:1px solid var(--line,var(--border,#343d49));border-radius:18px;background:linear-gradient(145deg,#151c2a,#080b13 72%);color:#f4f7ff}
+.seasonal-preview[data-season="halloween"]{background:linear-gradient(145deg,#24201f,#0d1013 72%)}
+.seasonal-preview__card{position:absolute;z-index:1;top:42px;left:50%;display:grid;gap:4px;width:min(72%,255px);padding:15px;border:1px solid rgba(255,255,255,.15);border-radius:14px;background:rgba(17,23,31,.7);box-shadow:0 12px 30px rgba(0,0,0,.25);backdrop-filter:blur(9px);transform:translateX(-50%)}
+.seasonal-preview__card span{color:#aebaca;font-size:9px;font-weight:700;letter-spacing:.1em}.seasonal-preview__card strong{font-size:17px}.seasonal-preview__card small{color:#bac6d0;font-size:10px}
+.seasonal-decor--preview{position:absolute;z-index:2}.seasonal-decor--preview .seasonal-garland{height:52px}.seasonal-decor--preview .seasonal-drift{height:39px}.seasonal-decor--preview .seasonal-skull{width:calc(var(--size)*.65)}.seasonal-decor--preview .seasonal-fog{filter:blur(12px)}
+.admin-seasonal-editor{display:grid;gap:13px;padding:14px;border:1px solid var(--line,var(--border));border-radius:17px;background:var(--surface);box-shadow:0 12px 28px rgba(0,0,0,.13)}
+.appearance-tabs{grid-template-columns:repeat(4,minmax(0,1fr))}.appearance-tabs>button{min-width:0;padding-inline:5px;font-size:11px}
+:root[data-glass="on"] .admin-seasonal-editor{background:var(--glass-background)!important;background-image:var(--glass-texture)!important;border-color:var(--glass-border)!important;box-shadow:var(--glass-surface-shadow)!important;backdrop-filter:var(--glass-backdrop);-webkit-backdrop-filter:var(--glass-backdrop)}
+.admin-seasonal-editor h3{margin:0;font-size:14px;color:var(--text);text-transform:none}.admin-seasonal-modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.admin-seasonal-mode{display:grid;gap:4px;min-height:66px;padding:10px;border:1px solid var(--line,var(--border));border-radius:12px;background:var(--control-bg,var(--surface));color:var(--text);font:inherit;text-align:left;cursor:pointer;transition:background .22s,border-color .22s,transform .22s}.admin-seasonal-mode:hover{transform:translateY(-2px)}.admin-seasonal-mode.is-selected{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 13%,var(--control-bg,var(--surface)))}.admin-seasonal-mode strong{font-size:12px}.admin-seasonal-mode small{color:var(--muted);font-size:10px}.admin-seasonal-options{display:grid;gap:8px}.admin-seasonal-options .admin-toggle{margin:0}
+:root[data-frames="off"] .admin-seasonal-editor,:root[data-frames="off"] .admin-seasonal-mode{border-color:transparent!important}

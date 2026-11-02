@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 116" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="snow" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".96"/><stop offset=".55" stop-color="#dcefff" stop-opacity=".9"/><stop offset="1" stop-color="#91b9da" stop-opacity=".8"/></linearGradient>
+    <linearGradient id="ridge" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".7"/><stop offset="1" stop-color="#8ac3f0" stop-opacity="0"/></linearGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="4"/></filter>
+  </defs>
+  <path d="M0 68C75 48 112 57 176 69c88 16 126-26 215-24 86 2 117 34 195 20 79-14 120-46 208-25 66 16 112 24 166 4v72H0Z" fill="#b6dcf6" opacity=".38" filter="url(#soft)"/>
+  <path d="M0 71c80-17 124-8 188 7 84 20 136-24 218-23 83 1 129 37 207 23 80-14 127-51 211-32 53 12 90 26 136 8v62H0Z" fill="url(#snow)"/>
+  <path d="M0 71c80-17 124-8 188 7 84 20 136-24 218-23 83 1 129 37 207 23 80-14 127-51 211-32 53 12 90 26 136 8" fill="none" stroke="url(#ridge)" stroke-width="4"/>
+  <path d="M72 84c15-4 31-4 45-1m190-14c18-7 37-7 54-5m372-4c19-9 36-10 55-8" fill="none" stroke="#fff" stroke-opacity=".62" stroke-width="2" stroke-linecap="round"/>
+  <g fill="#fff" opacity=".85"><circle cx="139" cy="84" r="1.7"/><circle cx="423" cy="67" r="1.3"/><circle cx="595" cy="88" r="1.4"/><circle cx="856" cy="60" r="1.8"/></g>
+</svg>

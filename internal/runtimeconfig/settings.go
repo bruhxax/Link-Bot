@@ -257,6 +257,7 @@ type TelegramButtonSettings struct {
 
 type AppearanceSettings struct {
 	Landing           LandingSettings                     `json:"landing"`
+	Seasonal          SeasonalDecorationSettings          `json:"seasonal"`
 	Cursors           map[string]CursorSettings           `json:"cursors"`
 	CustomBackgrounds []CustomBackgroundSettings          `json:"customBackgrounds"`
 	ActiveBackground  string                              `json:"activeBackground"`
@@ -269,6 +270,18 @@ type AppearanceSettings struct {
 	ShowFrames        bool                                `json:"showFrames"`
 	Glow              bool                                `json:"glow"`
 	Glass             bool                                `json:"glass"`
+}
+
+type SeasonalDecorationSettings struct {
+	Mode            string `json:"mode"`
+	Intensity       int    `json:"intensity"`
+	Animated        bool   `json:"animated"`
+	WinterGarland   bool   `json:"winterGarland"`
+	WinterDrifts    bool   `json:"winterDrifts"`
+	WinterSnow      bool   `json:"winterSnow"`
+	HalloweenSkulls bool   `json:"halloweenSkulls"`
+	HalloweenFog    bool   `json:"halloweenFog"`
+	HalloweenLeaves bool   `json:"halloweenLeaves"`
 }
 
 // Each uploaded background keeps its own framing and playback settings.
@@ -660,6 +673,11 @@ func DefaultSettings() Settings {
 			},
 		},
 		Appearance: AppearanceSettings{
+			Seasonal: SeasonalDecorationSettings{
+				Mode: "off", Intensity: 55, Animated: true,
+				WinterGarland: true, WinterDrifts: true, WinterSnow: true,
+				HalloweenSkulls: true, HalloweenFog: true, HalloweenLeaves: true,
+			},
 			BottomNavStyle: "classic",
 			BackgroundMode: "animated",
 			Compact:        true,
@@ -1925,6 +1943,21 @@ func ValidateThemeAppearance(value AppearanceSettings) (AppearanceSettings, erro
 }
 
 func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings, migrating bool) error {
+	value.Seasonal.Mode = strings.ToLower(strings.TrimSpace(value.Seasonal.Mode))
+	if value.Seasonal.Mode == "" {
+		value.Seasonal = defaults.Seasonal
+	}
+	switch value.Seasonal.Mode {
+	case "off", "winter", "halloween":
+	default:
+		return errors.New("seasonal decoration mode must be off, winter or halloween")
+	}
+	if value.Seasonal.Intensity == 0 {
+		value.Seasonal.Intensity = defaults.Seasonal.Intensity
+	}
+	if value.Seasonal.Intensity < 10 || value.Seasonal.Intensity > 100 {
+		return errors.New("seasonal decoration intensity must be between 10 and 100")
+	}
 	value.BottomNavStyle = strings.ToLower(strings.TrimSpace(value.BottomNavStyle))
 	if value.BottomNavStyle == "" {
 		value.BottomNavStyle = defaults.BottomNavStyle

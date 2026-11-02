@@ -36,6 +36,7 @@ import { createBroadcastAutosave } from "./broadcast-autosave.mjs";
 import { syncCustomBackground, probeBackground, draggedPosition } from "./custom-background.mjs";
 import { DEFAULT_BACKGROUND_MOTION, presetBackgroundColors } from "./background-palette.mjs";
 import {applyCustomCursor,cursorValues} from "./custom-cursor.mjs";
+import {renderSeasonalPreview,syncSeasonalDecorations} from "./seasonal-decorations.mjs";
 import {patchBroadcastWorkflow} from "./broadcast-dom.mjs";
 import {captureBroadcastReveals,playBroadcastReveals} from "./broadcast-reveal.mjs";
 import {renderTelegramMessagePreview} from "./telegram-message-preview.mjs";
@@ -8204,14 +8205,27 @@ function normalizeAppearanceSection() {
   }
 }
 
+function renderAdminSeasonalAppearance() {
+	const settings = state.adminSettingsDraft?.appearance?.seasonal || {};
+	const mode = ["winter", "halloween"].includes(settings.mode) ? settings.mode : "off";
+	const modes = [["off", "Без украшений", "Чистая тема"], ["winter", "Зима", "Снег и огни"], ["halloween", "Хэллоуин", "Туман и листья"]];
+	return `<section class="admin-editor__section admin-seasonal-editor"><h3>Тематические украшения</h3>
+		<div class="admin-seasonal-modes" role="radiogroup" aria-label="Сезонный стиль">${modes.map(([id, label, hint]) => `<button class="admin-seasonal-mode ${mode === id ? "is-selected" : ""}" type="button" role="radio" aria-checked="${mode === id}" data-action="admin-seasonal-mode" data-value="${id}"><strong>${label}</strong><small>${hint}</small></button>`).join("")}</div>
+		${renderSeasonalPreview(settings)}
+		${mode === "off" ? "" : `<div class="admin-seasonal-options">${renderAdminRangeField("Выразительность", "", "appearance.seasonal.intensity", {value: settings.intensity || 55, min: 10, max: 100, suffix: "%", hideScale: true})}${renderAdminToggle("Анимация", "appearance.seasonal.animated")}${mode === "winter" ? `${renderAdminToggle("Гирлянда сверху", "appearance.seasonal.winterGarland")}${renderAdminToggle("Снежинки", "appearance.seasonal.winterSnow")}${renderAdminToggle("Сугробы", "appearance.seasonal.winterDrifts")}` : `${renderAdminToggle("Черепа", "appearance.seasonal.halloweenSkulls")}${renderAdminToggle("Туман", "appearance.seasonal.halloweenFog")}${renderAdminToggle("Падающие листья", "appearance.seasonal.halloweenLeaves")}`}</div>`}
+		<p class="admin-field__hint">Одинаково работает в Mini App и на лендинге. Сохраняется вместе с темой.</p>
+	</section>`;
+}
+
 function renderAdminAppearancePage() {
 	if (state.adminThemePresets === null && !state.adminThemePresetLoading) queueMicrotask(() => void loadAdminThemePresets());
-  const tab = ["theme", "landing", "cursors"].includes(state.adminAppearanceTab)
+  const tab = ["theme", "landing", "seasonal", "cursors"].includes(state.adminAppearanceTab)
     ? state.adminAppearanceTab
     : "theme";
   const tabs = [
     ["theme", "Кабинет"],
     ["landing", "Лендинг"],
+    ["seasonal", "Украшения"],
     ["cursors", "Курсоры"],
   ];
   const nav = `<div class="appearance-tabs surface-tabs" role="tablist" aria-label="Оформление">${tabs.map(([id, label]) => `<button type="button" role="tab" aria-selected="${tab === id}" data-action="admin-appearance-tab" data-value="${id}">${label}</button>`).join("")}</div>`;
@@ -8222,6 +8236,7 @@ function renderAdminAppearancePage() {
       state.adminLandingTab,
       { escapeHtml, escapeAttribute, renderAdminColorField },
     );
+  else if (tab === "seasonal") body = renderAdminSeasonalAppearance();
   else if (tab === "cursors") {
     body = renderCursorEditor(
       state.adminSettingsDraft.appearance,
@@ -12586,7 +12601,17 @@ function bindRootActions() {
 				}
 				return analytics ? await refreshAdminAnalytics() : await refreshAdminFinance();
 			}
-			if (action === "admin-appearance-tab") { if (!["theme", "landing", "cursors"].includes(value)) return; state.adminAppearanceTab = value; render({preserveScroll:false,scrollTop:0}); return; }
+			if (action === "admin-appearance-tab") { if (!["theme", "landing", "seasonal", "cursors"].includes(value)) return; state.adminAppearanceTab = value; render({preserveScroll:false,scrollTop:0}); return; }
+			if (action === "admin-seasonal-mode") {
+				if (!["off", "winter", "halloween"].includes(value) || !state.adminSettingsDraft?.appearance) return;
+				const seasonal = state.adminSettingsDraft.appearance.seasonal ||= {};
+				if (!seasonal.intensity) Object.assign(seasonal, {intensity:55, animated:true, winterGarland:true, winterSnow:true, winterDrifts:true, halloweenSkulls:true, halloweenFog:true, halloweenLeaves:true});
+				seasonal.mode = value;
+				state.adminSettingsDirty = true;
+				applyAppearance();
+				render({preserveScroll:true});
+				return;
+			}
 			if (action === "admin-landing-tab") { state.adminLandingTab=value; render({preserveScroll:true});return; }
  if (action === "admin-cursor-surface") {state.adminCursorSurface=value;render({preserveScroll:true});return;}
  if (action === "admin-cursor-preset") {ensureSurfaceSettings(state.adminSettingsDraft.appearance); const c=state.adminSettingsDraft.appearance.cursors[state.adminCursorSurface];c.mode=value;state.adminSettingsDirty=true;applyAppearance();render({preserveScroll:true});return;}
@@ -13256,6 +13281,10 @@ function bindRootActions() {
 					if (colorValue) colorValue.textContent = target.value;
 				}
 				applyAppearance();
+				if (settingPath.startsWith("appearance.seasonal.")) {
+					const preview = app.querySelector(".seasonal-preview");
+					if (preview) preview.outerHTML = renderSeasonalPreview(state.adminSettingsDraft.appearance.seasonal);
+				}
 				mountCustomBackgroundPreview();
 				updateAdminBackgroundPreviewColors();
 			}
@@ -18905,6 +18934,7 @@ function applyAppearance() {
 	applyWebPageMetadata();
 	if (document.documentElement.dataset.adminConsole === "on") {
 		state.theme = "dark";
+		syncSeasonalDecorations(null, {enabled:false});
 		applyConsoleAppearance(document.documentElement);
 		if (themeMeta) themeMeta.content = "#0c0f13";
 		if (tg) { tg.setHeaderColor?.("#0c0f13"); tg.setBackgroundColor?.("#0c0f13"); }
@@ -18912,6 +18942,7 @@ function applyAppearance() {
 		return;
 	}
 	const appearance = getRuntimeSettings()?.appearance || {};
+	syncSeasonalDecorations(appearance.seasonal);
  void applyCustomCursor(appearance.cursors?.[state.adminWorkspace||state.currentPage==="admin"?"admin":"cabinet"]);
 	const colors = appearance.colors || {};
 	const accentColor = colors.accent || PALETTE.accent.accent;
