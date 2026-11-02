@@ -320,6 +320,7 @@ var definitions = []ProviderDefinition{
 		Fields: []FieldDefinition{
 			{Key: "apiKey", Label: "API key", Required: true, Secret: true, Placeholder: "rpk_..."},
 			{Key: "signingSecret", Label: "Webhook signing secret", Required: true, Secret: true, Help: "Секрет подписи вебхуков из настроек кассы RollyPay"},
+			{Key: "terminalId", Label: "Terminal ID для подписок", Placeholder: "UUID кассы RollyPay", Help: "Нужен для рекуррентных СБП-платежей"},
 		},
 	},
 	{
@@ -971,6 +972,28 @@ func (s *Service) encrypt(cfg map[string]string) (string, error) {
 	}
 	sealed := s.aead.Seal(nonce, nonce, raw, nil)
 	return base64.RawStdEncoding.EncodeToString(sealed), nil
+}
+
+func (s *Service) EncryptRecurringReference(reference string) (string, error) {
+	if s == nil || strings.TrimSpace(reference) == "" {
+		return "", errors.New("missing recurring reference")
+	}
+	encoded, err := s.encrypt(map[string]string{"reference": reference})
+	if err != nil {
+		return "", err
+	}
+	return "enc:" + encoded, nil
+}
+
+func (s *Service) DecryptRecurringReference(reference string) (string, error) {
+	if s == nil || !strings.HasPrefix(reference, "enc:") {
+		return "", errors.New("invalid recurring reference")
+	}
+	decoded, err := s.decrypt(strings.TrimPrefix(reference, "enc:"))
+	if err != nil {
+		return "", err
+	}
+	return decoded["reference"], nil
 }
 
 func (s *Service) decrypt(value string) (map[string]string, error) {

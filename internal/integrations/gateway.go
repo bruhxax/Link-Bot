@@ -39,22 +39,28 @@ type Gateway struct {
 }
 
 type CreatePaymentRequest struct {
-	Channels    []string
-	Provider    string
-	PurchaseID  int64
-	Amount      float64
-	Currency    string
-	Description string
-	CustomerID  int64
-	Username    string
-	Email       string
-	ReturnURL   string
-	ClientIP    string
+	Channels             []string
+	Provider             string
+	PurchaseID           int64
+	Amount               float64
+	Currency             string
+	Description          string
+	CustomerID           int64
+	TelegramID           int64
+	Username             string
+	Email                string
+	Phone                string
+	ReturnURL            string
+	ClientIP             string
+	RecurringMonths      int
+	RecurringDaysInMonth int
+	RecurringReference   string
 }
 
 type CreatedPayment struct {
-	ExternalID string
-	URL        string
+	ExternalID         string
+	URL                string
+	RecurringReference string
 }
 
 // PaymentAPIError preserves the response for provider-specific error decoding.
@@ -69,13 +75,136 @@ func (e *PaymentAPIError) Error() string {
 }
 
 type WebhookPayment struct {
-	Ignored    bool
-	PurchaseID int64
+	Ignored             bool
+	PurchaseID          int64
+	ExternalID          string
+	Amount              float64
+	Currency            string
+	Paid                bool
+	Cancelled           bool
+	RecurringToken      string
+	RecurringTitle      string
+	SubscriptionID      string
+	ProviderManaged     bool
+	SubscriptionStopped bool
+}
+
+type RecurringCharge struct {
 	ExternalID string
-	Amount     float64
-	Currency   string
 	Paid       bool
-	Cancelled  bool
+	Pending    bool
+	Declined   bool
+}
+
+func ProviderManagesRecurring(provider string) bool {
+	return provider == ProviderLava || provider == ProviderWata || provider == ProviderPlatega || provider == ProviderRollyPay || provider == ProviderCisPay
+}
+
+func (g *Gateway) StopRecurringSubscription(ctx context.Context, provider, externalID string) error {
+	if !ProviderManagesRecurring(provider) || strings.TrimSpace(externalID) == "" {
+		return errors.New("invalid managed subscription")
+	}
+	cfg, ok := g.settings.StoredConfig(provider)
+	if !ok {
+		return fmt.Errorf("интеграция %s не настроена", provider)
+	}
+	switch provider {
+	case ProviderLava:
+		return g.stopLavaSubscription(ctx, cfg, externalID)
+	case ProviderWata:
+		raw := []byte(`{"status":"Completed"}`)
+		return g.doJSON(ctx, http.MethodPost, strings.TrimRight(cfg["apiUrl"], "/")+"/subscriptions/"+url.PathEscape(externalID)+"/statuses", raw, map[string]string{"Authorization": "Bearer " + cfg["accessToken"]}, nil)
+	case ProviderPlatega:
+		return g.doJSON(ctx, http.MethodPost, strings.TrimRight(cfg["apiUrl"], "/")+"/v2/subscription/"+url.PathEscape(externalID)+"/cancel", []byte(`{}`), map[string]string{"X-MerchantId": cfg["merchantId"], "X-Secret": cfg["secretKey"]}, nil)
+	case ProviderRollyPay:
+		base := strings.TrimRight(firstNonEmpty(cfg["apiUrl"], "https://rollypay.io"), "/") + "/api/v1/subscriptions/" + url.PathEscape(externalID)
+		headers := map[string]string{"X-API-Key": cfg["apiKey"], "X-Nonce": uuid.NewString()}
+		var stopped struct {
+			OK bool `json:"ok"`
+		}
+		if err := g.doJSON(ctx, http.MethodPost, base+"/stop", []byte(`{}`), headers, &stopped); err != nil {
+			return err
+		}
+		if !stopped.OK {
+			return errors.New("RollyPay did not confirm subscription stop")
+		}
+		headers["X-Nonce"] = uuid.NewString()
+		var state struct {
+			State         string `json:"state"`
+			BillingStatus string `json:"billing_status"`
+		}
+		if err := g.doJSON(ctx, http.MethodGet, base, nil, headers, &state); err != nil {
+			return err
+		}
+		if state.State != "stop" || state.BillingStatus != "stopped" {
+			return errors.New("RollyPay subscription stop is not final")
+		}
+		return nil
+	case ProviderCisPay:
+		base := strings.TrimRight(firstNonEmpty(cfg["apiUrl"], "https://api.cispay.app"), "/") + "/subscriptions/" + url.PathEscape(externalID) + "/cancel"
+		var response struct {
+			Status string `json:"status"`
+		}
+		if err := g.doJSON(ctx, http.MethodPost, base, []byte(`{}`), map[string]string{"X-Shop-ID": cfg["shopId"], "X-API-Key": cfg["apiKey"]}, &response); err != nil {
+			return err
+		}
+		if response.Status != "CANCELLED" {
+			return errors.New("cisPay did not confirm subscription cancellation")
+		}
+		return nil
+	}
+	return errors.New("unsupported managed subscription provider")
+}
+
+func (g *Gateway) ChargeRecurring(ctx context.Context, provider string, customerID, purchaseID int64, token string, amount int, description, phone string) (RecurringCharge, error) {
+	cfg, ok := g.settings.Config(provider)
+	if !ok {
+		return RecurringCharge{}, fmt.Errorf("интеграция %s не настроена или выключена", provider)
+	}
+	if token == "" || amount <= 0 {
+		return RecurringCharge{}, errors.New("unsupported recurring charge")
+	}
+	if provider == ProviderFreeKassa {
+		cfg["paymentSystemId"] = "36"
+		if cfg["apiKey"] == "" || cfg["clientIP"] == "" {
+			return RecurringCharge{}, errors.New("FreeKassa recurring payments require API key and client IP")
+		}
+		created, err := g.createFKOrder(ctx, cfg, CreatePaymentRequest{Provider: provider, PurchaseID: purchaseID, CustomerID: customerID, Amount: float64(amount), Currency: "RUB", Description: description, ClientIP: cfg["clientIP"], RecurringReference: token})
+		if err != nil {
+			return RecurringCharge{}, err
+		}
+		return RecurringCharge{ExternalID: created.ExternalID, Pending: true}, nil
+	}
+	if provider != ProviderCloudPayments {
+		return RecurringCharge{}, errors.New("unsupported recurring charge provider")
+	}
+	payload := map[string]any{
+		"Amount": amount, "Currency": "RUB", "AccountId": strconv.FormatInt(customerID, 10),
+		"InvoiceId": strconv.FormatInt(purchaseID, 10), "Description": description,
+		"TrInitiatorCode": 0, "PaymentScheduled": 1, "Token": token,
+	}
+	if phone != "" {
+		payload["Payer"] = map[string]string{"Phone": phone}
+	}
+	raw, _ := json.Marshal(payload)
+	var response struct {
+		Success bool   `json:"Success"`
+		Message string `json:"Message"`
+		Model   struct {
+			TransactionID json.Number `json:"TransactionId"`
+			Status        string      `json:"Status"`
+		} `json:"Model"`
+	}
+	endpoint := strings.TrimRight(firstNonEmpty(cfg["apiUrl"], "https://api.cloudpayments.ru"), "/") + "/payments/tokens/charge"
+	auth := base64.StdEncoding.EncodeToString([]byte(cfg["publicId"] + ":" + cfg["apiSecret"]))
+	if err := g.doJSON(ctx, http.MethodPost, endpoint, raw, map[string]string{"Authorization": "Basic " + auth}, &response); err != nil {
+		return RecurringCharge{}, err
+	}
+	if !response.Success {
+		return RecurringCharge{ExternalID: response.Model.TransactionID.String(), Declined: true}, nil
+	}
+	status := strings.ToLower(response.Model.Status)
+	return RecurringCharge{ExternalID: response.Model.TransactionID.String(), Paid: status == "completed", Declined: status == "declined" || status == "failed", Pending: status != "completed" && status != "declined" && status != "failed"}, nil
 }
 
 func NewGateway(settings *Service) *Gateway {
@@ -115,12 +244,29 @@ func (g *Gateway) Create(ctx context.Context, input CreatePaymentRequest) (Creat
 	case ProviderKassaAI:
 		return g.createKassaAI(ctx, cfg, input)
 	case ProviderLava:
+		if input.RecurringMonths > 0 {
+			return g.createLavaSubscription(ctx, cfg, input)
+		}
 		return g.createLava(ctx, cfg, input)
 	case ProviderWata:
 		return g.createWata(ctx, cfg, input)
 	case ProviderPlatega:
 		return g.createPlatega(ctx, cfg, input)
 	case ProviderFreeKassa:
+		if input.RecurringMonths > 0 {
+			if input.RecurringMonths != 1 && input.RecurringMonths != 12 {
+				return CreatedPayment{}, errors.New("FreeKassa supports monthly or yearly recurring plans")
+			}
+			if cfg["apiKey"] == "" {
+				return CreatedPayment{}, errors.New("FreeKassa recurring payments require an API key")
+			}
+			if len(input.Channels) == 0 {
+				cfg["paymentSystemId"] = "36"
+			} else {
+				cfg["paymentSystemId"] = input.Channels[0]
+			}
+			return g.createFKOrder(ctx, cfg, input)
+		}
 		if len(input.Channels) > 0 {
 			if cfg["apiKey"] == "" {
 				return CreatedPayment{}, errors.New("FreeKassa: для ограничения методов добавьте API-ключ в интеграции")
@@ -185,7 +331,38 @@ func (g *Gateway) HandleWebhook(ctx context.Context, provider string, headers ht
 	case ProviderPally:
 		return parsePallyWebhook(cfg, form)
 	case ProviderRollyPay:
-		return parseRollyPayWebhook(cfg, headers, raw)
+		event, err := parseRollyPayWebhook(cfg, headers, raw)
+		if err != nil || !event.Paid {
+			return event, err
+		}
+		var payment struct {
+			PaymentID      string `json:"payment_id"`
+			SubscriptionID string `json:"subscription_id"`
+			TerminalID     string `json:"terminal_id"`
+			PaymentMethod  string `json:"payment_method"`
+			Status         string `json:"status"`
+			Amount         string `json:"amount"`
+			Currency       string `json:"payment_currency"`
+		}
+		endpoint := strings.TrimRight(firstNonEmpty(cfg["apiUrl"], "https://rollypay.io"), "/") + "/api/v1/payments/" + url.PathEscape(event.ExternalID)
+		if err := g.doJSON(ctx, http.MethodGet, endpoint, nil, map[string]string{"X-API-Key": cfg["apiKey"], "X-Nonce": uuid.NewString()}, &payment); err != nil {
+			return WebhookPayment{}, err
+		}
+		amount, amountErr := strconv.ParseFloat(payment.Amount, 64)
+		if payment.PaymentID != event.ExternalID || payment.Status != "paid" {
+			return WebhookPayment{}, errors.New("RollyPay payment verification failed")
+		}
+		if payment.SubscriptionID == "" {
+			if event.PurchaseID <= 0 {
+				return WebhookPayment{}, errors.New("RollyPay payment has no order identity")
+			}
+			return event, nil
+		}
+		if payment.PaymentMethod != "sbp_recurrent" || payment.TerminalID != cfg["terminalId"] || amountErr != nil || amount <= 0 || !strings.EqualFold(payment.Currency, "RUB") {
+			return WebhookPayment{}, errors.New("RollyPay recurring payment verification failed")
+		}
+		event.SubscriptionID, event.Amount, event.Currency, event.ProviderManaged = payment.SubscriptionID, amount, "RUB", true
+		return event, nil
 	case ProviderCisPay:
 		return parseCisPayWebhook(cfg, headers, raw)
 	case ProviderAnore:
@@ -243,6 +420,14 @@ func (g *Gateway) createWata(ctx context.Context, cfg map[string]string, input C
 		"amount": input.Amount, "currency": input.Currency, "description": input.Description,
 		"orderId": strconv.FormatInt(input.PurchaseID, 10), "successRedirectUrl": input.ReturnURL, "failRedirectUrl": input.ReturnURL,
 	}
+	if input.RecurringMonths > 0 {
+		if input.Email == "" || input.Phone == "" {
+			return CreatedPayment{}, errors.New("WATA recurring payments require payer email and phone")
+		}
+		payload["email"] = input.Email
+		payload["phone"] = strings.TrimPrefix(input.Phone, "+")
+		payload["subscription"] = map[string]any{"period": input.RecurringMonths, "interval": "Month", "maxPeriods": 120}
+	}
 	raw, _ := json.Marshal(payload)
 	var response struct {
 		ID  string `json:"id"`
@@ -259,6 +444,40 @@ func (g *Gateway) createWata(ctx context.Context, cfg map[string]string, input C
 }
 
 func (g *Gateway) createPlatega(ctx context.Context, cfg map[string]string, input CreatePaymentRequest) (CreatedPayment, error) {
+	if input.RecurringMonths > 0 {
+		if input.TelegramID <= 0 || input.RecurringMonths > 12 {
+			return CreatedPayment{}, errors.New("invalid Platega recurring customer or period")
+		}
+		payload := map[string]any{
+			"paymentMethod":  6,
+			"paymentDetails": map[string]any{"amount": input.Amount, "currency": input.Currency, "interval": 3, "intervalCount": input.RecurringMonths},
+			"description":    input.Description,
+			"metadata":       map[string]string{"user_email": strconv.FormatInt(input.TelegramID, 10) + "@telegram.org"},
+		}
+		raw, _ := json.Marshal(payload)
+		endpoint := strings.TrimRight(cfg["apiUrl"], "/") + "/v2/transaction/process"
+		var created struct {
+			TransactionID string `json:"transactionId"`
+		}
+		if err := g.doJSON(ctx, http.MethodPost, endpoint, raw, map[string]string{"X-MerchantId": cfg["merchantId"], "X-Secret": cfg["secretKey"]}, &created); err != nil {
+			return CreatedPayment{}, err
+		}
+		if created.TransactionID == "" {
+			return CreatedPayment{}, errors.New("Platega did not return subscription ID")
+		}
+		email := strconv.FormatInt(input.TelegramID, 10) + "@telegram.org"
+		startRaw, _ := json.Marshal(map[string]string{"email": email})
+		var started struct {
+			ConfirmationURL string `json:"confirmationUrl"`
+		}
+		if err := g.doJSON(ctx, http.MethodPost, strings.TrimRight(cfg["apiUrl"], "/")+"/v2/subscription/"+url.PathEscape(created.TransactionID)+"/start", startRaw, map[string]string{"X-MerchantId": cfg["merchantId"], "X-Secret": cfg["secretKey"]}, &started); err != nil {
+			return CreatedPayment{}, err
+		}
+		if !validCheckoutURL(started.ConfirmationURL) {
+			return CreatedPayment{}, errors.New("Platega did not return subscription confirmation URL")
+		}
+		return CreatedPayment{ExternalID: created.TransactionID, URL: started.ConfirmationURL, RecurringReference: created.TransactionID}, nil
+	}
 	payload := map[string]any{
 		"paymentDetails": map[string]any{"amount": input.Amount, "currency": input.Currency},
 		"description":    input.Description, "return": input.ReturnURL, "failedUrl": input.ReturnURL,
@@ -374,6 +593,59 @@ func (g *Gateway) createPally(ctx context.Context, cfg map[string]string, input 
 }
 
 func (g *Gateway) createRollyPay(ctx context.Context, cfg map[string]string, input CreatePaymentRequest) (CreatedPayment, error) {
+	if input.RecurringMonths > 0 {
+		terminalID := strings.TrimSpace(cfg["terminalId"])
+		if _, err := uuid.Parse(terminalID); err != nil || input.TelegramID <= 0 {
+			return CreatedPayment{}, errors.New("RollyPay recurring payments require a terminal ID")
+		}
+		interval := map[int]string{1: "month", 3: "quarter", 6: "half_year", 12: "year"}[input.RecurringMonths]
+		if interval == "" {
+			return CreatedPayment{}, errors.New("RollyPay has no matching recurring interval")
+		}
+		base := strings.TrimRight(firstNonEmpty(cfg["apiUrl"], "https://rollypay.io"), "/")
+		headers := map[string]string{"X-API-Key": cfg["apiKey"], "X-Nonce": uuid.NewString()}
+		var plans struct {
+			Items []struct {
+				ID                string `json:"id"`
+				Interval          string `json:"interval"`
+				MerchantAmountRub string `json:"merchant_amount_rub"`
+				PayerAmountRub    string `json:"payer_amount_rub"`
+				CapAmountRub      string `json:"cap_amount_rub"`
+			} `json:"items"`
+		}
+		if err := g.doJSON(ctx, http.MethodGet, base+"/api/v1/subscription-plans?terminal_id="+url.QueryEscape(terminalID), nil, headers, &plans); err != nil {
+			return CreatedPayment{}, err
+		}
+		planID := ""
+		for _, plan := range plans.Items {
+			merchantAmount, _ := strconv.ParseFloat(plan.MerchantAmountRub, 64)
+			payerAmount, _ := strconv.ParseFloat(plan.PayerAmountRub, 64)
+			if plan.CapAmountRub == "" && plan.Interval == interval && math.Abs(merchantAmount-input.Amount) < 0.01 && math.Abs(payerAmount-input.Amount) < 0.01 {
+				planID = plan.ID
+				break
+			}
+		}
+		if planID == "" {
+			return CreatedPayment{}, errors.New("RollyPay has no recurring plan matching this price and period")
+		}
+		payload := map[string]any{"terminal_id": terminalID, "plan_id": planID, "payer_id": "tg_" + strconv.FormatInt(input.TelegramID, 10), "merchant_subscription_ref": strconv.FormatInt(input.PurchaseID, 10)}
+		raw, _ := json.Marshal(payload)
+		var response struct {
+			ID          string `json:"id"`
+			PayURL      string `json:"pay_url"`
+			RedirectURL string `json:"redirect_url"`
+		}
+		headers["X-Nonce"] = uuid.NewString()
+		headers["Idempotency-Key"] = "linkbot-recurring-" + strconv.FormatInt(input.PurchaseID, 10)
+		if err := g.doJSON(ctx, http.MethodPost, base+"/api/v1/subscriptions", raw, headers, &response); err != nil {
+			return CreatedPayment{}, err
+		}
+		checkoutURL := firstNonEmpty(response.PayURL, response.RedirectURL)
+		if response.ID == "" || !validCheckoutURL(checkoutURL) {
+			return CreatedPayment{}, errors.New("RollyPay did not return a recurring checkout URL")
+		}
+		return CreatedPayment{ExternalID: response.ID, URL: checkoutURL, RecurringReference: response.ID}, nil
+	}
 	payload := map[string]any{
 		"amount":               formatAmount(input.Amount),
 		"payment_currency":     input.Currency,
@@ -405,6 +677,29 @@ func (g *Gateway) createCisPay(ctx context.Context, cfg map[string]string, input
 	amountKopecks := int64(math.Round(input.Amount * 100))
 	if amountKopecks <= 0 {
 		return CreatedPayment{}, errors.New("cisPay payment amount must be positive")
+	}
+	if input.RecurringMonths > 0 {
+		if !strings.EqualFold(cfg["paymentMethod"], "SBP") {
+			return CreatedPayment{}, errors.New("cisPay recurring payments require SBP payment method")
+		}
+		intervalDays := input.RecurringMonths * input.RecurringDaysInMonth
+		if intervalDays < 7 || intervalDays > 360 {
+			return CreatedPayment{}, errors.New("cisPay recurring period must be 7 to 360 days")
+		}
+		payload := map[string]any{"amount": amountKopecks, "currency": "RUB", "interval_days": intervalDays, "payment_method": "SBP", "customer_id": strconv.FormatInt(input.CustomerID, 10), "subscription_purpose": input.Description, "redirect_success_url": input.ReturnURL, "redirect_fail_url": input.ReturnURL}
+		raw, _ := json.Marshal(payload)
+		var response struct {
+			ID         string `json:"id"`
+			PaymentURL string `json:"payment_url"`
+		}
+		endpoint := strings.TrimRight(firstNonEmpty(cfg["apiUrl"], "https://api.cispay.app"), "/") + "/subscriptions"
+		if err := g.doJSON(ctx, http.MethodPost, endpoint, raw, map[string]string{"X-Shop-ID": cfg["shopId"], "X-API-Key": cfg["apiKey"]}, &response); err != nil {
+			return CreatedPayment{}, err
+		}
+		if response.ID == "" || !validCheckoutURL(response.PaymentURL) {
+			return CreatedPayment{}, errors.New("cisPay did not return subscription payment URL")
+		}
+		return CreatedPayment{ExternalID: response.ID, URL: response.PaymentURL, RecurringReference: response.ID}, nil
 	}
 	method := strings.ToUpper(strings.TrimSpace(cfg["paymentMethod"]))
 	if method != "CARD" && method != "SBP" {
@@ -595,6 +890,7 @@ func (g *Gateway) doJSON(ctx context.Context, method, endpoint string, body []by
 
 func parseLavaWebhook(cfg map[string]string, headers http.Header, raw []byte) (WebhookPayment, error) {
 	var payload struct {
+		Type      int             `json:"type"`
 		InvoiceID string          `json:"invoice_id"`
 		OrderID   json.RawMessage `json:"order_id"`
 		Status    string          `json:"status"`
@@ -612,6 +908,11 @@ func parseLavaWebhook(cfg map[string]string, headers http.Header, raw []byte) (W
 	expected := hmacHex(sha256.New, []byte(cfg["additionalKey"]), canonical)
 	if signature == "" || !hmac.Equal([]byte(strings.ToLower(expected)), []byte(strings.ToLower(signature))) {
 		return WebhookPayment{}, errors.New("invalid LAVA webhook signature")
+	}
+	if payload.Type == 4 {
+		// The subscription webhook only announces a status change. The signed
+		// status API is polled for the last successful charge before fulfillment.
+		return WebhookPayment{Ignored: true}, nil
 	}
 	orderID, err := jsonScalarString(payload.OrderID)
 	if err != nil {
@@ -694,21 +995,38 @@ func (g *Gateway) parseWataWebhook(ctx context.Context, cfg map[string]string, h
 		return WebhookPayment{}, errors.New("invalid WATA webhook signature")
 	}
 	var payload struct {
+		EventType         string  `json:"eventType"`
+		Kind              string  `json:"kind"`
 		ID                string  `json:"id"`
 		TransactionStatus string  `json:"transactionStatus"`
 		Amount            float64 `json:"amount"`
 		Currency          string  `json:"currency"`
 		OrderID           string  `json:"orderId"`
+		SubscriptionID    string  `json:"subscriptionId"`
+		Type              string  `json:"type"`
 	}
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return WebhookPayment{}, err
 	}
+	if payload.EventType == "subscription_status_changed" {
+		var change struct {
+			SubscriptionID string `json:"subscriptionId"`
+			Status         string `json:"status"`
+		}
+		if err := json.Unmarshal(raw, &change); err != nil {
+			return WebhookPayment{}, err
+		}
+		return WebhookPayment{SubscriptionID: change.SubscriptionID, SubscriptionStopped: strings.EqualFold(change.Status, "Completed") || strings.EqualFold(change.Status, "Failed"), Ignored: change.SubscriptionID == ""}, nil
+	}
+	if payload.Kind != "Payment" {
+		return WebhookPayment{Ignored: true}, nil
+	}
 	purchaseID, err := strconv.ParseInt(payload.OrderID, 10, 64)
-	if err != nil {
+	if err != nil && strings.TrimSpace(payload.SubscriptionID) == "" {
 		return WebhookPayment{}, err
 	}
 	status := strings.ToLower(payload.TransactionStatus)
-	return WebhookPayment{PurchaseID: purchaseID, ExternalID: payload.ID, Amount: payload.Amount, Currency: payload.Currency, Paid: status == "paid", Cancelled: status == "declined"}, nil
+	return WebhookPayment{PurchaseID: purchaseID, ExternalID: payload.ID, Amount: payload.Amount, Currency: payload.Currency, Paid: status == "paid", Cancelled: status == "declined", SubscriptionID: strings.TrimSpace(payload.SubscriptionID), ProviderManaged: strings.EqualFold(payload.Type, "Token")}, nil
 }
 
 func (g *Gateway) fetchWataPublicKey(ctx context.Context, cfg map[string]string) (*rsa.PublicKey, error) {
@@ -740,10 +1058,11 @@ func parsePlategaWebhook(cfg map[string]string, headers http.Header, raw []byte)
 		return WebhookPayment{}, errors.New("invalid Platega webhook credentials")
 	}
 	var payload struct {
-		ID       string  `json:"id"`
-		Amount   float64 `json:"amount"`
-		Currency string  `json:"currency"`
-		Status   string  `json:"status"`
+		ID             string  `json:"id"`
+		Amount         float64 `json:"amount"`
+		Currency       string  `json:"currency"`
+		Status         string  `json:"status"`
+		SubscriptionID string  `json:"subscriptionId"`
 	}
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return WebhookPayment{}, err
@@ -751,9 +1070,21 @@ func parsePlategaWebhook(cfg map[string]string, headers http.Header, raw []byte)
 	if strings.TrimSpace(payload.ID) == "" {
 		return WebhookPayment{}, errors.New("missing Platega payment ID")
 	}
+	status := strings.ToUpper(strings.TrimSpace(payload.Status))
+	if strings.HasPrefix(status, "SUBSCRIPTION_") {
+		if payload.SubscriptionID != "" && payload.SubscriptionID != payload.ID {
+			return WebhookPayment{}, errors.New("Platega subscription callback identity mismatch")
+		}
+		stopped := status == "SUBSCRIPTION_CANCELLED" || status == "SUBSCRIPTION_FAILED"
+		return WebhookPayment{
+			ExternalID: payload.ID, Amount: payload.Amount, Currency: payload.Currency,
+			SubscriptionID: payload.ID, Ignored: !stopped,
+			SubscriptionStopped: stopped,
+		}, nil
+	}
 	// Resolve by the provider's transaction ID, never by the optional merchant payload.
-	event := WebhookPayment{ExternalID: payload.ID, Amount: payload.Amount, Currency: payload.Currency}
-	switch strings.ToUpper(strings.TrimSpace(payload.Status)) {
+	event := WebhookPayment{ExternalID: payload.ID, Amount: payload.Amount, Currency: payload.Currency, SubscriptionID: strings.TrimSpace(payload.SubscriptionID), ProviderManaged: strings.TrimSpace(payload.SubscriptionID) != ""}
+	switch status {
 	case "CONFIRMED":
 		event.Paid = true
 	case "CANCELED", "CHARGEBACKED":
@@ -867,8 +1198,8 @@ func parseRollyPayWebhook(cfg map[string]string, headers http.Header, raw []byte
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return WebhookPayment{}, err
 	}
-	purchaseID, err := strconv.ParseInt(payload.OrderID, 10, 64)
-	if err != nil || strings.TrimSpace(payload.PaymentID) == "" {
+	purchaseID, _ := strconv.ParseInt(payload.OrderID, 10, 64)
+	if strings.TrimSpace(payload.PaymentID) == "" {
 		return WebhookPayment{}, errors.New("invalid RollyPay webhook payload")
 	}
 	amount, err := strconv.ParseFloat(payload.Amount, 64)
@@ -876,6 +1207,9 @@ func parseRollyPayWebhook(cfg map[string]string, headers http.Header, raw []byte
 		return WebhookPayment{}, errors.New("invalid RollyPay webhook amount")
 	}
 	status := strings.ToLower(strings.TrimSpace(payload.Status))
+	if purchaseID <= 0 && status != "paid" {
+		return WebhookPayment{Ignored: true}, nil
+	}
 	return WebhookPayment{
 		PurchaseID: purchaseID, ExternalID: payload.PaymentID, Amount: amount, Currency: strings.ToUpper(strings.TrimSpace(payload.Currency)),
 		Paid: status == "paid", Cancelled: status == "canceled" || status == "expired" || status == "chargeback" || status == "refunded",
@@ -889,23 +1223,30 @@ func parseCisPayWebhook(cfg map[string]string, headers http.Header, raw []byte) 
 		return WebhookPayment{}, errors.New("invalid cisPay webhook signature")
 	}
 	var payload struct {
-		ID       string `json:"id"`
-		OrderID  string `json:"order_id"`
-		Status   string `json:"status"`
-		Amount   int64  `json:"amount"`
-		Currency string `json:"currency"`
+		Event          string `json:"event"`
+		Object         string `json:"object"`
+		ID             string `json:"id"`
+		OrderID        string `json:"order_id"`
+		Status         string `json:"status"`
+		Amount         int64  `json:"amount"`
+		Currency       string `json:"currency"`
+		SubscriptionID string `json:"subscription_id"`
 	}
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return WebhookPayment{}, err
 	}
+	if payload.Object == "subscription" && payload.Event != "" {
+		return WebhookPayment{SubscriptionID: payload.ID, SubscriptionStopped: payload.Event == "subscription.cancelled" || payload.Event == "subscription.failed", Ignored: payload.ID == ""}, nil
+	}
 	purchaseID, err := strconv.ParseInt(payload.OrderID, 10, 64)
-	if err != nil || strings.TrimSpace(payload.ID) == "" || payload.Amount <= 0 {
+	if (err != nil && payload.SubscriptionID == "") || strings.TrimSpace(payload.ID) == "" || payload.Amount <= 0 {
 		return WebhookPayment{}, errors.New("invalid cisPay webhook payload")
 	}
 	status := strings.ToUpper(strings.TrimSpace(payload.Status))
 	return WebhookPayment{
 		PurchaseID: purchaseID, ExternalID: payload.ID, Amount: float64(payload.Amount) / 100, Currency: strings.ToUpper(strings.TrimSpace(payload.Currency)),
 		Paid: status == "PAID", Cancelled: status == "FAILED" || status == "EXPIRED" || status == "REFUNDED",
+		SubscriptionID: payload.SubscriptionID, ProviderManaged: payload.SubscriptionID != "",
 	}, nil
 }
 
@@ -960,7 +1301,10 @@ func parseCloudPaymentsWebhook(cfg map[string]string, headers http.Header, raw [
 	}
 	return WebhookPayment{
 		PurchaseID: purchaseID, Amount: amount, Currency: strings.ToUpper(form.Get("Currency")),
-		Paid: strings.EqualFold(form.Get("Status"), "Completed") && strings.EqualFold(form.Get("OperationType"), "Payment"),
+		Paid:           strings.EqualFold(form.Get("Status"), "Completed") && strings.EqualFold(form.Get("OperationType"), "Payment"),
+		Cancelled:      (strings.EqualFold(form.Get("Status"), "Declined") || strings.EqualFold(form.Get("Status"), "Failed")) && strings.EqualFold(form.Get("OperationType"), "Payment"),
+		RecurringToken: strings.TrimSpace(form.Get("Token")),
+		RecurringTitle: strings.TrimSpace(form.Get("CardType") + " •••• " + form.Get("CardLastFour")),
 	}, nil
 }
 

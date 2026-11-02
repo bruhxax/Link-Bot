@@ -73,6 +73,8 @@ type CreatePurchaseOptions struct {
 	SubscriptionID          *int64
 	DurationDays            int
 	AgreementAccepted       bool
+	RecurringConsent        bool
+	RecurringPhone          string
 	IsAutoPayment           bool
 	ParentPurchaseID        *int64
 	PlanID                  string
@@ -194,6 +196,9 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 		return fmt.Errorf("purchase with crypto invoice id %s not found", utils.MaskHalfInt64(purchaseId))
 	}
 	if purchase.Status == database.PurchaseStatusPaid || purchase.PaidAt != nil {
+		if err := s.recoverYooKassaRecurringMethod(ctx, purchase); err != nil {
+			return err
+		}
 		if s.partnerRepository != nil {
 			if commissionErr := s.partnerRepository.AccrueCommission(context.Background(), purchase); commissionErr != nil {
 				slog.Error("payment: recover partner commission failed", "error", commissionErr, "purchase_id", utils.MaskHalfInt64(purchase.ID))
@@ -476,9 +481,29 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 		slog.Error("payment: device notification queued for retry", "error", notifyErr)
 	}
 	if subscription.IsPrimary {
-		customerFilesToUpdate := s.buildAutoPaymentCustomerUpdates(customer, purchase)
+		enrolled := false
+		if purchase.InvoiceType == database.InvoiceTypeYookasa && !purchase.IsAutoPayment && s.runtimeSettings != nil && s.runtimeSettings.FeatureEnabled("recurring_payments") {
+			enrolled, err = s.customerRepository.HasRecurringEnrollment(ctx, purchase.ID, integrations.ProviderYooKassa)
+			if err != nil {
+				return err
+			}
+		}
+		var customerFilesToUpdate map[string]interface{}
+		if purchase.Days > 0 || enrolled {
+			customerFilesToUpdate = s.buildAutoPaymentCustomerUpdates(customer, purchase)
+		}
 		if len(customerFilesToUpdate) > 0 {
 			if err = s.customerRepository.UpdateFields(ctx, customer.ID, customerFilesToUpdate); err != nil {
+				return err
+			}
+		}
+		if purchase.Days > 0 {
+			if err = s.customerRepository.SetRecurringEnabled(ctx, customer.ID, false); err != nil {
+				return err
+			}
+		}
+		if enrolled {
+			if err = s.recoverYooKassaRecurringMethod(ctx, purchase); err != nil {
 				return err
 			}
 		}
@@ -506,6 +531,139 @@ func (s PaymentService) ProcessPurchaseById(ctx context.Context, purchaseId int6
 	slog.Info("purchase processed", "purchase_id", utils.MaskHalfInt64(purchase.ID), "type", purchase.InvoiceType, "customer_id", utils.MaskHalfInt64(customer.ID))
 
 	return nil
+}
+
+func (s PaymentService) recoverYooKassaRecurringMethod(ctx context.Context, purchase *database.Purchase) error {
+	if purchase.InvoiceType != database.InvoiceTypeYookasa || purchase.IsAutoPayment || !purchase.YookasaPaymentMethodSaved || purchase.YookasaPaymentMethodID == nil || *purchase.YookasaPaymentMethodID == uuid.Nil || purchase.Month <= 0 || purchase.Days != 0 || s.runtimeSettings == nil || !s.runtimeSettings.FeatureEnabled("recurring_payments") {
+		return nil
+	}
+	enrolled, err := s.customerRepository.HasRecurringEnrollment(ctx, purchase.ID, integrations.ProviderYooKassa)
+	if err != nil || !enrolled {
+		return err
+	}
+	if purchase.SubscriptionID != nil && s.subscriptionRepository != nil {
+		subscription, err := s.subscriptionRepository.FindByID(ctx, *purchase.SubscriptionID)
+		if err != nil {
+			return err
+		}
+		if subscription == nil || !subscription.IsPrimary {
+			return nil
+		}
+	}
+	title := "YooKassa"
+	if purchase.YookasaPaymentMethodTitle != nil && strings.TrimSpace(*purchase.YookasaPaymentMethodTitle) != "" {
+		title = strings.TrimSpace(*purchase.YookasaPaymentMethodTitle)
+	}
+	return s.saveRecurringMethod(ctx, database.RecurringMethod{CustomerID: purchase.CustomerID, Provider: integrations.ProviderYooKassa, Reference: purchase.YookasaPaymentMethodID.String(), Title: title, PlanID: purchase.PlanID, SourcePurchaseID: purchase.ID, Months: purchase.Month})
+}
+
+func (s PaymentService) stopManagedRecurringMethod(ctx context.Context, method *database.RecurringMethod) error {
+	if method == nil || !method.Enabled || !integrations.ProviderManagesRecurring(method.Provider) {
+		return nil
+	}
+	if s.integrationGateway == nil || s.integrationSettings == nil {
+		return errors.New("recurring provider is unavailable")
+	}
+	reference, err := s.integrationSettings.DecryptRecurringReference(method.Reference)
+	if err != nil {
+		return err
+	}
+	if err := s.integrationGateway.StopRecurringSubscription(ctx, method.Provider, reference); err != nil {
+		return err
+	}
+	return s.customerRepository.MarkRecurringSubscriptionStopped(ctx, method.Provider, reference)
+}
+
+func (s PaymentService) DisableRecurringMethod(ctx context.Context, customerID int64) error {
+	release, err := s.purchaseRepository.LockAutoPaymentCustomer(ctx, customerID)
+	if err != nil {
+		return err
+	}
+	defer release()
+	method, err := s.customerRepository.FindRecurringMethod(ctx, customerID)
+	if err != nil {
+		return err
+	}
+	active, err := s.customerRepository.ListActiveRecurringSubscriptions(ctx, customerID)
+	if err != nil {
+		return err
+	}
+	stoppedCurrent := false
+	for _, subscription := range active {
+		if s.integrationGateway == nil {
+			return errors.New("recurring provider is unavailable")
+		}
+		if err := s.integrationGateway.StopRecurringSubscription(ctx, subscription.Provider, subscription.ExternalID); err != nil {
+			return err
+		}
+		if err := s.customerRepository.MarkRecurringSubscriptionStopped(ctx, subscription.Provider, subscription.ExternalID); err != nil {
+			return err
+		}
+		if method != nil && method.Provider == subscription.Provider && s.integrationSettings != nil {
+			if reference, err := s.integrationSettings.DecryptRecurringReference(method.Reference); err == nil && reference == subscription.ExternalID {
+				stoppedCurrent = true
+			}
+		}
+	}
+	if !stoppedCurrent {
+		if err := s.stopManagedRecurringMethod(ctx, method); err != nil {
+			return err
+		}
+	}
+	return s.customerRepository.SetRecurringEnabled(ctx, customerID, false)
+}
+
+func (s PaymentService) saveRecurringMethod(ctx context.Context, method database.RecurringMethod) error {
+	previous, err := s.customerRepository.FindRecurringMethod(ctx, method.CustomerID)
+	if err != nil {
+		return err
+	}
+	if previous != nil && previous.SourcePurchaseID > method.SourcePurchaseID {
+		return nil
+	}
+	newManagedReference := ""
+	if integrations.ProviderManagesRecurring(method.Provider) && s.integrationSettings != nil {
+		newManagedReference, err = s.integrationSettings.DecryptRecurringReference(method.Reference)
+		if err != nil {
+			return err
+		}
+	}
+	active, err := s.customerRepository.ListActiveRecurringSubscriptions(ctx, method.CustomerID)
+	if err != nil {
+		return err
+	}
+	previousStopped := false
+	for _, subscription := range active {
+		if subscription.Provider == method.Provider && subscription.ExternalID == newManagedReference {
+			continue
+		}
+		if s.integrationGateway == nil {
+			return errors.New("recurring provider is unavailable")
+		}
+		if err := s.integrationGateway.StopRecurringSubscription(ctx, subscription.Provider, subscription.ExternalID); err != nil {
+			return err
+		}
+		if err := s.customerRepository.MarkRecurringSubscriptionStopped(ctx, subscription.Provider, subscription.ExternalID); err != nil {
+			return err
+		}
+		if previous != nil && previous.Provider == subscription.Provider && s.integrationSettings != nil {
+			if reference, err := s.integrationSettings.DecryptRecurringReference(previous.Reference); err == nil && reference == subscription.ExternalID {
+				previousStopped = true
+			}
+		}
+	}
+	sameReference := previous != nil && previous.Provider == method.Provider && previous.Reference == method.Reference
+	if previous != nil && previous.Provider == method.Provider && integrations.ProviderManagesRecurring(method.Provider) && s.integrationSettings != nil {
+		oldReference, oldErr := s.integrationSettings.DecryptRecurringReference(previous.Reference)
+		newReference, newErr := s.integrationSettings.DecryptRecurringReference(method.Reference)
+		sameReference = oldErr == nil && newErr == nil && oldReference == newReference
+	}
+	if previous != nil && !sameReference && !previousStopped {
+		if err := s.stopManagedRecurringMethod(ctx, previous); err != nil {
+			return err
+		}
+	}
+	return s.customerRepository.SaveRecurringMethod(ctx, method)
 }
 
 func (s PaymentService) grantReferralReward(ctx context.Context, invitedCustomer *database.Customer, eventType string, purchase *database.Purchase) error {
@@ -854,6 +1012,23 @@ func (s PaymentService) CreatePurchaseWithOptions(ctx context.Context, amount fl
 		if err != nil {
 			return "", 0, err
 		}
+		if options.RecurringConsent {
+			channel := firstPaymentChannel(options.PaymentChannels)
+			switch method {
+			case integrations.ProviderPlatega:
+				options.RecurringConsent = channel == "" || channel == "6"
+			case integrations.ProviderFreeKassa:
+				options.RecurringConsent = channel == "" || channel == "36"
+			case integrations.ProviderRollyPay:
+				options.RecurringConsent = channel == "" || channel == "sbp"
+			case integrations.ProviderCisPay:
+				options.RecurringConsent = false
+				if s.integrationSettings != nil {
+					cfg, ok := s.integrationSettings.Config(integrations.ProviderCisPay)
+					options.RecurringConsent = ok && strings.EqualFold(cfg["paymentMethod"], "SBP")
+				}
+			}
+		}
 	}
 	switch invoiceType {
 	case database.InvoiceTypeFree:
@@ -1162,7 +1337,13 @@ func (s PaymentService) createYookasaInvoice(ctx context.Context, amount float64
 	if yookasaClient == nil {
 		return "", 0, errors.New("YooKassa не настроена")
 	}
-	invoice, err := yookasaClient.CreateInvoiceWithMethod(ctx, int(amount), customer.ID, purchaseId, s.buildYookassaReturnURL(purchaseId, options.ReturnTarget), BuildOrderDescription(months, options), firstPaymentChannel(options.PaymentChannels))
+	saveMethod := options.RecurringConsent && s.runtimeSettings != nil && s.runtimeSettings.FeatureEnabled("recurring_payments") && months > 0 && options.DurationDays == 0 && options.PurchaseKind != database.PurchaseKindGift && !options.IsFreePlan && options.ExtraDevices == 0 && options.ExtraTrafficBytes == 0
+	if saveMethod {
+		if err := s.customerRepository.CreateRecurringEnrollment(ctx, purchaseId, integrations.ProviderYooKassa, ""); err != nil {
+			return "", 0, err
+		}
+	}
+	invoice, err := yookasaClient.CreateInvoiceWithMethodAndSave(ctx, int(amount), customer.ID, purchaseId, s.buildYookassaReturnURL(purchaseId, options.ReturnTarget), BuildOrderDescription(months, options), firstPaymentChannel(options.PaymentChannels), saveMethod)
 	if err != nil {
 		slog.Error("Error creating invoice", "error", err)
 		return "", 0, err
@@ -1192,10 +1373,10 @@ func (s PaymentService) createExternalInvoice(ctx context.Context, amount float6
 		return "", 0, fmt.Errorf("unsupported external invoice type: %s", invoiceType)
 	}
 	email := receiptEmail(customer, options.ReceiptEmail)
-	if invoiceType == database.InvoiceTypeAntiloPay {
+	if invoiceType == database.InvoiceTypeAntiloPay || (invoiceType == database.InvoiceTypeWata || invoiceType == database.InvoiceTypeLava) && options.RecurringConsent && s.runtimeSettings != nil && s.runtimeSettings.FeatureEnabled("recurring_payments") {
 		address, err := mail.ParseAddress(email)
 		if err != nil || address.Address != email {
-			return "", 0, errors.New("AntiloPay: укажите корректный email покупателя")
+			return "", 0, errors.New("укажите корректный email покупателя")
 		}
 	}
 	purchaseID, err := s.purchaseRepository.Create(ctx, &database.Purchase{
@@ -1221,22 +1402,37 @@ func (s PaymentService) createExternalInvoice(ctx context.Context, amount float6
 		return "", 0, err
 	}
 	username, _ := ctx.Value("username").(string)
+	recurringMonths := 0
+	if options.RecurringConsent && s.runtimeSettings != nil && s.runtimeSettings.FeatureEnabled("recurring_payments") && (provider == integrations.ProviderCloudPayments || provider == integrations.ProviderWata || provider == integrations.ProviderCisPay && months*config.DaysInMonth() <= 360 || provider == integrations.ProviderLava && (months == 1 || months == 3 || months == 6 || months == 12) || provider == integrations.ProviderRollyPay && (months == 1 || months == 3 || months == 6 || months == 12) || provider == integrations.ProviderPlatega && months <= 12 || provider == integrations.ProviderFreeKassa && (months == 1 || months == 12)) && months > 0 && options.DurationDays == 0 && options.PurchaseKind != database.PurchaseKindGift && !options.IsFreePlan && options.ExtraDevices == 0 && options.ExtraTrafficBytes == 0 {
+		if err := s.customerRepository.CreateRecurringEnrollment(ctx, purchaseID, provider, options.RecurringPhone); err != nil {
+			return "", 0, err
+		}
+		recurringMonths = months
+	}
 	created, err := s.integrationGateway.Create(ctx, integrations.CreatePaymentRequest{
 		Channels: options.PaymentChannels,
 		Provider: provider, PurchaseID: purchaseID, Amount: amount, Currency: "RUB",
-		Description: BuildOrderDescription(months, options), CustomerID: customer.ID,
-		Email: email, ClientIP: options.ClientIP,
-		Username: strings.TrimSpace(username), ReturnURL: s.buildYookassaReturnURL(purchaseID, options.ReturnTarget),
+		Description: BuildOrderDescription(months, options), CustomerID: customer.ID, TelegramID: customer.TelegramID,
+		Email: email, Phone: options.RecurringPhone, ClientIP: options.ClientIP,
+		RecurringMonths:      recurringMonths,
+		RecurringDaysInMonth: config.DaysInMonth(),
+		Username:             strings.TrimSpace(username), ReturnURL: s.buildYookassaReturnURL(purchaseID, options.ReturnTarget),
 	})
 	if err != nil {
 		return "", 0, err
 	}
-	if err := s.purchaseRepository.UpdateFields(ctx, purchaseID, map[string]interface{}{
-		"external_payment_id":  created.ExternalID,
-		"external_payment_url": created.URL,
-		"status":               database.PurchaseStatusPending,
-	}); err != nil {
+	if recurringMonths > 0 && (provider == integrations.ProviderLava || provider == integrations.ProviderPlatega || provider == integrations.ProviderRollyPay || provider == integrations.ProviderCisPay) && created.RecurringReference != "" {
+		if err := s.customerRepository.SaveRecurringSubscription(ctx, database.RecurringSubscription{Provider: provider, ExternalID: created.RecurringReference, CustomerID: customer.ID, SourcePurchaseID: purchaseID, PlanID: optionalTrimmedStringPointer(options.PlanID), Months: months, Amount: amount}); err != nil {
+			return "", 0, err
+		}
+	}
+	if err := s.purchaseRepository.SetExternalPaymentCreated(ctx, purchaseID, created.ExternalID, created.URL); err != nil {
 		return "", 0, err
+	}
+	if created.RecurringReference != "" {
+		if err := s.customerRepository.SetRecurringEnrollmentReference(ctx, purchaseID, provider, created.RecurringReference); err != nil {
+			return "", 0, err
+		}
 	}
 	return created.URL, purchaseID, nil
 }
@@ -1330,6 +1526,9 @@ func (s PaymentService) ProcessExternalWebhook(ctx context.Context, provider str
 	if event.Ignored {
 		return "OK", nil
 	}
+	if event.SubscriptionID != "" && integrations.ProviderManagesRecurring(provider) {
+		return s.processManagedRecurringWebhook(ctx, provider, event)
+	}
 	invoiceType, ok := invoiceTypeForIntegrationProvider(provider)
 	if !ok {
 		return "", fmt.Errorf("unsupported webhook provider: %s", provider)
@@ -1346,7 +1545,7 @@ func (s PaymentService) ProcessExternalWebhook(ctx context.Context, provider str
 	if purchase == nil || purchase.InvoiceType != invoiceType {
 		return "", errors.New("purchase not found")
 	}
-	if purchase.ExternalPaymentID != nil && event.ExternalID != "" && *purchase.ExternalPaymentID != event.ExternalID {
+	if purchase.ExternalPaymentID != nil && event.ExternalID != "" && *purchase.ExternalPaymentID != event.ExternalID && provider != integrations.ProviderFreeKassa && provider != integrations.ProviderKassaAI {
 		return "", errors.New("external payment ID mismatch")
 	}
 	if !webhookAmountMatches(provider, event.Amount, purchase.Amount) {
@@ -1366,6 +1565,55 @@ func (s PaymentService) ProcessExternalWebhook(ctx context.Context, provider str
 			return "", err
 		}
 	}
+	if event.Paid && provider == integrations.ProviderCloudPayments && event.RecurringToken != "" && !purchase.IsAutoPayment && purchase.Month > 0 && purchase.Days == 0 && purchase.PurchaseKind == database.PurchaseKindSubscription && s.runtimeSettings != nil && s.runtimeSettings.FeatureEnabled("recurring_payments") {
+		enrolled, err := s.customerRepository.HasRecurringEnrollment(ctx, purchase.ID, provider)
+		if err != nil {
+			return "", err
+		}
+		if !enrolled {
+			return `{"code":0}`, nil
+		}
+		if s.integrationSettings == nil {
+			return "", errors.New("recurring token encryption is unavailable")
+		}
+		if purchase.SubscriptionID != nil && s.subscriptionRepository != nil {
+			subscription, err := s.subscriptionRepository.FindByID(ctx, *purchase.SubscriptionID)
+			if err != nil {
+				return "", err
+			}
+			if subscription != nil && subscription.IsPrimary {
+				if err := s.saveCloudPaymentsRecurringMethod(ctx, purchase, event); err != nil {
+					return "", err
+				}
+			}
+		} else if purchase.SubscriptionID == nil {
+			if err := s.saveCloudPaymentsRecurringMethod(ctx, purchase, event); err != nil {
+				return "", err
+			}
+		}
+	}
+	if event.Paid && provider == integrations.ProviderFreeKassa && !purchase.IsAutoPayment && (purchase.Month == 1 || purchase.Month == 12) && purchase.Days == 0 && purchase.PurchaseKind == database.PurchaseKindSubscription && s.runtimeSettings != nil && s.runtimeSettings.FeatureEnabled("recurring_payments") {
+		reference, err := s.customerRepository.RecurringEnrollmentReference(ctx, purchase.ID, provider)
+		if err != nil {
+			return "", err
+		}
+		if reference != "" {
+			if purchase.SubscriptionID != nil && s.subscriptionRepository != nil {
+				subscription, err := s.subscriptionRepository.FindByID(ctx, *purchase.SubscriptionID)
+				if err != nil {
+					return "", err
+				}
+				if subscription == nil || !subscription.IsPrimary {
+					reference = ""
+				}
+			}
+			if reference != "" {
+				if err := s.saveFreeKassaRecurringMethod(ctx, purchase, reference); err != nil {
+					return "", err
+				}
+			}
+		}
+	}
 	if provider == integrations.ProviderFreeKassa || provider == integrations.ProviderKassaAI {
 		return "YES", nil
 	}
@@ -1373,6 +1621,33 @@ func (s PaymentService) ProcessExternalWebhook(ctx context.Context, provider str
 		return `{"code":0}`, nil
 	}
 	return "OK", nil
+}
+
+func (s PaymentService) saveCloudPaymentsRecurringMethod(ctx context.Context, purchase *database.Purchase, event integrations.WebhookPayment) error {
+	reference, err := s.integrationSettings.EncryptRecurringReference(event.RecurringToken)
+	if err != nil {
+		return err
+	}
+	title := strings.TrimSpace(event.RecurringTitle)
+	if title == "" || strings.HasSuffix(title, "••••") {
+		title = "CloudPayments"
+	}
+	phone, err := s.customerRepository.RecurringEnrollmentPhone(ctx, purchase.ID, integrations.ProviderCloudPayments)
+	if err != nil {
+		return err
+	}
+	return s.saveRecurringMethod(ctx, database.RecurringMethod{CustomerID: purchase.CustomerID, Provider: integrations.ProviderCloudPayments, Reference: reference, Title: title, PayerPhone: optionalTrimmedStringPointer(phone), PlanID: purchase.PlanID, SourcePurchaseID: purchase.ID, Months: purchase.Month})
+}
+
+func (s PaymentService) saveFreeKassaRecurringMethod(ctx context.Context, purchase *database.Purchase, reference string) error {
+	if s.integrationSettings == nil {
+		return errors.New("recurring token encryption is unavailable")
+	}
+	encrypted, err := s.integrationSettings.EncryptRecurringReference(reference)
+	if err != nil {
+		return err
+	}
+	return s.saveRecurringMethod(ctx, database.RecurringMethod{CustomerID: purchase.CustomerID, Provider: integrations.ProviderFreeKassa, Reference: encrypted, Title: "FreeKassa", PlanID: purchase.PlanID, SourcePurchaseID: purchase.ID, Months: purchase.Month})
 }
 
 func webhookAmountMatches(provider string, paidAmount, expectedAmount float64) bool {
@@ -1758,7 +2033,7 @@ func (s PaymentService) buildAutoPaymentCustomerUpdates(customer *database.Custo
 	if customer != nil && purchase != nil && purchase.Days > 0 {
 		return map[string]interface{}{"autopay_enabled": false, "autopay_plan_months": nil}
 	}
-	if !config.EnableAutoPayment() || customer == nil || purchase == nil || purchase.InvoiceType != database.InvoiceTypeYookasa {
+	if customer == nil || purchase == nil || purchase.InvoiceType != database.InvoiceTypeYookasa || purchase.Month <= 0 || purchase.PurchaseKind == database.PurchaseKindGift {
 		return nil
 	}
 
@@ -1971,14 +2246,38 @@ func (s PaymentService) createTributeInvoice(ctx context.Context, amount float64
 }
 
 func (s PaymentService) ProcessAutoPayment(ctx context.Context, customer *database.Customer) error {
-	if !config.EnableAutoPayment() || customer == nil {
+	if customer == nil {
 		return nil
+	}
+	release, err := s.purchaseRepository.LockAutoPaymentCustomer(ctx, customer.ID)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if unlockErr := release(); unlockErr != nil {
+			slog.Error("release auto payment lock", "error", unlockErr, "customerId", utils.MaskHalfInt64(customer.ID))
+		}
+	}()
+	customer, err = s.customerRepository.FindById(ctx, customer.ID)
+	if err != nil || customer == nil {
+		return err
+	}
+	method, err := s.customerRepository.FindRecurringMethod(ctx, customer.ID)
+	if err != nil {
+		return err
+	}
+	if method == nil || !method.Enabled || (method.Provider != integrations.ProviderYooKassa && method.Provider != integrations.ProviderCloudPayments && method.Provider != integrations.ProviderFreeKassa) {
+		return nil
+	}
+	var paymentMethodID uuid.UUID
+	if method.Provider == integrations.ProviderYooKassa {
+		paymentMethodID, err = uuid.Parse(method.Reference)
+		if err != nil {
+			return fmt.Errorf("invalid saved YooKassa payment method: %w", err)
+		}
 	}
 	now := time.Now().UTC()
-	if !customer.AutoPaymentEnabled || customer.YookasaPaymentMethodID == nil || customer.AutoPaymentPlanMonths == nil {
-		return nil
-	}
-	if *customer.YookasaPaymentMethodID == uuid.Nil || *customer.AutoPaymentPlanMonths <= 0 {
+	if (method.Provider == integrations.ProviderYooKassa && paymentMethodID == uuid.Nil) || method.Months <= 0 {
 		return nil
 	}
 	if customer.ExpireAt == nil || customer.ExpireAt.After(now) {
@@ -1988,16 +2287,30 @@ func (s PaymentService) ProcessAutoPayment(ctx context.Context, customer *databa
 		return nil
 	}
 
-	hasPending, err := s.purchaseRepository.HasPendingAutoPaymentByCustomer(ctx, customer.ID)
+	pendingPurchase, err := s.purchaseRepository.FindPendingAutoPaymentByCustomer(ctx, customer.ID)
 	if err != nil {
 		return err
 	}
-	if hasPending {
+	if pendingPurchase != nil {
+		if method.Provider == integrations.ProviderYooKassa && pendingPurchase.InvoiceType == database.InvoiceTypeYookasa && pendingPurchase.YookasaID == nil && pendingPurchase.YookasaPaymentMethodID != nil && *pendingPurchase.YookasaPaymentMethodID == paymentMethodID {
+			return s.chargeYooKassaAutoPayment(ctx, customer, pendingPurchase, paymentMethodID)
+		}
 		return nil
 	}
 
-	months := *customer.AutoPaymentPlanMonths
+	months := method.Months
 	amount := config.Price(months)
+	if s.runtimeSettings != nil {
+		planID := ""
+		if method.PlanID != nil {
+			planID = *method.PlanID
+		}
+		if plan, ok := s.runtimeSettings.CheckoutPlan(planID, months); ok && plan.Months == months {
+			amount = plan.PriceRub
+		} else if method.PlanID != nil {
+			return fmt.Errorf("autopay plan %q is no longer available", planID)
+		}
+	}
 	if amount <= 0 {
 		return fmt.Errorf("autopay plan %d has no configured price", months)
 	}
@@ -2007,19 +2320,29 @@ func (s PaymentService) ProcessAutoPayment(ctx context.Context, customer *databa
 		return err
 	}
 
+	invoiceType := database.InvoiceTypeYookasa
+	if method.Provider == integrations.ProviderCloudPayments {
+		invoiceType = database.InvoiceTypeCloudPayments
+	} else if method.Provider == integrations.ProviderFreeKassa {
+		invoiceType = database.InvoiceTypeFreeKassa
+	}
 	purchase := &database.Purchase{
-		InvoiceType:               database.InvoiceTypeYookasa,
+		InvoiceType:               invoiceType,
 		Status:                    database.PurchaseStatusNew,
 		Amount:                    float64(amount),
 		Currency:                  "RUB",
 		CustomerID:                customer.ID,
 		Month:                     months,
+		PlanID:                    method.PlanID,
 		AgreementAccepted:         true,
 		IsAutoPayment:             true,
-		YookasaPaymentMethodID:    customer.YookasaPaymentMethodID,
+		YookasaPaymentMethodID:    nil,
 		YookasaPaymentMethodType:  customer.YookasaPaymentMethodType,
-		YookasaPaymentMethodTitle: customer.YookasaPaymentMethodTitle,
-		YookasaPaymentMethodSaved: true,
+		YookasaPaymentMethodTitle: &method.Title,
+		YookasaPaymentMethodSaved: method.Provider == integrations.ProviderYooKassa,
+	}
+	if method.Provider == integrations.ProviderYooKassa {
+		purchase.YookasaPaymentMethodID = &paymentMethodID
 	}
 	if lastPurchase != nil {
 		purchase.ParentPurchaseID = &lastPurchase.ID
@@ -2030,22 +2353,28 @@ func (s PaymentService) ProcessAutoPayment(ctx context.Context, customer *databa
 		return err
 	}
 	purchase.ID = purchaseID
+	if method.Provider == integrations.ProviderCloudPayments || method.Provider == integrations.ProviderFreeKassa {
+		return s.processExternalAutoPayment(ctx, customer, purchase, method, amount)
+	}
 
+	return s.chargeYooKassaAutoPayment(ctx, customer, purchase, paymentMethodID)
+}
+
+func (s PaymentService) chargeYooKassaAutoPayment(ctx context.Context, customer *database.Customer, purchase *database.Purchase, paymentMethodID uuid.UUID) error {
 	yookasaClient := s.currentYookasaClient()
 	if yookasaClient == nil {
 		return errors.New("YooKassa не настроена")
 	}
-	charge, err := yookasaClient.ChargeSavedPaymentMethod(ctx, amount, customer.ID, purchaseID, *customer.YookasaPaymentMethodID, BuildOrderDescription(months, CreatePurchaseOptions{}))
+	charge, err := yookasaClient.ChargeSavedPaymentMethod(ctx, int(purchase.Amount), customer.ID, purchase.ID, paymentMethodID, BuildOrderDescription(purchase.Month, CreatePurchaseOptions{}))
 	if err != nil {
-		_ = s.purchaseRepository.UpdateFields(ctx, purchaseID, map[string]interface{}{
-			"status": database.PurchaseStatusCancel,
-		})
+		// A timeout can happen after the provider accepted the payment. Retrying
+		// this same purchase uses the same YooKassa idempotency key.
+		_ = s.purchaseRepository.UpdateFields(ctx, purchase.ID, map[string]interface{}{"status": database.PurchaseStatusPending})
 		_ = s.customerRepository.UpdateFields(ctx, customer.ID, map[string]interface{}{
 			"yookasa_last_charge_at":     time.Now().UTC(),
-			"yookasa_last_charge_status": string(database.PurchaseStatusCancel),
+			"yookasa_last_charge_status": string(database.PurchaseStatusPending),
 			"yookasa_last_charge_error":  trimAutoPaymentError(err.Error()),
 		})
-		s.notifyAutoPaymentFailure(ctx, customer, trimAutoPaymentError(err.Error()))
 		return err
 	}
 
@@ -2053,7 +2382,7 @@ func (s PaymentService) ProcessAutoPayment(ctx context.Context, customer *databa
 		"yookasa_id": charge.ID,
 		"status":     database.PurchaseStatusPending,
 	}
-	if err := s.purchaseRepository.UpdateFields(ctx, purchaseID, updates); err != nil {
+	if err := s.purchaseRepository.UpdateFields(ctx, purchase.ID, updates); err != nil {
 		return err
 	}
 	purchase.YookasaID = &charge.ID
@@ -2064,7 +2393,7 @@ func (s PaymentService) ProcessAutoPayment(ctx context.Context, customer *databa
 	}
 
 	if charge.IsCancelled() {
-		_ = s.purchaseRepository.UpdateFields(ctx, purchaseID, map[string]interface{}{
+		_ = s.purchaseRepository.UpdateFields(ctx, purchase.ID, map[string]interface{}{
 			"status": database.PurchaseStatusCancel,
 		})
 		_ = s.customerRepository.UpdateFields(ctx, customer.ID, map[string]interface{}{
@@ -2077,10 +2406,10 @@ func (s PaymentService) ProcessAutoPayment(ctx context.Context, customer *databa
 	}
 
 	if charge.Paid {
-		if err := s.ProcessPurchaseById(ctx, purchaseID); err != nil {
+		if err := s.ProcessPurchaseById(ctx, purchase.ID); err != nil {
 			return err
 		}
-		s.notifyAutoPaymentSuccess(ctx, customer, months)
+		s.notifyAutoPaymentSuccess(ctx, customer, purchase.Month)
 		return nil
 	}
 
@@ -2090,6 +2419,48 @@ func (s PaymentService) ProcessAutoPayment(ctx context.Context, customer *databa
 		"yookasa_last_charge_error":  nil,
 	})
 
+	return nil
+}
+
+func (s PaymentService) processExternalAutoPayment(ctx context.Context, customer *database.Customer, purchase *database.Purchase, method *database.RecurringMethod, amount int) error {
+	if s.integrationGateway == nil || s.integrationSettings == nil {
+		return errors.New("Платёжная интеграция не настроена")
+	}
+	token, err := s.integrationSettings.DecryptRecurringReference(method.Reference)
+	if err != nil || token == "" {
+		return errors.New("не удалось прочитать сохранённый способ оплаты")
+	}
+	if err := s.purchaseRepository.UpdateFields(ctx, purchase.ID, map[string]interface{}{"status": database.PurchaseStatusPending}); err != nil {
+		return err
+	}
+	phone := ""
+	if method.PayerPhone != nil {
+		phone = *method.PayerPhone
+	}
+	charge, err := s.integrationGateway.ChargeRecurring(ctx, method.Provider, customer.ID, purchase.ID, token, amount, BuildOrderDescription(method.Months, CreatePurchaseOptions{}), phone)
+	if err != nil {
+		// The gateway may have charged the card before a network error. Keep this
+		// purchase pending until a signed webhook or manual reconciliation arrives.
+		return err
+	}
+	if charge.ExternalID != "" {
+		if err := s.purchaseRepository.UpdateFields(ctx, purchase.ID, map[string]interface{}{"external_payment_id": charge.ExternalID}); err != nil {
+			return err
+		}
+	}
+	if charge.Declined {
+		_ = s.purchaseRepository.UpdateFields(ctx, purchase.ID, map[string]interface{}{"status": database.PurchaseStatusCancel})
+		_ = s.customerRepository.UpdateFields(ctx, customer.ID, map[string]interface{}{"yookasa_last_charge_at": time.Now().UTC(), "yookasa_last_charge_status": string(database.PurchaseStatusCancel), "yookasa_last_charge_error": "cloudpayments_declined"})
+		s.notifyAutoPaymentFailure(ctx, customer, "")
+		return nil
+	}
+	_ = s.customerRepository.UpdateFields(ctx, customer.ID, map[string]interface{}{"yookasa_last_charge_at": time.Now().UTC(), "yookasa_last_charge_status": string(database.PurchaseStatusPending), "yookasa_last_charge_error": nil})
+	if charge.Paid {
+		if err := s.ProcessPurchaseById(ctx, purchase.ID); err != nil {
+			return err
+		}
+		s.notifyAutoPaymentSuccess(ctx, customer, method.Months)
+	}
 	return nil
 }
 

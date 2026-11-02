@@ -76,6 +76,10 @@ func (c *Client) CreateInvoice(ctx context.Context, amount int, customerId int64
 }
 
 func (c *Client) CreateInvoiceWithMethod(ctx context.Context, amount int, customerId int64, purchaseId int64, returnURL, description, method string) (*Payment, error) {
+	return c.CreateInvoiceWithMethodAndSave(ctx, amount, customerId, purchaseId, returnURL, description, method, false)
+}
+
+func (c *Client) CreateInvoiceWithMethodAndSave(ctx context.Context, amount int, customerId int64, purchaseId int64, returnURL, description, method string, saveMethod bool) (*Payment, error) {
 	rub := Amount{
 		Value:    strconv.Itoa(amount),
 		Currency: "RUB",
@@ -106,7 +110,7 @@ func (c *Client) CreateInvoiceWithMethod(ctx context.Context, amount int, custom
 		receipt,
 		metaData,
 	)
-	paymentRequest.SavePaymentMethod = false
+	paymentRequest.SavePaymentMethod = saveMethod
 	if method != "" {
 		paymentRequest.PaymentMethodData = &PaymentMethodData{Type: method}
 	}
@@ -154,7 +158,9 @@ func (c *Client) ChargeSavedPaymentMethod(ctx context.Context, amount int, custo
 		Metadata:          metaData,
 	}
 
-	payment, err := c.CreatePayment(ctx, request, uuid.New().String())
+	// A retry for the same purchase must not create a second debit.
+	idempotenceKey := uuid.NewSHA1(uuid.NameSpaceURL, []byte(fmt.Sprintf("link-bot:auto-payment:%d", purchaseId))).String()
+	payment, err := c.CreatePayment(ctx, request, idempotenceKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create recurring payment: %w", err)
 	}

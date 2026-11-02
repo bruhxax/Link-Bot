@@ -636,15 +636,23 @@ func setupInvoiceChecker(
 		panic(err)
 	}
 
-	if config.IsYookasaEnabled() && config.EnableAutoPayment() {
-		_, err := c.AddFunc("15 * * * * *", func() {
-			ctx := context.Background()
-			checkAutoPayments(ctx, customerRepository, paymentService)
-		})
+	_, err = c.AddFunc("15 * * * * *", func() {
+		ctx := context.Background()
+		checkAutoPayments(ctx, customerRepository, paymentService)
+	})
+	if err != nil {
+		panic(err)
+	}
 
-		if err != nil {
-			panic(err)
+	_, err = c.AddFunc("35 * * * * *", func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
+		defer cancel()
+		if err := paymentService.SyncLavaRecurringSubscriptions(ctx); err != nil {
+			slog.Error("LAVA recurring sync failed", "error", err)
 		}
+	})
+	if err != nil {
+		panic(err)
 	}
 
 	return c

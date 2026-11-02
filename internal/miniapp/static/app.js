@@ -2376,6 +2376,8 @@ const state = {
   supportPendingMediaURL: "",
   supportMediaViewer: null,
   paymentAgreementAccepted: false,
+  recurringConsent: false,
+  recurringPhoneDraft: "",
   promoCodeDraft: "",
 	profilePromoOpen: false,
 	profilePromoClosing: false,
@@ -7249,6 +7251,7 @@ function renderAdminFeaturesPage() {
 				["google", "Gmail", "Авторизация через Google"],
 				["email_auth", "Вход по почте", "Вход и регистрация по почте в веб-кабинете"],
 				["stars", "Telegram Stars", "Оплата звёздами Telegram"],
+				["recurring_payments", "Рекуррентные платежи", "Сохранять способ при новых оплатах у поддерживаемых платёжек. Уже подключённые автоплатежи продолжаются после выключения."],
 				["trials", "Триалы", "Бесплатный пробный доступ"],
 				["support", "Поддержка", "Обращения пользователей"],
 				["promocodes", "Промокоды", "Скидки при покупке"],
@@ -9668,6 +9671,20 @@ function renderSubscriptionDeleteModal() {
 	return `<div class="modal open ${modalStateClass("subscription-delete")}" role="alertdialog" aria-modal="true" aria-labelledby="subscription-delete-title" aria-describedby="subscription-delete-description"><button class="modal__backdrop" type="button" data-action="close-subscription-delete" aria-label="${escapeAttribute(cancel)}"></button><div class="modal__sheet modal__sheet--subscription-delete"><div class="modal__header"><div class="modal__title" id="subscription-delete-title">${escapeHtml(title)}</div><button class="header__btn" type="button" data-action="close-subscription-delete" aria-label="${escapeAttribute(cancel)}">${icon("close")}</button></div><p class="subscription-delete__description" id="subscription-delete-description">${escapeHtml(body)}</p><div class="subscription-editor__actions"><button class="btn" type="button" data-action="close-subscription-delete" ${state.subscriptionBusy ? "disabled" : ""}>${escapeHtml(cancel)}</button><button class="btn subscription-delete__confirm" type="button" data-action="confirm-subscription-delete" ${state.subscriptionBusy ? "disabled" : ""}>${icon(state.subscriptionBusy ? "refresh" : "trash")}${escapeHtml(remove)}</button></div></div></div>`;
 }
 
+function recurringCheckoutEligible(method, plan, devicePack, trafficPack) {
+	const provider = paymentMethodBase(method?.id);
+	const months = Number(plan?.months || 0);
+	const channel = selectedPaymentChannel(method?.id);
+	return !state.adminPlanEditing && featureEnabled("recurring_payments") && months > 0 && Number(plan?.priceRub || 0) > 0 && !Number(plan?.days || 0) && !devicePack && !trafficPack && (
+		["sbp", "card", "cloudpayments", "wata"].includes(provider) ||
+		(provider === "lava" && [1, 3, 6, 12].includes(months)) ||
+		(provider === "cispay" && method?.recurringSupported && months <= Number(method.recurringMaxMonths || 0)) ||
+		(provider === "rollypay" && method?.recurringSupported && [1, 3, 6, 12].includes(months) && ["", "sbp"].includes(channel)) ||
+		(provider === "platega" && months <= 12 && ["", "6"].includes(channel)) ||
+		(provider === "freekassa" && method?.recurringSupported && [1, 12].includes(months) && ["", "36"].includes(channel))
+	);
+}
+
 function renderBuyPage() {
   const copy = t();
   const plan = getSelectedPlan();
@@ -9702,6 +9719,8 @@ function renderBuyPage() {
 	? localizedText(`Порядок отображения · ${getAdminPaymentMethods().length}`, `Display order · ${getAdminPaymentMethods().length}`, `ترتیب نمایش · ${getAdminPaymentMethods().length}`)
 	: method?.hint || copy.noPaymentMethodsHint;
   const checkoutDisabled = !plan || (!freeCheckout && !method) || state.busyMethod || state.adminPlanEditing;
+  const recurringEligible = recurringCheckoutEligible(method, plan, devicePack, trafficPack);
+  const recurringPrice = plan ? (["lava", "wata", "platega", "rollypay", "cispay"].includes(paymentMethodBase(method?.id)) ? formatCheckoutPrice(plan, null, method?.id) : formatCurrency(Number(plan.priceRub || 0), state.locale)) : "";
   const checkout = `<div class="card--checkout checkout-sections">
 		<section class="card checkout-section checkout-selection">
 		<div class="summary-row checkout-summary"><div><div class="summary-row__title">${copy.selectedPlan}</div><div class="summary-row__value" data-text-transition="checkout-plan">${plan ? escapeHtml(getPlanDisplayTitle(plan, state.locale)) : "—"}</div></div>${plan?.recommended ? `<span class="badge badge--inline">${copy.best}</span>` : plan?.savingsPercent ? `<span class="badge badge--inline">${copy.savings(plan.savingsPercent)}</span>` : ""}</div>
@@ -9724,6 +9743,8 @@ function renderBuyPage() {
 		  <div data-promo-reward-action>${renderPromoRewardAction()}</div>
         </div>` : ""}
 		${state.data.meta?.starsNeedPriorPurchase && !freeCheckout ? `<div class="note">${copy.starsNeedPriorPurchase}</div>` : ""}
+		${recurringEligible ? `<label class="checkout-recurring"><input type="checkbox" data-input="recurring-consent" ${state.recurringConsent ? "checked" : ""}><span><strong>${escapeHtml(localizedText("Автопродление", "Auto renewal", "تمدید خودکار"))}</strong><small>${escapeHtml(localizedText(`После окончания тарифа спишем ${recurringPrice} за следующий период. Отключить можно в «Платежах».`, `We will charge ${recurringPrice} for the next period when this plan ends. You can turn this off in Payments.`, `پس از پایان دوره، ${recurringPrice} برای دوره بعد دریافت می‌شود. در پرداخت‌ها می‌توانید آن را غیرفعال کنید.`))}</small></span></label>` : ""}
+		${recurringEligible && state.recurringConsent && ["cloudpayments", "wata"].includes(paymentMethodBase(method?.id)) ? `<label class="checkout-recurring-phone"><span>${escapeHtml(localizedText("Телефон для автосписания", "Phone for automatic charges", "تلفن برای پرداخت خودکار"))}</span><input type="tel" inputmode="tel" autocomplete="tel" data-input="recurring-phone" placeholder="+79991234567" value="${escapeAttribute(state.recurringPhoneDraft)}"></label>` : ""}
 		<button class="btn btn--green-filled buy-action" type="button" data-action="pay-selected" ${checkoutDisabled ? "disabled aria-disabled=\"true\"" : ""}>${icon(state.busyMethod ? "refresh" : "cart")}<span data-price-transition>${escapeHtml(payLabel)}</span></button>
         </div>
 		</section>
@@ -10686,15 +10707,47 @@ function renderPaymentsPage() {
   const copy = t();
   const payments = state.data?.payments || {};
   const history = Array.isArray(payments.history) ? payments.history : [];
+  const method = payments.method?.title || localizedText("Способ не сохранён", "No saved method", "روش پرداخت ذخیره نشده");
+  const canToggle = Boolean(payments.hasPaymentMethod && payments.method);
+  const hint = payments.method?.pending
+    ? localizedText("Ожидает первого платежа. Можно отменить здесь.", "Waiting for the first payment. You can cancel here.", "در انتظار اولین پرداخت. می‌توانید اینجا لغو کنید.")
+    : canToggle
+    ? localizedText("Продление подписки после окончания тарифа", "Renew your subscription when the plan ends", "تمدید اشتراک پس از پایان دوره")
+    : payments.enabled
+      ? localizedText("Способ появится после оплаты через платёжку с рекурентами", "A method will appear after a payment with a supported provider", "روش پس از پرداخت با ارائه‌دهنده پشتیبانی‌شده ظاهر می‌شود")
+      : localizedText("Сохранение новых способов отключено", "Saving new methods is disabled", "ذخیره روش‌های جدید غیرفعال است");
 
   return `
     <section class="page ${pageClass("payments")}" id="page-payments">
+      <label class="payments-autorenew card">
+        <span class="payments-autorenew__copy"><strong>${escapeHtml(copy.autopayTitle || "Автоплатёж")}</strong><small>${escapeHtml(method)}</small><em>${escapeHtml(hint)}</em></span>
+        <input type="checkbox" role="switch" data-input="payments-autopay" aria-label="${escapeAttribute(copy.autopayTitle || "Автоплатёж")}" ${payments.autoPaymentEnabled ? "checked" : ""} ${!canToggle || state.paymentsAutoBusy ? "disabled" : ""}>
+        <span class="payments-autorenew__track" aria-hidden="true"><i></i></span>
+      </label>
       <div class="card payments-history">
         <div class="section-label">${escapeHtml(copy.paymentHistory || "Purchase history")}</div>
         ${history.length ? `<div class="payment-list">${history.map((item) => renderPaymentHistoryItem(item)).join("")}</div>` : `<div class="empty-state"><div class="empty-state__icon">${icon("historyTickets")}</div><div class="empty-state__title">${escapeHtml(copy.paymentHistoryEmpty || "No purchases yet")}</div></div>`}
       </div>
     </section>
   `;
+}
+
+async function togglePaymentsAutoRenew(enabled) {
+  if (state.paymentsAutoBusy) return;
+  state.paymentsAutoBusy = true;
+  render({ preserveScroll: true });
+  try {
+    const response = previewMode
+      ? { data: { ...state.data.payments, autoPaymentEnabled: enabled } }
+      : await post("/api/mini-app/payments/autopay", { enabled });
+    state.data.payments = response.data;
+    showToast(localizedText(enabled ? "Автоплатёж включён" : "Автоплатёж выключен", enabled ? "Autopay enabled" : "Autopay disabled", enabled ? "پرداخت خودکار فعال شد" : "پرداخت خودکار غیرفعال شد"), "success");
+  } catch (error) {
+    showToast(error?.message || t().errorTitle, "danger");
+  } finally {
+    state.paymentsAutoBusy = false;
+    render({ preserveScroll: true });
+  }
 }
 
 function renderTermsPage() {
@@ -11607,7 +11660,9 @@ function telegramMarkupToText(value) {
 
 function renderPaymentContactModal() {
 	const close = localizedText("Отмена", "Cancel", "لغو");
-	return `<div class="modal open ${modalStateClass("payment-contact")}" role="dialog" aria-modal="true" aria-labelledby="payment-contact-title"><button class="modal__backdrop" type="button" data-action="close-payment-contact" aria-label="${escapeAttribute(close)}"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title" id="payment-contact-title">${localizedText("Email для оплаты", "Payment email", "ایمیل پرداخت")}</div><button class="header__btn" type="button" data-action="close-payment-contact" aria-label="${escapeAttribute(close)}">${icon("close")}</button></div><p class="note">${localizedText("AntiloPay требует email покупателя для создания платежа.", "AntiloPay requires the buyer’s email to create a payment.", "AntiloPay برای ایجاد پرداخت به ایمیل خریدار نیاز دارد.")}</p><label class="support-field"><span class="support-field__label">Email</span><input id="payment-contact-email" class="support-field__input" type="email" maxlength="254" autocomplete="email" inputmode="email" enterkeyhint="done" data-input="receipt-email" value="${escapeAttribute(state.receiptEmailDraft)}" placeholder="name@example.com"></label><div class="subscription-editor__actions"><button class="btn" type="button" data-action="close-payment-contact">${escapeHtml(close)}</button><button class="btn btn--green-filled" type="button" data-action="confirm-payment-contact">${localizedText("Продолжить", "Continue", "ادامه")}${icon("arrow")}</button></div></div></div>`;
+	const provider = paymentMethodBase(getSelectedPaymentMethod()?.id);
+	const emailHint = provider === "wata" || provider === "lava" ? localizedText("Укажите email для оформления автопродления.", "Enter an email for automatic renewal.", "برای تمدید خودکار ایمیل وارد کنید.") : localizedText("AntiloPay требует email покупателя для создания платежа.", "AntiloPay requires the buyer’s email to create a payment.", "AntiloPay برای ایجاد پرداخت به ایمیل خریدار نیاز دارد.");
+	return `<div class="modal open ${modalStateClass("payment-contact")}" role="dialog" aria-modal="true" aria-labelledby="payment-contact-title"><button class="modal__backdrop" type="button" data-action="close-payment-contact" aria-label="${escapeAttribute(close)}"></button><div class="modal__sheet"><div class="modal__header"><div class="modal__title" id="payment-contact-title">${localizedText("Email для оплаты", "Payment email", "ایمیل پرداخت")}</div><button class="header__btn" type="button" data-action="close-payment-contact" aria-label="${escapeAttribute(close)}">${icon("close")}</button></div><p class="note">${emailHint}</p><label class="support-field"><span class="support-field__label">Email</span><input id="payment-contact-email" class="support-field__input" type="email" maxlength="254" autocomplete="email" inputmode="email" enterkeyhint="done" data-input="receipt-email" value="${escapeAttribute(state.receiptEmailDraft)}" placeholder="name@example.com"></label><div class="subscription-editor__actions"><button class="btn" type="button" data-action="close-payment-contact">${escapeHtml(close)}</button><button class="btn btn--green-filled" type="button" data-action="confirm-payment-contact">${localizedText("Продолжить", "Continue", "ادامه")}${icon("arrow")}</button></div></div></div>`;
 }
 
 function paymentReceiptEmail() {
@@ -11615,7 +11670,8 @@ function paymentReceiptEmail() {
 }
 
 function requirePaymentContact(context) {
-	if (paymentMethodBase(getSelectedPaymentMethod()?.id) !== "antilopay") return false;
+	const provider = paymentMethodBase(getSelectedPaymentMethod()?.id);
+	if (provider !== "antilopay" && !(["wata", "lava"].includes(provider) && state.recurringConsent)) return false;
 	if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(paymentReceiptEmail())) return false;
 	state.paymentContactContext = context;
 	render({ preserveScroll: true });
@@ -12822,6 +12878,8 @@ function bindRootActions() {
 
 	app.addEventListener("change", (event) => {
  const input = event.target;
+		if (input.dataset?.input === "payments-autopay") { void togglePaymentsAutoRenew(input.checked); return; }
+		if (input.dataset?.input === "recurring-consent") { state.recurringConsent = Boolean(input.checked); render({ preserveScroll: true }); return; }
  if(input.dataset?.settingPath?.startsWith("torrents.")){if(!state.adminSettingsDraft||!canAdmin("torrents"))return;setDeepValue(state.adminSettingsDraft,input.dataset.settingPath,input.checked);scheduleTorrentSettingsSave();return;}
 		if(input.dataset?.surveyField){updateAdminSurveyField(input);return;}
  if(input.dataset?.surveyRun){void loadAdminSurveyResults(input.value);return;}
@@ -12866,6 +12924,7 @@ function bindRootActions() {
 
 	app.addEventListener("input", (event) => {
       const target = event.target;
+		if (target.dataset?.input === "recurring-phone") { state.recurringPhoneDraft = target.value; return; }
 		if(target.dataset?.input==="torrent-search"){torrentWorkspace.model.query=target.value;clearTimeout(torrentSearchTimer);torrentSearchTimer=setTimeout(()=>void torrentWorkspace.load(),350);return;}
 		if(target.dataset?.input==="abuse-search"){abuseWorkspace.model.query=target.value;scheduleAbuseFilters(app.querySelector('.ab-workspace'),abuseWorkspace.model);return;}
 		if(target.dataset?.input==="torrent-template"){updateTorrentTemplate(target.dataset.kind,target.value);return;}
@@ -17849,9 +17908,12 @@ async function startPayment({ deviceOnly = false, trafficOnly = false } = {}) {
   const devicePack = getSelectedDevicePack();
   const trafficPack = getSelectedTrafficPack();
 	if (!deviceOnly && !trafficOnly && trafficPack && Number(plan?.trafficLimitBytes || 0) <= 0) return showToast(localizedText("В этом тарифе трафик уже безлимитный", "This plan already has unlimited traffic", "این تعرفه ترافیک نامحدود دارد"), "danger");
-  const method = getSelectedPaymentMethod()?.id || "";
+  const selectedMethod = getSelectedPaymentMethod();
+  const method = selectedMethod?.id || "";
+  if (state.recurringConsent && !recurringCheckoutEligible(selectedMethod, plan, devicePack, trafficPack)) state.recurringConsent = false;
   const freeCheckout = Boolean(!deviceOnly && !trafficOnly && plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !devicePack && !trafficPack);
   if ((!deviceOnly && !trafficOnly && !plan) || (deviceOnly && !devicePack) || (trafficOnly && !trafficPack) || (!freeCheckout && !method)) return showToast(t().paymentUnavailable);
+	if (state.recurringConsent && ["cloudpayments", "wata"].includes(paymentMethodBase(method)) && !/^\+[1-9]\d{7,14}$/.test(state.recurringPhoneDraft.trim())) return showToast(localizedText("Укажите телефон в формате +79991234567", "Enter a phone number like +79991234567", "شماره تلفن را به صورت +79991234567 وارد کنید"), "danger");
 	if (method === "p2p") return openP2PMenu({ mode: "purchase", deviceOnly, trafficOnly });
 	if (!freeCheckout && requirePaymentChannel(method, { mode: "purchase", deviceOnly, trafficOnly })) return;
 	if (!freeCheckout && requirePaymentContact({ mode: "purchase", deviceOnly, trafficOnly })) return;
@@ -17869,6 +17931,8 @@ async function startPayment({ deviceOnly = false, trafficOnly = false } = {}) {
       paymentChannel,
 	  receiptEmail: paymentReceiptEmail(),
       agreementAccepted: true,
+	  recurringConsent: Boolean(state.recurringConsent && !deviceOnly && !trafficOnly),
+	  recurringPhone: state.recurringPhoneDraft.trim(),
 	  promoCode: deviceOnly || trafficOnly ? "" : (getActivePromo()?.code || ""),
 	  devicePackId: trafficOnly ? "" : (devicePack?.id || ""),
 	  trafficPackId: deviceOnly ? "" : (trafficPack?.id || ""),
@@ -19147,7 +19211,7 @@ function getConfiguredPaymentMethods() {
 	const items = [...(state.data?.paymentMethods || [])];
 	const available = new Set(items.map(item => item.id));
 	for (const [id, variant] of Object.entries(getRuntimeSettings()?.paymentMethodVariants || {})) {
-		if (!available.has(id) && available.has(variant.method)) items.push({ id });
+		if (!available.has(id) && available.has(variant.method)) items.push({ ...items.find((item) => item.id === variant.method), id });
 	}
 	return sortConfiguredPaymentMethods(items);
 }
@@ -19173,7 +19237,7 @@ function sortConfiguredPaymentMethods(items) {
 	const order = getRuntimeSettings()?.paymentMethodOrder || [];
 	const positions = new Map(order.map((id, index) => [id, index]));
 	return items
-		.map((item) => paymentMethodMeta(item.id))
+		.map((item) => ({ ...paymentMethodMeta(item.id), recurringSupported: Boolean(item.recurringSupported), recurringMaxMonths: Number(item.recurringMaxMonths || 0) }))
 		.filter(Boolean)
 		.sort((a, b) => (positions.get(a.id) ?? 999) - (positions.get(b.id) ?? 999));
 }

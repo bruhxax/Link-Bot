@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"math"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
@@ -55,6 +56,7 @@ var (
 	adminSubscriptionRebindLock   sync.Mutex
 	telegramGiftUsernamePattern   = regexp.MustCompile(`^[a-z0-9_]{5,32}$`)
 	trialDeviceFingerprintPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{32,128}$`)
+	recurringPhonePattern         = regexp.MustCompile(`^\+[1-9][0-9]{7,14}$`)
 )
 
 type Handler struct {
@@ -380,10 +382,12 @@ type promoCodePayload struct {
 }
 
 type savedPaymentMethodPayload struct {
-	Title   string `json:"title"`
-	Type    string `json:"type,omitempty"`
-	SavedAt string `json:"savedAt,omitempty"`
-	Demo    bool   `json:"demo,omitempty"`
+	Title    string `json:"title"`
+	Provider string `json:"provider,omitempty"`
+	Pending  bool   `json:"pending,omitempty"`
+	Type     string `json:"type,omitempty"`
+	SavedAt  string `json:"savedAt,omitempty"`
+	Demo     bool   `json:"demo,omitempty"`
 }
 
 type paymentHistoryPayload struct {
@@ -411,7 +415,9 @@ type serverNodePayload struct {
 }
 
 type paymentMethodPayload struct {
-	ID string `json:"id"`
+	ID                 string `json:"id"`
+	RecurringSupported bool   `json:"recurringSupported,omitempty"`
+	RecurringMaxMonths int    `json:"recurringMaxMonths,omitempty"`
 }
 
 type p2pPaymentPayload struct {
@@ -518,6 +524,8 @@ type purchaseRequest struct {
 	Months             int    `json:"months"`
 	PaymentMethod      string `json:"paymentMethod"`
 	AgreementAccepted  bool   `json:"agreementAccepted"`
+	RecurringConsent   bool   `json:"recurringConsent,omitempty"`
+	RecurringPhone     string `json:"recurringPhone,omitempty"`
 	PromoCode          string `json:"promoCode,omitempty"`
 	P2PDestinationID   string `json:"p2pDestinationId,omitempty"`
 	P2PSenderReference string `json:"p2pSenderReference,omitempty"`
@@ -2192,11 +2200,17 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 	}
 
 	ctxWithProfile := contextWithSessionTelegramProfile(r.Context(), sess)
+	if req.RecurringConsent && (invoiceType == database.InvoiceTypeCloudPayments || invoiceType == database.InvoiceTypeWata) && h.runtimeSettings != nil && h.runtimeSettings.FeatureEnabled("recurring_payments") && !recurringPhonePattern.MatchString(strings.TrimSpace(req.RecurringPhone)) {
+		h.writeError(w, http.StatusBadRequest, "recurring_phone_required", "Укажите телефон в международном формате для автопродления")
+		return
+	}
 	paymentURL, purchaseID, err := h.paymentService.CreatePurchaseWithOptions(ctxWithProfile, float64(price), purchaseMonths, customer, invoiceType, payment.CreatePurchaseOptions{
 		PaymentMethodID: req.PaymentMethod, PaymentChannel: req.PaymentChannel,
 		DurationDays:          purchaseDays,
 		SubscriptionID:        &activeSubscription.ID,
 		AgreementAccepted:     true,
+		RecurringConsent:      req.RecurringConsent,
+		RecurringPhone:        strings.TrimSpace(req.RecurringPhone),
 		PlanID:                planID,
 		TrafficLimitBytes:     trafficLimit,
 		DeviceLimitCount:      deviceLimit,
@@ -3184,7 +3198,7 @@ func (h *Handler) handleAdminIntegrationUpdate(w http.ResponseWriter, r *http.Re
 		if h.runtimeSettings != nil {
 			order = h.runtimeSettings.Snapshot().PaymentMethodOrder
 		}
-		response["paymentMethods"] = mapPaymentMethods(methods, order)
+		response["paymentMethods"] = h.mapPaymentMethods(methods, order)
 	} else {
 		slog.Warn("mini app: refresh payment methods after integration update failed", "error", err)
 	}
@@ -3513,36 +3527,25 @@ func (h *Handler) handleToggleAutoPayment(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if !config.EnableAutoPayment() {
-		h.writeError(w, http.StatusBadRequest, "autopay_unavailable", "Автоплатежи временно недоступны")
+	method, err := h.customerRepository.FindRecurringMethod(r.Context(), customer.ID)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "payments_failed", "Не удалось загрузить способ оплаты")
 		return
 	}
-
-	hasPaymentMethod := customer.YookasaPaymentMethodID != nil && *customer.YookasaPaymentMethodID != uuid.Nil
-	if req.Enabled && !hasPaymentMethod {
-		h.writeError(w, http.StatusBadRequest, "payment_method_required", "Сначала оплатите заказ картой, чтобы сохранить способ оплаты")
+	if req.Enabled && method == nil {
+		h.writeError(w, http.StatusBadRequest, "payment_method_required", "Сначала оплатите подписку способом с поддержкой рекуррентных платежей")
 		return
 	}
-
-	updates := map[string]any{
-		"autopay_enabled": req.Enabled,
+	if req.Enabled && method != nil && !method.Enabled && integrations.ProviderManagesRecurring(method.Provider) {
+		h.writeError(w, http.StatusBadRequest, "new_payment_required", "Для повторного включения оформите новую подписку")
+		return
 	}
-
-	if req.Enabled && (customer.AutoPaymentPlanMonths == nil || *customer.AutoPaymentPlanMonths <= 0) {
-		latestPurchase, err := h.purchaseRepository.FindLatestSuccessfulYookasaPurchaseByCustomer(r.Context(), customer.ID)
-		if err != nil {
-			slog.Error("mini app: load latest yookassa purchase", "error", err, "customerId", utils.MaskHalfInt64(customer.ID))
-			h.writeError(w, http.StatusInternalServerError, "payments_failed", "Не удалось обновить автоплатеж")
-			return
-		}
-		if latestPurchase == nil || latestPurchase.Month <= 0 {
-			h.writeError(w, http.StatusBadRequest, "plan_required", "Не удалось определить тариф для автоплатежа")
-			return
-		}
-		updates["autopay_plan_months"] = latestPurchase.Month
+	if !req.Enabled {
+		err = h.paymentService.DisableRecurringMethod(r.Context(), customer.ID)
+	} else {
+		err = h.customerRepository.SetRecurringEnabled(r.Context(), customer.ID, true)
 	}
-
-	if err := h.customerRepository.UpdateFields(r.Context(), customer.ID, updates); err != nil {
+	if err != nil {
 		slog.Error("mini app: toggle autopay", "error", err, "customerId", utils.MaskHalfInt64(customer.ID))
 		h.writeError(w, http.StatusInternalServerError, "payments_failed", "Не удалось обновить автоплатеж")
 		return
@@ -3568,6 +3571,21 @@ func (h *Handler) handleToggleAutoPayment(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleRemovePaymentMethod(w http.ResponseWriter, r *http.Request, sess *session, customer *database.Customer) {
+	if err := h.paymentService.DisableRecurringMethod(r.Context(), customer.ID); err != nil {
+		h.writeError(w, http.StatusBadGateway, "payments_failed", "Не удалось отключить автопродление у платёжной системы")
+		return
+	}
+	method, err := h.customerRepository.FindRecurringMethod(r.Context(), customer.ID)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "payments_failed", "Не удалось удалить способ оплаты")
+		return
+	}
+	if method != nil {
+		if err := h.customerRepository.RevokeRecurringEnrollment(r.Context(), method.SourcePurchaseID); err != nil {
+			h.writeError(w, http.StatusInternalServerError, "payments_failed", "Не удалось удалить способ оплаты")
+			return
+		}
+	}
 	hadRealPaymentMethod := customer.YookasaPaymentMethodID != nil && *customer.YookasaPaymentMethodID != uuid.Nil
 	updates := map[string]any{
 		"autopay_enabled":                 false,
@@ -3583,6 +3601,10 @@ func (h *Handler) handleRemovePaymentMethod(w http.ResponseWriter, r *http.Reque
 
 	if err := h.customerRepository.UpdateFields(r.Context(), customer.ID, updates); err != nil {
 		slog.Error("mini app: remove payment method", "error", err, "customerId", utils.MaskHalfInt64(customer.ID))
+		h.writeError(w, http.StatusInternalServerError, "payments_failed", "Не удалось удалить способ оплаты")
+		return
+	}
+	if err := h.customerRepository.RemoveRecurringMethod(r.Context(), customer.ID); err != nil {
 		h.writeError(w, http.StatusInternalServerError, "payments_failed", "Не удалось удалить способ оплаты")
 		return
 	}
@@ -4541,7 +4563,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 	if err != nil {
 		slog.Warn("mini app: load payments failed", "error", err, "telegramId", utils.MaskHalfInt64(customer.TelegramID))
 		paymentsData = paymentsPayload{
-			Enabled: config.EnableAutoPayment(),
+			Enabled: h.runtimeSettings != nil && h.runtimeSettings.FeatureEnabled("recurring_payments"),
 			History: []paymentHistoryPayload{},
 		}
 	}
@@ -4648,7 +4670,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 		GiftReceipt:     giftReceiptData,
 		Admin:           adminData,
 		Plans:           h.buildPlans(),
-		PaymentMethods:  mapPaymentMethods(allowedMethods, settings.PaymentMethodOrder),
+		PaymentMethods:  h.mapPaymentMethods(allowedMethods, settings.PaymentMethodOrder),
 		PaymentChannels: publicPaymentChannels(),
 		P2P:             h.buildP2PPaymentPayload(allowedMethods["p2p"]),
 		Links: linksPayload{
@@ -5141,7 +5163,7 @@ func (h *Handler) buildReviewsPayload(ctx context.Context, customer *database.Cu
 
 func (h *Handler) buildPaymentsPayload(ctx context.Context, customer *database.Customer) (paymentsPayload, error) {
 	result := paymentsPayload{
-		Enabled: config.EnableAutoPayment(),
+		Enabled: h.runtimeSettings != nil && h.runtimeSettings.FeatureEnabled("recurring_payments"),
 		History: []paymentHistoryPayload{},
 	}
 	if customer == nil {
@@ -5149,23 +5171,42 @@ func (h *Handler) buildPaymentsPayload(ctx context.Context, customer *database.C
 	}
 	language := h.language()
 
-	realPaymentMethod := customer.YookasaPaymentMethodID != nil && *customer.YookasaPaymentMethodID != uuid.Nil
+	method, err := h.customerRepository.FindRecurringMethod(ctx, customer.ID)
+	if err != nil {
+		return result, err
+	}
+	realPaymentMethod := method != nil
 	result.HasPaymentMethod = realPaymentMethod
-	result.AutoPaymentEnabled = config.EnableAutoPayment() && realPaymentMethod && customer.AutoPaymentEnabled
+	result.AutoPaymentEnabled = realPaymentMethod && method.Enabled
+	if method == nil {
+		active, err := h.customerRepository.ListActiveRecurringSubscriptions(ctx, customer.ID)
+		if err != nil {
+			return result, err
+		}
+		if len(active) > 0 {
+			pending := active[0]
+			result.HasPaymentMethod = true
+			result.AutoPaymentEnabled = true
+			result.AutoPaymentPlanMonths = pending.Months
+			result.Method = &savedPaymentMethodPayload{Title: "Ожидает подтверждения · " + pending.Provider, Provider: pending.Provider, Pending: true}
+		}
+	}
 
 	latestYookasaPurchase, err := h.purchaseRepository.FindLatestSuccessfulYookasaPurchaseByCustomer(ctx, customer.ID)
 	if err != nil {
 		return result, err
 	}
 
-	if customer.AutoPaymentPlanMonths != nil && *customer.AutoPaymentPlanMonths > 0 {
+	if method != nil {
+		result.AutoPaymentPlanMonths = method.Months
+	} else if result.AutoPaymentPlanMonths == 0 && customer.AutoPaymentPlanMonths != nil && *customer.AutoPaymentPlanMonths > 0 {
 		result.AutoPaymentPlanMonths = *customer.AutoPaymentPlanMonths
-	} else if latestYookasaPurchase != nil && latestYookasaPurchase.Month > 0 {
+	} else if result.AutoPaymentPlanMonths == 0 && latestYookasaPurchase != nil && latestYookasaPurchase.Month > 0 {
 		result.AutoPaymentPlanMonths = latestYookasaPurchase.Month
 	}
 
 	if realPaymentMethod {
-		methodTitle := strings.TrimSpace(valueOrEmpty(customer.YookasaPaymentMethodTitle))
+		methodTitle := strings.TrimSpace(method.Title)
 		if methodTitle == "" && latestYookasaPurchase != nil {
 			methodTitle = paymentMethodTitleForPurchase(latestYookasaPurchase, language)
 		}
@@ -5174,11 +5215,12 @@ func (h *Handler) buildPaymentsPayload(ctx context.Context, customer *database.C
 		}
 
 		result.Method = &savedPaymentMethodPayload{
-			Title:   methodTitle,
-			Type:    strings.TrimSpace(valueOrEmpty(customer.YookasaPaymentMethodType)),
-			SavedAt: formatOptionalTime(timeOrNil(customer.YookasaPaymentMethodSavedAt)),
+			Title:    methodTitle,
+			Provider: method.Provider,
+			Type:     strings.TrimSpace(valueOrEmpty(customer.YookasaPaymentMethodType)),
+			SavedAt:  formatOptionalTime(method.SavedAt),
 		}
-	} else if config.PaymentMethodDemoEnabled() {
+	} else if result.Method == nil && config.PaymentMethodDemoEnabled() {
 		methodTitle := strings.TrimSpace(config.PaymentMethodDemoTitle())
 		if methodTitle == "" {
 			methodTitle = paymentMethodFallbackTitle(database.InvoiceTypeYookasa, language)
@@ -6720,6 +6762,31 @@ func mapPaymentMethods(methods map[string]bool, order []string) []paymentMethodP
 		if methods[method] && !seen[method] {
 			payload = append(payload, paymentMethodPayload{ID: method})
 			seen[method] = true
+		}
+	}
+	return payload
+}
+
+func (h *Handler) mapPaymentMethods(methods map[string]bool, order []string) []paymentMethodPayload {
+	payload := mapPaymentMethods(methods, order)
+	if h.integrationSettings == nil {
+		return payload
+	}
+	for index := range payload {
+		switch payload[index].ID {
+		case integrations.ProviderCisPay:
+			cfg, ok := h.integrationSettings.Config(integrations.ProviderCisPay)
+			payload[index].RecurringSupported = ok && strings.EqualFold(cfg["paymentMethod"], "SBP")
+			if config.DaysInMonth() > 0 {
+				payload[index].RecurringMaxMonths = 360 / config.DaysInMonth()
+			}
+		case integrations.ProviderRollyPay:
+			cfg, ok := h.integrationSettings.Config(integrations.ProviderRollyPay)
+			_, parseErr := uuid.Parse(cfg["terminalId"])
+			payload[index].RecurringSupported = ok && parseErr == nil
+		case integrations.ProviderFreeKassa:
+			cfg, ok := h.integrationSettings.Config(integrations.ProviderFreeKassa)
+			payload[index].RecurringSupported = ok && cfg["apiKey"] != "" && net.ParseIP(cfg["clientIP"]) != nil
 		}
 	}
 	return payload

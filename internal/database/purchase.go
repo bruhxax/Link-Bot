@@ -148,6 +148,40 @@ func (pr *PurchaseRepository) LockForProcessing(ctx context.Context, purchaseID 
 	}, nil
 }
 
+// LockAutoPaymentCustomer prevents two schedulers from charging the same renewal.
+func (pr *PurchaseRepository) LockAutoPaymentCustomer(ctx context.Context, customerID int64) (func() error, error) {
+	if customerID <= 0 {
+		return nil, errors.New("invalid auto payment customer")
+	}
+	conn, err := pr.pool.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("acquire auto payment connection: %w", err)
+	}
+	lockName := fmt.Sprintf("auto-payment:%d", customerID)
+	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock(hashtextextended($1, 0))", lockName); err != nil {
+		conn.Release()
+		return nil, fmt.Errorf("lock auto payment: %w", err)
+	}
+	return func() error {
+		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		defer conn.Release()
+		_, err := conn.Exec(unlockCtx, "SELECT pg_advisory_unlock(hashtextextended($1, 0))", lockName)
+		return err
+	}, nil
+}
+
+// A provider may call back before invoice creation finishes. Preserve the
+// callback's charge ID and any fulfilled status while recording the checkout URL.
+func (pr *PurchaseRepository) SetExternalPaymentCreated(ctx context.Context, purchaseID int64, externalID, checkoutURL string) error {
+	_, err := pr.pool.Exec(ctx, `UPDATE purchase SET
+		external_payment_id=CASE WHEN status=$4 OR paid_at IS NOT NULL OR NULLIF(external_payment_id, '') IS NOT NULL THEN external_payment_id ELSE $2 END,
+		external_payment_url=$3,
+		status=CASE WHEN status=$4 OR paid_at IS NOT NULL THEN status ELSE $5 END
+		WHERE id=$1`, purchaseID, externalID, checkoutURL, PurchaseStatusPaid, PurchaseStatusPending)
+	return err
+}
+
 // LockFreePlanActivation serializes claims of the same free plan by one
 // customer across all bot replicas. It is intentionally held while Remnawave
 // provisioning is performed so two different purchase requests cannot both
@@ -973,6 +1007,25 @@ func (pr *PurchaseRepository) HasPendingAutoPaymentByCustomer(ctx context.Contex
 	}
 
 	return true, nil
+}
+
+func (pr *PurchaseRepository) FindPendingAutoPaymentByCustomer(ctx context.Context, customerID int64) (*Purchase, error) {
+	query := sq.Select(purchaseSelectColumns...).From("purchase").Where(sq.And{
+		sq.Eq{"customer_id": customerID}, sq.Eq{"is_auto_payment": true},
+		sq.Or{sq.Eq{"status": PurchaseStatusNew}, sq.Eq{"status": PurchaseStatusPending}},
+	}).OrderBy("created_at ASC", "id ASC").Limit(1).PlaceholderFormat(sq.Dollar)
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build pending auto payment query: %w", err)
+	}
+	p := &Purchase{}
+	if err := scanPurchase(pr.pool.QueryRow(ctx, sql, args...), p); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("query pending auto payment: %w", err)
+	}
+	return p, nil
 }
 
 func (pr *PurchaseRepository) HasPendingPurchaseBySubscription(ctx context.Context, customerID, subscriptionID int64) (bool, error) {

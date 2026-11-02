@@ -24,7 +24,7 @@ func TestAdminLogoEditorUploadsPreviewsAndFallsBack(t *testing.T) {
 		`data-brand-logo`,
 		`image.src = BRAND_MARK_URL`,
 		`aria-label="Загрузить логотип"`,
-		`<summary>Внешняя ссылка</summary>`,
+		`<summary>Внешняя ссылка${icon("chevron")}</summary>`,
 	} {
 		if !strings.Contains(app, expected) {
 			t.Fatalf("logo editor fragment is missing: %q", expected)

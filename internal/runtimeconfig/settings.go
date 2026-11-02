@@ -55,6 +55,7 @@ var featureOrder = []string{
 	"partner",
 	"server_status",
 	"payments_history",
+	"recurring_payments",
 	"gifts",
 	"news",
 	"login_methods",
@@ -505,6 +506,7 @@ func DefaultSettings() Settings {
 		features[name] = true
 	}
 	features["personal_device_profiles"] = false
+	features["recurring_payments"] = false
 	language := normalizeRuntimeLanguage(config.DefaultLanguage())
 	fontFamily := strings.ToLower(strings.TrimSpace(config.DefaultFont()))
 	if fontFamily != "montserrat" && fontFamily != "vazir" {

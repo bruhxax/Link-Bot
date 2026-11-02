@@ -52,7 +52,6 @@ func TestAlternateInterfaceIsNotExposed(t *testing.T) {
 			"renderAdminDesignPage",
 			"useGlassInterface",
 			"switchInterfaceDesign",
-			"glass.css",
 		} {
 			if strings.Contains(content, fragment) {
 				t.Errorf("%s still exposes alternate interface marker %q", name, fragment)

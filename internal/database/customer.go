@@ -260,9 +260,7 @@ func (cr *CustomerRepository) FindAutoPaymentEligible(ctx context.Context, dueBe
 		From("customer").
 		Where(sq.And{
 			sq.Eq{"is_blocked": false},
-			sq.Eq{"autopay_enabled": true},
-			sq.NotEq{"yookasa_payment_method_id": nil},
-			sq.NotEq{"autopay_plan_months": nil},
+			sq.Expr("EXISTS (SELECT 1 FROM recurring_method rm WHERE rm.customer_id=customer.id AND rm.enabled AND rm.provider IN ('yookassa','cloudpayments','freekassa'))"),
 			sq.NotEq{"expire_at": nil},
 			sq.LtOrEq{"expire_at": dueBefore},
 		}).

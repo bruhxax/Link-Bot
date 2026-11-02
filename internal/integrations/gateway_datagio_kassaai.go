@@ -142,6 +142,21 @@ func (g *Gateway) createFKOrder(ctx context.Context, cfg map[string]string, inpu
 		"ip": ip, "amount": json.Number(amount), "currency": input.Currency,
 		"notification_url": g.settings.WebhookURL(input.Provider),
 	}
+	if input.Provider == ProviderFreeKassa && input.RecurringMonths > 0 {
+		params["recurrent"] = "Y"
+		if input.RecurringMonths == 12 {
+			params["recurrent_period"] = "year"
+		} else {
+			params["recurrent_period"] = "month"
+		}
+		params["recurrent_description"] = input.Description
+	}
+	if input.Provider == ProviderFreeKassa && input.RecurringReference != "" {
+		if _, err := strconv.ParseInt(input.RecurringReference, 10, 64); err != nil {
+			return CreatedPayment{}, errors.New("invalid FreeKassa recurring order ID")
+		}
+		params["recurrent_order_id"] = json.Number(input.RecurringReference)
+	}
 	if input.ReturnURL != "" {
 		params["success_url"] = input.ReturnURL
 		params["failure_url"] = input.ReturnURL
@@ -158,18 +173,24 @@ func (g *Gateway) createFKOrder(ctx context.Context, cfg map[string]string, inpu
 	params["signature"] = hmacHex(sha256.New, []byte(cfg["apiKey"]), []byte(strings.Join(values, "|")))
 	raw, _ := json.Marshal(params)
 	var response struct {
-		Type     string      `json:"type"`
-		Location string      `json:"location"`
-		OrderID  json.Number `json:"orderId"`
+		Type           string      `json:"type"`
+		Location       string      `json:"location"`
+		OrderID        json.Number `json:"orderId"`
+		RecurrentOrder struct {
+			ID json.Number `json:"id"`
+		} `json:"recurrent_order"`
 	}
 	endpoint := strings.TrimRight(firstNonEmpty(cfg["apiUrl"], "https://api.fk.life/v1"), "/") + "/orders/create"
 	if err := g.doJSON(ctx, http.MethodPost, endpoint, raw, nil, &response); err != nil {
 		return CreatedPayment{}, err
 	}
-	if response.Type != "success" || response.OrderID.String() == "" || !validCheckoutURL(response.Location) {
+	if response.Type != "success" || response.OrderID.String() == "" || (input.RecurringReference == "" && !validCheckoutURL(response.Location)) {
 		return CreatedPayment{}, errors.New("Kassa AI did not return a payment link")
 	}
-	return CreatedPayment{ExternalID: response.OrderID.String(), URL: response.Location}, nil
+	if input.Provider == ProviderFreeKassa && input.RecurringMonths > 0 && response.RecurrentOrder.ID.String() == "" {
+		return CreatedPayment{}, errors.New("FreeKassa did not return a recurring order ID")
+	}
+	return CreatedPayment{ExternalID: response.OrderID.String(), URL: response.Location, RecurringReference: response.RecurrentOrder.ID.String()}, nil
 }
 
 func parseKassaAIWebhook(cfg map[string]string, form url.Values) (WebhookPayment, error) {
