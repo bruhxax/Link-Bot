@@ -21,6 +21,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"regexp"
 	"sort"
@@ -39,22 +40,23 @@ type Gateway struct {
 }
 
 type CreatePaymentRequest struct {
-	Channels             []string
-	Provider             string
-	PurchaseID           int64
-	Amount               float64
-	Currency             string
-	Description          string
-	CustomerID           int64
-	TelegramID           int64
-	Username             string
-	Email                string
-	Phone                string
-	ReturnURL            string
-	ClientIP             string
-	RecurringMonths      int
-	RecurringDaysInMonth int
-	RecurringReference   string
+	Channels              []string
+	Provider              string
+	PurchaseID            int64
+	Amount                float64
+	Currency              string
+	Description           string
+	CustomerID            int64
+	TelegramID            int64
+	TelegramIDIsSynthetic bool
+	Username              string
+	Email                 string
+	Phone                 string
+	ReturnURL             string
+	ClientIP              string
+	RecurringMonths       int
+	RecurringDaysInMonth  int
+	RecurringReference    string
 }
 
 type CreatedPayment struct {
@@ -444,15 +446,24 @@ func (g *Gateway) createWata(ctx context.Context, cfg map[string]string, input C
 }
 
 func (g *Gateway) createPlatega(ctx context.Context, cfg map[string]string, input CreatePaymentRequest) (CreatedPayment, error) {
+	buyerEmail, err := plategaBuyerEmail(input)
+	if err != nil {
+		return CreatedPayment{}, err
+	}
+	metadata := map[string]string{
+		"userId":     strconv.FormatInt(input.CustomerID, 10),
+		"userName":   input.Username,
+		"user_email": buyerEmail,
+	}
 	if input.RecurringMonths > 0 {
-		if input.TelegramID <= 0 || input.RecurringMonths > 12 {
+		if input.RecurringMonths > 12 {
 			return CreatedPayment{}, errors.New("invalid Platega recurring customer or period")
 		}
 		payload := map[string]any{
 			"paymentMethod":  6,
 			"paymentDetails": map[string]any{"amount": input.Amount, "currency": input.Currency, "interval": 3, "intervalCount": input.RecurringMonths},
 			"description":    input.Description,
-			"metadata":       map[string]string{"user_email": strconv.FormatInt(input.TelegramID, 10) + "@telegram.org"},
+			"metadata":       metadata,
 		}
 		raw, _ := json.Marshal(payload)
 		endpoint := strings.TrimRight(cfg["apiUrl"], "/") + "/v2/transaction/process"
@@ -465,8 +476,7 @@ func (g *Gateway) createPlatega(ctx context.Context, cfg map[string]string, inpu
 		if created.TransactionID == "" {
 			return CreatedPayment{}, errors.New("Platega did not return subscription ID")
 		}
-		email := strconv.FormatInt(input.TelegramID, 10) + "@telegram.org"
-		startRaw, _ := json.Marshal(map[string]string{"email": email})
+		startRaw, _ := json.Marshal(map[string]string{"email": buyerEmail})
 		var started struct {
 			ConfirmationURL string `json:"confirmationUrl"`
 		}
@@ -482,7 +492,7 @@ func (g *Gateway) createPlatega(ctx context.Context, cfg map[string]string, inpu
 		"paymentDetails": map[string]any{"amount": input.Amount, "currency": input.Currency},
 		"description":    input.Description, "return": input.ReturnURL, "failedUrl": input.ReturnURL,
 		"payload":  strconv.FormatInt(input.PurchaseID, 10),
-		"metadata": map[string]string{"userId": strconv.FormatInt(input.CustomerID, 10), "userName": input.Username},
+		"metadata": metadata,
 	}
 	applyCheckoutChannels(payload, input)
 	raw, _ := json.Marshal(payload)
@@ -498,6 +508,19 @@ func (g *Gateway) createPlatega(ctx context.Context, cfg map[string]string, inpu
 		return CreatedPayment{}, errors.New("Platega did not return payment link")
 	}
 	return CreatedPayment{ExternalID: response.TransactionID, URL: response.URL}, nil
+}
+
+func plategaBuyerEmail(input CreatePaymentRequest) (string, error) {
+	if input.TelegramID > 0 && !input.TelegramIDIsSynthetic {
+		return strconv.FormatInt(input.TelegramID, 10) + "@telegram.org", nil
+	}
+	email := strings.TrimSpace(input.Email)
+	address, err := mail.ParseAddress(email)
+	at := strings.LastIndexByte(email, '@')
+	if err != nil || address.Address != email || at < 1 || !strings.Contains(email[at+1:], ".") {
+		return "", errors.New("Platega requires a valid buyer email or Telegram ID")
+	}
+	return email, nil
 }
 
 func (g *Gateway) createFreeKassa(cfg map[string]string, input CreatePaymentRequest) (CreatedPayment, error) {

@@ -166,7 +166,7 @@ func TestCreatePlategaRecurringRequiresConfirmation(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				t.Fatal(err)
 			}
-			if body.PaymentMethod != 6 || body.PaymentDetails.Interval != 3 || body.PaymentDetails.IntervalCount != 1 || body.Metadata["user_email"] != "123@telegram.org" {
+			if body.PaymentMethod != 6 || body.PaymentDetails.Interval != 3 || body.PaymentDetails.IntervalCount != 1 || body.Metadata["user_email"] != "123@telegram.org" || body.Metadata["userId"] != "8" {
 				t.Fatalf("wrong Platega terms: %+v", body)
 			}
 			_, _ = w.Write([]byte(`{"transactionId":"sub-1"}`))
@@ -179,7 +179,7 @@ func TestCreatePlategaRecurringRequiresConfirmation(t *testing.T) {
 	}))
 	defer server.Close()
 	g := &Gateway{httpClient: server.Client()}
-	result, err := g.createPlatega(context.Background(), map[string]string{"apiUrl": server.URL, "merchantId": "merchant", "secretKey": "secret"}, CreatePaymentRequest{TelegramID: 123, Amount: 200, Currency: "RUB", RecurringMonths: 1})
+	result, err := g.createPlatega(context.Background(), map[string]string{"apiUrl": server.URL, "merchantId": "merchant", "secretKey": "secret"}, CreatePaymentRequest{CustomerID: 8, TelegramID: 123, Amount: 200, Currency: "RUB", RecurringMonths: 1})
 	if err != nil || result.RecurringReference != "sub-1" || result.URL != "https://platega.example/confirm" || len(requests) != 2 {
 		t.Fatalf("Platega subscription: %+v %v", result, err)
 	}

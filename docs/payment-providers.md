@@ -41,7 +41,7 @@ Tribute подключается через **Shop API**, с разовыми з
 | --- | --- | --- |
 | ЮKassa, строки СБП и Карта | Конкретные методы через `payment_method_data.type`; подключённые методы читаются из `/me`. Методы, требующие дополнительных реквизитов вроде данных электронного сертификата, не предлагаются | [Способы оплаты](https://yookassa.ru/developers/payment-acceptance/getting-started/payment-methods) |
 | LAVA | Набор методов через `includeService`; список методов и их названия запрашиваются у кассы | [LAVA Business API](https://developer.lava.ru/) |
-| Platega | СБП / SberPay, карты РФ, международные карты, криптовалюта через `paymentMethod` | [API Platega](https://docs.platega.io/createtransactionrequest-13226217d0) |
+| Platega | СБП / SberPay, карты РФ, международные карты, криптовалюта через `paymentMethod`. Каждый платёж передаёт постоянный идентификатор покупателя в `metadata.user_email`: числовой Telegram ID с доменом `telegram.org` или email аккаунта без Telegram | [Создание платежа](https://docs.platega.io/%D1%81%D0%BE%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D0%B5-%D1%81%D1%81%D1%8B%D0%BB%D0%BA%D0%B8-%D0%BD%D0%B0-%D0%BE%D0%BF%D0%BB%D0%B0%D1%82%D1%83-29203843e0) |
 | FreeKassa | Конкретный метод через Orders API. Для этой возможности добавьте API-ключ и IP для Telegram-платежей в интеграции; список подключённых методов загружается из API. Обычная платёжная форма без API-ключа продолжает работать | [FreeKassa API](https://docs.freekassa.net/) |
 | Kassa AI | Методы из списка подключённых платёжных систем кассы; выбранный ID передаётся как `i` | [API](https://docs.freekassa.net/) |
 | Crypto Pay | Разрешённые валюты из настроек интеграции через `accepted_assets` | [Crypto Pay API](https://help.send.tg/en/articles/10279948-crypto-pay-api) |
