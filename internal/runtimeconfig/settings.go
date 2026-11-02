@@ -282,6 +282,8 @@ type SeasonalDecorationSettings struct {
 	HalloweenSkulls bool   `json:"halloweenSkulls"`
 	HalloweenFog    bool   `json:"halloweenFog"`
 	HalloweenLeaves bool   `json:"halloweenLeaves"`
+	HalloweenWebs   bool   `json:"halloweenWebs"`
+	HalloweenSpider bool   `json:"halloweenSpider"`
 }
 
 // Each uploaded background keeps its own framing and playback settings.
@@ -675,8 +677,8 @@ func DefaultSettings() Settings {
 		Appearance: AppearanceSettings{
 			Seasonal: SeasonalDecorationSettings{
 				Mode: "off", Intensity: 55, Animated: true,
-				WinterGarland: true, WinterDrifts: true, WinterSnow: true,
-				HalloweenSkulls: true, HalloweenFog: true, HalloweenLeaves: true,
+				WinterDrifts: true, WinterSnow: true,
+				HalloweenLeaves: true, HalloweenWebs: true, HalloweenSpider: true,
 			},
 			BottomNavStyle: "classic",
 			BackgroundMode: "animated",
@@ -1958,6 +1960,15 @@ func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings, 
 	if value.Seasonal.Intensity < 10 || value.Seasonal.Intensity > 100 {
 		return errors.New("seasonal decoration intensity must be between 10 and 100")
 	}
+	// Themes saved before the visual redesign used the skull switch for the
+	// Halloween ornament. Carry its choice over to the new web detail once.
+	if value.Seasonal.HalloweenSkulls {
+		value.Seasonal.HalloweenWebs = true
+		value.Seasonal.HalloweenSpider = true
+		value.Seasonal.HalloweenSkulls = false
+	}
+	value.Seasonal.HalloweenFog = false
+	value.Seasonal.WinterGarland = false
 	value.BottomNavStyle = strings.ToLower(strings.TrimSpace(value.BottomNavStyle))
 	if value.BottomNavStyle == "" {
 		value.BottomNavStyle = defaults.BottomNavStyle

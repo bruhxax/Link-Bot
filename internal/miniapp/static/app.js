@@ -8208,11 +8208,11 @@ function normalizeAppearanceSection() {
 function renderAdminSeasonalAppearance() {
 	const settings = state.adminSettingsDraft?.appearance?.seasonal || {};
 	const mode = ["winter", "halloween"].includes(settings.mode) ? settings.mode : "off";
-	const modes = [["off", "Без украшений", "Чистая тема"], ["winter", "Зима", "Снег и огни"], ["halloween", "Хэллоуин", "Туман и листья"]];
+	const modes = [["off", "Без украшений", "Чистая тема"], ["winter", "Зима", "Снег на интерфейсе"], ["halloween", "Хэллоуин", "Паутина и листья"]];
 	return `<section class="admin-editor__section admin-seasonal-editor"><h3>Тематические украшения</h3>
 		<div class="admin-seasonal-modes" role="radiogroup" aria-label="Сезонный стиль">${modes.map(([id, label, hint]) => `<button class="admin-seasonal-mode ${mode === id ? "is-selected" : ""}" type="button" role="radio" aria-checked="${mode === id}" data-action="admin-seasonal-mode" data-value="${id}"><strong>${label}</strong><small>${hint}</small></button>`).join("")}</div>
 		${renderSeasonalPreview(settings)}
-		${mode === "off" ? "" : `<div class="admin-seasonal-options">${renderAdminRangeField("Выразительность", "", "appearance.seasonal.intensity", {value: settings.intensity || 55, min: 10, max: 100, suffix: "%", hideScale: true})}${renderAdminToggle("Анимация", "appearance.seasonal.animated")}${mode === "winter" ? `${renderAdminToggle("Гирлянда сверху", "appearance.seasonal.winterGarland")}${renderAdminToggle("Снежинки", "appearance.seasonal.winterSnow")}${renderAdminToggle("Сугробы", "appearance.seasonal.winterDrifts")}` : `${renderAdminToggle("Черепа", "appearance.seasonal.halloweenSkulls")}${renderAdminToggle("Туман", "appearance.seasonal.halloweenFog")}${renderAdminToggle("Падающие листья", "appearance.seasonal.halloweenLeaves")}`}</div>`}
+		${mode === "off" ? "" : `<div class="admin-seasonal-options">${renderAdminRangeField("Выразительность", "", "appearance.seasonal.intensity", {value: settings.intensity || 55, min: 10, max: 100, suffix: "%", hideScale: true})}${renderAdminToggle("Анимация", "appearance.seasonal.animated")}${mode === "winter" ? `${renderAdminToggle("Снег на карточках и кнопках", "appearance.seasonal.winterDrifts")}${renderAdminToggle("Снежинки на фоне", "appearance.seasonal.winterSnow")}` : `${renderAdminToggle("Паутина на карточках и кнопках", "appearance.seasonal.halloweenWebs")}${renderAdminToggle("Редкий паучок", "appearance.seasonal.halloweenSpider")}${renderAdminToggle("Падающие листья", "appearance.seasonal.halloweenLeaves")}`}</div>`}
 		<p class="admin-field__hint">Одинаково работает в Mini App и на лендинге. Сохраняется вместе с темой.</p>
 	</section>`;
 }
@@ -9767,7 +9767,7 @@ function renderSubscriptionSwitcher() {
 			<button class="subscription-switcher__delete" type="button" role="menuitem" data-action="delete-subscription" ${active?.isPrimary || state.subscriptionBusy ? `disabled aria-label="${escapeAttribute(copy.primaryDelete)}"` : ""}>${icon("trash")}<span>${copy.remove}</span></button>
 		</div>
 	</div>` : "";
-	return `<div class="subscription-switcher ${menuVisible ? "is-expanded" : ""}"><button class="subscription-switcher__trigger" type="button" data-action="toggle-subscription-menu" aria-haspopup="menu" aria-expanded="${Boolean(state.subscriptionMenuOpen)}"><span>${escapeHtml(subscriptionDisplayName(active, copy))}</span><span class="subscription-switcher__chevron">${icon("arrowDown")}</span></button>${menu}</div>`;
+	return `<div class="subscription-switcher ${menuVisible ? "is-expanded" : ""}"><button class="subscription-switcher__trigger" type="button" data-action="toggle-subscription-menu" aria-haspopup="menu" aria-expanded="${Boolean(state.subscriptionMenuOpen)}"><span>${escapeHtml(subscriptionDisplayName(active, copy))}</span><span class="subscription-switcher__chevron">${icon("arrowDown")}</span><span class="seasonal-spider" aria-hidden="true"><svg viewBox="0 0 32 48" fill="none"><path d="M16 0v25" stroke="currentColor" stroke-width=".8"/><path d="m12 33-7-5-3 3m10 6-8 1-2 5m18-10 7-5 3 3m-10 6 8 1 2 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="16" cy="37" rx="5" ry="6" fill="currentColor"/><circle cx="16" cy="30" r="3" fill="currentColor"/></svg></span></button>${menu}</div>`;
 }
 
 function renderProfilePromoModal() {
@@ -12605,7 +12605,7 @@ function bindRootActions() {
 			if (action === "admin-seasonal-mode") {
 				if (!["off", "winter", "halloween"].includes(value) || !state.adminSettingsDraft?.appearance) return;
 				const seasonal = state.adminSettingsDraft.appearance.seasonal ||= {};
-				if (!seasonal.intensity) Object.assign(seasonal, {intensity:55, animated:true, winterGarland:true, winterSnow:true, winterDrifts:true, halloweenSkulls:true, halloweenFog:true, halloweenLeaves:true});
+				if (!seasonal.intensity) Object.assign(seasonal, {intensity:55, animated:true, winterSnow:true, winterDrifts:true, halloweenWebs:true, halloweenSpider:true, halloweenLeaves:true});
 				seasonal.mode = value;
 				state.adminSettingsDirty = true;
 				applyAppearance();

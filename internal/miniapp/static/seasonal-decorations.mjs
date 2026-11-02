@@ -1,61 +1,47 @@
 const ASSETS = new URL("./assets/", import.meta.url).pathname;
 const snowflake = `<svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M16 2v28M2 16h28M6.1 6.1l19.8 19.8M25.9 6.1 6.1 25.9"/><path d="m12 5 4 4 4-4m-8 22 4-4 4 4M5 12l4 4-4 4m22-4-4 4 4 4M8 5l1 5-5-1m20-4-1 5 5-1M4 23l5-1-1 5m20-4-5-1 1 5" stroke-width="1"/></g><circle cx="16" cy="16" r="2" fill="currentColor"/></svg>`;
 
-function garland() {
-  const colors = ["#f7bc6a", "#77dcff", "#f48caa", "#a6e7b9"];
-  const loops = Array.from({length: 8}, (_, i) => {
-    const x = 60 + i * 120;
-    const color = colors[i % colors.length];
-    const needles = Array.from({length: 8}, (_, n) => {
-      const dx = (n - 3.5) * 4;
-      return `<path d="M${x + dx} 42q${dx < 0 ? -10 : 10} -9 ${dx < 0 ? -15 : 15} -13" stroke="${n % 2 ? "#365d4c" : "#4a8064"}" stroke-width="2.4" stroke-linecap="round"/>`;
-    }).join("");
-    return `<g>${needles}<path d="M${x} 40v8" stroke="#443f3d" stroke-width="2"/><rect x="${x-5}" y="47" width="10" height="5" rx="2" fill="#b6a582"/><path d="M${x-8} 54c0-5 16-5 16 0v11c0 5-4 9-8 9s-8-4-8-9Z" fill="${color}" stroke="#fff" stroke-opacity=".65"/><path d="M${x-4} 54v9" stroke="#fff" stroke-opacity=".6" stroke-width="2" stroke-linecap="round"/><circle cx="${x}" cy="60" r="14" fill="${color}" opacity=".4" filter="url(#bulb-glow)"/></g>`;
-  }).join("");
-  const cable = Array.from({length: 8}, (_, i) => `Q ${60+i*120} 62 ${120+i*120} 19`).join(" ");
-  return `<svg class="seasonal-garland" viewBox="0 0 960 86" preserveAspectRatio="xMidYMin slice" aria-hidden="true"><defs><filter id="bulb-glow"><feGaussianBlur stdDeviation="5"/></filter></defs><path d="M0 19 ${cable}" fill="none" stroke="#284234" stroke-width="3" stroke-linecap="round"/><path d="M0 17 ${cable}" fill="none" stroke="#98ad81" stroke-opacity=".45" stroke-width="1"/>${loops}</svg>`;
-}
-
-const GARLAND = garland();
-
 function normalize(settings = {}) {
   const mode = ["winter", "halloween"].includes(settings.mode) ? settings.mode : "off";
   return {
     mode,
     intensity: Math.min(100, Math.max(10, Number(settings.intensity) || 55)),
     animated: settings.animated !== false,
-    winterGarland: settings.winterGarland !== false,
     winterDrifts: settings.winterDrifts !== false,
     winterSnow: settings.winterSnow !== false,
-    halloweenSkulls: settings.halloweenSkulls !== false,
-    halloweenFog: settings.halloweenFog !== false,
+    halloweenWebs: settings.halloweenWebs !== false,
+    halloweenSpider: settings.halloweenSpider !== false,
     halloweenLeaves: settings.halloweenLeaves !== false,
   };
 }
 
 function scene(settings) {
   if (settings.mode === "winter") {
-    const flakes = settings.winterSnow ? Array.from({length: 16}, (_, i) => {
-      const left = (i * 61 + 13) % 100;
-      const delay = -(i * 1.7 % 18).toFixed(1);
-      const duration = 14 + i % 6 * 2;
-      const size = 9 + i % 4 * 5;
+    const flakes = settings.winterSnow ? Array.from({length: 10}, (_, i) => {
+      const left = (i * 67 + 11) % 100;
+      const delay = -(i * 2.3 % 22).toFixed(1);
+      const duration = 19 + i % 4 * 4;
+      const size = 7 + i % 4 * 3;
       return `<span class="seasonal-flake" style="--x:${left}%;--still-y:${(i*37+17)%87}%;--delay:${delay}s;--duration:${duration}s;--size:${size}px">${snowflake}</span>`;
     }).join("") : "";
-    return `${settings.winterGarland ? GARLAND : ""}${flakes}${settings.winterDrifts ? `<img class="seasonal-drift" src="${ASSETS}season-snowdrift.svg" alt="">` : ""}`;
+    return `<span class="seasonal-wash seasonal-wash--winter"></span>${flakes}`;
   }
   if (settings.mode === "halloween") {
-    const skulls = settings.halloweenSkulls ? Array.from({length: 5}, (_, i) => `<img class="seasonal-skull" src="${ASSETS}season-skull.svg" alt="" style="--x:${[8,86,23,76,47][i]}%;--y:${[18,27,63,74,43][i]}%;--size:${[42,35,30,46,24][i]}px;--delay:${-i*2}s">`).join("") : "";
-    const leaves = settings.halloweenLeaves ? Array.from({length: 11}, (_, i) => `<img class="seasonal-leaf" src="${ASSETS}season-leaf.svg" alt="" style="--x:${(i*83+9)%100}%;--still-y:${(i*47+8)%88}%;--delay:${-(i*1.4).toFixed(1)}s;--duration:${12+i%5*3}s;--size:${14+i%4*6}px">`).join("") : "";
-    return `${settings.halloweenFog ? `<span class="seasonal-fog seasonal-fog--one"></span><span class="seasonal-fog seasonal-fog--two"></span>` : ""}${skulls}${leaves}`;
+    const leaves = settings.halloweenLeaves ? Array.from({length: 7}, (_, i) => `<img class="seasonal-leaf" src="${ASSETS}season-leaf.svg" alt="" style="--x:${(i*83+9)%100}%;--still-y:${(i*47+8)%88}%;--delay:${-(i*2.9).toFixed(1)}s;--duration:${20+i%4*5}s;--size:${13+i%3*5}px">`).join("") : "";
+    return `<span class="seasonal-wash seasonal-wash--halloween"></span>${leaves}`;
   }
   return "";
 }
 
 export function renderSeasonalPreview(raw) {
   const settings = normalize(raw);
-  const label = settings.mode === "winter" ? "Зимний вечер" : settings.mode === "halloween" ? "Тихая ночь" : "Без украшений";
-  return `<div class="seasonal-preview" data-season="${settings.mode}"><div class="seasonal-preview__card"><span>ПРЕДПРОСМОТР</span><strong>${label}</strong><small>Украшения поверх вашей темы</small></div><div class="seasonal-decor seasonal-decor--preview ${settings.animated ? "" : "seasonal-decor--still"}" style="--seasonal-opacity:${settings.intensity/100}" aria-hidden="true">${scene(settings)}</div></div>`;
+  return `<div class="seasonal-preview" data-season="${settings.mode}" data-season-drifts="${settings.winterDrifts ? "on" : "off"}" data-season-webs="${settings.halloweenWebs ? "on" : "off"}" data-season-spider="${settings.halloweenSpider ? "on" : "off"}" style="--seasonal-strength:${settings.intensity/100}">
+    <div class="seasonal-preview__switcher">Основная <span>⌄</span><span class="seasonal-spider" aria-hidden="true"><svg viewBox="0 0 32 48" fill="none"><path d="M16 0v25" stroke="currentColor" stroke-width=".8"/><path d="m12 33-7-5-3 3m10 6-8 1-2 5m18-10 7-5 3 3m-10 6 8 1 2 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="16" cy="37" rx="5" ry="6" fill="currentColor"/><circle cx="16" cy="30" r="3" fill="currentColor"/></svg></span></div>
+    <div class="seasonal-preview__details"><strong>Подписка</strong><small>5 устройств · 100 ГБ</small></div>
+    <div class="seasonal-preview__button">Продлить</div><div class="seasonal-preview__button">Подключиться</div>
+    <div class="seasonal-preview__nav"><span>⌂</span><span>▣</span><span>✉</span><span>♙</span><span>▦</span></div>
+    <div class="seasonal-decor seasonal-decor--preview ${settings.animated ? "" : "seasonal-decor--still"}" style="--seasonal-opacity:${settings.intensity/100}" aria-hidden="true">${scene(settings)}</div>
+  </div>`;
 }
 
 let lastKey = "";
@@ -65,6 +51,10 @@ export function syncSeasonalDecorations(raw, {enabled = true, surface = "cabinet
   if (key === lastKey && document.getElementById("seasonal-decorations")) return;
   lastKey = key;
   document.documentElement.dataset.season = enabled ? settings.mode : "off";
+  document.documentElement.style.setProperty("--seasonal-strength", String(settings.intensity / 100));
+  document.documentElement.dataset.seasonDrifts = enabled && settings.winterDrifts ? "on" : "off";
+  document.documentElement.dataset.seasonWebs = enabled && settings.halloweenWebs ? "on" : "off";
+  document.documentElement.dataset.seasonSpider = enabled && settings.halloweenSpider ? "on" : "off";
   document.getElementById("seasonal-decorations")?.remove();
   if (!enabled || settings.mode === "off") return;
   const host = document.createElement("div");
