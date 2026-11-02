@@ -3,10 +3,20 @@ const snowflake = `<svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><g st
 
 // Ornament geometry belongs to the control edge and scales with the control.
 const webTrim = `<svg data-preserve-color viewBox="0 0 80 80" preserveAspectRatio="none" aria-hidden="true"><g fill="none" stroke="#d7833e" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M80 0 0 0M80 0 9 19M80 0 17 39M80 0 36 58M80 0 58 72M80 0 80 80" opacity=".74"/><path d="M61 0Q63 7 58 11 Q57 15 62 19 Q65 22 70 21 Q75 26 77 31 M43 0 Q46 14 39 17 Q34 28 46 35 Q51 40 60 39 Q68 43 73 52 M23 0 Q26 20 17 25 Q8 43 26 49 Q36 59 49 56 Q62 61 68 69" opacity=".9"/></g><path d="M80 0C58 1 38 5 24 15" fill="none" stroke="#f0994d" stroke-opacity=".32" stroke-width="2"/></svg>`;
-// Fine fractures sit inside the ice surface; the control keeps its own border.
-const iceCracks = `<svg class="seasonal-ice-cracks" data-preserve-color viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><g fill="none" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"><g stroke="#173d5d" stroke-width="1.8" opacity=".42"><path d="M0 12 4 16 8 13 11 21 15 19 19 27 23 26M11 21 9 31 12 37M19 27 21 16 25 11M100 75 96 70 93 72 89 63 85 66 80 58 77 60M89 63 91 51 87 45M85 66 82 76 78 80M100 8 97 12 94 11 91 18 88 17"/></g><g stroke="#d7f3ff" stroke-width=".85" opacity=".74"><path d="M0 12 4 16 8 13 11 21 15 19 19 27 23 26M11 21 9 31 12 37M19 27 21 16 25 11M100 75 96 70 93 72 89 63 85 66 80 58 77 60M89 63 91 51 87 45M85 66 82 76 78 80M100 8 97 12 94 11 91 18 88 17"/></g><g stroke="#f1fbff" stroke-width=".5" opacity=".65"><path d="M4 16 2 24M15 19 15 10M96 70 98 60M80 58 76 49M94 11 95 24"/></g></g></svg>`;
-function surfaceTrim() {
-  return `<span class="seasonal-surface__trim seasonal-surface__trim--ice" aria-hidden="true">${iceCracks}</span><span class="seasonal-surface__trim seasonal-surface__trim--web" aria-hidden="true">${webTrim}</span>`;
+// Small, distinct fractures begin at the edge and never cross the label.
+const iceFractures = [
+  ["M0 12 2 16 3.9 13 5.4 19 7.7 17 9.1 21", "M5.4 19 5.1 26 6.8 29 M7.7 17 8.4 10"],
+  ["M100 10 98.1 14 96.3 12 94.6 18 92 16", "M96.3 12 95.8 7 M94.6 18 95.6 25 93.9 28"],
+  ["M0 88 1.8 84 4 87 5.9 80 8.3 82", "M4 87 4.9 93 M5.9 80 5.5 74 7.1 72"],
+  ["M100 86 97.9 82 96 85 94 78 91.9 80", "M96 85 96.4 92 M94 78 95.2 72 94 69"],
+  ["M0 7 1.8 11 3.5 9 6.1 15 M100 91 98.3 87 96.3 90 94.7 84", "M3.5 9 4.1 4 M96.3 90 95.7 95"],
+];
+function iceCracks(variant) {
+  const [main, branch] = iceFractures[variant];
+  return `<svg class="seasonal-ice-cracks" data-preserve-color viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path class="seasonal-ice-cracks__main" d="${main}"/><path class="seasonal-ice-cracks__branch" d="${branch}"/></svg>`;
+}
+function surfaceTrim({cracks = false, variant = 0} = {}) {
+  return `<span class="seasonal-surface__trim seasonal-surface__trim--ice" aria-hidden="true">${cracks ? iceCracks(variant) : ""}</span><span class="seasonal-surface__trim seasonal-surface__trim--web" aria-hidden="true">${webTrim}</span>`;
 }
 const surfaceSelector = [
   "#app #page-dashboard .subscription-switcher__trigger",
@@ -15,18 +25,28 @@ const surfaceSelector = [
   ".site-header .nav-shell", ".plans-grid .plan-card",
   ".hero__actions a",
 ].join(",");
+const winterSurfaceSelector = [
+  ".page.active :is(.card:not(.card--status),.btn,.pricing-card,.menu-row,.profile-row,.pay-row,.platform-btn,.quick-link,.pay-selector,.support-ticket-card,.payments-switch,.promo-box,.metric,.server-summary-card,.server-card,.state-card,.faq-item,.referral-metrics,.referral-invite-card,.wallet-withdrawal,.wallet-history,.review-card,.login-method-card,.admin-finance-card,.admin-integrations__list,.admin-feature-group,.admin-editor__section,.admin-broadcast__section,.survey-editor)",
+  ".modal.open :is(.modal__sheet,.card,.btn,.pricing-card,.pay-row,.platform-btn,.pay-selector)",
+].join(",");
+const iceControlSelector = ".btn,.platform-btn,.quick-link,.pay-selector,.payments-switch,.subscription-switcher__trigger,.bottom-nav,.nav-shell,.hero__actions a,.menu-row,.pay-row,.profile-row,.menu-card,.support-ticket-card,.faq-item";
+const iceCrackSelector = ".btn,.platform-btn,.quick-link,.pay-selector,.subscription-switcher__trigger,.bottom-nav,.nav-shell,.hero__actions a";
 
 export function decorateSeasonalSurfaces(root = document) {
   const selector = document.documentElement.dataset.season === "winter"
-    ? `${surfaceSelector},#app .card:not(.card--status),#app .btn`
+    ? `${surfaceSelector},${winterSurfaceSelector}`
     : surfaceSelector;
+  let crackIndex = 0;
   for (const element of root.querySelectorAll(selector)) {
     if (element.dataset.seasonalSurface === "on") continue;
     if (element.matches(surfaceSelector)) element.dataset.seasonalWeb = "on";
     const actionStack = element.closest(".action-stack--dashboard");
     if (actionStack) element.dataset.seasonalSlot = actionStack.querySelector(".btn") === element ? "first" : "second";
     element.dataset.seasonalSurface = "on";
-    element.insertAdjacentHTML("beforeend", surfaceTrim());
+    if (document.documentElement.dataset.season === "winter" && getComputedStyle(element).position === "static") element.dataset.seasonalPositioned = "on";
+    if (element.matches(iceControlSelector)) element.dataset.seasonalKind = "control";
+    const cracks = element.matches(iceCrackSelector);
+    element.insertAdjacentHTML("beforeend", surfaceTrim({cracks, variant: cracks ? crackIndex++ % iceFractures.length : 0}));
   }
 }
 
@@ -65,10 +85,10 @@ function scene(settings) {
 export function renderSeasonalPreview(raw) {
   const settings = normalize(raw);
   return `<div class="seasonal-preview" data-season="${settings.mode}" data-season-drifts="${settings.winterDrifts ? "on" : "off"}" data-season-webs="${settings.halloweenWebs ? "on" : "off"}" data-season-spider="${settings.halloweenSpider ? "on" : "off"}" style="--seasonal-strength:${settings.intensity/100}">
-    <div class="seasonal-preview__switcher">Основная <span>⌄</span>${surfaceTrim()}<span class="seasonal-spider" aria-hidden="true"><svg data-preserve-color viewBox="0 0 32 48" fill="none"><path d="M16 0v25" stroke="currentColor" stroke-width=".8"/><path d="m12 33-7-5-3 3m10 6-8 1-2 5m18-10 7-5 3 3m-10 6 8 1 2 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="16" cy="37" rx="5" ry="6" fill="currentColor"/><circle cx="16" cy="30" r="3" fill="currentColor"/></svg></span></div>
+    <div class="seasonal-preview__switcher">Основная <span>⌄</span>${surfaceTrim({cracks:true,variant:1})}<span class="seasonal-spider" aria-hidden="true"><svg data-preserve-color viewBox="0 0 32 48" fill="none"><path d="M16 0v25" stroke="currentColor" stroke-width=".8"/><path d="m12 33-7-5-3 3m10 6-8 1-2 5m18-10 7-5 3 3m-10 6 8 1 2 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="16" cy="37" rx="5" ry="6" fill="currentColor"/><circle cx="16" cy="30" r="3" fill="currentColor"/></svg></span></div>
     <div class="seasonal-preview__details"><strong>Подписка</strong><small>5 устройств · 100 ГБ</small></div>
-    <div class="seasonal-preview__button">Продлить${surfaceTrim()}</div><div class="seasonal-preview__button">Подключиться${surfaceTrim()}</div>
-    <div class="seasonal-preview__nav"><span>⌂</span><span>▣</span><span>✉</span><span>♙</span><span>▦</span>${surfaceTrim()}</div>
+    <div class="seasonal-preview__button">Продлить${surfaceTrim({cracks:true,variant:0})}</div><div class="seasonal-preview__button">Подключиться${surfaceTrim({cracks:true,variant:3})}</div>
+    <div class="seasonal-preview__nav"><span>⌂</span><span>▣</span><span>✉</span><span>♙</span><span>▦</span>${surfaceTrim({cracks:true,variant:2})}</div>
     <div class="seasonal-decor seasonal-decor--preview ${settings.animated ? "" : "seasonal-decor--still"}" style="--seasonal-opacity:${settings.intensity/100}" aria-hidden="true">${scene(settings)}</div>
   </div>`;
 }

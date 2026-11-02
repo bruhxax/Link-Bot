@@ -50,27 +50,44 @@
 /* Seasonal trim follows the actual rounded control edge. */
 :root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"],
 :root[data-season="halloween"][data-season-webs="on"] [data-seasonal-web="on"] { isolation: isolate; }
-.seasonal-surface__trim { position: absolute; display: none; z-index: 2; pointer-events: none; overflow: hidden; border-radius: inherit; }
+.seasonal-surface__trim { position: absolute; display: none !important; z-index: 2; pointer-events: none; overflow: hidden; border-radius: inherit; }
 .seasonal-surface__trim svg { display: block; width: 100% !important; height: 100% !important; }
 /* The translucent body is ice; existing control borders keep their theme color. */
-:root[data-season="winter"][data-season-drifts="on"] #app .card[data-seasonal-surface="on"] { position: relative; }
+:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-positioned="on"] { position: relative; }
 :root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--ice,
 .seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--ice {
- display: block; inset: 1px; width: auto; height: auto;
+ display: block !important; inset: 1px; width: auto; height: auto;
+ opacity: calc(.28 + var(--seasonal-strength, .55) * .28);
+ background: radial-gradient(ellipse 30% 120% at 0% 15%,rgba(199,232,251,.16),transparent 85%),
+   radial-gradient(ellipse 38% 100% at 100% 90%,rgba(164,213,244,.13),transparent 92%),
+   linear-gradient(116deg,rgba(190,229,251,.11),rgba(75,139,184,.05) 40%,rgba(155,209,239,.1));
+}
+:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-kind="control"] > .seasonal-surface__trim--ice,
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--ice {
  opacity: calc(.48 + var(--seasonal-strength, .55) * .44);
  background: radial-gradient(ellipse 30% 120% at 0% 15%,rgba(199,232,251,.3),transparent 85%),
    radial-gradient(ellipse 38% 100% at 100% 90%,rgba(164,213,244,.23),transparent 92%),
    linear-gradient(116deg,rgba(190,229,251,.21) 0%,rgba(75,139,184,.1) 28%,rgba(20,66,105,.13) 48%,rgba(155,209,239,.18) 78%,rgba(220,241,255,.17));
  box-shadow: inset 0 5px 14px rgba(204,237,255,.12),inset 0 -8px 13px rgba(102,175,222,.12);
 }
-.seasonal-ice-cracks { position: absolute; inset: 0; opacity: .8; }
+:root[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--ice::before,
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--ice::before,
+:root[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--ice::after,
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--ice::after {
+ content: ""; position: absolute; inset: 0; opacity: .55;
+ background: linear-gradient(140deg,rgba(222,246,255,.21),rgba(128,189,229,.035) 72%,transparent);
+}
+:root[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--ice::before,
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--ice::before { clip-path: polygon(0 0,24% 0,17% 13%,8% 18%,0 50%); }
+:root[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--ice::after,
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--ice::after { clip-path: polygon(100% 100%,76% 100%,84% 86%,93% 79%,100% 49%); background: linear-gradient(320deg,rgba(222,246,255,.18),rgba(128,189,229,.025) 72%,transparent); }
+.seasonal-ice-cracks { position: absolute; inset: 0; fill: none; stroke-linecap: round; stroke-linejoin: round; opacity: .88; }
 .seasonal-ice-cracks path { vector-effect: non-scaling-stroke; }
-:root[data-season="winter"] :is(#app .card, .plans-grid .plan-card) .seasonal-ice-cracks { display: none !important; }
-:root[data-season="winter"] [data-seasonal-slot="second"] .seasonal-ice-cracks,
-.seasonal-preview[data-season="winter"] .seasonal-preview__button:nth-of-type(4) .seasonal-ice-cracks { transform: scale(-1); opacity: .68; }
+.seasonal-ice-cracks__main { stroke: #e2f6ff; stroke-width: .85; filter: drop-shadow(0 1px 0 rgba(18, 62, 93, .8)); }
+.seasonal-ice-cracks__branch { stroke: #c6e8fa; stroke-width: .6; opacity: .72; }
 :root[data-season="halloween"][data-season-webs="on"] [data-seasonal-web="on"] > .seasonal-surface__trim--web,
 .seasonal-preview[data-season="halloween"][data-season-webs="on"] .seasonal-surface__trim--web {
- display: block; top: 0; right: 0; width: min(42px, 100%); height: min(42px, 100%);
+ display: block !important; top: 0; right: 0; width: min(42px, 100%); height: min(42px, 100%);
  opacity: calc(.35 + var(--seasonal-strength, .55) * .55);
  filter: drop-shadow(0 0 3px rgba(241,123,39,.42)) saturate(1.35);
 }
