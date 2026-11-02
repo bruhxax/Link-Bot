@@ -165,6 +165,9 @@
 .seasonal-decor--preview .seasonal-leaf { max-width: 15px; }
 
 .admin-seasonal-editor { display: grid; gap: 13px; padding: 15px; border: 1px solid var(--line, var(--border)); border-radius: 18px; background: var(--surface); box-shadow: 0 12px 28px rgba(0, 0, 0, .13); }
+/* The generic first-section rule removes border-top; these are standalone cards. */
+.appearance-settings > .admin-editor__section.admin-theme-library { border-top: 1px solid var(--line-soft); }
+.appearance-panel > .admin-editor__section.admin-seasonal-editor { border-top: 1px solid var(--line, var(--border)); }
 .appearance-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .appearance-tabs > button { min-width: 0; padding-inline: 5px; font-size: 11px; }
 :root[data-glass="on"] .admin-seasonal-editor { background: var(--glass-background) !important; background-image: var(--glass-texture) !important; border-color: var(--glass-border) !important; box-shadow: var(--glass-surface-shadow) !important; backdrop-filter: var(--glass-backdrop); -webkit-backdrop-filter: var(--glass-backdrop); }
