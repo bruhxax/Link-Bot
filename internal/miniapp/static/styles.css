@@ -13016,6 +13016,11 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 	border-color: transparent !important;
 }
 
+:root[data-frames="off"] :is(.modal__sheet--devices, .modal__sheet--thread, .modal__sheet--support) {
+	box-shadow: 0 -22px 48px rgba(0, 0, 0, .36) !important;
+	outline-color: transparent !important;
+}
+
 :root[data-frames="off"] .runtime-layout-item--framed {
 	outline-color: transparent !important;
 }

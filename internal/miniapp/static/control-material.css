@@ -183,6 +183,15 @@
   :root:not([data-admin-console="on"]) .modal__sheet--device-packs-purchase :is(.pricing-card, .device-pack-modal__actions .btn)::before {
     content: none !important;
   }
+
+  :root:not([data-admin-console="on"])[data-frames="off"] .modal__sheet--device-packs-purchase,
+  :root:not([data-admin-console="on"])[data-frames="off"] :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) .modal__sheet--device-packs-purchase :is(.pricing-card, .device-pack-modal__actions .btn) {
+    border-color: transparent !important;
+  }
+  :root:not([data-admin-console="on"])[data-frames="off"] :is(#app, .modal, .mantine-Modal-root, .mantine-Drawer-root) .modal__sheet--device-packs-purchase .pricing-card.selected {
+    border-color: transparent !important;
+    background: color-mix(in srgb, var(--accent) 14%, var(--control-bg)) !important;
+  }
 }
 
 /* Identity providers retain their colors in both cabinet materials. Keep this
