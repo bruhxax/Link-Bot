@@ -3,8 +3,8 @@ const snowflake = `<svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><g st
 
 // Ornament geometry belongs to the control edge and scales with the control.
 const webTrim = `<svg data-preserve-color viewBox="0 0 80 80" preserveAspectRatio="none" aria-hidden="true"><g fill="none" stroke="#d7833e" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M80 0 0 0M80 0 9 19M80 0 17 39M80 0 36 58M80 0 58 72M80 0 80 80" opacity=".74"/><path d="M61 0Q63 7 58 11 Q57 15 62 19 Q65 22 70 21 Q75 26 77 31 M43 0 Q46 14 39 17 Q34 28 46 35 Q51 40 60 39 Q68 43 73 52 M23 0 Q26 20 17 25 Q8 43 26 49 Q36 59 49 56 Q62 61 68 69" opacity=".9"/></g><path d="M80 0C58 1 38 5 24 15" fill="none" stroke="#f0994d" stroke-opacity=".32" stroke-width="2"/></svg>`;
-function surfaceTrim({nav = false} = {}) {
-  const frostLeft = nav ? '<span class="seasonal-surface__trim seasonal-surface__trim--frost-left" aria-hidden="true"></span>' : "";
+function surfaceTrim({nav = false, lowerLeft = false} = {}) {
+  const frostLeft = nav || lowerLeft ? `<span class="seasonal-surface__trim seasonal-surface__trim--frost-left${lowerLeft ? " seasonal-surface__trim--frost-lower" : ""}" aria-hidden="true"></span>` : "";
   return `<span class="seasonal-surface__trim seasonal-surface__trim--frost" aria-hidden="true"></span>${frostLeft}<span class="seasonal-surface__trim seasonal-surface__trim--web" aria-hidden="true">${webTrim}</span>`;
 }
 const surfaceSelector = [
@@ -21,7 +21,10 @@ export function decorateSeasonalSurfaces(root = document) {
     const actionStack = element.closest(".action-stack--dashboard");
     if (actionStack) element.dataset.seasonalSlot = actionStack.querySelector(".btn") === element ? "first" : "second";
     element.dataset.seasonalSurface = "on";
-    element.insertAdjacentHTML("beforeend", surfaceTrim({nav: element.matches(".bottom-nav,.nav-shell")}));
+    element.insertAdjacentHTML("beforeend", surfaceTrim({
+      nav: element.matches(".bottom-nav,.nav-shell"),
+      lowerLeft: element.dataset.seasonalSlot === "first",
+    }));
   }
 }
 
@@ -62,7 +65,7 @@ export function renderSeasonalPreview(raw) {
   return `<div class="seasonal-preview" data-season="${settings.mode}" data-season-drifts="${settings.winterDrifts ? "on" : "off"}" data-season-webs="${settings.halloweenWebs ? "on" : "off"}" data-season-spider="${settings.halloweenSpider ? "on" : "off"}" style="--seasonal-strength:${settings.intensity/100}">
     <div class="seasonal-preview__switcher">Основная <span>⌄</span>${surfaceTrim()}<span class="seasonal-spider" aria-hidden="true"><svg data-preserve-color viewBox="0 0 32 48" fill="none"><path d="M16 0v25" stroke="currentColor" stroke-width=".8"/><path d="m12 33-7-5-3 3m10 6-8 1-2 5m18-10 7-5 3 3m-10 6 8 1 2 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="16" cy="37" rx="5" ry="6" fill="currentColor"/><circle cx="16" cy="30" r="3" fill="currentColor"/></svg></span></div>
     <div class="seasonal-preview__details"><strong>Подписка</strong><small>5 устройств · 100 ГБ</small></div>
-    <div class="seasonal-preview__button">Продлить${surfaceTrim()}</div><div class="seasonal-preview__button">Подключиться${surfaceTrim()}</div>
+    <div class="seasonal-preview__button">Продлить${surfaceTrim({lowerLeft:true})}</div><div class="seasonal-preview__button">Подключиться${surfaceTrim()}</div>
     <div class="seasonal-preview__nav"><span>⌂</span><span>▣</span><span>✉</span><span>♙</span><span>▦</span>${surfaceTrim({nav:true})}</div>
     <div class="seasonal-decor seasonal-decor--preview ${settings.animated ? "" : "seasonal-decor--still"}" style="--seasonal-opacity:${settings.intensity/100}" aria-hidden="true">${scene(settings)}</div>
   </div>`;

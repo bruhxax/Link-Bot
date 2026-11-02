@@ -53,22 +53,44 @@
 .seasonal-surface__trim { position: absolute; display: none; z-index: 2; pointer-events: none; overflow: hidden; border-radius: inherit; }
 .seasonal-surface__trim svg { display: block; width: 100% !important; height: 100% !important; }
 .seasonal-surface__trim--frost, .seasonal-surface__trim--frost-left {
- background: url("/mini-app/assets/season-snow-texture.png") center 50% / 115% auto no-repeat;
+ background: url("/mini-app/assets/season-snow-cap.png") 50% 55% / 100% 200% no-repeat;
 }
 :root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--frost,
 .seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--frost {
- display: block; top: -1px; right: 0; width: min(29%, 96px); height: clamp(15px, 34%, 21px);
- opacity: calc(.3 + var(--seasonal-strength, .55) * .65); filter: drop-shadow(0 2px 3px rgba(105,180,231,.3));
+ display: block; top: -7px; right: -1px; width: min(26%, 68px); height: clamp(20px, 55%, 28px);
+ opacity: calc(.45 + var(--seasonal-strength, .55) * .55); filter: drop-shadow(0 2px 3px rgba(105,180,231,.38));
 }
+:root[data-season="winter"][data-season-drifts="on"] .subscription-switcher__trigger > .seasonal-surface__trim--frost,
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-preview__switcher .seasonal-surface__trim--frost { width: min(38%, 52px); }
+:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-slot] > .seasonal-surface__trim--frost,
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-preview__button .seasonal-surface__trim--frost { width: min(22%, 78px); }
+:root[data-season="winter"][data-season-drifts="on"] #app [data-seasonal-slot],
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-preview__button { overflow: visible !important; }
+:root[data-season="winter"][data-season-drifts="on"] #app [data-seasonal-slot] > .seasonal-surface__trim--frost,
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-preview__button .seasonal-surface__trim--frost { top: -15px; }
+:root[data-season="winter"][data-season-drifts="on"] :is(.bottom-nav,.nav-shell) > .seasonal-surface__trim--frost,
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-preview__nav .seasonal-surface__trim--frost { top: -12px; width: min(23%, 70px); }
 :root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--frost-left,
 .seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--frost-left {
- display: block; top: -1px; left: 0; width: min(27%, 82px); height: clamp(15px, 34%, 21px);
+ display: block; top: -7px; left: -1px; width: min(23%, 70px); height: clamp(20px, 55%, 28px);
  transform: scaleX(-1); opacity: calc(.28 + var(--seasonal-strength, .55) * .58);
  filter: drop-shadow(0 2px 3px rgba(105,180,231,.26));
+}
+:root[data-season="winter"][data-season-drifts="on"] :is(.bottom-nav,.nav-shell) > .seasonal-surface__trim--frost-left,
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-preview__nav .seasonal-surface__trim--frost-left { top: -12px; }
+:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--frost-lower,
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--frost-lower {
+ top: auto; bottom: -1px; width: min(17%, 60px); height: clamp(15px, 34%, 19px);
+ transform: rotate(180deg);
 }
 :root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] {
  box-shadow: inset 0 1px 0 rgba(214,239,255,.3), 0 0 16px rgba(80,150,210,.08);
  border-color: color-mix(in srgb, var(--line, #8aa6bf) 65%, #b2dafa) !important;
+}
+:root[data-season="winter"][data-season-drifts="on"] #app :is(.subscription-switcher__trigger,[data-seasonal-slot],.bottom-nav) {
+ background-color: color-mix(in srgb, var(--control-bg, #101721) 82%, #1c3c58);
+ background-image: linear-gradient(160deg, rgba(104,170,217,.11), transparent 46%, rgba(51,112,160,.1));
+ box-shadow: inset 0 1px 0 rgba(211,240,255,.26), inset 0 -1px 0 rgba(98,166,213,.12), 0 8px 20px rgba(0,27,51,.18);
 }
 :root[data-season="winter"][data-season-drifts="on"] #app .bottom-nav { background-image: linear-gradient(180deg,rgba(94,165,214,.11),transparent 70%); }
 :root[data-season="halloween"][data-season-webs="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--web,
