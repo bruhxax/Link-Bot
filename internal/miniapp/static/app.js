@@ -2376,7 +2376,6 @@ const state = {
   supportPendingMediaURL: "",
   supportMediaViewer: null,
   paymentAgreementAccepted: false,
-  recurringConsent: false,
   recurringPhoneDraft: "",
   promoCodeDraft: "",
 	profilePromoOpen: false,
@@ -9720,7 +9719,6 @@ function renderBuyPage() {
 	: method?.hint || copy.noPaymentMethodsHint;
   const checkoutDisabled = !plan || (!freeCheckout && !method) || state.busyMethod || state.adminPlanEditing;
   const recurringEligible = recurringCheckoutEligible(method, plan, devicePack, trafficPack);
-  const recurringPrice = plan ? (["lava", "wata", "platega", "rollypay", "cispay"].includes(paymentMethodBase(method?.id)) ? formatCheckoutPrice(plan, null, method?.id) : formatCurrency(Number(plan.priceRub || 0), state.locale)) : "";
   const checkout = `<div class="card--checkout checkout-sections">
 		<section class="card checkout-section checkout-selection">
 		<div class="summary-row checkout-summary"><div><div class="summary-row__title">${copy.selectedPlan}</div><div class="summary-row__value" data-text-transition="checkout-plan">${plan ? escapeHtml(getPlanDisplayTitle(plan, state.locale)) : "—"}</div></div>${plan?.recommended ? `<span class="badge badge--inline">${copy.best}</span>` : plan?.savingsPercent ? `<span class="badge badge--inline">${copy.savings(plan.savingsPercent)}</span>` : ""}</div>
@@ -9743,8 +9741,7 @@ function renderBuyPage() {
 		  <div data-promo-reward-action>${renderPromoRewardAction()}</div>
         </div>` : ""}
 		${state.data.meta?.starsNeedPriorPurchase && !freeCheckout ? `<div class="note">${copy.starsNeedPriorPurchase}</div>` : ""}
-		${recurringEligible ? `<label class="checkout-recurring"><input type="checkbox" data-input="recurring-consent" ${state.recurringConsent ? "checked" : ""}><span><strong>${escapeHtml(localizedText("Автопродление", "Auto renewal", "تمدید خودکار"))}</strong><small>${escapeHtml(localizedText(`После окончания тарифа спишем ${recurringPrice} за следующий период. Отключить можно в «Платежах».`, `We will charge ${recurringPrice} for the next period when this plan ends. You can turn this off in Payments.`, `پس از پایان دوره، ${recurringPrice} برای دوره بعد دریافت می‌شود. در پرداخت‌ها می‌توانید آن را غیرفعال کنید.`))}</small></span></label>` : ""}
-		${recurringEligible && state.recurringConsent && ["cloudpayments", "wata"].includes(paymentMethodBase(method?.id)) ? `<label class="checkout-recurring-phone"><span>${escapeHtml(localizedText("Телефон для автосписания", "Phone for automatic charges", "تلفن برای پرداخت خودکار"))}</span><input type="tel" inputmode="tel" autocomplete="tel" data-input="recurring-phone" placeholder="+79991234567" value="${escapeAttribute(state.recurringPhoneDraft)}"></label>` : ""}
+		${recurringEligible && ["cloudpayments", "wata"].includes(paymentMethodBase(method?.id)) ? `<label class="checkout-recurring-phone"><span>${escapeHtml(localizedText("Телефон для оплаты", "Payment phone", "تلفن پرداخت"))}</span><input type="tel" inputmode="tel" autocomplete="tel" data-input="recurring-phone" placeholder="+79991234567" value="${escapeAttribute(state.recurringPhoneDraft)}"></label>` : ""}
 		<button class="btn btn--green-filled buy-action" type="button" data-action="pay-selected" ${checkoutDisabled ? "disabled aria-disabled=\"true\"" : ""}>${icon(state.busyMethod ? "refresh" : "cart")}<span data-price-transition>${escapeHtml(payLabel)}</span></button>
         </div>
 		</section>
@@ -11671,7 +11668,7 @@ function paymentReceiptEmail() {
 
 function requirePaymentContact(context) {
 	const provider = paymentMethodBase(getSelectedPaymentMethod()?.id);
-	if (provider !== "antilopay" && !(["wata", "lava"].includes(provider) && state.recurringConsent)) return false;
+	if (provider !== "antilopay" && !(context?.mode === "purchase" && ["wata", "lava"].includes(provider) && recurringCheckoutEligible(getSelectedPaymentMethod(), getSelectedPlan(), getSelectedDevicePack(), getSelectedTrafficPack()))) return false;
 	if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(paymentReceiptEmail())) return false;
 	state.paymentContactContext = context;
 	render({ preserveScroll: true });
@@ -12879,7 +12876,6 @@ function bindRootActions() {
 	app.addEventListener("change", (event) => {
  const input = event.target;
 		if (input.dataset?.input === "payments-autopay") { void togglePaymentsAutoRenew(input.checked); return; }
-		if (input.dataset?.input === "recurring-consent") { state.recurringConsent = Boolean(input.checked); render({ preserveScroll: true }); return; }
  if(input.dataset?.settingPath?.startsWith("torrents.")){if(!state.adminSettingsDraft||!canAdmin("torrents"))return;setDeepValue(state.adminSettingsDraft,input.dataset.settingPath,input.checked);scheduleTorrentSettingsSave();return;}
 		if(input.dataset?.surveyField){updateAdminSurveyField(input);return;}
  if(input.dataset?.surveyRun){void loadAdminSurveyResults(input.value);return;}
@@ -17910,10 +17906,10 @@ async function startPayment({ deviceOnly = false, trafficOnly = false } = {}) {
 	if (!deviceOnly && !trafficOnly && trafficPack && Number(plan?.trafficLimitBytes || 0) <= 0) return showToast(localizedText("В этом тарифе трафик уже безлимитный", "This plan already has unlimited traffic", "این تعرفه ترافیک نامحدود دارد"), "danger");
   const selectedMethod = getSelectedPaymentMethod();
   const method = selectedMethod?.id || "";
-  if (state.recurringConsent && !recurringCheckoutEligible(selectedMethod, plan, devicePack, trafficPack)) state.recurringConsent = false;
+  const recurringEligible = !deviceOnly && !trafficOnly && recurringCheckoutEligible(selectedMethod, plan, devicePack, trafficPack);
   const freeCheckout = Boolean(!deviceOnly && !trafficOnly && plan && Number(plan.priceRub || 0) === 0 && Number(plan.priceStars || 0) === 0 && !devicePack && !trafficPack);
   if ((!deviceOnly && !trafficOnly && !plan) || (deviceOnly && !devicePack) || (trafficOnly && !trafficPack) || (!freeCheckout && !method)) return showToast(t().paymentUnavailable);
-	if (state.recurringConsent && ["cloudpayments", "wata"].includes(paymentMethodBase(method)) && !/^\+[1-9]\d{7,14}$/.test(state.recurringPhoneDraft.trim())) return showToast(localizedText("Укажите телефон в формате +79991234567", "Enter a phone number like +79991234567", "شماره تلفن را به صورت +79991234567 وارد کنید"), "danger");
+	if (recurringEligible && ["cloudpayments", "wata"].includes(paymentMethodBase(method)) && !/^\+[1-9]\d{7,14}$/.test(state.recurringPhoneDraft.trim())) return showToast(localizedText("Укажите телефон в формате +79991234567", "Enter a phone number like +79991234567", "شماره تلفن را به صورت +79991234567 وارد کنید"), "danger");
 	if (method === "p2p") return openP2PMenu({ mode: "purchase", deviceOnly, trafficOnly });
 	if (!freeCheckout && requirePaymentChannel(method, { mode: "purchase", deviceOnly, trafficOnly })) return;
 	if (!freeCheckout && requirePaymentContact({ mode: "purchase", deviceOnly, trafficOnly })) return;
@@ -17931,7 +17927,6 @@ async function startPayment({ deviceOnly = false, trafficOnly = false } = {}) {
       paymentChannel,
 	  receiptEmail: paymentReceiptEmail(),
       agreementAccepted: true,
-	  recurringConsent: Boolean(state.recurringConsent && !deviceOnly && !trafficOnly),
 	  recurringPhone: state.recurringPhoneDraft.trim(),
 	  promoCode: deviceOnly || trafficOnly ? "" : (getActivePromo()?.code || ""),
 	  devicePackId: trafficOnly ? "" : (devicePack?.id || ""),

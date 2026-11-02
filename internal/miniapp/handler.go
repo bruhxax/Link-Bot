@@ -2200,6 +2200,13 @@ func (h *Handler) handleCreatePurchaseV2(w http.ResponseWriter, r *http.Request,
 	}
 
 	ctxWithProfile := contextWithSessionTelegramProfile(r.Context(), sess)
+	req.RecurringConsent = h.runtimeSettings != nil && h.runtimeSettings.FeatureEnabled("recurring_payments") &&
+		purchaseKind == database.PurchaseKindSubscription && !isFreePlan && price > 0 && purchaseMonths > 0 && purchaseDays == 0 &&
+		!hasPack && !hasTrafficPack && !req.DeviceOnly && !req.TrafficOnly &&
+		(invoiceType == database.InvoiceTypeYookasa || invoiceType == database.InvoiceTypeCloudPayments ||
+			invoiceType == database.InvoiceTypeFreeKassa || invoiceType == database.InvoiceTypeWata ||
+			invoiceType == database.InvoiceTypeLava || invoiceType == database.InvoiceTypePlatega ||
+			invoiceType == database.InvoiceTypeRollyPay || invoiceType == database.InvoiceTypeCisPay)
 	if req.RecurringConsent && (invoiceType == database.InvoiceTypeCloudPayments || invoiceType == database.InvoiceTypeWata) && h.runtimeSettings != nil && h.runtimeSettings.FeatureEnabled("recurring_payments") && !recurringPhonePattern.MatchString(strings.TrimSpace(req.RecurringPhone)) {
 		h.writeError(w, http.StatusBadRequest, "recurring_phone_required", "Укажите телефон в международном формате для автопродления")
 		return

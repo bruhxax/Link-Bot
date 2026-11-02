@@ -4244,11 +4244,6 @@ body:not(.is-layout-editing) .runtime-layout-item[data-runtime-id="subscription_
 .payments-autorenew input:checked + .payments-autorenew__track i { transform: translateX(15px); background: var(--card); }
 .payments-autorenew input:focus-visible + .payments-autorenew__track { outline: 2px solid var(--control-border); outline-offset: 3px; }
 .payments-autorenew input:disabled + .payments-autorenew__track { opacity: .5; }
-.checkout-recurring { display: flex; gap: 10px; align-items: flex-start; padding: 11px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-soft); cursor: pointer; }
-.checkout-recurring input { width: 18px; height: 18px; flex: 0 0 auto; margin: 1px 0 0; accent-color: var(--control-border); }
-.checkout-recurring span { display: grid; gap: 3px; min-width: 0; }
-.checkout-recurring strong { font-size: 12px; }
-.checkout-recurring small { color: var(--muted); font-size: 10px; line-height: 1.4; }
 .checkout-recurring-phone { display: grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
 .checkout-recurring-phone input { width: 100%; min-height: 40px; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-soft); color: var(--text); font: inherit; }
 .checkout-recurring-phone input:focus-visible { outline: 2px solid var(--control-border); outline-offset: 2px; }
