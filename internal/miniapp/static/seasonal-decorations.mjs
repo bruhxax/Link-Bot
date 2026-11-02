@@ -25,7 +25,7 @@ const surfaceSelector = [
   ".site-header .nav-shell", ".plans-grid .plan-card",
   ".hero__actions a",
 ].join(",");
-const winterSurfaceSelector = [
+const pageSurfaceSelector = [
   ".page.active :is(.card:not(.card--status),.btn,.pricing-card,.menu-row,.profile-row,.pay-row,.platform-btn,.quick-link,.pay-selector,.support-ticket-card,.payments-switch,.promo-box,.metric,.server-summary-card,.server-card,.state-card,.faq-item,.referral-metrics,.referral-invite-card,.wallet-withdrawal,.wallet-history,.review-card,.login-method-card,.admin-finance-card,.admin-integrations__list,.admin-feature-group,.admin-editor__section,.admin-broadcast__section,.survey-editor)",
   ".modal.open :is(.modal__sheet,.card,.btn,.pricing-card,.pay-row,.platform-btn,.pay-selector)",
 ].join(",");
@@ -33,17 +33,23 @@ const iceControlSelector = ".btn,.platform-btn,.quick-link,.pay-selector,.paymen
 const iceCrackSelector = ".btn,.platform-btn,.quick-link,.pay-selector,.subscription-switcher__trigger,.bottom-nav,.nav-shell,.hero__actions a";
 
 export function decorateSeasonalSurfaces(root = document) {
-  const selector = document.documentElement.dataset.season === "winter"
-    ? `${surfaceSelector},${winterSurfaceSelector}`
-    : surfaceSelector;
+  const season = document.documentElement.dataset.season;
+  const selector = season === "winter" || season === "halloween"
+    ? `${surfaceSelector},${pageSurfaceSelector}` : surfaceSelector;
   let crackIndex = 0;
+  let webIndex = 0;
   for (const element of root.querySelectorAll(selector)) {
     if (element.dataset.seasonalSurface === "on") continue;
-    if (element.matches(surfaceSelector)) element.dataset.seasonalWeb = "on";
+    const original = element.matches(surfaceSelector);
+    if (original) element.dataset.seasonalOriginal = "on";
+    if (season === "halloween" || original) {
+      element.dataset.seasonalWeb = "on";
+      if (original || webIndex++ % 4 === 0) element.dataset.seasonalWebTrim = "on";
+    }
     const actionStack = element.closest(".action-stack--dashboard");
     if (actionStack) element.dataset.seasonalSlot = actionStack.querySelector(".btn") === element ? "first" : "second";
     element.dataset.seasonalSurface = "on";
-    if (document.documentElement.dataset.season === "winter" && getComputedStyle(element).position === "static") element.dataset.seasonalPositioned = "on";
+    if (getComputedStyle(element).position === "static") element.dataset.seasonalPositioned = "on";
     if (element.matches(iceControlSelector)) element.dataset.seasonalKind = "control";
     const cracks = element.matches(iceCrackSelector);
     element.insertAdjacentHTML("beforeend", surfaceTrim({cracks, variant: cracks ? crackIndex++ % iceFractures.length : 0}));

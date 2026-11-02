@@ -8209,20 +8209,24 @@ function normalizeAppearanceSection() {
 function renderAdminSeasonalAppearance() {
 	const settings = state.adminSettingsDraft?.appearance?.seasonal || {};
 	const mode = ["winter", "halloween"].includes(settings.mode) ? settings.mode : "off";
-	const modes = [["off", "Без украшений", "Чистая тема"], ["winter", "Зима", "Снег на интерфейсе"], ["halloween", "Хэллоуин", "Паутина и листья"]];
-	return `<section class="admin-editor__section admin-seasonal-editor"><h3>Тематические украшения</h3>
-		<div class="admin-seasonal-modes" role="radiogroup" aria-label="Сезонный стиль">${modes.map(([id, label, hint]) => `<button class="admin-seasonal-mode ${mode === id ? "is-selected" : ""}" type="button" role="radio" aria-checked="${mode === id}" data-action="admin-seasonal-mode" data-value="${id}"><strong>${label}</strong><small>${hint}</small></button>`).join("")}</div>
+	const modes = [["off", "Без", "Обычный вид"], ["winter", "Зима", "Лёд и снег"], ["halloween", "Хэллоуин", "Паутина и листья"]];
+	const marks = {
+		off: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="7.5" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>',
+		winter: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M12 2v20M2 12h20M5 5l14 14M19 5 5 19"/><path d="m9 4 3 3 3-3m-6 16 3-3 3 3M4 9l3 3-3 3m16-6-3 3 3 3"/></g></svg>',
+		halloween: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M3 3h18M21 3v18M3 3l18 18M7 3c0 3 1 5 3 7M12 3c0 5 2 9 5 12M21 7c-3 0-5-1-7-3M21 12c-5 0-9-2-12-5"/></g></svg>',
+	};
+	return `<section class="admin-editor__section admin-seasonal-editor" data-seasonal-edit-mode="${mode}"><div class="admin-seasonal-editor__header"><span class="admin-seasonal-editor__icon" aria-hidden="true">${icon("sparkles")}</span><h3>Тематические украшения</h3></div>
+		<div class="admin-seasonal-modes" role="radiogroup" aria-label="Сезонный стиль">${modes.map(([id, label, hint]) => `<button class="admin-seasonal-mode ${mode === id ? "is-selected" : ""}" type="button" role="radio" aria-checked="${mode === id}" data-action="admin-seasonal-mode" data-value="${id}"><span class="admin-seasonal-mode__mark" aria-hidden="true">${marks[id]}</span><span class="admin-seasonal-mode__copy"><strong>${label}</strong><small>${hint}</small></span></button>`).join("")}</div>
 		${renderSeasonalPreview(settings)}
 		${mode === "off" ? "" : `<div class="admin-seasonal-options">${renderAdminRangeField("Выразительность", "", "appearance.seasonal.intensity", {value: settings.intensity || 55, min: 10, max: 100, suffix: "%", hideScale: true})}${renderAdminToggle("Анимация", "appearance.seasonal.animated")}${mode === "winter" ? `${renderAdminToggle("Ледяная поверхность", "appearance.seasonal.winterDrifts")}${renderAdminToggle("Снежинки на фоне", "appearance.seasonal.winterSnow")}` : `${renderAdminToggle("Паутина на карточках и кнопках", "appearance.seasonal.halloweenWebs")}${renderAdminToggle("Редкий паучок", "appearance.seasonal.halloweenSpider")}${renderAdminToggle("Падающие листья", "appearance.seasonal.halloweenLeaves")}`}</div>`}
-		<p class="admin-field__hint">Одинаково работает в Mini App и на лендинге. Сохраняется вместе с темой.</p>
 	</section>`;
 }
 
 function renderAdminAppearancePage() {
-	if (state.adminThemePresets === null && !state.adminThemePresetLoading) queueMicrotask(() => void loadAdminThemePresets());
   const tab = ["theme", "landing", "seasonal", "cursors"].includes(state.adminAppearanceTab)
     ? state.adminAppearanceTab
     : "theme";
+	if (tab === "theme" && state.adminThemePresets === null && !state.adminThemePresetLoading) queueMicrotask(() => void loadAdminThemePresets());
   const tabs = [
     ["theme", "Кабинет"],
     ["landing", "Лендинг"],
@@ -8248,7 +8252,7 @@ function renderAdminAppearancePage() {
   } else body = renderAdminCabinetAppearance();
   return renderAdminEditorPage(
     localizedText("Оформление", "Appearance", "ظاهر"),
-    `<div class="appearance-settings">${nav}${renderAdminThemeLibrary()}<div class="appearance-panel" data-appearance-panel="${tab}">${body}</div></div>`,
+    `<div class="appearance-settings">${nav}${tab === "theme" ? renderAdminThemeLibrary() : ""}<div class="appearance-panel" data-appearance-panel="${tab}">${body}</div></div>`,
   );
 }
 

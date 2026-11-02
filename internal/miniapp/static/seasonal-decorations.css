@@ -53,7 +53,7 @@
 .seasonal-surface__trim { position: absolute; display: none !important; z-index: 2; pointer-events: none; overflow: hidden; border-radius: inherit; }
 .seasonal-surface__trim svg { display: block; width: 100% !important; height: 100% !important; }
 /* The translucent body is ice; existing control borders keep their theme color. */
-:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-positioned="on"] { position: relative; }
+:root:is([data-season="winter"][data-season-drifts="on"],[data-season="halloween"][data-season-webs="on"]) [data-seasonal-positioned="on"] { position: relative; }
 :root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--ice,
 .seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--ice {
  display: block !important; inset: 1px; width: auto; height: auto;
@@ -85,11 +85,14 @@
 .seasonal-ice-cracks path { vector-effect: non-scaling-stroke; }
 .seasonal-ice-cracks__main { stroke: #e2f6ff; stroke-width: .85; filter: drop-shadow(0 1px 0 rgba(18, 62, 93, .8)); }
 .seasonal-ice-cracks__branch { stroke: #c6e8fa; stroke-width: .6; opacity: .72; }
-:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-web="on"] > .seasonal-surface__trim--web,
+:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-web-trim="on"] > .seasonal-surface__trim--web,
 .seasonal-preview[data-season="halloween"][data-season-webs="on"] .seasonal-surface__trim--web {
  display: block !important; top: 0; right: 0; width: min(42px, 100%); height: min(42px, 100%);
  opacity: calc(.35 + var(--seasonal-strength, .55) * .55);
  filter: drop-shadow(0 0 3px rgba(241,123,39,.42)) saturate(1.35);
+}
+:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-web-trim="on"]:not([data-seasonal-original="on"]) > .seasonal-surface__trim--web {
+ width: min(28px, 100%); height: min(28px, 100%); opacity: calc(.28 + var(--seasonal-strength, .55) * .34);
 }
 :root[data-season="halloween"][data-season-webs="on"] #app .bottom-nav > .seasonal-surface__trim--web { right: -5px; top: -5px; }
 :root[data-season="halloween"][data-season-webs="on"] [data-seasonal-slot="first"] > .seasonal-surface__trim--web,
@@ -99,6 +102,10 @@
 :root[data-season="halloween"][data-season-webs="on"] [data-seasonal-web="on"] {
  border-color: color-mix(in srgb, var(--line, #6b6057) 58%, #c8793e) !important;
  box-shadow: inset 0 1px 0 rgba(241,137,63,.18), inset 0 0 18px rgba(201,107,43,.06), 0 0 13px rgba(202,106,44,.07);
+}
+:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-web="on"]:not([data-seasonal-original="on"]) {
+ border-color: color-mix(in srgb, var(--line, #6b6057) 82%, #c8793e) !important;
+ box-shadow: inset 0 1px 0 rgba(241,137,63,.09),0 0 11px rgba(202,106,44,.045);
 }
 :root[data-season="halloween"][data-season-webs="on"] #app .bottom-nav { background-image: linear-gradient(105deg,rgba(143,72,32,.12),transparent 30%,transparent 70%,rgba(143,72,32,.1)); }
 :root[data-frames="off"] [data-seasonal-surface="on"] { border-color: transparent !important; }
@@ -157,17 +164,30 @@
 .seasonal-decor--preview .seasonal-flake { max-width: 12px; }
 .seasonal-decor--preview .seasonal-leaf { max-width: 15px; }
 
-.admin-seasonal-editor { display: grid; gap: 13px; padding: 14px; border: 1px solid var(--line, var(--border)); border-radius: 17px; background: var(--surface); box-shadow: 0 12px 28px rgba(0, 0, 0, .13); }
+.admin-seasonal-editor { display: grid; gap: 13px; padding: 15px; border: 1px solid var(--line, var(--border)); border-radius: 18px; background: var(--surface); box-shadow: 0 12px 28px rgba(0, 0, 0, .13); }
 .appearance-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .appearance-tabs > button { min-width: 0; padding-inline: 5px; font-size: 11px; }
 :root[data-glass="on"] .admin-seasonal-editor { background: var(--glass-background) !important; background-image: var(--glass-texture) !important; border-color: var(--glass-border) !important; box-shadow: var(--glass-surface-shadow) !important; backdrop-filter: var(--glass-backdrop); -webkit-backdrop-filter: var(--glass-backdrop); }
+.admin-seasonal-editor__header { display: flex; align-items: center; gap: 10px; }
+.admin-seasonal-editor[data-seasonal-edit-mode="winter"] { --seasonal-header-color: #9acdf2; }
+.admin-seasonal-editor[data-seasonal-edit-mode="halloween"] { --seasonal-header-color: #db9459; }
+.admin-seasonal-editor__icon { display: grid; place-items: center; flex: 0 0 30px; width: 30px; height: 30px; border-radius: 10px; background: color-mix(in srgb,var(--seasonal-header-color, var(--accent)) 14%,var(--control-bg, var(--surface))); color: var(--seasonal-header-color, var(--accent)); }
+.admin-seasonal-editor__icon svg, .admin-seasonal-editor__icon .app-svg-icon { width: 17px; height: 17px; }
 .admin-seasonal-editor h3 { margin: 0; font-size: 14px; color: var(--text); text-transform: none; }
-.admin-seasonal-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
-.admin-seasonal-mode { display: grid; gap: 4px; min-height: 66px; padding: 10px; border: 1px solid var(--line, var(--border)); border-radius: 12px; background: var(--control-bg, var(--surface)); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background .22s, border-color .22s, transform .22s; }
-.admin-seasonal-mode:hover { transform: translateY(-2px); }
-.admin-seasonal-mode.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, var(--control-bg, var(--surface))); }
-.admin-seasonal-mode strong { font-size: 12px; }
-.admin-seasonal-mode small { color: var(--muted); font-size: 10px; }
+.admin-seasonal-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.admin-seasonal-mode { --mode-accent: var(--accent); position: relative; display: grid; grid-template-rows: 30px auto; align-content: start; gap: 8px; min-width: 0; min-height: 92px; padding: 10px; overflow: hidden; border: 1px solid var(--line, var(--border)); border-radius: 14px; background: linear-gradient(150deg,color-mix(in srgb,var(--mode-accent) 5%,var(--control-bg, var(--surface))),var(--control-bg, var(--surface))); color: var(--text); font: inherit; text-align: left; cursor: pointer; box-shadow: inset 0 1px rgba(255,255,255,.035); transition: background .22s,border-color .22s,box-shadow .22s,transform .22s; }
+.admin-seasonal-mode[data-value="winter"] { --mode-accent: #9acdf2; }
+.admin-seasonal-mode[data-value="halloween"] { --mode-accent: #db9459; }
+.admin-seasonal-mode:hover { transform: translateY(-2px); border-color: color-mix(in srgb,var(--mode-accent) 55%,var(--line, var(--border))); }
+.admin-seasonal-mode:focus-visible { outline: 2px solid var(--mode-accent); outline-offset: 2px; }
+.admin-seasonal-mode.is-selected { border-color: var(--mode-accent); background: linear-gradient(145deg,color-mix(in srgb,var(--mode-accent) 16%,var(--control-bg, var(--surface))),var(--control-bg, var(--surface)) 76%); box-shadow: inset 0 1px rgba(255,255,255,.085),0 0 0 1px color-mix(in srgb,var(--mode-accent) 20%,transparent),0 7px 20px color-mix(in srgb,var(--mode-accent) 9%,transparent); }
+.admin-seasonal-mode.is-selected::after { content:""; position:absolute; top:12px; right:12px; width:5px; height:5px; border-radius:50%; background:var(--mode-accent); box-shadow:0 0 8px var(--mode-accent); }
+.admin-seasonal-mode__mark { display:grid; place-items:center; width:30px; height:30px; border-radius:9px; background:color-mix(in srgb,var(--mode-accent) 13%,var(--control-bg, var(--surface))); color:var(--mode-accent); }
+.admin-seasonal-mode__mark svg { display:block; width:19px; height:19px; }
+.admin-seasonal-mode__copy { display:grid; gap:3px; min-width:0; }
+.admin-seasonal-mode strong { font-size:11px; line-height:1.18; }
+.admin-seasonal-mode small { color:var(--muted); font-size:9px; line-height:1.25; }
 .admin-seasonal-options { display: grid; gap: 8px; }
 .admin-seasonal-options .admin-toggle { margin: 0; }
+@media (max-width: 380px) { .admin-seasonal-mode { padding:8px; min-height:88px; } .admin-seasonal-mode small { font-size:8.5px; } }
 :root[data-frames="off"] .admin-seasonal-editor, :root[data-frames="off"] .admin-seasonal-mode { border-color: transparent !important; }
