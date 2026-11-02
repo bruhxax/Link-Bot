@@ -235,6 +235,9 @@ func (h *Handler) serveSupportMedia(w http.ResponseWriter, r *http.Request) {
 	}
 	setCommonSecurityHeaders(w)
 	w.Header().Set("Cache-Control", "private, no-store")
+	// Telegram's native Mini App downloader fetches this signed URL outside the WebView.
+	w.Header().Set("Access-Control-Allow-Origin", "https://web.telegram.org")
+	w.Header().Set("Cross-Origin-Resource-Policy", "cross-origin")
 	if h.supportRepository == nil || strings.TrimSpace(h.logoUploadDir) == "" {
 		http.NotFound(w, r)
 		return

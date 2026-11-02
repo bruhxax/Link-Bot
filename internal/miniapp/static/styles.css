@@ -10513,6 +10513,24 @@ body.has-open-modal .admin-save-bar {
   border-radius: 8px !important;
 }
 
+.support-compose__attach {
+  min-height: 38px;
+  padding: 8px 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--icon-color);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.support-compose__attach svg { width: 16px; height: 16px; }
+.support-compose__attach:focus-within { border-color: var(--accent); }
+
 .support-compose__submit svg {
   width: 18px;
   height: 18px;

@@ -11,7 +11,7 @@ function section(start, end) {
   return source.slice(first, last);
 }
 
-const code = section("let supportThreadVersion =", "function isSupportedSupportMedia(") +
+const code = section("let supportThreadVersion =", "function selectSupportMediaFile(") +
   section("async function openSupportTicket(", "function syncSupportPolling(") +
   section("function requestModalClose(", "function closePayModal(");
 
@@ -40,7 +40,7 @@ function harness() {
     render() { renders++; }, renderRealtime() { renders++; },
     clearPendingSupportMedia() { state.supportPendingMedia = null; },
     clearSupportMediaCache() {}, refreshSupport() {}, showToast() {},
-    supportText: () => ({}), isAdminUser: () => false,
+    supportText: () => ({photo: "Фото", video: "Видео"}), isAdminUser: () => false,
     FormData: class { append() {} },
   });
   vm.runInContext(code, context);
@@ -201,6 +201,20 @@ test("creating a ticket requires only its message and sends no subject", async (
   await pending;
   assert.equal(page.state.supportComposeOpen, false);
   assert.equal(page.state.activeSupportThread.ticket.id, 3);
+});
+
+test("a pasted screenshot can start a ticket and uploads into its new chat", async () => {
+  const page = harness();
+  page.context.closeSupportThreadState();
+  page.context.openSupportComposer();
+  page.state.supportPendingMedia = { name: "screen.png", type: "image/png" };
+  const pending = page.context.submitSupportTicket();
+  assert.equal(page.requests[0].body.message, "Фото");
+  page.requests[0].resolve({ data: thread(3) });
+  await pending;
+  assert.equal(page.requests[1].path, "/api/mini-app/support/send-media");
+  page.requests[1].resolve({ data: thread(3, "screen") });
+  await Promise.resolve();
 });
 
 test("repeated close clicks keep one animation and block background work", async () => {

@@ -45,12 +45,12 @@ test("a support viewer never sees reply or close controls, including while loadi
 test("the new ticket form contains a message field without a subject field", () => {
   const context = vm.createContext({ state: { supportDraftMessage: "Вопрос" },
     supportText: () => ({ createTitle: "Обращение", message: "Сообщение", messagePlaceholder: "Вопрос", send: "Отправить" }),
-    localizedText: ru => ru, modalStateClass: () => "", escapeHtml: String, escapeAttribute: String, icon: () => "",
+    localizedText: ru => ru, modalStateClass: () => "", escapeHtml: String, escapeAttribute: String, icon: () => "", renderSupportPendingMedia: () => "",
   });
   vm.runInContext(section("function renderSupportComposerModal()", "function renderSupportThreadModal()"), context);
   const html = context.renderSupportComposerModal();
   assert.match(html, /data-input="support-message"/);
-  assert.doesNotMatch(html, /support-subject|<input\b/);
+  assert.doesNotMatch(html, /support-subject/);
 });
 
 function mountedModal() {

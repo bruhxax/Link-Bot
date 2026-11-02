@@ -69,7 +69,8 @@ func TestSupportChatRendersMediaComposerViewerAndDownload(t *testing.T) {
 		`data-action="open-support-media"`,
 		`data-action="download-support-media"`,
 		`renderSupportMediaViewerModal()`,
-		`link.download = String(message.attachment.name`,
+		`tg.downloadFile({ url: downloadURL, file_name: fileName })`,
+		`supportMediaFromClipboard(event.clipboardData)`,
 		`paperclip:`,
 	} {
 		if !strings.Contains(app, fragment) {

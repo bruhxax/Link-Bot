@@ -23,6 +23,7 @@ import {
 import { renderSVG as renderQRCodeSVG } from "./uqr.mjs";
 import { defaultSourceCrop, legacySourceCrop, cropMediaGeometry, zoomCrop, resizeCropCorner, resizeBannerProportionally } from "./banner-crop.mjs";
 import { tokenizeSupportMessage } from "./support-message.mjs";
+import { isSupportedSupportMedia, supportMediaFromClipboard } from "./support-clipboard.mjs";
 
 import { reviewRewardDraft, reviewRewardsFromDraft, reviewRewardSummary } from "./review-rewards.mjs";
 
@@ -12050,6 +12051,8 @@ function renderSupportComposerModal() {
           <span class="support-field__label">${escapeHtml(scopy.message)}</span>
           <textarea class="support-field__textarea" rows="5" maxlength="2000" placeholder="${escapeAttribute(scopy.messagePlaceholder)}" data-input="support-message">${escapeHtml(state.supportDraftMessage)}</textarea>
         </label>
+        ${renderSupportPendingMedia()}
+        <label class="support-compose__attach" aria-label="${escapeAttribute(scopy.attachMedia)}"><input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" data-input="support-media-file" ${state.supportBusy ? "disabled" : ""}>${icon("paperclip")}<span>${escapeHtml(scopy.attachMedia)}</span></label>
         <button class="btn btn--green-filled support-compose__submit" type="button" data-action="submit-support-ticket" ${state.supportBusy ? "disabled" : ""}>${icon(state.supportBusy === "create-ticket" ? "refresh" : "mapArrow")}${escapeHtml(scopy.send)}</button>
       </div>
     </div>
@@ -12264,6 +12267,11 @@ function bindRootActions() {
 		void submitEmailAuth();
 	});
 	app.addEventListener("paste", (event) => {
+		if (!state.supportBusy && ((event.target.matches?.('[data-input="support-reply"]') && state.supportThreadOpen && state.activeSupportThread?.canReply) ||
+			(event.target.matches?.('[data-input="support-message"]') && state.supportComposeOpen))) {
+			const file = supportMediaFromClipboard(event.clipboardData);
+			if (file) { event.preventDefault(); selectSupportMediaFile(file); return; }
+		}
 		if (event.target.matches?.("[data-email-link-digit]")) {
 			const digits = String(event.clipboardData?.getData("text") || "").replace(/\D/g, "").slice(0, 5);
 			if (!digits) return;
@@ -17065,6 +17073,7 @@ function closeSupportComposeState() {
 	supportComposeVersion++;
 	state.supportComposeOpen = false;
 	state.supportDraftMessage = "";
+	clearPendingSupportMedia();
 }
 
 function closeSupportThreadState() {
@@ -17083,12 +17092,6 @@ function closeSupportThreadState() {
 	state.supportReplyDraft = "";
 	clearPendingSupportMedia();
 	clearSupportMediaCache();
-}
-
-function isSupportedSupportMedia(file) {
-	const type = String(file?.type || "").toLowerCase();
-	const name = String(file?.name || "").toLowerCase();
-	return /^(?:image\/(?:jpeg|png|webp|gif)|video\/(?:mp4|webm|quicktime))$/.test(type) || /\.(?:jpe?g|png|webp|gif|mp4|webm|mov)$/.test(name);
 }
 
 function selectSupportMediaFile(file) {
@@ -17156,10 +17159,36 @@ function openSupportMediaViewer(messageID) {
 async function downloadSupportMedia(messageID) {
 	const message = supportMessageByID(messageID) || state.supportMediaViewer;
 	if (!message?.attachment) return;
+	const fileName = String(message.attachment.name || (message.attachment.type === "video" ? "video" : "photo")).replace(/[\\/]+/g, "-");
+	let fileHandle = null;
+	if (!tg && !previewMode && typeof window.showSaveFilePicker === "function") {
+		try { fileHandle = await window.showSaveFilePicker({ suggestedName: fileName }); }
+		catch (error) { if (error?.name === "AbortError") return; }
+	}
 	const url = await loadSupportMediaURL(messageID, { force: !previewMode });
+	const downloadURL = previewMode ? url : new URL(`${url}${url.includes("?") ? "&" : "?"}download=1`, window.location.origin).href;
+	if (fileHandle) {
+		const response = await fetch(downloadURL, { cache: "no-store" });
+		if (!response.ok) throw new Error("Не удалось скачать файл");
+		const writable = await fileHandle.createWritable();
+		try { await writable.write(await response.blob()); }
+		finally { await writable.close(); }
+		showToast("Файл сохранён", "success");
+		return;
+	}
+	if (tg) {
+		if (!previewMode && typeof tg.downloadFile === "function" && downloadURL.startsWith("https://")) {
+			try { tg.downloadFile({ url: downloadURL, file_name: fileName }); return; }
+			catch { /* Older Telegram clients may lack native downloads. */ }
+		}
+		if (previewMode) { showToast("Скачивание доступно в рабочем чате", "danger"); return; }
+		await copyToClipboard(downloadURL);
+		showToast("Telegram не поддерживает скачивание. Ссылка скопирована — откройте её в браузере.", "danger");
+		return;
+	}
 	const link = document.createElement("a");
-	link.href = previewMode ? url : `${url}${url.includes("?") ? "&" : "?"}download=1`;
-	link.download = String(message.attachment.name || (message.attachment.type === "video" ? "video" : "photo")).replace(/[\\/]+/g, "-");
+	link.href = downloadURL;
+	link.download = fileName;
 	document.body.appendChild(link);
 	link.click();
 	link.remove();
@@ -17245,14 +17274,16 @@ async function openSupportTicket(ticketId, { silent = false } = {}) {
 async function submitSupportTicket() {
   const scopy = supportText();
   if (state.supportBusy || !state.supportComposeOpen || closingModalName === "support-compose") return;
-  if (!state.supportDraftMessage.trim()) return showToast(scopy.messagePlaceholder);
+  const media = state.supportPendingMedia;
+  if (!state.supportDraftMessage.trim() && !media) return showToast(scopy.messagePlaceholder);
+  const initialMessage = state.supportDraftMessage.trim() || (String(media.type || "").startsWith("video/") || /\.(?:mp4|webm|mov)$/i.test(String(media.name || "")) ? scopy.video : scopy.photo);
 
   const version = supportComposeVersion;
   const operation = beginSupportOperation("create-ticket");
   render();
   try {
     const response = await post("/api/mini-app/support/create", {
-      message: state.supportDraftMessage.trim(),
+      message: initialMessage,
     });
     if (!finishSupportOperation(operation) || version !== supportComposeVersion || !state.supportComposeOpen || closingModalName === "support-compose") return;
     invalidateSupportThreadRequests();
@@ -17263,7 +17294,8 @@ async function submitSupportTicket() {
     state.supportThreadOpen = true;
     render();
     void refreshSupport({ silent: true });
-    showToast(scopy.ticketCreated, "success");
+    if (media) void sendSupportMediaMessage(media, "").catch((error) => showToast(error?.message || scopy.mediaInvalid, "danger"));
+    else showToast(scopy.ticketCreated, "success");
   } catch (error) {
     if (!finishSupportOperation(operation) || version !== supportComposeVersion || !state.supportComposeOpen || closingModalName === "support-compose") return;
     render();
