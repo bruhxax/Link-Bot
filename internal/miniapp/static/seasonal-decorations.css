@@ -49,16 +49,23 @@
 
 /* Seasonal trim follows the actual rounded control edge. */
 :root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"],
-:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-surface="on"] { position: relative; isolation: isolate; }
+:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-surface="on"] { isolation: isolate; }
 .seasonal-surface__trim { position: absolute; display: none; z-index: 2; pointer-events: none; overflow: hidden; border-radius: inherit; }
 .seasonal-surface__trim svg { display: block; width: 100% !important; height: 100% !important; }
+.seasonal-surface__trim--frost, .seasonal-surface__trim--frost-left {
+ background: url("/mini-app/assets/season-snow-texture.png") center 50% / 115% auto no-repeat;
+}
 :root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--frost,
 .seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--frost {
- display: block; top: -1px; right: 1px; width: min(53%, 200px); height: clamp(18px, 40%, 25px);
- opacity: calc(.25 + var(--seasonal-strength, .55) * .75); filter: drop-shadow(0 2px 3px rgba(105,180,231,.35));
+ display: block; top: -1px; right: 0; width: min(29%, 96px); height: clamp(15px, 34%, 21px);
+ opacity: calc(.3 + var(--seasonal-strength, .55) * .65); filter: drop-shadow(0 2px 3px rgba(105,180,231,.3));
 }
-:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-slot="second"] > .seasonal-surface__trim--frost,
-.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-preview__button:nth-of-type(4) .seasonal-surface__trim--frost { right: auto; left: 1px; transform: scaleX(-1); }
+:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--frost-left,
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--frost-left {
+ display: block; top: -1px; left: 0; width: min(27%, 82px); height: clamp(15px, 34%, 21px);
+ transform: scaleX(-1); opacity: calc(.28 + var(--seasonal-strength, .55) * .58);
+ filter: drop-shadow(0 2px 3px rgba(105,180,231,.26));
+}
 :root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] {
  box-shadow: inset 0 1px 0 rgba(214,239,255,.3), 0 0 16px rgba(80,150,210,.08);
  border-color: color-mix(in srgb, var(--line, #8aa6bf) 65%, #b2dafa) !important;
@@ -66,16 +73,18 @@
 :root[data-season="winter"][data-season-drifts="on"] #app .bottom-nav { background-image: linear-gradient(180deg,rgba(94,165,214,.11),transparent 70%); }
 :root[data-season="halloween"][data-season-webs="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--web,
 .seasonal-preview[data-season="halloween"][data-season-webs="on"] .seasonal-surface__trim--web {
- display: block; top: 0; right: 0; width: min(92px, 33%); height: min(82px, 100%);
- opacity: calc(.25 + var(--seasonal-strength, .55) * .68);
+ display: block; top: 0; right: 0; width: min(42px, 100%); height: min(42px, 100%);
+ opacity: calc(.35 + var(--seasonal-strength, .55) * .55);
+ filter: drop-shadow(0 0 3px rgba(241,123,39,.42)) saturate(1.35);
 }
+:root[data-season="halloween"][data-season-webs="on"] #app .bottom-nav > .seasonal-surface__trim--web { right: -5px; top: -5px; }
 :root[data-season="halloween"][data-season-webs="on"] [data-seasonal-slot="first"] > .seasonal-surface__trim--web,
 .seasonal-preview[data-season="halloween"][data-season-webs="on"] .seasonal-preview__button:nth-of-type(3) .seasonal-surface__trim--web { right: auto; left: 0; transform: scaleX(-1); }
 :root[data-season="halloween"][data-season-webs="on"] [data-seasonal-slot="second"] > .seasonal-surface__trim--web,
 .seasonal-preview[data-season="halloween"][data-season-webs="on"] .seasonal-preview__button:nth-of-type(4) .seasonal-surface__trim--web { top: auto; bottom: 0; transform: scaleY(-1); }
 :root[data-season="halloween"][data-season-webs="on"] [data-seasonal-surface="on"] {
- border-color: color-mix(in srgb, var(--line, #6b6057) 65%, #bd7546) !important;
- box-shadow: inset 0 0 18px rgba(201,107,43,.06), 0 0 13px rgba(202,106,44,.06);
+ border-color: color-mix(in srgb, var(--line, #6b6057) 58%, #c8793e) !important;
+ box-shadow: inset 0 1px 0 rgba(241,137,63,.18), inset 0 0 18px rgba(201,107,43,.06), 0 0 13px rgba(202,106,44,.07);
 }
 :root[data-season="halloween"][data-season-webs="on"] #app .bottom-nav { background-image: linear-gradient(105deg,rgba(143,72,32,.12),transparent 30%,transparent 70%,rgba(143,72,32,.1)); }
 :root[data-frames="off"] [data-seasonal-surface="on"] { border-color: transparent !important; }
