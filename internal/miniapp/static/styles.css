@@ -4238,7 +4238,11 @@ body:not(.is-layout-editing) .runtime-layout-item[data-runtime-id="subscription_
 .payments-autorenew__copy small { font-size: 12px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .payments-autorenew__copy em { color: var(--muted); font-size: 10px; font-style: normal; line-height: 1.3; }
 .payments-autorenew--empty { min-height: 56px; cursor: default; }
-.payments-autorenew--empty strong { font-size: 13px; font-weight: 800; }
+.payments-autorenew--empty strong { flex: 1; font-size: 13px; font-weight: 800; }
+.payments-autorenew__locked-switch { position: relative; display: flex; width: 34px; height: 20px; flex: 0 0 34px; }
+.payments-autorenew__locked-switch input { margin: 0; }
+.payments-autorenew__lock { position: absolute; top: 2px; left: 2px; display: grid; place-items: center; width: 14px; height: 14px; pointer-events: none; }
+.payments-autorenew__lock svg { display: block; width: 9px; height: 9px; }
 .checkout-recurring-phone { display: grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
 .checkout-recurring-phone input { width: 100%; min-height: 40px; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-soft); color: var(--text); font: inherit; }
 .checkout-recurring-phone input:focus-visible { outline: 2px solid var(--control-border); outline-offset: 2px; }

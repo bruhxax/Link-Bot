@@ -10714,7 +10714,7 @@ function renderPaymentsPage() {
       ${canToggle ? `<label class="payments-autorenew card">
         <span class="payments-autorenew__copy"><strong>${escapeHtml(copy.autopayTitle || "Автоплатёж")}</strong><small>${escapeHtml(payments.method.title)}</small><em>${escapeHtml(hint)}</em></span>
         <input type="checkbox" role="switch" data-input="payments-autopay" aria-label="${escapeAttribute(copy.autopayTitle || "Автоплатёж")}" ${payments.autoPaymentEnabled ? "checked" : ""} ${state.paymentsAutoBusy ? "disabled" : ""}>
-      </label>` : `<div class="payments-autorenew payments-autorenew--empty card"><strong>${escapeHtml(localizedText("Способ не сохранен", "No saved method", "روش پرداخت ذخیره نشده"))}</strong></div>`}
+      </label>` : `<div class="payments-autorenew payments-autorenew--empty card"><strong>${escapeHtml(localizedText("Способ не сохранен", "No saved method", "روش پرداخت ذخیره نشده"))}</strong><span class="payments-autorenew__locked-switch"><input type="checkbox" role="switch" disabled aria-label="${escapeAttribute(localizedText("Способ не сохранен", "No saved method", "روش پرداخت ذخیره نشده"))}"><span class="payments-autorenew__lock" aria-hidden="true">${icon("lockAlt")}</span></span></div>`}
       <div class="card payments-history">
         <div class="section-label">${escapeHtml(copy.paymentHistory || "Purchase history")}</div>
         ${history.length ? `<div class="payment-list">${history.map((item) => renderPaymentHistoryItem(item)).join("")}</div>` : `<div class="empty-state"><div class="empty-state__icon">${icon("historyTickets")}</div><div class="empty-state__title">${escapeHtml(copy.paymentHistoryEmpty || "No purchases yet")}</div></div>`}
