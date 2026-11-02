@@ -36,7 +36,7 @@ import { createBroadcastAutosave } from "./broadcast-autosave.mjs";
 import { syncCustomBackground, probeBackground, draggedPosition } from "./custom-background.mjs";
 import { DEFAULT_BACKGROUND_MOTION, presetBackgroundColors } from "./background-palette.mjs";
 import {applyCustomCursor,cursorValues} from "./custom-cursor.mjs";
-import {renderSeasonalPreview,syncSeasonalDecorations} from "./seasonal-decorations.mjs";
+import {decorateSeasonalSurfaces,renderSeasonalPreview,syncSeasonalDecorations} from "./seasonal-decorations.mjs";
 import {patchBroadcastWorkflow} from "./broadcast-dom.mjs";
 import {captureBroadcastReveals,playBroadcastReveals} from "./broadcast-reveal.mjs";
 import {renderTelegramMessagePreview} from "./telegram-message-preview.mjs";
@@ -4831,6 +4831,7 @@ function render({ preserveScroll = true, scrollTop = null, preserveInteraction =
     </div>
   `);
 	lastBottomDockMode = dockMode;
+  if (document.documentElement.dataset.season !== "off") decorateSeasonalSurfaces(app);
   if (!consoleActive && state.currentPage === "admin" && state.adminSection === "finance") void mountFinanceCharts(app);
   bindRootActions();
   if (!consoleActive) mountLocalizationSelects(app);

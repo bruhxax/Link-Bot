@@ -47,100 +47,46 @@
   .seasonal-decor :is(.seasonal-flake, .seasonal-leaf) { animation: none !important; top: var(--still-y); opacity: .5; }
 }
 
-/* Frost is painted inside the surface and clipped by its own rounded contour. */
-:root[data-season="winter"][data-season-drifts="on"] :is(
-  #app .subscription-switcher__trigger, #app .action-stack--dashboard .btn,
-  #app .bottom-nav, #app .card--status, #app .pricing-card,
-  .plan-card, .button--primary
-) { position: relative; }
-:root[data-season="winter"][data-season-drifts="on"] :is(
-  #app .subscription-switcher__trigger, #app .action-stack--dashboard .btn,
-  #app .bottom-nav, #app .card--status, #app .pricing-card,
-  .plan-card, .button--primary
-)::after,
-.seasonal-preview[data-season="winter"][data-season-drifts="on"] :is(
-  .seasonal-preview__switcher, .seasonal-preview__button, .seasonal-preview__nav
-)::after {
-  content: "";
-  position: absolute;
-  z-index: 1;
-  inset: 1px;
-  border-radius: inherit;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse 19px 8px at 70% -1px, #e8f7ff 44%, rgba(195, 226, 246, .5) 68%, transparent 79%),
-    radial-gradient(ellipse 28px 10px at 79% -2px, #c6e2f5 44%, rgba(181, 218, 244, .5) 69%, transparent 80%),
-    radial-gradient(ellipse 23px 9px at 89% 0, #f1fbff 42%, rgba(202, 230, 248, .5) 68%, transparent 79%),
-    radial-gradient(ellipse 31px 10px at 98% -1px, #bfdcf1 44%, rgba(179, 217, 243, .46) 69%, transparent 80%),
-    linear-gradient(180deg, rgba(179, 224, 252, .16), transparent 21px);
-  opacity: calc(var(--seasonal-strength, .55) * .75);
-  box-shadow: inset 0 1px 0 rgba(204, 238, 255, .3);
+/* Seasonal trim follows the actual rounded control edge. */
+:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"],
+:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-surface="on"] { position: relative; isolation: isolate; }
+.seasonal-surface__trim { position: absolute; display: none; z-index: 2; pointer-events: none; overflow: hidden; border-radius: inherit; }
+.seasonal-surface__trim svg { display: block; width: 100% !important; height: 100% !important; }
+:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--frost,
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--frost {
+ display: block; top: -1px; right: 1px; width: min(53%, 200px); height: clamp(18px, 40%, 25px);
+ opacity: calc(.25 + var(--seasonal-strength, .55) * .75); filter: drop-shadow(0 2px 3px rgba(105,180,231,.35));
 }
-:root[data-season="winter"][data-season-drifts="on"] #app .action-stack--dashboard > :nth-child(2) .btn::after,
-.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-preview__button:nth-of-type(4)::after {
-  transform: scaleX(-1);
+:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-slot="second"] > .seasonal-surface__trim--frost,
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-preview__button:nth-of-type(4) .seasonal-surface__trim--frost { right: auto; left: 1px; transform: scaleX(-1); }
+:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] {
+ box-shadow: inset 0 1px 0 rgba(214,239,255,.3), 0 0 16px rgba(80,150,210,.08);
+ border-color: color-mix(in srgb, var(--line, #8aa6bf) 65%, #b2dafa) !important;
 }
-:root[data-season="winter"][data-season-drifts="on"][data-frames="on"] :is(
-  #app .subscription-switcher__trigger, #app .action-stack--dashboard .btn,
-  #app .bottom-nav, #app .card--status, #app .pricing-card,
-  .plan-card, .button--primary
-) { border-color: color-mix(in srgb, var(--line, #7b9ab0) 72%, #9acbe9) !important; }
-
-/* A woven corner lives inside the button rather than extending over it. */
-:root[data-season="halloween"][data-season-webs="on"] :is(
-  #app .subscription-switcher__trigger, #app .action-stack--dashboard .btn,
-  #app .bottom-nav, #app .card--status, #app .pricing-card,
-  .plan-card, .button--ghost
-) { position: relative; --web-x: 100%; --web-y: 0%; }
-:root[data-season="halloween"][data-season-webs="on"] :is(
-  #app .subscription-switcher__trigger, #app .action-stack--dashboard .btn,
-  #app .bottom-nav, #app .card--status, #app .pricing-card,
-  .plan-card, .button--ghost
-)::after,
-.seasonal-preview[data-season="halloween"][data-season-webs="on"] :is(
-  .seasonal-preview__switcher, .seasonal-preview__button, .seasonal-preview__nav
-)::after {
-  content: "";
-  position: absolute;
-  z-index: 1;
-  inset: 1px;
-  border-radius: inherit;
-  pointer-events: none;
-  background:
-    repeating-radial-gradient(circle at var(--web-x, 100%) var(--web-y, 0%),
-      transparent 0 11px, rgba(225, 149, 85, .52) 11.5px 12px, transparent 12.5px 22px),
-    repeating-conic-gradient(from 0deg at var(--web-x, 100%) var(--web-y, 0%),
-      rgba(225, 149, 85, .43) 0 .65deg, transparent .8deg 20deg),
-    radial-gradient(circle at var(--web-x, 100%) var(--web-y, 0%), rgba(230, 117, 40, .08), transparent 74px);
-  mask-image: radial-gradient(circle at var(--web-x, 100%) var(--web-y, 0%), #000 3px, rgba(0, 0, 0, .85) 32px, transparent 72px);
-  -webkit-mask-image: radial-gradient(circle at var(--web-x, 100%) var(--web-y, 0%), #000 3px, rgba(0, 0, 0, .85) 32px, transparent 72px);
-  opacity: calc(var(--seasonal-strength, .55) * .9);
+:root[data-season="winter"][data-season-drifts="on"] #app .bottom-nav { background-image: linear-gradient(180deg,rgba(94,165,214,.11),transparent 70%); }
+:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--web,
+.seasonal-preview[data-season="halloween"][data-season-webs="on"] .seasonal-surface__trim--web {
+ display: block; top: 0; right: 0; width: min(92px, 33%); height: min(82px, 100%);
+ opacity: calc(.25 + var(--seasonal-strength, .55) * .68);
 }
-:root[data-season="halloween"][data-season-webs="on"] #app .action-stack--dashboard > :first-child .btn,
-.seasonal-preview[data-season="halloween"][data-season-webs="on"] .seasonal-preview__button:nth-of-type(3) { --web-x: 0%; }
-:root[data-season="halloween"][data-season-webs="on"] #app .action-stack--dashboard > :nth-child(2) .btn,
-.seasonal-preview[data-season="halloween"][data-season-webs="on"] .seasonal-preview__button:nth-of-type(4) { --web-y: 100%; }
-:root[data-season="halloween"][data-season-webs="on"][data-frames="on"] :is(
-  #app .subscription-switcher__trigger, #app .action-stack--dashboard .btn,
-  #app .bottom-nav, #app .card--status, #app .pricing-card,
-  .plan-card, .button--ghost
-) { border-color: color-mix(in srgb, var(--line, #766455) 79%, #cb7738) !important; }
+:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-slot="first"] > .seasonal-surface__trim--web,
+.seasonal-preview[data-season="halloween"][data-season-webs="on"] .seasonal-preview__button:nth-of-type(3) .seasonal-surface__trim--web { right: auto; left: 0; transform: scaleX(-1); }
+:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-slot="second"] > .seasonal-surface__trim--web,
+.seasonal-preview[data-season="halloween"][data-season-webs="on"] .seasonal-preview__button:nth-of-type(4) .seasonal-surface__trim--web { top: auto; bottom: 0; transform: scaleY(-1); }
+:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-surface="on"] {
+ border-color: color-mix(in srgb, var(--line, #6b6057) 65%, #bd7546) !important;
+ box-shadow: inset 0 0 18px rgba(201,107,43,.06), 0 0 13px rgba(202,106,44,.06);
+}
+:root[data-season="halloween"][data-season-webs="on"] #app .bottom-nav { background-image: linear-gradient(105deg,rgba(143,72,32,.12),transparent 30%,transparent 70%,rgba(143,72,32,.1)); }
+:root[data-frames="off"] [data-seasonal-surface="on"] { border-color: transparent !important; }
 .seasonal-spider { display: none; }
+:root[data-season="halloween"][data-season-webs="on"][data-season-spider="on"] .runtime-layout-item[data-runtime-id="subscription_switcher"] .subscription-switcher__trigger { overflow: visible; }
 :root[data-season="halloween"][data-season-webs="on"][data-season-spider="on"] .subscription-switcher__trigger .seasonal-spider,
 .seasonal-preview[data-season="halloween"][data-season-webs="on"][data-season-spider="on"] .seasonal-spider {
-  position: absolute;
-  z-index: 2;
-  display: block;
-  top: 17px;
-  right: 4px;
-  width: 19px;
-  height: 29px;
-  color: #b57845;
-  opacity: calc(var(--seasonal-strength, .55) * .8);
-  pointer-events: none;
+ position: absolute; z-index: 3; display: block; top: 17px; right: 4px; width: 19px; height: 29px;
+ color: #b57845; opacity: calc(var(--seasonal-strength, .55) * .8); pointer-events: none;
 }
 .seasonal-spider svg { display: block; width: 100%; height: 100%; }
-
 .seasonal-preview {
   position: relative;
   isolation: isolate;
