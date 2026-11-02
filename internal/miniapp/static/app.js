@@ -10704,23 +10704,17 @@ function renderPaymentsPage() {
   const copy = t();
   const payments = state.data?.payments || {};
   const history = Array.isArray(payments.history) ? payments.history : [];
-  const method = payments.method?.title || localizedText("Способ не сохранён", "No saved method", "روش پرداخت ذخیره نشده");
   const canToggle = Boolean(payments.hasPaymentMethod && payments.method);
   const hint = payments.method?.pending
     ? localizedText("Ожидает первого платежа. Можно отменить здесь.", "Waiting for the first payment. You can cancel here.", "در انتظار اولین پرداخت. می‌توانید اینجا لغو کنید.")
-    : canToggle
-    ? localizedText("Продление подписки после окончания тарифа", "Renew your subscription when the plan ends", "تمدید اشتراک پس از پایان دوره")
-    : payments.enabled
-      ? localizedText("Способ появится после оплаты через платёжку с рекурентами", "A method will appear after a payment with a supported provider", "روش پس از پرداخت با ارائه‌دهنده پشتیبانی‌شده ظاهر می‌شود")
-      : localizedText("Сохранение новых способов отключено", "Saving new methods is disabled", "ذخیره روش‌های جدید غیرفعال است");
+    : localizedText("Продление подписки после окончания тарифа", "Renew your subscription when the plan ends", "تمدید اشتراک پس از پایان دوره");
 
   return `
     <section class="page ${pageClass("payments")}" id="page-payments">
-      <label class="payments-autorenew card">
-        <span class="payments-autorenew__copy"><strong>${escapeHtml(copy.autopayTitle || "Автоплатёж")}</strong><small>${escapeHtml(method)}</small><em>${escapeHtml(hint)}</em></span>
-        <input type="checkbox" role="switch" data-input="payments-autopay" aria-label="${escapeAttribute(copy.autopayTitle || "Автоплатёж")}" ${payments.autoPaymentEnabled ? "checked" : ""} ${!canToggle || state.paymentsAutoBusy ? "disabled" : ""}>
-        <span class="payments-autorenew__track" aria-hidden="true"><i></i></span>
-      </label>
+      ${canToggle ? `<label class="payments-autorenew card">
+        <span class="payments-autorenew__copy"><strong>${escapeHtml(copy.autopayTitle || "Автоплатёж")}</strong><small>${escapeHtml(payments.method.title)}</small><em>${escapeHtml(hint)}</em></span>
+        <input type="checkbox" role="switch" data-input="payments-autopay" aria-label="${escapeAttribute(copy.autopayTitle || "Автоплатёж")}" ${payments.autoPaymentEnabled ? "checked" : ""} ${state.paymentsAutoBusy ? "disabled" : ""}>
+      </label>` : `<div class="payments-autorenew payments-autorenew--empty card"><strong>${escapeHtml(localizedText("Способ не сохранен", "No saved method", "روش پرداخت ذخیره نشده"))}</strong></div>`}
       <div class="card payments-history">
         <div class="section-label">${escapeHtml(copy.paymentHistory || "Purchase history")}</div>
         ${history.length ? `<div class="payment-list">${history.map((item) => renderPaymentHistoryItem(item)).join("")}</div>` : `<div class="empty-state"><div class="empty-state__icon">${icon("historyTickets")}</div><div class="empty-state__title">${escapeHtml(copy.paymentHistoryEmpty || "No purchases yet")}</div></div>`}
