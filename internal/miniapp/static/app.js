@@ -11494,7 +11494,7 @@ function getPlanDurationTitle(months, days, locale) {
 }
 
 function getPlanBaseTitle(plan, locale) {
-	const name = String(locale === "en" ? plan?.nameEn : locale === "ru" ? plan?.name : "").trim();
+	const name = String((locale === "en" ? plan?.nameEn : locale === "ru" ? plan?.name : "") ?? "").trim();
 	if (name) return name;
 	const configuredTitle = locale === "fa" ? plan?.titleFa : locale === "en" ? plan?.titleEn : plan?.titleRu;
 	return localizePlanLabel(configuredTitle, plan?.months, plan?.days, locale);
