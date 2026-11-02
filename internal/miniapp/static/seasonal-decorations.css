@@ -52,26 +52,22 @@
 :root[data-season="halloween"][data-season-webs="on"] [data-seasonal-web="on"] { isolation: isolate; }
 .seasonal-surface__trim { position: absolute; display: none; z-index: 2; pointer-events: none; overflow: hidden; border-radius: inherit; }
 .seasonal-surface__trim svg { display: block; width: 100% !important; height: 100% !important; }
-/* Frost is drawn inside the real rounded edge, with no snow image or protruding cap. */
+/* The translucent body is ice; existing control borders keep their theme color. */
 :root[data-season="winter"][data-season-drifts="on"] #app .card[data-seasonal-surface="on"] { position: relative; }
 :root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--ice,
 .seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--ice {
- display: block; inset: 0; width: auto; height: auto;
- opacity: calc(.35 + var(--seasonal-strength, .55) * .6);
- box-shadow: inset 0 1px 0 rgba(225,247,255,.64), inset 1px 0 0 rgba(153,211,246,.21), inset -1px 0 0 rgba(161,220,249,.2), inset 0 -1px 0 rgba(100,172,221,.34), inset 0 0 16px rgba(93,168,217,.1);
- background: radial-gradient(ellipse 32px 9px at 6% 0%, rgba(237,251,255,.26),transparent 90%), radial-gradient(ellipse 24px 11px at 99% 4%,rgba(204,236,255,.2),transparent 95%),radial-gradient(ellipse 26px 8px at 83% 100%,rgba(169,222,253,.14),transparent 95%);
+ display: block; inset: 1px; width: auto; height: auto;
+ opacity: calc(.48 + var(--seasonal-strength, .55) * .44);
+ background: radial-gradient(ellipse 30% 120% at 0% 15%,rgba(199,232,251,.3),transparent 85%),
+   radial-gradient(ellipse 38% 100% at 100% 90%,rgba(164,213,244,.23),transparent 92%),
+   linear-gradient(116deg,rgba(190,229,251,.21) 0%,rgba(75,139,184,.1) 28%,rgba(20,66,105,.13) 48%,rgba(155,209,239,.18) 78%,rgba(220,241,255,.17));
+ box-shadow: inset 0 5px 14px rgba(204,237,255,.12),inset 0 -8px 13px rgba(102,175,222,.12);
 }
-:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--ice::before,
-.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--ice::before {
- content: ""; position: absolute; inset: 0; border: 1px solid transparent; border-radius: inherit;
- background: linear-gradient(112deg,rgba(187,231,255,.3) 0%,rgba(221,246,255,.8) 10%,rgba(123,191,231,.16) 30%,rgba(116,179,218,.19) 65%,rgba(226,248,255,.65) 92%,rgba(160,216,249,.35)) border-box;
- -webkit-mask: linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);
- -webkit-mask-composite: xor; mask-composite: exclude;
-}
-:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] {
- border-color: color-mix(in srgb, var(--line, #8aa6bf) 76%, #a9d8f5) !important;
- box-shadow: inset 0 1px 0 rgba(197,233,254,.18),0 0 12px rgba(79,151,205,.09);
-}
+.seasonal-ice-cracks { position: absolute; inset: 0; opacity: .8; }
+.seasonal-ice-cracks path { vector-effect: non-scaling-stroke; }
+:root[data-season="winter"] :is(#app .card, .plans-grid .plan-card) .seasonal-ice-cracks { display: none !important; }
+:root[data-season="winter"] [data-seasonal-slot="second"] .seasonal-ice-cracks,
+.seasonal-preview[data-season="winter"] .seasonal-preview__button:nth-of-type(4) .seasonal-ice-cracks { transform: scale(-1); opacity: .68; }
 :root[data-season="halloween"][data-season-webs="on"] [data-seasonal-web="on"] > .seasonal-surface__trim--web,
 .seasonal-preview[data-season="halloween"][data-season-webs="on"] .seasonal-surface__trim--web {
  display: block; top: 0; right: 0; width: min(42px, 100%); height: min(42px, 100%);

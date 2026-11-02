@@ -3,8 +3,10 @@ const snowflake = `<svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><g st
 
 // Ornament geometry belongs to the control edge and scales with the control.
 const webTrim = `<svg data-preserve-color viewBox="0 0 80 80" preserveAspectRatio="none" aria-hidden="true"><g fill="none" stroke="#d7833e" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M80 0 0 0M80 0 9 19M80 0 17 39M80 0 36 58M80 0 58 72M80 0 80 80" opacity=".74"/><path d="M61 0Q63 7 58 11 Q57 15 62 19 Q65 22 70 21 Q75 26 77 31 M43 0 Q46 14 39 17 Q34 28 46 35 Q51 40 60 39 Q68 43 73 52 M23 0 Q26 20 17 25 Q8 43 26 49 Q36 59 49 56 Q62 61 68 69" opacity=".9"/></g><path d="M80 0C58 1 38 5 24 15" fill="none" stroke="#f0994d" stroke-opacity=".32" stroke-width="2"/></svg>`;
+// Fine fractures sit inside the ice surface; the control keeps its own border.
+const iceCracks = `<svg class="seasonal-ice-cracks" data-preserve-color viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><g fill="none" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"><g stroke="#173d5d" stroke-width="1.8" opacity=".42"><path d="M0 12 4 16 8 13 11 21 15 19 19 27 23 26M11 21 9 31 12 37M19 27 21 16 25 11M100 75 96 70 93 72 89 63 85 66 80 58 77 60M89 63 91 51 87 45M85 66 82 76 78 80M100 8 97 12 94 11 91 18 88 17"/></g><g stroke="#d7f3ff" stroke-width=".85" opacity=".74"><path d="M0 12 4 16 8 13 11 21 15 19 19 27 23 26M11 21 9 31 12 37M19 27 21 16 25 11M100 75 96 70 93 72 89 63 85 66 80 58 77 60M89 63 91 51 87 45M85 66 82 76 78 80M100 8 97 12 94 11 91 18 88 17"/></g><g stroke="#f1fbff" stroke-width=".5" opacity=".65"><path d="M4 16 2 24M15 19 15 10M96 70 98 60M80 58 76 49M94 11 95 24"/></g></g></svg>`;
 function surfaceTrim() {
-  return `<span class="seasonal-surface__trim seasonal-surface__trim--ice" aria-hidden="true"></span><span class="seasonal-surface__trim seasonal-surface__trim--web" aria-hidden="true">${webTrim}</span>`;
+  return `<span class="seasonal-surface__trim seasonal-surface__trim--ice" aria-hidden="true">${iceCracks}</span><span class="seasonal-surface__trim seasonal-surface__trim--web" aria-hidden="true">${webTrim}</span>`;
 }
 const surfaceSelector = [
   "#app #page-dashboard .subscription-switcher__trigger",
