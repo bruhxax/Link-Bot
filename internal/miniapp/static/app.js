@@ -8285,18 +8285,57 @@ function applyAdminThemePreset(id) {
 	showToast(`Тема «${item.name}» применена. Сохраните изменения.`, "success");
 }
 
-function exportAdminThemePreset(id) {
+async function exportAdminThemePreset(id) {
 	const item = (state.adminThemePresets || []).find((preset) => preset.id === Number(id));
 	if (!item) return;
-	const file = new Blob([JSON.stringify({format:"bruhvpn-theme",version:1,name:item.name,appearance:item.appearance},null,2)], {type:"application/json"});
-	const url = URL.createObjectURL(file);
+	let fileHandle = null;
+	if (!tg && !previewMode && typeof window.showSaveFilePicker === "function") {
+		try {
+			fileHandle = await window.showSaveFilePicker({suggestedName:`theme-${item.id}.bruhvpn-theme.json`,types:[{description:"Файл темы JSON",accept:{"application/json":[".json"]}}]});
+		} catch (error) {
+			if (error?.name === "AbortError") return;
+		}
+	}
+	if (previewMode) {
+		if (tg) { showToast("Скачивание доступно в рабочей админке", "danger"); return; }
+		const file = new Blob([JSON.stringify({format:"bruhvpn-theme",version:1,name:item.name,appearance:item.appearance},null,2)], {type:"application/json"});
+		const url = URL.createObjectURL(file);
+		const link = document.createElement("a");
+		link.href = url;
+		link.download = `theme-${item.id}.bruhvpn-theme.json`;
+		document.body.append(link);
+		link.click();
+		link.remove();
+		setTimeout(() => URL.revokeObjectURL(url), 1000);
+		return;
+	}
+	const response = await post("/api/mini-app/admin/appearance/presets/export", {action:"export",id:item.id});
+	const url = new URL(response.data.url, window.location.origin).href;
+	const fileName = response.data.fileName;
+	if (fileHandle) {
+		const download = await fetch(url, {cache:"no-store"});
+		if (!download.ok) throw new Error("Не удалось скачать файл темы");
+		const writable = await fileHandle.createWritable();
+		try { await writable.write(await download.blob()); }
+		finally { await writable.close(); }
+		showToast("Тема сохранена в файл", "success");
+		return;
+	}
+	if (tg) {
+		if (typeof tg.downloadFile === "function" && url.startsWith("https://")) {
+			try { tg.downloadFile({url, file_name:fileName}); return; }
+			catch { /* The client may not support native downloads. */ }
+		}
+		await copyToClipboard(url);
+		showToast("Telegram не поддерживает скачивание. Ссылка скопирована — откройте её в браузере.", "danger");
+		return;
+	}
 	const link = document.createElement("a");
 	link.href = url;
-	link.download = `${item.name.replace(/[^\p{L}\p{N}._-]+/gu,"-").slice(0,48) || "theme"}.bruhvpn-theme.json`;
+	link.download = fileName;
 	document.body.append(link);
 	link.click();
 	link.remove();
-	setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 async function importAdminThemePreset(file) {

@@ -1,14 +1,23 @@
 package miniapp
 
 import (
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/jackc/pgx/v4"
+	"link-bot/internal/config"
 	"link-bot/internal/database"
 	"link-bot/internal/runtimeconfig"
 )
@@ -18,6 +27,13 @@ type themePresetRequest struct {
 	ID         int64           `json:"id"`
 	Name       string          `json:"name"`
 	Appearance json.RawMessage `json:"appearance"`
+}
+
+type themePresetStore interface {
+	List(context.Context) ([]database.ThemePreset, error)
+	Get(context.Context, int64) (*database.ThemePreset, error)
+	Create(context.Context, string, json.RawMessage) (*database.ThemePreset, error)
+	Delete(context.Context, int64) (bool, error)
 }
 
 func (h *Handler) SetThemePresetRepository(repository *database.ThemePresetRepository) {
@@ -54,7 +70,11 @@ func (h *Handler) handleAdminThemePresets(w http.ResponseWriter, r *http.Request
 		h.writeError(w, http.StatusBadRequest, "invalid_action", "Неизвестное действие")
 		return
 	}
-	if r.URL.Path == "/api/mini-app/admin/appearance/presets" && req.Action == "list" {
+	if r.URL.Path == "/api/mini-app/admin/appearance/presets/export" && req.Action != "export" {
+		h.writeError(w, http.StatusBadRequest, "invalid_action", "Неизвестное действие")
+		return
+	}
+	if r.URL.Path == "/api/mini-app/admin/appearance/presets" && (req.Action == "list" || req.Action == "export") {
 		h.writeError(w, http.StatusBadRequest, "invalid_action", "Неизвестное действие")
 		return
 	}
@@ -67,6 +87,32 @@ func (h *Handler) handleAdminThemePresets(w http.ResponseWriter, r *http.Request
 			return
 		}
 		h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": items})
+	case "export":
+		if req.ID <= 0 {
+			h.writeError(w, http.StatusBadRequest, "invalid_request", "Выберите тему")
+			return
+		}
+		if _, err := h.themePresetRepository.Get(r.Context(), req.ID); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				h.writeError(w, http.StatusNotFound, "not_found", "Тема уже удалена")
+			} else {
+				slog.Error("theme presets: export lookup failed", "error", err)
+				h.writeError(w, http.StatusInternalServerError, "export_failed", "Не удалось подготовить файл темы")
+			}
+			return
+		}
+		secret := strings.TrimSpace(config.TelegramToken())
+		if secret == "" {
+			h.writeError(w, http.StatusServiceUnavailable, "unavailable", "Скачивание темы недоступно")
+			return
+		}
+		expires := time.Now().Add(5 * time.Minute).Unix()
+		signature := signThemeDownload(secret, req.ID, expires)
+		filename := fmt.Sprintf("theme-%d.bruhvpn-theme.json", req.ID)
+		h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": map[string]string{
+			"url":      fmt.Sprintf("/api/mini-app/theme-download?id=%d&expires=%d&signature=%s", req.ID, expires, signature),
+			"fileName": filename,
+		}})
 	case "create":
 		name := strings.TrimSpace(req.Name)
 		if !validThemePresetName(name) {
@@ -121,5 +167,59 @@ func (h *Handler) handleAdminThemePresets(w http.ResponseWriter, r *http.Request
 		h.writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	default:
 		h.writeError(w, http.StatusBadRequest, "invalid_action", "Неизвестное действие")
+	}
+}
+
+func signThemeDownload(secret string, id, expires int64) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = fmt.Fprintf(mac, "%d:%d", id, expires)
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func (h *Handler) handleThemeDownload(w http.ResponseWriter, r *http.Request) {
+	serveThemeDownload(w, r, strings.TrimSpace(config.TelegramToken()), h.themePresetRepository)
+}
+
+func serveThemeDownload(w http.ResponseWriter, r *http.Request, secret string, repository themePresetStore) {
+	w.Header().Set("Access-Control-Allow-Origin", "https://web.telegram.org")
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	id, idErr := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+	expires, expiryErr := strconv.ParseInt(r.URL.Query().Get("expires"), 10, 64)
+	provided, signatureErr := hex.DecodeString(r.URL.Query().Get("signature"))
+	if idErr != nil || expiryErr != nil || signatureErr != nil || id <= 0 || expires < time.Now().Unix() || expires > time.Now().Add(10*time.Minute).Unix() || secret == "" {
+		http.NotFound(w, r)
+		return
+	}
+	expected, _ := hex.DecodeString(signThemeDownload(secret, id, expires))
+	if !hmac.Equal(provided, expected) || repository == nil {
+		http.NotFound(w, r)
+		return
+	}
+	item, err := repository.Get(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	data, err := json.Marshal(struct {
+		Format     string          `json:"format"`
+		Version    int             `json:"version"`
+		Name       string          `json:"name"`
+		Appearance json.RawMessage `json:"appearance"`
+	}{Format: "bruhvpn-theme", Version: 1, Name: item.Name, Appearance: item.Appearance})
+	if err != nil {
+		http.Error(w, "Could not export theme", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="theme-%d.bruhvpn-theme.json"`, id))
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	if r.Method == http.MethodGet {
+		_, _ = w.Write(data)
 	}
 }

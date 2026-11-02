@@ -43,6 +43,15 @@ func (r *ThemePresetRepository) List(ctx context.Context) ([]ThemePreset, error)
 	return items, rows.Err()
 }
 
+func (r *ThemePresetRepository) Get(ctx context.Context, id int64) (*ThemePreset, error) {
+	var item ThemePreset
+	err := r.pool.QueryRow(ctx, `SELECT id,name,appearance,created_at FROM theme_preset WHERE id=$1`, id).Scan(&item.ID, &item.Name, &item.Appearance, &item.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
 func (r *ThemePresetRepository) Create(ctx context.Context, name string, appearance json.RawMessage) (*ThemePreset, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
