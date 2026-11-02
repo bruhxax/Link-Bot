@@ -49,51 +49,30 @@
 
 /* Seasonal trim follows the actual rounded control edge. */
 :root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"],
-:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-surface="on"] { isolation: isolate; }
+:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-web="on"] { isolation: isolate; }
 .seasonal-surface__trim { position: absolute; display: none; z-index: 2; pointer-events: none; overflow: hidden; border-radius: inherit; }
 .seasonal-surface__trim svg { display: block; width: 100% !important; height: 100% !important; }
-.seasonal-surface__trim--frost, .seasonal-surface__trim--frost-left {
- background: url("/mini-app/assets/season-snow-cap.png") 50% 55% / 100% 200% no-repeat;
+/* Frost is drawn inside the real rounded edge, with no snow image or protruding cap. */
+:root[data-season="winter"][data-season-drifts="on"] #app .card[data-seasonal-surface="on"] { position: relative; }
+:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--ice,
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--ice {
+ display: block; inset: 0; width: auto; height: auto;
+ opacity: calc(.35 + var(--seasonal-strength, .55) * .6);
+ box-shadow: inset 0 1px 0 rgba(225,247,255,.64), inset 1px 0 0 rgba(153,211,246,.21), inset -1px 0 0 rgba(161,220,249,.2), inset 0 -1px 0 rgba(100,172,221,.34), inset 0 0 16px rgba(93,168,217,.1);
+ background: radial-gradient(ellipse 32px 9px at 6% 0%, rgba(237,251,255,.26),transparent 90%), radial-gradient(ellipse 24px 11px at 99% 4%,rgba(204,236,255,.2),transparent 95%),radial-gradient(ellipse 26px 8px at 83% 100%,rgba(169,222,253,.14),transparent 95%);
 }
-:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--frost,
-.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--frost {
- display: block; top: -7px; right: -1px; width: min(26%, 68px); height: clamp(20px, 55%, 28px);
- opacity: calc(.45 + var(--seasonal-strength, .55) * .55); filter: drop-shadow(0 2px 3px rgba(105,180,231,.38));
-}
-:root[data-season="winter"][data-season-drifts="on"] .subscription-switcher__trigger > .seasonal-surface__trim--frost,
-.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-preview__switcher .seasonal-surface__trim--frost { width: min(38%, 52px); }
-:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-slot] > .seasonal-surface__trim--frost,
-.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-preview__button .seasonal-surface__trim--frost { width: min(22%, 78px); }
-:root[data-season="winter"][data-season-drifts="on"] #app [data-seasonal-slot],
-.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-preview__button { overflow: visible !important; }
-:root[data-season="winter"][data-season-drifts="on"] #app [data-seasonal-slot] > .seasonal-surface__trim--frost,
-.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-preview__button .seasonal-surface__trim--frost { top: -15px; }
-:root[data-season="winter"][data-season-drifts="on"] :is(.bottom-nav,.nav-shell) > .seasonal-surface__trim--frost,
-.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-preview__nav .seasonal-surface__trim--frost { top: -12px; width: min(23%, 70px); }
-:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--frost-left,
-.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--frost-left {
- display: block; top: -7px; left: -1px; width: min(23%, 70px); height: clamp(20px, 55%, 28px);
- transform: scaleX(-1); opacity: calc(.28 + var(--seasonal-strength, .55) * .58);
- filter: drop-shadow(0 2px 3px rgba(105,180,231,.26));
-}
-:root[data-season="winter"][data-season-drifts="on"] :is(.bottom-nav,.nav-shell) > .seasonal-surface__trim--frost-left,
-.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-preview__nav .seasonal-surface__trim--frost-left { top: -12px; }
-:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--frost-lower,
-.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--frost-lower {
- top: auto; bottom: -1px; width: min(17%, 60px); height: clamp(15px, 34%, 19px);
- transform: rotate(180deg);
+:root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--ice::before,
+.seasonal-preview[data-season="winter"][data-season-drifts="on"] .seasonal-surface__trim--ice::before {
+ content: ""; position: absolute; inset: 0; border: 1px solid transparent; border-radius: inherit;
+ background: linear-gradient(112deg,rgba(187,231,255,.3) 0%,rgba(221,246,255,.8) 10%,rgba(123,191,231,.16) 30%,rgba(116,179,218,.19) 65%,rgba(226,248,255,.65) 92%,rgba(160,216,249,.35)) border-box;
+ -webkit-mask: linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);
+ -webkit-mask-composite: xor; mask-composite: exclude;
 }
 :root[data-season="winter"][data-season-drifts="on"] [data-seasonal-surface="on"] {
- box-shadow: inset 0 1px 0 rgba(214,239,255,.3), 0 0 16px rgba(80,150,210,.08);
- border-color: color-mix(in srgb, var(--line, #8aa6bf) 65%, #b2dafa) !important;
+ border-color: color-mix(in srgb, var(--line, #8aa6bf) 76%, #a9d8f5) !important;
+ box-shadow: inset 0 1px 0 rgba(197,233,254,.18),0 0 12px rgba(79,151,205,.09);
 }
-:root[data-season="winter"][data-season-drifts="on"] #app :is(.subscription-switcher__trigger,[data-seasonal-slot],.bottom-nav) {
- background-color: color-mix(in srgb, var(--control-bg, #101721) 82%, #1c3c58);
- background-image: linear-gradient(160deg, rgba(104,170,217,.11), transparent 46%, rgba(51,112,160,.1));
- box-shadow: inset 0 1px 0 rgba(211,240,255,.26), inset 0 -1px 0 rgba(98,166,213,.12), 0 8px 20px rgba(0,27,51,.18);
-}
-:root[data-season="winter"][data-season-drifts="on"] #app .bottom-nav { background-image: linear-gradient(180deg,rgba(94,165,214,.11),transparent 70%); }
-:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-surface="on"] > .seasonal-surface__trim--web,
+:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-web="on"] > .seasonal-surface__trim--web,
 .seasonal-preview[data-season="halloween"][data-season-webs="on"] .seasonal-surface__trim--web {
  display: block; top: 0; right: 0; width: min(42px, 100%); height: min(42px, 100%);
  opacity: calc(.35 + var(--seasonal-strength, .55) * .55);
@@ -104,7 +83,7 @@
 .seasonal-preview[data-season="halloween"][data-season-webs="on"] .seasonal-preview__button:nth-of-type(3) .seasonal-surface__trim--web { right: auto; left: 0; transform: scaleX(-1); }
 :root[data-season="halloween"][data-season-webs="on"] [data-seasonal-slot="second"] > .seasonal-surface__trim--web,
 .seasonal-preview[data-season="halloween"][data-season-webs="on"] .seasonal-preview__button:nth-of-type(4) .seasonal-surface__trim--web { top: auto; bottom: 0; transform: scaleY(-1); }
-:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-surface="on"] {
+:root[data-season="halloween"][data-season-webs="on"] [data-seasonal-web="on"] {
  border-color: color-mix(in srgb, var(--line, #6b6057) 58%, #c8793e) !important;
  box-shadow: inset 0 1px 0 rgba(241,137,63,.18), inset 0 0 18px rgba(201,107,43,.06), 0 0 13px rgba(202,106,44,.07);
 }
