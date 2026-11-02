@@ -1042,6 +1042,31 @@ select:focus-visible {
 .admin-color-field em { color: color-mix(in srgb, var(--button-text) 68%, transparent); font-size: 9px; font-style: normal; }
 
 .admin-appearance-presets { margin-top: 14px; }
+.admin-theme-library { display: grid; gap: 10px; margin: 10px 0; padding: 12px; border: 1px solid var(--line-soft); border-radius: 14px; background: var(--surface); }
+.appearance-settings > .admin-theme-library:first-of-type { padding-top: 12px; }
+.admin-theme-library :is(button, label) { transition: border-color .2s ease, background-color .2s ease, transform .2s ease; }
+.admin-theme-library :is(button, label):active { transform: scale(.97); }
+:root[data-glass="on"] .admin-theme-library { background: var(--glass-background); background-image: var(--glass-texture); background-size: 128px 128px, 100% 100%; border-color: var(--glass-border); box-shadow: var(--glass-surface-shadow); backdrop-filter: var(--glass-backdrop); -webkit-backdrop-filter: var(--glass-backdrop); }
+:root[data-glass="on"] .admin-theme-library :is(.admin-theme-library__import, .admin-theme-library__create input, .admin-theme-library__create button, .admin-theme-library__item) { background: var(--glass-background); border-color: var(--glass-border); }
+@media (prefers-reduced-motion: reduce) { .admin-theme-library :is(button, label) { transition: none; } }
+.admin-theme-library__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.admin-theme-library__head > div { display: grid; gap: 3px; min-width: 0; }
+.admin-theme-library__head h3 { margin: 0; color: var(--text); font-size: 12px; text-transform: none; }
+.admin-theme-library__head small, .admin-theme-library__list > p { color: var(--muted); font-size: 10px; }
+.admin-theme-library__list > p { margin: 3px 0; }
+.admin-theme-library__import, .admin-theme-library__create button, .admin-theme-library__item button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px; padding: 6px 10px; border: 1px solid var(--line-soft); border-radius: 9px; background: var(--control-bg); color: var(--button-text); font-size: 10px; font-weight: 700; cursor: pointer; }
+.admin-theme-library__import svg, .admin-theme-library__create button svg, .admin-theme-library__item button svg { width: 15px; height: 15px; }
+.admin-theme-library__create { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 7px; }
+.admin-theme-library__create input { min-width: 0; min-height: 34px; padding: 7px 10px; border: 1px solid var(--line-soft); border-radius: 9px; background: var(--control-bg); color: var(--text); font-size: 11px; outline: none; }
+.admin-theme-library__create input:focus-visible { border-color: var(--accent); }
+.admin-theme-library__list { display: grid; gap: 6px; }
+.admin-theme-library__item { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 5px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--control-bg); }
+.admin-theme-library__item strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.admin-theme-library__item button { min-height: 29px; padding: 4px 7px; }
+.admin-theme-library__item button[data-action="admin-theme-delete"] { color: var(--danger); }
+.admin-theme-library__swatches { display: flex; width: 27px; height: 27px; flex: 0 0 27px; overflow: hidden; border: 1px solid var(--line-soft); border-radius: 8px; }
+.admin-theme-library__swatches i { width: 50%; }
+@media (max-width: 370px) { .admin-theme-library__head small { display: none; } .admin-theme-library__create button span { display: none; } }
 .admin-preset-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .admin-preset {
   min-width: 0;

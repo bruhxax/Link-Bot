@@ -1913,6 +1913,17 @@ func normalizedRequiredText(value, fallback string, max int) string {
 	return limit(value, max)
 }
 
+// ValidateThemeAppearance applies the same rules used when saving live settings.
+func ValidateThemeAppearance(value AppearanceSettings) (AppearanceSettings, error) {
+	if value.Colors == nil || value.BackgroundMode == "" {
+		return AppearanceSettings{}, errors.New("theme file has no appearance settings")
+	}
+	if err := validateAppearance(&value, DefaultSettings().Appearance, false); err != nil {
+		return AppearanceSettings{}, err
+	}
+	return value, nil
+}
+
 func validateAppearance(value *AppearanceSettings, defaults AppearanceSettings, migrating bool) error {
 	value.BottomNavStyle = strings.ToLower(strings.TrimSpace(value.BottomNavStyle))
 	if value.BottomNavStyle == "" {

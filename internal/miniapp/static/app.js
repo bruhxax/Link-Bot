@@ -2464,6 +2464,7 @@ const state = {
   adminSubscriptionDestination: "",
   adminBusy: "",
 	adminAppearanceTab:"theme", adminLandingTab:"colors", adminCursorSurface:"landing", adminAudienceDraft:{}, adminAudienceCount:{}, adminAudienceOptions:null, adminAudienceBusy:false,
+	adminThemePresets:null, adminThemePresetName:"", adminThemePresetBusy:false,
 	adminBroadcast: null,
 	adminPinnedMessage: null,
 	adminPinnedBusy: "",
@@ -8203,6 +8204,7 @@ function normalizeAppearanceSection() {
 }
 
 function renderAdminAppearancePage() {
+	if (state.adminThemePresets === null && !state.adminThemePresetLoading) queueMicrotask(() => void loadAdminThemePresets());
   const tab = ["theme", "landing", "cursors"].includes(state.adminAppearanceTab)
     ? state.adminAppearanceTab
     : "theme";
@@ -8229,8 +8231,93 @@ function renderAdminAppearancePage() {
   } else body = renderAdminCabinetAppearance();
   return renderAdminEditorPage(
     localizedText("Оформление", "Appearance", "ظاهر"),
-    `<div class="appearance-settings">${nav}<div class="appearance-panel" data-appearance-panel="${tab}">${body}</div></div>`,
+    `<div class="appearance-settings">${nav}${renderAdminThemeLibrary()}<div class="appearance-panel" data-appearance-panel="${tab}">${body}</div></div>`,
   );
+}
+
+function renderAdminThemeLibrary() {
+	const items = state.adminThemePresets || [];
+	const busy = state.adminThemePresetBusy;
+	return `<section class="admin-editor__section admin-theme-library" aria-label="Сохранённые темы">
+		<div class="admin-theme-library__head"><div><h3>Сохранённые темы</h3><small>Фон, цвета, лендинг и курсоры</small></div><button class="admin-theme-library__import" type="button" data-action="admin-theme-import">${icon("upload")}<span>Импорт</span></button><input type="file" accept=".json,application/json" data-input="admin-theme-import-file" aria-label="Импортировать файл темы" hidden></div>
+		<div class="admin-theme-library__create"><input type="text" maxlength="48" data-input="admin-theme-name" value="${escapeAttribute(state.adminThemePresetName)}" placeholder="Название темы" aria-label="Название новой темы"><button type="button" data-action="admin-theme-save" ${busy || !state.adminSettingsDraft ? "disabled" : ""}>${icon("plus")}<span>Сохранить тему</span></button></div>
+		<div class="admin-theme-library__list">${state.adminThemePresets === null ? `<p>Загружаем темы…</p>` : items.length ? items.map((item) => `<div class="admin-theme-library__item"><span class="admin-theme-library__swatches" aria-hidden="true"><i style="background:${escapeAttribute(item.appearance?.colors?.surface || "#171d24")}"></i><i style="background:${escapeAttribute(item.appearance?.colors?.accent || "#69a8d4")}"></i></span><strong title="${escapeAttribute(item.name)}">${escapeHtml(item.name)}</strong><button type="button" data-action="admin-theme-apply" data-value="${item.id}" ${busy ? "disabled" : ""}>Применить</button><button type="button" data-action="admin-theme-export" data-value="${item.id}" aria-label="Экспортировать тему ${escapeAttribute(item.name)}">${icon("arrowDownSquare")}</button><button type="button" data-action="admin-theme-delete" data-value="${item.id}" aria-label="Удалить тему ${escapeAttribute(item.name)}" ${busy ? "disabled" : ""}>${icon("trash")}</button></div>`).join("") : `<p>Сохранённых тем пока нет</p>`}</div>
+	</section>`;
+}
+
+async function loadAdminThemePresets() {
+	if (state.adminThemePresetLoading || !canAdmin("appearance")) return;
+	state.adminThemePresetLoading = true;
+	try {
+		const response = previewMode ? {data: state.adminThemePresets || []} : await post("/api/mini-app/admin/appearance/presets/list", {action:"list"});
+		state.adminThemePresets = Array.isArray(response.data) ? response.data : [];
+	} catch (error) {
+		state.adminThemePresets = [];
+		showToast(error?.message || "Не удалось загрузить темы", "danger");
+	} finally {
+		state.adminThemePresetLoading = false;
+		if (state.currentPage === "admin" && state.adminSection === "appearance") render({preserveScroll:true});
+	}
+}
+
+async function saveAdminThemePreset(name, appearance) {
+	const cleanName = String(name || "").trim();
+	if (!cleanName || cleanName.length > 48) { showToast("Укажите название до 48 символов", "danger"); return; }
+	if (state.adminThemePresetBusy) return;
+	state.adminThemePresetBusy = true;
+	try {
+		const response = previewMode ? {data:{id:Date.now(),name:cleanName,appearance:deepClone(appearance)}} : await post("/api/mini-app/admin/appearance/presets", {action:"create",name:cleanName,appearance});
+		state.adminThemePresets = [response.data,...(state.adminThemePresets || [])];
+		state.adminThemePresetName = "";
+		showToast(`Тема «${cleanName}» сохранена`, "success");
+	} catch (error) { showToast(error?.message || "Не удалось сохранить тему", "danger"); }
+	finally { state.adminThemePresetBusy = false; render({preserveScroll:true}); }
+}
+
+function applyAdminThemePreset(id) {
+	const item = (state.adminThemePresets || []).find((preset) => preset.id === Number(id));
+	if (!item || !state.adminSettingsDraft) return;
+	state.adminSettingsDraft.appearance = deepClone(item.appearance);
+	state.adminSettingsDirty = true;
+	applyAppearance();
+	haptic("light");
+	render({preserveScroll:true});
+	showToast(`Тема «${item.name}» применена. Сохраните изменения.`, "success");
+}
+
+function exportAdminThemePreset(id) {
+	const item = (state.adminThemePresets || []).find((preset) => preset.id === Number(id));
+	if (!item) return;
+	const file = new Blob([JSON.stringify({format:"bruhvpn-theme",version:1,name:item.name,appearance:item.appearance},null,2)], {type:"application/json"});
+	const url = URL.createObjectURL(file);
+	const link = document.createElement("a");
+	link.href = url;
+	link.download = `${item.name.replace(/[^\p{L}\p{N}._-]+/gu,"-").slice(0,48) || "theme"}.bruhvpn-theme.json`;
+	document.body.append(link);
+	link.click();
+	link.remove();
+	setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function importAdminThemePreset(file) {
+	if (!file || file.size > 512 * 1024) { showToast("Файл темы слишком большой", "danger"); return; }
+	try {
+		const theme = JSON.parse(await file.text());
+		if (theme?.format !== "bruhvpn-theme" || theme?.version !== 1 || !theme.appearance || typeof theme.name !== "string") throw new Error("Некорректный файл темы");
+		await saveAdminThemePreset(theme.name, theme.appearance);
+	} catch (error) { showToast(error?.message || "Не удалось импортировать тему", "danger"); }
+}
+
+async function deleteAdminThemePreset(id) {
+	const item = (state.adminThemePresets || []).find((preset) => preset.id === Number(id));
+	if (!item || state.adminThemePresetBusy || !window.confirm(`Удалить тему «${item.name}»?`)) return;
+	state.adminThemePresetBusy = true;
+	try {
+		if (!previewMode) await post("/api/mini-app/admin/appearance/presets", {action:"delete",id:item.id});
+		state.adminThemePresets = state.adminThemePresets.filter((preset) => preset.id !== item.id);
+		showToast("Тема удалена", "success");
+	} catch (error) { showToast(error?.message || "Не удалось удалить тему", "danger"); }
+	finally { state.adminThemePresetBusy = false; render({preserveScroll:true}); }
 }
 
 function renderAdminCabinetAppearance() {
@@ -12357,6 +12444,7 @@ function bindRootActions() {
 		if (value === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 		if (value === "moynalog") void refreshAdminMoyNalog();
 		if (value === "ai") void loadAdminAI();
+		if (value === "appearance") void loadAdminThemePresets();
 		if (value === "finance") void refreshAdminFinance();
 		if (value === "home" && state.adminWorkspace) void refreshAdminOverview();
 		if (value === "analytics") void refreshAdminAnalytics().catch((error) => showToast(error?.message || "Не удалось загрузить аналитику", "danger"));
@@ -12819,6 +12907,11 @@ function bindRootActions() {
 			if (action === "admin-gift-remove-button") return removeAdminGiftButton(target.dataset.giftKind, Number(value));
 			if (action === "admin-gift-set-style") return setAdminGiftButtonStyle(target.dataset.giftKind, Number(target.dataset.giftIndex), value);
 			if (action === "admin-appearance-preset") return applyAdminAppearancePreset(value);
+			if (action === "admin-theme-save") return await saveAdminThemePreset(state.adminThemePresetName, deepClone(state.adminSettingsDraft?.appearance));
+			if (action === "admin-theme-import") return app.querySelector('[data-input="admin-theme-import-file"]')?.click();
+			if (action === "admin-theme-apply") return applyAdminThemePreset(value);
+			if (action === "admin-theme-export") return exportAdminThemePreset(value);
+			if (action === "admin-theme-delete") return await deleteAdminThemePreset(value);
 			if (action === "admin-logo-reset") return resetAdminLogo();
 			if (action === "admin-favicon-reset") return resetAdminFavicon();
 			if (action === "admin-save-settings") return await saveAdminSettings();
@@ -12880,6 +12973,7 @@ function bindRootActions() {
 
 	app.addEventListener("change", (event) => {
  const input = event.target;
+		if (input.dataset?.input === "admin-theme-import-file") { const file = input.files?.[0]; input.value = ""; if (file) void importAdminThemePreset(file); return; }
 		if (input.dataset?.input === "payments-autopay") { void togglePaymentsAutoRenew(input.checked); return; }
  if(input.dataset?.settingPath?.startsWith("torrents.")){if(!state.adminSettingsDraft||!canAdmin("torrents"))return;setDeepValue(state.adminSettingsDraft,input.dataset.settingPath,input.checked);scheduleTorrentSettingsSave();return;}
 		if(input.dataset?.surveyField){updateAdminSurveyField(input);return;}
@@ -12925,6 +13019,7 @@ function bindRootActions() {
 
 	app.addEventListener("input", (event) => {
       const target = event.target;
+		if (target.dataset?.input === "admin-theme-name") { state.adminThemePresetName = target.value; return; }
 		if (target.dataset?.input === "recurring-phone") { state.recurringPhoneDraft = target.value; return; }
 		if(target.dataset?.input==="torrent-search"){torrentWorkspace.model.query=target.value;clearTimeout(torrentSearchTimer);torrentSearchTimer=setTimeout(()=>void torrentWorkspace.load(),350);return;}
 		if(target.dataset?.input==="abuse-search"){abuseWorkspace.model.query=target.value;scheduleAbuseFilters(app.querySelector('.ab-workspace'),abuseWorkspace.model);return;}

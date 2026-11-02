@@ -31,11 +31,12 @@ type activityAction struct{ title, category, fields string }
 // Polling/state reads do not drown out actual work. All other admin endpoints
 // are recorded by default, so newly added mutations cannot silently escape it.
 var activityReadRoutes = map[string]bool{
-	"torrents/reports":  true,
-	"abuses/scan":       true,
-	"bot/update/status": true,
-	"payments/channels": true,
-	"status":            true, "finance": true, "overview": true, "analytics": true, "ai/settings": true, "ai/models": true,
+	"appearance/presets/list": true,
+	"torrents/reports":        true,
+	"abuses/scan":             true,
+	"bot/update/status":       true,
+	"payments/channels":       true,
+	"status":                  true, "finance": true, "overview": true, "analytics": true, "ai/settings": true, "ai/models": true,
 	"smtp/settings": true, "moynalog/state": true, "partners/state": true, "push/state": true,
 	"broadcast/survey/results": true, "broadcast/state": true, "broadcast/email/state": true, "users/message/state": true,
 	"content/pinned/state":       true,
@@ -44,6 +45,7 @@ var activityReadRoutes = map[string]bool{
 	"users/activity": true, "users/detail": true, "subscriptions/find/refresh": true, "subscriptions/target/refresh": true,
 }
 var activityActions = map[string]activityAction{
+	"appearance/presets":              {"Изменил сохранённые темы", "settings", "action id name"},
 	"payments/logo/upload":            {"Загрузил логотип способа оплаты", "settings", ""},
 	"bot/update":                      {"Запустил обновление Link-Bot", "system", ""},
 	"settings/update":                 {"Изменил настройки", "settings", "section"},

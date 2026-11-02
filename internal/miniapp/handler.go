@@ -68,6 +68,7 @@ type Handler struct {
 	activitySettingsMu      sync.Mutex
 	adminActivityRepository adminActivityRepository
 	administratorRepository administratorLookup
+	themePresetRepository   *database.ThemePresetRepository
 	customerRepository      *database.CustomerRepository
 	purchaseRepository      *database.PurchaseRepository
 	subscriptionRepository  *database.SubscriptionRepository
@@ -867,6 +868,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/target/refresh", h.withSession(h.handleAdminSubscriptionTarget))
 	mux.HandleFunc("/api/mini-app/admin/subscriptions/rebind", h.withSession(h.handleAdminRebindSubscription))
 	mux.HandleFunc("/api/mini-app/admin/settings/update", h.withSession(h.handleAdminSettingsUpdate))
+	mux.HandleFunc("/api/mini-app/admin/appearance/presets", h.withSession(h.handleAdminThemePresets))
+	mux.HandleFunc("/api/mini-app/admin/appearance/presets/list", h.withSession(h.handleAdminThemePresets))
 	mux.HandleFunc("/api/mini-app/admin/payments/channels", h.withSession(h.handleAdminPaymentChannels))
 	mux.HandleFunc("/api/mini-app/admin/servers/visibility", h.withSession(h.handleAdminServerVisibility))
 	mux.HandleFunc("/api/mini-app/admin/wallet/withdrawal/resolve", h.withSession(h.handleAdminWithdrawalResolve))

@@ -162,6 +162,7 @@ func main() {
 	h := handler.NewHandler(syncService, paymentService, tm, customerRepository, purchaseRepository, cryptoPayClient, yookasaClient, referralRepository, cache, runtimeSettings, errorReporter, webLogin)
 	h.SetPinnedMessageOnStart(broadcastService.EnsurePinnedOnStart)
 	miniAppHandler := miniapp.NewHandler(customerRepository, purchaseRepository, promoCodeRepository, referralRepository, partnerRepository, walletRepository, supportRepository, reviewRepository, paymentService, remnawaveClient, b, broadcastService, subService, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository, tm, webLogin)
+	miniAppHandler.SetThemePresetRepository(database.NewThemePresetRepository(pool))
 	miniAppHandler.SetStatusInfo(Version, Commit, BuildDate, startedAt, pool)
 	miniAppHandler.SetWebPushService(webPushService)
 	miniAppHandler.StartRealtime(ctx, config.DadaBaseUrl())
