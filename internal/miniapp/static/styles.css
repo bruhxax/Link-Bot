@@ -4235,7 +4235,6 @@ body:not(.is-layout-editing) .runtime-layout-item[data-runtime-id="subscription_
 }
 .payments-autorenew__copy { display: grid; gap: 3px; min-width: 0; flex: 1; }
 .payments-autorenew__copy strong { font-size: 13px; font-weight: 800; }
-.payments-autorenew__copy small { font-size: 12px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .payments-autorenew__copy em { color: var(--muted); font-size: 10px; font-style: normal; line-height: 1.3; }
 .payments-autorenew--empty { min-height: 56px; cursor: default; }
 .payments-autorenew--empty strong { flex: 1; font-size: 13px; font-weight: 800; }

@@ -10700,6 +10700,16 @@ function renderGiftPage() {
 	`;
 }
 
+function savedPaymentMethodLogo(method) {
+  const provider = String(method?.provider || "").toLowerCase();
+  const kind = `${method?.type || ""} ${method?.title || ""}`.toLowerCase();
+  const id = provider === "yookassa" || !provider
+    ? (kind.includes("sbp") || kind.includes("сбп") ? "sbp" : "card")
+    : provider;
+  const logoMethod = paymentMethodMeta(id) || paymentMethodMeta("card");
+  return renderPaymentMethodLogo({ ...logoMethod, hideLogo: false, logo: logoMethod.logo || logoMethod.systemLogo });
+}
+
 function renderPaymentsPage() {
   const copy = t();
   const payments = state.data?.payments || {};
@@ -10712,8 +10722,9 @@ function renderPaymentsPage() {
   return `
     <section class="page ${pageClass("payments")}" id="page-payments">
       ${canToggle ? `<label class="payments-autorenew card">
-        <span class="payments-autorenew__copy"><strong>${escapeHtml(copy.autopayTitle || "Автоплатёж")}</strong><small>${escapeHtml(payments.method.title)}</small><em>${escapeHtml(hint)}</em></span>
-        <input type="checkbox" role="switch" data-input="payments-autopay" aria-label="${escapeAttribute(copy.autopayTitle || "Автоплатёж")}" ${payments.autoPaymentEnabled ? "checked" : ""} ${state.paymentsAutoBusy ? "disabled" : ""}>
+        <span class="pay-row__icon pay-row__icon--brand payments-autorenew__logo" aria-hidden="true">${savedPaymentMethodLogo(payments.method)}</span>
+        <span class="payments-autorenew__copy"><strong>${escapeHtml(copy.autopayTitle || "Автоплатёж")}</strong><em>${escapeHtml(hint)}</em></span>
+        <input type="checkbox" role="switch" data-input="payments-autopay" aria-label="${escapeAttribute(`${copy.autopayTitle || "Автоплатёж"}: ${payments.method.title || ""}`)}" ${payments.autoPaymentEnabled ? "checked" : ""} ${state.paymentsAutoBusy ? "disabled" : ""}>
       </label>` : `<div class="payments-autorenew payments-autorenew--empty card"><strong>${escapeHtml(localizedText("Способ не сохранен", "No saved method", "روش پرداخت ذخیره نشده"))}</strong><span class="payments-autorenew__locked-switch"><input type="checkbox" role="switch" disabled aria-label="${escapeAttribute(localizedText("Способ не сохранен", "No saved method", "روش پرداخت ذخیره نشده"))}"><span class="payments-autorenew__lock" aria-hidden="true">${icon("lockAlt")}</span></span></div>`}
       <div class="card payments-history">
         <div class="section-label">${escapeHtml(copy.paymentHistory || "Purchase history")}</div>
