@@ -96,14 +96,17 @@ func (s *Service) PlanTitle(planID, locale string) string {
 		if item.ID != planID {
 			continue
 		}
-		if item.Name != "" {
-			return item.Name
-		}
 		if strings.HasPrefix(strings.ToLower(locale), "fa") {
 			return item.TitleFA
 		}
 		if strings.HasPrefix(strings.ToLower(locale), "en") {
+			if item.NameEN != "" {
+				return item.NameEN
+			}
 			return item.TitleEN
+		}
+		if item.Name != "" {
+			return item.Name
 		}
 		return item.TitleRU
 	}

@@ -4049,6 +4049,7 @@ function runtimePlanToPayload(plan, index = 0) {
 	return {
 		id: String(plan?.id || `draft_${index}`),
 		name: String(plan?.name || ""),
+		nameEn: String(plan?.nameEn || ""),
 		months,
 		days,
 		priceRub: Math.max(0, Number(plan?.priceRub || 0)),
@@ -8982,7 +8983,7 @@ function renderAdminTrialResetStrategy() {
 function renderAdminPlanEditor(plan, index) {
 	return `<div class="admin-repeat-row"><div class="admin-repeat-row__head"><strong>${escapeHtml(plan.name || plan.titleRu || plan.id)}</strong><div class="admin-builder-row__actions"><button type="button" data-action="admin-move-plan" data-value="${index}" data-direction="-1">${icon("arrowUp")}</button><button type="button" data-action="admin-move-plan" data-value="${index}" data-direction="1">${icon("arrowDown")}</button></div></div>
 		<div class="admin-toggle-list admin-toggle-list--inline">${renderAdminToggle("Активен", `plans.${index}.enabled`)}${renderAdminToggle("Безлимит", `plans.${index}.unlimitedTraffic`)}${renderAdminToggle("На всю ширину", `plans.${index}.wide`)}</div>
-		${renderAdminSettingField("Название тарифа (необязательно)", `plans.${index}.name`, { placeholder: "Без названия — показывать срок" })}
+		<div class="admin-editor__grid">${renderAdminSettingField("Название на русском (необязательно)", `plans.${index}.name`, { placeholder: "Без названия — показывать срок", maxLength: 80 })}${renderAdminSettingField("Название на английском (необязательно)", `plans.${index}.nameEn`, { placeholder: "Without a name — show duration", maxLength: 80 })}</div>
 		<div class="admin-editor__grid">${renderAdminSettingField("Цена ₽", `plans.${index}.priceRub`, { type: "number", min: 0 })}${renderAdminSettingField("Устройств", `plans.${index}.deviceLimit`, { type: "number", min: 0 })}</div>
 		${Number(plan.priceRub || 0) === 0 ? `<div class="admin-toggle-list">${renderAdminToggle("Можно взять только 1 раз", `plans.${index}.freeOneTime`)}</div>` : ""}
 		${renderAdminSettingField("Трафик, ГБ", `plans.${index}.trafficGb`, { type: "number", min: 0 })}
@@ -9101,7 +9102,8 @@ function renderAdminPlanEditorModal() {
 		<div class="modal__header"><div><div class="section-label">РЕДАКТОР ТАРИФА</div><div class="modal__title">Параметры тарифа</div></div><button class="header__btn" type="button" data-action="admin-close-plan-modal">${icon("close")}</button></div>
 		<div class="admin-plan-modal__body">
 		<div class="admin-plan-modal__grid">
-			<label class="admin-field admin-plan-name"><span>Название тарифа (необязательно)</span><input class="admin-field__control" type="text" maxlength="80" data-input="admin-plan-name" value="${escapeAttribute(plan.name || "")}" placeholder="Без названия — показывать срок"></label>
+			<label class="admin-field admin-plan-name"><span>Название на русском (необязательно)</span><input class="admin-field__control" type="text" maxlength="80" data-input="admin-plan-name" value="${escapeAttribute(plan.name || "")}" placeholder="Без названия — показывать срок"></label>
+			<label class="admin-field admin-plan-name"><span>Название на английском (необязательно)</span><input class="admin-field__control" type="text" maxlength="80" data-input="admin-plan-name-en" value="${escapeAttribute(plan.nameEn || "")}" placeholder="Without a name — show duration"></label>
 			<div class="admin-plan-duration"><div class="admin-plan-duration__head"><span>Срок тарифа</span><div class="admin-plan-duration__switch ${durationUnit === "days" ? "is-days" : ""}" role="group" aria-label="Единица срока"><button type="button" data-action="admin-plan-duration-unit" data-value="months" aria-pressed="${durationUnit === "months"}">Месяцы</button><button type="button" data-action="admin-plan-duration-unit" data-value="days" aria-pressed="${durationUnit === "days"}">Дни</button></div></div><input class="admin-field__control admin-plan-duration__input" type="number" min="1" max="${durationUnit === "days" ? 3650 : 120}" inputmode="numeric" data-input="admin-plan-duration" aria-label="Срок тарифа, ${durationUnit === "days" ? "дни" : "месяцы"}" value="${escapeAttribute(durationValue || "")}" placeholder="${durationUnit === "days" ? "7" : "1"}"></div>
 			<label class="admin-field"><span>Цена, ₽</span><input class="admin-field__control" type="number" min="0" max="1000000" inputmode="numeric" data-input="admin-plan-price" value="${escapeAttribute(plan.priceRub ?? 0)}"></label>
 			<label class="admin-field"><span>Трафик, ГБ (0 = безлимит)</span><input class="admin-field__control" type="number" min="0" max="1000000" inputmode="numeric" data-input="admin-plan-traffic" value="${escapeAttribute(plan.trafficGb ?? 0)}"></label>
@@ -9399,6 +9401,7 @@ function renderAdminSettingField(label, path, options = {}) {
 	const attributes = [`data-setting-path="${escapeAttribute(path)}"`, `data-setting-type="${escapeAttribute(options.type || "text")}"`];
 	if (options.min != null) attributes.push(`min="${options.min}"`);
 	if (options.max != null) attributes.push(`max="${options.max}"`);
+	if (options.maxLength != null) attributes.push(`maxlength="${options.maxLength}"`);
 	if (options.placeholder) attributes.push(`placeholder="${escapeAttribute(options.placeholder)}"`);
 	const control = options.textarea
 		? `<textarea class="admin-field__control admin-field__textarea" rows="${options.rows || 4}" ${attributes.join(" ")}>${escapeHtml(value)}</textarea>`
@@ -11491,7 +11494,7 @@ function getPlanDurationTitle(months, days, locale) {
 }
 
 function getPlanBaseTitle(plan, locale) {
-	const name = String(plan?.name || "").trim();
+	const name = String(locale === "en" ? plan?.nameEn : locale === "ru" ? plan?.name : "").trim();
 	if (name) return name;
 	const configuredTitle = locale === "fa" ? plan?.titleFa : locale === "en" ? plan?.titleEn : plan?.titleRu;
 	return localizePlanLabel(configuredTitle, plan?.months, plan?.days, locale);
@@ -13434,6 +13437,10 @@ function bindRootActions() {
 			}
 			if (inputKey === "admin-plan-name") {
 				state.adminPlanFormDraft.name = target.value;
+				return;
+			}
+			if (inputKey === "admin-plan-name-en") {
+				state.adminPlanFormDraft.nameEn = target.value;
 				return;
 			}
 			const numeric = Math.max(0, Number(target.value || 0));
@@ -15802,7 +15809,7 @@ function addAdminPlan() {
 	const plans = state.adminSettingsDraft?.plans;
 	if (!Array.isArray(plans)) return;
 	const id = `custom_${Date.now().toString(36)}`;
-	const plan = { id, enabled: false, months: 0, days: 0, name: "", titleRu: "", titleEn: "", titleFa: "", priceRub: 0, priceStars: 0, freeOneTime: false, trafficGb: 0, unlimitedTraffic: true, deviceLimit: 0, wide: false, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" };
+	const plan = { id, enabled: false, months: 0, days: 0, name: "", nameEn: "", titleRu: "", titleEn: "", titleFa: "", priceRub: 0, priceStars: 0, freeOneTime: false, trafficGb: 0, unlimitedTraffic: true, deviceLimit: 0, wide: false, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" };
 	plans.push(plan);
 	state.adminSettingsDirty = true;
 	state.adminPlanEditingID = id;
@@ -15870,6 +15877,7 @@ function applyAdminPlanEdit() {
 		...current,
 		enabled: true,
 		name: String(draft.name || "").trim(),
+		nameEn: String(draft.nameEn || "").trim(),
 		months: state.adminPlanDurationUnit === "months" ? months : 0,
 		days: state.adminPlanDurationUnit === "days" ? days : 0,
 		priceRub,

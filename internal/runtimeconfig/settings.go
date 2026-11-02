@@ -381,6 +381,7 @@ type PlanSettings struct {
 	Months                   int                          `json:"months"`
 	Days                     int                          `json:"days,omitempty"`
 	Name                     string                       `json:"name,omitempty"`
+	NameEN                   string                       `json:"nameEn,omitempty"`
 	TitleRU                  string                       `json:"titleRu"`
 	TitleEN                  string                       `json:"titleEn"`
 	TitleFA                  string                       `json:"titleFa"`
@@ -2504,6 +2505,7 @@ func validatePlans(value *[]PlanSettings, defaults []PlanSettings) error {
 			return fmt.Errorf("plan %q: %w", item.ID, err)
 		}
 		item.Name = limit(strings.TrimSpace(item.Name), 80)
+		item.NameEN = limit(strings.TrimSpace(item.NameEN), 80)
 		item.TitleRU = limit(strings.TrimSpace(item.TitleRU), 80)
 		item.TitleEN = limit(strings.TrimSpace(item.TitleEN), 80)
 		item.TitleFA = limit(strings.TrimSpace(item.TitleFA), 80)

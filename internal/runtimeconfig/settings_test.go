@@ -477,6 +477,26 @@ func TestNamedPlanKeepsDurationAsSeparateField(t *testing.T) {
 	}
 }
 
+func TestPlanNamesUseLocaleAndFallBackToDuration(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Plans = []PlanSettings{{ID: "week", Enabled: true, Days: 7, Name: "  Неделя — лайт  ", NameEN: "  Week Light  ", PriceRub: 70}}
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatal(err)
+	}
+	service := &Service{}
+	service.value.Store(settings)
+	for _, test := range []struct{ locale, want string }{{"ru", "Неделя — лайт"}, {"en", "Week Light"}, {"fa", "7 روز"}} {
+		if got := service.PlanTitle("week", test.locale); got != test.want {
+			t.Errorf("PlanTitle(%q) = %q, want %q", test.locale, got, test.want)
+		}
+	}
+	settings.Plans[0].NameEN = ""
+	service.value.Store(settings)
+	if got := service.PlanTitle("week", "en"); got != "7 days" {
+		t.Errorf("empty English name = %q, want 7 days", got)
+	}
+}
+
 func TestCheckoutPlansIncludesFreePlanAndNormalizesOneTimeRule(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Plans = []PlanSettings{
