@@ -114,6 +114,11 @@ func buildContentPreview(kind string, settings runtimeconfig.Settings, plans []p
 	back := []models.InlineKeyboardButton{previewButton(commerce.BackButton, telegram.CallbackStart)}
 	keyboard := [][]models.InlineKeyboardButton{}
 	switch kind {
+	case "withdrawal":
+		item := database.BalanceWithdrawal{ID: 123, TelegramID: 123456789, Username: "test_user", AmountCents: 100000, PayoutDetails: "Тестовые реквизиты", Status: "pending"}
+		cfg := content.WithdrawalNotification
+		keyboard = [][]models.InlineKeyboardButton{{previewButton(cfg.ApproveButton, "wd:preview"), previewButton(cfg.RejectButton, "wd:preview")}}
+		return renderWithdrawalNotification(cfg, item, 1), "", keyboard, nil
 	case "start":
 		menu := content.StartMenu
 		if settings.Features["trials"] && settings.Trial.Enabled {

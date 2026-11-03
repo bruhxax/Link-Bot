@@ -2339,6 +2339,11 @@ func (h *Handler) handleAdminWithdrawalResolve(w http.ResponseWriter, r *http.Re
 		h.writeError(w, http.StatusInternalServerError, "withdrawal_resolve_failed", "Не удалось обработать заявку")
 		return
 	}
+	if item, err := h.walletRepository.GetWithdrawal(r.Context(), req.ID); err == nil && item != nil {
+		if err := h.refreshWithdrawalNotification(r.Context(), item); err != nil {
+			slog.Warn("mini app: refresh withdrawal notification", "withdrawal_id", req.ID, "error", err)
+		}
+	}
 	payload, err := h.buildAdminPayload(r.Context())
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "admin_refresh_failed", "Не удалось обновить админку")

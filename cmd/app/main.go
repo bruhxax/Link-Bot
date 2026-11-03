@@ -179,6 +179,7 @@ func main() {
 	miniAppHandler.StartSupportAutoCloser(ctx)
 	miniAppHandler.StartSupportAI(ctx)
 	miniAppHandler.StartSubscriptionReissueCleaner(ctx)
+	go miniAppHandler.RunWithdrawalNotifier(ctx)
 	operations.StartHealthMonitor(ctx, pool, remnawaveClient, errorReporter)
 
 	me, err := b.GetMe(ctx)
@@ -224,6 +225,7 @@ func main() {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypePrefix, h.StartCommandHandler, h.SuspiciousUserFilterMiddleware)
 	b.RegisterHandlerMatchFunc(func(update *models.Update) bool { return update.InlineQuery != nil }, h.InlineGiftQueryHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "ig:pay:", bot.MatchTypePrefix, h.InlineGiftPayHandler)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "wd:", bot.MatchTypePrefix, miniAppHandler.HandleWithdrawalCallback)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/connect", bot.MatchTypeExact, h.ConnectCommandHandler, h.SuspiciousUserFilterMiddleware, h.CreateCustomerIfNotExistMiddleware)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/sync", bot.MatchTypeExact, h.SyncUsersCommandHandler, isAdminMiddleware)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/getfileid", bot.MatchTypePrefix, h.GetFileIDCommandHandler, isAdminMiddleware)

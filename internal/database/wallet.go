@@ -27,16 +27,18 @@ type BalanceTransaction struct {
 }
 
 type BalanceWithdrawal struct {
-	ID            int64      `json:"id"`
-	CustomerID    int64      `json:"customerId"`
-	TelegramID    int64      `json:"telegramId,omitempty"`
-	Username      string     `json:"username,omitempty"`
-	AmountCents   int64      `json:"amountCents"`
-	PayoutDetails string     `json:"payoutDetails"`
-	Status        string     `json:"status"`
-	CreatedAt     time.Time  `json:"createdAt"`
-	ResolvedAt    *time.Time `json:"resolvedAt,omitempty"`
-	ResolvedBy    *int64     `json:"resolvedBy,omitempty"`
+	ID                    int64      `json:"id"`
+	CustomerID            int64      `json:"customerId"`
+	TelegramID            int64      `json:"telegramId,omitempty"`
+	Username              string     `json:"username,omitempty"`
+	AmountCents           int64      `json:"amountCents"`
+	PayoutDetails         string     `json:"payoutDetails"`
+	Status                string     `json:"status"`
+	CreatedAt             time.Time  `json:"createdAt"`
+	ResolvedAt            *time.Time `json:"resolvedAt,omitempty"`
+	ResolvedBy            *int64     `json:"resolvedBy,omitempty"`
+	NotificationChatID    *int64     `json:"-"`
+	NotificationMessageID *int64     `json:"-"`
 }
 
 type WalletRepository struct {
@@ -190,6 +192,66 @@ func (r *WalletRepository) ListPendingWithdrawals(ctx context.Context, limit int
 		WHERE w.status = 'pending'
 		ORDER BY w.created_at ASC, w.id ASC LIMIT $1
 	`, limit)
+}
+
+func (r *WalletRepository) PendingWithdrawalCount(ctx context.Context) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, `SELECT count(*) FROM balance_withdrawal WHERE status = 'pending'`).Scan(&count)
+	return count, err
+}
+
+func (r *WalletRepository) GetWithdrawal(ctx context.Context, id int64) (*BalanceWithdrawal, error) {
+	var item BalanceWithdrawal
+	err := r.pool.QueryRow(ctx, `SELECT w.id, w.customer_id, c.telegram_id, COALESCE(c.telegram_username, ''),
+		w.amount_cents, w.payout_details, w.status, w.created_at, w.resolved_at, w.resolved_by,
+		w.notification_chat_id, w.notification_message_id
+		FROM balance_withdrawal w JOIN customer c ON c.id = w.customer_id WHERE w.id = $1`, id).Scan(
+		&item.ID, &item.CustomerID, &item.TelegramID, &item.Username, &item.AmountCents,
+		&item.PayoutDetails, &item.Status, &item.CreatedAt, &item.ResolvedAt, &item.ResolvedBy,
+		&item.NotificationChatID, &item.NotificationMessageID,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *WalletRepository) ListUnnotifiedPendingWithdrawals(ctx context.Context, limit int) ([]BalanceWithdrawal, error) {
+	if limit <= 0 || limit > 25 {
+		limit = 10
+	}
+	rows, err := r.pool.Query(ctx, `SELECT w.id, w.customer_id, c.telegram_id, COALESCE(c.telegram_username, ''),
+		w.amount_cents, w.payout_details, w.status, w.created_at, w.resolved_at, w.resolved_by
+		FROM balance_withdrawal w JOIN customer c ON c.id = w.customer_id
+		WHERE w.status = 'pending' AND w.notification_message_id IS NULL
+		ORDER BY w.created_at ASC, w.id ASC LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]BalanceWithdrawal, 0)
+	for rows.Next() {
+		var item BalanceWithdrawal
+		if err := rows.Scan(&item.ID, &item.CustomerID, &item.TelegramID, &item.Username, &item.AmountCents,
+			&item.PayoutDetails, &item.Status, &item.CreatedAt, &item.ResolvedAt, &item.ResolvedBy); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (r *WalletRepository) AttachWithdrawalNotification(ctx context.Context, id, chatID, messageID int64) (bool, error) {
+	result, err := r.pool.Exec(ctx, `UPDATE balance_withdrawal
+		SET notification_chat_id = $2, notification_message_id = $3
+		WHERE id = $1 AND status = 'pending' AND notification_message_id IS NULL`, id, chatID, messageID)
+	if err != nil {
+		return false, err
+	}
+	return result.RowsAffected() == 1, nil
 }
 
 func (r *WalletRepository) listWithdrawals(ctx context.Context, query string, args ...interface{}) ([]BalanceWithdrawal, error) {

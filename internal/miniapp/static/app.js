@@ -5130,6 +5130,7 @@ const ADMIN_SEARCH_CONTENT_SECTIONS = [
 	["trial", "Пробный период", "Telegram"],
 	["commerce", "Покупка", "Telegram"], ["success", "После оплаты", "Telegram"],
 	["gift", "Подарок", "Telegram"], ["payment-notifications", "Уведомления оплат", "Telegram"],
+	["withdrawal", "Заявки на вывод", "Telegram"],
 	["support", "Поддержка", "Mini App"], ["web", "Веб-страница", "Mini App"],
 	["notifications", "Уведомления", "Mini App"], ["panel", "Панель", "Mini App"],
 	["faq", "FAQ", "Mini App"], ["advanced", "Служебные тексты", "Mini App"],
@@ -7377,6 +7378,7 @@ function renderAdminContentPage() {
 		["success", "После оплаты", "Telegram"],
 		["gift", "Подарок", "Telegram"],
 		["payment-notifications", "Уведомления оплат", "Telegram"],
+		["withdrawal", "Заявки на вывод", "Telegram"],
 		["support", "Поддержка", "Mini App"],
 		["web", "Веб-страница", "Mini App"],
 		["notifications", "Уведомления", "Mini App"],
@@ -7407,6 +7409,7 @@ function renderAdminContentSection(section) {
 		case "success": return renderAdminSuccessContent();
 		case "gift": return renderAdminGiftContent();
 		case "payment-notifications": return renderAdminPaymentNotificationContent();
+		case "withdrawal": return renderAdminWithdrawalContent();
 		case "support": return renderAdminSupportContent();
 		case "web": return renderAdminWebPageContent();
 		case "notifications": return renderAdminNotificationContent();
@@ -7797,6 +7800,18 @@ function renderAdminSupportContent() {
 		${renderAdminContentTestButton("support-closed")}
 	</section>
 	<section class="admin-editor__section"><h3>Кнопка уведомления</h3>${renderAdminTelegramButton("Открыть Mini app", "content.support.openButton")}</section>`;
+}
+
+function renderAdminWithdrawalContent() {
+	return `<section class="admin-editor__section"><h3>Заявки на вывод</h3>
+		${renderAdminVariableReference("Переменные", [["{id}", "Номер заявки"], ["{amount}", "Сумма"], ["{username}", "Пользователь"], ["{payout_details}", "Реквизиты"], ["{pending_count}", "Открытых заявок"]], "Поддерживается Telegram HTML")}
+		${renderAdminSettingField("Новая заявка", "content.withdrawalNotification.newText", { textarea: true, rows: 7 })}
+		${renderAdminSettingField("Выплачено", "content.withdrawalNotification.approvedText", { textarea: true, rows: 5 })}
+		${renderAdminSettingField("Отклонено", "content.withdrawalNotification.rejectedText", { textarea: true, rows: 5 })}
+		${renderAdminTelegramButton("Кнопка выплаты", "content.withdrawalNotification.approveButton")}
+		${renderAdminTelegramButton("Кнопка отклонения", "content.withdrawalNotification.rejectButton")}
+		${renderAdminContentTestButton("withdrawal")}
+	</section>`;
 }
 
 function renderAdminNotificationContent() {

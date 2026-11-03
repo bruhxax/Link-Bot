@@ -256,7 +256,16 @@ type ContentSettings struct {
 	Trial                      TelegramTrialSettings               `json:"trial"`
 	Commerce                   TelegramCommerceSettings            `json:"commerce"`
 	PaymentNotification        TelegramPaymentNotificationSettings `json:"paymentNotification"`
+	WithdrawalNotification     TelegramWithdrawalSettings          `json:"withdrawalNotification"`
 	Gift                       TelegramGiftSettings                `json:"gift"`
+}
+
+type TelegramWithdrawalSettings struct {
+	NewText       string                 `json:"newText"`
+	ApprovedText  string                 `json:"approvedText"`
+	RejectedText  string                 `json:"rejectedText"`
+	ApproveButton TelegramButtonSettings `json:"approveButton"`
+	RejectButton  TelegramButtonSettings `json:"rejectButton"`
 }
 
 type TelegramButtonSettings struct {
@@ -669,6 +678,13 @@ func DefaultSettings() Settings {
 						Text: "Профиль",
 					},
 				},
+			},
+			WithdrawalNotification: TelegramWithdrawalSettings{
+				NewText:       "<b>Заявки на вывод · {pending_count}</b>\n\n<blockquote><b>{amount}</b> · №{id}\n{username}\n{payout_details}</blockquote>",
+				ApprovedText:  "<b>Вывод №{id} · Выплачено ✅</b>\n\n<b>{amount}</b> · {username}\n<blockquote>{payout_details}</blockquote>",
+				RejectedText:  "<b>Вывод №{id} · Отклонено ❌</b>\n\n<b>{amount}</b> · {username}\n<blockquote>{payout_details}</blockquote>",
+				ApproveButton: TelegramButtonSettings{Text: "✓ Выплачено", Style: "success"},
+				RejectButton:  TelegramButtonSettings{Text: "✕ Отклонить", Style: "danger"},
 			},
 			Gift: TelegramGiftSettings{
 				Inline: TelegramInlineGiftSettings{PendingText: "<b>Подарок: {plan}</b> 🎁\n\nОжидает оплаты отправителем.", Text: "<b>Вам подарили подписку 🎁</b>\n\nТариф: <b>{plan}</b>\nОтправитель: {sender}\n\nНажмите «Получить», чтобы активировать подписку.", PaymentText: "🎁 Подарок подготовлен. Откройте оплату и выберите удобный способ.", PayButtonText: "Оплатить", ButtonText: "Получить"},
@@ -1787,6 +1803,15 @@ func normalizeTelegramContent(value *ContentSettings, defaults ContentSettings, 
 		value.Gift = defaults.Gift
 	}
 	value.PaymentNotification.Text = normalizedRequiredText(value.PaymentNotification.Text, defaults.PaymentNotification.Text, 3500)
+	value.WithdrawalNotification.NewText = normalizedRequiredText(value.WithdrawalNotification.NewText, defaults.WithdrawalNotification.NewText, 2200)
+	value.WithdrawalNotification.ApprovedText = normalizedRequiredText(value.WithdrawalNotification.ApprovedText, defaults.WithdrawalNotification.ApprovedText, 2200)
+	value.WithdrawalNotification.RejectedText = normalizedRequiredText(value.WithdrawalNotification.RejectedText, defaults.WithdrawalNotification.RejectedText, 2200)
+	if err := normalizeTelegramButton(&value.WithdrawalNotification.ApproveButton, defaults.WithdrawalNotification.ApproveButton); err != nil {
+		return fmt.Errorf("withdrawal approve button: %w", err)
+	}
+	if err := normalizeTelegramButton(&value.WithdrawalNotification.RejectButton, defaults.WithdrawalNotification.RejectButton); err != nil {
+		return fmt.Errorf("withdrawal reject button: %w", err)
+	}
 	if err := normalizeTelegramButton(&value.PaymentNotification.OpenUserButton.TelegramButtonSettings, defaults.PaymentNotification.OpenUserButton.TelegramButtonSettings); err != nil {
 		return fmt.Errorf("payment notification open user button: %w", err)
 	}
