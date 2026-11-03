@@ -32,7 +32,12 @@ func inlineGiftPendingText(template, planTitle, sender string) string {
 
 func (h *Handler) InlineGiftQueryHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	query := update.InlineQuery
-	if query == nil || query.From == nil || h.runtimeSettings == nil || config.GetMiniAppURL() == "" {
+	if query == nil {
+		return
+	}
+	if query.From == nil || h.runtimeSettings == nil || config.GetMiniAppURL() == "" {
+		slog.Warn("inline gift query unavailable", "has_sender", query.From != nil, "has_settings", h.runtimeSettings != nil, "has_mini_app", config.GetMiniAppURL() != "")
+		h.answerInlineGiftUnavailable(ctx, b, query.ID, "Подарки временно недоступны")
 		return
 	}
 	settings := h.runtimeSettings.Snapshot().Content.Gift.Inline
@@ -49,6 +54,11 @@ func (h *Handler) InlineGiftQueryHandler(ctx context.Context, b *bot.Bot, update
 			continue
 		}
 		visible = append(visible, plan)
+	}
+	if len(visible) == 0 && search == "" {
+		slog.Warn("inline gift query has no paid plans")
+		h.answerInlineGiftUnavailable(ctx, b, query.ID, "Нет доступных тарифов для подарка")
+		return
 	}
 	offset, _ := strconv.Atoi(query.Offset)
 	if offset < 0 || offset > len(visible) {
@@ -91,8 +101,22 @@ func (h *Handler) InlineGiftQueryHandler(ctx context.Context, b *bot.Bot, update
 	if end < len(visible) {
 		nextOffset = strconv.Itoa(end)
 	}
-	if _, err := b.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{InlineQueryID: query.ID, Results: results, IsPersonal: true, CacheTime: 0, NextOffset: nextOffset}); err != nil {
+	if _, err := b.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{InlineQueryID: query.ID, Results: results, IsPersonal: true, CacheTime: 1, NextOffset: nextOffset}); err != nil {
 		slog.Error("inline gift query failed", "error", err)
+	}
+}
+
+func (h *Handler) answerInlineGiftUnavailable(ctx context.Context, b *bot.Bot, queryID, title string) {
+	_, err := b.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+		InlineQueryID: queryID,
+		Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+			ID: "gift-unavailable", Title: title, Description: "Откройте бота позже",
+			InputMessageContent: models.InputTextMessageContent{MessageText: title},
+		}},
+		IsPersonal: true, CacheTime: 1,
+	})
+	if err != nil {
+		slog.Error("inline gift unavailable response failed", "error", err)
 	}
 }
 

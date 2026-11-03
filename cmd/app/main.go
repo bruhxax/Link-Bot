@@ -113,7 +113,16 @@ func main() {
 	remnawaveClient.SetDeviceQuotaBridge(deviceQuotas)
 	go deviceQuotas.Run(ctx)
 	yookasaClient := yookasa.NewClient(config.YookasaUrl(), config.YookasaShopId(), config.YookasaSecretKey())
-	b, err := bot.New(config.TelegramToken(), bot.WithWorkers(3), bot.WithMiddlewares(handler.UserActivityMiddleware(customerRepository)))
+	b, err := bot.New(config.TelegramToken(),
+		bot.WithWorkers(3),
+		bot.WithAllowedUpdates(bot.AllowedUpdates{
+			models.AllowedUpdateMessage,
+			models.AllowedUpdateCallbackQuery,
+			models.AllowedUpdatePreCheckoutQuery,
+			models.AllowedUpdateInlineQuery,
+		}),
+		bot.WithMiddlewares(handler.UserActivityMiddleware(customerRepository)),
+	)
 	if err != nil {
 		panic(err)
 	}
