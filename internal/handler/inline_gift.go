@@ -173,6 +173,15 @@ func (h *Handler) InlineGiftPayHandler(ctx context.Context, b *bot.Bot, update *
 		return
 	}
 	deepLink.RawQuery = "start=ig_" + draft.ID.String()
+	// Telegram can open a bot deep link directly from the callback answer.
+	// Answer first so the initial tap navigates immediately, then leave a URL
+	// button on the inline message for reopening the same checkout later.
+	if _, err := b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+		CallbackQueryID: callback.ID,
+		URL:             deepLink.String(),
+	}); err != nil {
+		slog.Error("inline gift payment redirect failed", "error", err)
+	}
 	_, err = b.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
 		InlineMessageID: draft.InlineMessageID,
 		ReplyMarkup: models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
@@ -181,10 +190,7 @@ func (h *Handler) InlineGiftPayHandler(ctx context.Context, b *bot.Bot, update *
 	})
 	if err != nil {
 		slog.Error("inline gift payment link failed", "error", err)
-		answer("Не удалось открыть оплату")
-		return
 	}
-	answer("Откройте бота, чтобы выбрать способ оплаты")
 }
 
 func (h *Handler) sendInlineGiftPaymentEntry(ctx context.Context, b *bot.Bot, chatID int64, startParam string) {
