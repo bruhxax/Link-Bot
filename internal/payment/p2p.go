@@ -118,7 +118,7 @@ func (s PaymentService) sendP2PReviewNotification(ctx context.Context, purchase 
 	chatID, messageID, err := deliverP2PReviewNotification(privateChatID, s.paymentNotificationGroups(), func(destinationID int64, threadID int) (int64, error) {
 		deliveryCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
-		return sendTelegramNotificationMessageToThread(deliveryCtx, token, destinationID, threadID, message, keyboard)
+		return sendTelegramNotificationMessageToThreadWithClient(deliveryCtx, s.telegramHTTPClient, token, destinationID, threadID, message, keyboard)
 	}, func(destinationID int64, sendErr error) {
 		slog.Warn("payment: P2P review group delivery failed", "chat_id", destinationID, "error", sendErr)
 	})

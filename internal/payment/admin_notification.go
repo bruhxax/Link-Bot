@@ -118,7 +118,7 @@ func (s PaymentService) notifyAdminAboutPayment(ctx context.Context, purchase *d
 	sendTo := func(destinationID int64, threadID int) error {
 		deliveryCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
-		return sendPaymentNotificationDestination(deliveryCtx, token, destinationID, threadID, message, keyboard, settings, panelUserID, profileUsername)
+		return sendPaymentNotificationDestination(deliveryCtx, s.telegramHTTPClient, token, destinationID, threadID, message, keyboard, settings, panelUserID, profileUsername)
 	}
 
 	deliverPaymentNotification(chatID, s.paymentNotificationGroups(), sendTo, func(destinationID int64, err error) {
@@ -171,8 +171,8 @@ func (s PaymentService) paymentNotificationGroups() []integrations.NotificationG
 	return integrations.ParseNotificationGroups(cfg)
 }
 
-func sendPaymentNotificationDestination(ctx context.Context, token string, chatID int64, threadID int, message string, keyboard *telegramInlineKeyboardMarkup, settings runtimeconfig.TelegramPaymentNotificationSettings, panelUserID int64, profileUsername string) error {
-	err := sendTelegramNotificationToThread(ctx, token, chatID, threadID, message, keyboard)
+func sendPaymentNotificationDestination(ctx context.Context, client *http.Client, token string, chatID int64, threadID int, message string, keyboard *telegramInlineKeyboardMarkup, settings runtimeconfig.TelegramPaymentNotificationSettings, panelUserID int64, profileUsername string) error {
+	err := sendTelegramNotificationToThreadWithClient(ctx, client, token, chatID, threadID, message, keyboard)
 	if err == nil || !isTelegramButtonUserInvalid(err) || paymentNotificationProfileURL(profileUsername) == "" {
 		return err
 	}
@@ -180,7 +180,7 @@ func sendPaymentNotificationDestination(ctx context.Context, token string, chatI
 	fallbackSettings.ProfileButton.Enabled = false
 	fallbackKeyboard := buildPaymentNotificationKeyboard(fallbackSettings, panelUserID, "")
 	slog.Warn("payment notification profile button rejected; retrying without it", "error", err, "chat_id", chatID)
-	if fallbackErr := sendTelegramNotificationToThread(ctx, token, chatID, threadID, message, fallbackKeyboard); fallbackErr != nil {
+	if fallbackErr := sendTelegramNotificationToThreadWithClient(ctx, client, token, chatID, threadID, message, fallbackKeyboard); fallbackErr != nil {
 		return fmt.Errorf("profile button rejected (%v); fallback delivery failed: %w", err, fallbackErr)
 	}
 	return nil
@@ -645,18 +645,26 @@ func (s PaymentService) SendPaymentNotificationPreview(ctx context.Context, opti
 	panelUserID := s.paymentNotificationPanelUserID(previewCtx, nil, options.Customer)
 	keyboard := buildPaymentNotificationKeyboard(options.Settings, panelUserID, username)
 	return deliverPaymentNotification(chatID, s.paymentNotificationGroups(), func(destinationID int64, threadID int) error {
-		return sendTelegramNotificationToThread(previewCtx, token, destinationID, threadID, message, keyboard)
+		return sendTelegramNotificationToThreadWithClient(previewCtx, s.telegramHTTPClient, token, destinationID, threadID, message, keyboard)
 	}, func(destinationID int64, err error) {
 		slog.Warn("payment notification preview delivery failed", "error", err, "chat_id", destinationID)
 	})
 }
 
 func sendTelegramNotificationToThread(ctx context.Context, token string, chatID int64, threadID int, text string, keyboard ...*telegramInlineKeyboardMarkup) error {
-	_, err := sendTelegramNotificationMessageToThread(ctx, token, chatID, threadID, text, keyboard...)
+	return sendTelegramNotificationToThreadWithClient(ctx, nil, token, chatID, threadID, text, keyboard...)
+}
+
+func sendTelegramNotificationToThreadWithClient(ctx context.Context, client *http.Client, token string, chatID int64, threadID int, text string, keyboard ...*telegramInlineKeyboardMarkup) error {
+	_, err := sendTelegramNotificationMessageToThreadWithClient(ctx, client, token, chatID, threadID, text, keyboard...)
 	return err
 }
 
 func sendTelegramNotificationMessageToThread(ctx context.Context, token string, chatID int64, threadID int, text string, keyboard ...*telegramInlineKeyboardMarkup) (int64, error) {
+	return sendTelegramNotificationMessageToThreadWithClient(ctx, nil, token, chatID, threadID, text, keyboard...)
+}
+
+func sendTelegramNotificationMessageToThreadWithClient(ctx context.Context, client *http.Client, token string, chatID int64, threadID int, text string, keyboard ...*telegramInlineKeyboardMarkup) (int64, error) {
 	request := telegramSendMessageRequest{
 		ChatID:          chatID,
 		MessageThreadID: threadID,
@@ -667,7 +675,7 @@ func sendTelegramNotificationMessageToThread(ctx context.Context, token string, 
 		request.ReplyMarkup = keyboard[0]
 	}
 	endpoint := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token)
-	return sendTelegramNotificationMessageRequest(ctx, http.DefaultClient, endpoint, request)
+	return sendTelegramNotificationMessageRequest(ctx, client, endpoint, request)
 }
 
 func sendTelegramNotificationRequest(ctx context.Context, client *http.Client, endpoint string, request telegramSendMessageRequest) error {

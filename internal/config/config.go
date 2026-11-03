@@ -18,6 +18,7 @@ import (
 
 type config struct {
 	telegramToken                                             string
+	telegramProxyURL                                          string
 	price1, price3, price6, price12                           int
 	starsPrice1, starsPrice3, starsPrice6, starsPrice12       int
 	remnawaveUrl, remnawaveToken, remnawaveMode, remnawaveTag string
@@ -387,6 +388,9 @@ func StarsPrice(month int) int {
 func TelegramToken() string {
 	return conf.telegramToken
 }
+func TelegramProxyURL() string {
+	return conf.telegramProxyURL
+}
 func RemnawaveUrl() string {
 	return conf.remnawaveUrl
 }
@@ -597,6 +601,7 @@ func InitConfig() {
 	}
 
 	conf.telegramToken = mustEnv("TELEGRAM_TOKEN")
+	conf.telegramProxyURL = envStringDefault("TELEGRAM_PROXY_URL", "")
 	conf.paymentNotificationBotToken = envStringDefault("PAYMENT_NOTIFICATION_BOT_TOKEN", "")
 	conf.paymentNotificationChatID = envInt64Default("PAYMENT_NOTIFICATION_CHAT_ID", conf.adminTelegramId)
 	conf.paymentNotificationTimezone = envStringDefault("PAYMENT_NOTIFICATION_TIMEZONE", "Europe/Moscow")

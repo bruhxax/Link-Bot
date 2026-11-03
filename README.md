@@ -66,6 +66,8 @@ PUBLIC_BASE_URL=https://bot.example.com
 
 Пароль БД можно получить командой `openssl rand -hex 24`. Остальные параметры — в [.env.example](.env.example).
 
+Для подключения Telegram Bot API через SOCKS5h добавьте в `.env` строку `TELEGRAM_PROXY_URL=socks5h://user:password@proxy.example.com:1080` и перезапустите бот. Параметр необязателен; через него идут запросы основного бота и бота платёжных уведомлений, а доменные имена разрешаются прокси. Если логин и пароль не нужны, используйте `socks5h://proxy.example.com:1080`.
+
 **3. Запустите**
 
 ```bash

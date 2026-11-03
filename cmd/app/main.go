@@ -113,7 +113,11 @@ func main() {
 	remnawaveClient.SetDeviceQuotaBridge(deviceQuotas)
 	go deviceQuotas.Run(ctx)
 	yookasaClient := yookasa.NewClient(config.YookasaUrl(), config.YookasaShopId(), config.YookasaSecretKey())
-	b, err := bot.New(config.TelegramToken(),
+	telegramHTTPClient, err := newTelegramProxyClient(config.TelegramProxyURL())
+	if err != nil {
+		panic(err)
+	}
+	telegramOptions := []bot.Option{
 		bot.WithWorkers(3),
 		bot.WithAllowedUpdates(bot.AllowedUpdates{
 			models.AllowedUpdateMessage,
@@ -122,7 +126,11 @@ func main() {
 			models.AllowedUpdateInlineQuery,
 		}),
 		bot.WithMiddlewares(handler.UserActivityMiddleware(customerRepository)),
-	)
+	}
+	if telegramHTTPClient != nil {
+		telegramOptions = append(telegramOptions, bot.WithHTTPClient(time.Minute, telegramHTTPClient))
+	}
+	b, err := bot.New(config.TelegramToken(), telegramOptions...)
 	if err != nil {
 		panic(err)
 	}
@@ -137,6 +145,7 @@ func main() {
 	}
 
 	paymentService := payment.NewPaymentService(tm, purchaseRepository, promoCodeRepository, remnawaveClient, customerRepository, b, cryptoPayClient, yookasaClient, referralRepository, partnerRepository, walletRepository, cache, moynalogReceiptRepository, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository)
+	paymentService.SetTelegramHTTPClient(telegramHTTPClient)
 	paymentService.SetAdminPushNotifier(webPushService)
 	go paymentService.RunInlineGiftPublisher(ctx)
 
@@ -218,7 +227,7 @@ func main() {
 	}
 
 	config.SetBotURL(fmt.Sprintf("https://t.me/%s", me.Username))
-	startPaymentNotificationBot(ctx, integrationSettings, paymentService)
+	startPaymentNotificationBot(ctx, integrationSettings, paymentService, telegramHTTPClient)
 	notifyAdminAfterUpdate(ctx, b, releaseNotificationRepository)
 	go appupdate.RunNotifications(ctx, b, config.GetAdminTelegramId(), database.NewUpdateNotificationRepository(pool), Version, Commit)
 
@@ -430,7 +439,7 @@ func isAdminMiddleware(next bot.HandlerFunc) bot.HandlerFunc {
 	}
 }
 
-func startPaymentNotificationBot(ctx context.Context, settings *integrations.Service, paymentService *payment.PaymentService) {
+func startPaymentNotificationBot(ctx context.Context, settings *integrations.Service, paymentService *payment.PaymentService, telegramHTTPClient *http.Client) {
 	if settings == nil {
 		return
 	}
@@ -464,7 +473,7 @@ func startPaymentNotificationBot(ctx context.Context, settings *integrations.Ser
 				runningConfigKey = ""
 				if token != "" {
 					botCtx, cancel := context.WithCancel(ctx)
-					if done, ok := runPaymentNotificationBot(botCtx, settings, paymentService, cfg); ok {
+					if done, ok := runPaymentNotificationBot(botCtx, settings, paymentService, cfg, telegramHTTPClient); ok {
 						runningConfigKey, stop, stopped = configKey, cancel, done
 					} else {
 						cancel()
@@ -487,7 +496,7 @@ func startPaymentNotificationBot(ctx context.Context, settings *integrations.Ser
 	}()
 }
 
-func runPaymentNotificationBot(ctx context.Context, settings *integrations.Service, paymentService *payment.PaymentService, notificationConfig map[string]string) (<-chan struct{}, bool) {
+func runPaymentNotificationBot(ctx context.Context, settings *integrations.Service, paymentService *payment.PaymentService, notificationConfig map[string]string, telegramHTTPClient *http.Client) (<-chan struct{}, bool) {
 	// Keep the bot responsive to setup commands even when payment delivery is disabled.
 	token := strings.TrimSpace(notificationConfig["token"])
 	if token == "" {
@@ -503,10 +512,14 @@ func runPaymentNotificationBot(ctx context.Context, settings *integrations.Servi
 	}
 
 	manager := &paymentNotificationGroupManager{settings: settings, adminID: config.GetAdminTelegramId(), chatID: allowedChatID}
-	notificationBot, err := bot.New(token, bot.WithWorkers(1), bot.WithSkipGetMe(),
+	notificationOptions := []bot.Option{bot.WithWorkers(1), bot.WithSkipGetMe(),
 		bot.WithDefaultHandler(manager.handle),
 		bot.WithAllowedUpdates(bot.AllowedUpdates{models.AllowedUpdateMessage, models.AllowedUpdateCallbackQuery, models.AllowedUpdateMyChatMember}),
-	)
+	}
+	if telegramHTTPClient != nil {
+		notificationOptions = append(notificationOptions, bot.WithHTTPClient(time.Minute, telegramHTTPClient))
+	}
+	notificationBot, err := bot.New(token, notificationOptions...)
 	if err != nil {
 		slog.Error("payment notification bot initialization failed", "error", err)
 		return nil, false

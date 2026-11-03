@@ -45,6 +45,7 @@ type PaymentService struct {
 	remnawaveClient           *remnawave.Client
 	customerRepository        *database.CustomerRepository
 	telegramBot               *bot.Bot
+	telegramHTTPClient        *http.Client
 	translation               *translation.Manager
 	cryptoPayClient           *cryptopay.Client
 	yookasaClient             *yookasa.Client
@@ -63,6 +64,12 @@ type PaymentService struct {
 func (s *PaymentService) SetAdminPushNotifier(notifier adminnotify.Notifier) {
 	if s != nil {
 		s.adminPushNotifier = notifier
+	}
+}
+
+func (s *PaymentService) SetTelegramHTTPClient(client *http.Client) {
+	if s != nil {
+		s.telegramHTTPClient = client
 	}
 }
 
