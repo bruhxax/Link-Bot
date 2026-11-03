@@ -22,10 +22,10 @@ const context = vm.createContext({
 });
 vm.runInContext(cardSource, context);
 
-test("plan card shows the current price, crossed-out original and exact savings", () => {
+test("plan card shows only the current and crossed-out original prices", () => {
   const card = context.renderPlanCard({ id: "month", months: 1, priceRub: 67, originalPriceRub: 100 }, false);
   assert.match(card, /<strong[^>]*>67 ₽<\/strong><del>100 ₽<\/del>/);
-  assert.match(card, /Экономия 33 ₽/);
+  assert.doesNotMatch(card, /Экономия|Save|صرفه‌جویی/);
 });
 
 test("expired discount does not show a crossed-out price", () => {

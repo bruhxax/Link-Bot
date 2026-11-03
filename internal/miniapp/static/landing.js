@@ -183,7 +183,6 @@
 	  const originalPriceRub = Number(plan.originalPriceRub) || 0;
 	  const discount = priceRub > 0 && originalPriceRub > priceRub;
 	  const oldPrice = discount ? `${new Intl.NumberFormat("ru").format(originalPriceRub)} ₽` : "";
-	  const saving = discount ? `${new Intl.NumberFormat("ru").format(originalPriceRub - priceRub)} ₽` : "";
       const deviceLimit = Number(plan.deviceLimitCount) || 0;
       const unlimited = (Number(plan.trafficLimitBytes) || 0) <= 0;
       const mobileTraffic = unlimited ? "Безлимитный трафик" : formatTraffic(plan.trafficLimitBytes).replace(/^Трафик: /, "");
@@ -191,7 +190,7 @@
       return `<a class="plan-card${plan.recommended ? " plan-card--recommended" : ""}${unlimited ? " plan-card--unlimited" : ""}${plan.wide ? " plan-card--wide" : ""}" href="${escapeHTML(planURL.href)}">
         ${unlimited ? '<span class="plan-card__unlimited-badge">Безлимит</span>' : ""}
         <div class="plan-card__top"><div><div class="plan-card__title">${title}</div>${durationNote}</div>${badge ? `<span class="plan-card__badge">${escapeHTML(badge)}</span>` : ""}</div>
-        <div class="plan-card__price"><strong>${escapeHTML(price)}</strong>${discount ? `<del>${escapeHTML(oldPrice)}</del><small>Экономия ${escapeHTML(saving)}</small>` : ""}</div>
+        <div class="plan-card__price"><strong>${escapeHTML(price)}</strong>${discount ? `<del>${escapeHTML(oldPrice)}</del>` : ""}</div>
         <ul class="plan-card__features"><li><span class="plan-card__traffic-desktop">${escapeHTML(formatTraffic(plan.trafficLimitBytes))}</span><span class="plan-card__traffic-mobile">${escapeHTML(mobileTraffic)}</span></li><li>${deviceLimit > 0 ? `До ${deviceLimit} ${plural(deviceLimit, "устройства", "устройств", "устройств")}` : "Устройства по условиям тарифа"}</li><li class="plan-card__activation-note">Подключение после оформления</li></ul>
         <span class="button button--primary plan-card__action" aria-hidden="true">${escapeHTML(landingText.buyButton||"Выбрать тариф")}</span>
       </a>`;

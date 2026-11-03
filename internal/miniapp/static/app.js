@@ -11649,7 +11649,6 @@ function renderPlanCard(plan, selected) {
 	const priceRub = expired && originalPrice > 0 ? originalPrice : Number(plan?.priceRub || 0);
 	const price = priceRub > 0 ? formatCurrency(priceRub, state.locale) : localizedText("Бесплатно", "Free", "رایگان");
 	const discount = originalPrice > priceRub && priceRub > 0;
-	const saved = discount ? originalPrice - Number(plan.priceRub) : 0;
   const content = `
       ${unlimited ? `<span class="pricing-card__unlimited-badge">${localizedText("Безлимит", "Unlimited", "نامحدود")}</span>` : ""}
       <div class="pricing-card__content">
@@ -11666,7 +11665,6 @@ function renderPlanCard(plan, selected) {
           <div class="pricing-card__price-row">
 			<div class="pricing-card__price-line"><strong data-price-transition="plan:${escapeAttribute(key)}">${escapeHtml(price)}</strong>${discount ? `<del>${escapeHtml(formatCurrency(originalPrice, state.locale))}</del>` : ""}</div>
           </div>
-		  ${discount ? `<small class="pricing-card__discount">${escapeHtml(localizedText(`Экономия ${formatCurrency(saved, state.locale)}`, `Save ${formatCurrency(saved, state.locale)}`, `${formatCurrency(saved, state.locale)} صرفه‌جویی`))}</small>` : ""}
         </div>
       </div>
   `;
