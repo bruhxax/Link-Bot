@@ -2527,6 +2527,7 @@ const state = {
 	adminUsersQuery: "",
 	adminUsersBusy: "",
 	adminPartners: null,
+	adminReferrals: { mode: "leaders", search: "", leaders: { items: [], total: 0 }, history: { items: [], total: 0 }, details: {}, openId: 0, busy: "", error: "" },
 	adminPartnersBusy: "",
 	adminPartnerTelegramDraft: "",
 	adminPartnerPercentDraft: "20",
@@ -3128,6 +3129,7 @@ function refreshRestoredAdminSection() {
 	if (state.adminSection === "status") void refreshAdminStatus();
 	if (state.adminSection === "users") void refreshAdminUsers();
 	if (state.adminSection === "partners") void refreshAdminPartners();
+	if (state.adminSection === "referrals") void refreshAdminReferrals();
 	if (state.adminSection === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
 	if (state.adminSection === "moynalog") void refreshAdminMoyNalog();
 }
@@ -5244,6 +5246,7 @@ function openAdminSettingsSearchResult(index) {
 	if (item.section === "administrators") void refreshAdministrators();
 	if (item.section === "users") void refreshAdminUsers();
 	if (item.section === "partners") void refreshAdminPartners();
+	if (item.section === "referrals") void refreshAdminReferrals();
 	if (item.section === "torrents") void torrentWorkspace.load();
 	if (item.section === "abuses") void abuseWorkspace.load();
 	if (item.section === "broadcast") void refreshAdminBroadcast({ forceButtons: true });
@@ -9048,11 +9051,29 @@ function renderAdminReferralsPage() {
 	const settings = state.adminSettingsDraft?.referrals || {};
 	const withdrawals = Array.isArray(state.data?.admin?.withdrawals) ? state.data.admin.withdrawals : [];
 	return renderAdminEditorPage(localizedText("Рефералы и баланс", "Referrals and balance", "دعوت و موجودی"), `<div class="admin-referrals">
+		${renderAdminReferralActivity()}
 		<section class="admin-editor__section"><div class="admin-editor__section-head"><div><h3>${localizedText("За активацию пробного периода", "Trial activation reward", "پاداش فعال‌سازی آزمایشی")}</h3></div></div>${renderAdminReferralRewardFields("referrals.trial", false)}</section>
 		<section class="admin-editor__section"><div class="admin-editor__section-head"><div><h3>${localizedText("За покупку подписки", "Subscription purchase reward", "پاداش خرید اشتراک")}</h3></div></div>${renderAdminReferralRewardFields("referrals.purchase", true)}<div class="admin-toggle-list">${renderAdminToggle(localizedText("Начислять за каждую следующую покупку", "Reward every later purchase", "پاداش برای هر خرید بعدی"), "referrals.rewardEveryPurchase")}</div></section>
 		<section class="admin-editor__section"><div class="admin-editor__section-head"><div><h3>${localizedText("Баланс", "Balance", "موجودی")}</h3></div></div><div class="admin-toggle-list">${renderAdminToggle(localizedText("Разрешить оплату балансом", "Allow balance payments", "اجازه پرداخت از موجودی"), "referrals.balancePaymentsEnabled")}${renderAdminToggle(localizedText("Разрешить заявки на вывод", "Allow withdrawals", "اجازه برداشت"), "referrals.withdrawalsEnabled")}</div><div class="admin-editor__grid">${renderAdminSettingField(localizedText("Минимальный вывод, ₽", "Minimum withdrawal, RUB", "حداقل برداشت، روبل"), "referrals.minimumWithdrawalRub", { type: "number", min: 0, max: 1000000 })}</div></section>
 		<section class="admin-editor__section admin-withdrawals"><div class="admin-editor__section-head"><div><h3>${localizedText("Заявки на вывод", "Withdrawal requests", "درخواست‌های برداشت")}</h3></div><strong>${withdrawals.length}</strong></div>${withdrawals.length ? withdrawals.map(renderAdminWithdrawal).join("") : `<div class="admin-empty-state">${icon("check")}<strong>${localizedText("Новых заявок нет", "No pending requests", "درخواست جدیدی نیست")}</strong></div>`}</section>
 	</div>`);
+}
+
+function renderAdminReferralActivity() {
+	const view = state.adminReferrals;
+	const page = view[view.mode];
+	const money = (cents) => formatMoneyCents(cents || 0);
+	const identity = (username, id) => username ? `@${escapeHtml(username)}` : escapeHtml(String(id || "—"));
+	const rows = view.mode === "leaders" ? page.items.map((item) => {
+		const open = Number(view.openId) === Number(item.telegramId), detail = view.details[item.telegramId];
+		return `<article class="admin-referrer ${open ? "is-open" : ""}"><button type="button" class="admin-referrer__summary" data-action="admin-referrer-toggle" data-value="${item.telegramId}" aria-expanded="${open}"><span class="admin-referrer__identity"><strong>${identity(item.username, item.telegramId)}</strong><small>ID ${escapeHtml(String(item.telegramId))} · Последний ${escapeHtml(formatShortDateLabel(item.lastInviteAt, state.locale))}</small></span><span class="admin-referrer__count">${formatNumber(item.invited, state.locale)} реф.</span>${icon("chevronRight")}</button><div class="admin-referrer__reveal"><div class="admin-referrer__inner"><div class="admin-referrer__metrics"><span><small>Купили</small><b>${formatNumber(item.paying, state.locale)}</b></span><span><small>Покупок</small><b>${formatNumber(item.purchaseCount, state.locale)}</b></span><span><small>Принесли</small><b>${escapeHtml(money(item.revenueCents))}</b></span><span><small>Начислено</small><b>${escapeHtml(money(item.rewardsCents))}</b></span><span><small>Выведено</small><b>${escapeHtml(money(item.withdrawnCents))}</b></span></div><div class="admin-referrer__caption">Приглашённые</div>${detail?.items?.length ? detail.items.map((row) => renderAdminReferralHistoryRow(row, false)).join("") : `<p class="admin-referrer__hint">${detail?.loading ? "Загрузка…" : escapeHtml(detail?.error || "История пока не загружена")}</p>`}${detail?.items?.length < detail?.total ? `<button type="button" class="admin-referrer__more" data-action="admin-referrer-more" data-value="${item.telegramId}">Показать ещё</button>` : ""}</div></div></article>`;
+	}).join("") : page.items.map((item) => renderAdminReferralHistoryRow(item, true)).join("");
+	return `<section class="admin-referrals-activity"><div class="admin-referrals-activity__head"><div><h3>Рефералы</h3><p>Приглашения, покупки и выплаты</p></div><span>${formatNumber(page.total || 0, state.locale)}</span></div><div class="admin-referrals-activity__tabs" role="tablist"><button type="button" data-action="admin-referrals-tab" data-value="leaders" class="${view.mode === "leaders" ? "is-active" : ""}" aria-selected="${view.mode === "leaders"}">Рефоводы</button><button type="button" data-action="admin-referrals-tab" data-value="history" class="${view.mode === "history" ? "is-active" : ""}" aria-selected="${view.mode === "history"}">История</button></div><label class="admin-referrals-activity__search">${icon("search")}<input type="search" data-input="admin-referrals-search" value="${escapeAttribute(view.search)}" placeholder="Имя или Telegram ID" autocomplete="off"></label><div class="admin-referrals-activity__list">${rows || `<div class="admin-referrals-activity__empty">${view.busy ? "Загрузка…" : escapeHtml(view.error || (view.mode === "leaders" ? "Пока нет пользователей с двумя приглашёнными" : "Приглашений пока нет"))}</div>`}</div>${page.items.length < page.total ? `<button type="button" class="admin-referrals-activity__more" data-action="admin-referrals-more">${view.busy ? "Загрузка…" : "Показать ещё"}</button>` : ""}${view.error && rows ? `<p class="admin-referrals-activity__error">${escapeHtml(view.error)}</p>` : ""}<p class="admin-referrals-activity__note">Суммы покупок — только оплаченные платежи в рублях. «Начислено» — бонусы за рефералов; «Выведено» — подтверждённые заявки пользователя.</p></section>`;
+}
+
+function renderAdminReferralHistoryRow(item, showReferrer) {
+	const name = (username, id) => username ? `@${escapeHtml(username)}` : escapeHtml(String(id || "—"));
+	return `<div class="admin-referral-history-row"><div><strong>${showReferrer ? `${name(item.referrerUsername, item.referrerId)} → ` : ""}${name(item.refereeUsername, item.refereeId)}</strong><small>${escapeHtml(formatShortDateLabel(item.usedAt, state.locale))} · ID ${escapeHtml(String(item.refereeId))}</small></div><span>${item.revenueCents ? escapeHtml(formatMoneyCents(item.revenueCents)) : "—"}</span></div>`;
 }
 
 function renderAdminReferralRewardFields(path, allowPercent) {
@@ -12633,10 +12654,15 @@ function bindRootActions() {
 		if (value === "users") void refreshAdminUsers();
 		if (value === "administrators") void refreshAdministrators();
 		if (value === "partners") void refreshAdminPartners();
+		if (value === "referrals") void refreshAdminReferrals();
 		if (value === "torrents") void torrentWorkspace.load();
 		if (value === "abuses") void abuseWorkspace.load();
 		return;
 	  }
+		if (action === "admin-referrals-tab") { state.adminReferrals.mode = value === "history" ? "history" : "leaders"; render({ preserveScroll: true }); if (!state.adminReferrals[state.adminReferrals.mode].items.length) void refreshAdminReferrals(); return; }
+		if (action === "admin-referrals-more") return await refreshAdminReferrals(true);
+		if (action === "admin-referrer-toggle") { const id = Number(value); state.adminReferrals.openId = state.adminReferrals.openId === id ? 0 : id; render({ preserveScroll: true }); if (state.adminReferrals.openId && !state.adminReferrals.details[id]) void refreshAdminReferralDetail(id); return; }
+		if (action === "admin-referrer-more") return await refreshAdminReferralDetail(Number(value), true);
 	  if (action === "admin-settings-search-open") return openAdminSettingsSearchResult(Number(value));
 	  if (action === "admin-status-refresh") return await refreshAdminStatus(true);
       if (action === "admin-bot-update-confirm") { if (state.adminStatus?.canUpdate && state.adminStatus?.updater?.available && state.adminStatus.updater.state !== "running" && !state.adminBotUpdateBusy) state.adminBotUpdateConfirm = true; render({ preserveScroll: true }); return; }
@@ -13692,6 +13718,7 @@ function bindRootActions() {
 		if (inputKey === "partner-percent") { state.partnerPercentDraft = String(target.value || "").slice(0, 3); return; }
 		if (inputKey === "partner-monthly-users") { state.partnerMonthlyUsersDraft = String(target.value || "").slice(0, 8); return; }
 		if (inputKey === "admin-partner-telegram") { state.adminPartnerTelegramDraft = String(target.value || "").replace(/\D+/g, "").slice(0, 19); if (target.value !== state.adminPartnerTelegramDraft) target.value = state.adminPartnerTelegramDraft; return; }
+		if (inputKey === "admin-referrals-search") { state.adminReferrals.search = String(target.value || "").slice(0, 100); clearTimeout(adminReferralSearchTimer); adminReferralSearchTimer = window.setTimeout(() => { state.adminReferrals.leaders = { items: [], total: 0 }; state.adminReferrals.history = { items: [], total: 0 }; void refreshAdminReferrals(); }, 300); return; }
 		if (inputKey === "admin-partner-percent") { state.adminPartnerPercentDraft = String(target.value || "").slice(0, 3); return; }
 		if (inputKey === "promo-code") {
         state.promoCodeDraft = target.value;
@@ -17145,6 +17172,39 @@ async function submitPartnerApplication() {
 		state.partner = response.data || state.partner;
 		showToast(localizedText("Заявка отправлена", "Application submitted", "درخواست ارسال شد"), "success");
 	} finally { state.partnerBusy = ""; render({ preserveScroll: true }); }
+}
+
+let adminReferralSearchTimer = 0;
+let adminReferralsRequestID = 0;
+async function refreshAdminReferrals(more = false) {
+	const view = state.adminReferrals, mode = view.mode, search = view.search;
+	if (more && view.busy) return;
+	const offset = more ? view[mode].items.length : 0;
+	const requestID = ++adminReferralsRequestID;
+	view.busy = mode; view.error = "";
+	if (!more) view[mode] = { items: [], total: 0 };
+	render({ preserveScroll: true });
+	try {
+		const response = await post("/api/mini-app/admin/referrals", { mode, search, offset });
+		if (requestID !== adminReferralsRequestID || view.mode !== mode || view.search !== search) return;
+		const data = response.data || { items: [], total: 0 };
+		view[mode] = { items: more ? [...view[mode].items, ...(data.items || [])] : (data.items || []), total: Number(data.total || 0) };
+	} catch (error) { if (requestID === adminReferralsRequestID) view.error = error?.message || "Не удалось загрузить рефералов"; }
+	finally { if (requestID === adminReferralsRequestID) { view.busy = ""; if (state.adminSection === "referrals") render({ preserveScroll: true }); } }
+}
+
+async function refreshAdminReferralDetail(id, more = false) {
+	const view = state.adminReferrals;
+	const previous = view.details[id] || { items: [], total: 0 };
+	if (previous.loading) return;
+	view.details[id] = { ...previous, loading: true, error: "" };
+	render({ preserveScroll: true });
+	try {
+		const response = await post("/api/mini-app/admin/referrals", { mode: "history", referrerId: id, offset: more ? previous.items.length : 0 });
+		const data = response.data || { items: [], total: 0 };
+		view.details[id] = { items: more ? [...previous.items, ...(data.items || [])] : (data.items || []), total: Number(data.total || 0), loading: false, error: "" };
+	} catch (error) { view.details[id] = { ...previous, loading: false, error: error?.message || "Не удалось загрузить приглашённых" }; }
+	if (state.adminSection === "referrals") render({ preserveScroll: true });
 }
 
 let adminPartnersRequestID = 0;

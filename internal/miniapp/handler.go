@@ -878,6 +878,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mini-app/admin/payments/channels", h.withSession(h.handleAdminPaymentChannels))
 	mux.HandleFunc("/api/mini-app/admin/servers/visibility", h.withSession(h.handleAdminServerVisibility))
 	mux.HandleFunc("/api/mini-app/admin/wallet/withdrawal/resolve", h.withSession(h.handleAdminWithdrawalResolve))
+	mux.HandleFunc("/api/mini-app/admin/referrals", h.withSession(h.handleAdminReferrals))
 	mux.HandleFunc("/api/mini-app/admin/logo/upload", h.withSession(h.handleAdminLogoUpload, "multipart/form-data"))
 	mux.HandleFunc("/api/mini-app/admin/payments/logo/upload", h.withSession(h.handleAdminPaymentLogoUpload, "multipart/form-data"))
 	mux.HandleFunc("/api/mini-app/admin/favicon/upload", h.withSession(h.handleAdminFaviconUpload, "multipart/form-data"))

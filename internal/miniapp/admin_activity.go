@@ -34,6 +34,7 @@ var activityReadRoutes = map[string]bool{
 	"appearance/presets/list":   true,
 	"appearance/presets/export": true,
 	"torrents/reports":          true,
+	"referrals":                 true,
 	"abuses/scan":               true,
 	"bot/update/status":         true,
 	"payments/channels":         true,
