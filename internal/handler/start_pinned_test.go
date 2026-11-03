@@ -16,6 +16,16 @@ import (
 	"link-bot/internal/translation"
 )
 
+func TestStartMenuCanSendWithoutButtons(t *testing.T) {
+	if startMenuReplyMarkup(nil) != nil {
+		t.Fatal("empty /start keyboard should not send reply_markup")
+	}
+	rows := [][]models.InlineKeyboardButton{{{Text: "Open", URL: "https://example.com"}}}
+	if _, ok := startMenuReplyMarkup(rows).(models.InlineKeyboardMarkup); !ok {
+		t.Fatal("configured buttons should use inline keyboard")
+	}
+}
+
 func TestStartMenuFollowsPinnedMessageEvenIfPinFails(t *testing.T) {
 	for _, fails := range []bool{false, true} {
 		t.Run(fmt.Sprint(fails), func(t *testing.T) {

@@ -226,12 +226,10 @@ func (h Handler) sendStartPhotoMessage(
 	}
 
 	msg, err := telegramScreenPhotos.send(ctx, b, img, &bot.SendPhotoParams{
-		ChatID:    chatID,
-		Caption:   text,
-		ParseMode: models.ParseModeHTML,
-		ReplyMarkup: models.InlineKeyboardMarkup{
-			InlineKeyboard: inlineKeyboard,
-		},
+		ChatID:      chatID,
+		Caption:     text,
+		ParseMode:   models.ParseModeHTML,
+		ReplyMarkup: startMenuReplyMarkup(inlineKeyboard),
 	})
 	if err != nil {
 		slog.Error("Error sending /start photo message", "error", err)
@@ -255,13 +253,11 @@ func (h Handler) sendStartTextFallback(
 
 	if messageID > 0 {
 		_, err := b.EditMessageCaption(ctx, &bot.EditMessageCaptionParams{
-			ChatID:    chatID,
-			MessageID: messageID,
-			Caption:   text,
-			ParseMode: models.ParseModeHTML,
-			ReplyMarkup: models.InlineKeyboardMarkup{
-				InlineKeyboard: inlineKeyboard,
-			},
+			ChatID:      chatID,
+			MessageID:   messageID,
+			Caption:     text,
+			ParseMode:   models.ParseModeHTML,
+			ReplyMarkup: startMenuReplyMarkup(inlineKeyboard),
 		})
 		if err == nil {
 			h.rememberScreenMessage(chatID, messageID)
@@ -270,16 +266,21 @@ func (h Handler) sendStartTextFallback(
 	}
 
 	msg, _ := b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:    chatID,
-		ParseMode: models.ParseModeHTML,
-		ReplyMarkup: models.InlineKeyboardMarkup{
-			InlineKeyboard: inlineKeyboard,
-		},
-		Text: text,
+		ChatID:      chatID,
+		ParseMode:   models.ParseModeHTML,
+		ReplyMarkup: startMenuReplyMarkup(inlineKeyboard),
+		Text:        text,
 	})
 	if msg != nil {
 		h.rememberScreenMessage(chatID, msg.ID)
 	}
+}
+
+func startMenuReplyMarkup(keyboard [][]models.InlineKeyboardButton) models.ReplyMarkup {
+	if len(keyboard) == 0 {
+		return nil
+	}
+	return models.InlineKeyboardMarkup{InlineKeyboard: keyboard}
 }
 
 func (h Handler) startText(langCode string) string {
