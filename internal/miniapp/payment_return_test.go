@@ -20,8 +20,18 @@ func TestBuildPaymentReturnTargetOpensTelegramMiniApp(t *testing.T) {
 
 func TestBuildPaymentReturnTargetFallsBackToWebWithoutBotURL(t *testing.T) {
 	target := buildPaymentReturnTargetForBot("", 456, "pending")
-	if target != "/mini-app/?paymentReturn=1&paymentStatus=cancel&provider=yookasa&purchaseId=456" {
+	if target != "/mini-app/?paymentReturn=1&paymentStatus=pending&provider=yookasa&purchaseId=456" {
 		t.Fatalf("unexpected fallback target: %s", target)
+	}
+}
+
+func TestBuildPaymentReturnTargetKeepsPendingStatusInTelegram(t *testing.T) {
+	target, err := url.Parse(buildPaymentReturnTargetForBot("BruhvpnBot", 456, "pending"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := target.Query().Get("startapp"); got != "payment_return_456_pending" {
+		t.Fatalf("startapp = %q, want payment_return_456_pending", got)
 	}
 }
 

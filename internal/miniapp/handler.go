@@ -3555,12 +3555,24 @@ func (h *Handler) handleCancelPurchase(w http.ResponseWriter, r *http.Request, s
 	if purchase.Status == database.PurchaseStatusPending || purchase.Status == database.PurchaseStatusNew {
 		switch purchase.InvoiceType {
 		case database.InvoiceTypeYookasa:
-			if err := h.paymentService.CancelYookassaPayment(purchase.ID); err != nil {
-				slog.Error("mini app: cancel yookassa purchase", "error", err, "purchaseId", purchase.ID)
-				h.writeError(w, http.StatusInternalServerError, "cancel_failed", "Не удалось отменить оплату")
+			if purchase.YookasaID == nil {
+				if err := h.paymentService.CancelYookassaPayment(purchase.ID); err != nil {
+					slog.Error("mini app: cancel yookassa purchase", "error", err, "purchaseId", purchase.ID)
+					h.writeError(w, http.StatusInternalServerError, "cancel_failed", "Не удалось отменить оплату")
+					return
+				}
+				status = database.PurchaseStatusCancel
+				break
+			}
+			// A started payment can still succeed at YooKassa. Do not stop
+			// tracking it until the provider reports a final status.
+			resolvedStatus, syncErr := h.paymentService.SyncYookassaPurchaseStatus(r.Context(), purchase.ID)
+			if syncErr != nil {
+				slog.Warn("mini app: check yookassa purchase before cancel", "error", syncErr, "purchaseId", purchase.ID)
+				h.writeError(w, http.StatusBadGateway, "payment_status_unknown", "Не удалось проверить статус оплаты. Повторите позже")
 				return
 			}
-			status = database.PurchaseStatusCancel
+			status = resolvedStatus
 		default:
 			if err := h.purchaseRepository.UpdateFields(r.Context(), purchase.ID, map[string]any{"status": database.PurchaseStatusCancel}); err != nil {
 				slog.Error("mini app: cancel purchase", "error", err, "purchaseId", purchase.ID)
@@ -4289,28 +4301,15 @@ func (h *Handler) handlePaymentReturnRedirect(w http.ResponseWriter, r *http.Req
 	status := "cancel"
 
 	if purchaseID > 0 {
+		// A return from the payment page is not proof of cancellation. Keep an
+		// unresolved payment in the polling queue, including when YooKassa times out.
+		status = string(database.PurchaseStatusPending)
 		resolvedStatus, err := h.paymentService.SyncYookassaPurchaseStatus(r.Context(), purchaseID)
 		if err != nil {
 			slog.Warn("mini app: payment return sync failed", "error", err, "purchaseId", purchaseID)
 		}
-
-		if resolvedStatus == database.PurchaseStatusPaid {
+		if resolvedStatus == database.PurchaseStatusPaid || resolvedStatus == database.PurchaseStatusCancel {
 			status = string(resolvedStatus)
-		} else {
-			purchase, findErr := h.purchaseRepository.FindById(r.Context(), purchaseID)
-			if findErr != nil {
-				slog.Warn("mini app: payment return purchase lookup failed", "error", findErr, "purchaseId", purchaseID)
-			} else if purchase != nil &&
-				purchase.InvoiceType == database.InvoiceTypeYookasa &&
-				(purchase.Status == database.PurchaseStatusPending || purchase.Status == database.PurchaseStatusNew) {
-				if cancelErr := h.paymentService.CancelYookassaPayment(purchase.ID); cancelErr != nil {
-					slog.Warn("mini app: payment return cancel failed", "error", cancelErr, "purchaseId", purchase.ID)
-				}
-			}
-
-			if resolvedStatus != "" && resolvedStatus != database.PurchaseStatusPending && resolvedStatus != database.PurchaseStatusNew {
-				status = string(resolvedStatus)
-			}
 		}
 	}
 
@@ -6923,8 +6922,11 @@ func buildPaymentReturnWebTarget(purchaseID int64, status string) string {
 }
 
 func normalizePaymentReturnStatus(status string) string {
-	if strings.EqualFold(strings.TrimSpace(status), string(database.PurchaseStatusPaid)) {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case string(database.PurchaseStatusPaid):
 		return string(database.PurchaseStatusPaid)
+	case string(database.PurchaseStatusPending), string(database.PurchaseStatusNew):
+		return string(database.PurchaseStatusPending)
 	}
 	return string(database.PurchaseStatusCancel)
 }

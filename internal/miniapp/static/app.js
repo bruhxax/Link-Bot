@@ -3204,6 +3204,11 @@ async function handlePostBootstrapFlow() {
       showToast(t().paymentSuccess, "success");
       return;
     }
+    if (paymentReturn.status === "pending") {
+      showToast(t().paymentPending);
+      setTimeout(() => safeRefresh(), 5000);
+      return;
+    }
     showToast(t().paymentCancelled, "danger");
     return;
   }
@@ -20076,7 +20081,7 @@ function getPaymentReturnState() {
       || urlParams.get("tgWebAppStartParam")
       || "",
   ).trim();
-  const match = /^payment_return_(\d+)_(paid|cancel)$/i.exec(startParam);
+  const match = /^payment_return_(\d+)_(paid|pending|cancel)$/i.exec(startParam);
   if (!match) return null;
 
   const storageKey = `link-bot-payment-return:${startParam.toLowerCase()}`;
