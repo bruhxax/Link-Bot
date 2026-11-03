@@ -5677,7 +5677,7 @@ function renderAdminPartnerRow(item, index) {
 	const stats = item.stats || {};
 	return `<details class="admin-partner-entry" style="--partner-index:${Math.min(index, 8)}">
 		<summary class="admin-partner-entry__summary">${adminUserAvatar(item)}<span class="admin-partner-entry__person"><strong>${escapeHtml(adminUserDisplayName(item))}</strong><small>Telegram ID: ${escapeHtml(String(item.telegramId || "—"))}</small></span><span class="admin-partner-entry__status ${item.isActive ? "is-active" : ""}">${item.isActive ? "Активен" : "Отключён"}</span>${icon("chevronRight")}</summary>
-		<div class="admin-partner-entry__details"><a class="admin-partner-entry__resource" href="${escapeAttribute(item.inviteUrl || "")}" target="_blank" rel="noopener noreferrer" aria-label="Открыть партнёрскую ссылку ${escapeAttribute(adminUserDisplayName(item))}"><span>Ссылка</span><strong>${escapeHtml(item.inviteUrl || "Ссылка готовится")}</strong></a><div class="admin-partner-entry__metrics admin-partner-entry__metrics--four" aria-label="Статистика партнёра"><span><small>Пришло</small><b>${formatNumber(stats.visitors || 0, state.locale)}</b></span><span><small>Триалы</small><b>${formatNumber(stats.trialUsers || 0, state.locale)}</b></span><span><small>Купили</small><b>${formatNumber(stats.payingUsers || 0, state.locale)}</b></span><span><small>Оборот</small><b>${escapeHtml(formatFinanceRub(stats.revenue || 0))}</b></span></div><div class="admin-partner-entry__actions"><label><span>Процент, %</span><input type="number" min="0" max="100" value="${escapeAttribute(String(item.commissionPercent || 0))}" data-admin-partner-row-percent></label><button type="button" data-action="admin-partner-percent" data-value="${item.id}" ${state.adminPartnersBusy ? "disabled" : ""}>Сохранить</button><button class="admin-partner-action admin-partner-action--toggle" type="button" data-action="admin-partner-toggle" data-value="${item.id}" data-active="${item.isActive ? "false" : "true"}" ${state.adminPartnersBusy ? "disabled" : ""}>${item.isActive ? "Отключить" : "Включить"}</button></div></div>
+		<div class="admin-partner-entry__details"><a class="admin-partner-entry__resource" href="${escapeAttribute(item.inviteUrl || "")}" target="_blank" rel="noopener noreferrer" aria-label="Открыть партнёрскую ссылку ${escapeAttribute(adminUserDisplayName(item))}"><span>Ссылка</span><strong>${escapeHtml(item.inviteUrl || "Ссылка готовится")}</strong></a><div class="admin-partner-entry__metrics admin-partner-entry__metrics--four" aria-label="Статистика партнёра"><span><small>Пришло</small><b>${formatNumber(stats.visitors || 0, state.locale)}</b></span><span><small>Триалы</small><b>${formatNumber(stats.trialUsers || 0, state.locale)}</b></span><span><small>Купили</small><b>${formatNumber(stats.payingUsers || 0, state.locale)}</b></span><span><small>Оборот</small><b>${escapeHtml(formatFinanceRub(stats.revenue || 0))}</b></span></div><div class="admin-partner-entry__actions"><label><span>Процент, %</span><input type="number" min="0" max="100" value="${escapeAttribute(String(item.commissionPercent || 0))}" data-admin-partner-row-percent></label><button type="button" data-action="admin-partner-percent" data-value="${item.id}" ${state.adminPartnersBusy ? "disabled" : ""}>Сохранить</button><button class="admin-partner-action admin-partner-action--toggle" type="button" data-action="admin-partner-toggle" data-value="${item.id}" data-active="${item.isActive ? "false" : "true"}" ${state.adminPartnersBusy ? "disabled" : ""}>${item.isActive ? "Отключить" : "Включить"}</button><button class="admin-partner-action admin-partner-action--delete" type="button" data-action="admin-partner-delete" data-value="${item.id}" ${state.adminPartnersBusy ? "disabled" : ""}>${icon("trash")}<span>Удалить партнёра</span></button></div></div>
 	</details>`;
 }
 
@@ -13155,6 +13155,7 @@ function bindRootActions() {
 			if (action === "admin-partner-review") return await reviewAdminPartner(Number(value), target.dataset.approve === "true", Number(target.closest(".admin-partner-entry")?.querySelector("[data-admin-partner-row-percent]")?.value || 0));
 			if (action === "admin-partner-create") return await createAdminPartner();
 			if (action === "admin-partner-toggle") return await updateAdminPartner(Number(value), { active: target.dataset.active === "true" });
+			if (action === "admin-partner-delete") return await deleteAdminPartner(Number(value));
 			if (action === "admin-partner-percent") return await updateAdminPartner(Number(value), { percent: Number(target.closest(".admin-partner-entry")?.querySelector("[data-admin-partner-row-percent]")?.value || 0) });
 			if (action === "wallet-withdraw") return await submitWalletWithdrawal();
 			if (action === "open-support-username") return openExternal(value);
@@ -17199,6 +17200,22 @@ async function updateAdminPartner(partnerId, update) {
 	state.adminPartnersBusy = `update-${partnerId}`; render({ preserveScroll: true });
 	try { await post("/api/mini-app/admin/partners/update", { partnerId, action: percent === undefined ? "active" : "percent", percent: percent || 0, active: Boolean(update.active) }); await refreshAdminPartners(); showToast("Партнёр обновлён", "success"); }
 	finally { if (state.adminPartnersBusy !== "load") { state.adminPartnersBusy = ""; render({ preserveScroll: true }); } }
+}
+
+async function deleteAdminPartner(partnerId) {
+	if (!partnerId || state.adminPartnersBusy) return;
+	const partner = state.adminPartners?.partners?.find((item) => item.id === partnerId);
+	if (!partner) return;
+	if (!window.confirm(`Удалить партнёра «${adminUserDisplayName(partner)}»? Его ссылка перестанет работать. Привязанные рефералы, статистика и начисления будут удалены без возможности восстановления.`)) return;
+	state.adminPartnersBusy = `delete-${partnerId}`;
+	render({ preserveScroll: true });
+	try {
+		await post("/api/mini-app/admin/partners/delete", { partnerId });
+		await refreshAdminPartners();
+		showToast("Партнёр удалён", "success");
+	} finally {
+		if (state.adminPartnersBusy !== "load") { state.adminPartnersBusy = ""; render({ preserveScroll: true }); }
+	}
 }
 
 async function resolveAdminWithdrawal(id, approve) {

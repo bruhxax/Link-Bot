@@ -106,6 +106,7 @@ var activityActions = map[string]activityAction{
 	"partners/review":                 {"Рассмотрел заявку партнёра", "users", "applicationId approve percent"},
 	"partners/create":                 {"Добавил партнёра", "users", "telegramId percent"},
 	"partners/update":                 {"Изменил партнёра", "users", "partnerId percent active action"},
+	"partners/delete":                 {"Удалил партнёра", "users", "partnerId"},
 	"administrators/save":             {"Изменил роль администратора", "access", "customerId role color permissions"},
 	"administrators/remove":           {"Снял права администратора", "access", "customerId"},
 	"logo/upload":                     {"Загрузил логотип", "settings", ""}, "favicon/upload": {"Загрузил иконку сайта", "settings", ""},

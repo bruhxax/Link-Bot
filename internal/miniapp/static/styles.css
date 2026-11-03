@@ -12989,6 +12989,8 @@ body.is-layout-editing .layout-editor-grid { background: none; }
 .admin-partner-action--accept { background: color-mix(in srgb, var(--success) 19%, var(--control-bg)) !important; border-color: color-mix(in srgb, var(--success) 54%, transparent) !important; color: #e9fff0 !important; }
 .admin-partner-action--reject { background: color-mix(in srgb, var(--danger) 18%, var(--control-bg)) !important; border-color: color-mix(in srgb, var(--danger) 54%, transparent) !important; color: #fff0ef !important; }
 .admin-partner-action--toggle { justify-self: stretch; }
+.admin-partner-action--delete { grid-column: 1 / -1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px !important; color: var(--danger) !important; border-color: color-mix(in srgb, var(--danger) 38%, var(--control-border)) !important; background: color-mix(in srgb, var(--danger) 8%, var(--control-bg)) !important; }
+.admin-partner-action--delete svg { width: 14px; height: 14px; }
 .admin-partner-entry__actions button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .admin-partners__empty { margin: 0; padding: 18px 0; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 @media (hover: hover) { .admin-partners__create-fields button:hover, .admin-partner-entry__actions button:hover, .admin-partner-entry__resource:hover { border-color: var(--text); } }

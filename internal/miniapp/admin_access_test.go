@@ -50,6 +50,16 @@ func TestAbuseScanRequiresItsOwnPermission(t *testing.T) {
 	}
 }
 
+func TestPartnerDeletionRequiresPartnerPermission(t *testing.T) {
+	path := "/api/mini-app/admin/partners/delete"
+	if adminRouteAllowed(adminAccess{IsAdmin: true, Permissions: []string{"users"}}, path) {
+		t.Fatal("user lookup permission must not allow partner deletion")
+	}
+	if !adminRouteAllowed(adminAccess{IsAdmin: true, Permissions: []string{"partners"}}, path) {
+		t.Fatal("partner manager cannot delete a partner")
+	}
+}
+
 func TestEveryRegisteredAdminEndpointHasAnExplicitPolicy(t *testing.T) {
 	raw, err := os.ReadFile("handler.go")
 	if err != nil {

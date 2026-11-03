@@ -51,6 +51,8 @@ func TestPartnerFrontendUsesReferralLayoutAndExpandableAdminEntries(t *testing.T
 		"referral-invite-card partner-invite-card",
 		"<details class=\"admin-partner-entry",
 		"admin-partner-entry__details",
+		"admin-partner-delete",
+		"/api/mini-app/admin/partners/delete",
 	} {
 		if !strings.Contains(frontend, expected) {
 			t.Fatalf("partner frontend must include %q", expected)

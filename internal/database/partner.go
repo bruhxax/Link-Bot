@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -174,6 +175,37 @@ func (r *PartnerRepository) SetActive(ctx context.Context, partnerID int64, acti
 func (r *PartnerRepository) SetPercent(ctx context.Context, partnerID int64, percent int) error {
 	_, err := r.pool.Exec(ctx, `UPDATE partner SET commission_percent = $2, updated_at = NOW() WHERE id = $1`, partnerID, percent)
 	return err
+}
+
+// Delete removes the partner, its invite code, attributed referrals and
+// commissions. An approved application is removed too, so the customer may
+// submit a new application later. The customer and purchases remain intact.
+func (r *PartnerRepository) Delete(ctx context.Context, partnerID int64) (bool, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback(ctx)
+	var applicationID sql.NullInt64
+	err = tx.QueryRow(ctx, `SELECT application_id FROM partner WHERE id=$1 FOR UPDATE`, partnerID).Scan(&applicationID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM partner WHERE id=$1`, partnerID); err != nil {
+		return false, err
+	}
+	if applicationID.Valid {
+		if _, err = tx.Exec(ctx, `DELETE FROM partner_application WHERE id=$1`, applicationID.Int64); err != nil {
+			return false, err
+		}
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (r *PartnerRepository) ListPartners(ctx context.Context) ([]Partner, error) {

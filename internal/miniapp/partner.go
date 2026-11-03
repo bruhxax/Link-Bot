@@ -34,6 +34,10 @@ type adminPartnerUpdateRequest struct {
 	Action    string `json:"action"`
 }
 
+type adminPartnerDeleteRequest struct {
+	PartnerID int64 `json:"partnerId"`
+}
+
 type partnerApplicationPayload struct {
 	ID                   int64  `json:"id"`
 	ResourceURL          string `json:"resourceUrl"`
@@ -286,6 +290,27 @@ func (h *Handler) handleAdminPartnerUpdate(w http.ResponseWriter, r *http.Reques
 	}
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "partner_update_failed", "Не удалось обновить партнёра")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (h *Handler) handleAdminPartnerDelete(w http.ResponseWriter, r *http.Request, sess *session, _ *database.Customer) {
+	if !h.adminPartnersAllowed(w, sess) {
+		return
+	}
+	var req adminPartnerDeleteRequest
+	if err := h.decodeJSONRequest(w, r, 2048, &req); err != nil || req.PartnerID <= 0 {
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "Выберите партнёра")
+		return
+	}
+	deleted, err := h.partnerRepository.Delete(r.Context(), req.PartnerID)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "partner_delete_failed", "Не удалось удалить партнёра")
+		return
+	}
+	if !deleted {
+		h.writeError(w, http.StatusNotFound, "partner_not_found", "Партнёр не найден")
 		return
 	}
 	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true})

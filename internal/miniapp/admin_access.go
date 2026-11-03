@@ -218,7 +218,7 @@ func adminRouteAllowed(a adminAccess, path string) bool {
 		"promocodes":    {"promocodes/create", "promocodes/validate", "promocodes/delete", "promocodes/update"},
 		"subscriptions": {"subscriptions/find", "subscriptions/find/refresh", "subscriptions/target", "subscriptions/target/refresh", "subscriptions/rebind"},
 		"moynalog":      {"moynalog/state", "moynalog/test", "moynalog/retry"},
-		"partners":      {"partners/state", "partners/review", "partners/create", "partners/update"},
+		"partners":      {"partners/state", "partners/review", "partners/create", "partners/update", "partners/delete"},
 		"push":          {"push/state", "push/subscribe", "push/unsubscribe", "push/test"},
 		"broadcast":     {"broadcast/templates", "broadcast/audience", "broadcast/audience/options", "broadcast/state", "broadcast/capture/start", "broadcast/buttons", "broadcast/expiration", "broadcast/auto-reply", "broadcast/survey", "broadcast/survey/capture/start", "broadcast/survey/capture/cancel", "broadcast/survey/results", "broadcast/preview", "broadcast/send", "broadcast/reset", "broadcast/email/state", "broadcast/email/save", "broadcast/email/preview", "broadcast/email/send"},
 		"users.message": {"users/message/state", "users/message/capture", "users/message/preview", "users/message/send"},
