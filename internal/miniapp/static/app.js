@@ -1240,6 +1240,14 @@ const PAYMENT_LOGO_URLS = Object.freeze({
 });
 
 const PAGES = ["dashboard", "buy", "gift", "setup", "support", "faq", "reviews", "referrals", "partner", "servers", "settings", "media", "login-methods", "payments", "terms", "privacy", "custom-page", "admin"];
+const HOME_BUTTON_PAGES = [
+	["dashboard", "Главная", "Home"], ["buy", "Тарифы", "Plans"], ["gift", "Подарки", "Gifts"], ["setup", "Подключение", "Setup"],
+	["support", "Поддержка", "Support"], ["faq", "Вопросы и ответы", "FAQ"], ["reviews", "Отзывы", "Reviews"],
+	["referrals", "Рефералы", "Referrals"], ["partner", "Партнёрство", "Partners"], ["servers", "Статус", "Status"],
+	["settings", "Профиль", "Profile"], ["media", "Медиа", "Media"], ["login-methods", "Вход", "Login"],
+	["payments", "Платежи", "Payments"], ["terms", "Условия", "Terms"], ["privacy", "Политика конфиденциальности", "Privacy"],
+	["admin", "Админка", "Admin"],
+];
 const BANNER_PAGE_TARGETS = ["reviews", "promo", "buy", "servers", "support", "referrals", "payments", "gift"];
 const BOTTOM_NAV = ["dashboard", "buy", "support", "settings", "admin"];
 const SUPPORT_TABS = ["open", "history"];
@@ -2702,8 +2710,12 @@ function isBannerLayoutID(id) {
 	return /^banner_[1-9]\d*$/.test(String(id || ""));
 }
 
+function isHomeButtonLayoutID(id) {
+	return /^home_button_[1-9]\d*$/.test(String(id || ""));
+}
+
 function isDashboardStyleElement(item) {
-	return item?.area === "dashboard" && (["subscription_switcher", "primary_action", "secondary_action", "traffic", "devices", "promo_widget", "notification_widget"].includes(item.id) || isEmptyLayoutCardID(item.id) || isBannerLayoutID(item.id));
+	return item?.area === "dashboard" && (["subscription_switcher", "primary_action", "secondary_action", "traffic", "devices", "promo_widget", "notification_widget"].includes(item.id) || isEmptyLayoutCardID(item.id) || isBannerLayoutID(item.id) || isHomeButtonLayoutID(item.id));
 }
 
 function dashboardLayoutStyleDefaults(id) {
@@ -2712,6 +2724,7 @@ function dashboardLayoutStyleDefaults(id) {
 	if (["promo_widget", "notification_widget"].includes(id)) return { cornerRadius: 10, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 };
 	if (isEmptyLayoutCardID(id)) return { cornerRadius: 14, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: -1 };
 	if (isBannerLayoutID(id)) return { cornerRadius: 16, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 };
+	if (isHomeButtonLayoutID(id)) return { cornerRadius: 22, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 };
 	return { cornerRadius: 0, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0 };
 }
 
@@ -8791,6 +8804,10 @@ function getAdminLayoutSelection() {
 }
 
 function adminLayoutMeta(area, id) {
+	if (area === "dashboard" && isHomeButtonLayoutID(id)) {
+		const item = getLayoutElement(area, id);
+		return [item?.buttonText || localizedText("Кнопка", "Button", "دکمه"), "accessLink"];
+	}
 	if (area === "dashboard" && isEmptyLayoutCardID(id)) {
 		const number = String(id).match(/\d+$/)?.[0] || "";
 		return [`Пустая карточка${number ? ` ${number}` : ""}`, "card"];
@@ -8849,6 +8866,7 @@ function renderAdminLayoutNode(entry) {
 
 function renderAdminLayoutPreview(item, label, iconName) {
 	const key = `${item.area}:${item.id}`;
+	if (item.area === "dashboard" && isHomeButtonLayoutID(item.id)) return `<div class="admin-ui-preview-subscription"><span>${escapeHtml(item.buttonText || label)}</span>${icon("arrow")}</div>`;
 	if (key === "dashboard:subscription_switcher") return `<div class="admin-ui-preview-subscription"><span>${escapeHtml(localizedText("Основная", "Primary", "اصلی"))}</span>${icon("arrowDown")}</div>`;
 	if (key === "buy:plans") return `<div class="admin-ui-preview-plans">${renderAdminVisualPlans()}</div>`;
 	if (key === "buy:checkout") return `<div class="admin-ui-preview-checkout"><small>\u0412\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u0439 \u0442\u0430\u0440\u0438\u0444</small><strong>6 \u043c\u0435\u0441\u044f\u0446\u0435\u0432</strong><span>${icon("wallet")}\u041a\u0430\u0440\u0442\u0430 / \u0421\u0411\u041f</span><span>\u041f\u0440\u043e\u043c\u043e\u043a\u043e\u0434</span><b>\u041e\u043f\u043b\u0430\u0442\u0438\u0442\u044c 350 \u0420</b></div>`;
@@ -9081,6 +9099,7 @@ function renderAdminLayoutAddMenu() {
 		<button type="button" role="menuitem" data-action="admin-add-notification-widget"><span class="admin-save-bar__notification-icon" aria-hidden="true"></span><span><strong>${localizedText("Уведомление", "Notification", "اعلان")}</strong><small>${localizedText("Сообщение на главном экране", "Message on the home screen", "پیام در صفحه اصلی")}</small></span></button>
 		<button type="button" role="menuitem" data-action="admin-add-promo-widget">${icon("gift")}<span><strong>${localizedText("Подарок", "Gift", "هدیه")}</strong><small>${localizedText("Карточка с промокодом", "Promo code card", "کارت کد تخفیف")}</small></span></button>
 		<button type="button" role="menuitem" data-action="admin-add-banner">${icon("image")}<span><strong>${localizedText("Баннер", "Banner", "بنر")}</strong><small>${localizedText("PNG, GIF или MP4", "PNG, GIF or MP4", "PNG، GIF یا MP4")}</small></span></button>
+		<button type="button" role="menuitem" data-action="admin-add-home-button">${icon("plus")}<span><strong>${localizedText("Кнопка", "Button", "دکمه")}</strong><small>${localizedText("Раздел или внешняя ссылка", "Page or external link", "صفحه یا پیوند")}</small></span></button>
 		<button type="button" role="menuitem" data-action="admin-add-empty-card">${icon("card")}<span><strong>${localizedText("Пустая карточка", "Empty card", "کارت خالی")}</strong><small>${localizedText("Декоративный слой для дизайна", "Decorative design layer", "لایه تزئینی طراحی")}</small></span></button>
 		<div class="admin-layout-add-menu__divider" aria-hidden="true"></div><button type="button" role="menuitem" data-action="admin-layout-reset-category">${icon("reset")}<span><strong>${localizedText("Сбросить экран", "Reset screen", "بازنشانی صفحه")}</strong></span></button>
 	</div>`;
@@ -9092,6 +9111,17 @@ function renderAdminLayoutStyleRange(label, field, value, min, max, suffix) {
 	return `<label class="admin-layout-style-range"><span><strong>${escapeHtml(label)}</strong><output>${escapeHtml(`${numeric}${suffix}`)}</output></span><input type="range" min="${min}" max="${max}" step="1" value="${numeric}" data-input="admin-layout-style" data-layout-style-field="${escapeAttribute(field)}" data-range-suffix="${escapeAttribute(suffix)}" style="--range-progress:${progress}%" aria-label="${escapeAttribute(label)}" aria-valuetext="${escapeAttribute(`${numeric}${suffix}`)}"></label>`;
 }
 
+function renderAdminHomeButtonFields(item) {
+	const pageOptions = [...HOME_BUTTON_PAGES, ...(getRuntimeSettings()?.content?.customLinks || []).filter((entry) => entry?.type === "page").map((entry) => [`custom-page:${entry.id}`, entry.labelRu || entry.labelEn || entry.id, entry.labelEn || entry.labelRu || entry.id])];
+	const targetType = item.buttonTargetType === "url" ? "url" : "page";
+	return `<div class="admin-home-button-fields">
+		<label><span>${localizedText("Надпись", "Label", "عنوان")}</span><input type="text" maxlength="80" value="${escapeAttribute(item.buttonText || "")}" data-input="admin-home-button" data-home-button-field="buttonText"></label>
+		<label><span>${localizedText("Действие", "Action", "عملکرد")}</span><select data-input="admin-home-button" data-home-button-field="buttonTargetType"><option value="page" ${targetType === "page" ? "selected" : ""}>${localizedText("Раздел Mini App", "Mini App page", "صفحه")}</option><option value="url" ${targetType === "url" ? "selected" : ""}>${localizedText("Ссылка", "Link", "پیوند")}</option></select></label>
+		${targetType === "page" ? `<label><span>${localizedText("Раздел", "Page", "صفحه")}</span><select data-input="admin-home-button" data-home-button-field="buttonTarget">${pageOptions.map(([id, ru, en]) => `<option value="${escapeAttribute(id)}" ${item.buttonTarget === id ? "selected" : ""}>${escapeHtml(state.locale === "en" ? en : ru)}</option>`).join("")}</select></label>` : `<label><span>URL</span><input type="url" inputmode="url" placeholder="https://example.com" value="${escapeAttribute(item.buttonTarget || "")}" data-input="admin-home-button" data-home-button-field="buttonTarget"></label>`}
+		<label><span>${localizedText("Цвет", "Color", "رنگ")}</span><div class="admin-home-button-fields__color"><input type="color" value="${escapeAttribute(/^#[0-9a-f]{6}$/i.test(item.buttonColor || "") ? item.buttonColor : "#69a8d4")}" data-input="admin-home-button" data-home-button-field="buttonColor"><button type="button" data-action="admin-home-button-reset-color">${localizedText("Цвет темы", "Theme color", "رنگ پوسته")}</button></div></label>
+	</div>`;
+}
+
 function renderAdminLayoutStyleModal() {
 	const item = getSelectedDashboardStyleItem();
 	if (!item) return "";
@@ -9099,6 +9129,7 @@ function renderAdminLayoutStyleModal() {
 	const [label] = adminLayoutMeta(item.area, item.id);
 	const empty = isEmptyLayoutCardID(item.id);
 	const banner = isBannerLayoutID(item.id);
+	const homeButton = isHomeButtonLayoutID(item.id);
 	const subscriptionSwitcher = item.id === "subscription_switcher";
 	const visualOnly = empty || banner;
 	return `<div class="modal modal--layout-style open ${modalStateClass("admin-layout-style")}" role="dialog" aria-modal="true" aria-labelledby="admin-layout-style-title">
@@ -9106,7 +9137,8 @@ function renderAdminLayoutStyleModal() {
 		<div class="modal__sheet modal__sheet--layout-style">
 			<div class="modal__header"><div><div class="section-label">${localizedText("ГЛАВНЫЙ ЭКРАН", "HOME SCREEN", "صفحه اصلی")}</div><div class="modal__title" id="admin-layout-style-title">${escapeHtml(label)}</div></div><button class="header__btn" type="button" data-action="admin-close-layout-style" aria-label="${escapeAttribute(localizedText("Закрыть", "Close", "بستن"))}">${icon("close")}</button></div>
 			<div class="admin-layout-style-editor">
-				${subscriptionSwitcher ? `<div class="admin-layout-style-editor__pair">${renderAdminLayoutStyleRange(localizedText("Ширина", "Width", "عرض"), "width", item.width, 24, 100, "%")}${renderAdminLayoutStyleRange(localizedText("Высота", "Height", "ارتفاع"), "height", item.height, 32, 72, " px")}</div>` : ""}
+				${homeButton ? renderAdminHomeButtonFields(item) : ""}
+				${subscriptionSwitcher || homeButton ? `<div class="admin-layout-style-editor__pair">${renderAdminLayoutStyleRange(localizedText("Ширина", "Width", "عرض"), "width", item.width, 24, 100, "%")}${renderAdminLayoutStyleRange(localizedText("Высота", "Height", "ارتفاع"), "height", item.height, 32, 72, " px")}</div>` : ""}
 				${renderAdminLayoutStyleRange(localizedText("Закругление", "Corner radius", "گردی گوشه"), "cornerRadius", item.cornerRadius, 0, 32, " px")}
 				${visualOnly ? "" : renderAdminLayoutStyleRange(localizedText("Масштаб текста", "Text scale", "مقیاس متن"), "textScale", item.textScale, 70, 150, "%")}
 				${visualOnly ? "" : `<div class="admin-layout-style-editor__pair">${renderAdminLayoutStyleRange(localizedText("Текст по горизонтали", "Text horizontal", "متن افقی"), "textOffsetX", item.textOffsetX, -60, 60, " px")}${renderAdminLayoutStyleRange(localizedText("Текст по вертикали", "Text vertical", "متن عمودی"), "textOffsetY", item.textOffsetY, -40, 40, " px")}</div>`}
@@ -9116,6 +9148,7 @@ function renderAdminLayoutStyleModal() {
 				${banner ? `<button class="admin-layout-style-editor__content" type="button" data-action="admin-edit-banner">${icon("pencil")}<span>${localizedText("Настроить баннер", "Edit banner", "ویرایش بنر")}</span></button>` : ""}
 				${empty ? `<button class="admin-layout-style-editor__remove" type="button" data-action="admin-remove-empty-card">${icon("trash")}<span>${localizedText("Удалить карточку", "Remove card", "حذف کارت")}</span></button>` : ""}
 				${banner ? `<button class="admin-layout-style-editor__remove" type="button" data-action="admin-remove-selected-banner">${icon("trash")}<span>${localizedText("Удалить баннер", "Delete banner", "حذف بنر")}</span></button>` : ""}
+				${homeButton ? `<button class="admin-layout-style-editor__remove" type="button" data-action="admin-remove-home-button">${icon("trash")}<span>${localizedText("Удалить кнопку", "Remove button", "حذف دکمه")}</span></button>` : ""}
 			</div>
 		</div>
 	</div>`;
@@ -9706,6 +9739,10 @@ function renderDashboardPage() {
 	});
 	getLayoutElements("dashboard").filter((item) => isBannerLayoutID(item.id) && item.bannerUrl).forEach((item) => {
 		blocks[item.id] = renderDashboardBanner(item);
+	});
+	getLayoutElements("dashboard").filter((item) => isHomeButtonLayoutID(item.id) && (item.buttonTarget !== "admin" || isAdminUser())).forEach((item) => {
+		const color = /^#[0-9a-f]{6}$/i.test(item.buttonColor || "") ? item.buttonColor : "";
+		blocks[item.id] = `<button class="btn dashboard-custom-button" type="button" data-action="open-home-button" data-value="${escapeAttribute(item.id)}" ${color ? `style="--home-button-color:${escapeAttribute(color)}"` : ""}><span class="runtime-editable-text">${escapeHtml(item.buttonText || "")}</span></button>`;
 	});
 	const switchAnimationClass = subscriptionSwitchAnimation ? `subscription-switch--${subscriptionSwitchAnimation}` : "";
 	const layoutPendingClass = (!isWideCabinet() || state.adminLayoutEditing) && getLayoutElements("dashboard").some((item) => item?.visible !== false && hasStoredLayoutPosition(item))
@@ -12736,6 +12773,9 @@ function bindRootActions() {
 				return;
 			}
 			if (action === "admin-add-empty-card") return addAdminEmptyLayoutCard();
+			if (action === "admin-add-home-button") return addAdminHomeButton();
+			if (action === "admin-remove-home-button") return removeSelectedAdminHomeButton();
+			if (action === "admin-home-button-reset-color") { const item = getSelectedDashboardStyleItem(); if (item && isHomeButtonLayoutID(item.id)) { item.buttonColor = ""; markAdminLayoutDirty(); render({ preserveScroll: true }); } return; }
 			if (action === "admin-add-banner") return openAdminBannerEditor();
 			if (action === "admin-edit-banner") return openAdminBannerEditor(getSelectedDashboardStyleItem()?.id || "");
 			if (action === "admin-close-banner") return closeAdminBannerEditor();
@@ -12832,6 +12872,7 @@ function bindRootActions() {
       if (action === "go-home") return setPage("dashboard");
 	  if (action === "profile-language") return setProfileLanguage(value);
 	  if (action === "go-page") return setPage(value);
+	  if (action === "open-home-button") return openHomeButton(value);
 		if (action === "open-banner") return openDashboardBanner(value);
 		if (action === "open-promo-widget-checkout") return await openPromoWidgetCheckout(value);
 		if (action === "open-notification-widget") return toggleNotificationPopover(target);
@@ -13221,6 +13262,27 @@ function bindRootActions() {
 			if (output) output.textContent = `${numeric}${suffix}`;
 			const node = [...app.querySelectorAll("[data-layout-edit-key]")].find((entry) => entry.dataset.layoutEditKey === state.adminLayoutSelection);
 			applyAdminLayoutNodeStyle(node, item);
+			markAdminLayoutDirty();
+			return;
+		}
+		if (target?.dataset?.input === "admin-home-button") {
+			const item = getSelectedDashboardStyleItem();
+			if (!item || !isHomeButtonLayoutID(item.id)) return;
+			const field = target.dataset.homeButtonField;
+			if (field === "buttonText") {
+				item.buttonText = String(target.value || "").slice(0, 80);
+				const live = app.querySelector(`[data-runtime-id="${item.id}"] .dashboard-custom-button .runtime-editable-text`);
+				if (live) live.textContent = item.buttonText;
+			} else if (field === "buttonTargetType") {
+				item.buttonTargetType = target.value === "url" ? "url" : "page";
+				item.buttonTarget = item.buttonTargetType === "url" ? "https://" : "dashboard";
+				render({ preserveScroll: true });
+			} else if (field === "buttonTarget") item.buttonTarget = String(target.value || "").slice(0, 2000);
+			else if (field === "buttonColor") {
+				item.buttonColor = /^#[0-9a-f]{6}$/i.test(target.value) ? target.value : "";
+				const live = app.querySelector(`[data-runtime-id="${item.id}"] .dashboard-custom-button`);
+				if (live) live.style.setProperty("--home-button-color", item.buttonColor);
+			}
 			markAdminLayoutDirty();
 			return;
 		}
@@ -14973,6 +15035,57 @@ function addAdminEmptyLayoutCard() {
 	render({ preserveScroll: true });
 	requestAnimationFrame(() => app.querySelector(`[data-layout-edit-key="dashboard:${item.id}"]`)?.focus({ preventScroll: true }));
 	showToast(localizedText("Пустая карточка добавлена", "Empty card added", "کارت خالی اضافه شد"), "success");
+}
+
+function addAdminHomeButton() {
+	ensureAdminVisualLayoutDraft();
+	const items = state.adminSettingsDraft?.layout?.elements;
+	if (!Array.isArray(items)) return;
+	if (items.length >= 100) { showToast(localizedText("Достигнут лимит элементов", "Element limit reached", "حد عناصر پر شده است")); return; }
+	let sequence = 1;
+	while (items.some((entry) => entry?.area === "dashboard" && entry?.id === `home_button_${sequence}`)) sequence++;
+	const order = items.filter((entry) => entry?.area === "dashboard").reduce((maximum, entry) => Math.max(maximum, Number(entry.order || 0)), 19) + 1;
+	const item = { id: `home_button_${sequence}`, area: "dashboard", order, visible: true, width: 100, height: 52, framed: false, align: "center", offsetX: 0, offsetY: 0, cornerRadius: 22, textScale: 100, textOffsetX: 0, textOffsetY: 0, layer: 0, buttonText: localizedText("Новая кнопка", "New button", "دکمه جدید"), buttonTargetType: "page", buttonTarget: "buy", buttonColor: "" };
+	positionNewDashboardElement(item, sequence - 1);
+	items.push(item);
+	state.adminLayoutSelection = `dashboard:${item.id}`;
+	state.adminLayoutAddMenuOpen = false;
+	markAdminLayoutDirty();
+	render({ preserveScroll: true });
+	openAdminLayoutStyleEditor();
+}
+
+function removeSelectedAdminHomeButton() {
+	const item = getSelectedDashboardStyleItem();
+	if (!item || !isHomeButtonLayoutID(item.id)) return;
+	const items = state.adminSettingsDraft?.layout?.elements;
+	if (!Array.isArray(items)) return;
+	const index = items.indexOf(item);
+	if (index >= 0) items.splice(index, 1);
+	state.adminLayoutStyleEditorOpen = false;
+	state.adminLayoutSelection = "";
+	markAdminLayoutDirty();
+	render({ preserveScroll: true });
+}
+
+function openHomeButton(id) {
+	const item = getLayoutElement("dashboard", id);
+	if (!item || !isHomeButtonLayoutID(id)) return;
+	if (item.buttonTargetType === "url") {
+		if (/^https?:\/\/[^\s]+$/i.test(item.buttonTarget || "")) openExternal(item.buttonTarget);
+		return;
+	}
+	const target = String(item.buttonTarget || "");
+	if (target.startsWith("custom-page:")) {
+		const pageID = target.slice("custom-page:".length);
+		if (!(getRuntimeSettings()?.content?.customLinks || []).some((entry) => entry?.id === pageID && entry?.type === "page")) return;
+		state.activeCustomPageID = pageID;
+		setPage("custom-page");
+		return;
+	}
+	if (!HOME_BUTTON_PAGES.some(([page]) => page === target)) return;
+	if (target === "admin" && !isAdminUser()) return;
+	setPage(target);
 }
 
 function openAdminLayoutStyleEditor() {

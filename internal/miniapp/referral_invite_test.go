@@ -18,9 +18,12 @@ func TestReferralInviteURLStartsBotWithReferrer(t *testing.T) {
 		t.Fatalf("buildReferralInviteURL() = %q", inviteURL)
 	}
 
-	shareURL := buildReferralShareURL(123456789, true)
+	shareURL := buildReferralShareURL(123456789, true, "BruhVPN")
 	if !strings.Contains(shareURL, "url="+url.QueryEscape(inviteURL)) {
 		t.Fatalf("share URL does not contain direct referral target: %q", shareURL)
+	}
+	if !strings.Contains(shareURL, url.QueryEscape("Подключайся к BruhVPN")) || strings.Contains(shareURL, "Link-Bot") {
+		t.Fatalf("share text does not use branding: %q", shareURL)
 	}
 }
 

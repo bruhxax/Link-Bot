@@ -35,6 +35,7 @@ var (
 	customEmojiTagPattern = regexp.MustCompile(`(?is)<tg-emoji\s+emoji-id=["']([0-9]{5,32})["'][^>]*>.*?</tg-emoji>`)
 	promoCodePattern      = regexp.MustCompile(`^[A-Z0-9_-]{3,32}$`)
 	bannerIDPattern       = regexp.MustCompile(`^banner_[1-9][0-9]*$`)
+	homeButtonIDPattern   = regexp.MustCompile(`^home_button_[1-9][0-9]*$`)
 	bannerUploadPattern   = regexp.MustCompile(`^/mini-app/uploads/banner-[0-9a-f]{16}\.(png|gif|mp4)$`)
 )
 
@@ -348,6 +349,10 @@ type LayoutElement struct {
 	Group             string   `json:"group,omitempty"`
 	PromoCode         string   `json:"promoCode,omitempty"`
 	NotificationText  string   `json:"notificationText,omitempty"`
+	ButtonText        string   `json:"buttonText,omitempty"`
+	ButtonTargetType  string   `json:"buttonTargetType,omitempty"`
+	ButtonTarget      string   `json:"buttonTarget,omitempty"`
+	ButtonColor       string   `json:"buttonColor,omitempty"`
 	IconBubble        *bool    `json:"iconBubble,omitempty"`
 	CornerRadius      int      `json:"cornerRadius"`
 	TextScale         int      `json:"textScale,omitempty"`
@@ -1091,6 +1096,8 @@ func defaultDashboardCornerRadius(id string) int {
 		return 14
 	case bannerIDPattern.MatchString(id):
 		return 16
+	case homeButtonIDPattern.MatchString(id):
+		return 22
 	default:
 		return 0
 	}
@@ -2222,7 +2229,30 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings, migrate bool
 		isPromoWidget := item.Area == "dashboard" && item.ID == "promo_widget"
 		isNotificationWidget := item.Area == "dashboard" && item.ID == "notification_widget"
 		isBanner := item.Area == "dashboard" && bannerIDPattern.MatchString(item.ID)
+		isHomeButton := item.Area == "dashboard" && homeButtonIDPattern.MatchString(item.ID)
 		isDashboardElement := item.Area == "dashboard"
+		if isHomeButton {
+			item.ButtonText = limit(strings.TrimSpace(item.ButtonText), 80)
+			item.ButtonTargetType = strings.ToLower(strings.TrimSpace(item.ButtonTargetType))
+			item.ButtonTarget = strings.TrimSpace(item.ButtonTarget)
+			if item.ButtonText == "" || !contains([]string{"page", "url"}, item.ButtonTargetType) {
+				return fmt.Errorf("invalid home button for %q", key)
+			}
+			if item.ButtonTargetType == "page" {
+				validPage := contains([]string{"dashboard", "buy", "gift", "setup", "support", "faq", "reviews", "referrals", "partner", "servers", "settings", "media", "login-methods", "payments", "terms", "privacy", "admin"}, item.ButtonTarget)
+				validCustomPage := strings.HasPrefix(item.ButtonTarget, "custom-page:") && elementIDPattern.MatchString(strings.TrimPrefix(item.ButtonTarget, "custom-page:"))
+				if !validPage && !validCustomPage {
+					return fmt.Errorf("invalid home button page for %q", key)
+				}
+			} else if !isSafeWebURL(item.ButtonTarget) {
+				return fmt.Errorf("invalid home button link for %q", key)
+			}
+			if item.ButtonColor != "" && !hexColorPattern.MatchString(item.ButtonColor) {
+				return fmt.Errorf("invalid home button color for %q", key)
+			}
+		} else {
+			item.ButtonText, item.ButtonTargetType, item.ButtonTarget, item.ButtonColor = "", "", "", ""
+		}
 		if isDashboardElement {
 			if migrate {
 				item.CornerRadius = defaultDashboardCornerRadius(item.ID)

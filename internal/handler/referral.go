@@ -3,8 +3,9 @@ package handler
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"link-bot/internal/config"
+	"log/slog"
+	"net/url"
 	"strings"
 
 	"github.com/go-telegram/bot"
@@ -16,11 +17,12 @@ func (h Handler) ReferralCallbackHandler(ctx context.Context, b *bot.Bot, update
 	langCode := update.CallbackQuery.From.LanguageCode
 	refCode := customer.TelegramID
 
-	refLink := fmt.Sprintf(
-		"https://telegram.me/share/url?url=https://t.me/%s?start=ref_%d",
-		update.CallbackQuery.Message.Message.From.Username,
-		refCode,
-	)
+	brandName := "Link-Bot"
+	if h.runtimeSettings != nil {
+		brandName = h.runtimeSettings.Snapshot().Content.BrandName
+	}
+	inviteURL := fmt.Sprintf("https://t.me/%s?start=ref_%d", update.CallbackQuery.Message.Message.From.Username, refCode)
+	refLink := "https://t.me/share/url?url=" + url.QueryEscape(inviteURL) + "&text=" + url.QueryEscape("Подключайся к "+brandName)
 
 	count, err := h.referralRepository.CountGrantedByReferrer(ctx, customer.TelegramID)
 	if err != nil {

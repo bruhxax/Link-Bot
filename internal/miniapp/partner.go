@@ -95,12 +95,12 @@ func partnerInviteURL(code string) string {
 	return botURL + "?startapp=partner_" + url.QueryEscape(code)
 }
 
-func partnerShareURL(code string) string {
+func partnerShareURL(code string, brandName string) string {
 	target := partnerInviteURL(code)
 	if target == "" {
 		return ""
 	}
-	return "https://t.me/share/url?url=" + url.QueryEscape(target) + "&text=" + url.QueryEscape("Попробуйте VPN по моей партнёрской ссылке")
+	return "https://t.me/share/url?url=" + url.QueryEscape(target) + "&text=" + url.QueryEscape("Попробуйте "+strings.TrimSpace(brandName)+" по моей партнёрской ссылке")
 }
 
 func mapPartnerApplication(item *database.PartnerApplication) *partnerApplicationPayload {
@@ -115,7 +115,7 @@ func (h *Handler) partnerPayload(r *http.Request, partner *database.Partner) (*p
 	if err != nil {
 		return nil, err
 	}
-	return &partnerPayload{ID: partner.ID, CustomerID: partner.CustomerID, TelegramID: partner.TelegramID, Username: partner.Username, AvatarURL: adminUserAvatarURL(partner.Username), Code: partner.Code, CommissionPercent: partner.CommissionPercent, IsActive: partner.IsActive, CreatedAt: partner.CreatedAt.UTC().Format(time.RFC3339), InviteURL: partnerInviteURL(partner.Code), ShareURL: partnerShareURL(partner.Code), Stats: partnerStatsPayload{Visitors: stats.Visitors, TrialUsers: stats.TrialUsers, PayingUsers: stats.PayingUsers, PurchaseCount: stats.PurchaseCount, Revenue: stats.Revenue, Commission: stats.Commission, Currency: stats.CommissionCurrency}}, nil
+	return &partnerPayload{ID: partner.ID, CustomerID: partner.CustomerID, TelegramID: partner.TelegramID, Username: partner.Username, AvatarURL: adminUserAvatarURL(partner.Username), Code: partner.Code, CommissionPercent: partner.CommissionPercent, IsActive: partner.IsActive, CreatedAt: partner.CreatedAt.UTC().Format(time.RFC3339), InviteURL: partnerInviteURL(partner.Code), ShareURL: partnerShareURL(partner.Code, h.runtimeSettings.Snapshot().Content.BrandName), Stats: partnerStatsPayload{Visitors: stats.Visitors, TrialUsers: stats.TrialUsers, PayingUsers: stats.PayingUsers, PurchaseCount: stats.PurchaseCount, Revenue: stats.Revenue, Commission: stats.Commission, Currency: stats.CommissionCurrency}}, nil
 }
 
 func (h *Handler) handlePartnerMe(w http.ResponseWriter, r *http.Request, _ *session, customer *database.Customer) {

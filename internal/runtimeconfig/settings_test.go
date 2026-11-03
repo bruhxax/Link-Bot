@@ -1630,6 +1630,42 @@ func hasLayoutElement(items []LayoutElement, area, id string) bool {
 	return false
 }
 
+func TestNormalizeAndValidateHomeButtons(t *testing.T) {
+	button := LayoutElement{ID: "home_button_1", Area: "dashboard", Order: 30, Visible: true, Width: 78, Height: 48, Align: "center", ButtonText: "Отзывы", ButtonTargetType: "page", ButtonTarget: "reviews", ButtonColor: "#69a8d4"}
+	settings := DefaultSettings()
+	settings.Layout.Elements = append(settings.Layout.Elements, button)
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("valid page button: %v", err)
+	}
+	found := false
+	for _, item := range settings.Layout.Elements {
+		if item.ID == button.ID {
+			found = true
+			if item.ButtonText != button.ButtonText || item.ButtonTarget != button.ButtonTarget || item.ButtonColor != button.ButtonColor {
+				t.Fatalf("button settings lost: %+v", item)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("button missing after normalization")
+	}
+	for _, test := range []struct{ name, kind, target, color string }{
+		{"javascript URL", "url", "javascript:alert(1)", ""},
+		{"unknown page", "page", "does-not-exist", ""},
+		{"invalid color", "page", "reviews", "red"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			candidate := DefaultSettings()
+			item := button
+			item.ButtonTargetType, item.ButtonTarget, item.ButtonColor = test.kind, test.target, test.color
+			candidate.Layout.Elements = append(candidate.Layout.Elements, item)
+			if err := NormalizeAndValidate(&candidate); err == nil {
+				t.Fatal("unsafe button accepted")
+			}
+		})
+	}
+}
+
 func TestNormalizeAndValidateDashboardBanner(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Layout.Elements = append(settings.Layout.Elements, LayoutElement{

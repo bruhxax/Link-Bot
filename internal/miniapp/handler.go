@@ -4717,7 +4717,7 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 			TrialReward:         settings.Referrals.Trial,
 			PurchaseReward:      settings.Referrals.Purchase,
 			RewardEveryPurchase: settings.Referrals.RewardEveryPurchase,
-			ShareURL:            buildReferralShareURL(customer.TelegramID, referralEnabled),
+			ShareURL:            buildReferralShareURL(customer.TelegramID, referralEnabled, settings.Content.BrandName),
 			InviteURL:           referralInviteURL,
 		},
 		Wallet:          walletData,
@@ -6855,7 +6855,7 @@ func (h *Handler) mapPaymentMethods(methods map[string]bool, order []string) []p
 func mapPaymentMethod(method string) (database.InvoiceType, error) {
 	return payment.InvoiceTypeForMethod(method)
 }
-func buildReferralShareURL(refCode int64, enabled bool) string {
+func buildReferralShareURL(refCode int64, enabled bool, brandName string) string {
 	referralTarget := buildReferralInviteURL(refCode, enabled)
 	if referralTarget == "" {
 		return ""
@@ -6864,7 +6864,7 @@ func buildReferralShareURL(refCode int64, enabled bool) string {
 	return fmt.Sprintf(
 		"https://t.me/share/url?url=%s&text=%s",
 		url.QueryEscape(referralTarget),
-		url.QueryEscape("Подключайся к Link-Bot и забирай быстрый доступ без лишних настроек."),
+		url.QueryEscape(fmt.Sprintf("Подключайся к %s и забирай быстрый доступ без лишних настроек.", strings.TrimSpace(brandName))),
 	)
 }
 

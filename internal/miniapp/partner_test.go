@@ -20,6 +20,10 @@ func TestPartnerInviteURLUsesSeparateMiniAppStartParameter(t *testing.T) {
 	if strings.Contains(inviteURL, "ref_") {
 		t.Fatalf("partner invite must not use the regular referral parameter: %q", inviteURL)
 	}
+	shareURL := partnerShareURL("a1b2c3d4", "BruhVPN")
+	if !strings.Contains(shareURL, "BruhVPN") || strings.Contains(shareURL, "Link-Bot") {
+		t.Fatalf("partner share text does not use branding: %q", shareURL)
+	}
 }
 
 func TestPartnerPageIsOnlyVisibleWhenActive(t *testing.T) {
