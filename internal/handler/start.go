@@ -111,6 +111,9 @@ func (h Handler) StartCommandHandler(ctx context.Context, b *bot.Bot, update *mo
 		h.showRequiredChannelSubscriptionPrompt(ctx, b, update.Message.Chat.ID, 0, langCode)
 		return
 	}
+	if strings.HasPrefix(startParam, "ig_") {
+		h.sendInlineGiftPaymentEntry(ctx, b, update.Message.Chat.ID, startParam)
+	}
 
 	if h.hasMiniApp() {
 		h.sendCommandStartMenu(ctx, b, update.Message.Chat.ID, langCode, h.miniAppKeyboardForCustomer(ctxWithTime, existingCustomer, langCode))

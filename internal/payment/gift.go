@@ -31,6 +31,16 @@ type GiftReceipt struct {
 	Message           string
 }
 
+const inlineGiftRecipientPrefix = "inline-gift:"
+
+func InlineGiftRecipient(token uuid.UUID) string {
+	return inlineGiftRecipientPrefix + token.String()
+}
+
+func isInlineGift(purchase *database.Purchase) bool {
+	return purchase != nil && purchase.GiftRecipientUsername != nil && strings.HasPrefix(*purchase.GiftRecipientUsername, inlineGiftRecipientPrefix)
+}
+
 func (s PaymentService) processGiftPurchase(ctx context.Context, purchase *database.Purchase, sender *database.Customer) error {
 	if purchase == nil || sender == nil || purchase.GiftToken == nil || purchase.GiftRecipientUsername == nil {
 		return errors.New("gift purchase metadata is incomplete")
@@ -54,7 +64,13 @@ func (s PaymentService) processGiftPurchase(ctx context.Context, purchase *datab
 		purchase.Status = database.PurchaseStatusPaid
 		s.queueMoyNalogReceipt(purchase)
 		s.notifyAdminAboutPayment(ctx, purchase, sender)
-		s.sendGiftNotification(ctx, sender, purchase, true)
+		if isInlineGift(purchase) {
+			if err := s.publishInlineGift(ctx, purchase, sender); err != nil {
+				slog.Error("payment: publish inline gift failed; retry scheduled", "error", err, "purchase_id", utils.MaskHalfInt64(purchase.ID))
+			}
+		} else {
+			s.sendGiftNotification(ctx, sender, purchase, true)
+		}
 		return nil
 	}
 	if err := s.deliverGiftEntitlements(ctx, purchase, recipient); err != nil {
@@ -77,6 +93,9 @@ func (s PaymentService) giftRecipient(ctx context.Context, purchase *database.Pu
 		return s.customerRepository.FindById(ctx, *purchase.GiftRecipientCustomerID)
 	}
 	if purchase.GiftRecipientUsername == nil {
+		return nil, nil
+	}
+	if isInlineGift(purchase) {
 		return nil, nil
 	}
 	return s.customerRepository.FindByTelegramUsername(ctx, *purchase.GiftRecipientUsername)
@@ -192,6 +211,12 @@ func (s PaymentService) ClaimPendingGifts(ctx context.Context, recipient *databa
 		}
 		purchase, findErr := s.purchaseRepository.FindById(ctx, purchaseID)
 		if findErr == nil && purchase != nil && purchase.Status == database.PurchaseStatusPaid && purchase.GiftDeliveredAt == nil {
+			if isInlineGift(purchase) && purchase.CustomerID == recipient.ID {
+				if releaseErr := release(); releaseErr != nil {
+					return delivered, releaseErr
+				}
+				continue
+			}
 			assigned, assignErr := s.purchaseRepository.AssignGiftRecipient(ctx, purchase.ID, recipient.ID)
 			if assignErr != nil {
 				findErr = assignErr
@@ -203,6 +228,9 @@ func (s PaymentService) ClaimPendingGifts(ctx context.Context, recipient *databa
 				} else {
 					purchase.GiftRecipientCustomerID = &recipient.ID
 					s.sendGiftNotification(ctx, recipient, purchase, false)
+					if isInlineGift(purchase) {
+						s.clearInlineGiftClaimButton(ctx, purchase)
+					}
 					delivered++
 				}
 			}

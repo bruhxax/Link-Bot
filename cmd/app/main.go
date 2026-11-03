@@ -129,6 +129,7 @@ func main() {
 
 	paymentService := payment.NewPaymentService(tm, purchaseRepository, promoCodeRepository, remnawaveClient, customerRepository, b, cryptoPayClient, yookasaClient, referralRepository, partnerRepository, walletRepository, cache, moynalogReceiptRepository, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository)
 	paymentService.SetAdminPushNotifier(webPushService)
+	go paymentService.RunInlineGiftPublisher(ctx)
 
 	cronScheduler := setupInvoiceChecker(customerRepository, purchaseRepository, paymentService)
 	if cronScheduler != nil {
@@ -212,6 +213,8 @@ func main() {
 	go appupdate.RunNotifications(ctx, b, config.GetAdminTelegramId(), database.NewUpdateNotificationRepository(pool), Version, Commit)
 
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypePrefix, h.StartCommandHandler, h.SuspiciousUserFilterMiddleware)
+	b.RegisterHandlerMatchFunc(func(update *models.Update) bool { return update.InlineQuery != nil }, h.InlineGiftQueryHandler)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "ig:pay:", bot.MatchTypePrefix, h.InlineGiftPayHandler)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/connect", bot.MatchTypeExact, h.ConnectCommandHandler, h.SuspiciousUserFilterMiddleware, h.CreateCustomerIfNotExistMiddleware)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/sync", bot.MatchTypeExact, h.SyncUsersCommandHandler, isAdminMiddleware)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/getfileid", bot.MatchTypePrefix, h.GetFileIDCommandHandler, isAdminMiddleware)

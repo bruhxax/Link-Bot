@@ -605,6 +605,7 @@ func (pr *PurchaseRepository) FindLatestUnseenGiftBySender(ctx context.Context, 
 			"status":              PurchaseStatusPaid,
 			"gift_sender_seen_at": nil,
 		}).
+		Where("gift_recipient_username NOT LIKE 'inline-gift:%'").
 		OrderBy("paid_at DESC NULLS LAST", "id DESC").
 		Limit(1).
 		PlaceholderFormat(sq.Dollar)

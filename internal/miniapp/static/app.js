@@ -2326,6 +2326,8 @@ const state = {
 	blocked: null,
   error: "",
   currentPage: "dashboard",
+	inlineGiftID: urlParams.get("inlineGift") || "",
+	inlineGiftPlanID: urlParams.get("inlineGift") ? urlParams.get("planId") || "" : "",
   sidebarOpen: false,
   adminWorkspace: remnaAdminEnabled && (adminEntry || entryRoute?.page === "admin"),
   adminConsoleMenuOpen: false,
@@ -2559,7 +2561,7 @@ const state = {
   selectedSetupAppID: "",
   selectedPlanId: urlParams.get("planId") || (clientSurface === "browser" && !adminEntry ? planLoginIntent.peek() : ""),
   selectedPlanMonths: null,
-	selectedGiftPlanId: "",
+	selectedGiftPlanId: urlParams.get("inlineGift") ? urlParams.get("planId") || "" : "",
 	giftUsernameDraft: "",
 	giftValidation: "",
 	giftBusy: "",
@@ -3076,6 +3078,7 @@ async function boot() {
 	applyAppearance();
   const paymentReturn = Boolean(getPaymentReturnState());
   state.currentPage = getEntryPage();
+	if (state.inlineGiftID && !paymentReturn) state.currentPage = "gift";
 	if (entryRoute?.customPageID) state.activeCustomPageID = entryRoute.customPageID;
 	if (state.currentPage === "admin") state.adminWorkspace = remnaAdminEnabled;
 	state.adminSection = state.currentPage === "admin" ? getEntryAdminSection() : "home";
@@ -7657,7 +7660,21 @@ function renderAdminGiftContent() {
 	];
 	return `${renderAdminVariableReference("Переменные подарка", variables, "Telegram HTML поддерживается")}
 	${renderAdminGiftMessageEditor("sender", "Отправителю", gift.sender)}
-	${renderAdminGiftMessageEditor("recipient", "Получателю", gift.recipient)}`;
+	${renderAdminGiftMessageEditor("recipient", "Получателю", gift.recipient)}
+	<section class="admin-editor__section admin-gift-message"><h3>Inline-подарок</h3>
+		${renderAdminSettingField("Текст до оплаты", "content.gift.inline.pendingText", { textarea: true, rows: 4, placeholder: "{plan}" })}
+		${renderAdminSettingField("Текст оплаченного подарка", "content.gift.inline.text", { textarea: true, rows: 5, placeholder: "{sender} подарил {plan}" })}
+		${renderAdminSettingField("Текст личного сообщения для оплаты", "content.gift.inline.paymentText", { textarea: true, rows: 3, placeholder: "Откройте оплату подарка" })}
+		<div class="admin-logo-field"><div class="admin-logo-field__main">
+			${gift.inline?.bannerUrl ? `<div class="admin-logo-field__preview"><img src="${escapeAttribute(gift.inline.bannerUrl)}" alt="Баннер подарка"></div>` : ""}
+			<div class="admin-logo-field__body"><strong>Баннер (необязательно)</strong><div class="admin-logo-field__actions">
+				<label class="admin-logo-field__upload"><input class="sr-only" type="file" accept="image/png,image/jpeg" data-input="admin-inline-gift-banner-file" aria-label="Загрузить баннер подарка">${icon("image")}<span>Загрузить</span></label>
+				${gift.inline?.bannerUrl ? `<button type="button" data-action="admin-inline-gift-banner-remove">${icon("trash")}<span>Убрать</span></button>` : ""}
+			</div></div>
+		</div>${renderAdminSettingField("Или HTTPS-ссылка", "content.gift.inline.bannerUrl", { type: "url", placeholder: "Без баннера сообщение будет текстовым", compact: true })}</div>
+		${renderAdminSettingField("Текст кнопки оплаты", "content.gift.inline.payButtonText", { placeholder: "Оплатить" })}
+		${renderAdminSettingField("Текст кнопки получения", "content.gift.inline.buttonText", { placeholder: "Получить" })}
+	</section>`;
 }
 
 function renderAdminGiftMessageEditor(kind, title, message) {
@@ -10798,13 +10815,13 @@ function renderLoginMethodsPage() {
 
 function renderGiftPage() {
 	const copy = t();
-	const plans = getGiftPlans();
+	const plans = state.inlineGiftID ? getGiftPlans().filter((plan) => planKey(plan) === state.inlineGiftPlanID) : getGiftPlans();
 	const selected = getSelectedGiftPlan();
 	const method = getSelectedPaymentMethod();
 	const promoStatus = getPromoStatus();
 	const username = normalizeGiftUsername(state.giftUsernameDraft);
 	const ownUsername = normalizeGiftUsername(state.data?.user?.username || "");
-	const validUsername = /^[a-z0-9_]{5,32}$/.test(username) && username !== ownUsername;
+	const validUsername = Boolean(state.inlineGiftID) || (/^[a-z0-9_]{5,32}$/.test(username) && username !== ownUsername);
 	const busy = Boolean(state.giftBusy);
 	const balance = giftBalancePayment(selected, method);
 	const error = state.giftValidation || (username && username === ownUsername ? copy.giftSelf : "");
@@ -10813,20 +10830,20 @@ function renderGiftPage() {
 		<section class="page gift-page ${pageClass("gift")}" id="page-gift" aria-labelledby="gift-page-heading">
 			<h1 class="sr-only" id="gift-page-heading">${escapeHtml(copy.pageGift || "Подарить")}</h1>
 
-			<section class="gift-section">
+			${state.inlineGiftID ? `<section class="gift-section"><div class="gift-section__heading"><h2>${escapeHtml(localizedText("Подарок в чате", "Gift in chat", "هدیه در چت"))}</h2><span>${escapeHtml(localizedText("После оплаты сообщение в чате обновится, и получатель сможет забрать подписку.", "After payment, the chat message will update so the recipient can claim the plan.", "پس از پرداخت، پیام چت برای دریافت اشتراک به‌روز می‌شود."))}</span></div></section>` : `<section class="gift-section">
 				<div class="gift-section__heading"><h2 id="gift-recipient-heading">${escapeHtml(copy.giftRecipient)}</h2><span>${escapeHtml(copy.giftRecipientHint)}</span></div>
 				<label class="gift-username ${error ? "is-invalid" : ""}">
 					<span class="gift-username__prefix" aria-hidden="true">@</span>
 					<input type="text" inputmode="text" autocapitalize="none" autocomplete="off" spellcheck="false" maxlength="33" value="${escapeAttribute(state.giftUsernameDraft)}" placeholder="${escapeAttribute(copy.giftUsernamePlaceholder)}" data-input="gift-username" aria-label="${escapeAttribute(copy.giftRecipient)}" aria-describedby="gift-username-help">
 				</label>
 				<div class="gift-field-help ${error ? "is-error" : ""}" id="gift-username-help" aria-live="polite">${escapeHtml(error || copy.giftRecipientHint)}</div>
-			</section>
+			</section>`}
 
 			<section class="gift-section">
 				<div class="gift-section__heading gift-section__heading--caps"><h2 id="gift-period-heading">${escapeHtml(copy.giftPeriod)}</h2></div>
 				${plans.length ? `<div class="gift-plan-list" role="radiogroup" aria-label="${escapeAttribute(copy.giftPeriod)}">${plans.map((plan) => {
 					const active = planKey(plan) === planKey(selected);
-					return `<button class="gift-plan-row ${active ? "is-selected" : ""}" type="button" role="radio" aria-checked="${active}" data-action="select-gift-plan" data-value="${escapeAttribute(planKey(plan))}" data-selection-feedback><span class="gift-plan-row__copy"><strong>${escapeHtml(getGiftPlanTitle(plan, state.locale))}</strong>${planHasCustomTitle(plan, state.locale) ? `<small>${escapeHtml(getPlanDurationTitle(plan.months, plan.days, state.locale))}</small>` : ""}</span><span class="gift-plan-row__price" data-price-transition data-gift-plan-price="${escapeAttribute(planKey(plan))}">${escapeHtml(formatGiftPlanPrice(plan))}</span></button>`;
+					return `<button class="gift-plan-row ${active ? "is-selected" : ""}" type="button" role="radio" aria-checked="${active}" data-action="select-gift-plan" data-value="${escapeAttribute(planKey(plan))}" data-selection-feedback ${state.inlineGiftID ? "disabled" : ""}><span class="gift-plan-row__copy"><strong>${escapeHtml(getGiftPlanTitle(plan, state.locale))}</strong>${planHasCustomTitle(plan, state.locale) ? `<small>${escapeHtml(getPlanDurationTitle(plan.months, plan.days, state.locale))}</small>` : ""}</span><span class="gift-plan-row__price" data-price-transition data-gift-plan-price="${escapeAttribute(planKey(plan))}">${escapeHtml(formatGiftPlanPrice(plan))}</span></button>`;
 				}).join("")}</div>` : `<div class="gift-empty"><strong>${escapeHtml(copy.noPlansTitle)}</strong><span>${escapeHtml(copy.noPlansHint)}</span></div>`}
 			</section>
 
@@ -12993,6 +13010,7 @@ function bindRootActions() {
 			if (action === "admin-theme-export") return exportAdminThemePreset(value);
 			if (action === "admin-theme-delete") return await deleteAdminThemePreset(value);
 			if (action === "admin-logo-reset") return resetAdminLogo();
+			if (action === "admin-inline-gift-banner-remove") { state.adminSettingsDraft.content.gift.inline.bannerUrl = ""; state.adminSettingsDirty = true; render({ preserveScroll: true }); return; }
 			if (action === "admin-favicon-reset") return resetAdminFavicon();
 			if (action === "admin-save-settings") return await saveAdminSettings();
 			if (action === "admin-content-group") {
@@ -13084,6 +13102,11 @@ function bindRootActions() {
 		if (input.dataset.input === "admin-logo-file") {
 			const file = input.files?.[0];
 			if (file) void uploadAdminLogo(file);
+		}
+		if (input.dataset.input === "admin-inline-gift-banner-file") {
+			const file = input.files?.[0];
+			input.value = "";
+			if (file) void uploadAdminInlineGiftBanner(file);
 		}
 		if (input.dataset.input === "admin-favicon-file") {
 			const file = input.files?.[0];
@@ -14140,6 +14163,31 @@ async function uploadAdminLogo(file) {
 		state.adminBusy = "";
 		render({ preserveScroll: true });
 		showToast(error?.message || "Не удалось загрузить логотип", "danger");
+	}
+}
+
+async function uploadAdminInlineGiftBanner(file) {
+	if (!state.adminSettingsDraft?.content?.gift?.inline || state.adminBusy || !file) return;
+	if (!["image/png", "image/jpeg"].includes(String(file.type || "").toLowerCase()) || file.size > 2 * 1024 * 1024) {
+		showToast("Выберите PNG или JPG до 2 МБ", "danger");
+		return;
+	}
+	state.adminBusy = "upload-inline-gift-banner";
+	render({ preserveScroll: true });
+	try {
+		const body = new FormData();
+		body.append("logo", file, file.name || "gift-banner");
+		const response = await postForm("/api/mini-app/admin/logo/upload", body);
+		const imageURL = String(response?.data?.url || "").trim();
+		if (!imageURL) throw new Error("Не удалось получить адрес баннера");
+		state.adminSettingsDraft.content.gift.inline.bannerUrl = imageURL;
+		state.adminSettingsDirty = true;
+		showToast("Баннер загружен. Сохраните изменения.", "success");
+	} catch (error) {
+		showToast(error?.message || "Не удалось загрузить баннер", "danger");
+	} finally {
+		state.adminBusy = "";
+		render({ preserveScroll: true });
 	}
 }
 
@@ -18075,6 +18123,7 @@ async function submitP2PPayment() {
 	queueMicrotask(() => app.querySelector("#p2p-sender-reference")?.focus());
 	try {
 		const payload = giftMode ? {
+			inlineGiftId: state.inlineGiftID,
 			username: normalizeGiftUsername(state.giftUsernameDraft),
 			planId: plan?.id || "",
 			months: Number(plan?.months || 0),
@@ -18193,12 +18242,12 @@ async function startGiftPayment() {
 	const method = getSelectedPaymentMethod()?.id || "";
 	const username = normalizeGiftUsername(state.giftUsernameDraft);
 	const ownUsername = normalizeGiftUsername(state.data?.user?.username || "");
-	if (!/^[a-z0-9_]{5,32}$/.test(username)) {
+	if (!state.inlineGiftID && !/^[a-z0-9_]{5,32}$/.test(username)) {
 		state.giftValidation = copy.giftInvalidUsername;
 		render({ preserveScroll: true });
 		return;
 	}
-	if (username === ownUsername) {
+	if (!state.inlineGiftID && username === ownUsername) {
 		state.giftValidation = copy.giftSelf;
 		render({ preserveScroll: true });
 		return;
@@ -18217,6 +18266,7 @@ async function startGiftPayment() {
 	let navigatingAway = false;
 	try {
 		const response = await post("/api/mini-app/gifts/purchase", {
+			inlineGiftId: state.inlineGiftID,
 			username,
 			planId: plan.id || "",
 			months: Number(plan.months || 0),
@@ -19346,6 +19396,7 @@ function getGiftPlans() {
 
 function getSelectedGiftPlan() {
 	const plans = getGiftPlans();
+	if (state.inlineGiftID) return plans.find((plan) => planKey(plan) === state.inlineGiftPlanID) || null;
 	return plans.find((plan) => planKey(plan) === state.selectedGiftPlanId) || plans.find((plan) => plan.recommended) || plans[0] || null;
 }
 

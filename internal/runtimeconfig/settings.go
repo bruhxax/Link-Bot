@@ -218,6 +218,16 @@ type TelegramGiftMessageSettings struct {
 type TelegramGiftSettings struct {
 	Sender    TelegramGiftMessageSettings `json:"sender"`
 	Recipient TelegramGiftMessageSettings `json:"recipient"`
+	Inline    TelegramInlineGiftSettings  `json:"inline"`
+}
+
+type TelegramInlineGiftSettings struct {
+	PendingText   string `json:"pendingText"`
+	Text          string `json:"text"`
+	PaymentText   string `json:"paymentText"`
+	BannerURL     string `json:"bannerUrl"`
+	PayButtonText string `json:"payButtonText"`
+	ButtonText    string `json:"buttonText"`
 }
 
 type WebPageSettings struct {
@@ -661,6 +671,7 @@ func DefaultSettings() Settings {
 				},
 			},
 			Gift: TelegramGiftSettings{
+				Inline: TelegramInlineGiftSettings{PendingText: "<b>Подарок: {plan}</b> 🎁\n\nОжидает оплаты отправителем.", Text: "<b>Вам подарили подписку 🎁</b>\n\nТариф: <b>{plan}</b>\nОтправитель: {sender}\n\nНажмите «Получить», чтобы активировать подписку.", PaymentText: "🎁 Подарок подготовлен. Откройте оплату и выберите удобный способ.", PayButtonText: "Оплатить", ButtonText: "Получить"},
 				Sender: TelegramGiftMessageSettings{
 					Text: "<b>Вы отправили подарок {recipient}</b>\n\nЕсли этот пользователь уже заходил в нашего бота, подарок придёт ему автоматически. Если нет — подписка активируется, когда он напишет /start.\n\nОтправьте ему ссылку на подарок, если его ещё нет в боте.",
 					Buttons: []database.BroadcastButton{{
@@ -1787,6 +1798,18 @@ func normalizeTelegramContent(value *ContentSettings, defaults ContentSettings, 
 	}
 	if err := NormalizeGiftMessageSettings(&value.Gift.Recipient, defaults.Gift.Recipient); err != nil {
 		return fmt.Errorf("gift recipient message: %w", err)
+	}
+	value.Gift.Inline.PendingText = normalizedRequiredText(value.Gift.Inline.PendingText, defaults.Gift.Inline.PendingText, 1024)
+	value.Gift.Inline.Text = normalizedRequiredText(value.Gift.Inline.Text, defaults.Gift.Inline.Text, 1024)
+	value.Gift.Inline.PaymentText = normalizedRequiredText(value.Gift.Inline.PaymentText, defaults.Gift.Inline.PaymentText, 1024)
+	value.Gift.Inline.PayButtonText = normalizedRequiredText(value.Gift.Inline.PayButtonText, defaults.Gift.Inline.PayButtonText, 64)
+	value.Gift.Inline.ButtonText = normalizedRequiredText(value.Gift.Inline.ButtonText, defaults.Gift.Inline.ButtonText, 64)
+	value.Gift.Inline.BannerURL = strings.TrimSpace(value.Gift.Inline.BannerURL)
+	if value.Gift.Inline.BannerURL != "" && !(strings.HasPrefix(value.Gift.Inline.BannerURL, "https://") || strings.HasPrefix(value.Gift.Inline.BannerURL, "/mini-app/uploads/logo-")) {
+		return errors.New("inline gift banner URL must be HTTPS or an uploaded image")
+	}
+	if len(value.Gift.Inline.BannerURL) > 2048 {
+		return errors.New("inline gift banner URL is too long")
 	}
 
 	value.Verification.Text = normalizedRequiredText(value.Verification.Text, defaults.Verification.Text, 3500)

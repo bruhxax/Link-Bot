@@ -74,6 +74,17 @@ function checkout({ response = { action: "completed", purchaseId: 91 }, failure,
   return { context, calls, toast };
 }
 
+test("inline gift checkout keeps the selected plan and needs no recipient username", async () => {
+  const { context, calls } = checkout();
+  context.state.inlineGiftID = "74cfa453-e0db-4a54-8a35-80e228b76556";
+  context.state.giftUsernameDraft = "";
+  await context.startGiftPayment();
+  const request = calls.find(call => call?.url === "/api/mini-app/gifts/purchase");
+  assert.equal(request?.body.inlineGiftId, context.state.inlineGiftID);
+  assert.equal(request?.body.planId, "gift-plan");
+  assert.equal(request?.body.username, "");
+});
+
 test("completed balance gift refreshes balance and receipt without opening a payment URL", async () => {
   const page = checkout();
   await page.context.startGiftPayment();

@@ -535,6 +535,7 @@ type purchaseRequest struct {
 }
 
 type giftPurchaseRequest struct {
+	InlineGiftID       string `json:"inlineGiftId,omitempty"`
 	PaymentChannel     string `json:"paymentChannel,omitempty"`
 	Username           string `json:"username"`
 	PlanID             string `json:"planId"`
@@ -2357,11 +2358,26 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	username := database.NormalizeTelegramUsername(req.Username)
-	if !telegramGiftUsernamePattern.MatchString(username) {
+	inlineID := uuid.Nil
+	if req.InlineGiftID != "" {
+		parsed, parseErr := uuid.Parse(req.InlineGiftID)
+		if parseErr != nil {
+			h.writeError(w, http.StatusBadRequest, "invalid_inline_gift", "Подарок не найден")
+			return
+		}
+		inlineID = parsed
+		draft, findErr := h.purchaseRepository.FindInlineGift(r.Context(), inlineID)
+		if findErr != nil || draft == nil || draft.SenderTelegramID != customer.TelegramID || draft.PlanID != req.PlanID || draft.PurchaseID != nil {
+			h.writeError(w, http.StatusConflict, "invalid_inline_gift", "Подарок уже оплачен или недоступен")
+			return
+		}
+		username = payment.InlineGiftRecipient(inlineID)
+	}
+	if inlineID == uuid.Nil && !telegramGiftUsernamePattern.MatchString(username) {
 		h.writeError(w, http.StatusBadRequest, "invalid_gift_username", "Введите корректный Telegram username")
 		return
 	}
-	if database.NormalizeTelegramUsername(sess.User.Username) == username {
+	if inlineID == uuid.Nil && database.NormalizeTelegramUsername(sess.User.Username) == username {
 		h.writeError(w, http.StatusBadRequest, "gift_to_self", "Нельзя подарить подписку самому себе")
 		return
 	}
@@ -2422,10 +2438,13 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 		req.PromoCode = normalizedCode
 		price = applyDiscount(price, promo.DiscountPercent)
 	}
-	recipient, err := h.customerRepository.FindByTelegramUsername(r.Context(), username)
-	if err != nil {
-		h.writeError(w, http.StatusInternalServerError, "gift_recipient_failed", "Не удалось проверить получателя")
-		return
+	var recipient *database.Customer
+	if inlineID == uuid.Nil {
+		recipient, err = h.customerRepository.FindByTelegramUsername(r.Context(), username)
+		if err != nil {
+			h.writeError(w, http.StatusInternalServerError, "gift_recipient_failed", "Не удалось проверить получателя")
+			return
+		}
 	}
 	if recipient != nil && recipient.ID == customer.ID {
 		h.writeError(w, http.StatusBadRequest, "gift_to_self", "Нельзя подарить подписку самому себе")
@@ -2436,6 +2455,19 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 		recipientID = &recipient.ID
 	}
 	token := uuid.New()
+	if inlineID != uuid.Nil {
+		token = inlineID
+		reserved, reserveErr := h.purchaseRepository.ReserveInlineGiftCheckout(r.Context(), inlineID, customer.TelegramID, plan.ID)
+		if reserveErr != nil || !reserved {
+			h.writeError(w, http.StatusConflict, "inline_gift_checkout_started", "Оплата этого подарка уже открыта")
+			return
+		}
+		defer func() {
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = h.purchaseRepository.ReleaseInlineGiftCheckout(cleanupCtx, inlineID)
+		}()
+	}
 	ctxWithProfile := contextWithSessionTelegramProfile(r.Context(), sess)
 	paymentURL, purchaseID, err := h.paymentService.CreatePurchaseWithOptions(ctxWithProfile, float64(price), plan.Months, customer, invoiceType, payment.CreatePurchaseOptions{
 		PaymentMethodID: req.PaymentMethod, PaymentChannel: req.PaymentChannel,
@@ -2468,6 +2500,14 @@ func (h *Handler) handleCreateGiftPurchase(w http.ResponseWriter, r *http.Reques
 		}
 		h.writeError(w, http.StatusInternalServerError, "gift_purchase_failed", "Не удалось создать оплату подарка")
 		return
+	}
+	if inlineID != uuid.Nil {
+		bound, bindErr := h.purchaseRepository.BindInlineGiftPurchase(r.Context(), inlineID, purchaseID)
+		if bindErr != nil || !bound {
+			slog.Error("mini app: bind inline gift purchase failed", "error", bindErr, "purchase_id", purchaseID)
+			h.writeError(w, http.StatusInternalServerError, "gift_purchase_failed", "Не удалось завершить подготовку подарка")
+			return
+		}
 	}
 	action := paymentLaunchAction(invoiceType)
 
