@@ -66,24 +66,23 @@ func (m *NodeMonitor) check(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if time.Since(outage.OfflineSince) < threshold {
-			continue
-		}
-		if settings.Features["hide_inactive_node_hosts"] {
-			if err := m.hideHosts(ctx, node, nodes); err != nil {
-				slog.Warn("node hosts could not be hidden", "node", node.Name, "error", err)
-			}
-		} else if err := m.restoreHosts(ctx, node.UUID); err != nil {
-			slog.Warn("node hosts could not be restored after feature disabled", "node", node.Name, "error", err)
-		}
 		if !outage.DownNotified {
 			hosts := m.hostNames(ctx, node.UUID)
 			if err := m.send(ctx, settings.Content.NodeNotification.DownText, outage.Name, hosts, time.Since(outage.OfflineSince)); err != nil {
 				slog.Warn("node down notification failed", "node", node.Name, "error", err)
-				continue
-			}
-			if err := m.store.MarkNotified(ctx, node.UUID); err != nil {
+			} else if err := m.store.MarkNotified(ctx, node.UUID); err != nil {
 				return err
+			}
+		}
+		if !settings.Features["hide_inactive_node_hosts"] {
+			if err := m.restoreHosts(ctx, node.UUID); err != nil {
+				slog.Warn("node hosts could not be restored after feature disabled", "node", node.Name, "error", err)
+			}
+			continue
+		}
+		if time.Since(outage.OfflineSince) >= threshold {
+			if err := m.hideHosts(ctx, node, nodes); err != nil {
+				slog.Warn("node hosts could not be hidden", "node", node.Name, "error", err)
 			}
 		}
 	}
@@ -201,11 +200,11 @@ func (m *NodeMonitor) send(ctx context.Context, template, node string, hosts []s
 	if len(hosts) > 0 {
 		hostText = strings.Join(hosts, ", ")
 	}
-	minutes := int(duration.Round(time.Minute).Minutes())
-	if minutes < 1 {
-		minutes = 1
+	durationText := "менее минуты"
+	if duration >= time.Minute {
+		durationText = fmt.Sprintf("%d мин", int(duration.Round(time.Minute).Minutes()))
 	}
-	text := strings.NewReplacer("{node}", html.EscapeString(node), "{hosts}", hostText, "{duration}", fmt.Sprintf("%d мин", minutes)).Replace(template)
+	text := strings.NewReplacer("{node}", html.EscapeString(node), "{hosts}", hostText, "{duration}", durationText).Replace(template)
 	_, err := m.bot.SendMessage(ctx, &bot.SendMessageParams{ChatID: m.adminID, Text: text, ParseMode: models.ParseModeHTML})
 	return err
 }
