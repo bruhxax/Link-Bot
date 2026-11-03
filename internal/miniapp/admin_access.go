@@ -148,7 +148,7 @@ func (h *Handler) HasAdminPermission(ctx context.Context, telegramID int64, perm
 
 var adminSettingsFields = map[string][]string{
 	"torrents":     {"torrents"},
-	"localization": {"localization"}, "maintenance": {"maintenance"}, "features": {"features"},
+	"localization": {"localization"}, "maintenance": {"maintenance"}, "features": {"features", "nodeMonitor"},
 	"content": {"content", "panel"}, "appearance": {"appearance"}, "layout": {"layout"}, "subpage": {"subPage"},
 	"plans": {"plans", "devicePacks", "trafficPacks", "deviceAccess", "paymentMethodOrder", "paymentMethodText", "paymentMethodVariants"},
 	"trial": {"trial"}, "referrals": {"referrals"}, "grace": {"grace"},

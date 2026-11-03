@@ -55,6 +55,7 @@ var featureOrder = []string{
 	"promo_code",
 	"partner",
 	"server_status",
+	"hide_inactive_node_hosts",
 	"payments_history",
 	"recurring_payments",
 	"gifts",
@@ -97,6 +98,11 @@ type Settings struct {
 	Grace                 GraceSettings                   `json:"grace"`
 	Panel                 PanelSettings                   `json:"panel"`
 	HiddenServerNodes     []string                        `json:"hiddenServerNodes,omitempty"`
+	NodeMonitor           NodeMonitorSettings             `json:"nodeMonitor"`
+}
+
+type NodeMonitorSettings struct {
+	OfflineMinutes int `json:"offlineMinutes"`
 }
 
 type PaymentMethodText struct {
@@ -284,7 +290,13 @@ type ContentSettings struct {
 	Commerce                   TelegramCommerceSettings            `json:"commerce"`
 	PaymentNotification        TelegramPaymentNotificationSettings `json:"paymentNotification"`
 	WithdrawalNotification     TelegramWithdrawalSettings          `json:"withdrawalNotification"`
+	NodeNotification           TelegramNodeNotificationSettings    `json:"nodeNotification"`
 	Gift                       TelegramGiftSettings                `json:"gift"`
+}
+
+type TelegramNodeNotificationSettings struct {
+	DownText string `json:"downText"`
+	UpText   string `json:"upText"`
 }
 
 type TelegramWithdrawalSettings struct {
@@ -571,6 +583,7 @@ func DefaultSettings() Settings {
 	}
 	features["personal_device_profiles"] = false
 	features["recurring_payments"] = false
+	features["hide_inactive_node_hosts"] = false
 	language := normalizeRuntimeLanguage(config.DefaultLanguage())
 	fontFamily := strings.ToLower(strings.TrimSpace(config.DefaultFont()))
 	if fontFamily != "montserrat" && fontFamily != "vazir" {
@@ -593,8 +606,9 @@ func DefaultSettings() Settings {
 			TextRU:   "Сервис временно недоступен. Попробуйте немного позже.",
 			ReasonRU: "Плановые работы",
 		},
-		Torrents: DefaultTorrentSettings(),
-		Features: features,
+		Torrents:    DefaultTorrentSettings(),
+		Features:    features,
+		NodeMonitor: NodeMonitorSettings{OfflineMinutes: 3},
 		Content: ContentSettings{
 			BrandName:    "Link-Bot",
 			AdminContact: "",
@@ -714,6 +728,10 @@ func DefaultSettings() Settings {
 				RejectedText:  "<b>Вывод №{id} · Отклонено ❌</b>\n\n<b>{amount}</b> · {username}\n<blockquote>{payout_details}</blockquote>",
 				ApproveButton: TelegramButtonSettings{Text: "✓ Выплачено", Style: "success"},
 				RejectButton:  TelegramButtonSettings{Text: "✕ Отклонить", Style: "danger"},
+			},
+			NodeNotification: TelegramNodeNotificationSettings{
+				DownText: "🔴 <b>Нода недоступна</b>\n\nНода: <b>{node}</b>\nХосты: {hosts}\nНедоступна: {duration}",
+				UpText:   "🟢 <b>Нода восстановилась</b>\n\nНода: <b>{node}</b>\nХосты: {hosts}\nПростой: {duration}",
 			},
 			Gift: TelegramGiftSettings{
 				Inline: TelegramInlineGiftSettings{PendingText: "<b>Подарок: {plan}</b> 🎁\n\nОжидает оплаты отправителем.", Text: "<b>Вам подарили подписку 🎁</b>\n\nТариф: <b>{plan}</b>\nОтправитель: {sender}\n\nНажмите «Получить», чтобы активировать подписку.", PaymentText: "🎁 Подарок подготовлен. Откройте оплату и выберите удобный способ.", PayButtonText: "Оплатить", ButtonText: "Получить"},
@@ -1346,6 +1364,12 @@ func NormalizeAndValidate(settings *Settings) error {
 		return err
 	}
 	settings.Version = CurrentVersion
+	if settings.NodeMonitor.OfflineMinutes == 0 {
+		settings.NodeMonitor.OfflineMinutes = defaults.NodeMonitor.OfflineMinutes
+	}
+	if settings.NodeMonitor.OfflineMinutes < 1 || settings.NodeMonitor.OfflineMinutes > 1440 {
+		return errors.New("node downtime must be between 1 and 1440 minutes")
+	}
 	if previousVersion < 27 && settings.ReviewRewards == (ReviewRewardSettings{}) {
 		settings.ReviewRewards = defaults.ReviewRewards
 	}
@@ -1848,6 +1872,8 @@ func normalizeTelegramContent(value *ContentSettings, defaults ContentSettings, 
 	value.WithdrawalNotification.NewText = normalizedRequiredText(value.WithdrawalNotification.NewText, defaults.WithdrawalNotification.NewText, 2200)
 	value.WithdrawalNotification.ApprovedText = normalizedRequiredText(value.WithdrawalNotification.ApprovedText, defaults.WithdrawalNotification.ApprovedText, 2200)
 	value.WithdrawalNotification.RejectedText = normalizedRequiredText(value.WithdrawalNotification.RejectedText, defaults.WithdrawalNotification.RejectedText, 2200)
+	value.NodeNotification.DownText = normalizedRequiredText(value.NodeNotification.DownText, defaults.NodeNotification.DownText, 2200)
+	value.NodeNotification.UpText = normalizedRequiredText(value.NodeNotification.UpText, defaults.NodeNotification.UpText, 2200)
 	if err := normalizeTelegramButton(&value.WithdrawalNotification.ApproveButton, defaults.WithdrawalNotification.ApproveButton); err != nil {
 		return fmt.Errorf("withdrawal approve button: %w", err)
 	}

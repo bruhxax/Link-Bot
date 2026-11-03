@@ -138,6 +138,15 @@ type NodeStatus struct {
 	Address     string
 	CountryCode string
 	IsOnline    bool
+	IsDisabled  bool
+}
+
+type HostStatus struct {
+	UUID       string
+	Remark     string
+	Nodes      []string
+	IsDisabled bool
+	IsHidden   bool
 }
 
 type headerTransport struct {
@@ -884,10 +893,79 @@ func (r *Client) GetNodesStatus(ctx context.Context) ([]NodeStatus, error) {
 			Address:     strings.TrimSpace(node.Address),
 			CountryCode: strings.TrimSpace(node.CountryCode),
 			IsOnline:    node.IsConnected && !node.IsDisabled,
+			IsDisabled:  node.IsDisabled,
 		})
 	}
 
 	return result, nil
+}
+
+func (r *Client) GetHostsStatus(ctx context.Context) ([]HostStatus, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.baseURL+"/api/hosts", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+r.token)
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("hosts request failed: %s", resp.Status)
+	}
+	var payload struct {
+		Response []struct {
+			UUID       string   `json:"uuid"`
+			Remark     string   `json:"remark"`
+			Address    string   `json:"address"`
+			Nodes      []string `json:"nodes"`
+			IsDisabled bool     `json:"isDisabled"`
+			IsHidden   bool     `json:"isHidden"`
+		} `json:"response"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	result := make([]HostStatus, 0, len(payload.Response))
+	for _, host := range payload.Response {
+		remark := strings.TrimSpace(host.Remark)
+		if remark == "" {
+			remark = strings.TrimSpace(host.Address)
+		}
+		result = append(result, HostStatus{UUID: host.UUID, Remark: remark, Nodes: host.Nodes, IsDisabled: host.IsDisabled, IsHidden: host.IsHidden})
+	}
+	return result, nil
+}
+
+func (r *Client) SetHostsDisabled(ctx context.Context, uuids []string, disabled bool) error {
+	if len(uuids) == 0 {
+		return nil
+	}
+	path := "/api/hosts/bulk/enable"
+	if disabled {
+		path = "/api/hosts/bulk/disable"
+	}
+	body, err := json.Marshal(map[string]any{"uuids": uuids})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.baseURL+path, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+r.token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		message, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return fmt.Errorf("host visibility request failed: %s: %s", resp.Status, strings.TrimSpace(string(message)))
+	}
+	return nil
 }
 
 func (r *Client) DecreaseSubscription(ctx context.Context, telegramId int64, trafficLimit int, deviceLimit int, days int) (*time.Time, error) {

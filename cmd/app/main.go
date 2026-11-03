@@ -156,6 +156,7 @@ func main() {
 	}
 
 	subService := notification.NewSubscriptionService(customerRepository, purchaseRepository, paymentService, b, tm, runtimeSettings, remnawaveClient)
+	go notification.NewNodeMonitor(remnawaveClient, database.NewNodeOutageRepository(pool), runtimeSettings, b, config.GetAdminTelegramId()).Run(ctx)
 	syncService := sync.NewSyncService(remnawaveClient, customerRepository)
 
 	subscriptionNotificationCronScheduler := subscriptionChecker(syncService, subService)

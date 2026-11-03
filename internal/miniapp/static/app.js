@@ -5155,6 +5155,7 @@ const ADMIN_SEARCH_CONTENT_SECTIONS = [
 	["commerce", "Покупка", "Telegram"], ["success", "После оплаты", "Telegram"],
 	["gift", "Подарок", "Telegram"], ["payment-notifications", "Уведомления оплат", "Telegram"],
 	["withdrawal", "Заявки на вывод", "Telegram"],
+	["nodes", "Статус нод", "Telegram"],
 	["support", "Поддержка", "Mini App"], ["web", "Веб-страница", "Mini App"],
 	["notifications", "Уведомления", "Mini App"], ["panel", "Панель", "Mini App"],
 	["faq", "FAQ", "Mini App"], ["advanced", "Служебные тексты", "Mini App"],
@@ -7284,6 +7285,7 @@ function renderAdminFeaturesPage() {
 				["email_auth", "Вход по почте", "Вход и регистрация по почте в веб-кабинете"],
 				["stars", "Telegram Stars", "Оплата звёздами Telegram"],
 				["recurring_payments", "Рекуррентные платежи", "Сохранять способ при новых оплатах у поддерживаемых платёжек. Уже подключённые автоплатежи продолжаются после выключения."],
+				["hide_inactive_node_hosts", "Скрыть хосты неактивной ноды", "Скрывать хосты после заданного времени простоя и возвращать после восстановления ноды"],
 				["trials", "Триалы", "Бесплатный пробный доступ"],
 				["support", "Поддержка", "Обращения пользователей"],
 				["promocodes", "Промокоды", "Скидки при покупке"],
@@ -7313,6 +7315,7 @@ function renderAdminFeaturesPage() {
 		},
 	];
 	const customButtons = getAdminCustomProfileFeatureItems();
+	groups[0].extra = renderAdminSettingField("Скрывать хосты через, мин", "nodeMonitor.offlineMinutes", { type: "number", min: 1, max: 1440 });
 	if (customButtons.length) groups.push({ id: "custom", title: "Свои кнопки", hint: "Добавленные вами ссылки и страницы в профиле", items: customButtons });
 	return renderAdminEditorPage(
 		"Управление функциями",
@@ -7327,6 +7330,7 @@ function renderAdminFeaturesPage() {
 				<div class="admin-toggle-list admin-feature-list">
 					${group.items.map(([key, label, hint, path]) => renderAdminFeatureToggle(label, hint, path || `features.${key}`)).join("")}
 				</div>
+				${group.extra || ""}
 			</section>
 		`).join("")}</div>`,
 	);
@@ -7403,6 +7407,7 @@ function renderAdminContentPage() {
 		["gift", "Подарок", "Telegram"],
 		["payment-notifications", "Уведомления оплат", "Telegram"],
 		["withdrawal", "Заявки на вывод", "Telegram"],
+		["nodes", "Статус нод", "Telegram"],
 		["support", "Поддержка", "Mini App"],
 		["web", "Веб-страница", "Mini App"],
 		["notifications", "Уведомления", "Mini App"],
@@ -7434,6 +7439,7 @@ function renderAdminContentSection(section) {
 		case "gift": return renderAdminGiftContent();
 		case "payment-notifications": return renderAdminPaymentNotificationContent();
 		case "withdrawal": return renderAdminWithdrawalContent();
+		case "nodes": return renderAdminNodeContent();
 		case "support": return renderAdminSupportContent();
 		case "web": return renderAdminWebPageContent();
 		case "notifications": return renderAdminNotificationContent();
@@ -7867,6 +7873,14 @@ function renderAdminWithdrawalContent() {
 		${renderAdminTelegramButton("Кнопка выплаты", "content.withdrawalNotification.approveButton")}
 		${renderAdminTelegramButton("Кнопка отклонения", "content.withdrawalNotification.rejectButton")}
 		${renderAdminContentTestButton("withdrawal")}
+	</section>`;
+}
+
+function renderAdminNodeContent() {
+	return `<section class="admin-editor__section"><h3>Статус нод</h3>
+		${renderAdminVariableReference("Переменные", [["{node}", "Название ноды"], ["{hosts}", "Хосты ноды"], ["{duration}", "Время простоя"]], "Поддерживается Telegram HTML")}
+		${renderAdminSettingField("Нода потеряла соединение", "content.nodeNotification.downText", { textarea: true, rows: 5 })}
+		${renderAdminSettingField("Соединение восстановилось", "content.nodeNotification.upText", { textarea: true, rows: 5 })}
 	</section>`;
 }
 
