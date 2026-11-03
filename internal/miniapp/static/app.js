@@ -9073,7 +9073,8 @@ function renderAdminReferralActivity() {
 
 function renderAdminReferralHistoryRow(item, showReferrer) {
 	const name = (username, id) => username ? `@${escapeHtml(username)}` : escapeHtml(String(id || "—"));
-	return `<div class="admin-referral-history-row"><div><strong>${showReferrer ? `${name(item.referrerUsername, item.referrerId)} → ` : ""}${name(item.refereeUsername, item.refereeId)}</strong><small>${escapeHtml(formatShortDateLabel(item.usedAt, state.locale))} · ID ${escapeHtml(String(item.refereeId))}</small></div><span>${item.revenueCents ? escapeHtml(formatMoneyCents(item.revenueCents)) : "—"}</span></div>`;
+	const when = item.usedAt ? new Intl.DateTimeFormat(intlLocale(), { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(item.usedAt)) : "—";
+	return `<div class="admin-referral-history-row"><div><strong>${showReferrer ? `${name(item.referrerUsername, item.referrerId)} → ` : ""}${name(item.refereeUsername, item.refereeId)}</strong><small>${escapeHtml(when)} · ID ${escapeHtml(String(item.refereeId))}</small></div><span>${item.revenueCents ? escapeHtml(formatMoneyCents(item.revenueCents)) : "—"}</span></div>`;
 }
 
 function renderAdminReferralRewardFields(path, allowPercent) {
