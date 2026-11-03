@@ -35,6 +35,49 @@
   -webkit-backdrop-filter: var(--glass-backdrop) !important;
 }
 
+/* The referral report is one glass card; its input and row headers must not
+   inherit a second opaque control surface from the shared control layer. */
+@layer control-material {
+  :root #app #page-admin .admin-referrals .admin-referrals-activity__search input[type="search"],
+  :root #app #page-admin .admin-referrals .admin-referrer__summary,
+  :root #app #page-admin .admin-referrals .admin-referrals-activity__tabs button:not(.is-active) {
+    background: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  :root #app #page-admin .admin-referrals .admin-referrals-activity__search input[type="search"]:focus-visible {
+    outline: 0 !important;
+    border: 0 !important;
+  }
+  :root[data-glass="on"] #app #page-admin .admin-referrals :is(
+    .admin-referrals-activity, .admin-referrer, .admin-referrals-activity__tabs,
+    .admin-referrals-activity__search, .admin-referrer__metrics > span,
+    .admin-referral-history-row__stats > span, .admin-referrer__more,
+    .admin-referrals-activity__more
+  ) {
+    background: var(--glass-background) !important;
+    background-image: var(--glass-texture) !important;
+    background-size: 128px 128px, 100% 100% !important;
+    border-color: var(--glass-border) !important;
+    box-shadow: var(--glass-surface-shadow) !important;
+  }
+  :root[data-glass="on"] #app #page-admin .admin-referrals .admin-referrals-activity {
+    backdrop-filter: var(--glass-backdrop) !important;
+    -webkit-backdrop-filter: var(--glass-backdrop) !important;
+  }
+  :root[data-glass="on"] #app #page-admin .admin-referrals :is(.admin-referrer, .admin-referrer__metrics > span, .admin-referral-history-row__stats > span) {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  :root[data-glass="on"] #app #page-admin .admin-referrals .admin-referrals-activity__tabs button.is-active {
+    background: color-mix(in srgb, var(--accent) 12%, var(--glass-background)) !important;
+    background-image: var(--glass-texture) !important;
+    box-shadow: inset 0 0 0 1px var(--glass-border) !important;
+  }
+}
+
 /* A long abuse list can contain dozens of cards; their translucent material
    stays light to scroll while the fixed toolbar and metrics provide blur. */
 :root:not([data-admin-console="on"])[data-glass="on"] #app .ab-card {

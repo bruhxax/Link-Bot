@@ -9051,30 +9051,34 @@ function renderAdminReferralsPage() {
 	const settings = state.adminSettingsDraft?.referrals || {};
 	const withdrawals = Array.isArray(state.data?.admin?.withdrawals) ? state.data.admin.withdrawals : [];
 	return renderAdminEditorPage(localizedText("Рефералы и баланс", "Referrals and balance", "دعوت و موجودی"), `<div class="admin-referrals">
-		${renderAdminReferralActivity()}
 		<section class="admin-editor__section"><div class="admin-editor__section-head"><div><h3>${localizedText("За активацию пробного периода", "Trial activation reward", "پاداش فعال‌سازی آزمایشی")}</h3></div></div>${renderAdminReferralRewardFields("referrals.trial", false)}</section>
 		<section class="admin-editor__section"><div class="admin-editor__section-head"><div><h3>${localizedText("За покупку подписки", "Subscription purchase reward", "پاداش خرید اشتراک")}</h3></div></div>${renderAdminReferralRewardFields("referrals.purchase", true)}<div class="admin-toggle-list">${renderAdminToggle(localizedText("Начислять за каждую следующую покупку", "Reward every later purchase", "پاداش برای هر خرید بعدی"), "referrals.rewardEveryPurchase")}</div></section>
 		<section class="admin-editor__section"><div class="admin-editor__section-head"><div><h3>${localizedText("Баланс", "Balance", "موجودی")}</h3></div></div><div class="admin-toggle-list">${renderAdminToggle(localizedText("Разрешить оплату балансом", "Allow balance payments", "اجازه پرداخت از موجودی"), "referrals.balancePaymentsEnabled")}${renderAdminToggle(localizedText("Разрешить заявки на вывод", "Allow withdrawals", "اجازه برداشت"), "referrals.withdrawalsEnabled")}</div><div class="admin-editor__grid">${renderAdminSettingField(localizedText("Минимальный вывод, ₽", "Minimum withdrawal, RUB", "حداقل برداشت، روبل"), "referrals.minimumWithdrawalRub", { type: "number", min: 0, max: 1000000 })}</div></section>
 		<section class="admin-editor__section admin-withdrawals"><div class="admin-editor__section-head"><div><h3>${localizedText("Заявки на вывод", "Withdrawal requests", "درخواست‌های برداشت")}</h3></div><strong>${withdrawals.length}</strong></div>${withdrawals.length ? withdrawals.map(renderAdminWithdrawal).join("") : `<div class="admin-empty-state">${icon("check")}<strong>${localizedText("Новых заявок нет", "No pending requests", "درخواست جدیدی نیست")}</strong></div>`}</section>
+		${renderAdminReferralActivity()}
 	</div>`);
 }
 
 function renderAdminReferralActivity() {
 	const view = state.adminReferrals;
 	const page = view[view.mode];
-	const money = (cents) => formatMoneyCents(cents || 0);
 	const identity = (username, id) => username ? `@${escapeHtml(username)}` : escapeHtml(String(id || "—"));
 	const rows = view.mode === "leaders" ? page.items.map((item) => {
 		const open = Number(view.openId) === Number(item.telegramId), detail = view.details[item.telegramId];
-		return `<article class="admin-referrer ${open ? "is-open" : ""}"><button type="button" class="admin-referrer__summary" data-action="admin-referrer-toggle" data-value="${item.telegramId}" aria-expanded="${open}"><span class="admin-referrer__identity"><strong>${identity(item.username, item.telegramId)}</strong><small>ID ${escapeHtml(String(item.telegramId))} · Последний ${escapeHtml(formatShortDateLabel(item.lastInviteAt, state.locale))}</small></span><span class="admin-referrer__count">${formatNumber(item.invited, state.locale)} реф.</span>${icon("chevronRight")}</button><div class="admin-referrer__reveal"><div class="admin-referrer__inner"><div class="admin-referrer__metrics"><span><small>Купили</small><b>${formatNumber(item.paying, state.locale)}</b></span><span><small>Покупок</small><b>${formatNumber(item.purchaseCount, state.locale)}</b></span><span><small>Принесли</small><b>${escapeHtml(money(item.revenueCents))}</b></span><span><small>Начислено</small><b>${escapeHtml(money(item.rewardsCents))}</b></span><span><small>Выведено</small><b>${escapeHtml(money(item.withdrawnCents))}</b></span></div><div class="admin-referrer__caption">Приглашённые</div>${detail?.items?.length ? detail.items.map((row) => renderAdminReferralHistoryRow(row, false)).join("") : `<p class="admin-referrer__hint">${detail?.loading ? "Загрузка…" : escapeHtml(detail?.error || "История пока не загружена")}</p>`}${detail?.items?.length < detail?.total ? `<button type="button" class="admin-referrer__more" data-action="admin-referrer-more" data-value="${item.telegramId}">Показать ещё</button>` : ""}</div></div></article>`;
+		return `<article class="admin-referrer ${open ? "is-open" : ""}" data-referrer-id="${item.telegramId}"><button type="button" class="admin-referrer__summary" data-action="admin-referrer-toggle" data-value="${item.telegramId}" aria-expanded="${open}"><span class="admin-referrer__identity"><strong>${identity(item.username, item.telegramId)}</strong><small>ID ${escapeHtml(String(item.telegramId))} · Последний ${escapeHtml(formatShortDateLabel(item.lastInviteAt, state.locale))}</small></span><span class="admin-referrer__count">${formatNumber(item.invited, state.locale)} реф.</span>${icon("chevronRight")}</button><div class="admin-referrer__reveal"><div class="admin-referrer__inner">${renderAdminReferrerDetail(item, detail)}</div></div></article>`;
 	}).join("") : page.items.map((item) => renderAdminReferralHistoryRow(item, true)).join("");
-	return `<section class="admin-referrals-activity"><div class="admin-referrals-activity__head"><div><h3>Рефералы</h3><p>Приглашения, покупки и выплаты</p></div><span>${formatNumber(page.total || 0, state.locale)}</span></div><div class="admin-referrals-activity__tabs" role="tablist"><button type="button" data-action="admin-referrals-tab" data-value="leaders" class="${view.mode === "leaders" ? "is-active" : ""}" aria-selected="${view.mode === "leaders"}">Рефоводы</button><button type="button" data-action="admin-referrals-tab" data-value="history" class="${view.mode === "history" ? "is-active" : ""}" aria-selected="${view.mode === "history"}">История</button></div><label class="admin-referrals-activity__search">${icon("search")}<input type="search" data-input="admin-referrals-search" value="${escapeAttribute(view.search)}" placeholder="Имя или Telegram ID" autocomplete="off"></label><div class="admin-referrals-activity__list">${rows || `<div class="admin-referrals-activity__empty">${view.busy ? "Загрузка…" : escapeHtml(view.error || (view.mode === "leaders" ? "Пока нет пользователей с двумя приглашёнными" : "Приглашений пока нет"))}</div>`}</div>${page.items.length < page.total ? `<button type="button" class="admin-referrals-activity__more" data-action="admin-referrals-more">${view.busy ? "Загрузка…" : "Показать ещё"}</button>` : ""}${view.error && rows ? `<p class="admin-referrals-activity__error">${escapeHtml(view.error)}</p>` : ""}<p class="admin-referrals-activity__note">Суммы покупок — только оплаченные платежи в рублях. «Начислено» — бонусы за рефералов; «Выведено» — подтверждённые заявки пользователя.</p></section>`;
+	return `<section class="admin-referrals-activity"><div class="admin-referrals-activity__head"><h3>Рефералы</h3><span>${formatNumber(page.total || 0, state.locale)}</span></div><div class="admin-referrals-activity__tabs" role="tablist"><button type="button" data-action="admin-referrals-tab" data-value="leaders" class="${view.mode === "leaders" ? "is-active" : ""}" aria-selected="${view.mode === "leaders"}">Рефоводы</button><button type="button" data-action="admin-referrals-tab" data-value="history" class="${view.mode === "history" ? "is-active" : ""}" aria-selected="${view.mode === "history"}">История</button></div><label class="admin-referrals-activity__search">${icon("search")}<input type="search" data-input="admin-referrals-search" value="${escapeAttribute(view.search)}" placeholder="Имя или Telegram ID" autocomplete="off"></label><div class="admin-referrals-activity__list">${rows || `<div class="admin-referrals-activity__empty">${view.busy ? "Загрузка…" : escapeHtml(view.error || (view.mode === "leaders" ? "Пока нет пользователей с двумя приглашёнными" : "Приглашений пока нет"))}</div>`}</div>${page.items.length < page.total ? `<button type="button" class="admin-referrals-activity__more" data-action="admin-referrals-more">${view.busy ? "Загрузка…" : "Показать ещё"}</button>` : ""}${view.error && rows ? `<p class="admin-referrals-activity__error">${escapeHtml(view.error)}</p>` : ""}</section>`;
+}
+
+function renderAdminReferrerDetail(item, detail) {
+	const money = (cents) => escapeHtml(formatMoneyCents(cents || 0));
+	return `<div class="admin-referrer__detail-content"><div class="admin-referrer__metrics"><span><small>Купили</small><b>${formatNumber(item.paying, state.locale)}</b></span><span><small>Покупок</small><b>${formatNumber(item.purchaseCount, state.locale)}</b></span><span><small>Принесли</small><b>${money(item.revenueCents)}</b></span><span><small>Начислено</small><b>${money(item.rewardsCents)}</b></span><span><small>Выведено</small><b>${money(item.withdrawnCents)}</b></span></div><div class="admin-referrer__caption">Приглашённые</div>${detail?.items?.length ? detail.items.map((row) => renderAdminReferralHistoryRow(row, false)).join("") : `<p class="admin-referrer__hint">${detail?.loading ? "Загрузка…" : escapeHtml(detail?.error || "История пока не загружена")}</p>`}${detail?.items?.length < detail?.total ? `<button type="button" class="admin-referrer__more" data-action="admin-referrer-more" data-value="${item.telegramId}">Показать ещё</button>` : ""}</div>`;
 }
 
 function renderAdminReferralHistoryRow(item, showReferrer) {
 	const name = (username, id) => username ? `@${escapeHtml(username)}` : escapeHtml(String(id || "—"));
 	const when = item.usedAt ? new Intl.DateTimeFormat(intlLocale(), { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(item.usedAt)) : "—";
-	return `<div class="admin-referral-history-row"><div><strong>${showReferrer ? `${name(item.referrerUsername, item.referrerId)} → ` : ""}${name(item.refereeUsername, item.refereeId)}</strong><small>${escapeHtml(when)} · ID ${escapeHtml(String(item.refereeId))}</small></div><span>${item.revenueCents ? escapeHtml(formatMoneyCents(item.revenueCents)) : "—"}</span></div>`;
+	return `<div class="admin-referral-history-row"><div class="admin-referral-history-row__person"><strong>${showReferrer ? `${name(item.referrerUsername, item.referrerId)} → ` : ""}${name(item.refereeUsername, item.refereeId)}</strong><small>${escapeHtml(when)} · ID ${escapeHtml(String(item.refereeId))}</small></div><div class="admin-referral-history-row__stats"><span>Покупок <b>${formatNumber(item.purchaseCount || 0, state.locale)}</b></span><span>На сумму <b>${escapeHtml(formatMoneyCents(item.revenueCents || 0))}</b></span><span>Заработано <b>${escapeHtml(formatMoneyCents(item.rewardsCents || 0))}</b></span></div></div>`;
 }
 
 function renderAdminReferralRewardFields(path, allowPercent) {
@@ -12662,7 +12666,13 @@ function bindRootActions() {
 	  }
 		if (action === "admin-referrals-tab") { state.adminReferrals.mode = value === "history" ? "history" : "leaders"; render({ preserveScroll: true }); if (!state.adminReferrals[state.adminReferrals.mode].items.length) void refreshAdminReferrals(); return; }
 		if (action === "admin-referrals-more") return await refreshAdminReferrals(true);
-		if (action === "admin-referrer-toggle") { const id = Number(value); state.adminReferrals.openId = state.adminReferrals.openId === id ? 0 : id; render({ preserveScroll: true }); if (state.adminReferrals.openId && !state.adminReferrals.details[id]) void refreshAdminReferralDetail(id); return; }
+		if (action === "admin-referrer-toggle") {
+			const id = Number(value), opening = state.adminReferrals.openId !== id;
+			app.querySelectorAll(".admin-referrer.is-open").forEach((row) => { row.classList.remove("is-open"); row.querySelector(".admin-referrer__summary")?.setAttribute("aria-expanded", "false"); });
+			state.adminReferrals.openId = opening ? id : 0;
+			if (opening) { const row = target.closest(".admin-referrer"); row?.classList.add("is-open"); target.setAttribute("aria-expanded", "true"); if (!state.adminReferrals.details[id]) void refreshAdminReferralDetail(id); }
+			return;
+		}
 		if (action === "admin-referrer-more") return await refreshAdminReferralDetail(Number(value), true);
 	  if (action === "admin-settings-search-open") return openAdminSettingsSearchResult(Number(value));
 	  if (action === "admin-status-refresh") return await refreshAdminStatus(true);
@@ -17180,6 +17190,23 @@ let adminReferralsRequestID = 0;
 async function refreshAdminReferrals(more = false) {
 	const view = state.adminReferrals, mode = view.mode, search = view.search;
 	if (more && view.busy) return;
+	if (previewMode) {
+		const rows = [
+			{ id: 1, referrerId: 6402520205, referrerUsername: "alexvpn", refereeId: 7504679252, refereeUsername: "first_user", usedAt: "2026-11-01T10:50:00Z", purchaseCount: 2, revenueCents: 45000, rewardsCents: 4500 },
+			{ id: 2, referrerId: 6402520205, referrerUsername: "alexvpn", refereeId: 6021950391, refereeUsername: "second_user", usedAt: "2026-10-29T14:15:00Z", purchaseCount: 1, revenueCents: 25000, rewardsCents: 2500 },
+			{ id: 3, referrerId: 482283985, referrerUsername: "solsaxx", refereeId: 7526394062, refereeUsername: "third_user", usedAt: "2026-10-23T08:20:00Z", purchaseCount: 0, revenueCents: 0, rewardsCents: 0 },
+		];
+		const leaders = [
+			{ telegramId: 6402520205, username: "alexvpn", invited: 12, paying: 4, purchaseCount: 7, revenueCents: 85400, rewardsCents: 8540, withdrawnCents: 5000, lastInviteAt: rows[0].usedAt },
+			{ telegramId: 482283985, username: "solsaxx", invited: 3, paying: 1, purchaseCount: 1, revenueCents: 25000, rewardsCents: 2500, withdrawnCents: 0, lastInviteAt: rows[2].usedAt },
+		];
+		const matches = (item) => !search || `${item.username || ""} ${item.telegramId || ""} ${item.referrerUsername || ""} ${item.refereeUsername || ""} ${item.referrerId || ""} ${item.refereeId || ""}`.toLowerCase().includes(search.toLowerCase());
+		const items = (mode === "leaders" ? leaders : rows).filter(matches);
+		view[mode] = { items, total: items.length };
+		view.busy = ""; view.error = "";
+		render({ preserveScroll: true });
+		return;
+	}
 	const offset = more ? view[mode].items.length : 0;
 	const requestID = ++adminReferralsRequestID;
 	view.busy = mode; view.error = "";
@@ -17196,16 +17223,39 @@ async function refreshAdminReferrals(more = false) {
 
 async function refreshAdminReferralDetail(id, more = false) {
 	const view = state.adminReferrals;
+	if (previewMode) {
+		const items = [
+			{ id: 1, referrerId: id, refereeId: 7504679252, refereeUsername: "first_user", usedAt: "2026-11-01T10:50:00Z", purchaseCount: 2, revenueCents: 45000, rewardsCents: 4500 },
+			{ id: 2, referrerId: id, refereeId: 6021950391, refereeUsername: "second_user", usedAt: "2026-10-29T14:15:00Z", purchaseCount: 1, revenueCents: 25000, rewardsCents: 2500 },
+		];
+		view.details[id] = { items, total: items.length, loading: false, error: "" };
+		syncAdminReferrerDetail(id);
+		return;
+	}
 	const previous = view.details[id] || { items: [], total: 0 };
 	if (previous.loading) return;
 	view.details[id] = { ...previous, loading: true, error: "" };
-	render({ preserveScroll: true });
+	syncAdminReferrerDetail(id);
 	try {
 		const response = await post("/api/mini-app/admin/referrals", { mode: "history", referrerId: id, offset: more ? previous.items.length : 0 });
 		const data = response.data || { items: [], total: 0 };
 		view.details[id] = { items: more ? [...previous.items, ...(data.items || [])] : (data.items || []), total: Number(data.total || 0), loading: false, error: "" };
 	} catch (error) { view.details[id] = { ...previous, loading: false, error: error?.message || "Не удалось загрузить приглашённых" }; }
-	if (state.adminSection === "referrals") render({ preserveScroll: true });
+	syncAdminReferrerDetail(id);
+}
+
+function syncAdminReferrerDetail(id) {
+	if (state.adminSection !== "referrals" || state.adminReferrals.mode !== "leaders") return;
+	const item = state.adminReferrals.leaders.items.find((entry) => Number(entry.telegramId) === id);
+	const row = [...app.querySelectorAll(".admin-referrer[data-referrer-id]")].find((entry) => Number(entry.dataset.referrerId) === id);
+	const inner = row?.querySelector(".admin-referrer__inner");
+	if (!item || !inner) return;
+	const reveal = row.querySelector(".admin-referrer__reveal"), before = reveal?.getBoundingClientRect().height || 0;
+	inner.innerHTML = renderAdminReferrerDetail(item, state.adminReferrals.details[id]);
+	const after = reveal?.getBoundingClientRect().height || 0;
+	if (row.classList.contains("is-open") && before && Math.abs(after - before) > 5 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+		reveal.animate([{ height: `${before}px` }, { height: `${after}px` }], { duration: 240, easing: "cubic-bezier(.2,.75,.25,1)" });
+	}
 }
 
 let adminPartnersRequestID = 0;
