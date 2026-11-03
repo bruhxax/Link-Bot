@@ -117,6 +117,27 @@ func TestTrialPreviewUsesDraftAndCannotActivateTrial(t *testing.T) {
 	}
 }
 
+func TestStartPreviewUsesConfiguredButtonsAndRows(t *testing.T) {
+	settings := runtimeconfig.DefaultSettings()
+	settings.Content.StartMenu.Buttons = []runtimeconfig.TelegramStartButton{
+		{ID: "privacy", Kind: "page", Target: "privacy", Row: 1, Text: "Политика"},
+		{ID: "external", Kind: "url", Target: "https://example.com", Row: 0, Text: "Сайт"},
+		{ID: "reviews", Kind: "page", Target: "reviews", Row: 1, Text: "Отзывы"},
+	}
+	_, _, keyboard, err := buildContentPreview("start", settings, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(keyboard) != 2 || len(keyboard[0]) != 1 || len(keyboard[1]) != 2 || keyboard[0][0].URL != "https://example.com" || keyboard[1][0].Text != "Политика" || keyboard[1][1].Text != "Отзывы" {
+		t.Fatalf("wrong configured keyboard: %+v", keyboard)
+	}
+	settings.Content.StartMenu.Buttons = []runtimeconfig.TelegramStartButton{}
+	_, _, keyboard, err = buildContentPreview("start", settings, nil, nil)
+	if err != nil || len(keyboard) != 0 {
+		t.Fatalf("removed buttons reappeared: %+v %v", keyboard, err)
+	}
+}
+
 func TestNotificationsPreviewCannotChangeTelegramPreference(t *testing.T) {
 	s := runtimeconfig.DefaultSettings()
 	s.Content.StartMenu.NotificationsButton.Enabled = true

@@ -35,7 +35,6 @@ var (
 	customEmojiTagPattern = regexp.MustCompile(`(?is)<tg-emoji\s+emoji-id=["']([0-9]{5,32})["'][^>]*>.*?</tg-emoji>`)
 	promoCodePattern      = regexp.MustCompile(`^[A-Z0-9_-]{3,32}$`)
 	bannerIDPattern       = regexp.MustCompile(`^banner_[1-9][0-9]*$`)
-	homeButtonIDPattern   = regexp.MustCompile(`^home_button_[1-9][0-9]*$`)
 	bannerUploadPattern   = regexp.MustCompile(`^/mini-app/uploads/banner-[0-9a-f]{16}\.(png|gif|mp4)$`)
 )
 
@@ -178,12 +177,38 @@ type TelegramSupportSettings struct {
 }
 
 type TelegramStartMenuSettings struct {
+	Buttons                []TelegramStartButton          `json:"buttons"`
 	NotificationsButton    OptionalTelegramButtonSettings `json:"notificationsButton"`
 	NotificationsOffButton TelegramButtonSettings         `json:"notificationsOffButton"`
 	TrialButton            TelegramButtonSettings         `json:"trialButton"`
 	DashboardButton        TelegramButtonSettings         `json:"dashboardButton"`
 	PlansButton            TelegramButtonSettings         `json:"plansButton"`
 	SupportButton          TelegramButtonSettings         `json:"supportButton"`
+}
+
+type TelegramStartButton struct {
+	ID                string `json:"id"`
+	Kind              string `json:"kind"`
+	Target            string `json:"target,omitempty"`
+	Row               int    `json:"row"`
+	Text              string `json:"text"`
+	IconCustomEmojiID string `json:"iconCustomEmojiId,omitempty"`
+	Style             string `json:"style,omitempty"`
+}
+
+var startMenuPages = []string{"dashboard", "buy", "gift", "setup", "support", "faq", "reviews", "referrals", "partner", "servers", "settings", "media", "login-methods", "payments", "terms", "privacy", "admin"}
+
+func DefaultStartButtons(menu TelegramStartMenuSettings) []TelegramStartButton {
+	buttons := []TelegramStartButton{
+		{ID: "trial", Kind: "trial", Row: 0, Text: menu.TrialButton.Text, IconCustomEmojiID: menu.TrialButton.IconCustomEmojiID, Style: menu.TrialButton.Style},
+		{ID: "dashboard", Kind: "page", Target: "dashboard", Row: 1, Text: menu.DashboardButton.Text, IconCustomEmojiID: menu.DashboardButton.IconCustomEmojiID, Style: menu.DashboardButton.Style},
+		{ID: "plans", Kind: "plans", Row: 2, Text: menu.PlansButton.Text, IconCustomEmojiID: menu.PlansButton.IconCustomEmojiID, Style: menu.PlansButton.Style},
+		{ID: "support", Kind: "page", Target: "support", Row: 3, Text: menu.SupportButton.Text, IconCustomEmojiID: menu.SupportButton.IconCustomEmojiID, Style: menu.SupportButton.Style},
+	}
+	if menu.NotificationsButton.Enabled {
+		buttons = append(buttons, TelegramStartButton{ID: "notifications", Kind: "notifications", Row: 4, Text: menu.NotificationsButton.Text, IconCustomEmojiID: menu.NotificationsButton.IconCustomEmojiID, Style: menu.NotificationsButton.Style})
+	}
+	return buttons
 }
 
 type TelegramCommerceSettings struct {
@@ -349,10 +374,6 @@ type LayoutElement struct {
 	Group             string   `json:"group,omitempty"`
 	PromoCode         string   `json:"promoCode,omitempty"`
 	NotificationText  string   `json:"notificationText,omitempty"`
-	ButtonText        string   `json:"buttonText,omitempty"`
-	ButtonTargetType  string   `json:"buttonTargetType,omitempty"`
-	ButtonTarget      string   `json:"buttonTarget,omitempty"`
-	ButtonColor       string   `json:"buttonColor,omitempty"`
 	IconBubble        *bool    `json:"iconBubble,omitempty"`
 	CornerRadius      int      `json:"cornerRadius"`
 	TextScale         int      `json:"textScale,omitempty"`
@@ -888,6 +909,19 @@ func LocalizeTelegramDefaults(content ContentSettings, language string) ContentS
 	}
 	content.StartMenu.NotificationsButton.Text = localized(content.StartMenu.NotificationsButton.Text, "Уведомления: вкл.", "Notifications: on", "اعلان‌ها: روشن")
 	content.StartMenu.NotificationsOffButton.Text = localized(content.StartMenu.NotificationsOffButton.Text, "Уведомления: выкл.", "Notifications: off", "اعلان‌ها: خاموش")
+	for index := range content.StartMenu.Buttons {
+		button := &content.StartMenu.Buttons[index]
+		switch button.ID {
+		case "trial":
+			button.Text = localized(button.Text, "Попробовать бесплатно", "Try for free", "استفاده آزمایشی")
+		case "dashboard":
+			button.Text = localized(button.Text, "Вход", "Account", "حساب کاربری")
+		case "plans":
+			button.Text = localized(button.Text, "Тарифы", "Plans", "تعرفه‌ها")
+		case "support":
+			button.Text = localized(button.Text, "Чат с поддержкой", "Support chat", "گفت‌وگو با پشتیبانی")
+		}
+	}
 
 	content.Commerce.TariffsText = localized(content.Commerce.TariffsText, `<b><tg-emoji emoji-id="5206626000665868017">☺️</tg-emoji> Выберите подходящий тариф</b>`, `<b><tg-emoji emoji-id="5206626000665868017">☺️</tg-emoji> Choose a plan</b>`, `<b><tg-emoji emoji-id="5206626000665868017">☺️</tg-emoji> یک تعرفه انتخاب کنید</b>`)
 	content.Commerce.PaymentMethodsText = localized(content.Commerce.PaymentMethodsText, `<b><tg-emoji emoji-id="5192678313415434135">☺️</tg-emoji> Выберите способ оплаты</b>`, `<b><tg-emoji emoji-id="5192678313415434135">☺️</tg-emoji> Choose a payment method</b>`, `<b><tg-emoji emoji-id="5192678313415434135">☺️</tg-emoji> روش پرداخت را انتخاب کنید</b>`)
@@ -1096,8 +1130,6 @@ func defaultDashboardCornerRadius(id string) int {
 		return 14
 	case bannerIDPattern.MatchString(id):
 		return 16
-	case homeButtonIDPattern.MatchString(id):
-		return 22
 	default:
 		return 0
 	}
@@ -1896,6 +1928,68 @@ func normalizeTelegramContent(value *ContentSettings, defaults ContentSettings, 
 	if err := normalizeTelegramButton(&value.StartMenu.NotificationsOffButton, defaults.StartMenu.NotificationsOffButton); err != nil {
 		return err
 	}
+	if value.StartMenu.Buttons == nil {
+		value.StartMenu.Buttons = DefaultStartButtons(value.StartMenu)
+	}
+	if len(value.StartMenu.Buttons) > 30 {
+		return errors.New("too many start menu buttons")
+	}
+	seenStartButtons := map[string]bool{}
+	startRowCounts := map[int]int{}
+	for index := range value.StartMenu.Buttons {
+		button := &value.StartMenu.Buttons[index]
+		button.ID = strings.ToLower(strings.TrimSpace(button.ID))
+		button.Kind = strings.ToLower(strings.TrimSpace(button.Kind))
+		button.Target = strings.TrimSpace(button.Target)
+		button.Text = strings.TrimSpace(button.Text)
+		if !elementIDPattern.MatchString(button.ID) || seenStartButtons[button.ID] {
+			return fmt.Errorf("invalid or duplicate start button %q", button.ID)
+		}
+		seenStartButtons[button.ID] = true
+		if button.Row < 0 || button.Row > 29 {
+			return fmt.Errorf("invalid row for start button %q", button.ID)
+		}
+		startRowCounts[button.Row]++
+		if startRowCounts[button.Row] > 8 {
+			return fmt.Errorf("too many buttons in start menu row %d", button.Row+1)
+		}
+		if utf8.RuneCountInString(button.Text) < 1 || utf8.RuneCountInString(button.Text) > 64 {
+			return fmt.Errorf("invalid text for start button %q", button.ID)
+		}
+		var err error
+		button.IconCustomEmojiID, err = NormalizeTelegramCustomEmojiID(button.IconCustomEmojiID)
+		if err != nil {
+			return fmt.Errorf("start button %q: %w", button.ID, err)
+		}
+		button.Style, err = NormalizeTelegramButtonStyle(button.Style)
+		if err != nil {
+			return fmt.Errorf("start button %q: %w", button.ID, err)
+		}
+		switch button.Kind {
+		case "page":
+			validCustomPage := false
+			if strings.HasPrefix(button.Target, "custom-page:") {
+				id := strings.TrimPrefix(button.Target, "custom-page:")
+				for _, link := range value.CustomLinks {
+					if link.ID == id && link.Type == "page" {
+						validCustomPage = true
+						break
+					}
+				}
+			}
+			if !contains(startMenuPages, button.Target) && !validCustomPage {
+				return fmt.Errorf("invalid page for start button %q", button.ID)
+			}
+		case "url":
+			if !isSafeWebURL(button.Target) || len(button.Target) > 2048 {
+				return fmt.Errorf("invalid URL for start button %q", button.ID)
+			}
+		case "trial", "plans", "notifications":
+			button.Target = ""
+		default:
+			return fmt.Errorf("invalid kind for start button %q", button.ID)
+		}
+	}
 
 	value.Commerce.TariffsText = normalizedRequiredText(value.Commerce.TariffsText, defaults.Commerce.TariffsText, 3500)
 	value.Commerce.PaymentMethodsText = normalizedRequiredText(value.Commerce.PaymentMethodsText, defaults.Commerce.PaymentMethodsText, 3500)
@@ -2170,7 +2264,7 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings, migrate bool
 	// would make a wrapper and its children move at the same time in the editor.
 	filtered := value.Elements[:0]
 	for _, item := range value.Elements {
-		if item.Area == "dashboard" && contains([]string{"brand", "subscription", "actions"}, item.ID) {
+		if item.Area == "dashboard" && (contains([]string{"brand", "subscription", "actions"}, item.ID) || strings.HasPrefix(item.ID, "home_button_")) {
 			continue
 		}
 		filtered = append(filtered, item)
@@ -2229,30 +2323,7 @@ func validateLayout(value *LayoutSettings, defaults LayoutSettings, migrate bool
 		isPromoWidget := item.Area == "dashboard" && item.ID == "promo_widget"
 		isNotificationWidget := item.Area == "dashboard" && item.ID == "notification_widget"
 		isBanner := item.Area == "dashboard" && bannerIDPattern.MatchString(item.ID)
-		isHomeButton := item.Area == "dashboard" && homeButtonIDPattern.MatchString(item.ID)
 		isDashboardElement := item.Area == "dashboard"
-		if isHomeButton {
-			item.ButtonText = limit(strings.TrimSpace(item.ButtonText), 80)
-			item.ButtonTargetType = strings.ToLower(strings.TrimSpace(item.ButtonTargetType))
-			item.ButtonTarget = strings.TrimSpace(item.ButtonTarget)
-			if item.ButtonText == "" || !contains([]string{"page", "url"}, item.ButtonTargetType) {
-				return fmt.Errorf("invalid home button for %q", key)
-			}
-			if item.ButtonTargetType == "page" {
-				validPage := contains([]string{"dashboard", "buy", "gift", "setup", "support", "faq", "reviews", "referrals", "partner", "servers", "settings", "media", "login-methods", "payments", "terms", "privacy", "admin"}, item.ButtonTarget)
-				validCustomPage := strings.HasPrefix(item.ButtonTarget, "custom-page:") && elementIDPattern.MatchString(strings.TrimPrefix(item.ButtonTarget, "custom-page:"))
-				if !validPage && !validCustomPage {
-					return fmt.Errorf("invalid home button page for %q", key)
-				}
-			} else if !isSafeWebURL(item.ButtonTarget) {
-				return fmt.Errorf("invalid home button link for %q", key)
-			}
-			if item.ButtonColor != "" && !hexColorPattern.MatchString(item.ButtonColor) {
-				return fmt.Errorf("invalid home button color for %q", key)
-			}
-		} else {
-			item.ButtonText, item.ButtonTargetType, item.ButtonTarget, item.ButtonColor = "", "", "", ""
-		}
 		if isDashboardElement {
 			if migrate {
 				item.CornerRadius = defaultDashboardCornerRadius(item.ID)

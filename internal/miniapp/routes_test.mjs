@@ -16,6 +16,7 @@ test("all cabinet sections have clean reloadable routes, with or without a subdo
   const custom = appRoutePath({page: "custom-page", customPageID: "help-guide", cabinetDedicated: true});
   assert.equal(custom, "/pages/help-guide");
   assert.equal(readAppRoute({pathname: custom}).customPageID, "help-guide");
+  assert.equal(readAppRoute({pathname: "/mini-app/", search: "?page=custom-page&customPageID=help-guide"}).customPageID, "help-guide");
 });
 
 test("admin sections and shared pages retain their context on reload", () => {

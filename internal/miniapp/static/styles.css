@@ -11075,6 +11075,14 @@ body.has-open-modal .admin-save-bar {
 .admin-gift-buttons__head > div { display: grid; gap: 2px; }
 .admin-gift-buttons__head strong { font-size: 11px; }
 .admin-gift-buttons__head span { color: var(--muted); font-size: 9px; }
+.admin-start-buttons__list { display: grid; gap: 8px; margin-top: 12px; }
+.admin-start-button { border-radius: 14px; overflow: hidden; }
+.admin-start-button .admin-telegram-button__body { display: grid; gap: 12px; }
+.admin-start-button__actions { display: flex; justify-content: flex-end; gap: 8px; }
+.admin-start-button__actions button { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 9px; background: var(--control-bg); color: var(--icon-color); }
+.admin-start-button__actions button:last-child { color: var(--danger); }
+.admin-start-button__actions button:disabled { opacity: .35; }
+.admin-start-button__actions svg { width: 16px; height: 16px; }
 
 @media (max-width: 360px) {
   .gift-plan-row { min-height: 54px; padding-inline: 13px; }
@@ -12145,26 +12153,6 @@ body.is-layout-editing .modal--banner-editor {
 	gap: 0;
 	padding-top: 4px;
 }
-
-.admin-home-button-fields { display: grid; gap: 12px; padding: 8px 0 18px; border-bottom: 1px solid var(--line-soft); }
-.admin-home-button-fields label { display: grid; gap: 7px; color: var(--text); font-size: 10px; font-weight: 750; }
-.admin-home-button-fields input:not([type="color"]), .admin-home-button-fields select {
-	width: 100%; min-height: 42px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px;
-	background: var(--control-bg); color: var(--text); font: inherit; outline: none;
-}
-.admin-home-button-fields input:focus-visible, .admin-home-button-fields select:focus-visible { border-color: var(--accent); }
-.admin-home-button-fields__color { display: flex; align-items: center; gap: 9px; }
-.admin-home-button-fields__color input[type="color"] { width: 48px; height: 42px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--control-bg); }
-.admin-home-button-fields__color button { flex: 1; min-height: 42px; border: 1px solid var(--line); border-radius: 10px; background: var(--control-bg); color: var(--text); font-weight: 750; }
-.runtime-layout-item[data-runtime-id^="home_button_"] > .dashboard-custom-button {
-	width: 100%; min-height: var(--runtime-height, 52px); height: 100%;
-	border-radius: var(--runtime-corner-radius, 22px);
-}
-.runtime-layout-item[data-runtime-id^="home_button_"] > .dashboard-custom-button[style*="--home-button-color"] {
-	background: linear-gradient(color-mix(in srgb, var(--home-button-color) 24%, transparent), color-mix(in srgb, var(--home-button-color) 12%, transparent)), var(--control-bg);
-	border-color: color-mix(in srgb, var(--home-button-color) 55%, var(--control-border));
-}
-.runtime-layout-item[data-runtime-id^="home_button_"] > .dashboard-custom-button:hover { filter: brightness(1.12); }
 
 .admin-layout-style-range {
 	display: grid;

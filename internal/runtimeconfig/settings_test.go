@@ -1455,6 +1455,38 @@ func TestNormalizeAndValidateRejectsReminderButtonColor(t *testing.T) {
 	}
 }
 
+func TestStartMenuButtonsCanBeRemovedAndValidateTargets(t *testing.T) {
+	settings := DefaultSettings()
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatal(err)
+	}
+	if len(settings.Content.StartMenu.Buttons) < 4 {
+		t.Fatalf("legacy menu was not migrated: %+v", settings.Content.StartMenu.Buttons)
+	}
+	settings.Content.StartMenu.Buttons = []TelegramStartButton{}
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatal(err)
+	}
+	if len(settings.Content.StartMenu.Buttons) != 0 {
+		t.Fatal("removed buttons returned")
+	}
+	button := TelegramStartButton{ID: "privacy", Kind: "page", Target: "privacy", Row: 0, Text: "Политика", Style: "primary"}
+	settings.Content.StartMenu.Buttons = []TelegramStartButton{button}
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("valid button rejected: %v", err)
+	}
+	if settings.Content.StartMenu.Buttons[0] != button {
+		t.Fatalf("button changed: %+v", settings.Content.StartMenu.Buttons[0])
+	}
+	for _, test := range []struct{ kind, target string }{{"page", "missing"}, {"url", "javascript:alert(1)"}} {
+		candidate := DefaultSettings()
+		candidate.Content.StartMenu.Buttons = []TelegramStartButton{{ID: "bad", Kind: test.kind, Target: test.target, Text: "Open"}}
+		if err := NormalizeAndValidate(&candidate); err == nil {
+			t.Fatalf("unsafe target accepted: %+v", test)
+		}
+	}
+}
+
 func TestNormalizeAndValidateMigratesTelegramContentOnce(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Version = CurrentVersion - 1
@@ -1628,42 +1660,6 @@ func hasLayoutElement(items []LayoutElement, area, id string) bool {
 		}
 	}
 	return false
-}
-
-func TestNormalizeAndValidateHomeButtons(t *testing.T) {
-	button := LayoutElement{ID: "home_button_1", Area: "dashboard", Order: 30, Visible: true, Width: 78, Height: 48, Align: "center", ButtonText: "Отзывы", ButtonTargetType: "page", ButtonTarget: "reviews", ButtonColor: "#69a8d4"}
-	settings := DefaultSettings()
-	settings.Layout.Elements = append(settings.Layout.Elements, button)
-	if err := NormalizeAndValidate(&settings); err != nil {
-		t.Fatalf("valid page button: %v", err)
-	}
-	found := false
-	for _, item := range settings.Layout.Elements {
-		if item.ID == button.ID {
-			found = true
-			if item.ButtonText != button.ButtonText || item.ButtonTarget != button.ButtonTarget || item.ButtonColor != button.ButtonColor {
-				t.Fatalf("button settings lost: %+v", item)
-			}
-		}
-	}
-	if !found {
-		t.Fatal("button missing after normalization")
-	}
-	for _, test := range []struct{ name, kind, target, color string }{
-		{"javascript URL", "url", "javascript:alert(1)", ""},
-		{"unknown page", "page", "does-not-exist", ""},
-		{"invalid color", "page", "reviews", "red"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			candidate := DefaultSettings()
-			item := button
-			item.ButtonTargetType, item.ButtonTarget, item.ButtonColor = test.kind, test.target, test.color
-			candidate.Layout.Elements = append(candidate.Layout.Elements, item)
-			if err := NormalizeAndValidate(&candidate); err == nil {
-				t.Fatal("unsafe button accepted")
-			}
-		})
-	}
 }
 
 func TestNormalizeAndValidateDashboardBanner(t *testing.T) {

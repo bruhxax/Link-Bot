@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/go-telegram/bot"
@@ -37,7 +38,12 @@ func (h Handler) miniAppURL(page string) string {
 	}
 
 	query := parsed.Query()
-	query.Set("page", page)
+	if strings.HasPrefix(page, "custom-page:") {
+		query.Set("page", "custom-page")
+		query.Set("customPageID", strings.TrimPrefix(page, "custom-page:"))
+	} else {
+		query.Set("page", page)
+	}
 	parsed.RawQuery = query.Encode()
 
 	return parsed.String()
@@ -57,42 +63,85 @@ func p2PCheckoutURL(planID string) string {
 }
 
 func (h Handler) miniAppKeyboard(lang string) [][]models.InlineKeyboardButton {
-	if !h.hasMiniApp() {
-		return nil
-	}
-
-	settings := h.telegramStartMenuSettings()
-	dashboardButton := telegramButton(settings.DashboardButton, h.translation.GetText(lang, "web_app_button_text"), miniAppDashboardEmojiID)
-	dashboardButton.WebApp = &models.WebAppInfo{URL: h.miniAppURL("dashboard")}
-	plansButton := telegramButton(settings.PlansButton, h.miniAppTariffsButtonText(lang), miniAppTariffsEmojiID)
-	plansButton.CallbackData = CallbackBuy
-	supportButton := telegramButton(settings.SupportButton, h.translation.GetText(lang, "support_chat_button_text"), miniAppSupportEmojiID)
-	supportButton.WebApp = &models.WebAppInfo{URL: h.miniAppURL("support")}
-
-	return [][]models.InlineKeyboardButton{{dashboardButton}, {plansButton}, {supportButton}}
+	return h.configuredMiniAppKeyboard(context.Background(), nil, lang)
 }
 
 func (h Handler) miniAppKeyboardForCustomer(ctx context.Context, customer *database.Customer, lang string) [][]models.InlineKeyboardButton {
-	keyboard := h.miniAppKeyboard(lang)
-	if len(keyboard) == 0 || customer == nil {
-		return keyboard
-	}
+	return h.configuredMiniAppKeyboard(ctx, customer, lang)
+}
 
-	keyboard = h.appendCustomerNotificationsButton(ctx, keyboard, customer)
-	trialAllowed, err := h.canOfferTrial(ctx, customer)
-	if err != nil {
-		slog.Error("Error checking trial eligibility for start keyboard", "error", err)
-		return keyboard
+func (h Handler) configuredMiniAppKeyboard(ctx context.Context, customer *database.Customer, lang string) [][]models.InlineKeyboardButton {
+	if !h.hasMiniApp() {
+		return nil
 	}
-	if !trialAllowed {
-		return keyboard
+	menu := h.telegramStartMenuSettings()
+	buttons := menu.Buttons
+	if buttons == nil {
+		buttons = runtimeconfig.DefaultStartButtons(menu)
 	}
-
-	trialButton := telegramButton(h.telegramStartMenuSettings().TrialButton, "Попробовать бесплатно", miniAppTrialEmojiID)
-	trialButton.CallbackData = CallbackActivateTrial
-	trialRow := []models.InlineKeyboardButton{trialButton}
-
-	return append([][]models.InlineKeyboardButton{trialRow}, keyboard...)
+	needsTrial, needsNotifications := false, false
+	for _, item := range buttons {
+		needsTrial = needsTrial || item.Kind == "trial"
+		needsNotifications = needsNotifications || item.Kind == "notifications"
+	}
+	trialAllowed := false
+	if needsTrial && customer != nil {
+		allowed, err := h.canOfferTrial(ctx, customer)
+		if err != nil {
+			slog.Error("Error checking trial eligibility for start keyboard", "error", err)
+		} else {
+			trialAllowed = allowed
+		}
+	}
+	notificationsKnown, subscribed := false, false
+	if needsNotifications && customer != nil {
+		var err error
+		subscribed, err = h.customerRepository.BroadcastSubscribed(ctx, customer.ID)
+		if err != nil {
+			slog.Warn("bot: load Telegram broadcast preference", "error", err)
+		} else {
+			notificationsKnown = true
+		}
+	}
+	rows := map[int][]models.InlineKeyboardButton{}
+	for _, item := range buttons {
+		style := runtimeconfig.TelegramButtonSettings{Text: item.Text, IconCustomEmojiID: item.IconCustomEmojiID, Style: item.Style}
+		button := telegramButton(style, item.Text, "")
+		switch item.Kind {
+		case "trial":
+			if !trialAllowed {
+				continue
+			}
+			button.CallbackData = CallbackActivateTrial
+		case "plans":
+			button.CallbackData = CallbackBuy
+		case "notifications":
+			if !notificationsKnown {
+				continue
+			}
+			button = notificationsMenuButton(menu, subscribed)
+		case "page":
+			if item.Target == "admin" && (customer == nil || !h.isAdminTelegramID(customer.TelegramID)) {
+				continue
+			}
+			button.WebApp = &models.WebAppInfo{URL: h.miniAppURL(item.Target)}
+		case "url":
+			button.URL = item.Target
+		default:
+			continue
+		}
+		rows[item.Row] = append(rows[item.Row], button)
+	}
+	order := make([]int, 0, len(rows))
+	for row := range rows {
+		order = append(order, row)
+	}
+	sort.Ints(order)
+	keyboard := make([][]models.InlineKeyboardButton, 0, len(order))
+	for _, row := range order {
+		keyboard = append(keyboard, rows[row])
+	}
+	return keyboard
 }
 
 func (h Handler) telegramStartMenuSettings() runtimeconfig.TelegramStartMenuSettings {

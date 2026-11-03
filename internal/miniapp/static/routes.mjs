@@ -31,7 +31,7 @@ export function readAppRoute({ pathname = "/", search = "", adminDedicated = fal
   }
   const page = Object.keys(CUSTOMER_ROUTES).find(key => CUSTOMER_ROUTES[key] === cabinetPath);
   if (page) return { page, section: "home" };
-  if (legacy || path === "cabinet") return { page: query.get("page") || "", section: query.get("section") || "" };
+  if (legacy || path === "cabinet") return { page: query.get("page") || "", section: query.get("section") || "", customPageID: query.get("customPageID") || "" };
   return null;
 }
 

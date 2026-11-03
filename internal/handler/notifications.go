@@ -23,6 +23,21 @@ func notificationsMenuButton(menu runtimeconfig.TelegramStartMenuSettings, subsc
 	if subscribed {
 		settings, callback = menu.NotificationsButton.TelegramButtonSettings, CallbackBroadcastUnsubscribe
 	}
+	for _, item := range menu.Buttons {
+		if item.Kind != "notifications" {
+			continue
+		}
+		if subscribed || item.Text != menu.NotificationsButton.Text {
+			settings.Text = item.Text
+		}
+		if item.IconCustomEmojiID != "" {
+			settings.IconCustomEmojiID = item.IconCustomEmojiID
+		}
+		if item.Style != "" {
+			settings.Style = item.Style
+		}
+		break
+	}
 	button := telegramButton(settings, settings.Text, "")
 	button.CallbackData = callback
 	return button

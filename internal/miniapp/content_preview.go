@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/go-telegram/bot/models"
@@ -100,7 +101,12 @@ func previewWebAppButton(settings runtimeconfig.TelegramButtonSettings, page str
 	button := previewButton(settings, fallback)
 	if parsed, err := url.Parse(config.GetMiniAppURL()); err == nil && parsed.Host != "" {
 		query := parsed.Query()
-		query.Set("page", page)
+		if strings.HasPrefix(page, "custom-page:") {
+			query.Set("page", "custom-page")
+			query.Set("customPageID", strings.TrimPrefix(page, "custom-page:"))
+		} else {
+			query.Set("page", page)
+		}
 		parsed.RawQuery = query.Encode()
 		button.CallbackData = ""
 		button.WebApp = &models.WebAppInfo{URL: parsed.String()}
@@ -121,12 +127,39 @@ func buildContentPreview(kind string, settings runtimeconfig.Settings, plans []p
 		return renderWithdrawalNotification(cfg, item, 1), "", keyboard, nil
 	case "start":
 		menu := content.StartMenu
-		if settings.Features["trials"] && settings.Trial.Enabled {
-			keyboard = append(keyboard, []models.InlineKeyboardButton{previewButton(menu.TrialButton, telegram.CallbackActivateTrial)})
+		buttons := menu.Buttons
+		if buttons == nil {
+			buttons = runtimeconfig.DefaultStartButtons(menu)
 		}
-		keyboard = append(keyboard, []models.InlineKeyboardButton{previewWebAppButton(menu.DashboardButton, "dashboard", telegram.CallbackStart)}, []models.InlineKeyboardButton{previewButton(menu.PlansButton, telegram.CallbackBuy)}, []models.InlineKeyboardButton{previewWebAppButton(menu.SupportButton, "support", telegram.CallbackStart)})
-		if menu.NotificationsButton.Enabled {
-			keyboard = append(keyboard, []models.InlineKeyboardButton{previewButton(menu.NotificationsButton.TelegramButtonSettings, telegram.CallbackStart)})
+		rows := map[int][]models.InlineKeyboardButton{}
+		for _, item := range buttons {
+			style := runtimeconfig.TelegramButtonSettings{Text: item.Text, IconCustomEmojiID: item.IconCustomEmojiID, Style: item.Style}
+			var button models.InlineKeyboardButton
+			switch item.Kind {
+			case "trial":
+				if !settings.Features["trials"] || !settings.Trial.Enabled {
+					continue
+				}
+				button = previewButton(style, telegram.CallbackStart)
+			case "plans", "notifications":
+				button = previewButton(style, telegram.CallbackStart)
+			case "page":
+				button = previewWebAppButton(style, item.Target, telegram.CallbackStart)
+			case "url":
+				button = previewButton(style, "")
+				button.URL = item.Target
+			default:
+				continue
+			}
+			rows[item.Row] = append(rows[item.Row], button)
+		}
+		order := make([]int, 0, len(rows))
+		for row := range rows {
+			order = append(order, row)
+		}
+		sort.Ints(order)
+		for _, row := range order {
+			keyboard = append(keyboard, rows[row])
 		}
 		return content.StartTextRU, content.StartImage, keyboard, nil
 	case "verification":
