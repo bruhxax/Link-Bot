@@ -139,14 +139,22 @@ type NodeStatus struct {
 	CountryCode string
 	IsOnline    bool
 	IsDisabled  bool
+	Inbounds    []NodeInbound
+}
+
+type NodeInbound struct {
+	UUID        string
+	ProfileUUID string
 }
 
 type HostStatus struct {
-	UUID       string
-	Remark     string
-	Nodes      []string
-	IsDisabled bool
-	IsHidden   bool
+	UUID        string
+	Remark      string
+	Nodes       []string
+	IsDisabled  bool
+	IsHidden    bool
+	InboundUUID string
+	ProfileUUID string
 }
 
 type headerTransport struct {
@@ -867,12 +875,18 @@ func (r *Client) GetNodesStatus(ctx context.Context) ([]NodeStatus, error) {
 
 	var payload struct {
 		Response []struct {
-			UUID        string `json:"uuid"`
-			Name        string `json:"name"`
-			Address     string `json:"address"`
-			CountryCode string `json:"countryCode"`
-			IsConnected bool   `json:"isConnected"`
-			IsDisabled  bool   `json:"isDisabled"`
+			UUID          string `json:"uuid"`
+			Name          string `json:"name"`
+			Address       string `json:"address"`
+			CountryCode   string `json:"countryCode"`
+			IsConnected   bool   `json:"isConnected"`
+			IsDisabled    bool   `json:"isDisabled"`
+			ConfigProfile struct {
+				ActiveInbounds []struct {
+					UUID        string `json:"uuid"`
+					ProfileUUID string `json:"profileUuid"`
+				} `json:"activeInbounds"`
+			} `json:"configProfile"`
 		} `json:"response"`
 	}
 
@@ -887,6 +901,10 @@ func (r *Client) GetNodesStatus(ctx context.Context) ([]NodeStatus, error) {
 			name = strings.TrimSpace(node.Address)
 		}
 
+		inbounds := make([]NodeInbound, 0, len(node.ConfigProfile.ActiveInbounds))
+		for _, inbound := range node.ConfigProfile.ActiveInbounds {
+			inbounds = append(inbounds, NodeInbound{UUID: strings.TrimSpace(inbound.UUID), ProfileUUID: strings.TrimSpace(inbound.ProfileUUID)})
+		}
 		result = append(result, NodeStatus{
 			UUID:        strings.TrimSpace(node.UUID),
 			Name:        name,
@@ -894,6 +912,7 @@ func (r *Client) GetNodesStatus(ctx context.Context) ([]NodeStatus, error) {
 			CountryCode: strings.TrimSpace(node.CountryCode),
 			IsOnline:    node.IsConnected && !node.IsDisabled,
 			IsDisabled:  node.IsDisabled,
+			Inbounds:    inbounds,
 		})
 	}
 
@@ -922,6 +941,10 @@ func (r *Client) GetHostsStatus(ctx context.Context) ([]HostStatus, error) {
 			Nodes      []string `json:"nodes"`
 			IsDisabled bool     `json:"isDisabled"`
 			IsHidden   bool     `json:"isHidden"`
+			Inbound    struct {
+				ProfileUUID string `json:"configProfileUuid"`
+				UUID        string `json:"configProfileInboundUuid"`
+			} `json:"inbound"`
 		} `json:"response"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
@@ -933,7 +956,7 @@ func (r *Client) GetHostsStatus(ctx context.Context) ([]HostStatus, error) {
 		if remark == "" {
 			remark = strings.TrimSpace(host.Address)
 		}
-		result = append(result, HostStatus{UUID: host.UUID, Remark: remark, Nodes: host.Nodes, IsDisabled: host.IsDisabled, IsHidden: host.IsHidden})
+		result = append(result, HostStatus{UUID: host.UUID, Remark: remark, Nodes: host.Nodes, IsDisabled: host.IsDisabled, IsHidden: host.IsHidden, InboundUUID: host.Inbound.UUID, ProfileUUID: host.Inbound.ProfileUUID})
 	}
 	return result, nil
 }

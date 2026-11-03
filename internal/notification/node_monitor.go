@@ -57,7 +57,7 @@ func (m *NodeMonitor) check(ctx context.Context) error {
 			continue
 		}
 		if node.IsOnline {
-			if err := m.recoverNode(ctx, node, settings); err != nil {
+			if err := m.recoverNode(ctx, node, nodes, settings); err != nil {
 				slog.Warn("node recovery failed", "node", node.Name, "error", err)
 			}
 			continue
@@ -67,7 +67,7 @@ func (m *NodeMonitor) check(ctx context.Context) error {
 			return err
 		}
 		if !outage.DownNotified {
-			hosts := m.hostNames(ctx, node.UUID)
+			hosts := m.hostNames(ctx, node.UUID, nodes)
 			if err := m.send(ctx, settings.Content.NodeNotification.DownText, outage.Name, hosts, time.Since(outage.OfflineSince)); err != nil {
 				slog.Warn("node down notification failed", "node", node.Name, "error", err)
 			} else if err := m.store.MarkNotified(ctx, node.UUID); err != nil {
@@ -94,13 +94,9 @@ func (m *NodeMonitor) hideHosts(ctx context.Context, node remnawave.NodeStatus, 
 	if err != nil {
 		return err
 	}
-	active := map[string]bool{}
-	for _, item := range nodes {
-		active[strings.ToLower(item.UUID)] = item.IsOnline
-	}
 	var toHide []string
 	for _, host := range hosts {
-		if host.UUID == "" || host.IsDisabled || host.IsHidden || !hostOnlyOnInactiveNodes(host, node.UUID, active) {
+		if host.UUID == "" || host.IsDisabled || host.IsHidden || !hostOnlyOnInactiveNodes(host, node.UUID, nodes) {
 			continue
 		}
 		// Persist ownership before changing the panel, so a restart can restore it.
@@ -112,9 +108,17 @@ func (m *NodeMonitor) hideHosts(ctx context.Context, node remnawave.NodeStatus, 
 	return m.panel.SetHostsDisabled(ctx, toHide, true)
 }
 
-func hostOnlyOnInactiveNodes(host remnawave.HostStatus, nodeUUID string, active map[string]bool) bool {
+func hostOnlyOnInactiveNodes(host remnawave.HostStatus, nodeUUID string, nodes []remnawave.NodeStatus) bool {
 	linked := false
-	for _, id := range host.Nodes {
+	connected := hostNodeIDs(host, nodes)
+	if len(connected) == 0 {
+		return false
+	}
+	active := make(map[string]bool, len(nodes))
+	for _, node := range nodes {
+		active[strings.ToLower(node.UUID)] = node.IsOnline
+	}
+	for _, id := range connected {
 		id = strings.ToLower(id)
 		if id == strings.ToLower(nodeUUID) {
 			linked = true
@@ -122,6 +126,27 @@ func hostOnlyOnInactiveNodes(host remnawave.HostStatus, nodeUUID string, active 
 		available, known := active[id]
 		if !known || available {
 			return false
+		}
+	}
+	return linked
+}
+
+// Remnawave may leave hosts[].nodes empty for hosts linked through a profile
+// inbound. In that case the exact active inbound identifies the node(s).
+func hostNodeIDs(host remnawave.HostStatus, nodes []remnawave.NodeStatus) []string {
+	if len(host.Nodes) > 0 {
+		return host.Nodes
+	}
+	if host.InboundUUID == "" || host.ProfileUUID == "" {
+		return nil
+	}
+	var linked []string
+	for _, node := range nodes {
+		for _, inbound := range node.Inbounds {
+			if strings.EqualFold(inbound.UUID, host.InboundUUID) && strings.EqualFold(inbound.ProfileUUID, host.ProfileUUID) {
+				linked = append(linked, node.UUID)
+				break
+			}
 		}
 	}
 	return linked
@@ -145,7 +170,7 @@ func (m *NodeMonitor) restoreHosts(ctx context.Context, nodeUUID string) error {
 	return m.store.ForgetHosts(ctx, nodeUUID)
 }
 
-func (m *NodeMonitor) recoverNode(ctx context.Context, node remnawave.NodeStatus, settings runtimeconfig.Settings) error {
+func (m *NodeMonitor) recoverNode(ctx context.Context, node remnawave.NodeStatus, nodes []remnawave.NodeStatus, settings runtimeconfig.Settings) error {
 	outage, exists, err := m.store.Get(ctx, node.UUID)
 	if err != nil || !exists {
 		return err
@@ -163,7 +188,7 @@ func (m *NodeMonitor) recoverNode(ctx context.Context, node remnawave.NodeStatus
 			names = append(names, host.Remark)
 		}
 		if len(names) == 0 {
-			names = m.hostNames(ctx, node.UUID)
+			names = m.hostNames(ctx, node.UUID, nodes)
 		}
 		if err := m.send(ctx, settings.Content.NodeNotification.UpText, node.Name, names, time.Since(outage.OfflineSince)); err != nil {
 			return err
@@ -172,14 +197,14 @@ func (m *NodeMonitor) recoverNode(ctx context.Context, node remnawave.NodeStatus
 	return m.store.Finish(ctx, node.UUID)
 }
 
-func (m *NodeMonitor) hostNames(ctx context.Context, nodeUUID string) []string {
+func (m *NodeMonitor) hostNames(ctx context.Context, nodeUUID string, nodes []remnawave.NodeStatus) []string {
 	hosts, err := m.panel.GetHostsStatus(ctx)
 	if err != nil {
 		return nil
 	}
 	var names []string
 	for _, host := range hosts {
-		for _, id := range host.Nodes {
+		for _, id := range hostNodeIDs(host, nodes) {
 			if strings.EqualFold(id, nodeUUID) {
 				names = append(names, host.Remark)
 				break

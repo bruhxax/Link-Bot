@@ -13,9 +13,12 @@ func TestNodeHostVisibilityAPI(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls = append(calls, r.Method+" "+r.URL.Path)
 		switch r.URL.Path {
+		case "/api/nodes":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"response":[{"uuid":"node-1","name":"Estonia","isConnected":false,"isDisabled":false,"configProfile":{"activeInbounds":[{"uuid":"inbound-1","profileUuid":"profile-1"}]}}]}`))
 		case "/api/hosts":
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"response":[{"uuid":"host-1","remark":"Germany","nodes":["node-1"],"isDisabled":false}]}`))
+			_, _ = w.Write([]byte(`{"response":[{"uuid":"host-1","remark":"Germany","nodes":[],"inbound":{"configProfileInboundUuid":"inbound-1","configProfileUuid":"profile-1"},"isDisabled":false}]}`))
 		case "/api/hosts/bulk/disable", "/api/hosts/bulk/enable":
 			var body struct {
 				UUIDs []string `json:"uuids"`
@@ -30,8 +33,12 @@ func TestNodeHostVisibilityAPI(t *testing.T) {
 	}))
 	defer server.Close()
 	client := NewClient(server.URL, "test-token", "")
+	nodes, err := client.GetNodesStatus(context.Background())
+	if err != nil || len(nodes) != 1 || len(nodes[0].Inbounds) != 1 || nodes[0].Inbounds[0].UUID != "inbound-1" {
+		t.Fatalf("nodes=%+v err=%v", nodes, err)
+	}
 	hosts, err := client.GetHostsStatus(context.Background())
-	if err != nil || len(hosts) != 1 || hosts[0].Remark != "Germany" || len(hosts[0].Nodes) != 1 || hosts[0].Nodes[0] != "node-1" {
+	if err != nil || len(hosts) != 1 || hosts[0].Remark != "Germany" || hosts[0].InboundUUID != "inbound-1" || hosts[0].ProfileUUID != "profile-1" {
 		t.Fatalf("hosts=%+v err=%v", hosts, err)
 	}
 	if err := client.SetHostsDisabled(context.Background(), []string{"host-1"}, true); err != nil {
@@ -40,7 +47,7 @@ func TestNodeHostVisibilityAPI(t *testing.T) {
 	if err := client.SetHostsDisabled(context.Background(), []string{"host-1"}, false); err != nil {
 		t.Fatal(err)
 	}
-	if len(calls) != 3 {
+	if len(calls) != 4 {
 		t.Fatalf("calls=%v", calls)
 	}
 }
