@@ -488,6 +488,8 @@ type planPayload struct {
 	Months                int                          `json:"months"`
 	Days                  int                          `json:"days,omitempty"`
 	PriceRub              int                          `json:"priceRub"`
+	OriginalPriceRub      int                          `json:"originalPriceRub,omitempty"`
+	DiscountEndsAt        string                       `json:"discountEndsAt,omitempty"`
 	PriceStars            int                          `json:"priceStars"`
 	FreeOneTime           bool                         `json:"freeOneTime,omitempty"`
 	TrafficLimitBytes     int64                        `json:"trafficLimitBytes"`
@@ -6731,6 +6733,8 @@ func (h *Handler) buildPlans() []planPayload {
 			Months:                plan.Months,
 			Days:                  plan.Days,
 			PriceRub:              plan.PriceRub,
+			OriginalPriceRub:      plan.OriginalPriceRub,
+			DiscountEndsAt:        plan.DiscountEndsAt,
 			PriceStars:            plan.PriceStars,
 			FreeOneTime:           plan.FreeOneTime,
 			TrafficLimitBytes:     plan.TrafficLimitBytes,

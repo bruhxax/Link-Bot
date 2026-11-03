@@ -81,6 +81,8 @@ func (h *Handler) InlineGiftQueryHandler(ctx context.Context, b *bot.Bot, update
 		price := fmt.Sprintf("%d ₽", plan.PriceRub)
 		if plan.PriceRub <= 0 {
 			price = fmt.Sprintf("%d ⭐", plan.PriceStars)
+		} else if plan.OriginalPriceRub > plan.PriceRub {
+			price = fmt.Sprintf("%d ₽ · было %d ₽", plan.PriceRub, plan.OriginalPriceRub)
 		}
 		mediaKind := "t"
 		if bannerURL != "" {

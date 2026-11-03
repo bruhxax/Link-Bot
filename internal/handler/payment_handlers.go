@@ -640,6 +640,12 @@ func (h Handler) botPlanButtonText(plan planbook.CheckoutPlan, langCode string) 
 	if strings.HasPrefix(strings.ToLower(langCode), "en") {
 		priceLabel = fmt.Sprintf("%d RUB", plan.PriceRub)
 	}
+	if plan.OriginalPriceRub > plan.PriceRub && plan.PriceRub > 0 {
+		priceLabel = fmt.Sprintf("%d → %d ₽", plan.OriginalPriceRub, plan.PriceRub)
+		if strings.HasPrefix(strings.ToLower(langCode), "en") {
+			priceLabel = fmt.Sprintf("%d → %d RUB", plan.OriginalPriceRub, plan.PriceRub)
+		}
+	}
 	if plan.Days > 0 {
 		unit := "дн."
 		if strings.HasPrefix(strings.ToLower(langCode), "en") {

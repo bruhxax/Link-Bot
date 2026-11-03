@@ -151,9 +151,19 @@ func (h *Handler) buildSupportAIContext(ctx context.Context, ticket *database.Su
 	}
 	data["configuredFAQ"] = faqs
 	plans := []map[string]any{}
+	currentPrices := map[string]int{}
+	if h.runtimeSettings != nil {
+		for _, checkout := range h.runtimeSettings.CheckoutPlans() {
+			currentPrices[checkout.ID] = checkout.PriceRub
+		}
+	}
 	for _, plan := range settings.Plans {
 		if plan.Enabled {
-			plans = append(plans, map[string]any{"name": plan.Name, "title": plan.TitleRU, "days": plan.Days, "months": plan.Months, "priceRub": plan.PriceRub, "devices": plan.DeviceLimit, "trafficGB": plan.TrafficGB, "unlimitedTraffic": plan.UnlimitedTraffic})
+			price := plan.PriceRub
+			if current, ok := currentPrices[plan.ID]; ok {
+				price = current
+			}
+			plans = append(plans, map[string]any{"name": plan.Name, "title": plan.TitleRU, "days": plan.Days, "months": plan.Months, "priceRub": price, "devices": plan.DeviceLimit, "trafficGB": plan.TrafficGB, "unlimitedTraffic": plan.UnlimitedTraffic})
 		}
 	}
 	data["currentPlans"] = plans

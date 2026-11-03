@@ -179,7 +179,11 @@ func buildContentPreview(kind string, settings runtimeconfig.Settings, plans []p
 					label = fmt.Sprintf("%d дн.", plan.Days)
 				}
 			}
-			keyboard = append(keyboard, []models.InlineKeyboardButton{{Text: fmt.Sprintf("%s | %d ₽", label, plan.PriceRub), CallbackData: fmt.Sprintf("%s?planId=%s", telegram.CallbackSell, plan.ID)}})
+			priceLabel := fmt.Sprintf("%d ₽", plan.PriceRub)
+			if plan.OriginalPriceRub > plan.PriceRub && plan.PriceRub > 0 {
+				priceLabel = fmt.Sprintf("%d → %d ₽", plan.OriginalPriceRub, plan.PriceRub)
+			}
+			keyboard = append(keyboard, []models.InlineKeyboardButton{{Text: fmt.Sprintf("%s | %s", label, priceLabel), CallbackData: fmt.Sprintf("%s?planId=%s", telegram.CallbackSell, plan.ID)}})
 		}
 		keyboard = append(keyboard, back)
 		return commerce.TariffsText, commerce.Banner, keyboard, nil

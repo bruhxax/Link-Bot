@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	planbook "link-bot/internal/plans"
 )
@@ -17,13 +18,25 @@ func (s *Service) CheckoutPlans() []planbook.CheckoutPlan {
 		if !item.Enabled || (item.Months <= 0 && item.Days <= 0) {
 			continue
 		}
+		priceRub := item.PriceRub
+		originalPriceRub := item.OriginalPriceRub
+		discountEndsAt := item.DiscountEndsAt
+		if originalPriceRub > priceRub && item.DiscountEndsAt != "" {
+			if end, err := time.Parse(time.RFC3339, item.DiscountEndsAt); err == nil && !time.Now().Before(end) {
+				priceRub = originalPriceRub
+				originalPriceRub = 0
+				discountEndsAt = ""
+			}
+		}
 		plan := planbook.CheckoutPlan{
 			ID:                       item.ID,
 			Name:                     item.Name,
 			Months:                   item.Months,
 			Days:                     item.Days,
-			PriceRub:                 item.PriceRub,
-			PriceStars:               planbook.StarsForRub(item.PriceRub),
+			PriceRub:                 priceRub,
+			OriginalPriceRub:         originalPriceRub,
+			DiscountEndsAt:           discountEndsAt,
+			PriceStars:               planbook.StarsForRub(priceRub),
 			FreeOneTime:              item.FreeOneTime,
 			DeviceLimitCount:         item.DeviceLimit,
 			Wide:                     item.Wide,

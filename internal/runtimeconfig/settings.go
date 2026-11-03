@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -405,6 +406,8 @@ type PlanSettings struct {
 	TitleEN                  string                       `json:"titleEn"`
 	TitleFA                  string                       `json:"titleFa"`
 	PriceRub                 int                          `json:"priceRub"`
+	OriginalPriceRub         int                          `json:"originalPriceRub,omitempty"`
+	DiscountEndsAt           string                       `json:"discountEndsAt,omitempty"`
 	PriceStars               int                          `json:"priceStars"`
 	FreeOneTime              bool                         `json:"freeOneTime"`
 	TrafficGB                int                          `json:"trafficGb"`
@@ -2541,6 +2544,17 @@ func validatePlans(value *[]PlanSettings, defaults []PlanSettings) error {
 		}
 		if item.PriceRub < 0 || item.PriceRub > 1000000 {
 			return fmt.Errorf("invalid price for plan %q", item.ID)
+		}
+		if item.OriginalPriceRub < 0 || item.OriginalPriceRub > 1000000 || (item.OriginalPriceRub > 0 && (item.PriceRub <= 0 || item.OriginalPriceRub <= item.PriceRub)) {
+			return fmt.Errorf("invalid original price for plan %q", item.ID)
+		}
+		item.DiscountEndsAt = strings.TrimSpace(item.DiscountEndsAt)
+		if item.OriginalPriceRub == 0 {
+			item.DiscountEndsAt = ""
+		} else if item.DiscountEndsAt != "" {
+			if _, err := time.Parse(time.RFC3339, item.DiscountEndsAt); err != nil {
+				return fmt.Errorf("invalid discount end time for plan %q", item.ID)
+			}
 		}
 		item.PriceStars = planbook.StarsForRub(item.PriceRub)
 		if item.PriceRub > 0 {

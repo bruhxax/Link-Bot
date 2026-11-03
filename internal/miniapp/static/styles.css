@@ -4505,6 +4505,8 @@ body:not(.is-layout-editing) .runtime-layout-item[data-runtime-id="subscription_
   font-weight: 800;
   letter-spacing: 0;
 }
+.pricing-card__price-line del { color: var(--muted); font-size: 11px; font-weight: 600; text-decoration-thickness: 1px; opacity: .8; }
+.pricing-card__discount { display: block; margin-top: 5px; color: var(--accent); font-size: 10px; font-weight: 700; line-height: 1.2; }
 .pricing-card__stars-line {
   display: inline-flex;
   align-items: center;

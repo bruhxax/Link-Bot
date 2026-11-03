@@ -126,6 +126,9 @@ h2{margin:0 0 9px;font-size:clamp(26px,4vw,40px);line-height:1.2;font-weight:700
 .plan-card__duration{display:block;margin-top:2px;color:var(--muted);font-size:10px}
 .plan-card__badge{color:var(--accent);font-size:10px;text-align:right}
 .plan-card__price{margin:23px 0 18px;font-size:27px;font-weight:700;line-height:1.15}
+.plan-card__price strong{font:inherit}
+.plan-card__price del{display:inline-block;margin-left:9px;color:var(--muted);font-size:.55em;font-weight:600;opacity:.8}
+.plan-card__price small{display:block;margin-top:5px;color:var(--accent);font-size:11px;font-weight:700}
 .plan-card__features{display:grid;gap:4px;margin:0 0 19px;padding:15px 0 0;border-top:1px solid var(--border);list-style:none;color:var(--muted);font-size:10px}
 .plan-card__features li::before{content:"— ";color:var(--accent)}
 .plan-card__action{width:100%;margin-top:auto;min-height:42px}
@@ -194,6 +197,8 @@ h2{margin:0 0 9px;font-size:clamp(26px,4vw,40px);line-height:1.2;font-weight:700
   .plan-card__features li{overflow-wrap:anywhere}
   .plan-card__features li::before{content:none}
   .plan-card__price{order:3;margin:auto 0 0;padding-top:14px;font-size:13px;font-weight:800;line-height:1.15;overflow-wrap:anywhere}
+  .plan-card__price del{margin-left:5px;font-size:10px}
+  .plan-card__price small{font-size:9px}
   .plan-card__unlimited-badge{position:absolute;top:0;right:0;display:flex;align-items:center;justify-content:center;width:60px;height:24px;padding:0 6px;border-radius:0 8px 0 12px;background:color-mix(in srgb,var(--accent) 24%,var(--surface));color:var(--text);font-size:8px;font-weight:800;line-height:1;white-space:nowrap}
 }
 

@@ -2302,7 +2302,7 @@ function buildPreviewRuntimeSettings() {
 		appearance: { backgroundMode: "animated", compact: true, showFrames: true, glass: urlParams.get("glass") === "1", backgroundMotion: deepClone(DEFAULT_BACKGROUND_MOTION), colors: { background: "#000000", surface: "#08090c", surfaceStrong: "#0b0d12", text: "#f3f3f3", muted: "#a0a0a0", border: "#2a2d33", button: "#0b0d12", buttonText: "#f3f3f3", icon: "#f3f3f3", accent: "#ba173d", success: "#2da44e", danger: "#f85149", unlimitedBadge: "#949494", gridBackground: "#000000", gridLine: "#ffffff", gridGlowLeft: "#ffffff", gridGlowRight: "#ffffff", grid2Background: "#000000", grid2Line: "#ffffff", grid2Glow: "#ff0000", blocksBackground: "#0a0a0c", blocksLeft: "#161619", blocksRight: "#0c0c0e", morphicBackground: "#000000", morphicBall: "#ff69b4", twinkleBackground: "#000000", twinkleStar: "#ffffff", waveBackground: "#000000", waveDot: "#ebebeb" } },
 		layout: { elements: deepClone(ADMIN_LAYOUT_DEFAULTS), planColumns: 2, logoWidth: 188 },
 		subPage: { includeBuiltIns: true, priorityBuiltIns: [], clients: [] },
-		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, titleFa: `${plan.months} \u0645\u0627\u0647`, priceRub: plan.priceRub, priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
+		plans: previewPayload.plans.map((plan) => ({ id: plan.id, enabled: true, months: plan.months, titleRu: `${plan.months} ${plan.months === 1 ? "\u043c\u0435\u0441\u044f\u0446" : plan.months < 5 ? "\u043c\u0435\u0441\u044f\u0446\u0430" : "\u043c\u0435\u0441\u044f\u0446\u0435\u0432"}`, titleEn: `${plan.months} month${plan.months === 1 ? "" : "s"}`, titleFa: `${plan.months} \u0645\u0627\u0647`, priceRub: plan.priceRub, originalPriceRub: Number(plan.originalPriceRub || 0), discountEndsAt: "", priceStars: plan.priceStars, freeOneTime: Boolean(plan.freeOneTime), trafficGb: Math.round(Number(plan.trafficLimitBytes || 0) / (1024 ** 3)), unlimitedTraffic: Number(plan.trafficLimitBytes || 0) <= 0, deviceLimit: plan.deviceLimitCount, wide: Boolean(plan.wide), internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" })),
 		devicePacks: [],
 		trafficPacks: [],
 		deviceAccess: defaultDeviceAccessSettings(),
@@ -3494,6 +3494,7 @@ async function startRealtimeSync() {
 	realtimeStarted = true;
 	// Also reconcile panel state and any notifications lost across network gaps.
 	window.setInterval(() => {
+		expireClientPlanDiscounts();
 		if (!document.hidden) void refreshRealtimeData({ panelOnly: true });
 	}, 5000);
 	// Refresh other account sections periodically even when no DB event arrives.
@@ -3548,6 +3549,22 @@ async function startRealtimeSync() {
 		retryDelay = Math.min(retryDelay * 2, 15000);
 	}
 	realtimeStarted = false;
+}
+
+function expireClientPlanDiscounts() {
+	let changed = false;
+	for (const plan of state.data?.plans || []) {
+		const original = Number(plan?.originalPriceRub || 0);
+		const current = Number(plan?.priceRub || 0);
+		const end = plan?.discountEndsAt ? Date.parse(plan.discountEndsAt) : NaN;
+		if (original <= current || !Number.isFinite(end) || Date.now() < end) continue;
+		plan.priceRub = original;
+		plan.priceStars = Math.round(original / 1.47);
+		plan.originalPriceRub = 0;
+		plan.discountEndsAt = "";
+		changed = true;
+	}
+	if (changed) render({ preserveScroll: true });
 }
 
 async function refreshDashboard(options = {}) {
@@ -4056,6 +4073,8 @@ function runtimePlanToPayload(plan, index = 0) {
 		months,
 		days,
 		priceRub: Math.max(0, Number(plan?.priceRub || 0)),
+		originalPriceRub: Math.max(0, Number(plan?.originalPriceRub || 0)),
+		discountEndsAt: String(plan?.discountEndsAt || ""),
 		priceStars: Math.max(0, Number(plan?.priceStars || 0)),
 		freeOneTime: Boolean(plan?.freeOneTime),
 		trafficLimitBytes: trafficGb > 0 ? trafficGb * (1024 ** 3) : 0,
@@ -9016,7 +9035,7 @@ function renderAdminPlanEditor(plan, index) {
 	return `<div class="admin-repeat-row"><div class="admin-repeat-row__head"><strong>${escapeHtml(plan.name || plan.titleRu || plan.id)}</strong><div class="admin-builder-row__actions"><button type="button" data-action="admin-move-plan" data-value="${index}" data-direction="-1">${icon("arrowUp")}</button><button type="button" data-action="admin-move-plan" data-value="${index}" data-direction="1">${icon("arrowDown")}</button></div></div>
 		<div class="admin-toggle-list admin-toggle-list--inline">${renderAdminToggle("Активен", `plans.${index}.enabled`)}${renderAdminToggle("Безлимит", `plans.${index}.unlimitedTraffic`)}${renderAdminToggle("На всю ширину", `plans.${index}.wide`)}</div>
 		<div class="admin-editor__grid">${renderAdminSettingField("Название на русском (необязательно)", `plans.${index}.name`, { placeholder: "Без названия — показывать срок", maxLength: 80 })}${renderAdminSettingField("Название на английском (необязательно)", `plans.${index}.nameEn`, { placeholder: "Without a name — show duration", maxLength: 80 })}</div>
-		<div class="admin-editor__grid">${renderAdminSettingField("Цена ₽", `plans.${index}.priceRub`, { type: "number", min: 0 })}${renderAdminSettingField("Устройств", `plans.${index}.deviceLimit`, { type: "number", min: 0 })}</div>
+		<div class="admin-editor__grid">${renderAdminSettingField("Цена ₽", `plans.${index}.priceRub`, { type: "number", min: 0 })}${renderAdminSettingField("Цена до скидки ₽", `plans.${index}.originalPriceRub`, { type: "number", min: 0 })}${renderAdminSettingField("Устройств", `plans.${index}.deviceLimit`, { type: "number", min: 0 })}</div>
 		${Number(plan.priceRub || 0) === 0 ? `<div class="admin-toggle-list">${renderAdminToggle("Можно взять только 1 раз", `plans.${index}.freeOneTime`)}</div>` : ""}
 		${renderAdminSettingField("Трафик, ГБ", `plans.${index}.trafficGb`, { type: "number", min: 0 })}
 	</div>`;
@@ -9130,6 +9149,8 @@ function renderAdminPlanEditorModal() {
 	const durationUnit = state.adminPlanDurationUnit === "days" ? "days" : "months";
 	const durationValue = durationUnit === "days" ? plan.days : plan.months;
 	const stars = Math.max(0, Math.round(Number(plan.priceRub || 0) / 1.47));
+	const discountEnd = plan.discountEndsAt ? new Date(plan.discountEndsAt) : null;
+	const discountEndLocal = discountEnd && !Number.isNaN(discountEnd.getTime()) ? `${discountEnd.getFullYear()}-${String(discountEnd.getMonth() + 1).padStart(2, "0")}-${String(discountEnd.getDate()).padStart(2, "0")}T${String(discountEnd.getHours()).padStart(2, "0")}:${String(discountEnd.getMinutes()).padStart(2, "0")}` : "";
 	return `<div class="modal open"><button class="modal__backdrop" type="button" data-action="admin-close-plan-modal"></button><div class="modal__sheet modal__sheet--plan-editor">
 		<div class="modal__header"><div><div class="section-label">РЕДАКТОР ТАРИФА</div><div class="modal__title">Параметры тарифа</div></div><button class="header__btn" type="button" data-action="admin-close-plan-modal">${icon("close")}</button></div>
 		<div class="admin-plan-modal__body">
@@ -9138,6 +9159,8 @@ function renderAdminPlanEditorModal() {
 			<label class="admin-field admin-plan-name"><span>Название на английском (необязательно)</span><input class="admin-field__control" type="text" maxlength="80" data-input="admin-plan-name-en" value="${escapeAttribute(plan.nameEn || "")}" placeholder="Without a name — show duration"></label>
 			<div class="admin-plan-duration"><div class="admin-plan-duration__head"><span>Срок тарифа</span><div class="admin-plan-duration__switch ${durationUnit === "days" ? "is-days" : ""}" role="group" aria-label="Единица срока"><button type="button" data-action="admin-plan-duration-unit" data-value="months" aria-pressed="${durationUnit === "months"}">Месяцы</button><button type="button" data-action="admin-plan-duration-unit" data-value="days" aria-pressed="${durationUnit === "days"}">Дни</button></div></div><input class="admin-field__control admin-plan-duration__input" type="number" min="1" max="${durationUnit === "days" ? 3650 : 120}" inputmode="numeric" data-input="admin-plan-duration" aria-label="Срок тарифа, ${durationUnit === "days" ? "дни" : "месяцы"}" value="${escapeAttribute(durationValue || "")}" placeholder="${durationUnit === "days" ? "7" : "1"}"></div>
 			<label class="admin-field"><span>Цена, ₽</span><input class="admin-field__control" type="number" min="0" max="1000000" inputmode="numeric" data-input="admin-plan-price" value="${escapeAttribute(plan.priceRub ?? 0)}"></label>
+			<label class="admin-field"><span>Цена до скидки, ₽ (необязательно)</span><input class="admin-field__control" type="number" min="0" max="1000000" inputmode="numeric" data-input="admin-plan-original-price" value="${escapeAttribute(plan.originalPriceRub || "")}" placeholder="Например, 100"></label>
+			<label class="admin-field"><span>Скидка до (необязательно)</span><input class="admin-field__control" type="datetime-local" data-input="admin-plan-discount-until" value="${escapeAttribute(discountEndLocal)}"></label>
 			<label class="admin-field"><span>Трафик, ГБ (0 = безлимит)</span><input class="admin-field__control" type="number" min="0" max="1000000" inputmode="numeric" data-input="admin-plan-traffic" value="${escapeAttribute(plan.trafficGb ?? 0)}"></label>
 			<label class="admin-field"><span>Устройства (0 = безлимит)</span><input class="admin-field__control" type="number" min="0" max="1000" inputmode="numeric" data-input="admin-plan-devices" value="${escapeAttribute(plan.deviceLimit ?? 0)}"></label>
 		</div>
@@ -11620,7 +11643,13 @@ function renderPlanCard(plan, selected) {
   const hasDuration = Number(plan?.months || 0) > 0 || Number(plan?.days || 0) > 0;
   const unlimited = hasDuration && planHasUnlimitedTraffic(plan);
 	const title = hasDuration ? getPlanBaseTitle(plan, state.locale) : localizedText("Новый тариф", "New plan", "تعرفه جدید");
-	const price = Number(plan?.priceRub || 0) > 0 ? formatCurrency(plan.priceRub, state.locale) : localizedText("Бесплатно", "Free", "رایگان");
+	const originalPrice = Number(plan?.originalPriceRub || 0);
+	const discountDeadline = plan?.discountEndsAt ? Date.parse(plan.discountEndsAt) : NaN;
+	const expired = Number.isFinite(discountDeadline) && Date.now() >= discountDeadline;
+	const priceRub = expired && originalPrice > 0 ? originalPrice : Number(plan?.priceRub || 0);
+	const price = priceRub > 0 ? formatCurrency(priceRub, state.locale) : localizedText("Бесплатно", "Free", "رایگان");
+	const discount = originalPrice > priceRub && priceRub > 0;
+	const saved = discount ? originalPrice - Number(plan.priceRub) : 0;
   const content = `
       ${unlimited ? `<span class="pricing-card__unlimited-badge">${localizedText("Безлимит", "Unlimited", "نامحدود")}</span>` : ""}
       <div class="pricing-card__content">
@@ -11635,8 +11664,9 @@ function renderPlanCard(plan, selected) {
         </div>
         <div class="pricing-card__price-stack">
           <div class="pricing-card__price-row">
-            <div class="pricing-card__price-line"><strong data-price-transition="plan:${escapeAttribute(key)}">${escapeHtml(price)}</strong></div>
+			<div class="pricing-card__price-line"><strong data-price-transition="plan:${escapeAttribute(key)}">${escapeHtml(price)}</strong>${discount ? `<del>${escapeHtml(formatCurrency(originalPrice, state.locale))}</del>` : ""}</div>
           </div>
+		  ${discount ? `<small class="pricing-card__discount">${escapeHtml(localizedText(`Экономия ${formatCurrency(saved, state.locale)}`, `Save ${formatCurrency(saved, state.locale)}`, `${formatCurrency(saved, state.locale)} صرفه‌جویی`))}</small>` : ""}
         </div>
       </div>
   `;
@@ -13481,6 +13511,11 @@ function bindRootActions() {
 				state.adminPlanFormDraft.nameEn = target.value;
 				return;
 			}
+			if (inputKey === "admin-plan-discount-until") {
+				const end = target.value ? new Date(target.value) : null;
+				state.adminPlanFormDraft.discountEndsAt = end && !Number.isNaN(end.getTime()) ? end.toISOString() : "";
+				return;
+			}
 			const numeric = Math.max(0, Number(target.value || 0));
 			if (inputKey === "admin-plan-duration") {
 				state.adminPlanFormDraft.months = state.adminPlanDurationUnit === "months" ? numeric : 0;
@@ -13494,6 +13529,7 @@ function bindRootActions() {
 				const freeToggle = freeRule?.querySelector('[data-input="admin-plan-free-once"]');
 				if (freeToggle && numeric > 0) freeToggle.checked = false;
 			}
+			if (inputKey === "admin-plan-original-price") state.adminPlanFormDraft.originalPriceRub = numeric;
 			if (inputKey === "admin-plan-free-once") state.adminPlanFormDraft.freeOneTime = Boolean(target.checked);
 			if (inputKey === "admin-plan-traffic") state.adminPlanFormDraft.trafficGb = numeric;
 			if (inputKey === "admin-plan-devices") state.adminPlanFormDraft.deviceLimit = numeric;
@@ -15872,7 +15908,7 @@ function addAdminPlan() {
 	const plans = state.adminSettingsDraft?.plans;
 	if (!Array.isArray(plans)) return;
 	const id = `custom_${Date.now().toString(36)}`;
-	const plan = { id, enabled: false, months: 0, days: 0, name: "", nameEn: "", titleRu: "", titleEn: "", titleFa: "", priceRub: 0, priceStars: 0, freeOneTime: false, trafficGb: 0, unlimitedTraffic: true, deviceLimit: 0, wide: false, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" };
+	const plan = { id, enabled: false, months: 0, days: 0, name: "", nameEn: "", titleRu: "", titleEn: "", titleFa: "", priceRub: 0, originalPriceRub: 0, discountEndsAt: "", priceStars: 0, freeOneTime: false, trafficGb: 0, unlimitedTraffic: true, deviceLimit: 0, wide: false, internalSquadUuids: [], internalSquadsConfigured: false, externalSquadUuid: "" };
 	plans.push(plan);
 	state.adminSettingsDirty = true;
 	state.adminPlanEditingID = id;
@@ -15928,10 +15964,12 @@ function applyAdminPlanEdit() {
 	const months = Number(draft.months || 0);
 	const days = Number(draft.days || 0);
 	const priceRub = Math.trunc(Number(draft.priceRub || 0));
+	const originalPriceRub = Math.trunc(Number(draft.originalPriceRub || 0));
 	const trafficGb = Math.trunc(Number(draft.trafficGb || 0));
 	const deviceLimit = Math.trunc(Number(draft.deviceLimit || 0));
 	if (state.adminPlanDurationUnit === "days" ? (!Number.isInteger(days) || days < 1 || days > 3650) : (!Number.isInteger(months) || months < 1 || months > 120)) return showToast(state.locale === "en" ? "Enter a valid duration" : "Укажите срок: 1–120 месяцев или 1–3650 дней", "danger");
 	if (priceRub < 0 || priceRub > 1000000) return showToast(state.locale === "en" ? "Enter a valid price" : "Укажите корректную цену", "danger");
+	if (originalPriceRub < 0 || originalPriceRub > 1000000 || (originalPriceRub > 0 && (priceRub <= 0 || originalPriceRub <= priceRub))) return showToast("Цена до скидки должна быть выше действующей цены", "danger");
 	if (trafficGb < 0 || trafficGb > 1000000 || deviceLimit < 0 || deviceLimit > 1000) return showToast(state.locale === "en" ? "Check the plan limits" : "Проверьте лимиты тарифа", "danger");
 	if (draft.deviceTrafficEnabled && !validDeviceTrafficRules(draft.deviceTrafficRules)) return showToast("Укажите 1–1000 устройств и 1–1000000 GB в каждой строке. Количество устройств не должно повторяться.", "danger");
 	if (draft.deviceTrafficEnforced && (deviceLimit < 1 || draft.deviceTrafficRules?.some((rule) => rule.devices > deviceLimit))) return showToast("Задайте лимит устройств тарифа. Номера устройств в строках не должны превышать этот лимит.", "danger");
@@ -15944,6 +15982,8 @@ function applyAdminPlanEdit() {
 		months: state.adminPlanDurationUnit === "months" ? months : 0,
 		days: state.adminPlanDurationUnit === "days" ? days : 0,
 		priceRub,
+		originalPriceRub,
+		discountEndsAt: originalPriceRub > 0 ? String(draft.discountEndsAt || "") : "",
 		freeOneTime: priceRub === 0 && Boolean(draft.freeOneTime),
 		trafficGb,
 		unlimitedTraffic: trafficGb === 0,
