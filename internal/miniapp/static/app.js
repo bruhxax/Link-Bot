@@ -3113,6 +3113,10 @@ async function boot() {
   await refreshDashboard({ initial: true, silent: paymentReturn });
 	if (canAdmin("push") && (!adminBaseURL || adminDedicated || previewMode)) void refreshAdminPush();
 	if (isAdminUser() && state.currentPage === "admin" && !["broadcast", "user-message"].includes(urlParams.get("admin"))) refreshRestoredAdminSection();
+	const inlineUserID = Number(urlParams.get("inlineUser") || 0);
+	if (isAdminUser() && state.currentPage === "admin" && state.adminSection === "users" && canAdmin("users") && Number.isSafeInteger(inlineUserID) && inlineUserID > 0) {
+		void openAdminUser(inlineUserID).catch((error) => showToast(error?.message || "Не удалось открыть пользователя", "danger"));
+	}
   await handlePostBootstrapFlow();
 }
 

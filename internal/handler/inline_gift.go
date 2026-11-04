@@ -35,6 +35,16 @@ func (h *Handler) InlineGiftQueryHandler(ctx context.Context, b *bot.Bot, update
 	if query == nil {
 		return
 	}
+	if command, ok := parseInlineAdminCommand(query.Query); ok {
+		h.answerInlineAdmin(ctx, b, query, command)
+		return
+	}
+	lookup := strings.TrimSpace(query.Query)
+	if query.From != nil && h.inlineAdmin != nil && h.inlineAdmin.HasAdminPermission(ctx, query.From.ID, "users") &&
+		(strings.HasPrefix(lookup, "@") || isInlineAdminNumericQuery(lookup)) {
+		h.answerInlineAdmin(ctx, b, query, inlineAdminCommand{Kind: "user", Search: lookup})
+		return
+	}
 	if query.From == nil || h.runtimeSettings == nil || config.GetMiniAppURL() == "" {
 		slog.Warn("inline gift query unavailable", "has_sender", query.From != nil, "has_settings", h.runtimeSettings != nil, "has_mini_app", config.GetMiniAppURL() != "")
 		h.answerInlineGiftUnavailable(ctx, b, query.ID, "Подарки временно недоступны")
@@ -58,6 +68,10 @@ func (h *Handler) InlineGiftQueryHandler(ctx context.Context, b *bot.Bot, update
 	if len(visible) == 0 && search == "" {
 		slog.Warn("inline gift query has no paid plans")
 		h.answerInlineGiftUnavailable(ctx, b, query.ID, "Нет доступных тарифов для подарка")
+		return
+	}
+	if len(visible) == 0 && search != "" && h.inlineAdmin != nil && h.inlineAdmin.HasAdminPermission(ctx, query.From.ID, "users") {
+		h.answerInlineAdmin(ctx, b, query, inlineAdminCommand{Kind: "user", Search: lookup})
 		return
 	}
 	offset, _ := strconv.Atoi(query.Offset)

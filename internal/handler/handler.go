@@ -32,7 +32,18 @@ type Handler struct {
 	errorReporter        *operations.Reporter
 	webLogin             *webauth.Service
 	pinnedMessageOnStart func(context.Context, int64) error
+	inlineAdmin          InlineAdminService
 }
+
+type InlineAdminService interface {
+	HasAdminPermission(context.Context, int64, ...string) bool
+	ExtendInlineUser(context.Context, int64, int64, int64, time.Time) error
+	CreditInlineUser(context.Context, int64, int64, int64, string) error
+	FindInlinePromo(context.Context, int64, string) (string, error)
+	SelectedInlineSubscriptionID(context.Context, int64) (int64, error)
+}
+
+func (h *Handler) SetInlineAdminService(service InlineAdminService) { h.inlineAdmin = service }
 
 func (h *Handler) SetPinnedMessageOnStart(ensure func(context.Context, int64) error) {
 	h.pinnedMessageOnStart = ensure
