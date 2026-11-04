@@ -7483,6 +7483,17 @@ const START_MENU_PAGE_TARGETS = [
 	["login-methods", "Способы входа"], ["payments", "Платежи"], ["terms", "Условия"], ["privacy", "Политика конфиденциальности"], ["admin", "Админка"],
 ];
 
+const START_SUBMENU_VARIABLES = [
+	["username", "Имя в Telegram"], ["telegram_id", "Telegram ID"],
+	["subscription_name", "Имя подписки"], ["plan_name", "Купленный тариф"],
+	["expires_at", "Дата окончания"], ["days_left", "Дней осталось"],
+	["price", "Цена последнего тарифа"], ["traffic", "Трафик: использовано/всего"],
+	["traffic_used_gb", "Использовано ГБ"], ["traffic_limit_gb", "Лимит ГБ"],
+	["devices", "Устройства: занято/всего"], ["devices_used", "Устройств занято"],
+	["devices_limit", "Лимит устройств"], ["status", "Статус"],
+	["subscription_link", "Ссылка на подписку"],
+];
+
 function ensureAdminStartButtonsDraft() {
 	const menu = state.adminSettingsDraft?.content?.startMenu;
 	if (!menu) return [];
@@ -7500,17 +7511,51 @@ function ensureAdminStartButtonsDraft() {
 
 function renderAdminStartButton(button, index, count) {
 	const path = `content.startMenu.buttons.${index}`;
-	const kind = ["page", "url", "trial", "plans", "notifications"].includes(button?.kind) ? button.kind : "page";
+	const kind = ["page", "url", "trial", "plans", "notifications", "submenu"].includes(button?.kind) ? button.kind : "page";
 	const pageTargets = [...START_MENU_PAGE_TARGETS, ...(state.adminSettingsDraft?.content?.customLinks || []).filter((link) => link?.type === "page").map((link) => [`custom-page:${link.id}`, link.labelRu || link.labelEn || link.id])];
 	return `<details class="admin-telegram-button admin-start-button" data-reveal-container="start-button:${escapeAttribute(button.id || index)}"><summary><strong>${escapeHtml(button.text || `Кнопка ${index + 1}`)}</strong>${icon("chevron")}</summary>
 		<div class="admin-telegram-button__body">
 			<div class="admin-start-button__actions"><button type="button" data-action="admin-start-move-button" data-value="${index}" data-direction="-1" ${index === 0 ? "disabled" : ""} aria-label="Поднять кнопку">${icon("arrowUp")}</button><button type="button" data-action="admin-start-move-button" data-value="${index}" data-direction="1" ${index === count - 1 ? "disabled" : ""} aria-label="Опустить кнопку">${icon("arrowDown")}</button><button type="button" data-action="admin-start-remove-button" data-value="${index}" aria-label="Удалить кнопку">${icon("trash")}</button></div>
-			<div class="admin-editor__grid admin-editor__grid--two">${renderAdminSettingField("Текст кнопки", `${path}.text`, { maxLength: 64 })}<label class="admin-field"><span>Действие</span><select class="admin-field__control" data-start-button-kind="${index}"><option value="page" ${kind === "page" ? "selected" : ""}>Раздел Mini App</option><option value="url" ${kind === "url" ? "selected" : ""}>Ссылка</option><option value="trial" ${kind === "trial" ? "selected" : ""}>Пробный период</option><option value="plans" ${kind === "plans" ? "selected" : ""}>Тарифы в боте</option><option value="notifications" ${kind === "notifications" ? "selected" : ""}>Уведомления</option></select></label></div>
+			<div class="admin-editor__grid admin-editor__grid--two">${renderAdminSettingField("Текст кнопки", `${path}.text`, { maxLength: 64 })}<label class="admin-field"><span>Действие</span><select class="admin-field__control" data-start-button-kind="${index}"><option value="page" ${kind === "page" ? "selected" : ""}>Раздел Mini App</option><option value="submenu" ${kind === "submenu" ? "selected" : ""}>Отдельное меню в боте</option><option value="url" ${kind === "url" ? "selected" : ""}>Ссылка</option><option value="trial" ${kind === "trial" ? "selected" : ""}>Пробный период</option><option value="plans" ${kind === "plans" ? "selected" : ""}>Тарифы в боте</option><option value="notifications" ${kind === "notifications" ? "selected" : ""}>Уведомления</option></select></label></div>
 			${kind === "page" ? `<label class="admin-field"><span>Раздел</span><select class="admin-field__control" data-start-button-target="${index}">${pageTargets.map(([value, label]) => `<option value="${escapeAttribute(value)}" ${button.target === value ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select></label>` : ""}
 			${kind === "url" ? renderAdminSettingField("URL", `${path}.target`, { type: "url", placeholder: "https://example.com" }) : ""}
 			<div class="admin-editor__grid admin-editor__grid--two">${renderAdminSettingField("Premium emoji", `${path}.iconCustomEmojiId`, { placeholder: "ID или код <tg-emoji>" })}<label class="admin-field"><span>Строка</span><select class="admin-field__control" data-start-button-row="${index}">${Array.from({ length: 30 }, (_, row) => `<option value="${row}" ${Number(button.row || 0) === row ? "selected" : ""}>${row + 1}</option>`).join("")}</select></label></div>
 			${renderAdminTelegramButtonStyle(`${path}.style`)}
+			${kind === "submenu" ? renderAdminStartSubmenu(button, index) : ""}
 		</div></details>`;
+}
+
+function renderAdminStartSubmenu(button, index) {
+	const base = `content.startMenu.buttons.${index}.submenu`;
+	const menu = button.submenu || { text: "", banner: "", buttons: [] };
+	const sample = startSubmenuSample(menu.text);
+	return `<section class="admin-start-submenu"><header><strong>Экран вложенного меню</strong><span>Откроется в этом же сообщении бота</span></header>
+		${renderAdminSettingField("Текст меню", `${base}.text`, { textarea: true, rows: 7, maxLength: 3500 })}
+		<details class="admin-start-submenu__variables"><summary>Переменные текста ${icon("chevron")}</summary><div>${START_SUBMENU_VARIABLES.map(([key, label]) => `<button type="button" data-action="admin-submenu-variable" data-value="${escapeAttribute(key)}" data-menu-index="${index}" title="${escapeAttribute(label)}"><code>{${escapeHtml(key)}}</code><small>${escapeHtml(label)}</small></button>`).join("")}</div></details>
+		${renderAdminSettingField("Баннер меню (необязательно)", `${base}.banner`, { placeholder: "HTTPS URL или /mini-app/…" })}
+		<div class="admin-start-submenu__preview"><small>Как будет выглядеть текст</small><p data-submenu-preview="${index}">${escapeHtml(sample || "Сообщение пока пустое")}</p></div>
+		<div class="admin-start-submenu__heading"><strong>Кнопки этого меню</strong><button type="button" class="admin-icon-button" data-action="admin-submenu-add-button" data-value="${index}" ${menu.buttons?.length >= 20 ? "disabled" : ""} aria-label="Добавить кнопку в меню">${icon("plus")}</button></div>
+		<div class="admin-start-submenu__list">${(menu.buttons || []).map((child, childIndex) => renderAdminSubmenuButton(child, index, childIndex)).join("") || `<p>Добавьте кнопку: раздел Mini App, ссылку или действие бота.</p>`}</div>
+		<div class="admin-start-submenu__back">${icon("back")}<span>Кнопка «Назад» добавится автоматически</span></div>
+	</section>`;
+}
+
+function startSubmenuSample(text) {
+	return String(text || "").replace(/\{([a-z_]+)\}/g, (_, key) => ({ username: "@user", telegram_id: "123456789", subscription_name: "Основная", plan_name: "Месяц", expires_at: "04.12.2026 19:30", days_left: "30", price: "100 ₽", traffic: "50/100 ГБ", traffic_used_gb: "50", traffic_limit_gb: "100", devices: "5/10", devices_used: "5", devices_limit: "10", status: "Активна", subscription_link: "https://example.com/sub" })[key] || `{${key}}`).replace(/<[^>]*>/g, "");
+}
+
+function renderAdminSubmenuButton(button, parentIndex, childIndex) {
+	const base = `content.startMenu.buttons.${parentIndex}.submenu.buttons.${childIndex}`;
+	const kind = ["page", "url", "trial", "plans", "notifications"].includes(button.kind) ? button.kind : "page";
+	const pageTargets = [...START_MENU_PAGE_TARGETS, ...(state.adminSettingsDraft?.content?.customLinks || []).filter((link) => link?.type === "page").map((link) => [`custom-page:${link.id}`, link.labelRu || link.labelEn || link.id])];
+	return `<details class="admin-telegram-button admin-start-button admin-start-submenu__button" data-reveal-container="submenu-button:${escapeAttribute(button.id || childIndex)}"><summary><strong>${escapeHtml(button.text || `Кнопка ${childIndex + 1}`)}</strong>${icon("chevron")}</summary><div class="admin-telegram-button__body">
+		<div class="admin-start-button__actions"><button type="button" data-action="admin-submenu-move-button" data-value="${parentIndex}:${childIndex}" data-direction="-1" ${childIndex === 0 ? "disabled" : ""} aria-label="Поднять">${icon("arrowUp")}</button><button type="button" data-action="admin-submenu-move-button" data-value="${parentIndex}:${childIndex}" data-direction="1" ${childIndex === (state.adminSettingsDraft?.content?.startMenu?.buttons?.[parentIndex]?.submenu?.buttons?.length || 0) - 1 ? "disabled" : ""} aria-label="Опустить">${icon("arrowDown")}</button><button type="button" data-action="admin-submenu-remove-button" data-value="${parentIndex}:${childIndex}" aria-label="Удалить">${icon("trash")}</button></div>
+		<div class="admin-editor__grid admin-editor__grid--two">${renderAdminSettingField("Текст кнопки", `${base}.text`, { maxLength: 64 })}<label class="admin-field"><span>Действие</span><select class="admin-field__control" data-submenu-button-kind="${parentIndex}:${childIndex}"><option value="page" ${kind === "page" ? "selected" : ""}>Раздел Mini App</option><option value="url" ${kind === "url" ? "selected" : ""}>Ссылка</option><option value="trial" ${kind === "trial" ? "selected" : ""}>Пробный период</option><option value="plans" ${kind === "plans" ? "selected" : ""}>Тарифы в боте</option><option value="notifications" ${kind === "notifications" ? "selected" : ""}>Уведомления</option></select></label></div>
+		${kind === "page" ? `<label class="admin-field"><span>Раздел</span><select class="admin-field__control" data-submenu-button-target="${parentIndex}:${childIndex}">${pageTargets.map(([value, label]) => `<option value="${escapeAttribute(value)}" ${button.target === value ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select></label>` : ""}
+		${kind === "url" ? renderAdminSettingField("URL", `${base}.target`, { type: "url", placeholder: "https://example.com" }) : ""}
+		<div class="admin-editor__grid admin-editor__grid--two">${renderAdminSettingField("Premium emoji", `${base}.iconCustomEmojiId`, { placeholder: "ID или код <tg-emoji>" })}<label class="admin-field"><span>Строка</span><select class="admin-field__control" data-submenu-button-row="${parentIndex}:${childIndex}">${Array.from({ length: 30 }, (_, row) => `<option value="${row}" ${Number(button.row || 0) === row ? "selected" : ""}>${row + 1}</option>`).join("")}</select></label></div>
+		${renderAdminTelegramButtonStyle(`${base}.style`)}
+	</div></details>`;
 }
 
 function renderAdminPinnedMessage() {
@@ -13135,6 +13180,10 @@ function bindRootActions() {
 			if (action === "admin-start-add-button") return addAdminStartButton();
 			if (action === "admin-start-remove-button") return removeAdminStartButton(Number(value));
 			if (action === "admin-start-move-button") return moveAdminStartButton(Number(value), Number(target.dataset.direction || 0));
+			if (action === "admin-submenu-add-button") return addAdminSubmenuButton(Number(value));
+			if (action === "admin-submenu-remove-button") return removeAdminSubmenuButton(value);
+			if (action === "admin-submenu-move-button") return moveAdminSubmenuButton(value, Number(target.dataset.direction || 0));
+			if (action === "admin-submenu-variable") return insertAdminSubmenuVariable(Number(target.dataset.menuIndex), value);
 			if (action === "admin-test-success") return await testAdminSubscriptionSuccess();
 			if (action === "admin-test-payment-notification") return await testAdminPaymentNotification();
 			if (action === "admin-test-gift") return await testAdminGift(value);
@@ -13215,6 +13264,20 @@ function bindRootActions() {
 			if (!button) return;
 			button.kind = input.value;
 			button.target = button.kind === "page" ? "dashboard" : "";
+			if (button.kind === "submenu" && !button.submenu) button.submenu = defaultAdminStartSubmenu();
+			state.adminSettingsDirty = true;
+			render({ preserveScroll: true });
+			return;
+		}
+		if (input.dataset?.submenuButtonKind !== undefined || input.dataset?.submenuButtonTarget !== undefined || input.dataset?.submenuButtonRow !== undefined) {
+			const key = input.dataset.submenuButtonKind ?? input.dataset.submenuButtonTarget ?? input.dataset.submenuButtonRow;
+			const [parent, child] = String(key).split(":").map(Number);
+			const buttons = ensureAdminStartButtonsDraft()[parent]?.submenu?.buttons;
+			const button = buttons?.[child];
+			if (!button) return;
+			if (input.dataset.submenuButtonKind !== undefined) { button.kind = input.value; button.target = button.kind === "page" ? "dashboard" : ""; }
+			else if (input.dataset.submenuButtonRow !== undefined) { button.row = Number(input.value); buttons.sort((left, right) => Number(left.row || 0) - Number(right.row || 0)); }
+			else button.target = input.value;
 			state.adminSettingsDirty = true;
 			render({ preserveScroll: true });
 			return;
@@ -13487,6 +13550,11 @@ function bindRootActions() {
 				return;
 			}
 			if (settingPath === "content.logoUrl") scheduleAdminLogoPreview(target.value);
+			const submenuText = settingPath.match(/^content\.startMenu\.buttons\.(\d+)\.submenu\.text$/);
+			if (submenuText) {
+				const preview = app.querySelector(`[data-submenu-preview="${submenuText[1]}"]`);
+				if (preview) preview.textContent = startSubmenuSample(target.value) || "Сообщение пока пустое";
+			}
 			if (settingPath === "content.webPage.faviconUrl") scheduleAdminFaviconPreview(target.value);
 			state.adminSettingsDirty = true;
  if(settingPath.startsWith("appearance.landing.")){syncLandingPalettePreview();if(type==="boolean"||target.tagName==="SELECT")render({preserveScroll:true});}
@@ -14111,6 +14179,52 @@ function moveAdminStartButton(index, direction) {
 	state.adminSettingsDirty = true;
 	haptic("light");
 	render({ preserveScroll: true });
+}
+
+function defaultAdminStartSubmenu() {
+	return { text: "<b>Моя подписка</b>\n\n{subscription_name} · {status}\nТариф: {plan_name}\nДо: {expires_at}\nТрафик: {traffic}\nУстройства: {devices}", banner: "", buttons: [{ id: "dashboard", kind: "page", target: "dashboard", row: 0, text: "Открыть кабинет", iconCustomEmojiId: "", style: "" }] };
+}
+
+function addAdminSubmenuButton(parent) {
+	const buttons = ensureAdminStartButtonsDraft()[parent]?.submenu?.buttons;
+	if (!Array.isArray(buttons) || buttons.length >= 20) return;
+	let sequence = 1;
+	while (buttons.some((item) => item.id === `button_${sequence}`)) sequence++;
+	const row = buttons.reduce((max, item) => Math.max(max, Number(item.row || 0)), -1) + 1;
+	buttons.push({ id: `button_${sequence}`, kind: "page", target: "dashboard", row: Math.min(row, 29), text: "Новая кнопка", iconCustomEmojiId: "", style: "" });
+	state.adminSettingsDirty = true;
+	haptic("light");
+	render({ preserveScroll: true });
+}
+
+function removeAdminSubmenuButton(key) {
+	const [parent, child] = String(key).split(":").map(Number);
+	const buttons = ensureAdminStartButtonsDraft()[parent]?.submenu?.buttons;
+	if (!Array.isArray(buttons) || child < 0 || child >= buttons.length) return;
+	buttons.splice(child, 1);
+	state.adminSettingsDirty = true;
+	render({ preserveScroll: true });
+}
+
+function moveAdminSubmenuButton(key, direction) {
+	const [parent, child] = String(key).split(":").map(Number);
+	const buttons = ensureAdminStartButtonsDraft()[parent]?.submenu?.buttons;
+	const next = child + Math.sign(direction);
+	if (!Array.isArray(buttons) || child < 0 || next < 0 || child >= buttons.length || next >= buttons.length) return;
+	[buttons[child].row, buttons[next].row] = [buttons[next].row, buttons[child].row];
+	[buttons[child], buttons[next]] = [buttons[next], buttons[child]];
+	state.adminSettingsDirty = true;
+	render({ preserveScroll: true });
+}
+
+function insertAdminSubmenuVariable(index, key) {
+	if (!START_SUBMENU_VARIABLES.some(([name]) => name === key)) return;
+	const path = `content.startMenu.buttons.${index}.submenu.text`;
+	const field = [...app.querySelectorAll("textarea[data-setting-path]")].find((item) => item.dataset.settingPath === path);
+	if (!(field instanceof HTMLTextAreaElement)) return;
+	field.focus();
+	field.setRangeText(`{${key}}`, field.selectionStart, field.selectionEnd, "end");
+	field.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 function addAdminGiftButton(kind) {

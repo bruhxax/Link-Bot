@@ -143,6 +143,8 @@ func buildContentPreview(kind string, settings runtimeconfig.Settings, plans []p
 				button = previewButton(style, telegram.CallbackStart)
 			case "plans", "notifications":
 				button = previewButton(style, telegram.CallbackStart)
+			case "submenu":
+				button = previewButton(style, "sm:"+item.ID)
 			case "page":
 				button = previewWebAppButton(style, item.Target, telegram.CallbackStart)
 			case "url":

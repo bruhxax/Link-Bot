@@ -1487,6 +1487,33 @@ func TestStartMenuButtonsCanBeRemovedAndValidateTargets(t *testing.T) {
 	}
 }
 
+func TestStartSubmenuValidatesTextAndChildActions(t *testing.T) {
+	newSettings := func() Settings {
+		settings := DefaultSettings()
+		settings.Content.StartMenu.Buttons = []TelegramStartButton{{
+			ID: "subscription", Kind: "submenu", Text: "Подписка", Submenu: &TelegramSubMenuSettings{
+				Text:    "<b>{subscription_name}</b>\n{traffic} · {devices}",
+				Buttons: []TelegramStartButton{{ID: "profile", Kind: "page", Target: "settings", Text: "Профиль"}},
+			},
+		}}
+		return settings
+	}
+	settings := newSettings()
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("valid submenu rejected: %v", err)
+	}
+	settings = newSettings()
+	settings.Content.StartMenu.Buttons[0].Submenu.Text = ""
+	if err := NormalizeAndValidate(&settings); err == nil {
+		t.Fatal("submenu without text accepted")
+	}
+	settings = newSettings()
+	settings.Content.StartMenu.Buttons[0].Submenu.Buttons[0].Target = "javascript:alert(1)"
+	if err := NormalizeAndValidate(&settings); err == nil {
+		t.Fatal("unsafe submenu action accepted")
+	}
+}
+
 func TestNormalizeAndValidateMigratesTelegramContentOnce(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Version = CurrentVersion - 1

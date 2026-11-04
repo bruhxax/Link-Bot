@@ -9,6 +9,7 @@ import (
 	"link-bot/internal/database"
 	"link-bot/internal/operations"
 	"link-bot/internal/payment"
+	"link-bot/internal/remnawave"
 	"link-bot/internal/runtimeconfig"
 	"link-bot/internal/sync"
 	"link-bot/internal/translation"
@@ -33,6 +34,13 @@ type Handler struct {
 	webLogin             *webauth.Service
 	pinnedMessageOnStart func(context.Context, int64) error
 	inlineAdmin          InlineAdminService
+	startSubscriptions   *database.SubscriptionRepository
+	startPanel           *remnawave.Client
+}
+
+func (h *Handler) SetStartMenuDataSources(subscriptions *database.SubscriptionRepository, panel *remnawave.Client) {
+	h.startSubscriptions = subscriptions
+	h.startPanel = panel
 }
 
 type InlineAdminService interface {

@@ -79,6 +79,10 @@ func (h Handler) configuredMiniAppKeyboard(ctx context.Context, customer *databa
 	if buttons == nil {
 		buttons = runtimeconfig.DefaultStartButtons(menu)
 	}
+	return h.configuredStartButtons(ctx, customer, buttons, menu, true)
+}
+
+func (h Handler) configuredStartButtons(ctx context.Context, customer *database.Customer, buttons []runtimeconfig.TelegramStartButton, menu runtimeconfig.TelegramStartMenuSettings, allowSubmenus bool) [][]models.InlineKeyboardButton {
 	needsTrial, needsNotifications := false, false
 	for _, item := range buttons {
 		needsTrial = needsTrial || item.Kind == "trial"
@@ -127,6 +131,11 @@ func (h Handler) configuredMiniAppKeyboard(ctx context.Context, customer *databa
 			button.WebApp = &models.WebAppInfo{URL: h.miniAppURL(item.Target)}
 		case "url":
 			button.URL = item.Target
+		case "submenu":
+			if !allowSubmenus || item.Submenu == nil {
+				continue
+			}
+			button.CallbackData = "sm:" + item.ID
 		default:
 			continue
 		}

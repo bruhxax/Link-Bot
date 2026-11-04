@@ -180,6 +180,7 @@ func main() {
 
 	webLogin := webauth.NewService(webauth.DefaultTTL)
 	h := handler.NewHandler(syncService, paymentService, tm, customerRepository, purchaseRepository, cryptoPayClient, yookasaClient, referralRepository, cache, runtimeSettings, errorReporter, webLogin)
+	h.SetStartMenuDataSources(subscriptionRepository, remnawaveClient)
 	h.SetPinnedMessageOnStart(broadcastService.EnsurePinnedOnStart)
 	miniAppHandler := miniapp.NewHandler(customerRepository, purchaseRepository, promoCodeRepository, referralRepository, partnerRepository, walletRepository, supportRepository, reviewRepository, paymentService, remnawaveClient, b, broadcastService, subService, runtimeSettings, errorReporter, integrationSettings, subscriptionRepository, tm, webLogin)
 	h.SetInlineAdminService(miniAppHandler)
@@ -236,6 +237,7 @@ func main() {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypePrefix, h.StartCommandHandler, h.SuspiciousUserFilterMiddleware)
 	b.RegisterHandlerMatchFunc(func(update *models.Update) bool { return update.InlineQuery != nil }, h.InlineGiftQueryHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "ig:pay:", bot.MatchTypePrefix, h.InlineGiftPayHandler)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "sm:", bot.MatchTypePrefix, h.StartSubmenuCallbackHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "ia:", bot.MatchTypePrefix, h.InlineAdminActionHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "wd:", bot.MatchTypePrefix, miniAppHandler.HandleWithdrawalCallback)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/connect", bot.MatchTypeExact, h.ConnectCommandHandler, h.SuspiciousUserFilterMiddleware, h.CreateCustomerIfNotExistMiddleware)

@@ -193,13 +193,20 @@ type TelegramStartMenuSettings struct {
 }
 
 type TelegramStartButton struct {
-	ID                string `json:"id"`
-	Kind              string `json:"kind"`
-	Target            string `json:"target,omitempty"`
-	Row               int    `json:"row"`
-	Text              string `json:"text"`
-	IconCustomEmojiID string `json:"iconCustomEmojiId,omitempty"`
-	Style             string `json:"style,omitempty"`
+	ID                string                   `json:"id"`
+	Kind              string                   `json:"kind"`
+	Target            string                   `json:"target,omitempty"`
+	Row               int                      `json:"row"`
+	Text              string                   `json:"text"`
+	IconCustomEmojiID string                   `json:"iconCustomEmojiId,omitempty"`
+	Style             string                   `json:"style,omitempty"`
+	Submenu           *TelegramSubMenuSettings `json:"submenu,omitempty"`
+}
+
+type TelegramSubMenuSettings struct {
+	Text    string                `json:"text"`
+	Banner  string                `json:"banner,omitempty"`
+	Buttons []TelegramStartButton `json:"buttons"`
 }
 
 var startMenuPages = []string{"dashboard", "buy", "gift", "setup", "support", "faq", "reviews", "referrals", "partner", "servers", "settings", "media", "login-methods", "payments", "terms", "privacy", "admin"}
@@ -2012,6 +2019,72 @@ func normalizeTelegramContent(value *ContentSettings, defaults ContentSettings, 
 			}
 		case "trial", "plans", "notifications":
 			button.Target = ""
+		case "submenu":
+			button.Target = ""
+			if len(button.ID) > 55 || button.Submenu == nil {
+				return fmt.Errorf("invalid submenu for start button %q", button.ID)
+			}
+			menu := button.Submenu
+			menu.Text = limit(strings.TrimSpace(menu.Text), 3500)
+			if menu.Text == "" {
+				return fmt.Errorf("submenu %q needs text", button.ID)
+			}
+			if err := normalizeOptionalAsset(&menu.Banner, "start submenu banner"); err != nil {
+				return err
+			}
+			if len(menu.Buttons) > 20 {
+				return fmt.Errorf("too many submenu buttons for %q", button.ID)
+			}
+			seen := map[string]bool{}
+			rowCounts := map[int]int{}
+			for childIndex := range menu.Buttons {
+				child := &menu.Buttons[childIndex]
+				child.ID = strings.ToLower(strings.TrimSpace(child.ID))
+				child.Kind = strings.ToLower(strings.TrimSpace(child.Kind))
+				child.Target = strings.TrimSpace(child.Target)
+				child.Text = strings.TrimSpace(child.Text)
+				child.Submenu = nil
+				if !elementIDPattern.MatchString(child.ID) || seen[child.ID] || child.Row < 0 || child.Row > 29 || utf8.RuneCountInString(child.Text) < 1 || utf8.RuneCountInString(child.Text) > 64 {
+					return fmt.Errorf("invalid submenu button %q", child.ID)
+				}
+				seen[child.ID] = true
+				rowCounts[child.Row]++
+				if rowCounts[child.Row] > 8 {
+					return fmt.Errorf("too many buttons in submenu row %d", child.Row+1)
+				}
+				child.IconCustomEmojiID, err = NormalizeTelegramCustomEmojiID(child.IconCustomEmojiID)
+				if err != nil {
+					return err
+				}
+				child.Style, err = NormalizeTelegramButtonStyle(child.Style)
+				if err != nil {
+					return err
+				}
+				switch child.Kind {
+				case "page":
+					validCustomPage := false
+					if strings.HasPrefix(child.Target, "custom-page:") {
+						id := strings.TrimPrefix(child.Target, "custom-page:")
+						for _, link := range value.CustomLinks {
+							if link.ID == id && link.Type == "page" {
+								validCustomPage = true
+								break
+							}
+						}
+					}
+					if !contains(startMenuPages, child.Target) && !validCustomPage {
+						return fmt.Errorf("invalid page for submenu button %q", child.ID)
+					}
+				case "url":
+					if !isSafeWebURL(child.Target) || len(child.Target) > 2048 {
+						return fmt.Errorf("invalid URL for submenu button %q", child.ID)
+					}
+				case "trial", "plans", "notifications":
+					child.Target = ""
+				default:
+					return fmt.Errorf("invalid kind for submenu button %q", child.ID)
+				}
+			}
 		default:
 			return fmt.Errorf("invalid kind for start button %q", button.ID)
 		}

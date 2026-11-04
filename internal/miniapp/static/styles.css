@@ -11083,6 +11083,27 @@ body.has-open-modal .admin-save-bar {
 .admin-start-button__actions button:last-child { color: var(--danger); }
 .admin-start-button__actions button:disabled { opacity: .35; }
 .admin-start-button__actions svg { width: 16px; height: 16px; }
+.admin-start-submenu { display: grid; gap: 13px; padding: 16px; border: 1px solid var(--line-soft); border-radius: 15px; background: color-mix(in srgb, var(--control-bg) 78%, transparent); }
+.admin-start-submenu > header { display: grid; gap: 3px; }
+.admin-start-submenu > header strong, .admin-start-submenu__heading strong { font-size: 12px; }
+.admin-start-submenu > header span, .admin-start-submenu__back, .admin-start-submenu__preview small { color: var(--muted); font-size: 10px; }
+.admin-start-submenu__variables { border: 1px solid var(--line-soft); border-radius: 11px; overflow: hidden; }
+.admin-start-submenu__variables summary { display: flex; align-items: center; justify-content: space-between; padding: 11px 12px; cursor: pointer; list-style: none; font-size: 11px; font-weight: 650; }
+.admin-start-submenu__variables summary::-webkit-details-marker { display: none; }
+.admin-start-submenu__variables summary svg { width: 15px; height: 15px; transition: transform .2s ease; }
+.admin-start-submenu__variables[open] summary svg { transform: rotate(180deg); }
+.admin-start-submenu__variables > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 0 10px 10px; }
+.admin-start-submenu__variables button { display: grid; gap: 2px; text-align: left; min-width: 0; padding: 8px; border: 1px solid var(--line-soft); border-radius: 9px; color: var(--text); background: var(--control-bg); }
+.admin-start-submenu__variables button code { font-size: 10px; color: var(--accent); overflow-wrap: anywhere; }
+.admin-start-submenu__variables button small { color: var(--muted); font-size: 9px; }
+.admin-start-submenu__preview { padding: 12px; border: 1px solid var(--line-soft); border-radius: 11px; background: color-mix(in srgb, var(--control-bg) 60%, transparent); }
+.admin-start-submenu__preview p { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; font-size: 11px; }
+.admin-start-submenu__heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.admin-start-submenu__list { display: grid; gap: 7px; }
+.admin-start-submenu__list > p { color: var(--muted); font-size: 10px; margin: 0; }
+.admin-start-submenu__button { border: 1px solid var(--line-soft); }
+.admin-start-submenu__back { display: flex; align-items: center; gap: 6px; }
+.admin-start-submenu__back svg { width: 15px; height: 15px; }
 
 @media (max-width: 360px) {
   .gift-plan-row { min-height: 54px; padding-inline: 13px; }
