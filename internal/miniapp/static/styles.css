@@ -11102,6 +11102,10 @@ body.has-open-modal .admin-save-bar {
 .admin-start-submenu__list { display: grid; gap: 7px; }
 .admin-start-submenu__list > p { color: var(--muted); font-size: 10px; margin: 0; }
 .admin-start-submenu__button { border: 1px solid var(--line-soft); }
+.admin-start-submenu__upload { display: grid; gap: 6px; }
+.admin-start-submenu__upload label { width: fit-content; min-height: 36px; display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--control-bg); color: var(--text); font-size: 11px; font-weight: 700; cursor: pointer; }
+.admin-start-submenu__upload label svg { width: 15px; height: 15px; }
+.admin-start-submenu__upload small { color: var(--muted); font-size: 10px; line-height: 1.45; }
 .admin-start-submenu__back { display: flex; align-items: center; gap: 6px; }
 .admin-start-submenu__back svg { width: 15px; height: 15px; }
 

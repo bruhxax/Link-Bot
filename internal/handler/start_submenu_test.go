@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -13,5 +14,15 @@ func TestRenderStartSubmenuTextEscapesValuesAndKeepsFormatting(t *testing.T) {
 	})
 	if !strings.Contains(got, "<b>A &amp; B &lt;premium&gt;</b>") || !strings.Contains(got, "50/100 ГБ · 5/10") || !strings.Contains(got, "\n—") {
 		t.Fatalf("unexpected rendered submenu: %q", got)
+	}
+}
+
+func TestResolveStartSubmenuBannerAcceptsUploadedImage(t *testing.T) {
+	got := resolveStartSubmenuBanner("/mini-app/uploads/logo-0123456789abcdef.png", "/uploads")
+	if got != filepath.Join("/uploads", "logo-0123456789abcdef.png") {
+		t.Fatalf("uploaded banner path = %q", got)
+	}
+	if got := resolveStartSubmenuBanner("/mini-app/uploads/../secret.png", "/uploads"); got != "" {
+		t.Fatalf("unsafe uploaded banner accepted: %q", got)
 	}
 }

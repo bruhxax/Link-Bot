@@ -7532,7 +7532,8 @@ function renderAdminStartSubmenu(button, index) {
 	return `<section class="admin-start-submenu"><header><strong>Экран вложенного меню</strong><span>Откроется в этом же сообщении бота</span></header>
 		${renderAdminSettingField("Текст меню", `${base}.text`, { textarea: true, rows: 7, maxLength: 3500 })}
 		<details class="admin-start-submenu__variables"><summary>Переменные текста ${icon("chevron")}</summary><div>${START_SUBMENU_VARIABLES.map(([key, label]) => `<button type="button" data-action="admin-submenu-variable" data-value="${escapeAttribute(key)}" data-menu-index="${index}" title="${escapeAttribute(label)}"><code>{${escapeHtml(key)}}</code><small>${escapeHtml(label)}</small></button>`).join("")}</div></details>
-		${renderAdminSettingField("Баннер меню (необязательно)", `${base}.banner`, { placeholder: "HTTPS URL или /mini-app/…" })}
+		${renderAdminSettingField("Баннер меню (необязательно)", `${base}.banner`, { placeholder: "https://example.com/banner.png" })}
+		<div class="admin-start-submenu__upload"><label class="admin-logo-field__upload"><input class="sr-only" type="file" accept="image/png,image/jpeg" data-input="admin-start-submenu-banner-file" data-menu-index="${index}" aria-label="Загрузить баннер меню" ${state.adminBusy ? "disabled" : ""}>${icon("upload")}<span>${state.adminBusy === "upload-start-submenu-banner" ? "Загружаем…" : "Загрузить изображение"}</span></label><small>PNG или JPG до 2 МБ. Адрес подставится автоматически; затем сохраните изменения.</small></div>
 		<div class="admin-start-submenu__preview"><small>Как будет выглядеть текст</small><p data-submenu-preview="${index}">${escapeHtml(sample || "Сообщение пока пустое")}</p></div>
 		<div class="admin-start-submenu__heading"><strong>Кнопки этого меню</strong><button type="button" class="admin-icon-button" data-action="admin-submenu-add-button" data-value="${index}" ${menu.buttons?.length >= 20 ? "disabled" : ""} aria-label="Добавить кнопку в меню">${icon("plus")}</button></div>
 		<div class="admin-start-submenu__list">${(menu.buttons || []).map((child, childIndex) => renderAdminSubmenuButton(child, index, childIndex)).join("") || `<p>Добавьте кнопку: раздел Mini App, ссылку или действие бота.</p>`}</div>
@@ -13333,6 +13334,12 @@ function bindRootActions() {
 			input.value = "";
 			if (file) void uploadAdminInlineGiftBanner(file);
 		}
+		if (input.dataset.input === "admin-start-submenu-banner-file") {
+			const file = input.files?.[0];
+			const menuIndex = Number(input.dataset.menuIndex);
+			input.value = "";
+			if (file) void uploadAdminStartSubmenuBanner(file, menuIndex);
+		}
 		if (input.dataset.input === "admin-favicon-file") {
 			const file = input.files?.[0];
 			if (file) void uploadAdminFavicon(file);
@@ -14480,6 +14487,30 @@ async function uploadAdminLogo(file) {
 		state.adminBusy = "";
 		render({ preserveScroll: true });
 		showToast(error?.message || "Не удалось загрузить логотип", "danger");
+	}
+}
+
+async function uploadAdminStartSubmenuBanner(file, index) {
+	const button = ensureAdminStartButtonsDraft()[index];
+	if (!button?.submenu || state.adminBusy || !file) return;
+	const supported = ["image/png", "image/jpeg"].includes(String(file.type || "").toLowerCase()) || /\.(?:png|jpe?g)$/i.test(String(file.name || ""));
+	if (!supported || file.size > 2 * 1024 * 1024) return showToast("Выберите PNG или JPG до 2 МБ", "danger");
+	state.adminBusy = "upload-start-submenu-banner";
+	render({ preserveScroll: true, preserveInteraction: true });
+	try {
+		const body = new FormData();
+		body.append("logo", file, file.name || "menu-banner");
+		const response = await postForm("/api/mini-app/admin/logo/upload", body);
+		const imageURL = String(response?.data?.url || "").trim();
+		if (!imageURL) throw new Error("Не удалось получить адрес изображения");
+		button.submenu.banner = imageURL;
+		state.adminSettingsDirty = true;
+		showToast("Баннер загружен. Сохраните изменения.", "success");
+	} catch (error) {
+		showToast(error?.message || "Не удалось загрузить баннер", "danger");
+	} finally {
+		state.adminBusy = "";
+		render({ preserveScroll: true, preserveInteraction: true });
 	}
 }
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"html"
 	"log/slog"
+	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -13,11 +15,26 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/google/uuid"
 
+	"link-bot/internal/config"
 	"link-bot/internal/database"
 	"link-bot/internal/runtimeconfig"
 )
 
 const submenuGB = float64(1024 * 1024 * 1024)
+
+var uploadedSubmenuImage = regexp.MustCompile(`^(?:logo|banner)-[0-9a-f]{16}\.(?:png|jpg|webp|gif)$`)
+
+func resolveStartSubmenuBanner(value, uploadDir string) string {
+	const prefix = "/mini-app/uploads/"
+	if !strings.HasPrefix(value, prefix) {
+		return value
+	}
+	name := strings.TrimPrefix(value, prefix)
+	if !uploadedSubmenuImage.MatchString(name) || strings.TrimSpace(uploadDir) == "" {
+		return ""
+	}
+	return filepath.Join(uploadDir, name)
+}
 
 func submenuAmount(value float64) string {
 	if value <= 0 {
@@ -193,7 +210,7 @@ func (h Handler) StartSubmenuCallbackHandler(ctx context.Context, b *bot.Bot, up
 	text := renderStartSubmenuText(selected.Text, values)
 	keyboard := h.configuredStartButtons(ctx, customer, selected.Buttons, menu, false)
 	keyboard = append(keyboard, []models.InlineKeyboardButton{h.premiumBackButton(CallbackStart)})
-	image := selected.Banner
+	image := resolveStartSubmenuBanner(selected.Banner, config.MediaUploadDir())
 	if utf8.RuneCountInString(text) > 1000 {
 		image = ""
 	}
