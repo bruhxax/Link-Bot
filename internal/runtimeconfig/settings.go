@@ -17,6 +17,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/go-telegram/bot"
 	"github.com/google/uuid"
 
 	"link-bot/internal/broadcast"
@@ -551,6 +552,8 @@ type Service struct {
 	repository *database.RuntimeSettingsRepository
 	value      atomic.Value
 	mu         sync.Mutex
+	emojiBot   *bot.Bot
+	emojiAlts  map[string]string
 }
 
 func NewService(ctx context.Context, repository *database.RuntimeSettingsRepository) (*Service, error) {
@@ -1233,6 +1236,9 @@ func (s *Service) updateLocked(ctx context.Context, next Settings, updatedBy int
 	next.HiddenServerNodes = current.HiddenServerNodes
 	next.ReviewRewards = current.ReviewRewards
 	if err := NormalizeAndValidate(&next); err != nil {
+		return Settings{}, err
+	}
+	if err := s.normalizePremiumEmoji(ctx, &next); err != nil {
 		return Settings{}, err
 	}
 	stampLegalDocumentChanges(&next, current, time.Now().UTC())

@@ -134,6 +134,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	if err := runtimeSettings.SetTelegramBot(ctx, b); err != nil {
+		slog.Warn("premium emoji normalization failed", "error", err)
+	}
 	errorReporter := operations.NewReporter(runtimeSettingsRepository, b, config.GetAdminTelegramId())
 	errorReporter.SetAdminPushNotifier(webPushService)
 	broadcastService := broadcast.NewService(broadcastRepository, customerRepository, promoCodeRepository, b)
