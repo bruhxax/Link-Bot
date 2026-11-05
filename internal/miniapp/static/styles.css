@@ -10376,6 +10376,7 @@ body.has-open-modal .admin-save-bar {
 .admin-legal-editor__title span { color: var(--muted); font-size: 9px; font-weight: 800; }
 .admin-legal-editor__title h3 { margin: 0; color: var(--text); font-size: 14px; }
 .admin-legal-editor__title small { color: var(--muted); font-size: 9px; line-height: 1.45; }
+.admin-legal-editor__date { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
 .admin-legal-sections { display: grid; border-top: 1px solid var(--border); }
 .admin-legal-section { padding: 14px 0; display: grid; gap: 10px; border-bottom: 1px solid var(--border); }
 .admin-legal-section__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

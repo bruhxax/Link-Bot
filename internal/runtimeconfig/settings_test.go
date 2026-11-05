@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"link-bot/internal/database"
 )
@@ -1511,6 +1512,45 @@ func TestStartSubmenuValidatesTextAndChildActions(t *testing.T) {
 	settings.Content.StartMenu.Buttons[0].Submenu.Buttons[0].Target = "javascript:alert(1)"
 	if err := NormalizeAndValidate(&settings); err == nil {
 		t.Fatal("unsafe submenu action accepted")
+	}
+}
+
+func TestLegalDocumentDateChangesOnlyWithDocument(t *testing.T) {
+	current := DefaultSettings()
+	current.Content.LegalDocuments["privacy"] = LegalDocumentSettings{Title: "Политика", Intro: "Текст"}
+	if err := NormalizeAndValidate(&current); err != nil {
+		t.Fatal(err)
+	}
+	first := time.Date(2026, 11, 5, 10, 0, 0, 0, time.UTC)
+	second := first.Add(24 * time.Hour)
+	next := cloneSettings(current)
+	stampLegalDocumentChanges(&next, current, first)
+	if got := next.Content.LegalDocuments["privacy"].ModifiedAt; got != "" {
+		t.Fatalf("unchanged document received a new date: %q", got)
+	}
+	next.Content.LegalDocuments["privacy"] = LegalDocumentSettings{Title: "Политика", Intro: "Новый текст"}
+	stampLegalDocumentChanges(&next, current, first)
+	if got := next.Content.LegalDocuments["privacy"].ModifiedAt; got != first.Format(time.RFC3339) {
+		t.Fatalf("changed document date = %q", got)
+	}
+	current = cloneSettings(next)
+	next = cloneSettings(current)
+	next.Content.BrandName = "Другой бренд"
+	stampLegalDocumentChanges(&next, current, second)
+	if got := next.Content.LegalDocuments["privacy"].ModifiedAt; got != first.Format(time.RFC3339) {
+		t.Fatalf("unrelated setting changed document date: %q", got)
+	}
+}
+
+func TestInlineGiftPreviewBannerValidation(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Content.Gift.Inline.PreviewBannerURL = "/mini-app/uploads/logo-0123456789abcdef.jpg"
+	if err := NormalizeAndValidate(&settings); err != nil {
+		t.Fatalf("uploaded inline preview rejected: %v", err)
+	}
+	settings.Content.Gift.Inline.PreviewBannerURL = "javascript:alert(1)"
+	if err := NormalizeAndValidate(&settings); err == nil {
+		t.Fatal("unsafe inline preview accepted")
 	}
 }
 

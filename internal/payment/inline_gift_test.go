@@ -22,3 +22,13 @@ func TestInlineGiftBannerIsOptionalAndUsesPublicMiniAppOrigin(t *testing.T) {
 		}
 	}
 }
+
+func TestInlineGiftMessagePreviewKeepsBannerAboveText(t *testing.T) {
+	preview := InlineGiftMessagePreview("/mini-app/uploads/logo-1234567890abcdef.jpg", "https://vpn.example/mini-app/")
+	if preview == nil || preview.URL == nil || *preview.URL != "https://vpn.example/mini-app/uploads/logo-1234567890abcdef.jpg" || preview.ShowAboveText == nil || !*preview.ShowAboveText {
+		t.Fatalf("unexpected inline gift preview: %+v", preview)
+	}
+	if got := InlineGiftMessagePreview("", "https://vpn.example/mini-app/"); got != nil {
+		t.Fatalf("bannerless gift has preview: %+v", got)
+	}
+}

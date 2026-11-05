@@ -1,4 +1,4 @@
-import { TERMS_ARTICLE, PRIVACY_ARTICLE } from './legal-articles.mjs';
+import { TERMS_ARTICLE, PRIVACY_ARTICLE, LEGAL_ARTICLES_MODIFIED_AT } from './legal-articles.mjs';
 
 const labels = { terms: 'Пользовательское соглашение', privacy: 'Политика конфиденциальности' };
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -9,11 +9,11 @@ export function landingLegalArticle(id, data = {}) {
   const fallback = id === 'privacy' ? PRIVACY_ARTICLE.ru : TERMS_ARTICLE.ru;
   const document = data.legalDocuments?.[id];
   const article = document?.title ? {
-    title: document.title, effectiveLabel: document.effectiveLabel || 'Дата вступления в силу',
+    title: document.title, effectiveLabel: document.effectiveLabel || 'Дата вступления в силу', modifiedAt: document.modifiedAt || '',
     jurisdiction: document.jurisdiction || '', intro: paragraphs(document.intro),
     sections: (document.sections || []).map(section => ({ title: section.title || '', paragraphs: paragraphs(section.body) })),
     contactTitle: document.contactTitle || 'Связь с администрацией', contacts: paragraphs(document.contacts), footer: document.footer || '',
-  } : fallback;
+  } : { ...fallback, modifiedAt: LEGAL_ARTICLES_MODIFIED_AT };
   const brand = String(data.brand?.name || 'Link-Bot').trim() || 'Link-Bot';
   const contact = (data.contacts || []).map(item => String(item.url || '').match(/^https?:\/\/t\.me\/([A-Za-z0-9_]{5,32})\/?$/i)?.[1]).find(Boolean);
   const legalContact = String(data.legalContact || (contact ? `@${contact}` : '@your_support_username')).trim();
@@ -25,13 +25,15 @@ export function landingLegalArticle(id, data = {}) {
   return replace(article);
 }
 
-export function renderLandingLegal(id, data = {}, now = new Date()) {
+export function renderLandingLegal(id, data = {}) {
   const article = landingLegalArticle(id, data);
   if (!article) return '';
   const p = text => `<p>${escape(text)}</p>`;
   const list = items => items?.length ? `<ul>${items.map(item => `<li>${escape(item)}</li>`).join('')}</ul>` : '';
+  const modifiedAt = article.modifiedAt ? new Date(article.modifiedAt) : null;
+  const modifiedDate = modifiedAt && !Number.isNaN(modifiedAt.getTime()) ? modifiedAt.toLocaleDateString('ru-RU') : '—';
   return `<h1 id="landing-legal-title" tabindex="-1">${escape(article.title)}</h1>
-    <p class="legal-article__meta">${escape(article.effectiveLabel)} — ${escape(now.toLocaleDateString('ru-RU'))}</p>
+    <p class="legal-article__meta">Последнее изменение — ${escape(modifiedDate)}</p>
     ${article.jurisdiction ? `<p class="legal-article__lead">${escape(article.jurisdiction)}</p>` : ''}
     ${(article.intro || []).map(p).join('')}
     ${(article.sections || []).map(section => `<section>${section.title ? `<h2>${escape(section.title)}</h2>` : ''}${(section.paragraphs || []).map(p).join('')}${list(section.items)}</section>`).join('')}

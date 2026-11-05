@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -145,6 +146,7 @@ type LegalDocumentSection struct {
 type LegalDocumentSettings struct {
 	Title          string                 `json:"title"`
 	EffectiveLabel string                 `json:"effectiveLabel"`
+	ModifiedAt     string                 `json:"modifiedAt,omitempty"`
 	Jurisdiction   string                 `json:"jurisdiction"`
 	Intro          string                 `json:"intro"`
 	Sections       []LegalDocumentSection `json:"sections"`
@@ -262,12 +264,13 @@ type TelegramGiftSettings struct {
 }
 
 type TelegramInlineGiftSettings struct {
-	PendingText   string `json:"pendingText"`
-	Text          string `json:"text"`
-	PaymentText   string `json:"paymentText"`
-	BannerURL     string `json:"bannerUrl"`
-	PayButtonText string `json:"payButtonText"`
-	ButtonText    string `json:"buttonText"`
+	PendingText      string `json:"pendingText"`
+	Text             string `json:"text"`
+	PaymentText      string `json:"paymentText"`
+	BannerURL        string `json:"bannerUrl"`
+	PreviewBannerURL string `json:"previewBannerUrl,omitempty"`
+	PayButtonText    string `json:"payButtonText"`
+	ButtonText       string `json:"buttonText"`
 }
 
 type WebPageSettings struct {
@@ -1224,14 +1227,15 @@ func MergeSettingsFields(current, next Settings, fields []string) (Settings, err
 }
 
 func (s *Service) updateLocked(ctx context.Context, next Settings, updatedBy int64) (Settings, error) {
-
+	current := s.Snapshot()
 	// The server controls save independently from the appearance editor. A stale
 	// editor draft must not restore an older visibility list.
-	next.HiddenServerNodes = s.Snapshot().HiddenServerNodes
-	next.ReviewRewards = s.Snapshot().ReviewRewards
+	next.HiddenServerNodes = current.HiddenServerNodes
+	next.ReviewRewards = current.ReviewRewards
 	if err := NormalizeAndValidate(&next); err != nil {
 		return Settings{}, err
 	}
+	stampLegalDocumentChanges(&next, current, time.Now().UTC())
 	raw, err := json.Marshal(next)
 	if err != nil {
 		return Settings{}, fmt.Errorf("encode runtime settings: %w", err)
@@ -1241,6 +1245,21 @@ func (s *Service) updateLocked(ctx context.Context, next Settings, updatedBy int
 	}
 	s.value.Store(next)
 	return cloneSettings(next), nil
+}
+
+func stampLegalDocumentChanges(next *Settings, current Settings, now time.Time) {
+	for _, id := range []string{"terms", "privacy"} {
+		document, ok := next.Content.LegalDocuments[id]
+		if !ok {
+			continue
+		}
+		previous, hadPrevious := current.Content.LegalDocuments[id]
+		document.ModifiedAt = previous.ModifiedAt
+		if !hadPrevious || !reflect.DeepEqual(document, previous) {
+			document.ModifiedAt = now.Format(time.RFC3339)
+		}
+		next.Content.LegalDocuments[id] = document
+	}
 }
 
 func (s *Service) SetServerNodeHidden(ctx context.Context, id string, hidden bool, updatedBy int64) error {
@@ -1838,6 +1857,11 @@ func validateContent(value *ContentSettings, defaults ContentSettings, legacy bo
 }
 
 func normalizeLegalDocument(value LegalDocumentSettings, fallbackTitle string) LegalDocumentSettings {
+	if value.ModifiedAt != "" {
+		if _, err := time.Parse(time.RFC3339, value.ModifiedAt); err != nil {
+			value.ModifiedAt = ""
+		}
+	}
 	value.Title = limit(strings.TrimSpace(value.Title), 160)
 	if value.Title == "" {
 		value.Title = limit(strings.TrimSpace(fallbackTitle), 160)
@@ -1910,6 +1934,13 @@ func normalizeTelegramContent(value *ContentSettings, defaults ContentSettings, 
 	}
 	if len(value.Gift.Inline.BannerURL) > 2048 {
 		return errors.New("inline gift banner URL is too long")
+	}
+	value.Gift.Inline.PreviewBannerURL = strings.TrimSpace(value.Gift.Inline.PreviewBannerURL)
+	if value.Gift.Inline.PreviewBannerURL != "" && !(strings.HasPrefix(value.Gift.Inline.PreviewBannerURL, "https://") || strings.HasPrefix(value.Gift.Inline.PreviewBannerURL, "/mini-app/uploads/logo-")) {
+		return errors.New("inline gift preview banner URL must be HTTPS or an uploaded image")
+	}
+	if len(value.Gift.Inline.PreviewBannerURL) > 2048 {
+		return errors.New("inline gift preview banner URL is too long")
 	}
 
 	value.Verification.Text = normalizedRequiredText(value.Verification.Text, defaults.Verification.Text, 3500)

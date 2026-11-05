@@ -52,6 +52,10 @@ func (h *Handler) InlineGiftQueryHandler(ctx context.Context, b *bot.Bot, update
 	}
 	settings := h.runtimeSettings.Snapshot().Content.Gift.Inline
 	bannerURL := payment.InlineGiftBannerURL(settings.BannerURL, config.GetMiniAppURL())
+	previewURL := payment.InlineGiftBannerURL(settings.PreviewBannerURL, config.GetMiniAppURL())
+	if previewURL == "" {
+		previewURL = bannerURL
+	}
 	search := strings.ToLower(strings.TrimSpace(query.Query))
 	results := make([]models.InlineQueryResult, 0, 50)
 	visible := make([]plans.CheckoutPlan, 0)
@@ -98,20 +102,14 @@ func (h *Handler) InlineGiftQueryHandler(ctx context.Context, b *bot.Bot, update
 		} else if plan.OriginalPriceRub > plan.PriceRub {
 			price = fmt.Sprintf("%d ₽ · было %d ₽", plan.PriceRub, plan.OriginalPriceRub)
 		}
-		mediaKind := "t"
-		if bannerURL != "" {
-			mediaKind = "b"
-		}
 		keyboard := models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
-			{Text: settings.PayButtonText, CallbackData: fmt.Sprintf("ig:pay:%d:%s:%s", query.From.ID, inlineGiftPlanKey(plan.ID), mediaKind)},
+			{Text: settings.PayButtonText, CallbackData: fmt.Sprintf("ig:pay:%d:%s:t", query.From.ID, inlineGiftPlanKey(plan.ID))},
 		}}}
-		if bannerURL != "" {
-			results = append(results, &models.InlineQueryResultPhoto{ID: plan.ID, PhotoURL: bannerURL, ThumbnailURL: bannerURL,
-				Title: title, Description: price, Caption: caption, ParseMode: models.ParseModeHTML, ReplyMarkup: keyboard})
-		} else {
-			results = append(results, &models.InlineQueryResultArticle{ID: plan.ID, Title: title, Description: price,
-				InputMessageContent: models.InputTextMessageContent{MessageText: caption, ParseMode: models.ParseModeHTML}, ReplyMarkup: keyboard})
-		}
+		results = append(results, &models.InlineQueryResultArticle{ID: plan.ID, Title: title, Description: price,
+			ThumbnailURL: previewURL,
+			InputMessageContent: models.InputTextMessageContent{MessageText: caption, ParseMode: models.ParseModeHTML,
+				LinkPreviewOptions: payment.InlineGiftMessagePreview(settings.BannerURL, config.GetMiniAppURL())},
+			ReplyMarkup: keyboard})
 	}
 	nextOffset := ""
 	if end < len(visible) {

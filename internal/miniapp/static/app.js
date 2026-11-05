@@ -10,7 +10,7 @@ const torrentAutosave=createTorrentAutosave({save:saveTorrentSettings,onState:up
 let torrentSaveDirty=false;
 let torrentHadOtherDirty=false;
 let torrentOtherSignature="";
-import { TERMS_ARTICLE, PRIVACY_ARTICLE } from "./legal-articles.mjs";
+import { TERMS_ARTICLE, PRIVACY_ARTICLE, LEGAL_ARTICLES_MODIFIED_AT } from "./legal-articles.mjs";
 import {
   SETUP_PLATFORM_IDS,
   buildSetupClientURL,
@@ -7785,11 +7785,18 @@ function renderAdminGiftContent() {
 		${renderAdminSettingField("Текст личного сообщения для оплаты", "content.gift.inline.paymentText", { textarea: true, rows: 3, placeholder: "Откройте оплату подарка" })}
 		<div class="admin-logo-field"><div class="admin-logo-field__main">
 			${gift.inline?.bannerUrl ? `<div class="admin-logo-field__preview"><img src="${escapeAttribute(gift.inline.bannerUrl)}" alt="Баннер подарка"></div>` : ""}
-			<div class="admin-logo-field__body"><strong>Баннер (необязательно)</strong><div class="admin-logo-field__actions">
-				<label class="admin-logo-field__upload"><input class="sr-only" type="file" accept="image/png,image/jpeg" data-input="admin-inline-gift-banner-file" aria-label="Загрузить баннер подарка">${icon("image")}<span>Загрузить</span></label>
-				${gift.inline?.bannerUrl ? `<button type="button" data-action="admin-inline-gift-banner-remove">${icon("trash")}<span>Убрать</span></button>` : ""}
+			<div class="admin-logo-field__body"><strong>Баннер сообщения</strong><p>Показывается после выбора тарифа.</p><div class="admin-logo-field__actions">
+				<label class="admin-logo-field__upload"><input class="sr-only" type="file" accept="image/png,image/jpeg" data-input="admin-inline-gift-banner-file" data-banner-kind="message" aria-label="Загрузить баннер сообщения">${icon("image")}<span>Загрузить</span></label>
+				${gift.inline?.bannerUrl ? `<button type="button" data-action="admin-inline-gift-banner-remove" data-value="message">${icon("trash")}<span>Убрать</span></button>` : ""}
 			</div></div>
 		</div>${renderAdminSettingField("Или HTTPS-ссылка", "content.gift.inline.bannerUrl", { type: "url", placeholder: "Без баннера сообщение будет текстовым", compact: true })}</div>
+		<div class="admin-logo-field"><div class="admin-logo-field__main">
+			${gift.inline?.previewBannerUrl ? `<div class="admin-logo-field__preview"><img src="${escapeAttribute(gift.inline.previewBannerUrl)}" alt="Баннер выбора тарифа"></div>` : ""}
+			<div class="admin-logo-field__body"><strong>Баннер списка тарифов</strong><p>Маленькая картинка рядом с названием тарифа в inline-списке.</p><div class="admin-logo-field__actions">
+				<label class="admin-logo-field__upload"><input class="sr-only" type="file" accept="image/png,image/jpeg" data-input="admin-inline-gift-banner-file" data-banner-kind="preview" aria-label="Загрузить баннер списка тарифов">${icon("image")}<span>Загрузить</span></label>
+				${gift.inline?.previewBannerUrl ? `<button type="button" data-action="admin-inline-gift-banner-remove" data-value="preview">${icon("trash")}<span>Убрать</span></button>` : ""}
+			</div></div>
+		</div>${renderAdminSettingField("Или HTTPS-ссылка", "content.gift.inline.previewBannerUrl", { type: "url", placeholder: "Необязательно", compact: true })}</div>
 		${renderAdminSettingField("Текст кнопки оплаты", "content.gift.inline.payButtonText", { placeholder: "Оплатить" })}
 		${renderAdminSettingField("Текст кнопки получения", "content.gift.inline.buttonText", { placeholder: "Получить" })}
 	</section>`;
@@ -9362,9 +9369,10 @@ function renderAdminProfileEditorModal() {
 				${supportsURL ? renderProfileDraftField("Ссылка", "url", item.url || defaultProfileButtonURL(item.id), { type: "url", placeholder: "https://example.com" }) : ""}
 				${legal ? `<section class="admin-legal-editor">
 					<div class="admin-legal-editor__title"><div><span>СТРАНИЦА</span><h3>Содержимое</h3></div><small>Текст отображается в стиле юридической страницы mini app.</small></div>
+					${["terms", "privacy"].includes(item.id) ? `<p class="admin-legal-editor__date">Последнее изменение: ${escapeHtml(item.document?.modifiedAt ? formatTermsDate(item.document.modifiedAt) : "дата появится после изменения документа")}</p>` : ""}
 					${renderProfileDraftField("Заголовок", "document.title", item.document?.title || item.labelRu, { maxlength: 160 })}
 					<div class="admin-editor__grid admin-editor__grid--two">
-						${renderProfileDraftField("Подпись даты", "document.effectiveLabel", item.document?.effectiveLabel || "Дата вступления в силу", { maxlength: 100 })}
+						${["terms", "privacy"].includes(item.id) ? "" : renderProfileDraftField("Подпись даты", "document.effectiveLabel", item.document?.effectiveLabel || "Дата вступления в силу", { maxlength: 100 })}
 						${renderProfileDraftField("Юрисдикция / подзаголовок", "document.jurisdiction", item.document?.jurisdiction || "", { maxlength: 300 })}
 					</div>
 					${renderProfileDraftField("Вступление", "document.intro", item.document?.intro || "", { textarea: true, rows: 5 })}
@@ -11099,13 +11107,14 @@ function renderCustomProfilePage() {
 }
 
 function renderLegalPage(page, article) {
-	const effectiveDate = formatTermsDate(state.data?.meta?.now || new Date().toISOString());
+	const effectiveDate = formatTermsDate(article.modifiedAt);
+	const dateLabel = ["terms", "privacy"].includes(page) ? localizedText("Последнее изменение", "Last updated", "آخرین تغییر") : article.effectiveLabel;
   return `
     <section class="page ${pageClass(page)}" id="page-${escapeAttribute(page)}">
       <article class="terms-article">
         <div class="terms-article__eyebrow">${escapeHtml(article.title)}</div>
         <h1 class="terms-article__title">${escapeHtml(article.title)}</h1>
-        <div class="terms-article__meta">${escapeHtml(article.effectiveLabel)} — ${escapeHtml(effectiveDate)}</div>
+		<div class="terms-article__meta">${escapeHtml(dateLabel)} — ${escapeHtml(effectiveDate)}</div>
         <p class="terms-article__lead"><strong>${escapeHtml(article.jurisdiction)}</strong></p>
         ${article.intro.map((paragraph) => `<p class="terms-article__lead">${escapeHtml(paragraph)}</p>`).join("")}
         <div class="terms-article__divider"></div>
@@ -11125,7 +11134,7 @@ function renderLegalPage(page, article) {
 function getRuntimeLegalArticle(id) {
 	const fallback = id === "privacy" ? (PRIVACY_ARTICLE[state.locale] || PRIVACY_ARTICLE.ru) : (TERMS_ARTICLE[state.locale] || TERMS_ARTICLE.ru);
 	const configured = getRuntimeSettings()?.content?.legalDocuments?.[id];
-	return replaceRuntimeBrandTokens(configured?.title ? documentToArticle(configured, fallback.title) : fallback);
+	return replaceRuntimeBrandTokens(configured?.title ? documentToArticle(configured, fallback.title) : { ...fallback, modifiedAt: LEGAL_ARTICLES_MODIFIED_AT });
 }
 
 function documentToArticle(document, fallbackTitle) {
@@ -11133,6 +11142,7 @@ function documentToArticle(document, fallbackTitle) {
 	return {
 		title: String(document?.title || fallbackTitle || "Страница"),
 		effectiveLabel: String(document?.effectiveLabel || "Дата вступления в силу"),
+		modifiedAt: String(document?.modifiedAt || ""),
 		jurisdiction: String(document?.jurisdiction || ""),
 		intro: splitDocumentText(document?.intro),
 		sections: sections.map((section) => ({
@@ -13198,7 +13208,7 @@ function bindRootActions() {
 			if (action === "admin-theme-export") return exportAdminThemePreset(value);
 			if (action === "admin-theme-delete") return await deleteAdminThemePreset(value);
 			if (action === "admin-logo-reset") return resetAdminLogo();
-			if (action === "admin-inline-gift-banner-remove") { state.adminSettingsDraft.content.gift.inline.bannerUrl = ""; state.adminSettingsDirty = true; render({ preserveScroll: true }); return; }
+			if (action === "admin-inline-gift-banner-remove") { state.adminSettingsDraft.content.gift.inline[value === "preview" ? "previewBannerUrl" : "bannerUrl"] = ""; state.adminSettingsDirty = true; render({ preserveScroll: true }); return; }
 			if (action === "admin-favicon-reset") return resetAdminFavicon();
 			if (action === "admin-save-settings") return await saveAdminSettings();
 			if (action === "admin-content-group") {
@@ -13331,8 +13341,9 @@ function bindRootActions() {
 		}
 		if (input.dataset.input === "admin-inline-gift-banner-file") {
 			const file = input.files?.[0];
+			const bannerKind = input.dataset.bannerKind;
 			input.value = "";
-			if (file) void uploadAdminInlineGiftBanner(file);
+			if (file) void uploadAdminInlineGiftBanner(file, bannerKind);
 		}
 		if (input.dataset.input === "admin-start-submenu-banner-file") {
 			const file = input.files?.[0];
@@ -14514,7 +14525,7 @@ async function uploadAdminStartSubmenuBanner(file, index) {
 	}
 }
 
-async function uploadAdminInlineGiftBanner(file) {
+async function uploadAdminInlineGiftBanner(file, kind = "message") {
 	if (!state.adminSettingsDraft?.content?.gift?.inline || state.adminBusy || !file) return;
 	if (!["image/png", "image/jpeg"].includes(String(file.type || "").toLowerCase()) || file.size > 2 * 1024 * 1024) {
 		showToast("Выберите PNG или JPG до 2 МБ", "danger");
@@ -14528,7 +14539,7 @@ async function uploadAdminInlineGiftBanner(file) {
 		const response = await postForm("/api/mini-app/admin/logo/upload", body);
 		const imageURL = String(response?.data?.url || "").trim();
 		if (!imageURL) throw new Error("Не удалось получить адрес баннера");
-		state.adminSettingsDraft.content.gift.inline.bannerUrl = imageURL;
+		state.adminSettingsDraft.content.gift.inline[kind === "preview" ? "previewBannerUrl" : "bannerUrl"] = imageURL;
 		state.adminSettingsDirty = true;
 		showToast("Баннер загружен. Сохраните изменения.", "success");
 	} catch (error) {

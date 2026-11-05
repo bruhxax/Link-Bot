@@ -1,3 +1,5 @@
+export const LEGAL_ARTICLES_MODIFIED_AT = "2026-10-21T17:43:15Z";
+
 export const TERMS_ARTICLE = {
   ru: {
     title: "Пользовательское соглашение",

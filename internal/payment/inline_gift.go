@@ -11,6 +11,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
+	"link-bot/internal/config"
 	"link-bot/internal/database"
 )
 
@@ -27,6 +28,15 @@ func InlineGiftBannerURL(configured, miniAppURL string) string {
 		return ""
 	}
 	return base.ResolveReference(&url.URL{Path: configured}).String()
+}
+
+func InlineGiftMessagePreview(configured, miniAppURL string) *models.LinkPreviewOptions {
+	url := InlineGiftBannerURL(configured, miniAppURL)
+	if url == "" {
+		return nil
+	}
+	yes := true
+	return &models.LinkPreviewOptions{URL: &url, PreferLargeMedia: &yes, ShowAboveText: &yes}
 }
 
 func (s PaymentService) publishInlineGift(ctx context.Context, purchase *database.Purchase, sender *database.Customer) error {
@@ -76,6 +86,7 @@ func (s PaymentService) publishInlineGift(ctx context.Context, purchase *databas
 		_, err = s.telegramBot.EditMessageText(ctx, &bot.EditMessageTextParams{
 			InlineMessageID: draft.InlineMessageID, Text: caption,
 			ParseMode: models.ParseModeHTML, ReplyMarkup: keyboard,
+			LinkPreviewOptions: InlineGiftMessagePreview(settings.BannerURL, config.GetMiniAppURL()),
 		})
 	}
 	if err != nil {
