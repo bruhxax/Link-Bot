@@ -31,7 +31,8 @@ func TestNormalizePremiumEmojiUsesStickerFallback(t *testing.T) {
 			PendingText: `<strong><tg-emoji emoji-id="5409160577987679547">🥲</tg-emoji> Подарок</strong>`,
 			Text:        `<tg-emoji emoji-id="5409160577987679547">🎁</tg-emoji> Оплачен`,
 		}},
-		Copy: map[string]map[string]string{"ru": {"greeting": `<tg-emoji emoji-id="5409160577987679547">🥲</tg-emoji> Привет`}},
+		Copy:        map[string]map[string]string{"ru": {"greeting": `<tg-emoji emoji-id="5409160577987679547">🥲</tg-emoji> Привет`}},
+		StartTextRU: `<tg-emoji emoji-id="5258200019495821936">☺️</tg-emoji> Текст`,
 	}}
 	if err := service.normalizePremiumEmoji(context.Background(), &settings); err != nil {
 		t.Fatal(err)
@@ -41,6 +42,9 @@ func TestNormalizePremiumEmojiUsesStickerFallback(t *testing.T) {
 	}
 	if strings.Contains(settings.Content.Copy["ru"]["greeting"], "🥲") {
 		t.Fatalf("nested text was not corrected: %q", settings.Content.Copy["ru"]["greeting"])
+	}
+	if settings.Content.StartTextRU != "☺️ Текст" {
+		t.Fatalf("unavailable sticker was not removed: %q", settings.Content.StartTextRU)
 	}
 	if err := service.normalizePremiumEmoji(context.Background(), &settings); err != nil {
 		t.Fatal(err)

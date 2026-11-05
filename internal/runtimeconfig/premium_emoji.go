@@ -82,7 +82,9 @@ func (s *Service) normalizePremiumEmoji(ctx context.Context, settings *Settings)
 			}
 			for _, id := range pending[start:end] {
 				if s.emojiAlts[id] == "" {
-					return fmt.Errorf("Telegram does not recognize premium emoji ID %s", id)
+					// Deleted or inaccessible stickers cannot become message entities.
+					// Preserve the visible fallback instead of keeping a broken tag.
+					s.emojiAlts[id] = ""
 				}
 			}
 		}
@@ -90,7 +92,13 @@ func (s *Service) normalizePremiumEmoji(ctx context.Context, settings *Settings)
 	visitPremiumEmojiStrings(reflect.ValueOf(settings), func(value string) string {
 		return premiumEmojiHTMLTag.ReplaceAllStringFunc(value, func(tag string) string {
 			parts := premiumEmojiHTMLTag.FindStringSubmatch(tag)
-			if len(parts) != 5 || s.emojiAlts[parts[2]] == "" || strings.TrimSpace(parts[3]) == s.emojiAlts[parts[2]] {
+			if len(parts) != 5 {
+				return tag
+			}
+			if s.emojiAlts[parts[2]] == "" {
+				return parts[3]
+			}
+			if strings.TrimSpace(parts[3]) == s.emojiAlts[parts[2]] {
 				return tag
 			}
 			return parts[1] + s.emojiAlts[parts[2]] + parts[4]

@@ -38,7 +38,7 @@
   "share_referral_button": "Share!",
   "web_app_button_text": "Dashboard",
   "support_chat_button_text": "Support chat",
-  "required_channel_subscription_text": "<tg-emoji emoji-id=\"5895713431264170680\">🔔</tg-emoji> Пожалуйста, подпишитесь на наш канал, чтобы следить за новостями.",
+  "required_channel_subscription_text": "<tg-emoji emoji-id=\"5206222720416643915\">🔔</tg-emoji> Пожалуйста, подпишитесь на наш канал, чтобы следить за новостями.",
   "required_channel_subscription_confirm_button": "✅ I subscribed",
   "required_channel_subscription_required_notice": "Subscribe to the channel to continue",
   "required_channel_subscription_not_subscribed": "Subscription was not found yet",

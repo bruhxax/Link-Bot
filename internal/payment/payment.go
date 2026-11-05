@@ -2164,7 +2164,7 @@ func buildReferralBonusGrantedText(langCode, eventType string, days, trafficGB i
 	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(langCode)), "fa") {
 		return fmt.Sprintf("پاداش دعوت برای %s ثبت شد: %s.", eventFA, rewardFA)
 	}
-	return fmt.Sprintf("<tg-emoji emoji-id='5258362837411045098'>☺️</tg-emoji> Вам начислена награда за %s: %s.", eventRU, rewardRU)
+	return fmt.Sprintf("☺️ Вам начислена награда за %s: %s.", eventRU, rewardRU)
 }
 
 func referralRewardSummary(days, trafficGB int, balanceCents int64, daysUnit, trafficUnit, moneyUnit string) string {
