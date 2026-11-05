@@ -39,6 +39,19 @@ func (pr *PurchaseRepository) FindInlineGift(ctx context.Context, id uuid.UUID) 
 	return &item, nil
 }
 
+func (pr *PurchaseRepository) FindInlineGiftByMessageID(ctx context.Context, inlineMessageID string) (*InlineGift, error) {
+	var item InlineGift
+	err := pr.pool.QueryRow(ctx, `SELECT id, sender_telegram_id, plan_id, inline_message_id, has_banner, purchase_id FROM inline_gift WHERE inline_message_id = $1`, inlineMessageID).
+		Scan(&item.ID, &item.SenderTelegramID, &item.PlanID, &item.InlineMessageID, &item.HasBanner, &item.PurchaseID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
 func (pr *PurchaseRepository) GetOrCreateInlineGift(ctx context.Context, item InlineGift) (*InlineGift, error) {
 	_, err := pr.pool.Exec(ctx, `INSERT INTO inline_gift (id, sender_telegram_id, plan_id, inline_message_id, has_banner)
 		VALUES ($1, $2, $3, $4, $5) ON CONFLICT (inline_message_id) DO NOTHING`, item.ID, item.SenderTelegramID, item.PlanID, item.InlineMessageID, item.HasBanner)

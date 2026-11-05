@@ -124,6 +124,7 @@ func main() {
 			models.AllowedUpdateCallbackQuery,
 			models.AllowedUpdatePreCheckoutQuery,
 			models.AllowedUpdateInlineQuery,
+			models.AllowedUpdateChosenInlineResult,
 		}),
 		bot.WithMiddlewares(handler.UserActivityMiddleware(customerRepository)),
 	}
@@ -239,6 +240,7 @@ func main() {
 
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypePrefix, h.StartCommandHandler, h.SuspiciousUserFilterMiddleware)
 	b.RegisterHandlerMatchFunc(func(update *models.Update) bool { return update.InlineQuery != nil }, h.InlineGiftQueryHandler)
+	b.RegisterHandlerMatchFunc(func(update *models.Update) bool { return update.ChosenInlineResult != nil }, h.InlineGiftChosenHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "ig:pay:", bot.MatchTypePrefix, h.InlineGiftPayHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "sm:", bot.MatchTypePrefix, h.StartSubmenuCallbackHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "ia:", bot.MatchTypePrefix, h.InlineAdminActionHandler)

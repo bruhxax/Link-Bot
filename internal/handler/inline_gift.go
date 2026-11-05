@@ -19,6 +19,7 @@ import (
 	"link-bot/internal/database"
 	"link-bot/internal/payment"
 	"link-bot/internal/plans"
+	"link-bot/internal/runtimeconfig"
 )
 
 func inlineGiftPlanKey(planID string) string {
@@ -28,6 +29,25 @@ func inlineGiftPlanKey(planID string) string {
 
 func inlineGiftPendingText(template, planTitle, sender string) string {
 	return strings.NewReplacer("{plan}", html.EscapeString(planTitle), "{sender}", html.EscapeString(sender)).Replace(template)
+}
+
+func inlineGiftPayKeyboard(senderID int64, planID, buttonText string) models.InlineKeyboardMarkup {
+	return models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
+		{Text: buttonText, CallbackData: fmt.Sprintf("ig:pay:%d:%s:t", senderID, inlineGiftPlanKey(planID))},
+	}}}
+}
+
+func editPendingInlineGift(ctx context.Context, b *bot.Bot, inlineMessageID string, senderID int64, planID, title, sender, miniAppURL string, settings runtimeconfig.TelegramInlineGiftSettings) error {
+	// Force a content edit without changing the visible message.
+	caption := inlineGiftPendingText(settings.PendingText, title, sender) + "\u2060"
+	_, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
+		InlineMessageID:    inlineMessageID,
+		Text:               caption,
+		ParseMode:          models.ParseModeHTML,
+		LinkPreviewOptions: payment.InlineGiftMessagePreview(settings.BannerURL, miniAppURL),
+		ReplyMarkup:        inlineGiftPayKeyboard(senderID, planID, settings.PayButtonText),
+	})
+	return err
 }
 
 func (h *Handler) InlineGiftQueryHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -102,9 +122,7 @@ func (h *Handler) InlineGiftQueryHandler(ctx context.Context, b *bot.Bot, update
 		} else if plan.OriginalPriceRub > plan.PriceRub {
 			price = fmt.Sprintf("%d ₽ · было %d ₽", plan.PriceRub, plan.OriginalPriceRub)
 		}
-		keyboard := models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
-			{Text: settings.PayButtonText, CallbackData: fmt.Sprintf("ig:pay:%d:%s:t", query.From.ID, inlineGiftPlanKey(plan.ID))},
-		}}}
+		keyboard := inlineGiftPayKeyboard(query.From.ID, plan.ID, settings.PayButtonText)
 		results = append(results, &models.InlineQueryResultArticle{ID: plan.ID, Title: title, Description: price,
 			ThumbnailURL: previewURL,
 			InputMessageContent: models.InputTextMessageContent{MessageText: caption, ParseMode: models.ParseModeHTML,
@@ -117,6 +135,53 @@ func (h *Handler) InlineGiftQueryHandler(ctx context.Context, b *bot.Bot, update
 	}
 	if _, err := b.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{InlineQueryID: query.ID, Results: results, IsPersonal: true, CacheTime: 1, NextOffset: nextOffset}); err != nil {
 		slog.Error("inline gift query failed", "error", err)
+	}
+}
+
+// The chosen inline result is initially sent by the user's Telegram client.
+// Refreshing its text through the bot makes Telegram apply the same custom
+// emoji entities that are already applied when the paid gift is published.
+// ChosenInlineResult updates require 100% inline feedback in @BotFather.
+func (h *Handler) InlineGiftChosenHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
+	chosen := update.ChosenInlineResult
+	if chosen == nil || chosen.InlineMessageID == "" || h.runtimeSettings == nil {
+		return
+	}
+	if _, adminCommand := parseInlineAdminCommand(chosen.Query); adminCommand {
+		return
+	}
+	var selected *plans.CheckoutPlan
+	for _, plan := range h.runtimeSettings.CheckoutPlans() {
+		if plan.ID == chosen.ResultID && (plan.PriceRub > 0 || plan.PriceStars > 0) {
+			selected = &plan
+			break
+		}
+	}
+	if selected == nil {
+		return
+	}
+	if h.purchaseRepository == nil {
+		return
+	}
+	if draft, err := h.purchaseRepository.FindInlineGiftByMessageID(ctx, chosen.InlineMessageID); err != nil {
+		slog.Warn("inline gift pending message lookup failed", "error", err)
+		return
+	} else if draft != nil {
+		// The payment flow already owns this message; do not restore its old button.
+		return
+	}
+	settings := h.runtimeSettings.Snapshot().Content.Gift.Inline
+	title := h.runtimeSettings.PlanTitle(selected.ID, chosen.From.LanguageCode)
+	if title == "" {
+		title = selected.Name
+	}
+	senderName := "пользователь"
+	if chosen.From.Username != "" {
+		senderName = "@" + chosen.From.Username
+	}
+	err := editPendingInlineGift(ctx, b, chosen.InlineMessageID, chosen.From.ID, selected.ID, title, senderName, config.GetMiniAppURL(), settings)
+	if err != nil {
+		slog.Warn("inline gift pending message refresh failed", "error", err)
 	}
 }
 
