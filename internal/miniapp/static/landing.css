@@ -230,3 +230,12 @@ h2{margin:0 0 9px;font-size:clamp(26px,4vw,40px);line-height:1.2;font-weight:700
 @media(max-width:620px){.legal-footer{gap:8px;padding-bottom:calc(25px + env(safe-area-inset-bottom,0px))}.legal-footer__button{font-size:10px;padding:8px 10px}.legal-screen{width:100%;height:100dvh;max-height:100dvh;border-radius:0;border:0}.legal-screen__header{padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px}.legal-article{padding:24px 22px calc(36px + env(safe-area-inset-bottom,0px));font-size:12px}.legal-article h2{font-size:15px}}
 @media(prefers-reduced-motion:reduce){.legal-screen[open]{animation:none}.legal-footer__button{transition:none}}
 @media(prefers-reduced-transparency:reduce){:root[data-glass="on"] :where(.legal-screen,.legal-footer__button){background:var(--surface);backdrop-filter:none;-webkit-backdrop-filter:none}}
+
+/* The connection pill uses the exact navigation material and follows its size. */
+.site-header .protection-banner.nav-shell{display:flex;grid-template-columns:none;align-items:center;justify-content:center;gap:8px;width:max-content;max-width:calc(100% - 32px);min-height:0;padding:8px 15px;border-radius:22px;font-size:11px;line-height:1.65;text-align:center;pointer-events:none;overflow-wrap:anywhere;white-space:pre-wrap}
+.site-header .protection-banner[hidden]{display:none}
+.protection-banner__dot{display:block;width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:var(--danger);box-shadow:0 0 9px color-mix(in srgb,var(--danger) 24%,transparent)}
+.protection-banner[data-protected=true] .protection-banner__dot{background:var(--success);box-shadow:0 0 9px color-mix(in srgb,var(--success) 24%,transparent)}
+@media(max-width:620px){.site-header .protection-banner.nav-shell{font-size:10px;padding:7px 12px;gap:7px}}
+
+.hero{padding-top:max(128px,var(--landing-header-space,128px))}

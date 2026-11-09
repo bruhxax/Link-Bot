@@ -824,6 +824,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	})
 
 	mux.HandleFunc("/api/site/landing", h.handleLandingData)
+	mux.HandleFunc("/api/site/protection", h.handleLandingProtection)
+	mux.HandleFunc("/api/mini-app/admin/interactive/nodes", h.withSession(h.handleInteractiveNodes))
 	mux.HandleFunc("/api/remnawave/webhook", h.handleRemnawaveSecurityWebhook)
 	mux.HandleFunc("/api/mini-app/public-config", h.handlePublicConfig)
 	mux.HandleFunc("/api/mini-app/auth/telegram/qr/start", h.handleStartTelegramQRLogin)
@@ -991,6 +993,7 @@ func (h *Handler) handlePublicConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	settings.HiddenServerNodes = nil
 	settings.Torrents = runtimeconfig.TorrentSettings{}
+	settings.Interactive = runtimeconfig.InteractiveSettings{}
 	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": settings})
 }
 
@@ -3144,7 +3147,7 @@ func (h *Handler) handleAdminSettingsUpdate(w http.ResponseWriter, r *http.Reque
 	if h.realtime != nil {
 		h.realtime.publish()
 	}
-	if h.translation != nil {
+	if req.Section != "interactive" && h.translation != nil {
 		h.translation.SetActiveLanguage(settings.Localization.Language)
 		h.applyTelegramLocalization(r.Context())
 	}
@@ -4673,6 +4676,9 @@ func (h *Handler) buildBootstrapResponseMode(ctx context.Context, sess *session,
 
 	referralInviteURL := buildReferralInviteURL(customer.TelegramID, referralEnabled)
 	runtimeForUser := settings
+	if !sess.canAdmin("interactive") {
+		runtimeForUser.Interactive = runtimeconfig.InteractiveSettings{}
+	}
 	if !sess.canAdmin("torrents") {
 		runtimeForUser.Torrents = runtimeconfig.TorrentSettings{}
 	}

@@ -22,6 +22,7 @@ type adminPermission struct {
 }
 
 var adminPermissions = []adminPermission{
+	{"interactive", "Интерактив", "Интерфейс", nil},
 	{"abuses", "Абузы", "Операции", nil},
 	{"torrents", "Торренты", "Операции", nil},
 	{"status", "Статус", "Система", nil}, {"localization", "Язык и шрифт", "Система", nil},
@@ -147,6 +148,7 @@ func (h *Handler) HasAdminPermission(ctx context.Context, telegramID int64, perm
 }
 
 var adminSettingsFields = map[string][]string{
+	"interactive":  {"interactive"},
 	"torrents":     {"torrents"},
 	"localization": {"localization"}, "maintenance": {"maintenance"}, "features": {"features", "nodeMonitor"},
 	"content": {"content", "panel"}, "appearance": {"appearance"}, "layout": {"layout"}, "subpage": {"subPage"},
@@ -167,6 +169,8 @@ func adminRouteAllowed(a adminAccess, path string) bool {
 	}
 	route := strings.TrimPrefix(path, "/api/mini-app/admin/")
 	switch route {
+	case "interactive/nodes":
+		return a.can("interactive")
 	case "abuses/scan":
 		return a.can("abuses")
 	case "torrents/reports":
@@ -389,6 +393,9 @@ func mergeAdminSettings(current, next runtimeconfig.Settings, section string) (r
 }
 
 func adminSettingsForAccess(settings runtimeconfig.Settings, access adminAccess) runtimeconfig.Settings {
+	if !access.can("interactive") {
+		settings.Interactive = runtimeconfig.InteractiveSettings{}
+	}
 	if !access.can("torrents") {
 		settings.Torrents = runtimeconfig.TorrentSettings{}
 	}

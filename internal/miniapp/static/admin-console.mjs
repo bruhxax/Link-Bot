@@ -57,6 +57,7 @@ const CONSOLE_ROUTES = [
     ["moynalog", "Мой налог", "My Tax", "adminIntegrations", "moynalog"],
   ]],
   ["Интерфейс", "Interface", [
+ ["interactive","Интерактив","Interactive","shield","interactive"],
     ["content", "Редактор контента", "Content editor", "adminContent", "content"],
     ["appearance", "Оформление кабинета", "Cabinet appearance", "adminAppearance", "appearance"],
 
@@ -81,7 +82,7 @@ const allConsoleRoutes = CONSOLE_ROUTES.flatMap(group=>group[2]);
 export const CONSOLE_GROUPS = [
   ["Управление","Management",["users","torrents","abuses","partners","broadcast","promocodes","referrals","finance","analytics"]],
   ["Поддержка","Support",["support","reviews","content","ai"]],
-  ["Настройки","Settings",["subscriptions","plans","servers","appearance","layout","subpage","integrations","moynalog","administrators","localization","status","diagnostics","features","trial","grace","maintenance","push"]],
+  ["Настройки","Settings",["subscriptions","plans","servers","appearance","interactive","layout","subpage","integrations","moynalog","administrators","localization","status","diagnostics","features","trial","grace","maintenance","push"]],
 ].map(([ru,en,ids])=>[ru,en,ids.map(id=>allConsoleRoutes.find(route=>route[0]===id))]);
 
 export function consoleRoute(id) {

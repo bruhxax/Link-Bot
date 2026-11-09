@@ -57,6 +57,7 @@ export function decorateSeasonalSurfaces(root = document) {
 }
 
 function normalize(settings = {}) {
+  settings ||= {};
   const mode = ["winter", "halloween"].includes(settings.mode) ? settings.mode : "off";
   return {
     mode,

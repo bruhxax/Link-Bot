@@ -314,6 +314,13 @@
     }, { rootMargin: "-20% 0px -65% 0px" });
     document.querySelectorAll("main .section[id]").forEach((section) => navObserver.observe(section));
   }
+  const protectionBanner=$("protection-banner");
+  if(protectionBanner){
+   import(`/mini-app/landing-protection.mjs?v=${encodeURIComponent(assetVersion)}`).then(({createProtectionBanner})=>{
+    const banner=createProtectionBanner(protectionBanner,document.querySelector('nav.nav-shell'));
+    banner.show();window.addEventListener('pageshow',event=>{if(event.persisted)banner.show();});
+   }).catch(()=>{});
+  }
   loadLanding();
   window.setInterval(() => { if (!document.hidden) loadLanding(); }, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) loadLanding(); });

@@ -1,3 +1,4 @@
+import {defaultInteractive,interactiveText,renderInteractiveEditor} from "./interactive-editor.mjs";
 import { mergeUserActivity, renderUserActivity } from "./user-activity.mjs";
 import {createTorrentController,renderTorrentWorkspace,torrentTemplatePreview,torrentSample} from "./torrents.mjs";
 import {createTorrentAutosave} from "./torrent-autosave.mjs";
@@ -4194,7 +4195,7 @@ function getBottomNavPages() {
 	return pages.filter((page) => PAGES.includes(page) && (page !== "admin" || isAdminUser()) && pageFeatureEnabled(page));
 }
 
-const ADMIN_SAVE_SECTIONS = new Set(["landing", "cursors", "localization", "maintenance", "features", "subpage", "content", "appearance", "layout", "plans", "trial", "referrals", "grace", "moynalog", "ai"]);
+const ADMIN_SAVE_SECTIONS = new Set(["interactive","landing", "cursors", "localization", "maintenance", "features", "subpage", "content", "appearance", "layout", "plans", "trial", "referrals", "grace", "moynalog", "ai"]);
 let lastBottomDockMode = "navigation";
 
 function adminEditorSaveState() {
@@ -5065,6 +5066,7 @@ function renderAdminPage() {
 	if (state.adminSection === "subpage") return renderAdminSubPagePage();
 	if (state.adminSection === "content") return renderAdminContentPage();
 	if (state.adminSection === "appearance") return renderAdminAppearancePage();
+ if(state.adminSection==="interactive")return renderAdminInteractivePage();
 	if (state.adminSection === "layout") return renderAdminLayoutPage();
 	if (state.adminSection === "plans") return renderAdminPlansPage();
 	if (state.adminSection === "trial") return renderAdminTrialPage();
@@ -5102,6 +5104,7 @@ function renderAdminPage() {
 				[localizedText("Редактор контента", "Content", "ویرایشگر محتوا"), "", "content", "adminContent"],
 				["Sub page", "", "subpage", "adminSubscriptions"],
 				[localizedText("Оформление", "Appearance", "ظاهر"), "", "appearance", "adminAppearance"],
+ ["Интерактив","","interactive","shield"],
 				[localizedText("Конструктор UI", "UI builder", "سازنده رابط"), "", "layout", "grid"],
 				[localizedText("Тарифы", "Plans", "تعرفه‌ها"), "", "plans", "cartShopping"],
 			])}
@@ -5125,6 +5128,7 @@ let adminSettingsSearchCatalog = null;
 let adminSettingsSearchResults = [];
 
 const ADMIN_SEARCH_SECTIONS = [
+ ["interactive","Интерактив","лендинг ip защита ноды статус плашка"],
 	["torrents", "Торренты", "torrent блокировка ip нода уведомления шаблоны"],
 	["abuses", "Абузы", "шаринг ip hwid триал пробные подписки блокировка"],
 	["status", "Статус", "бот панель версия обновление память время работы"],
@@ -13210,7 +13214,9 @@ function bindRootActions() {
 			if (action === "admin-logo-reset") return resetAdminLogo();
 			if (action === "admin-inline-gift-banner-remove") { state.adminSettingsDraft.content.gift.inline[value === "preview" ? "previewBannerUrl" : "bannerUrl"] = ""; state.adminSettingsDirty = true; render({ preserveScroll: true }); return; }
 			if (action === "admin-favicon-reset") return resetAdminFavicon();
-			if (action === "admin-save-settings") return await saveAdminSettings();
+			if(action==="interactive-import")return await importInteractiveNodes();
+ if(action==="interactive-preview"){state.interactivePreview=value;syncInteractivePreview();return;}
+ if (action === "admin-save-settings") return await saveAdminSettings();
 			if (action === "admin-content-group") {
 				const group = value === "Mini App" ? "Mini App" : "Telegram";
 				state.adminContentSection = state.adminContentLastSections?.[group] || (group === "Mini App" ? "support" : "start");
@@ -13270,6 +13276,7 @@ function bindRootActions() {
 
 	app.addEventListener("change", (event) => {
  const input = event.target;
+ if(input.dataset?.interactiveField){if(input.type==="checkbox")updateInteractiveField(input);return;}
 		if (input.dataset?.startButtonKind !== undefined) {
 			const button = ensureAdminStartButtonsDraft()[Number(input.dataset.startButtonKind)];
 			if (!button) return;
@@ -13365,6 +13372,7 @@ function bindRootActions() {
 
 	app.addEventListener("input", (event) => {
       const target = event.target;
+ if(target.dataset?.interactiveField){if(target.type!=="checkbox")updateInteractiveField(target);return;}
 		if (target.dataset?.input === "admin-theme-name") { state.adminThemePresetName = target.value; return; }
 		if (target.dataset?.input === "recurring-phone") { state.recurringPhoneDraft = target.value; return; }
 		if(target.dataset?.input==="torrent-search"){torrentWorkspace.model.query=target.value;clearTimeout(torrentSearchTimer);torrentSearchTimer=setTimeout(()=>void torrentWorkspace.load(),350);return;}
@@ -14362,6 +14370,11 @@ function insertTorrentVariable(kind,key){
 }
 
 async function saveAdminSettings() {
+ if(state.adminSection==="interactive"&&state.adminSettingsDraft?.interactive?.durationSeconds!==0){
+ const duration=app.querySelector('[data-interactive-field="durationSeconds"]');
+ if(duration&&!duration.checkValidity()){duration.reportValidity();return;}
+ }
+
 	if (state.adminSection === "ai") return await saveAdminAI();
 	if (state.adminSection === "moynalog") return await saveAdminIntegration("moynalog");
 	if (adminBackgroundBusy) return;
@@ -14377,7 +14390,7 @@ async function saveAdminSettings() {
 	state.adminBusy = "save-settings";
 	syncAdminSaveBarDOM();
 	try {
-		const response = await post("/api/mini-app/admin/settings/update", { settings: state.adminSettingsDraft, section: state.adminSection==="torrents"?"torrents":state.data?.admin?.access?.isOwner ? "" : ["landing","cursors"].includes(state.adminSection) ? "appearance" : state.adminLayoutEditing ? "layout" : state.adminPlanEditing ? "plans" : state.adminSection });
+		const response = await post("/api/mini-app/admin/settings/update", { settings: state.adminSettingsDraft, section: state.adminSection==="interactive"?"interactive":state.adminSection==="torrents"?"torrents":state.data?.admin?.access?.isOwner ? "" : ["landing","cursors"].includes(state.adminSection) ? "appearance" : state.adminLayoutEditing ? "layout" : state.adminPlanEditing ? "plans" : state.adminSection });
 		state.publicSettings = response.data;
 		if (state.data) {
 			state.data.runtime = response.data;
@@ -21277,3 +21290,40 @@ document.addEventListener("visibilitychange", refreshAfterPossibleGoogleLink);
 window.addEventListener("focus", refreshAfterPossibleGoogleLink);
 
 boot();
+
+function renderAdminInteractivePage(){
+ const cfg=state.adminSettingsDraft?.interactive||defaultInteractive();
+ return renderAdminEditorPage("Интерактив",renderInteractiveEditor(cfg,{escapeHtml,escapeAttribute,icon},{brand:state.adminSettingsDraft?.content?.brandName,preview:state.interactivePreview,importing:state.interactiveImporting,error:state.interactiveError,notice:state.interactiveNotice}));
+}
+function syncInteractivePreview(){
+ const cfg=state.adminSettingsDraft?.interactive||defaultInteractive(),protectedState=state.interactivePreview!=="unprotected";
+ const text=app.querySelector('[data-interactive-preview-text]');if(text)text.textContent=interactiveText(cfg,protectedState,state.adminSettingsDraft?.content?.brandName);
+ const banner=app.querySelector('.interactive-preview-banner');if(banner)banner.dataset.protected=String(protectedState);
+ app.querySelectorAll('[data-action="interactive-preview"]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.value===(protectedState?"protected":"unprotected"))));
+ const duration=app.querySelector('[data-interactive-preview-duration]');if(duration)duration.textContent=cfg.durationSeconds===0?"Остаётся на странице":`Исчезнет через ${cfg.durationSeconds} сек.`;
+ const field=app.querySelector('[data-interactive-duration]');if(field)field.hidden=cfg.durationSeconds===0;
+ const count=app.querySelector('[data-interactive-count]');if(count)count.textContent=String(new Set(cfg.addresses||[]).size);
+}
+function updateInteractiveField(input){
+ if(!canAdmin("interactive")||!state.adminSettingsDraft)return;
+ const cfg=state.adminSettingsDraft.interactive||=defaultInteractive(),field=input.dataset.interactiveField;
+ if(field==="enabled")cfg.enabled=input.checked;
+ else if(field==="always"){if(input.checked){state.interactiveLastDuration=cfg.durationSeconds||8;cfg.durationSeconds=0;}else cfg.durationSeconds=state.interactiveLastDuration||8;}
+ else if(field==="durationSeconds"){const n=Number(input.value);if(!Number.isInteger(n)||n<1||n>3600)return;cfg.durationSeconds=n;}
+ else if(field==="addresses")cfg.addresses=input.value.split(/[\s,;]+/).map(x=>x.trim()).filter(Boolean);
+ else if(["protectedText","unprotectedText"].includes(field))cfg[field]=input.value;
+ else return;
+ state.adminSettingsDirty=true;syncAdminSaveBarDOM();syncInteractivePreview();
+}
+async function importInteractiveNodes(){
+ if(!canAdmin("interactive")||state.interactiveImporting)return;
+ state.interactiveImporting=true;state.interactiveError="";state.interactiveNotice="";render({preserveScroll:true});
+ try{
+ const {data}=await post("/api/mini-app/admin/interactive/nodes",{});
+ const cfg=state.adminSettingsDraft.interactive||=defaultInteractive(),before=new Set(cfg.addresses||[]);
+ cfg.addresses=[...new Set([...(cfg.addresses||[]),...(data.addresses||[])])];state.adminSettingsDirty=true;
+ const added=cfg.addresses.length-before.size;
+ state.interactiveNotice=`Добавлено адресов: ${added}. Сохраните изменения.`+(data.unresolved?.length?` Не удалось определить IP: ${data.unresolved.join(", ")}.`:"");
+ }catch(error){state.interactiveError=error.message||"Не удалось получить адреса из панели";}
+ finally{state.interactiveImporting=false;render({preserveScroll:true});}
+}

@@ -78,6 +78,7 @@ func DefaultPaymentMethodOrder() []string {
 }
 
 type Settings struct {
+	Interactive           InteractiveSettings             `json:"interactive"`
 	Torrents              TorrentSettings                 `json:"torrents"`
 	ReviewRewards         ReviewRewardSettings            `json:"reviewRewards"`
 	Version               int                             `json:"version"`
@@ -604,6 +605,7 @@ func DefaultSettings() Settings {
 	}
 
 	settings := Settings{
+		Interactive:        DefaultInteractiveSettings(),
 		Version:            CurrentVersion,
 		ReviewRewards:      DefaultReviewRewards(),
 		PaymentMethodOrder: DefaultPaymentMethodOrder(),
@@ -1391,6 +1393,9 @@ func NormalizeAndValidate(settings *Settings) error {
 		return errors.New("settings are required")
 	}
 	defaults := DefaultSettings()
+	if err := NormalizeInteractive(&settings.Interactive); err != nil {
+		return err
+	}
 	previousVersion := settings.Version
 	if err := ValidateTorrentSettings(&settings.Torrents); err != nil {
 		return err

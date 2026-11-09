@@ -9,7 +9,7 @@ export const ADMIN_SECTIONS = Object.freeze([
   "abuses",
   "home", "users", "subscriptions", "plans", "servers", "support", "reviews", "administrators",
   "finance", "analytics", "promocodes", "referrals", "partners", "broadcast", "integrations", "moynalog",
-  "content", "appearance", "landing", "cursors", "layout", "subpage", "localization", "status", "diagnostics", "features",
+  "interactive", "content", "appearance", "landing", "cursors", "layout", "subpage", "localization", "status", "diagnostics", "features",
   "trial", "grace", "maintenance", "ai", "push", "smtp",
 ]);
 
