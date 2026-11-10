@@ -372,7 +372,7 @@ function attributes(node) {
 function TorrentWorkspace({node}) {
   const ref=useRef(null),markup=node.outerHTML;
   useLayoutEffect(()=>{ref.current?.replaceChildren(node.cloneNode(true));},[markup]);
-  return <div ref={ref} className="rn-torrent-workspace" />;
+  return <div ref={ref} className={node.matches(".interactive-editor")?"rn-interactive-workspace":"rn-torrent-workspace"} />;
 }
 function convert(node, key) {
   if (node.nodeType === 3) return node.textContent;
@@ -380,7 +380,7 @@ function convert(node, key) {
   const tag = node.tagName.toLowerCase(),
     p = attributes(node);
   p.key = key;
-  if(node.matches('.torrent-workspace,.ab-workspace')) return <TorrentWorkspace key={key} node={node} />;
+  if(node.matches('.torrent-workspace,.ab-workspace,.interactive-editor')) return <TorrentWorkspace key={key} node={node} />;
   if (tag === "script" || tag === "style") return null;
   if (
     node.matches(

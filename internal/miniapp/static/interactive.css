@@ -1,276 +1,161 @@
 .interactive-editor {
-  display: grid;
-  gap: 16px;
-  max-width: 1120px;
-  margin: auto;
+  max-width: 620px;
+  width: 100%;
+  margin: 0 auto;
 }
-.interactive-card {
-  display: grid;
-  gap: 16px;
-  padding: 20px;
+.interactive-panel {
+  min-width: 0;
   border: 1px solid var(--line-soft);
-  border-radius: 16px;
-  background: var(--surface);
-  min-width: 0;
-}
-.interactive-card h3 {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.5;
-}
-.interactive-card p {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.65;
-}
-.interactive-intro {
-  grid-template-columns: 40px minmax(0, 1fr) auto;
-  align-items: center;
-}
-.interactive-card__icon {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  background: var(--accent-soft);
-  color: var(--accent);
   border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
 }
-.interactive-card__icon svg {
-  width: 22px;
-  height: 22px;
-}
-.interactive-columns {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-  align-items: start;
-  gap: 16px;
-}
-.interactive-settings {
-  display: grid;
-  gap: 16px;
-  min-width: 0;
-}
-.interactive-heading {
+#app .interactive-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
+  width: 100%;
+  min-height: 48px;
+  margin: 0;
+  padding: 13px 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
 }
-.interactive-count {
+.interactive-chevron {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  background: var(--icon-color, var(--muted));
+  mask: var(--select-chevron-mask) center/contain no-repeat;
+  -webkit-mask: var(--select-chevron-mask) center/contain no-repeat;
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.interactive-panel[data-open="true"] .interactive-chevron {
+  transform: rotate(180deg);
+}
+.interactive-collapse {
   display: grid;
-  place-items: center;
-  min-width: 30px;
-  height: 30px;
-  padding: 4px;
-  border-radius: 9px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 12px;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease;
+}
+.interactive-panel[data-open="true"] .interactive-collapse {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.interactive-collapse__clip {
+  min-height: 0;
+  overflow: hidden;
+}
+#app .interactive-fields {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  margin: 0;
+  padding: 0 16px 16px;
+  border: 0;
 }
 .interactive-field {
   display: grid;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--muted);
+  gap: 7px;
   min-width: 0;
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
 }
 .interactive-field[hidden] {
   display: none;
 }
-.interactive-field :is(input, textarea) {
+#app .interactive-field :is(input, textarea) {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  padding: 12px 14px;
+  padding: 10px 12px;
   border: 1px solid var(--line-soft);
-  border-radius: 11px;
+  border-radius: 9px;
   background: var(--control-bg);
   color: var(--text);
   font: inherit;
+  font-size: 12px;
   line-height: 1.6;
   resize: vertical;
 }
 .interactive-field [data-interactive-field="addresses"] {
-  font-family: ui-monospace, monospace;
+  font-family: ui-monospace, monospace !important;
 }
-.interactive-field :is(input, textarea):focus-visible {
+#app .interactive-field :is(input, textarea):focus-visible,
+.interactive-trigger:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-.interactive-button {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  min-height: 42px;
-  padding: 10px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--accent-soft);
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.interactive-button svg {
-  width: 17px;
-  height: 17px;
-}
-.interactive-button:disabled {
-  opacity: 0.5;
-  cursor: wait;
+  outline-offset: -2px;
 }
 .interactive-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  font-size: 13px;
-  cursor: pointer;
-}
-.interactive-switch {
-  display: block;
-  cursor: pointer;
-}
-.interactive-switch span {
-  display: none;
-}
-.interactive-card .interactive-note {
-  font-size: 11px;
-}
-.interactive-card .interactive-error {
-  color: var(--danger);
-}
-.interactive-preview {
-  position: sticky;
-  top: 20px;
-}
-.interactive-preview-tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  padding: 4px;
-  border-radius: 10px;
-  background: var(--control-bg);
-  gap: 4px;
-}
-.interactive-preview-tabs button {
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  padding: 9px;
-  font: inherit;
+  gap: 14px;
+  min-height: 30px;
+  margin: 0;
+  color: var(--text);
   font-size: 12px;
   cursor: pointer;
 }
-.interactive-preview-tabs [aria-pressed="true"] {
-  background: var(--surface);
+#app .interactive-import {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  gap: 7px;
+  min-height: 34px;
+  margin: 0;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--control-bg);
   color: var(--text);
-}
-.interactive-preview-stage {
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  gap: 10px;
-  padding: 24px 14px 36px;
-  background: var(--bg);
-  border-radius: 12px;
-  min-width: 0;
-}
-.interactive-preview-menu {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 44px;
-  padding: 10px 14px;
-  border: 1px solid var(--line-soft);
-  border-radius: 999px;
-  background: var(--surface);
-  box-shadow: 0 10px 25px #0002;
+  font: inherit;
   font-size: 11px;
+  cursor: pointer;
 }
-.interactive-preview-menu strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.interactive-preview-menu > span {
-  display: flex;
-  gap: 14px;
-}
-.interactive-preview-menu svg {
+.interactive-import svg {
   width: 15px;
   height: 15px;
 }
-.interactive-preview-banner {
-  display: flex;
+.interactive-import:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.interactive-divider {
+  height: 1px;
+  background: var(--line-soft);
+  margin: 2px 0;
+}
+.interactive-duration {
+  grid-template-columns: minmax(0, 1fr) 92px;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  max-width: 100%;
-  width: fit-content;
-  padding: 9px 15px;
-  border: 1px solid var(--line-soft);
-  border-radius: 20px;
-  background: var(--surface);
-  box-shadow: 0 10px 25px #0002;
-  font-size: 10px;
-  line-height: 1.6;
-  text-align: center;
+}
+.interactive-feedback {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
 }
-.interactive-status-dot {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 6px;
-  border-radius: 50%;
-  background: var(--danger);
+.interactive-feedback--error {
+  color: var(--danger);
 }
-[data-protected="true"] > .interactive-status-dot {
-  background: var(--success);
-}
-.interactive-preview-lines {
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-  width: 100%;
-  padding-top: 36px;
-  opacity: 0.2;
-}
-.interactive-preview-lines i {
-  height: 8px;
-  width: 80%;
-  border-radius: 5px;
-  background: var(--muted);
-}
-.interactive-preview-lines i:nth-child(2) {
-  width: 60%;
-}
-.interactive-preview-lines i:nth-child(3) {
-  width: 35%;
-}
-@media (max-width: 760px) {
-  .interactive-columns {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .interactive-preview {
-    position: static;
-    grid-row: 1;
-  }
-  .interactive-card {
-    padding: 16px;
-  }
-  .interactive-intro {
-    grid-template-columns: 32px minmax(0, 1fr) auto;
-    gap: 10px;
-  }
-  .interactive-card__icon {
-    width: 32px;
-    height: 32px;
+@media (prefers-reduced-motion: reduce) {
+  .interactive-collapse,
+  .interactive-chevron {
+    transition: none;
   }
 }
