@@ -125,27 +125,13 @@ func (pr *PurchaseRepository) LockForProcessing(ctx context.Context, purchaseID 
 		return nil, fmt.Errorf("invalid purchase id: %d", purchaseID)
 	}
 
-	conn, err := pr.pool.Acquire(ctx)
+	release, err := acquireSessionLock(ctx, pr.pool,
+		"SELECT pg_try_advisory_lock($1)", "SELECT pg_advisory_unlock($1)",
+		purchaseProcessingLockBase+purchaseID)
 	if err != nil {
-		return nil, fmt.Errorf("acquire purchase processing connection: %w", err)
-	}
-
-	lockKey := purchaseProcessingLockBase + purchaseID
-	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock($1)", lockKey); err != nil {
-		conn.Release()
 		return nil, fmt.Errorf("lock purchase %d for processing: %w", purchaseID, err)
 	}
-
-	return func() error {
-		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		defer conn.Release()
-
-		if _, err := conn.Exec(unlockCtx, "SELECT pg_advisory_unlock($1)", lockKey); err != nil {
-			return fmt.Errorf("unlock purchase %d after processing: %w", purchaseID, err)
-		}
-		return nil
-	}, nil
+	return release, nil
 }
 
 // LockAutoPaymentCustomer prevents two schedulers from charging the same renewal.
@@ -153,22 +139,14 @@ func (pr *PurchaseRepository) LockAutoPaymentCustomer(ctx context.Context, custo
 	if customerID <= 0 {
 		return nil, errors.New("invalid auto payment customer")
 	}
-	conn, err := pr.pool.Acquire(ctx)
+	release, err := acquireSessionLock(ctx, pr.pool,
+		"SELECT pg_try_advisory_lock(hashtextextended($1, 0))",
+		"SELECT pg_advisory_unlock(hashtextextended($1, 0))",
+		fmt.Sprintf("auto-payment:%d", customerID))
 	if err != nil {
-		return nil, fmt.Errorf("acquire auto payment connection: %w", err)
-	}
-	lockName := fmt.Sprintf("auto-payment:%d", customerID)
-	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock(hashtextextended($1, 0))", lockName); err != nil {
-		conn.Release()
 		return nil, fmt.Errorf("lock auto payment: %w", err)
 	}
-	return func() error {
-		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		defer conn.Release()
-		_, err := conn.Exec(unlockCtx, "SELECT pg_advisory_unlock(hashtextextended($1, 0))", lockName)
-		return err
-	}, nil
+	return release, nil
 }
 
 // A provider may call back before invoice creation finishes. Preserve the
@@ -192,25 +170,14 @@ func (pr *PurchaseRepository) LockFreePlanActivation(ctx context.Context, custom
 		return nil, errors.New("invalid free plan activation key")
 	}
 
-	conn, err := pr.pool.Acquire(ctx)
+	release, err := acquireSessionLock(ctx, pr.pool,
+		"SELECT pg_try_advisory_lock(hashtextextended($1, 0))",
+		"SELECT pg_advisory_unlock(hashtextextended($1, 0))",
+		fmt.Sprintf("free-plan:%d:%s", customerID, planID))
 	if err != nil {
-		return nil, fmt.Errorf("acquire free plan activation connection: %w", err)
-	}
-	lockName := fmt.Sprintf("free-plan:%d:%s", customerID, planID)
-	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock(hashtextextended($1, 0))", lockName); err != nil {
-		conn.Release()
 		return nil, fmt.Errorf("lock free plan activation: %w", err)
 	}
-
-	return func() error {
-		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		defer conn.Release()
-		if _, err := conn.Exec(unlockCtx, "SELECT pg_advisory_unlock(hashtextextended($1, 0))", lockName); err != nil {
-			return fmt.Errorf("unlock free plan activation: %w", err)
-		}
-		return nil
-	}, nil
+	return release, nil
 }
 
 func (pr *PurchaseRepository) HasSuccessfulFreePlanPurchase(ctx context.Context, customerID int64, planID string, excludePurchaseID int64) (bool, error) {

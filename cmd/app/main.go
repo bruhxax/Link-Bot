@@ -654,10 +654,11 @@ func setupInvoiceChecker(
 	customerRepository *database.CustomerRepository,
 	purchaseRepository *database.PurchaseRepository,
 	paymentService *payment.PaymentService) *cron.Cron {
-	c := cron.New(cron.WithSeconds())
+	c := cron.New(cron.WithSeconds(), cron.WithChain(cron.SkipIfStillRunning(cron.DefaultLogger)))
 
 	_, err := c.AddFunc("*/5 * * * * *", func() {
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
 		checkCryptoPayInvoice(ctx, purchaseRepository, paymentService)
 	})
 
@@ -666,7 +667,8 @@ func setupInvoiceChecker(
 	}
 
 	_, err = c.AddFunc("*/5 * * * * *", func() {
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
 		checkYookasaInvoice(ctx, purchaseRepository, paymentService)
 	})
 
@@ -675,7 +677,8 @@ func setupInvoiceChecker(
 	}
 
 	_, err = c.AddFunc("15 * * * * *", func() {
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
 		checkAutoPayments(ctx, customerRepository, paymentService)
 	})
 	if err != nil {
